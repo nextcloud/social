@@ -1,13 +1,13 @@
 <template>
-	<div id="content" class="app-vueexample">
+	<div id="content" class="app-social">
 		<div id="app-navigation">
 			<app-navigation :menu="menu">
 				<template slot="settings-content">Example settings</template>
 			</app-navigation>
 		</div>
 		<div id="app-content">
-			<div class="vueexample__container">
-				<h3>Nextcloud app example with vue components</h3>
+			<div class="social__container">
+				<h2>🎉 Nextcloud becomes part of the federated social networks!</h2>
 			</div>
 		</div>
 	</div>
@@ -57,66 +57,101 @@
 			menu: function () {
 				let defaultCategories = [
 					{
-						id: 'app-category-your-apps',
+						id: 'social-timeline',
 						classes: [],
 						href: '#',
-						icon: 'icon-category-installed',
-						text: t('settings', 'Your apps'),
+						icon: 'icon-category-monitoring',
+						text: t('social', 'Timeline'),
+					},
+					{
+						id: 'social-your-posts',
+						classes: [],
+						href: '#',
+						icon: 'icon-user',
+						text: t('social', 'Your posts'),
+					},
+					{
+						id: 'social-friends',
+						classes: [],
+						href: '#',
+						icon: 'icon-category-social',
+						text: t('social', 'Friends'),
+					},
+					{
+						id: 'social-favorites',
+						classes: [],
+						href: '#',
+						icon: 'icon-favorite',
+						text: t('social', 'Favorites'),
+					},
+					{
+						id: 'social-direct-messages',
+						classes: [],
+						href: '#',
+						icon: 'icon-comment',
+						utils: {
+							counter: 3,
+						},
+						text: t('social', 'Direct messages'),
 					},
 					{
 						caption: true,
-						text: t('vueexample', 'Section'),
+						text: t('social', 'Popular topics'),
 					},
 					{
-						id: 'app-category-enabled',
+						id: 'social-topic-nextcloud',
 						classes: [],
-						icon: 'icon-category-enabled',
+						icon: 'icon-tag',
 						href: '#',
 						utils: {
-							actions: [{
-								icon: 'icon-delete',
-								text: t('settings', 'Remove group'),
-								action: function () {
-									console.log('remove')
-								}
-							}]
-						},
-						text: t('settings', 'Active apps'),
-					},
-					{
-						id: 'app-category-enabled',
-						classes: [],
-						icon: 'icon-category-enabled',
-						href: '#',
-						utils: {
-							counter: 123,
 							actions: [
 								{
 									icon: 'icon-delete',
-									text: t('settings', 'Remove group'),
-									action: function () {
-										console.log('remove')
-									}
-								},
-								{
-									icon: 'icon-delete',
-									text: t('settings', 'Remove group'),
+									text: t('settings', 'Remove topic'),
 									action: function () {
 										console.log('remove')
 									}
 								}
 							]
 						},
-						text: t('settings', 'Active apps'),
+						text: t('settings', '#nextcloud'),
 					},
 					{
-						id: 'app-category-disabled',
+						id: 'social-topic-mastodon',
 						classes: [],
-						icon: 'icon-category-disabled',
+						icon: 'icon-tag',
 						href: '#',
-						undo: true,
-						text: t('settings', 'Disabled apps'),
-					}
+						utils: {
+							actions: [
+								{
+									icon: 'icon-delete',
+									text: t('settings', 'Remove topic'),
+									action: function () {
+										console.log('remove')
+									}
+								}
+							]
+						},
+						text: t('social', '#mastodon'),
+					},
+					{
+						id: 'social-topic-privacy',
+						classes: [],
+						icon: 'icon-tag',
+						href: '#',
+						utils: {
+							actions: [
+								{
+									icon: 'icon-delete',
+									text: t('settings', 'Remove topic'),
+									action: function () {
+										console.log('remove')
+									}
+								}
+							]
+						},
+						text: t('social', '#privacy'),
+					},
 				];
 				return {
 					items: defaultCategories,

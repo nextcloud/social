@@ -1,5 +1,5 @@
 <?php
-script('vueexample', 'vueexample');
-style('vueexample', 'style');
+script('social', 'social');
+style('social', 'style');
 ?>
 <div id="vue-content"></div>

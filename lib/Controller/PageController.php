@@ -1,5 +1,5 @@
 <?php
-namespace OCA\VueExample\Controller;
+namespace OCA\Social\Controller;
 
 use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\IL10N;
@@ -24,7 +24,7 @@ class PageController extends Controller {
 	 * @NoCSRFRequired
 	 */
 	public function index() {
-		$response = new TemplateResponse('vueexample', 'main');
+		$response = new TemplateResponse('social', 'main');
 		return $response;
 	}
 

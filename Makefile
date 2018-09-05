@@ -38,9 +38,8 @@ lint-fix:
 
 # Cleaning
 clean:
-	rm -f js/vueexample.js
-	rm -f js/vueexample.js.map
+	rm -f js/social.js
+	rm -f js/social.js.map
 
 clean-dev:
 	rm -rf node_modules
-
