@@ -2,7 +2,7 @@
 	<div id="content" class="app-social">
 		<div id="app-navigation">
 			<app-navigation :menu="menu">
-				<template slot="settings-content">Example settings</template>
+				<!--<template slot="settings-content">Settings</template>-->
 			</app-navigation>
 		</div>
 		<div id="app-content">
@@ -94,7 +94,7 @@
 						},
 						text: t('social', 'Direct messages'),
 					},
-					{
+					/*{
 						caption: true,
 						text: t('social', 'Popular topics'),
 					},
@@ -151,7 +151,7 @@
 							]
 						},
 						text: t('social', '#privacy'),
-					},
+					},*/
 				];
 				return {
 					items: defaultCategories,
