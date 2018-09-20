@@ -56,11 +56,12 @@
         console.log(JSON.stringify(data))
       },
 
-      getAccountPosts: function (accountId) {
-        test.sendRequest('GET', {}, '/user/account/' + accountId + '/posts', test.getAccountPostsResult)
+      getAccountStatuses: function (accountId) {
+        test.sendRequest('GET', {}, '/user/account/' + accountId + '/statuses',
+          test.getAccountStatusesResult)
       },
 
-      getAccountPostsResult: function (data) {
+      getAccountStatusesResult: function (data) {
         console.log('Your posts: ' + JSON.stringify(data))
       },
 
@@ -76,6 +77,7 @@
       refreshData: function () {
         var accountId = elem.socialListAccounts.val()
         test.getAccountFollows(accountId)
+        test.getAccountStatuses(accountId)
       },
 
       sendRequest: function (method, data, url, callback) {
@@ -124,8 +126,6 @@
     })
 
     test.getAccounts()
-
-//    test.getAccountPosts()
   }
 
   if (OCA.Social === undefined) {

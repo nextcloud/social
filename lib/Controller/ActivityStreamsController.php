@@ -117,11 +117,11 @@ class ActivityStreamsController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function posts(int $accountId): DataResponse {
+	public function statuses(int $accountId): DataResponse {
 		try {
 			$account = $this->serviceAccountsService->getAccount($this->userId, $accountId);
 
-			$result = $this->activityStreamsService->posts($account);
+			$result = $this->activityStreamsService->accountStatus($account);
 
 			return $this->success($result);
 		} catch (Exception $e) {
@@ -140,7 +140,7 @@ class ActivityStreamsController extends Controller {
 	public function follows(int $accountId): DataResponse {
 		try {
 			$account = $this->serviceAccountsService->getAccount($this->userId, $accountId);
-			$result = $this->activityStreamsService->follows($account);
+			$result = $this->activityStreamsService->accountFollows($account);
 
 			return $this->success($result);
 		} catch (Exception $e) {

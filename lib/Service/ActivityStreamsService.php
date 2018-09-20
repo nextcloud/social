@@ -44,7 +44,7 @@ class ActivityStreamsService {
 	const URL_CREATE_APP = '/api/v1/apps';
 	const URL_VERIFY_ACCOUNT = '/api/v1/accounts/verify_credentials';
 	const URL_TEST = '/api/v1/accounts/verify_credentials';
-	const URL_ACCOUNT_POSTS = '/api/v1/accounts/verify_credentials';
+	const URL_ACCOUNT_STATUSES = '/api/v1/accounts/:id/statuses';
 	const URL_ACCOUNT_FOLLOWS = '/api/v1/accounts/:id/following';
 	const URL_ACCOUNT_FOLLOWERS = '/api/v1/accounts/:id/followers';
 
@@ -102,8 +102,9 @@ class ActivityStreamsService {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function posts(ServiceAccount $account) {
-		$request = new Request(self::URL_ACCOUNT_POSTS, Request::TYPE_GET);
+	public function accountStatus(ServiceAccount $account) {
+		$request = new Request(self::URL_ACCOUNT_STATUSES, Request::TYPE_GET);
+		$request->addDataInt('id', $account->getAccountId());
 
 		return $this->request($account, $request);
 	}
@@ -115,7 +116,7 @@ class ActivityStreamsService {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function follows(ServiceAccount $account) {
+	public function accountFollows(ServiceAccount $account) {
 		$request = new Request(self::URL_ACCOUNT_FOLLOWS, Request::TYPE_GET);
 		$request->addDataInt('id', $account->getAccountId());
 

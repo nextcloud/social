@@ -24,7 +24,7 @@ return [
 			'verb' => 'GET'
 		],
 		[
-			'name' => 'ActivityStreams#posts', 'url' => '/user/account/{accountId}/posts',
+			'name' => 'ActivityStreams#statuses', 'url' => '/user/account/{accountId}/statuses',
 			'verb' => 'GET'
 		],
 		[
