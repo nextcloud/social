@@ -8,8 +8,29 @@
  * it's instantiated in there
  */
 return [
-    'routes' => [
-	   ['name' => 'page#index', 'url' => '/', 'verb' => 'GET'],
-	   ['name' => 'page#mail', 'url' => '/mail', 'verb' => 'GET'],
-    ]
+	'routes' => [
+		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
+
+		[
+			'name' => 'ServiceAccounts#getAvailableAccounts', 'url' => '/user/accounts',
+			'verb' => 'GET'
+		],
+		[
+			'name' => 'ServiceAccounts#create', 'url' => '/user/account',
+			'verb' => 'POST'
+		],
+		[
+			'name' => 'ActivityStreams#test', 'url' => '/user/account/{accountId}/test',
+			'verb' => 'GET'
+		],
+
+//		[
+//			'name' => 'OAuth2#getAuthUrl', 'url' => '/client/oauth2/auth/{serviceId}/',
+//			'verb' => 'GET'
+//		],
+		[
+			'name' => 'OAuth2#setCode', 'url' => '/client/oauth2/redirect/{serviceId}/',
+			'verb' => 'GET'
+		]
+	]
 ];

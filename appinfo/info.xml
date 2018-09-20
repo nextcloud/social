@@ -1,24 +1,29 @@
 <?xml version="1.0"?>
-<info xmlns:xsi= "http://www.w3.org/2001/XMLSchema-instance"
-      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
-    <id>social</id>
-    <name>Social</name>
-    <summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
-    <description><![CDATA[test]]></description>
-    <version>0.0.1</version>
-    <licence>agpl</licence>
-    <author mail="jus@bitgrid.net" >Julius Härtl</author>
-    <author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph Borchardt</author>
-    <namespace>Social</namespace>
-    <category>social</category>
-    <bugs>https://github.com/nextcloud/social</bugs>
-    <dependencies>
-        <nextcloud min-version="14" max-version="15"/>
-    </dependencies>
-    <navigations>
-        <navigation>
-            <name>Social</name>
-            <route>social.page.index</route>
-        </navigation>
-    </navigations>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>social</id>
+	<name>Social</name>
+	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
+	<description><![CDATA[test]]></description>
+	<version>0.0.9</version>
+	<licence>agpl</licence>
+	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
+	<author mail="jus@bitgrid.net">Julius Härtl</author>
+	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph Borchardt</author>
+	<namespace>Social</namespace>
+	<category>social</category>
+	<website>https://github.com/nextcloud/social</website>
+	<repository type="git">https://github.com/nextcloud/social.git</repository>
+	<bugs>https://github.com/nextcloud/social/issues</bugs>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/screenshots/screenshot.png</screenshot>
+	<dependencies>
+		<nextcloud min-version="14" max-version="15"/>
+	</dependencies>
+	<navigations>
+		<navigation>
+			<name>Social</name>
+			<route>social.Navigation.navigate</route>
+		</navigation>
+	</navigations>
+
 </info>
