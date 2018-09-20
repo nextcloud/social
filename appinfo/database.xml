@@ -84,6 +84,12 @@
 			</field>
 
 			<field>
+				<name>account_id</name>
+				<type>integer</type>
+				<length>7</length>
+			</field>
+
+			<field>
 				<name>status</name>
 				<type>integer</type>
 				<length>1</length>

@@ -75,6 +75,7 @@ class ServiceAccountsRequest extends ServiceAccountsRequestBuilder {
 			$qb->setValue('service_id', $qb->createNamedParameter($service->getId()))
 			   ->setValue('user_id', $qb->createNamedParameter($account->getUserId()))
 			   ->setValue('account', $qb->createNamedParameter($account->getAccount()))
+			   ->setValue('account_id', $qb->createNamedParameter($account->getAccountId()))
 			   ->setValue('status', $qb->createNamedParameter($account->getStatus()))
 			   ->setValue('auth', $qb->createNamedParameter(json_encode($account->getAuthAll())));
 

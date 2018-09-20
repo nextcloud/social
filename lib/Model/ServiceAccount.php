@@ -46,6 +46,9 @@ class ServiceAccount implements \JsonSerializable {
 	private $account = '';
 
 	/** @var int */
+	private $accountId = 0;
+
+	/** @var int */
 	private $status = 0;
 
 	/** @var array */
@@ -126,6 +129,25 @@ class ServiceAccount implements \JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getAccountId(): int {
+		return $this->accountId;
+	}
+
+	/**
+	 * @param int $accountId
+	 *
+	 * @return ServiceAccount
+	 */
+	public function setAccountId(int $accountId): ServiceAccount {
+		$this->accountId = $accountId;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getAccount(): string {
@@ -142,6 +164,7 @@ class ServiceAccount implements \JsonSerializable {
 
 		return $this;
 	}
+
 
 	/**
 	 * @return int
@@ -310,12 +333,13 @@ class ServiceAccount implements \JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'       => $this->getId(),
-			'service'  => $this->getService(),
-			'userId'   => $this->getUserId(),
-			'account'  => $this->getAccount(),
-			'auth'     => $this->getAuthAll(),
-			'creation' => $this->getCreation()
+			'id'         => $this->getId(),
+			'service'    => $this->getService(),
+			'userId'     => $this->getUserId(),
+			'account'    => $this->getAccount(),
+			'account_id' => $this->getAccountId(),
+			'auth'       => $this->getAuthAll(),
+			'creation'   => $this->getCreation()
 		];
 	}
 

@@ -108,5 +108,46 @@ class ActivityStreamsController extends Controller {
 	}
 
 
+
+
+	/**
+	 * @NoAdminRequired
+	 *
+	 * @param int $accountId
+	 *
+	 * @return DataResponse
+	 */
+	public function posts(int $accountId): DataResponse {
+		try {
+			$account = $this->serviceAccountsService->getAccount($this->userId, $accountId);
+
+			$result = $this->activityStreamsService->posts($account);
+
+			return $this->success($result);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoAdminRequired
+	 *
+	 * @param int $accountId
+	 *
+	 * @return DataResponse
+	 */
+	public function follows(int $accountId): DataResponse {
+		try {
+			$account = $this->serviceAccountsService->getAccount($this->userId, $accountId);
+			$result = $this->activityStreamsService->follows($account);
+
+			return $this->success($result);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
+	}
+
+
 }
 

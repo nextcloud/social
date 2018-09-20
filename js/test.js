@@ -41,8 +41,11 @@
         elem.socialListAccounts.empty()
         for (var i = 0; i < data.result.accounts.length; i++) {
           var item = data.result.accounts[i]
-          elem.socialListAccounts.append($('<option>', {value: item.id}).text(item.account + '@' + item.service.address))
+          elem.socialListAccounts.append(
+            $('<option>', {value: item.id}).text(item.account + '@' + item.service.address))
         }
+
+        test.refreshData()
       },
 
       testAccount: function (accountId) {
@@ -51,6 +54,28 @@
 
       testAccountResult: function (data) {
         console.log(JSON.stringify(data))
+      },
+
+      getAccountPosts: function (accountId) {
+        test.sendRequest('GET', {}, '/user/account/' + accountId + '/posts', test.getAccountPostsResult)
+      },
+
+      getAccountPostsResult: function (data) {
+        console.log('Your posts: ' + JSON.stringify(data))
+      },
+
+      getAccountFollows: function (accountId) {
+        test.sendRequest('GET', {}, '/user/account/' + accountId + '/follows',
+          test.getAccountFollowsResult)
+      },
+
+      getAccountFollowsResult: function (data) {
+        console.log('Your Follows: ' + JSON.stringify(data))
+      },
+
+      refreshData: function () {
+        var accountId = elem.socialListAccounts.val()
+        test.getAccountFollows(accountId)
       },
 
       sendRequest: function (method, data, url, callback) {
@@ -94,7 +119,13 @@
       test.testAccount(elem.socialListAccounts.val())
     })
 
+    elem.socialListAccounts.on('change', function () {
+      test.refreshData()
+    })
+
     test.getAccounts()
+
+//    test.getAccountPosts()
   }
 
   if (OCA.Social === undefined) {

@@ -77,8 +77,8 @@ class ServiceAccountsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'a.id', 'a.service_id', 'a.user_id', 'a.account', 'a.status', 'a.auth', 'a.config',
-			'a.creation'
+			'a.id', 'a.service_id', 'a.user_id', 'a.account', 'a.account_id', 'a.status', 'a.auth',
+			'a.config', 'a.creation'
 		)
 		   ->from(self::TABLE_ACCOUNTS, 'a');
 
@@ -118,6 +118,7 @@ class ServiceAccountsRequestBuilder extends CoreRequestBuilder {
 		$account->setService($service)
 				->setUserId($data['user_id'])
 				->setAccount($this->get('account', $data, ''))
+				->setAccountId($this->getInt('account_id', $data, 0))
 				->setStatus($this->getInt('status', $data, 0))
 				->setAuthAll(json_decode($this->get('auth', $data, '[]'), true))
 				->setConfigAll(json_decode($this->get('config', $data, '[]'), true))

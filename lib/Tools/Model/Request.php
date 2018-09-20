@@ -81,6 +81,19 @@ class Request implements \JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * @return string
+	 */
+	public function getParsedUrl(): string {
+		$url = $this->getUrl();
+		$ak = array_keys($this->getData());
+		foreach ($ak as $k) {
+			$url = str_replace(':' . $k, $this->data[$k], $url);
+		}
+
+		return $url;
+	}
+
 
 	/**
 	 * @return string

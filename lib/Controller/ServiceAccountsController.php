@@ -132,7 +132,6 @@ class ServiceAccountsController extends Controller {
 				'protocol'         => 'OAuth2',
 				'authorizationUrl' => $authUrl
 			];
-			$this->miscService->log('___' . json_encode($data));
 
 			return $this->success($data);
 		} catch (Exception $e) {

@@ -151,6 +151,7 @@ class ServiceAccountsService {
 		$this->checkAccountUniqueness($serviceId, $userId, $accountName);
 
 		$account->setAccount($accountName);
+		$account->setAccountId($this->getInt('id', $info, 0));
 		$this->serviceAccountsRequest->create($account);
 	}
 

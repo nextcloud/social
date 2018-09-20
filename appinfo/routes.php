@@ -23,11 +23,19 @@ return [
 			'name' => 'ActivityStreams#test', 'url' => '/user/account/{accountId}/test',
 			'verb' => 'GET'
 		],
+		[
+			'name' => 'ActivityStreams#posts', 'url' => '/user/account/{accountId}/posts',
+			'verb' => 'GET'
+		],
+		[
+			'name' => 'ActivityStreams#follows', 'url' => '/user/account/{accountId}/follows',
+			'verb' => 'GET'
+		],
 
-//		[
-//			'name' => 'OAuth2#getAuthUrl', 'url' => '/client/oauth2/auth/{serviceId}/',
-//			'verb' => 'GET'
-//		],
+		//		[
+		//			'name' => 'OAuth2#getAuthUrl', 'url' => '/client/oauth2/auth/{serviceId}/',
+		//			'verb' => 'GET'
+		//		],
 		[
 			'name' => 'OAuth2#setCode', 'url' => '/client/oauth2/redirect/{serviceId}/',
 			'verb' => 'GET'

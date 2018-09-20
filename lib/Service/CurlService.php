@@ -31,6 +31,7 @@ namespace OCA\Social\Service;
 
 
 use daita\Model\Request;
+use OCA\Social\Exceptions\APIRequestException;
 use OCA\Social\Exceptions\InvalidAccessTokenException;
 use OCA\Social\Exceptions\MovedPermanentlyException;
 use OCA\Social\Model\ServiceAccount;
@@ -60,6 +61,7 @@ class CurlService {
 	 * @return array
 	 * @throws InvalidAccessTokenException
 	 * @throws MovedPermanentlyException
+	 * @throws APIRequestException
 	 */
 	public function request(ServiceAccount $account, Request $request, bool $authed = true) {
 
@@ -70,9 +72,9 @@ class CurlService {
 
 		$result = curl_exec($curl);
 		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-
 		$this->parseRequestResultCode301($code);
 		$this->parseRequestResultCode401($code);
+		$this->parseRequestResultCode404($code);
 //		$this->parseRequestResultCode503($code);
 //		$this->parseRequestResultCode500($code);
 //		$this->parseRequestResult($result);
@@ -115,10 +117,8 @@ class CurlService {
 	 * @return resource
 	 */
 	private function generateCurlRequest(ServiceAccount $account, Request $request) {
-
 		$service = $account->getService();
-//		$service->setAddress('mastodon.social');
-		$url = 'https://' . $service->getAddress() . $request->getUrl();
+		$url = 'https://' . $service->getAddress() . $request->getParsedUrl();
 
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
@@ -191,6 +191,17 @@ class CurlService {
 	private function parseRequestResultCode401($code) {
 		if ($code === 401) {
 			throw new InvalidAccessTokenException('401 Access Token Invalid');
+		}
+	}
+
+	/**
+	 * @param int $code
+	 *
+	 * @throws APIRequestException
+	 */
+	private function parseRequestResultCode404($code) {
+		if ($code === 404) {
+			throw new APIRequestException('404 Not Found');
 		}
 	}
 

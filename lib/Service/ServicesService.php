@@ -141,8 +141,6 @@ class ServicesService {
 		$account = new ServiceAccount();
 		$account->setService($service);
 
-		$this->miscService->log('___' . $this->configService->getCloudAddress());
-
 		$data = [
 			'client_name'   => 'Social@' . $this->configService->getCloudAddress(),
 			'redirect_uris' => $this->generateRedirectUrl($service->getId()),
