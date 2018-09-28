@@ -53,8 +53,8 @@ class ServicesService {
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var CurlService */
-	private $curlService;
+	/** @var ClientCurlService */
+	private $clientCurlService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -65,16 +65,16 @@ class ServicesService {
 	 *
 	 * @param ServicesRequest $servicesRequest
 	 * @param ConfigService $configService
-	 * @param CurlService $curlService
+	 * @param ClientCurlService $clientCurlService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ServicesRequest $servicesRequest, ConfigService $configService, CurlService $curlService,
+		ServicesRequest $servicesRequest, ConfigService $configService, ClientCurlService $clientCurlService,
 		MiscService $miscService
 	) {
 		$this->servicesRequest = $servicesRequest;
 		$this->configService = $configService;
-		$this->curlService = $curlService;
+		$this->clientCurlService = $clientCurlService;
 		$this->miscService = $miscService;
 	}
 
@@ -151,7 +151,7 @@ class ServicesService {
 		$request = new Request(ActivityStreamsService::URL_CREATE_APP, Request::TYPE_POST);
 		$request->setData($data);
 
-		return $this->curlService->request($account, $request, false);
+		return $this->clientCurlService->request($account, $request, false);
 	}
 
 

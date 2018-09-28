@@ -35,6 +35,7 @@ use Exception;
 use OCA\Social\Db\ServiceAccountsRequest;
 use OCA\Social\Exceptions\ActivityStreamsRequestException;
 use OCA\Social\Exceptions\InvalidAccessTokenException;
+use OCA\Social\Model\ActivityPub\Core;
 use OCA\Social\Model\ServiceAccount;
 use OCA\Social\Traits\TOAuth2;
 
@@ -57,8 +58,8 @@ class ActivityStreamsService {
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var CurlService */
-	private $curlService;
+	/** @var ClientCurlService */
+	private $clientCurlService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -69,19 +70,31 @@ class ActivityStreamsService {
 	 *
 	 * @param ServiceAccountsRequest $serviceAccountsRequest
 	 * @param ConfigService $configService
-	 * @param CurlService $curlService
+	 * @param ClientCurlService $clientCurlService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		ServiceAccountsRequest $serviceAccountsRequest, ConfigService $configService,
-		CurlService $curlService, MiscService $miscService
+		ClientCurlService $clientCurlService, MiscService $miscService
 	) {
 		$this->serviceAccountsRequest = $serviceAccountsRequest;
 		$this->configService = $configService;
-		$this->curlService = $curlService;
+		$this->clientCurlService = $clientCurlService;
 		$this->miscService = $miscService;
 	}
 
+
+	/**
+	 * @param Core $core
+	 */
+	public function initCore(Core &$core) {
+		$core->setRoot('https://test.artificial-owl.com/apps/social');
+	}
+
+
+
+
+	// TODO : clean below !
 
 	/**
 	 * @param ServiceAccount $account
@@ -146,7 +159,7 @@ class ActivityStreamsService {
 	 */
 	private function request(ServiceAccount $account, Request $request) {
 		try {
-			return $this->curlService->request($account, $request, true);
+			return $this->clientCurlService->request($account, $request, true);
 		} catch (InvalidAccessTokenException $e) {
 //			$this->oAuth2TokensRequest->resetToken($auth);
 			throw new ActivityStreamsRequestException($e->getMessage());

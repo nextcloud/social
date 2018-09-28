@@ -48,6 +48,9 @@ class Request implements \JsonSerializable {
 	private $type;
 
 	/** @var array */
+	private $headers = [];
+
+	/** @var array */
 	private $data = [];
 
 
@@ -88,6 +91,10 @@ class Request implements \JsonSerializable {
 		$url = $this->getUrl();
 		$ak = array_keys($this->getData());
 		foreach ($ak as $k) {
+			if (!is_string($this->data[$k])) {
+				continue;
+			}
+
 			$url = str_replace(':' . $k, $this->data[$k], $url);
 		}
 
@@ -108,6 +115,32 @@ class Request implements \JsonSerializable {
 	 */
 	public function getType(): int {
 		return $this->type;
+	}
+
+
+	public function addHeader($header): Request {
+		$this->headers[] = $header;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function getHeaders(): array {
+		return $this->headers;
+	}
+
+	/**
+	 * @param array $headers
+	 *
+	 * @return Request
+	 */
+	public function setHeaders(array $headers): Request {
+		$this->headers = $headers;
+
+		return $this;
 	}
 
 
@@ -185,14 +218,14 @@ class Request implements \JsonSerializable {
 	 * @return string
 	 */
 	public function getDataBody() {
-
-		if ($this->getData() === []) {
-			return '';
-		}
-
-		return preg_replace(
-			'/([(%5B)]{1})[0-9]+([(%5D)]{1})/', '$1$2', http_build_query($this->getData())
-		);
+		return json_encode($this->getData());
+//		if ($this->getData() === []) {
+//			return '';
+//		}
+//
+//		return preg_replace(
+//			'/([(%5B)]{1})[0-9]+([(%5D)]{1})/', '$1$2', http_build_query($this->getData())
+//		);
 	}
 
 

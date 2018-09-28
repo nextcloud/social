@@ -27,52 +27,61 @@ declare(strict_types=1);
  *
  */
 
-namespace daita\Traits;
+namespace OCA\Social\Model;
 
 
+use daita\Traits\TArrayTools;
 use JsonSerializable;
-use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\DataResponse;
 
-trait TNCDataResponse {
+class APHosts implements JsonSerializable {
 
+	use TArrayTools;
 
-	/**
-	 * @param string $message
-	 *
-	 * @return DataResponse
-	 */
-	private function fail(string $message = ''): DataResponse {
-		return new DataResponse(
-			['status' => -1, 'message' => $message], Http::STATUS_NON_AUTHORATIVE_INFORMATION
-		);
+	/** @var string */
+	private $address;
+
+	/** @var array */
+	private $uriIds = [];
+
+	public function __construct(string $address = '') {
+		$this->address = $address;
 	}
 
 
 	/**
-	 * @param array $result
-	 *
-	 * @return DataResponse
+	 * @return string
 	 */
-	private function success(array $result): DataResponse {
-		$data =
-			[
-				'result' => $result,
-				'status' => 1
-			];
-
-		return new DataResponse($data, Http::STATUS_OK);
+	public function getAddress(): string {
+		return $this->address;
 	}
 
 
 	/**
-	 * @param JsonSerializable $result
+	 * @param string $uriId
 	 *
-	 * @return DataResponse
+	 * @return APHosts
 	 */
-	private function directSuccess(JsonSerializable $result): DataResponse {
-		return new DataResponse($result, Http::STATUS_OK);
+	public function addUriId(string $uriId): APHosts {
+		$this->uriIds[] = $uriId;
+
+		return $this;
 	}
+
+	/**
+	 * @return array
+	 */
+	public function getUriIds(): array {
+		return $this->uriIds;
+	}
+
+
+	public function jsonSerialize() {
+		return [
+			'address' => $this->address,
+			'urlIds'  => $this->getUriIds()
+		];
+	}
+
 
 }
 

@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 
-
 /**
  * Nextcloud - Social Support
  *
@@ -27,52 +26,41 @@ declare(strict_types=1);
  *
  */
 
-namespace daita\Traits;
+namespace OCA\Social;
 
+require_once __DIR__ . '/../appinfo/autoload.php';
+require_once(__DIR__ . '/../lib/autoload.php');
 
-use JsonSerializable;
-use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\DataResponse;
-
-trait TNCDataResponse {
-
-
-	/**
-	 * @param string $message
-	 *
-	 * @return DataResponse
-	 */
-	private function fail(string $message = ''): DataResponse {
-		return new DataResponse(
-			['status' => -1, 'message' => $message], Http::STATUS_NON_AUTHORATIVE_INFORMATION
-		);
-	}
-
-
-	/**
-	 * @param array $result
-	 *
-	 * @return DataResponse
-	 */
-	private function success(array $result): DataResponse {
-		$data =
-			[
-				'result' => $result,
-				'status' => 1
-			];
-
-		return new DataResponse($data, Http::STATUS_OK);
-	}
-
-
-	/**
-	 * @param JsonSerializable $result
-	 *
-	 * @return DataResponse
-	 */
-	private function directSuccess(JsonSerializable $result): DataResponse {
-		return new DataResponse($result, Http::STATUS_OK);
-	}
-
+if (!array_key_exists('resource', $_GET)) {
+	echo 'missing resource';
+	exit();
 }
 
+$subject = $_GET['resource'];
+
+$urlGenerator = \OC::$server->getURLGenerator();
+
+list($type, $account) = explode(':', $subject, 2);
+if ($type !== 'acct') {
+	echo 'no acct';
+	exit();
+}
+
+
+$username = substr($account, 0, strrpos($account, '@'));
+$finger = [
+	'subject' => $subject,
+	'links'   => [
+		[
+			'rel'  => 'self',
+			'type' => 'application/activity+json',
+			//			'href' => 'https://test.artificial-owl.com/apps/social/@' . $username
+			'href' => $urlGenerator->linkToRouteAbsolute(
+				'social.ActivityPub.aliasactor', ['username' => $username]
+			)
+		]
+	]
+];
+
+header('Content-type: application/json');
+echo json_encode($finger);

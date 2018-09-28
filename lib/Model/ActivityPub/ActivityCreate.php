@@ -27,51 +27,35 @@ declare(strict_types=1);
  *
  */
 
-namespace daita\Traits;
+namespace OCA\Social\Model\ActivityPub;
 
 
 use JsonSerializable;
-use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\DataResponse;
 
-trait TNCDataResponse {
+class ActivityCreate extends Core implements JsonSerializable {
 
 
 	/**
-	 * @param string $message
+	 * ActivityCreate constructor.
 	 *
-	 * @return DataResponse
+	 * @param bool $isTopLevel
 	 */
-	private function fail(string $message = ''): DataResponse {
-		return new DataResponse(
-			['status' => -1, 'message' => $message], Http::STATUS_NON_AUTHORATIVE_INFORMATION
-		);
+	public function __construct(bool $isTopLevel = false) {
+		parent::__construct($isTopLevel);
+
+		$this->setType('Create');
 	}
 
 
 	/**
-	 * @param array $result
-	 *
-	 * @return DataResponse
+	 * @return array
 	 */
-	private function success(array $result): DataResponse {
-		$data =
+	public function jsonSerialize(): array {
+		return array_merge(
+			parent::jsonSerialize(),
 			[
-				'result' => $result,
-				'status' => 1
-			];
-
-		return new DataResponse($data, Http::STATUS_OK);
-	}
-
-
-	/**
-	 * @param JsonSerializable $result
-	 *
-	 * @return DataResponse
-	 */
-	private function directSuccess(JsonSerializable $result): DataResponse {
-		return new DataResponse($result, Http::STATUS_OK);
+			]
+		);
 	}
 
 }

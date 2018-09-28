@@ -70,7 +70,8 @@ class ConfigService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		string $userId, IConfig $config, IRequest $request, MiscService $miscService
+		$userId, IConfig $config, IRequest $request,
+		MiscService $miscService
 	) {
 		$this->userId = $userId;
 		$this->config = $config;
@@ -177,6 +178,15 @@ class ConfigService {
 
 
 	/**
+	 * @param string $key
+	 * @param string $value
+	 */
+	public function setCoreValue(string $key, string $value) {
+		$this->config->setAppValue('core', $key, $value);
+	}
+
+
+	/**
 	 * @param $key
 	 *
 	 * @return mixed
@@ -187,6 +197,32 @@ class ConfigService {
 
 	public function getCloudAddress() {
 		return $this->request->getServerHost();
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getRoot(): string {
+		return 'https://test.artificial-owl.com/apps/social/';
+	}
+
+
+	/**
+	 * @param string $path
+	 * @param bool $generateId
+	 *
+	 * @return string
+	 */
+	public function generateId(string $path = '', $generateId = true): string {
+		$this->miscService->formatPath($path);
+
+		$id = $this->getRoot() . $path;
+		if ($generateId === true) {
+			$id .= time() . crc32(uniqid());
+		}
+
+		return $id;
 	}
 
 //	/**

@@ -40,7 +40,11 @@ class CoreRequestBuilder {
 
 	const TABLE_SERVICES = 'social_services';
 	const TABLE_ACCOUNTS = 'social_accounts';
-	const TABLE_OAUTH2_TOKENS = 'social_oauth2_tokens';
+
+	const TABLE_SERVER_ACTORS = 'social_server_actors';
+	const TABLE_SERVER_NOTES = 'social_server_notes';
+
+	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 
 
 	/** @var IDBConnection */
@@ -99,6 +103,17 @@ class CoreRequestBuilder {
 	 * Limit the request to the OwnerId
 	 *
 	 * @param IQueryBuilder $qb
+	 * @param string $userId
+	 */
+	protected function limitToPreferredUsername(IQueryBuilder &$qb, $userId) {
+		$this->limitToDBField($qb, 'preferred_username', $userId);
+	}
+
+
+	/**
+	 * Limit the request to the OwnerId
+	 *
+	 * @param IQueryBuilder $qb
 	 * @param int $accountId
 	 */
 	protected function limitToAccountId(IQueryBuilder &$qb, int $accountId) {
@@ -125,6 +140,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToAccount(IQueryBuilder &$qb, string $account) {
 		$this->limitToDBField($qb, 'account', $account);
+	}
+
+
+	/**
+	 * Limit the request to the url
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $url
+	 */
+	protected function limitToUrl(IQueryBuilder &$qb, string $url) {
+		$this->limitToDBField($qb, 'url', $url);
 	}
 
 

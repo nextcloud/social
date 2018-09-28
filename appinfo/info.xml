@@ -5,7 +5,7 @@
 	<name>Social</name>
 	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
 	<description><![CDATA[test]]></description>
-	<version>0.0.10</version>
+	<version>0.0.17</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
@@ -25,5 +25,9 @@
 			<route>social.Navigation.navigate</route>
 		</navigation>
 	</navigations>
+
+	<commands>
+		<command>OCA\Social\Command\NoteCreate</command>
+	</commands>
 
 </info>

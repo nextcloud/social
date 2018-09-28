@@ -64,6 +64,7 @@
 				<primary>true</primary>
 			</field>
 
+			// @deprecated
 			<field>
 				<name>service_id</name>
 				<type>integer</type>
@@ -78,33 +79,300 @@
 			</field>
 
 			<field>
+				<name>username</name>
+				<type>text</type>
+				<length>63</length>
+			</field>
+
+			// @deprecated
+			<field>
 				<name>account</name>
 				<type>text</type>
 				<length>127</length>
 			</field>
 
+			// @deprecated
 			<field>
 				<name>account_id</name>
 				<type>integer</type>
 				<length>7</length>
 			</field>
 
+			// @deprecated
 			<field>
 				<name>status</name>
 				<type>integer</type>
 				<length>1</length>
 			</field>
 
+			// @deprecated
 			<field>
 				<name>auth</name>
 				<type>text</type>
 				<length>2000</length>
 			</field>
 
+			// @deprecated
 			<field>
 				<name>config</name>
 				<type>text</type>
 				<length>2000</length>
+			</field>
+
+			<field>
+				<name>creation</name>
+				<type>timestamp</type>
+			</field>
+
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_server_actors</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>integer</type>
+				<length>7</length>
+				<unsigned>true</unsigned>
+				<notnull>true</notnull>
+				<autoincrement>true</autoincrement>
+				<primary>true</primary>
+			</field>
+
+			<field>
+				<name>type</name>
+				<type>text</type>
+				<length>15</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>user_id</name>
+				<type>text</type>
+				<length>63</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>preferred_username</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>public_key</name>
+				<type>text</type>
+				<length>1000</length>
+			</field>
+
+			<field>
+				<name>private_key</name>
+				<type>text</type>
+				<length>2000</length>
+			</field>
+
+			<field>
+				<name>creation</name>
+				<type>timestamp</type>
+			</field>
+
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_server_activities</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>activity</name>
+				<type>text</type>
+				<length>6000</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>object</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_server_notes</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<!--<field>-->
+			<!--<name>type</name>-->
+			<!--<type>text</type>-->
+			<!--<length>15</length>-->
+			<!--<notnull>true</notnull>-->
+			<!--</field>-->
+
+			<field>
+				<name>to</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>to_array</name>
+				<type>text</type>
+				<length>2000</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>cc</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>bcc</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>content</name>
+				<type>text</type>
+				<length>3000</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>summary</name>
+				<type>text</type>
+				<length>255</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>published</name>
+				<type>text</type>
+				<length>31</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>attributed_to</name>
+				<type>text</type>
+				<length>127</length>
+			</field>
+
+			<field>
+				<name>in_reply_to</name>
+				<type>text</type>
+				<length>127</length>
+			</field>
+
+			<field>
+				<name>creation</name>
+				<type>timestamp</type>
+			</field>
+
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_cache_actors</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>integer</type>
+				<length>8</length>
+				<unsigned>true</unsigned>
+				<notnull>true</notnull>
+				<autoincrement>true</autoincrement>
+				<primary>true</primary>
+			</field>
+
+			<field>
+				<name>account</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>url</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>actor</name>
+				<type>text</type>
+				<length>8000</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>creation</name>
+				<type>timestamp</type>
+			</field>
+
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_cache_actors</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>integer</type>
+				<length>8</length>
+				<unsigned>true</unsigned>
+				<notnull>true</notnull>
+				<autoincrement>true</autoincrement>
+				<primary>true</primary>
+			</field>
+
+			<field>
+				<name>account</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>url</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>actor</name>
+				<type>text</type>
+				<length>8000</length>
+				<notnull>true</notnull>
 			</field>
 
 			<field>

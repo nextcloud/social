@@ -29,8 +29,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use Exception;
+use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCP\ILogger;
+use OCP\IUserManager;
 
 class MiscService {
 
@@ -38,14 +41,19 @@ class MiscService {
 	/** @var ILogger */
 	private $logger;
 
+	/** @var IUserManager */
+	private $userManager;
+
 
 	/**
 	 * MiscService constructor.
 	 *
 	 * @param ILogger $logger
+	 * @param IUserManager $userManager
 	 */
-	public function __construct(ILogger $logger) {
+	public function __construct(ILogger $logger, IUserManager $userManager) {
 		$this->logger = $logger;
+		$this->userManager = $userManager;
 	}
 
 
@@ -63,6 +71,20 @@ class MiscService {
 	}
 
 
+	/**
+	 * @param array $keys
+	 * @param array $arr
+	 *
+	 * @throws Exception
+	 */
+	public function mustContains(array $keys, array $arr) {
+		foreach ($keys as $key) {
+			if (!array_key_exists($key, $arr)) {
+				throw new Exception('missing elements');
+			}
+		}
+	}
+
 	public static function noEndSlash($path) {
 		if (substr($path, -1) === '/') {
 			$path = substr($path, 0, -1);
@@ -71,6 +93,40 @@ class MiscService {
 		return $path;
 	}
 
+
+	/**
+	 * @param string $path
+	 */
+	public function formatPath(string &$path) {
+		if ($path === '') {
+			return;
+		}
+
+		if (substr($path, 0, 1) === '/') {
+			$path = substr($path, 1);
+		}
+
+		if (substr($path, -1) !== '/') {
+			$path .= '/';
+		}
+	}
+
+
+	/**
+	 * @param string $userId
+	 *
+	 * @throws NoUserException
+	 */
+	public function confirmUserId(string &$userId) {
+		$user = $this->userManager->get($userId);
+
+		return;
+		if ($user === null) {
+			throw new NoUserException('user does not exist');
+		}
+
+		$userId = $user->getUID();
+	}
 
 }
 

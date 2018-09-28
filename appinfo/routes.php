@@ -39,6 +39,22 @@ return [
 		[
 			'name' => 'OAuth2#setCode', 'url' => '/client/oauth2/redirect/{serviceId}/',
 			'verb' => 'GET'
-		]
-	]
+		],
+
+		['name' => 'Account#create', 'url' => '/local/account/{username}', 'verb' => 'POST'],
+
+		['name' => 'ActivityPub#sharedInbox', 'url' => '/inbox', 'verb' => 'POST'],
+		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
+		['name' => 'ActivityPub#aliasactor', 'url' => '/@{username}', 'verb' => 'GET'],
+		['name' => 'ActivityPub#inbox', 'url' => '/@{username}/inbox', 'verb' => 'POST'],
+		['name' => 'ActivityPub#outbox', 'url' => '/@{username}/outbox', 'verb' => 'POST'],
+		['name' => 'ActivityPub#followers', 'url' => '/@{username}/followers', 'verb' => 'GET'],
+		['name' => 'ActivityPub#following', 'url' => '/@{username}/following', 'verb' => 'GET'],
+
+		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET']
+,
+		['name' => 'ActivityPub#test', 'url' => '/inbox/{username}', 'verb' => 'POST'],
+
+
+]
 ];

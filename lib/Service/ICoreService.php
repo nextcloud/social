@@ -27,52 +27,13 @@ declare(strict_types=1);
  *
  */
 
-namespace daita\Traits;
+namespace OCA\Social\Service;
 
 
-use JsonSerializable;
-use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\DataResponse;
+use OCA\Social\Model\ActivityPub\Core;
 
-trait TNCDataResponse {
+interface ICoreService {
 
-
-	/**
-	 * @param string $message
-	 *
-	 * @return DataResponse
-	 */
-	private function fail(string $message = ''): DataResponse {
-		return new DataResponse(
-			['status' => -1, 'message' => $message], Http::STATUS_NON_AUTHORATIVE_INFORMATION
-		);
-	}
-
-
-	/**
-	 * @param array $result
-	 *
-	 * @return DataResponse
-	 */
-	private function success(array $result): DataResponse {
-		$data =
-			[
-				'result' => $result,
-				'status' => 1
-			];
-
-		return new DataResponse($data, Http::STATUS_OK);
-	}
-
-
-	/**
-	 * @param JsonSerializable $result
-	 *
-	 * @return DataResponse
-	 */
-	private function directSuccess(JsonSerializable $result): DataResponse {
-		return new DataResponse($result, Http::STATUS_OK);
-	}
+	public function save(Core $core);
 
 }
-

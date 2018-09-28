@@ -37,7 +37,7 @@ use OCA\Social\Exceptions\MovedPermanentlyException;
 use OCA\Social\Model\Service;
 use OCA\Social\Model\ServiceAccount;
 
-class CurlService {
+class ClientCurlService {
 
 
 	/** @var MiscService */
@@ -55,17 +55,18 @@ class CurlService {
 
 
 	/**
+	 * @param ServiceAccount $account
 	 * @param Request $request
+	 * @param bool $authed
 	 *
 	 * @return array
-	 * @throws APIRequestException
 	 * @throws InvalidAccessTokenException
 	 * @throws MovedPermanentlyException
+	 * @throws APIRequestException
 	 */
-	public function request(Request $request): array {
+	public function request(ServiceAccount $account, Request $request, bool $authed = true) {
 
-		$curl = $this->initRequest($request);
-
+		$curl = $this->initRequest($account, $request, $authed);
 		$this->initRequestPost($curl, $request);
 		$this->initRequestPut($curl, $request);
 		$this->initRequestDelete($curl, $request);
@@ -73,35 +74,36 @@ class CurlService {
 		$result = curl_exec($curl);
 		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 
+		echo 'code: ' . $code . "\n";
+		echo 'result: ' . json_encode($result) . "\n";
+
 		$this->parseRequestResultCode301($code);
-//		$this->parseRequestResultCode401($code);
+		$this->parseRequestResultCode401($code);
 		$this->parseRequestResultCode404($code);
 //		$this->parseRequestResultCode503($code);
 //		$this->parseRequestResultCode500($code);
 //		$this->parseRequestResult($result);
-		$ret = json_decode($result, true);
-		if (!is_array($ret)) {
-			$ret = ['_result' => $result];
-		}
 
-		$ret['_address'] = $request->getAddress();
-		$ret['_code'] = $code;
 
-		return $ret;
+		return json_decode($result, true);
 	}
 
 
 	/**
+	 * @param ServiceAccount $account
 	 * @param Request $request
+	 * @param bool $authed
 	 *
 	 * @return resource
 	 */
-	private function initRequest(Request $request) {
+	private function initRequest(ServiceAccount $account, Request $request, bool $authed) {
 
-		$curl = $this->generateCurlRequest($request);
+		$curl = $this->generateCurlRequest($account, $request);
 		$headers = $request->getHeaders();
 
-		$headers[] = 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
+		if ($authed) {
+			$headers[] = 'Authorization: Bearer ' . $account->getAuth('token');
+		}
 
 		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($curl, CURLOPT_TIMEOUT, 20);
@@ -114,12 +116,14 @@ class CurlService {
 
 
 	/**
+	 * @param ServiceAccount $account
 	 * @param Request $request
 	 *
 	 * @return resource
 	 */
-	private function generateCurlRequest(Request $request) {
-		$url = 'https://' . $request->getAddress() . $request->getParsedUrl();
+	private function generateCurlRequest(ServiceAccount $account, Request $request) {
+		$service = $account->getService();
+		$url = 'https://' . $service->getAddress() . $request->getParsedUrl();
 
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
@@ -184,6 +188,16 @@ class CurlService {
 		}
 	}
 
+	/**
+	 * @param int $code
+	 *
+	 * @throws InvalidAccessTokenException
+	 */
+	private function parseRequestResultCode401($code) {
+		if ($code === 401) {
+			throw new InvalidAccessTokenException('401 Access Token Invalid');
+		}
+	}
 
 	/**
 	 * @param int $code
