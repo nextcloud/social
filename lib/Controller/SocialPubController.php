@@ -56,7 +56,7 @@ class SocialPubController extends Controller {
 
 
 	/**
-	 * ActivityPubController constructor.
+	 * SocialPubController constructor.
 	 *
 	 * @param ActivityPubService $activityPubService
 	 * @param ActorService $actorService
@@ -76,45 +76,57 @@ class SocialPubController extends Controller {
 
 
 	/**
+	 * return webpage content for human navigation.
+	 * Should return information about a Social account, based on username.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 e*
+	 * e*
+	 *
 	 * @param string $username
 	 *
-	 * @return Response
+	 * @return TemplateResponse
 	 */
-	public function actor(string $username) {
+	public function actor(string $username): TemplateResponse {
 		return new TemplateResponse(Application::APP_NAME, 'actor', [], 'blank');
 	}
 
 
 	/**
+	 * return webpage content for human navigation.
+	 * Should return followers of a Social account, based on username.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
-	 * @return Response
+	 * @return TemplateResponse
 	 */
-	public function followers($username) {
+	public function followers(string $username): TemplateResponse {
 		return new TemplateResponse(Application::APP_NAME, 'followers', [], 'blank');
 	}
 
 
 	/**
+	 * return webpage content for human navigation.
+	 * Should return following of a Social account, based on username.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
-	 * @return Response
+	 * @return TemplateResponse
 	 */
-	public function following($username) {
+	public function following(string $username): TemplateResponse {
 		return new TemplateResponse(Application::APP_NAME, 'following', [], 'blank');
 	}
 
 
 	/**
+	 * Should return post, do nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -123,7 +135,7 @@ class SocialPubController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function displayPost($username, $postId) {
+	public function displayPost(string $username, int $postId) {
 		return $this->success([$username, $postId]);
 	}
 

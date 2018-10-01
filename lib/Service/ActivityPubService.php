@@ -36,13 +36,11 @@ use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\APIRequestException;
-use OCA\Social\Exceptions\InvalidAccessTokenException;
-use OCA\Social\Exceptions\MovedPermanentlyException;
+use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\ActivityCreate;
+use OCA\Social\Model\ActivityPub\Actor;
 use OCA\Social\Model\ActivityPub\Core;
-use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\APHosts;
+use OCA\Social\Model\InstancePath;
 use OCP\IRequest;
 
 class ActivityPubService {
@@ -56,14 +54,14 @@ class ActivityPubService {
 	const DATE_FORMAT = 'D, d M Y H:i:s T';
 	const DATE_DELAY = 30;
 
-	/** @var ActivityStreamsService */
-	private $activityStreamsService;
-
 	/** @var ActorsRequest */
 	private $actorsRequest;
 
 	/** @var ActorService */
 	private $actorService;
+
+	/** @var InstanceService */
+	private $instanceService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -76,26 +74,23 @@ class ActivityPubService {
 
 
 	/**
-	 * ActivityStreamsService constructor.
+	 * ActivityPubService constructor.
 	 *
-	 * @param ActivityStreamsService $activityStreamsService
-	 * @param CurlService $curlService
 	 * @param ActorsRequest $actorsRequest
+	 * @param CurlService $curlService
 	 * @param ActorService $actorService
+	 * @param InstanceService $instanceService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityStreamsService $activityStreamsService,
-		CurlService $curlService,
-		ActorsRequest $actorsRequest,
-		ActorService $actorService,
-		ConfigService $configService, MiscService $miscService
+		ActorsRequest $actorsRequest, CurlService $curlService, ActorService $actorService,
+		InstanceService $instanceService, ConfigService $configService, MiscService $miscService
 	) {
-		$this->activityStreamsService = $activityStreamsService;
 		$this->curlService = $curlService;
 		$this->actorsRequest = $actorsRequest;
 		$this->actorService = $actorService;
+		$this->instanceService = $instanceService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -116,9 +111,7 @@ class ActivityPubService {
 	 * @return array
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
+	 * @throws RequestException
 	 */
 	public function createActivity($userId, Core $item, Core &$activity = null): array {
 
@@ -128,11 +121,13 @@ class ActivityPubService {
 		$actor = $this->actorService->getActorFromUserId($userId);
 		$activity->setId($item->getId() . '/activity');
 
-		if ($item->getToArray() !== []) {
-			$activity->setToArray($item->getToArray());
-		} else {
-			$activity->setTo($item->getTo());
-		}
+		$activity->addInstancePaths($item->getInstancePaths());
+
+//		if ($item->getToArray() !== []) {
+//			$activity->setToArray($item->getToArray());
+//		} else {
+//			$activity->setTo($item->getTo());
+//		}
 
 		$activity->setActor($actor);
 		$activity->setObject($item);
@@ -148,17 +143,17 @@ class ActivityPubService {
 	 * @param Core $activity
 	 *
 	 * @return array
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
+	 * @throws RequestException
 	 */
 	public function request(Core $activity) {
-		$hosts = $this->getAPHostsFromActivity($activity);
+
+		$hosts = $this->instanceService->getInstancesFromActivity($activity);
 
 		$result = [];
 		foreach ($hosts as $host) {
-			$request = $this->generateRequest($host, $activity);
-			$result[] = $this->curlService->request($request);
+			foreach ($host->getInstancePaths() as $path) {
+				$result[] = $this->generateRequest($host->getAddress(), $path, $activity);
+			}
 		}
 
 		return $result;
@@ -166,23 +161,25 @@ class ActivityPubService {
 
 
 	/**
-	 * @param APHosts $host
+	 * @param string $address
+	 * @param InstancePath $path
 	 * @param Core $activity
 	 *
-	 * @return Request
+	 * @return Request[]
+	 * @throws RequestException
 	 */
-	public function generateRequest(APHosts $host, Core $activity): Request {
-
+	public function generateRequest(string $address, InstancePath $path, Core $activity): array {
 		$document = json_encode($activity);
 		$date = date(self::DATE_FORMAT);
 
 		$localActor = $activity->getActor();
-		$uriIds = $host->getUriIds();
-		$remoteActor = $this->getRemoteActor($uriIds[0]);
+		$remoteActor = $this->getRemoteActor($path->getUri());
+
+		$remotePath = $this->actorService->getPathFromActor($remoteActor, $path->getType());
 
 		$localActorLink =
 			$this->configService->getRoot() . '@' . $localActor->getPreferredUsername();
-		$signature = "(request-target): post /users/testSocial/inbox\nhost: " . $host->getAddress()
+		$signature = "(request-target): post " . $remotePath . "\nhost: " . $address
 					 . "\ndate: " . $date;
 
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
@@ -192,24 +189,21 @@ class ActivityPubService {
 			'keyId="' . $localActorLink . '",headers="(request-target) host date",signature="'
 			. $signed . '"';
 
-		$request = new Request('/users/testSocial/inbox', Request::TYPE_POST);
-		$request->addHeader('Host: ' . $host->getAddress());
+		$request = new Request($remotePath, Request::TYPE_POST);
+		$request->addHeader('Host: ' . $address);
 		$request->addHeader('Date: ' . $date);
 		$request->addHeader('Signature: ' . $header);
 
 		$request->setDataJson($document);
-		$request->setAddress($host->getAddress());
+		$request->setAddress($address);
 
-		return $request;
+		return $this->curlService->request($request);
 	}
 
 
 	/**
 	 * @param IRequest $request
 	 *
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
 	 * @throws Exception
 	 */
 	public function checkRequest(IRequest $request) {
@@ -249,63 +243,10 @@ class ActivityPubService {
 
 
 	/**
-	 * @param Core $activity
-	 *
-	 * @return APHosts[]
-	 */
-	private function getAPHostsFromActivity(Core $activity) {
-
-		$hosts = [];
-//		$uriIds = [];
-		$this->addAPHosts($activity->getTo(), $hosts);
-		foreach ($activity->getToArray() as $to) {
-			$this->addAPHosts($to, $hosts);
-//			$uriIds[] = $to;
-		}
-
-		if ($activity instanceof Note) {
-			/** @var Note $activity */
-			$this->addAPHosts($activity->getInReplyTo(), $hosts);
-//			$uriIds[] = $activity->getInReplyTo();
-		}
-
-//		$uriId = $this->cleaningHosts($uriId);
-
-		return $hosts;
-	}
-
-
-	/**
-	 * @param string $uriId
-	 * @param APHosts[] $hosts
-	 */
-	private function addAPHosts(string $uriId, array &$hosts) {
-		$address = $this->getHostFromUriId($uriId);
-		if ($address === '') {
-			return;
-		}
-
-		foreach ($hosts as $host) {
-			if ($host->getAddress() === $address) {
-				$host->addUriId($uriId);
-
-				return;
-			}
-		}
-
-		$apHost = new APHosts($address);
-		$apHost->addUriId($uriId);
-		$hosts[] = $apHost;
-	}
-
-
-	/**
 	 * @param string $uriId
 	 *
-	 * @return mixed
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
+	 * @return Actor
+	 * @throws RequestException
 	 */
 	private function getRemoteActor(string $uriId) {
 		$actor = $this->actorService->getFromUri($uriId);
@@ -313,29 +254,6 @@ class ActivityPubService {
 		return $actor;
 	}
 
-
-	/**
-	 * @param string $uriId
-	 *
-	 * @return string
-	 */
-	private function getHostFromUriId(string $uriId) {
-		$ignoreThose = [
-			'',
-			'https://www.w3.org/ns/activitystreams#Public'
-		];
-
-		if (in_array($uriId, $ignoreThose)) {
-			return '';
-		}
-
-		$url = parse_url($uriId);
-		if (!is_array($url) || !array_key_exists('host', $url)) {
-			return '';
-		}
-
-		return $url['host'];
-	}
 
 
 //	/**
@@ -360,9 +278,6 @@ class ActivityPubService {
 	/**
 	 * @param IRequest $request
 	 *
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
 	 * @throws Exception
 	 */
 	private function checkSignature(IRequest $request) {
@@ -377,6 +292,7 @@ class ActivityPubService {
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
 		$publicKey = $this->retrieveKey($keyId);
+
 		if (openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
 			throw new Exception('signature cannot be checked');
 		}
@@ -389,11 +305,14 @@ class ActivityPubService {
 	 * @param IRequest $request
 	 *
 	 * @return string
+	 * @throws Exception
 	 */
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
 
-		$estimated = "(request-target): post /apps/social/@maxence/inbox";
+		$remoteTarget = strtolower($request->getMethod()) . " " . $request->getPathInfo();
+		$estimated = "(request-target): " . $remoteTarget;
+
 		foreach ($keys as $key) {
 			if ($key === '(request-target)') {
 				continue;
@@ -431,35 +350,13 @@ class ActivityPubService {
 	 * @param $keyId
 	 *
 	 * @return array
-	 * @throws MovedPermanentlyException
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
+	 * @throws RequestException
 	 */
 	private function retrieveKey($keyId) {
-		$actor = $this->retrieveObject($keyId);
+		$actor = $this->instanceService->retrieveObject($keyId);
 
 		return $actor['publicKey']['publicKeyPem'];
 	}
-
-//
-//	/**
-//	 * @param $id
-//	 *
-//	 * @return mixed
-//	 * @throws MovedPermanentlyException
-//	 * @throws APIRequestException
-//	 * @throws InvalidAccessTokenException
-//	 */
-//	private function retrieveObject($id) {
-//		$url = parse_url($id);
-//
-//		$request = new Request($url['path'], Request::TYPE_GET);
-//		$request->setAddress($url['host']);
-//
-////		$key = $url['fragment'];
-//
-//		return $this->curlService->request($request);
-//	}
 
 
 	/**
@@ -481,11 +378,5 @@ class ActivityPubService {
 			$this->setupCore($activity->getObject());
 		}
 	}
-
-
-//	public function setRoot(IActivityPub $actor) {
-//		$actor->setRoot('https://test.artificial-owl.com/apps/social');
-//	}
-
 
 }

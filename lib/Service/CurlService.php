@@ -31,11 +31,7 @@ namespace OCA\Social\Service;
 
 
 use daita\Model\Request;
-use OCA\Social\Exceptions\APIRequestException;
-use OCA\Social\Exceptions\InvalidAccessTokenException;
-use OCA\Social\Exceptions\MovedPermanentlyException;
-use OCA\Social\Model\Service;
-use OCA\Social\Model\ServiceAccount;
+use OCA\Social\Exceptions\RequestException;
 
 class CurlService {
 
@@ -45,7 +41,7 @@ class CurlService {
 
 
 	/**
-	 * ClientCurlService constructor.
+	 * CurlService constructor.
 	 *
 	 * @param MiscService $miscService
 	 */
@@ -58,12 +54,9 @@ class CurlService {
 	 * @param Request $request
 	 *
 	 * @return array
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
+	 * @throws RequestException
 	 */
 	public function request(Request $request): array {
-
 		$curl = $this->initRequest($request);
 
 		$this->initRequestPost($curl, $request);
@@ -75,10 +68,11 @@ class CurlService {
 
 		$this->parseRequestResultCode301($code);
 //		$this->parseRequestResultCode401($code);
-		$this->parseRequestResultCode404($code);
+		$this->parseRequestResultCode404($code, $request);
 //		$this->parseRequestResultCode503($code);
 //		$this->parseRequestResultCode500($code);
 //		$this->parseRequestResult($result);
+
 		$ret = json_decode($result, true);
 		if (!is_array($ret)) {
 			$ret = ['_result' => $result];
@@ -120,7 +114,7 @@ class CurlService {
 	 */
 	private function generateCurlRequest(Request $request) {
 		$url = 'https://' . $request->getAddress() . $request->getParsedUrl();
-
+//		echo 'curl: ' . $request->getUrl() . "\n";
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
 		} else {
@@ -176,11 +170,11 @@ class CurlService {
 	/**
 	 * @param int $code
 	 *
-	 * @throws MovedPermanentlyException
+	 * @throws RequestException
 	 */
 	private function parseRequestResultCode301($code) {
 		if ($code === 301) {
-			throw new MovedPermanentlyException('301 Moved Permanently');
+			throw new RequestException('301 Moved Permanently');
 		}
 	}
 
@@ -188,11 +182,13 @@ class CurlService {
 	/**
 	 * @param int $code
 	 *
-	 * @throws APIRequestException
+	 * @param Request $request
+	 *
+	 * @throws RequestException
 	 */
-	private function parseRequestResultCode404($code) {
+	private function parseRequestResultCode404(int $code, Request $request) {
 		if ($code === 404) {
-			throw new APIRequestException('404 Not Found');
+			throw new RequestException('404 Not Found - ' . json_encode($request));
 		}
 	}
 

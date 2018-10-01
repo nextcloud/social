@@ -38,9 +38,6 @@ use OCP\IDBConnection;
 
 class CoreRequestBuilder {
 
-	const TABLE_SERVICES = 'social_services';
-	const TABLE_ACCOUNTS = 'social_accounts';
-
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
 
@@ -199,30 +196,30 @@ class CoreRequestBuilder {
 	}
 
 
-	/**
-	 * Left Join service to get info about the serviceId
-	 *
-	 * @param IQueryBuilder $qb
-	 */
-	public function leftJoinService(IQueryBuilder &$qb) {
-
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$expr = $qb->expr();
-		$pf = $this->defaultSelectAlias;
-
-		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->selectAlias('s.address', 'service_address')
-		   ->selectAlias('s.status', 'service_status')
-		   ->selectAlias('s.config', 'service_config')
-		   ->selectAlias('s.type', 'service_type')
-		   ->leftJoin(
-			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVICES, 's',
-			   $expr->eq($pf . '.service_id', 's.id')
-		   );
-	}
+//	/**
+//	 * Left Join service to get info about the serviceId
+//	 *
+//	 * @param IQueryBuilder $qb
+//	 */
+//	public function leftJoinService(IQueryBuilder &$qb) {
+//
+//		if ($qb->getType() !== QueryBuilder::SELECT) {
+//			return;
+//		}
+//
+//		$expr = $qb->expr();
+//		$pf = $this->defaultSelectAlias;
+//
+//		/** @noinspection PhpMethodParametersCountMismatchInspection */
+//		$qb->selectAlias('s.address', 'service_address')
+//		   ->selectAlias('s.status', 'service_status')
+//		   ->selectAlias('s.config', 'service_config')
+//		   ->selectAlias('s.type', 'service_type')
+//		   ->leftJoin(
+//			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVICES, 's',
+//			   $expr->eq($pf . '.service_id', 's.id')
+//		   );
+//	}
 
 }
 

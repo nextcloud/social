@@ -32,6 +32,7 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityPub\NoteService;
 use OCA\Social\Service\ActivityPubService;
 use OCA\Social\Service\ActorService;
@@ -66,7 +67,7 @@ class NoteCreate extends Base {
 
 
 	/**
-	 * Index constructor.
+	 * NoteCreate constructor.
 	 *
 	 * @param ActivityPubService $activityPubService
 	 * @param ActorService $actorService
@@ -122,21 +123,14 @@ class NoteCreate extends Base {
 		$to = $input->getOption('to');
 		$replyTo = $input->getOption('replyTo');
 
-		$note = $this->noteService->generateNote($userId, $content, ActivityPubService::TO_PUBLIC);
+		$note = $this->noteService->generateNote($userId, $content);
 
 		if ($to !== null) {
-			$note->setTo($to);
-			$note->addTag(
-				[
-					'type' => 'Mention',
-					'href' => $to
-				]
-			);
+			$this->noteService->assignTo($note, $to, InstancePath::INBOX);
 		}
 
-
 		if ($replyTo !== null) {
-			$note->setInReplyTo($replyTo);
+			$this->noteService->replyTo($note, $replyTo);
 		}
 
 		$result = $this->activityPubService->createActivity($userId, $note, $activity);

@@ -27,24 +27,82 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Traits;
+namespace OCA\Social\Model;
 
 
-trait TOAuth2 {
+use daita\Traits\TArrayTools;
+use JsonSerializable;
+
+class InstancePath implements JsonSerializable {
+
+
+	const INBOX = 1;
+
+
+	use TArrayTools;
+
+
+	/** @var string */
+	private $uri = '';
+
+	/** @var int */
+	private $type;
+
+
+	public function __construct(string $uri, $type = 0) {
+		$this->uri = $uri;
+		$this->type = $type;
+	}
 
 
 	/**
-	 * @param int $serviceId
-	 *
 	 * @return string
 	 */
-	private function generateRedirectUrl(int $serviceId): string {
-		return \OC::$server->getURlGenerator()
-						   ->linkToRouteAbsolute(
-							   'social.OAuth2.setCode',
-							   ['serviceId' => $serviceId]
-						   );
+	public function getUri(): string {
+		return $this->uri;
 	}
+
+	/**
+	 * @param string $uri
+	 *
+	 * @return InstancePath
+	 */
+	public function setUri(string $uri): InstancePath {
+		$this->uri = $uri;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function getType(): int {
+		return $this->type;
+	}
+
+	/**
+	 * @param int $type
+	 *
+	 * @return InstancePath
+	 */
+	public function setType(int $type): InstancePath {
+		$this->type = $type;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function jsonSerialize(): array {
+		return [
+			'uri'  => $this->getUri(),
+			'type' => $this->getType()
+		];
+	}
+
 
 }
 

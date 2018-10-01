@@ -35,13 +35,12 @@ use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Exceptions\ActorAlreadyExistsException;
+use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\APIRequestException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Exceptions\InvalidAccessTokenException;
-use OCA\Social\Exceptions\MovedPermanentlyException;
+use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\Actor;
+use OCA\Social\Model\InstancePath;
 
 class ActorService {
 
@@ -49,8 +48,8 @@ class ActorService {
 	use TArrayTools;
 
 
-	/** @var UriIdService */
-	private $uriIdService;
+	/** @var InstanceService */
+	private $instanceService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -66,21 +65,21 @@ class ActorService {
 
 
 	/**
-	 * ActivityStreamsService constructor.
+	 * ActorService constructor.
 	 *
 	 * @param ActorsRequest $actorsRequest
 	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param UriIdService $uriIdService
+	 * @param InstanceService $instanceService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		ActorsRequest $actorsRequest,
-		CacheActorsRequest $cacheActorsRequest, UriIdService $uriIdService,
+		CacheActorsRequest $cacheActorsRequest, InstanceService $instanceService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		$this->configService = $configService;
-		$this->uriIdService = $uriIdService;
+		$this->instanceService = $instanceService;
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->miscService = $miscService;
@@ -92,8 +91,8 @@ class ActorService {
 	 *
 	 * @return Actor
 	 * @throws ActorDoesNotExistException
-	 * @throws NoUserException
 	 */
+
 	public function getActor(string $username): Actor {
 		$actor = $this->actorsRequest->getFromUsername($username);
 
@@ -120,9 +119,7 @@ class ActorService {
 	 * @param string $uriId
 	 *
 	 * @return Actor
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
-	 * @throws MovedPermanentlyException
+	 * @throws RequestException
 	 * @throws Exception
 	 */
 	public function getFromUri(string $uriId) {
@@ -132,12 +129,28 @@ class ActorService {
 
 			return $this->generateActor($cache->getActor());
 		} catch (CacheActorDoesNotExistException $e) {
-			$object = $this->uriIdService->retrieveObject($uriId);
+			$object = $this->instanceService->retrieveObject($uriId);
 			$actor = $this->generateActor($object);
 			$this->cacheActorsRequest->create($actor, $object);
 
 			return $actor;
 		}
+	}
+
+
+	/**
+	 * @param Actor $actor
+	 * @param int $type
+	 *
+	 * @return string
+	 */
+	public function getPathFromActor(Actor $actor, int $type) {
+		switch ($type) {
+			case InstancePath::INBOX:
+				return parse_url($actor->getInbox(), PHP_URL_PATH);
+		}
+
+		return '';
 	}
 
 
@@ -148,6 +161,7 @@ class ActorService {
 	 */
 	public function generateActor(array $object) {
 		$actor = new Actor();
+
 
 		$actor->setId($this->get('id', $object));
 		$actor->setFollowers($this->get('followers', $object));
@@ -165,9 +179,18 @@ class ActorService {
 
 
 	/**
-	 * @param string $userId
+	 * Method should be called by the frontend and will generate a fresh Social account for
+	 * the user, using the userId and the username.
 	 *
-	 * @throws ActorAlreadyExistsException
+	 * Pair of keys are created at this point.
+	 *
+	 * Return exceptions if an account already exist for this user or if the username is already
+	 * taken
+	 *
+	 * @param string $userId
+	 * @param string $username
+	 *
+	 * @throws AccountAlreadyExistsException
 	 * @throws NoUserException
 	 * @throws Exception
 	 */
@@ -179,14 +202,14 @@ class ActorService {
 
 		try {
 			$this->actorsRequest->getFromUsername($username);
-			throw new ActorAlreadyExistsException('actor with that name already exist');
+			throw new AccountAlreadyExistsException('actor with that name already exist');
 		} catch (ActorDoesNotExistException $e) {
 			/* we do nohtin */
 		}
 
 		try {
 			$this->actorsRequest->getFromUserId($userId);
-			throw new ActorAlreadyExistsException('account for this user already exist');
+			throw new AccountAlreadyExistsException('account for this user already exist');
 		} catch (ActorDoesNotExistException $e) {
 			/* we do nohtin */
 		}
@@ -202,10 +225,10 @@ class ActorService {
 
 	/**
 	 * @param $username
-	 *
-	 * @return bool
 	 */
 	private function checkActorUsername($username) {
+		$accepted = 'qwertyuiopasdfghjklzxcvbnm';
+
 		return;
 	}
 

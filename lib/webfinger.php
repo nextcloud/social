@@ -28,7 +28,6 @@ declare(strict_types=1);
 
 namespace OCA\Social;
 
-require_once __DIR__ . '/../appinfo/autoload.php';
 require_once(__DIR__ . '/../lib/autoload.php');
 
 if (!array_key_exists('resource', $_GET)) {

@@ -31,6 +31,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 
 use JsonSerializable;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ICoreService;
 
 class Core implements JsonSerializable {
@@ -50,6 +51,9 @@ class Core implements JsonSerializable {
 
 	/** @var string */
 	private $type;
+
+	/** @var InstancePath[] */
+	private $instancePaths = [];
 
 	/** @var string */
 	private $to = '';
@@ -125,6 +129,50 @@ class Core implements JsonSerializable {
 
 		return $this;
 	}
+
+
+	/**
+	 * @param InstancePath $instancePath
+	 *
+	 * @return Core
+	 */
+	public function addInstancePath(InstancePath $instancePath): Core {
+		$this->instancePaths[] = $instancePath;
+
+		return $this;
+	}
+
+
+	/**
+	 * @param InstancePath[] $path
+	 *
+	 * @return Core
+	 */
+	public function addInstancePaths(array $path): Core {
+		$this->instancePaths = array_merge($this->instancePaths, $path);
+
+		return $this;
+	}
+
+
+	/**
+	 * @return InstancePath[]
+	 */
+	public function getInstancePaths(): array {
+		return $this->instancePaths;
+	}
+
+	/**
+	 * @param InstancePath[] $instancePaths
+	 *
+	 * @return Core
+	 */
+	public function setInstancePaths(array $instancePaths): Core {
+		$this->instancePaths = $instancePaths;
+
+		return $this;
+	}
+
 
 	/**
 	 * @return Actor
@@ -219,6 +267,18 @@ class Core implements JsonSerializable {
 	public function getToArray(): array {
 		return $this->toArray;
 	}
+
+	/**
+	 * @param string $to
+	 *
+	 * @return Core
+	 */
+	public function addToArray(string $to): Core {
+		$this->toArray[] = $to;
+
+		return $this;
+	}
+
 
 	/**
 	 * @param array $toArray

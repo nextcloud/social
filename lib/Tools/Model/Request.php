@@ -232,7 +232,7 @@ class Request implements \JsonSerializable {
 	/**
 	 * @return array
 	 */
-	function jsonSerialize() {
+	public function jsonSerialize(): array {
 		return [
 			'url'  => $this->getUrl(),
 			'type' => $this->getType(),

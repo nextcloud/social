@@ -27,12 +27,62 @@ declare(strict_types=1);
  *
  */
 
+namespace OCA\Social\Model;
 
-namespace OCA\Social\AppInfo;
 
-$composerDir = __DIR__ . '/../vendor/';
+use daita\Traits\TArrayTools;
+use JsonSerializable;
 
-if (is_dir($composerDir) && file_exists($composerDir . 'autoload.php')) {
-	require_once $composerDir . 'autoload.php';
+class Instance implements JsonSerializable {
+
+	use TArrayTools;
+
+
+	/** @var string */
+	private $address;
+
+	/** @var InstancePath[] */
+	private $instancePaths = [];
+
+	public function __construct(string $address = '') {
+		$this->address = $address;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getAddress(): string {
+		return $this->address;
+	}
+
+
+	/**
+	 * @param InstancePath $path
+	 *
+	 * @return Instance
+	 */
+	public function addPath(InstancePath $path): Instance {
+		$this->instancePaths[] = $path;
+
+		return $this;
+	}
+
+	/**
+	 * @return InstancePath[]
+	 */
+	public function getInstancePaths(): array {
+		return $this->instancePaths;
+	}
+
+
+	public function jsonSerialize(): array {
+		return [
+			'address'       => $this->address,
+			'instancePaths' => $this->getInstancePaths()
+		];
+	}
+
+
 }
 

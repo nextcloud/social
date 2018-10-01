@@ -29,17 +29,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use daita\Traits\TArrayTools;
 use daita\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Service\ActivityPubService;
-use OCA\Social\Service\ActivityStreamsService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\ServiceAccountsService;
-use OCA\Social\Service\ServicesService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
@@ -85,9 +80,12 @@ class AccountController extends Controller {
 
 
 	/**
-	 * @NoAdminRequired
+	 * Called by the frontend to create a new Social account
 	 *
-	 * @param array $data
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 *
+	 * @param string $username
 	 *
 	 * @return DataResponse
 	 */

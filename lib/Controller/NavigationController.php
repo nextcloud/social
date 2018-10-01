@@ -71,13 +71,15 @@ class NavigationController extends Controller {
 
 
 	/**
+	 * Display the navigation page of the Social app.
+	 *
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
 	 * @return TemplateResponse
 	 */
-	public function navigate() {
+	public function navigate(): TemplateResponse {
 		$data = [];
 
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);

@@ -45,7 +45,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesInsertSql() {
+	protected function getNotesInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->insert(self::TABLE_SERVER_NOTES);
 
@@ -58,7 +58,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesUpdateSql() {
+	protected function getNotesUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->update(self::TABLE_SERVER_NOTES);
 
@@ -71,7 +71,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesSelectSql() {
+	protected function getNotesSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
@@ -92,7 +92,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesDeleteSql() {
+	protected function getNotesDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_SERVER_NOTES);
 

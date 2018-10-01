@@ -30,7 +30,6 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor;
 use OCA\Social\Model\ActivityPub\Cache\CacheActor;
@@ -42,7 +41,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	/**
-	 * ServicesRequest constructor.
+	 * CacheActorsRequest constructor.
 	 *
 	 * @param IDBConnection $connection
 	 * @param ConfigService $configService
@@ -56,7 +55,10 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	/**
+	 * insert cache about an Actor in database.
+	 *
 	 * @param Actor $actor
+	 * @param array $object
 	 *
 	 * @return int
 	 * @throws \Exception
@@ -79,14 +81,14 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	/**
-	 * return service.
+	 * get Cached value about an Actor, based on the account.
 	 *
 	 * @param string $account
 	 *
 	 * @return CacheActor
 	 * @throws CacheActorDoesNotExistException
 	 */
-	public function getFromAccount(string $account): Actor {
+	public function getFromAccount(string $account): CacheActor {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToAccount($qb, $account);
 
@@ -103,7 +105,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	/**
-	 * return service.
+	 * get Cached version of an Actor, based on the UriId
 	 *
 	 * @param string $url
 	 *

@@ -31,11 +31,12 @@ namespace OCA\Social\Service;
 
 
 use daita\Model\Request;
-use OCA\Social\Exceptions\APIRequestException;
-use OCA\Social\Exceptions\InvalidAccessTokenException;
-use OCA\Social\Exceptions\MovedPermanentlyException;
+use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Model\ActivityPub\Core;
+use OCA\Social\Model\Instance;
+use OCA\Social\Model\InstancePath;
 
-class UriIdService {
+class InstanceService {
 
 
 	/** @var ConfigService */
@@ -68,9 +69,7 @@ class UriIdService {
 	 * @param $id
 	 *
 	 * @return mixed
-	 * @throws MovedPermanentlyException
-	 * @throws APIRequestException
-	 * @throws InvalidAccessTokenException
+	 * @throws RequestException
 	 */
 	public function retrieveObject($id) {
 		$url = parse_url($id);
@@ -83,4 +82,70 @@ class UriIdService {
 		return $this->curlService->request($request);
 	}
 
+
+	/**
+	 * @param Core $activity
+	 *
+	 * @return Instance[]
+	 */
+	public function getInstancesFromActivity(Core $activity): array {
+		$instances = [];
+		foreach ($activity->getInstancePaths() as $instancePath) {
+			$this->addInstances($instancePath, $instances);
+//			$uriIds[] = $to;
+		}
+
+		return $instances;
+	}
+
+
+	/**
+	 * @param InstancePath $instancePath
+	 * @param Instance[] $instances
+	 */
+	private function addInstances(InstancePath $instancePath, array &$instances) {
+		$address = $this->getHostFromUriId($instancePath->getUri());
+		if ($address === '') {
+			return;
+		}
+
+		foreach ($instances as $instance) {
+			if ($instance->getAddress() === $address) {
+				$instance->addPath($instancePath);
+
+				return;
+			}
+		}
+
+		$instance = new Instance($address);
+		$instance->addPath($instancePath);
+		$instances[] = $instance;
+	}
+
+
+	/**
+	 * @param string $uriId
+	 *
+	 * @return string
+	 */
+	private function getHostFromUriId(string $uriId) {
+		$ignoreThose = [
+			'',
+			'https://www.w3.org/ns/activitystreams#Public'
+		];
+
+		if (in_array($uriId, $ignoreThose)) {
+			return '';
+		}
+
+		$url = parse_url($uriId);
+		if (!is_array($url) || !array_key_exists('host', $url)) {
+			return '';
+		}
+
+		return $url['host'];
+	}
+
+
 }
+

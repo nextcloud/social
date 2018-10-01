@@ -30,9 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\ActivityPub\Actor;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
@@ -41,7 +39,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
-	 * ServicesRequest constructor.
+	 * NotesRequest constructor.
 	 *
 	 * @param IDBConnection $connection
 	 * @param ConfigService $configService
@@ -55,6 +53,8 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
+	 * Insert a new Note in the database.
+	 *
 	 * @param Note $note
 	 *
 	 * @return int

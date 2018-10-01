@@ -40,7 +40,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
-	 * ServicesRequest constructor.
+	 * ActorsRequest constructor.
 	 *
 	 * @param IDBConnection $connection
 	 * @param ConfigService $configService
@@ -54,6 +54,8 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
+	 * create a new Actor in the database.
+	 *
 	 * @param Actor $actor
 	 *
 	 * @return int
@@ -81,7 +83,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
-	 * return service.
+	 * return Actor from database based on the username
 	 *
 	 * @param string $username
 	 *
@@ -104,9 +106,8 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 
-
 	/**
-	 * return service.
+	 * return Actor from database, based on the userId of the owner.
 	 *
 	 * @param string $userId
 	 *
@@ -129,45 +130,5 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 
-
-
-//
-//	/**
-//	 * @param Service $service
-//	 *
-//	 * @return bool
-//	 */
-//	public function update(Service $service): bool {
-//
-//		try {
-//			$this->getService($service->getId());
-//		} catch (ServiceDoesNotExistException $e) {
-//			return false;
-//		}
-//
-//		$qb = $this->getServicesUpdateSql();
-//		$qb->set('address', $qb->createNamedParameter($service->getAddress()));
-//		$qb->set('config', $qb->createNamedParameter(json_encode($service->getConfigAll())));
-//		$qb->set('status', $qb->createNamedParameter($service->getStatus()));
-//		$qb->set('config', $qb->createNamedParameter(json_encode($service->getConfigAll())));
-//
-//		$this->limitToId($qb, $service->getId());
-//
-//		$qb->execute();
-//
-//		return true;
-//	}
-//
-
-//	/**
-//	 * @param int $serviceId
-//	 */
-//	public function delete(int $serviceId) {
-//		$qb = $this->getServicesDeleteSql();
-//		$this->limitToId($qb, $serviceId);
-//
-//		$qb->execute();
-//	}
-
-
 }
+

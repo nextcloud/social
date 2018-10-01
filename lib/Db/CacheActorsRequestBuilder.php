@@ -31,10 +31,7 @@ namespace OCA\Social\Db;
 
 
 use daita\Traits\TArrayTools;
-use OCA\Social\Model\ActivityPub\Actor;
 use OCA\Social\Model\ActivityPub\Cache\CacheActor;
-use OCA\Social\Model\Service;
-use OCA\Social\Model\ServiceAccount;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
@@ -48,7 +45,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsInsertSql() {
+	protected function getCacheActorsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->insert(self::TABLE_CACHE_ACTORS);
 
@@ -61,7 +58,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsUpdateSql() {
+	protected function getCacheActorsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_ACTORS);
 
@@ -74,7 +71,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql() {
+	protected function getCacheActorsSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
@@ -94,7 +91,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsDeleteSql() {
+	protected function getCacheActorsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_CACHE_ACTORS);
 

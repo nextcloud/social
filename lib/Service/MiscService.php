@@ -120,7 +120,6 @@ class MiscService {
 	public function confirmUserId(string &$userId) {
 		$user = $this->userManager->get($userId);
 
-		return;
 		if ($user === null) {
 			throw new NoUserException('user does not exist');
 		}

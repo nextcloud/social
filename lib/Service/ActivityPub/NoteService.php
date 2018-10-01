@@ -36,7 +36,8 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Core;
 use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Service\ActivityStreamsService;
+use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityPubService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
@@ -45,11 +46,9 @@ use OCA\Social\Service\MiscService;
 
 class NoteService implements ICoreService {
 
+
 	/** @var NotesRequest */
 	private $notesRequest;
-
-	/** @var ActivityStreamsService */
-	private $activityStreamsService;
 
 	/** @var ActorService */
 	private $actorService;
@@ -68,21 +67,17 @@ class NoteService implements ICoreService {
 	 * NoteService constructor.
 	 *
 	 * @param NotesRequest $notesRequest
-	 * @param ActivityStreamsService $activityStreamsService
 	 * @param ActorService $actorService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, ActivityStreamsService $activityStreamsService,
-		ActorService $actorService,
-		CurlService $curlService,
-		ConfigService $configService,
+		NotesRequest $notesRequest, ActorService $actorService,
+		CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
-		$this->activityStreamsService = $activityStreamsService;
 		$this->actorService = $actorService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
@@ -93,13 +88,12 @@ class NoteService implements ICoreService {
 	/**
 	 * @param string $userId
 	 * @param string $content
-	 * @param string $to
 	 *
 	 * @return Note
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 */
-	public function generateNote(string $userId, string $content, string $to) {
+	public function generateNote(string $userId, string $content) {
 		$note = new Note();
 		$actor = $this->actorService->getActorFromUserId($userId);
 
@@ -108,7 +102,7 @@ class NoteService implements ICoreService {
 		$note->setAttributedTo(
 			$this->configService->getRoot() . '@' . $actor->getPreferredUsername()
 		);
-		$note->setTo($to);
+		$note->setTo(ActivityPubService::TO_PUBLIC);
 		$note->setContent($content);
 
 		$note->saveAs($this);
@@ -118,6 +112,36 @@ class NoteService implements ICoreService {
 
 
 	/**
+	 * @param Note $note
+	 * @param string $to
+	 * @param int $type
+	 */
+	public function assignTo(Note $note, string $to, int $type) {
+		$note->addToArray($to);
+		$note->addTag(
+			[
+				'type' => 'Mention',
+				'href' => $to
+			]
+		);
+
+		$note->addInstancePath(new InstancePath($to, $type));
+	}
+
+
+	/**
+	 * @param Note $note
+	 * @param string $replyTo
+	 */
+	public function replyTo(Note $note, string $replyTo) {
+		$note->setInReplyTo($replyTo);
+		$note->addInstancePath(new InstancePath($replyTo));
+	}
+
+
+	/**
+	 * This method is called when saving the Note object
+	 *
 	 * @param Core $note
 	 *
 	 * @throws Exception

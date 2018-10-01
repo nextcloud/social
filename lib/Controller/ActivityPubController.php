@@ -84,6 +84,13 @@ class ActivityPubController extends Controller {
 
 
 	/**
+	 * returns information about an Actor, based on the username.
+	 *
+	 * This method should be called when a remote ActivityPub server require information
+	 * about a local Social account
+	 *
+	 * The format is pure Json
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -91,7 +98,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function actor(string $username) {
+	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->actor($username);
 		}
@@ -108,6 +115,11 @@ class ActivityPubController extends Controller {
 	}
 
 	/**
+	 * Alias to the actor() method.
+	 *
+	 * Normal path is /apps/social/users/username
+	 * This alias is /apps/social/@username
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -115,35 +127,46 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function aliasactor(string $username) {
+	public function aliasactor(string $username): Response {
 		return $this->actor($username);
 	}
 
 
 	/**
+	 * Shared inbox. does nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
 	 * @return Response
 	 */
-	public function sharedInbox() {
+	public function sharedInbox(): Response {
 		return $this->success([]);
 	}
 
 
 	/**
+	 * Method is called when a remote ActivityPub server wants to POST in the INBOX of a USER
+	 *
+	 * Checking that the user exists, and that the header is properly signed.
+	 *
+	 * Does nothing. Should save data ($body) in database.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
+	 * @param $username
+	 *
 	 * @return Response
 	 */
-	public function inbox($username) {
+	public function inbox(string $username): Response {
 
 		try {
+			$this->actorService->getActor($username);
 			$this->activityPubService->checkRequest($this->request);
 //			$this->noteService->receiving(file_get_contents('php://input'));
 			$body = file_get_contents('php://input');
-$this->miscService->log('### ' . $body);
+
 			return $this->success([]);
 		} catch (Exception $e) {
 			return $this->fail($e->getMessage());
@@ -152,26 +175,21 @@ $this->miscService->log('### ' . $body);
 
 
 	/**
+	 * Testing method. does nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
-	 * @param string $username
-	 *
 	 * @return Response
 	 */
-	public function test($username, $body) {
-
-		return $this->success([$username]);
-//		$this->miscService->log('####  ' . $toto . '   ' . json_encode($_SERVER) . '     ' . json_encode($_POST));
-//		try {
-//			return $this->success(['author' => $author]);
-//		} catch (Exception $e) {
-//		return $this->fail('ddsaads');
-//		}
+	public function test(): Response {
+		return $this->success(['toto']);
 	}
 
 
 	/**
+	 * Outbox. does nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -179,12 +197,14 @@ $this->miscService->log('### ' . $body);
 	 *
 	 * @return Response
 	 */
-	public function outbox($username) {
+	public function outbox(string $username): Response {
 		return $this->success([$username]);
 	}
 
 
 	/**
+	 * followers. does nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -192,7 +212,7 @@ $this->miscService->log('### ' . $body);
 	 *
 	 * @return Response
 	 */
-	public function followers($username) {
+	public function followers(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
 		}
@@ -202,6 +222,8 @@ $this->miscService->log('### ' . $body);
 
 
 	/**
+	 * following. does nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -209,7 +231,7 @@ $this->miscService->log('### ' . $body);
 	 *
 	 * @return Response
 	 */
-	public function following($username) {
+	public function following(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
 		}
@@ -219,6 +241,8 @@ $this->miscService->log('### ' . $body);
 
 
 	/**
+	 * should return data about a post. do nothing.
+	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
@@ -228,16 +252,26 @@ $this->miscService->log('### ' . $body);
 	 * @return Response
 	 */
 	public function displayPost($username, $postId) {
+		if (!$this->checkSourceActivityStreams()) {
+			return $this->socialPubController->displayPost($username, $postId);
+		}
+
 		return $this->success([$username, $postId]);
 	}
 
 
 	/**
+	 * Check that the request comes from an ActivityPub server, based on the header.
 	 *
+	 * If not, should forward to a readable webpage that displays content for navigation.
+	 *
+	 * @return bool
 	 */
-	private function checkSourceActivityStreams() {
+	private function checkSourceActivityStreams(): bool {
 
+		// comment this line to display the result that would be return to an ActivityPub service (TEST)
 		return true;
+
 		if ($this->request->getHeader('Accept')
 			=== 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') {
 			return true;
