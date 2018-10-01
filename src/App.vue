@@ -17,7 +17,7 @@
 	import {
 		PopoverMenu,
 		AppNavigation
-	} from 'vue-components';
+	} from 'nextcloud-vue';
 
 	export default {
 		name: 'App',
