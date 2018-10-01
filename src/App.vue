@@ -7,6 +7,12 @@
 		</div>
 		<div id="app-content">
 			<div class="social__container">
+				Add an account:
+				<input type="text" id="social-instance-new-account" placeholder="mastodon.social" />
+				<input type="submit" id="social-submit-new-account" /><br />
+
+				Accounts: <select id="social-list-accounts"></select><input type="submit" id="social-submit-account-test" value="Test this account" /><br />
+
 				<h2>🎉 Nextcloud becomes part of the federated social networks!</h2>
 			</div>
 		</div>
