@@ -198,7 +198,6 @@ class ActorService {
 
 		$this->miscService->confirmUserId($userId);
 		$this->checkActorUsername($username);
-		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 
 		try {
 			$this->actorsRequest->getFromUsername($username);
@@ -213,6 +212,8 @@ class ActorService {
 		} catch (ActorDoesNotExistException $e) {
 			/* we do nohtin */
 		}
+
+		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 
 		$actor = new Actor();
 		$actor->setUserId($userId);

@@ -30,7 +30,10 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
+use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -40,11 +43,17 @@ use OCP\IURLGenerator;
 
 class NavigationController extends Controller {
 
+	/** @var string */
+	private $userId;
+
 	/** @var IConfig */
 	private $config;
 
 	/** @var IURLGenerator */
 	private $urlGenerator;
+
+	/** @var ActorService */
+	private $actorService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -54,18 +63,22 @@ class NavigationController extends Controller {
 	 * NavigationController constructor.
 	 *
 	 * @param IRequest $request
+	 * @param string $userId
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, IConfig $config, IURLGenerator $urlGenerator, MiscService $miscService
+		IRequest $request, string $userId, IConfig $config, IURLGenerator $urlGenerator,
+		ActorService $actorService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
+		$this->userId = $userId;
 		$this->config = $config;
 		$this->urlGenerator = $urlGenerator;
 
+		$this->actorService = $actorService;
 		$this->miscService = $miscService;
 	}
 
@@ -78,9 +91,16 @@ class NavigationController extends Controller {
 	 * @NoSubAdminRequired
 	 *
 	 * @return TemplateResponse
+	 * @throws NoUserException
 	 */
 	public function navigate(): TemplateResponse {
 		$data = [];
+
+		try {
+			$this->actorService->createActor($this->userId, $this->userId);
+		} catch (AccountAlreadyExistsException $e) {
+			// we do nothing
+		}
 
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
