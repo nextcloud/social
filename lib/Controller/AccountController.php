@@ -83,7 +83,6 @@ class AccountController extends Controller {
 	 * Called by the frontend to create a new Social account
 	 *
 	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 *
 	 * @param string $username
 	 *

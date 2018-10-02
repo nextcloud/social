@@ -11,7 +11,7 @@ return [
 	'routes' => [
 		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
 
-		['name' => 'Account#create', 'url' => '/local/account/{username}', 'verb' => 'GET'],
+		['name' => 'Account#create', 'url' => '/local/account/{username}', 'verb' => 'POST'],
 
 		['name' => 'ActivityPub#sharedInbox', 'url' => '/inbox', 'verb' => 'POST'],
 		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
