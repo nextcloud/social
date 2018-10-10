@@ -39,7 +39,7 @@
 <style scoped>
 	.timeline-entry {
 		padding: 10px;
-		border-bottom: 1px solid var(--color-background-dark);
+		margin-bottom: 10px;
 	}
 
 	.social__welcome h3 {
