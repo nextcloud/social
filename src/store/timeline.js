@@ -1,7 +1,7 @@
-/**
- * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
+/*
+ * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
- * @author John Molakvoæ <skjnldsv@protonmail.com>
+ * @author Julius Härtl <jus@bitgrid.net>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -20,19 +20,21 @@
  *
  */
 
-import Vue from 'vue'
-import App from './App'
+const state = {
+	timeline: []
+};
+const mutations = {
+	addToTimeline(state, data) {
+		for (let item in data) {
+			state.timeline.push(data[item]);
+		}
+	}
+};
+const getters = {
+	getTimeline(state) {
+		return state.timeline;
+	}
+};
+const actions = {};
 
-import store from './store';
-
-
-Vue.prototype.t = t
-Vue.prototype.n = n
-Vue.prototype.OC = OC
-Vue.prototype.OCA = OCA
-
-/* eslint-disable-next-line no-new */
-new Vue({
-  render: h => h(App),
-    store: store
-}).$mount('#content')
+export default {state, mutations, getters, actions};

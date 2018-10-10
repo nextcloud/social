@@ -1,7 +1,8 @@
-/**
+/*
  * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
  *
  * @author John Molakvoæ <skjnldsv@protonmail.com>
+ * @author Julius Härtl <jus@bitgrid.net>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -20,19 +21,23 @@
  *
  */
 
-import Vue from 'vue'
-import App from './App'
+import Vue from 'vue';
+import Vuex from 'vuex';
+import timeline from './timeline';
 
-import store from './store';
+Vue.use(Vuex)
 
+const debug = process.env.NODE_ENV !== 'production';
 
-Vue.prototype.t = t
-Vue.prototype.n = n
-Vue.prototype.OC = OC
-Vue.prototype.OCA = OCA
+const mutations = {
 
-/* eslint-disable-next-line no-new */
-new Vue({
-  render: h => h(App),
-    store: store
-}).$mount('#content')
+};
+
+export default new Vuex.Store({
+	modules: {
+		timeline
+	},
+	strict: debug,
+
+	mutations
+});

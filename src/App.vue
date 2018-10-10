@@ -97,26 +97,29 @@
 
 			};
 		},
+		beforeMount: function() {
+			let example = {
+				message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n' +
+					'\n' +
+					'Get started right now: https://nextcloud.com/signup',
+				author: 'Nextcloud 📱☁️💻',
+				authorId: '@nextcloud@mastodon.xyz',
+				authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
+				timestamp: '1 day ago'
+			};
+			let data = [];
+			for (let i=0; i<20; i++) {
+				example.id = Math.floor((Math.random() * 100));
+				data.push(example);
+			}
+			this.$store.commit('addToTimeline', data);
+		},
 		computed: {
 			socialId: function() {
 				return '@' + OC.getCurrentUser().uid + '@' + OC.getHost();
 			},
 			timeline: function() {
-				let example = {
-					message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n' +
-						'\n' +
-						'Get started right now: https://nextcloud.com/signup',
-					author: 'Nextcloud 📱☁️💻',
-					authorId: '@nextcloud@mastodon.xyz',
-					authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
-					timestamp: '1 day ago'
-				};
-				let data = [];
-				for (let i=0; i<20; i++) {
-					example.id = Math.floor((Math.random() * 100));
-					data.push(example);
-				}
-				return data;
+				return this.$store.getters.getTimeline;
 			},
 			menu: function () {
 				let defaultCategories = [
