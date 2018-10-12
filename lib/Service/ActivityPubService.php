@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use daita\Model\Request;
+use daita\MySmallPhpTools\Model\Request;
 use DateTime;
 use Exception;
 use OC\User\NoUserException;

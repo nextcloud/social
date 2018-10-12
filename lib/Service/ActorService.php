@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use daita\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;

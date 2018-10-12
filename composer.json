@@ -1,0 +1,15 @@
+{
+  "name": "nextcloud/social",
+  "description": "Social app",
+  "minimum-stability": "stable",
+  "license": "AGPL-3.0-or-later",
+  "authors": [
+    {
+      "name": "Maxence Lange",
+      "email": "maxence@artificial-owl.com"
+    }
+  ],
+  "require": {
+    "daita/my-small-php-tools": "dev-master"
+  }
+}

@@ -29,7 +29,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use daita\Traits\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\ActorService;

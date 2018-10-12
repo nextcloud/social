@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
-use daita\Traits\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\ActivityPubService;
@@ -269,7 +269,7 @@ class ActivityPubController extends Controller {
 	 */
 	private function checkSourceActivityStreams(): bool {
 
-		// comment this line to display the result that would be return to an ActivityPub service (TEST)
+		// uncomment this line to display the result that would be return to an ActivityPub service (TEST)
 		return true;
 
 		if ($this->request->getHeader('Accept')

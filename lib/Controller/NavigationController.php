@@ -66,6 +66,7 @@ class NavigationController extends Controller {
 	 * @param string $userId
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
+	 * @param ActorService $actorService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(

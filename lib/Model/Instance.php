@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model;
 
 
-use daita\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 
 class Instance implements JsonSerializable {

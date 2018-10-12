@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
-use daita\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Cache\CacheActor;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
