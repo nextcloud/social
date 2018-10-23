@@ -1,4 +1,4 @@
-/**
+/*
  * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
  *
  * @author John Molakvoæ <skjnldsv@protonmail.com>
@@ -19,34 +19,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
-import "@babel/polyfill";
 
-import Vue from 'vue'
-import {sync} from 'vuex-router-sync';
+const state = {
+	serverData: {}
+};
+const mutations = {
+	setServerData(state, data) {
+		state.serverData = data;
+	}
+};
+const getters = {
+	getServerData(state) {
+		return state.serverData;
+	}
+};
+const actions = {};
 
-import App from './App'
-import store from './store';
-import router from './router';
-
-sync(store, router);
-
-// CSP config for webpack dynamic chunk loading
-// eslint-disable-next-line
-__webpack_nonce__ = btoa(OC.requestToken)
-
-// Correct the root of the app for chunk loading
-// OC.linkTo matches the apps folders
-// eslint-disable-next-line
-__webpack_public_path__ = OC.linkTo('social', 'js/')
-
-Vue.prototype.t = t
-Vue.prototype.n = n
-Vue.prototype.OC = OC
-Vue.prototype.OCA = OCA
-
-/* eslint-disable-next-line no-new */
-new Vue({
-	router: router,
-	render: h => h(App),
-    store: store
-}).$mount('#vue-content')
+export default {state, mutations, getters, actions};

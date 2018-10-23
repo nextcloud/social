@@ -1,7 +1,6 @@
 /*
- * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
+ * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
- * @author John Molakvoæ <skjnldsv@protonmail.com>
  * @author Julius Härtl <jus@bitgrid.net>
  *
  * @license GNU AGPL version 3 or any later version
@@ -21,21 +20,29 @@
  *
  */
 
+import axios from 'nextcloud-axios';
 import Vue from 'vue';
-import Vuex from 'vuex';
-import timeline from './timeline';
-import account from './account';
-import settings from './settings';
 
-Vue.use(Vuex)
+const state = {
+	accounts: {}
+};
+const mutations = {
+	addAccount(state, {uid, data}) {
+		Vue.set(state.accounts, uid, data);
+	}
+};
+const getters = {
+	getAccount(state) {
+		return (uid) => state.accounts[uid];
+	}
+};
+const actions = {
+	fetchAccountInfo(context, uid) {
+		axios.get(OC.generateUrl('apps/social/local/account/' + uid)).then((response) => {
+			console.log(response.data);
+			context.commit('addAccount', {uid: uid, data:response.data});
+		});
+	}
+};
 
-const debug = process.env.NODE_ENV !== 'production';
-
-export default new Vuex.Store({
-	modules: {
-		timeline,
-		account,
-		settings
-	},
-	strict: debug,
-});
+export default {state, mutations, getters, actions};

@@ -1,11 +1,15 @@
 <template>
 	<div class="timeline-entry">
 		<div class="entry-content">
-			<div class="post-avatar"><img alt="" width="32" height="32" :src="item.authorAvatar"></div>
+			<div class="post-avatar">
+				<avatar :size="32" :url="item.authorAvatar" />
+			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
-					<span class="post-author">{{ item.author }}</span>
-					<span class="post-author-id">{{ item.authorId }}</span>
+					<router-link :to="{ name: 'profile', params: { account: item.authorId }}">
+						<span class="post-author">{{ item.author }}</span>
+						<span class="post-author-id">{{ item.authorId }}</span>
+					</router-link>
 				</div>
 				<div class="post-message" v-html="formatedMessage">
 				</div>
@@ -16,11 +20,13 @@
 </template>
 
 <script>
+	import { Avatar } from 'nextcloud-vue'
+
 	export default {
 		name: 'TimelineEntry',
 		props: ['item'],
 		components: {
-
+			Avatar
 		},
 		data: function () {
 			return {
