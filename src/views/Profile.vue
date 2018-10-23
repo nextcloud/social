@@ -24,9 +24,7 @@
 	<div class="social__wrapper">
 		<profile-info :uid="uid"></profile-info>
 		<div class="social__container">
-			<div class="social__timeline">
-				<timeline-entry v-for="entry in timeline" :item="entry"></timeline-entry>
-			</div>
+			<router-view name="details"></router-view>
 		</div>
 	</div>
 </template>
@@ -120,7 +118,7 @@
 	import ProfileInfo from './../components/ProfileInfo';
 
 	export default {
-		name: 'Timeline',
+		name: 'Profile',
 		components: {
 			PopoverMenu, AppNavigation, TimelineEntry, Multiselect, Avatar,
 			ProfileInfo

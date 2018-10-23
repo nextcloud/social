@@ -23,9 +23,9 @@
 <template>
 	<div class="user-profile" v-if="uid && accountInfo">
 		<div class="user-profile--info">
-			<avatar :user="profileInfo.uid" :displayName="displayName" :size="128" />
-			<h2 v-if="accountInfo.displayname">{{accountInfo.displayname.value}}</h2>
-			<p>{{accountInfo.cloudId}}</p>
+			<avatar :user="uid" :displayName="displayName" :size="128" />
+			<h2>{{ displayName }}</h2>
+			<p>{{ accountInfo.cloudId }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{accountInfo.website.value}}</a></p>
 
 			<button v-if="!serverData.public" class="primary" @click="follow">Follow this user</button>
@@ -33,14 +33,14 @@
 
 
 		<ul class="user-profile--sections">
-			<li id="social-timeline" class="">
-				<a href="#" class="icon-category-monitoring">{{ accountInfo.posts }} posts</a>
+			<li>
+				<router-link to="./" class="icon-category-monitoring" >{{ accountInfo.posts }} posts</router-link>
 			</li>
-			<li id="social-timeline" class="">
-				<a href="#" class="icon-category-social">{{ accountInfo.following }} following</a>
+			<li>
+				<router-link to="./following" class="icon-category-social">{{ accountInfo.following }} following</router-link>
 			</li>
-			<li id="social-timeline" class="">
-				<a href="#" class="icon-category-social">{{ accountInfo.followers }} followers</a>
+			<li>
+				<router-link to="./followers" class="icon-category-social">{{ accountInfo.followers }} followers</router-link>
 			</li>
 		</ul>
 	</div>
@@ -71,7 +71,7 @@
 	}
 	.user-profile--sections li a {
 		padding-left: 24px;
-		background-position: 0px center;
+		background-position: 0 center;
 		height: 40px;
 	}
 </style>
@@ -92,20 +92,15 @@
 		},
 		computed: {
 			displayName() {
-				console.log(this.accountInfo);
-				return this.accountInfo.displayname.value || '';
+				if (typeof this.accountInfo.displayname !== 'undefined')
+					return this.accountInfo.displayname.value || '';
+				return this.uid;
 			},
 			serverData: function() {
 				return this.$store.getters.getServerData;
 			},
 			accountInfo: function() {
 				return this.$store.getters.getAccount(this.uid);
-			},
-			profileInfo() {
-				return {
-					uid: this.uid,
-					server: OC.getHost()
-				}
 			}
 		}
 	}

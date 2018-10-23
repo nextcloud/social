@@ -27,6 +27,9 @@ import Router from 'vue-router';
 // Dynamic loading
 const Timeline = () => import('./views/Timeline');
 const Profile = () => import('./views/Profile');
+const ProfileTimeline = () => import('./views/ProfileTimeline');
+const ProfileFollowers = () => import('./views/ProfileFollowers');
+
 Vue.use(Router);
 
 export default new Router({
@@ -38,15 +41,41 @@ export default new Router({
 	routes: [
 		{
 			path: '/:index(index.php/)?apps/social/',
-			component: Timeline,
+			components: {
+				default: Timeline,
+			},
 			props: true,
 			name: 'timeline'
 		},
 		{
 			path: '/:index(index.php/)?apps/social/account/:account',
-			component: Profile,
+			components: {
+				default: Profile,
+			},
 			props: true,
 			name: 'profile',
+			children: [
+				{
+					path: '',
+					components: {
+						details: ProfileTimeline,
+					}
+				},
+				{
+					path: 'followers',
+					components: {
+						default: Profile,
+						details: ProfileFollowers,
+					},
+				},
+				{
+					path: 'following',
+					components: {
+						default: Profile,
+						details: ProfileFollowers,
+					},
+				}
+			]
 		},
 		{
 			path: '/:index(index.php/)?apps/social/:account',
