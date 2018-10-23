@@ -73,6 +73,10 @@
 		padding-left: 24px;
 		background-position: 0 center;
 		height: 40px;
+		opacity: .6;
+	}
+	.user-profile--sections li a.active {
+		opacity: 1;
 	}
 </style>
 <script>
