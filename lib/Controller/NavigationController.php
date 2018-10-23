@@ -156,18 +156,10 @@ class NavigationController extends Controller {
 	 */
 	public function public($username) {
 		if (\OC::$server->getUserSession()->isLoggedIn()) {
-			return new RedirectResponse(\OC::$server->getURLGenerator()->linkToRoute('social.Navigation.navigate'));
+			return $this->navigate();
 		}
-		// TODO public interface for account manager
-		/** @var AccountManager $accountManager */
-		$accountManager = \OC::$server->query(AccountManager::class);
-		$userData = $accountManager->getUser(\OC::$server->getUserManager()->get($username));
 
 		$data = [
-			'username' => $username,
-			'displayName' => $this->getPublicValue($userData, AccountManager::PROPERTY_DISPLAYNAME),
-			'website' => $this->getPublicValue($userData, AccountManager::PROPERTY_WEBSITE),
-			'account' => json_encode($userData),
 			'serverData' => [
 				'public' => true,
 			]
@@ -175,12 +167,6 @@ class NavigationController extends Controller {
 		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
 		$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
 		return $page;
-	}
-
-	private function getPublicValue($userData, $value) {
-		if ($userData[$value]['scope'] === 'public') {
-			return $userData[$value]['value'];
-		}
 	}
 
 }
