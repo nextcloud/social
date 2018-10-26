@@ -1,163 +1,150 @@
 <template>
-	<div id="content" class="app-social">
-		<div id="app-navigation">
-			<app-navigation :menu="menu">
-				<!--<template slot="settings-content">Settings</template>-->
-			</app-navigation>
+	<div class="app-social">
+		<div v-if="!serverData.public" id="app-navigation">
+			<app-navigation :menu="menu" />
 		</div>
 		<div id="app-content">
-			<div class="social__container">
-				<h2>🎉 Nextcloud becomes part of the federated social networks!</h2>
-			</div>
+			<router-view :key="$route.fullPath" />
 		</div>
 	</div>
 </template>
 
-<script>
-	import {
-		PopoverMenu,
-		AppNavigation
-	} from 'vue-components';
+<style scoped>
+	.app-social {
+		width: 100%;
+	}
+</style>
 
-	export default {
-		name: 'App',
-		components: {
-			PopoverMenu, AppNavigation
+<script>
+import {
+	PopoverMenu,
+	AppNavigation,
+	Multiselect,
+	Avatar
+} from 'nextcloud-vue'
+import TimelineEntry from './components/TimelineEntry'
+import ProfileInfo from './components/ProfileInfo'
+
+export default {
+	name: 'App',
+	components: {
+		PopoverMenu,
+		AppNavigation,
+		TimelineEntry,
+		Multiselect,
+		Avatar,
+		ProfileInfo
+	},
+	data: function() {
+		return {
+			infoHidden: false,
+			state: []
+		}
+	},
+	computed: {
+		url: function() {
+			return OC.linkTo('social', 'img/nextcloud.png')
 		},
-		data: function () {
-			return {
-				isOpen: false,
-				// example popover in the content
-				menuPopover: [
-					{
-						icon: 'icon-delete',
-						text: 'Delete item',
-						action: () => {
-							alert('Deleted!');
-						}
-					},
-					{
-						icon: 'icon-user',
-						text: 'Nextcloud website',
-						action: () => {},
-						href: 'https://nextcloud.com'
-					},
-					{
-						icon: 'icon-details',
-						longtext: 'Add item',
-						action: () => {
-							alert('details');
-						}
+		currentUser: function() {
+			return OC.getCurrentUser()
+		},
+		socialId: function() {
+			return '@' + OC.getCurrentUser().uid + '@' + OC.getHost()
+		},
+		timeline: function() {
+			return this.$store.getters.getTimeline
+		},
+		serverData: function() {
+			return this.$store.getters.getServerData
+		},
+		menu: function() {
+			let defaultCategories = [
+				{
+					id: 'social-timeline',
+					classes: [],
+					icon: 'icon-category-monitoring',
+					text: t('social', 'Timeline'),
+					router: {
+						name: 'timeline'
 					}
-				]
-			};
-		},
-		computed: {
-			// App navigation
-			menu: function () {
-				let defaultCategories = [
-					{
-						id: 'social-timeline',
-						classes: [],
-						href: '#',
-						icon: 'icon-category-monitoring',
-						text: t('social', 'Timeline'),
+				},
+				{
+					id: 'social-account',
+					classes: [],
+					icon: 'icon-user',
+					text: t('social', 'Your account'),
+					router: {
+						name: 'profile',
+						params: { account: this.currentUser.uid }
+					}
+				},
+				{
+					id: 'social-friends',
+					classes: [],
+					href: '#',
+					icon: 'icon-category-social',
+					text: t('social', 'Friends')
+				},
+				{
+					id: 'social-favorites',
+					classes: [],
+					href: '#',
+					icon: 'icon-favorite',
+					text: t('social', 'Favorites')
+				},
+				{
+					id: 'social-direct-messages',
+					classes: [],
+					href: '#',
+					icon: 'icon-comment',
+					utils: {
+						counter: 3
 					},
-					{
-						id: 'social-your-posts',
-						classes: [],
-						href: '#',
-						icon: 'icon-user',
-						text: t('social', 'Your posts'),
-					},
-					{
-						id: 'social-friends',
-						classes: [],
-						href: '#',
-						icon: 'icon-category-social',
-						text: t('social', 'Friends'),
-					},
-					{
-						id: 'social-favorites',
-						classes: [],
-						href: '#',
-						icon: 'icon-favorite',
-						text: t('social', 'Favorites'),
-					},
-					{
-						id: 'social-direct-messages',
-						classes: [],
-						href: '#',
-						icon: 'icon-comment',
-						utils: {
-							counter: 3,
-						},
-						text: t('social', 'Direct messages'),
-					},
-					/*{
-						caption: true,
-						text: t('social', 'Popular topics'),
-					},
-					{
-						id: 'social-topic-nextcloud',
-						classes: [],
-						icon: 'icon-tag',
-						href: '#',
-						utils: {
-							actions: [
-								{
-									icon: 'icon-delete',
-									text: t('settings', 'Remove topic'),
-									action: function () {
-										console.log('remove')
-									}
-								}
-							]
-						},
-						text: t('settings', '#nextcloud'),
-					},
-					{
-						id: 'social-topic-mastodon',
-						classes: [],
-						icon: 'icon-tag',
-						href: '#',
-						utils: {
-							actions: [
-								{
-									icon: 'icon-delete',
-									text: t('settings', 'Remove topic'),
-									action: function () {
-										console.log('remove')
-									}
-								}
-							]
-						},
-						text: t('social', '#mastodon'),
-					},
-					{
-						id: 'social-topic-privacy',
-						classes: [],
-						icon: 'icon-tag',
-						href: '#',
-						utils: {
-							actions: [
-								{
-									icon: 'icon-delete',
-									text: t('settings', 'Remove topic'),
-									action: function () {
-										console.log('remove')
-									}
-								}
-							]
-						},
-						text: t('social', '#privacy'),
-					},*/
-				];
-				return {
-					items: defaultCategories,
-					loading: false
+					text: t('social', 'Direct messages')
 				}
+			]
+			return {
+				items: defaultCategories,
+				loading: false
 			}
 		}
+	},
+	beforeMount: function() {
+		// importing server data into the store
+		const serverDataElmt = document.getElementById('serverData')
+		if (serverDataElmt !== null) {
+			this.$store.commit('setServerData', JSON.parse(document.getElementById('serverData').dataset.server))
+		}
+
+		let example = {
+			message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n'
+					+ '\n'
+					+ 'Get started right now: https://nextcloud.com/signup',
+			author: 'Nextcloud 📱☁️💻',
+			authorId: '@nextcloud@mastodon.xyz',
+			authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
+			timestamp: '1 day ago'
+		}
+		let data = []
+		for (let i = 0; i < 3; i++) {
+			example.id = Math.floor((Math.random() * 100))
+			data.push(example)
+		}
+		data.push({
+			message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n'
+					+ '\n'
+					+ 'Get started right now: https://nextcloud.com/signup',
+			author: 'Admin☁️💻',
+			authorId: 'admin',
+			authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
+			timestamp: '1 day ago'
+		})
+		this.$store.commit('addToTimeline', data)
+	},
+	methods: {
+		hideInfo() {
+			this.infoHidden = true
+		}
 	}
+}
 </script>

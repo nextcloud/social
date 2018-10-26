@@ -35,9 +35,14 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCP\Accounts\IAccountManager;
+use OCP\Accounts\IAccountProperty;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\NotFoundResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use OCP\IUserManager;
 
 
 class AccountController extends Controller {
@@ -56,6 +61,9 @@ class AccountController extends Controller {
 	/** @var MiscService */
 	private $miscService;
 
+	/** @var IAccountManager */
+	private $accountManager;
+
 
 	/**
 	 * AccountController constructor.
@@ -67,8 +75,9 @@ class AccountController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, string $userId, ConfigService $configService,
-		ActorService $actorService, MiscService $miscService
+		IRequest $request, ConfigService $configService,
+		ActorService $actorService, MiscService $miscService,
+		IAccountManager $accountManager, IUserManager $userManager, string $userId = null
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -76,6 +85,8 @@ class AccountController extends Controller {
 		$this->configService = $configService;
 		$this->actorService = $actorService;
 		$this->miscService = $miscService;
+		$this->accountManager = $accountManager;
+		$this->userManager = $userManager;
 	}
 
 
@@ -83,6 +94,9 @@ class AccountController extends Controller {
 	 * Called by the frontend to create a new Social account
 	 *
 	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
 	 *
 	 * @param string $username
 	 *
@@ -96,6 +110,45 @@ class AccountController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e->getMessage());
 		}
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 * @param string $username
+	 * @return DataResponse
+	 */
+	public function info(string $username): Response {
+		$user = $this->userManager->get($username);
+		if ($user === null) {
+			// TODO: Proper handling of external accounts
+			$props = [];
+			$props['cloudId'] = $username;
+			$props['displayname'] = ['value' => 'External account'];
+			$props['posts'] = 1;
+			$props['following'] = 2;
+			$props['followers'] = 3;
+			return new DataResponse($props);
+		}
+		$account = $this->accountManager->getAccount($user);
+		/** @var IAccountProperty[] $props */
+		$props = $account->getFilteredProperties(IAccountManager::VISIBILITY_PUBLIC, null);
+		if ($this->userId !== null) {
+			$props = array_merge($props, $account->getFilteredProperties(IAccountManager::VISIBILITY_CONTACTS_ONLY, null));
+		}
+		if (\array_key_exists('avatar', $props)) {
+			$props['avatar']->setValue(\OC::$server->getURLGenerator()->linkToRouteAbsolute('core.avatar.getAvatar', ['userId' => $username, 'size' => 128]));
+		}
+
+		// Add counters
+		$props['cloudId'] = $user->getCloudId();
+		$props['posts'] = 1;
+		$props['following'] = 2;
+		$props['followers'] = 3;
+		return new DataResponse($props);
 	}
 
 

@@ -1,7 +1,8 @@
-/**
+/*
  * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
  *
  * @author John Molakvoæ <skjnldsv@protonmail.com>
+ * @author Julius Härtl <jus@bitgrid.net>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -19,34 +20,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
-import '@babel/polyfill'
 
 import Vue from 'vue'
-import { sync } from 'vuex-router-sync'
+import Vuex from 'vuex'
+import timeline from './timeline'
+import account from './account'
+import settings from './settings'
 
-import App from './App'
-import store from './store'
-import router from './router'
+Vue.use(Vuex)
 
-sync(store, router)
+const debug = process.env.NODE_ENV !== 'production'
 
-// CSP config for webpack dynamic chunk loading
-// eslint-disable-next-line
-__webpack_nonce__ = btoa(OC.requestToken)
-
-// Correct the root of the app for chunk loading
-// OC.linkTo matches the apps folders
-// eslint-disable-next-line
-__webpack_public_path__ = OC.linkTo('social', 'js/')
-
-Vue.prototype.t = t
-Vue.prototype.n = n
-Vue.prototype.OC = OC
-Vue.prototype.OCA = OCA
-
-/* eslint-disable-next-line no-new */
-new Vue({
-	router: router,
-	render: h => h(App),
-	store: store
-}).$mount('#vue-content')
+export default new Vuex.Store({
+	modules: {
+		timeline,
+		account,
+		settings
+	},
+	strict: debug
+})

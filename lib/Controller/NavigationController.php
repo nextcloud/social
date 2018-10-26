@@ -30,14 +30,18 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
+use OC\Accounts\AccountManager;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\RedirectResponse;
+use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
+use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 
@@ -58,6 +62,8 @@ class NavigationController extends Controller {
 	/** @var MiscService */
 	private $miscService;
 
+	/** @var IL10N */
+	private $l10n;
 
 	/**
 	 * NavigationController constructor.
@@ -70,8 +76,8 @@ class NavigationController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, string $userId, IConfig $config, IURLGenerator $urlGenerator,
-		ActorService $actorService, MiscService $miscService
+		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
+		ActorService $actorService, MiscService $miscService, IL10N $l10n
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -81,6 +87,7 @@ class NavigationController extends Controller {
 
 		$this->actorService = $actorService;
 		$this->miscService = $miscService;
+		$this->l10n = $l10n;
 	}
 
 
@@ -94,8 +101,12 @@ class NavigationController extends Controller {
 	 * @return TemplateResponse
 	 * @throws NoUserException
 	 */
-	public function navigate(): TemplateResponse {
-		$data = [];
+	public function navigate($path = ''): TemplateResponse {
+		$data = [
+			'serverData' => [
+				'public' => false,
+			]
+		];
 
 		try {
 			$this->actorService->createActor($this->userId, $this->userId);
@@ -103,8 +114,59 @@ class NavigationController extends Controller {
 			// we do nothing
 		}
 
+
+
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
 
+	/**
+	 * Display the navigation page of the Social app.
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return TemplateResponse
+	 * @throws NoUserException
+	 */
+	public function timeline($path = ''): TemplateResponse {
+		return $this->navigate();
+	}
+
+	/**
+	 * Display the navigation page of the Social app.
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return TemplateResponse
+	 * @throws NoUserException
+	 */
+	public function account($path = ''): TemplateResponse {
+		return $this->navigate();
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param $username
+	 * @return RedirectResponse|PublicTemplateResponse
+	 */
+	public function public($username) {
+		if (\OC::$server->getUserSession()->isLoggedIn()) {
+			return $this->navigate();
+		}
+
+		$data = [
+			'serverData' => [
+				'public' => true,
+			]
+		];
+		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
+		$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
+		return $page;
+	}
 
 }
