@@ -21,15 +21,15 @@
  *
  */
 
-import Vue from 'vue';
-import Vuex from 'vuex';
-import timeline from './timeline';
-import account from './account';
-import settings from './settings';
+import Vue from 'vue'
+import Vuex from 'vuex'
+import timeline from './timeline'
+import account from './account'
+import settings from './settings'
 
 Vue.use(Vuex)
 
-const debug = process.env.NODE_ENV !== 'production';
+const debug = process.env.NODE_ENV !== 'production'
 
 export default new Vuex.Store({
 	modules: {
@@ -37,5 +37,5 @@ export default new Vuex.Store({
 		account,
 		settings
 	},
-	strict: debug,
-});
+	strict: debug
+})

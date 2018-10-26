@@ -11,8 +11,7 @@
 						<span class="post-author-id">{{ item.authorId }}</span>
 					</router-link>
 				</div>
-				<div class="post-message" v-html="formatedMessage">
-				</div>
+				<div class="post-message" v-html="formatedMessage" />
 			</div>
 			<div class="post-timestamp">{{ item.timestamp }}</div>
 		</div>
@@ -20,27 +19,29 @@
 </template>
 
 <script>
-	import { Avatar } from 'nextcloud-vue'
+import { Avatar } from 'nextcloud-vue'
 
-	export default {
-		name: 'TimelineEntry',
-		props: ['item'],
-		components: {
-			Avatar
-		},
-		data: function () {
-			return {
+export default {
+	name: 'TimelineEntry',
+	components: {
+		Avatar
+	},
+	props: {
+		item: { type: Object, default: () => {} }
+	},
+	data: function() {
+		return {
 
-			};
-		},
-		computed: {
-			formatedMessage: function() {
-				let message = this.item.message;
-				message = message.replace(/(?:\r\n|\r|\n)/g, '<br />');
-				return message;
-			}
+		}
+	},
+	computed: {
+		formatedMessage: function() {
+			let message = this.item.message
+			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
+			return message
 		}
 	}
+}
 </script>
 <style scoped>
 	.timeline-entry {

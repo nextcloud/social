@@ -22,9 +22,9 @@
 
 <template>
 	<div class="social__wrapper">
-		<profile-info :uid="uid"></profile-info>
+		<profile-info :uid="uid" />
 		<div class="social__container">
-			<router-view name="details"></router-view>
+			<router-view name="details" />
 		</div>
 	</div>
 </template>
@@ -106,48 +106,51 @@
 
 </style>
 
-
 <script>
-	import {
+import {
+	PopoverMenu,
+	AppNavigation,
+	Multiselect,
+	Avatar
+} from 'nextcloud-vue'
+import TimelineEntry from './../components/TimelineEntry'
+import ProfileInfo from './../components/ProfileInfo'
+
+export default {
+	name: 'Profile',
+	components: {
 		PopoverMenu,
 		AppNavigation,
+		TimelineEntry,
 		Multiselect,
-		Avatar
-	} from 'nextcloud-vue';
-	import TimelineEntry from './../components/TimelineEntry';
-	import ProfileInfo from './../components/ProfileInfo';
-
-	export default {
-		name: 'Profile',
-		components: {
-			PopoverMenu, AppNavigation, TimelineEntry, Multiselect, Avatar,
-			ProfileInfo
-		},
-		beforeMount() {
-			this.uid =  this.$route.params.account;
-			this.$store.dispatch('fetchAccountInfo', this.uid);
-		},
-		data: function () {
-			return {
-				state: [],
-				uid: null,
-			};
-		},
-		methods: {
-		},
-		computed: {
-			serverData: function() {
-				return this.$store.getters.getServerData;
-			},
-			currentUser: function() {
-				return OC.getCurrentUser();
-			},
-			socialId: function() {
-				return '@' + OC.getCurrentUser().uid + '@' + OC.getHost();
-			},
-			timeline: function() {
-				return this.$store.getters.getTimeline;
-			}
+		Avatar,
+		ProfileInfo
+	},
+	data: function() {
+		return {
+			state: [],
+			uid: null
 		}
+	},
+	computed: {
+		serverData: function() {
+			return this.$store.getters.getServerData
+		},
+		currentUser: function() {
+			return OC.getCurrentUser()
+		},
+		socialId: function() {
+			return '@' + OC.getCurrentUser().uid + '@' + OC.getHost()
+		},
+		timeline: function() {
+			return this.$store.getters.getTimeline
+		}
+	},
+	beforeMount() {
+		this.uid = this.$route.params.account
+		this.$store.dispatch('fetchAccountInfo', this.uid)
+	},
+	methods: {
 	}
+}
 </script>

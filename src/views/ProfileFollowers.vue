@@ -35,19 +35,18 @@
 	}
 </style>
 
-
 <script>
-	import TimelineEntry from './../components/TimelineEntry';
+import TimelineEntry from './../components/TimelineEntry'
 
-	export default {
-		name: 'ProfileFollowers',
-		components: {
-			TimelineEntry,
-		},
-		computed: {
-			timeline: function() {
-				return this.$store.getters.getTimeline;
-			}
+export default {
+	name: 'ProfileFollowers',
+	components: {
+		TimelineEntry
+	},
+	computed: {
+		timeline: function() {
+			return this.$store.getters.getTimeline
 		}
 	}
+}
 </script>

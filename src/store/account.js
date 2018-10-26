@@ -20,29 +20,28 @@
  *
  */
 
-import axios from 'nextcloud-axios';
-import Vue from 'vue';
+import axios from 'nextcloud-axios'
+import Vue from 'vue'
 
 const state = {
 	accounts: {}
-};
+}
 const mutations = {
-	addAccount(state, {uid, data}) {
-		Vue.set(state.accounts, uid, data);
+	addAccount(state, { uid, data }) {
+		Vue.set(state.accounts, uid, data)
 	}
-};
+}
 const getters = {
 	getAccount(state) {
-		return (uid) => state.accounts[uid];
+		return (uid) => state.accounts[uid]
 	}
-};
+}
 const actions = {
 	fetchAccountInfo(context, uid) {
 		axios.get(OC.generateUrl('apps/social/local/account/' + uid)).then((response) => {
-			console.log(response.data);
-			context.commit('addAccount', {uid: uid, data:response.data});
-		});
+			context.commit('addAccount', { uid: uid, data: response.data })
+		})
 	}
-};
+}
 
-export default {state, mutations, getters, actions};
+export default { state, mutations, getters, actions }

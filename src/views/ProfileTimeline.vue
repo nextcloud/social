@@ -22,7 +22,7 @@
 
 <template>
 	<div class="social__timeline">
-		<timeline-entry v-for="entry in timeline" :item="entry"></timeline-entry>
+		<timeline-entry v-for="entry in timeline" :item="entry" />
 	</div>
 </template>
 
@@ -33,19 +33,18 @@
 	}
 </style>
 
-
 <script>
-	import TimelineEntry from './../components/TimelineEntry';
+import TimelineEntry from './../components/TimelineEntry'
 
-	export default {
-		name: 'ProfileTimeline',
-		components: {
-			TimelineEntry,
-		},
-		computed: {
-			timeline: function() {
-				return this.$store.getters.getTimeline;
-			}
+export default {
+	name: 'ProfileTimeline',
+	components: {
+		TimelineEntry
+	},
+	computed: {
+		timeline: function() {
+			return this.$store.getters.getTimeline
 		}
 	}
+}
 </script>

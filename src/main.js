@@ -19,16 +19,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
-import "@babel/polyfill";
+import '@babel/polyfill'
 
 import Vue from 'vue'
-import {sync} from 'vuex-router-sync';
+import { sync } from 'vuex-router-sync'
 
 import App from './App'
-import store from './store';
-import router from './router';
+import store from './store'
+import router from './router'
 
-sync(store, router);
+sync(store, router)
 
 // CSP config for webpack dynamic chunk loading
 // eslint-disable-next-line
@@ -48,5 +48,5 @@ Vue.prototype.OCA = OCA
 new Vue({
 	router: router,
 	render: h => h(App),
-    store: store
+	store: store
 }).$mount('#vue-content')

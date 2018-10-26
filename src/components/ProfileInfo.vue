@@ -21,20 +21,19 @@
   -->
 
 <template>
-	<div class="user-profile" v-if="uid && accountInfo">
+	<div v-if="uid && accountInfo" class="user-profile">
 		<div class="user-profile--info">
-			<avatar :user="uid" :displayName="displayName" :size="128" />
+			<avatar :user="uid" :display-name="displayName" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<p>{{ accountInfo.cloudId }}</p>
-			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{accountInfo.website.value}}</a></p>
+			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
 
 			<button v-if="!serverData.public" class="primary" @click="follow">Follow this user</button>
 		</div>
 
-
 		<ul class="user-profile--sections">
 			<li>
-				<router-link to="./" class="icon-category-monitoring" >{{ accountInfo.posts }} posts</router-link>
+				<router-link to="./" class="icon-category-monitoring">{{ accountInfo.posts }} posts</router-link>
 			</li>
 			<li>
 				<router-link to="./following" class="icon-category-social">{{ accountInfo.following }} following</router-link>
@@ -81,32 +80,36 @@
 </style>
 <script>
 
-	import { Avatar } from 'nextcloud-vue'
+import { Avatar } from 'nextcloud-vue'
 
-	export default {
-		name: 'ProfileInfo',
-		props: ['uid'],
-		components: {
-			Avatar
+export default {
+	name: 'ProfileInfo',
+	components: {
+		Avatar
+	},
+	props: {
+		uid: {
+			type: String,
+			default: ''
+		}
+	},
+	computed: {
+		displayName() {
+			if (typeof this.accountInfo.displayname !== 'undefined') { return this.accountInfo.displayname.value || '' }
+			return this.uid
 		},
-		methods: {
-			follow() {
-				console.log('TODO: implement following users');
-			}
+		serverData: function() {
+			return this.$store.getters.getServerData
 		},
-		computed: {
-			displayName() {
-				if (typeof this.accountInfo.displayname !== 'undefined')
-					return this.accountInfo.displayname.value || '';
-				return this.uid;
-			},
-			serverData: function() {
-				return this.$store.getters.getServerData;
-			},
-			accountInfo: function() {
-				return this.$store.getters.getAccount(this.uid);
-			}
+		accountInfo: function() {
+			return this.$store.getters.getAccount(this.uid)
+		}
+	},
+	methods: {
+		follow() {
+			// TODO: implement following users
 		}
 	}
+}
 
 </script>

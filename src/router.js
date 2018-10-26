@@ -21,16 +21,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
-import Vue from 'vue';
-import Router from 'vue-router';
+import Vue from 'vue'
+import Router from 'vue-router'
 
 // Dynamic loading
-const Timeline = () => import('./views/Timeline');
-const Profile = () => import('./views/Profile');
-const ProfileTimeline = () => import('./views/ProfileTimeline');
-const ProfileFollowers = () => import('./views/ProfileFollowers');
+const Timeline = () => import('./views/Timeline')
+const Profile = () => import('./views/Profile')
+const ProfileTimeline = () => import('./views/ProfileTimeline')
+const ProfileFollowers = () => import('./views/ProfileFollowers')
 
-Vue.use(Router);
+Vue.use(Router)
 
 export default new Router({
 	mode: 'history',
@@ -42,7 +42,7 @@ export default new Router({
 		{
 			path: '/:index(index.php/)?apps/social/',
 			components: {
-				default: Timeline,
+				default: Timeline
 			},
 			props: true,
 			name: 'timeline'
@@ -50,7 +50,7 @@ export default new Router({
 		{
 			path: '/:index(index.php/)?apps/social/account/:account',
 			components: {
-				default: Profile,
+				default: Profile
 			},
 			props: true,
 			name: 'profile',
@@ -58,22 +58,22 @@ export default new Router({
 				{
 					path: '',
 					components: {
-						details: ProfileTimeline,
+						details: ProfileTimeline
 					}
 				},
 				{
 					path: 'followers',
 					components: {
 						default: Profile,
-						details: ProfileFollowers,
-					},
+						details: ProfileFollowers
+					}
 				},
 				{
 					path: 'following',
 					components: {
 						default: Profile,
-						details: ProfileFollowers,
-					},
+						details: ProfileFollowers
+					}
 				}
 			]
 		},
@@ -81,7 +81,7 @@ export default new Router({
 			path: '/:index(index.php/)?apps/social/:account',
 			component: Profile,
 			props: true,
-			name: 'public',
+			name: 'public'
 		}
 	]
-});
+})

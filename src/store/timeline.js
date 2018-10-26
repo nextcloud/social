@@ -22,19 +22,19 @@
 
 const state = {
 	timeline: []
-};
+}
 const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
-			state.timeline.push(data[item]);
+			state.timeline.push(data[item])
 		}
 	}
-};
+}
 const getters = {
 	getTimeline(state) {
-		return state.timeline;
+		return state.timeline
 	}
-};
-const actions = {};
+}
+const actions = {}
 
-export default {state, mutations, getters, actions};
+export default { state, mutations, getters, actions }
