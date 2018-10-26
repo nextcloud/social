@@ -43,3 +43,6 @@ clean:
 
 clean-dev:
 	rm -rf node_modules
+
+composer:
+	composer install --prefer-dist

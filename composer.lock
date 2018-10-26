@@ -12,18 +12,23 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "f13fb739ffc13c6843e34628dcd3a251a619ee02"
+                "reference": "e0d7d135d75839419cc9f46b6e0543720234a791"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/f13fb739ffc13c6843e34628dcd3a251a619ee02",
-                "reference": "f13fb739ffc13c6843e34628dcd3a251a619ee02",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/e0d7d135d75839419cc9f46b6e0543720234a791",
+                "reference": "e0d7d135d75839419cc9f46b6e0543720234a791",
                 "shasum": ""
             },
             "require": {
                 "php": "^7.0"
             },
             "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "daita\\MySmallPhpTools\\": "lib/"
+                }
+            },
             "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "AGPL-3.0-or-later"
@@ -35,7 +40,7 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2018-10-11T14:02:16+00:00"
+            "time": "2018-10-12T13:48:31+00:00"
         }
     ],
     "packages-dev": [],

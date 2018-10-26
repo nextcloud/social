@@ -5,7 +5,7 @@
 	<name>Social</name>
 	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
 	<description><![CDATA[test]]></description>
-	<version>0.0.18</version>
+	<version>0.0.19</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
@@ -17,7 +17,7 @@
 	<bugs>https://github.com/nextcloud/social/issues</bugs>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/screenshots/screenshot.png</screenshot>
 	<dependencies>
-		<nextcloud min-version="14" max-version="15"/>
+		<nextcloud min-version="15" max-version="15"/>
 	</dependencies>
 	<navigations>
 		<navigation>
