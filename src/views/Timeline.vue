@@ -25,7 +25,7 @@
 						<div class="submitLoading icon-loading-small hidden" />
 					</form>
 				</div>
-				<timeline-entry v-for="entry in timeline" :item="entry" />
+				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
 			</div>
 		</div>
 	</div>

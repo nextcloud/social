@@ -22,7 +22,7 @@
 
 <template>
 	<div class="social__timeline">
-		<timeline-entry v-for="entry in timeline" :item="entry" />
+		<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
 	</div>
 </template>
 
