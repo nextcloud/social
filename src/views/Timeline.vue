@@ -3,9 +3,9 @@
 		<div class="social__container">
 			<div v-if="!infoHidden" class="social__welcome">
 				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
-				<h3>🎉{{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h3>
+				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
 				<p>
-					{{ t('social', 'We have automatically created a social account for you. Your social id is the same as the federated cloud id:') }}
+					{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
 					<span class="social-id">{{ socialId }}</span>
 				</p>
 			</div>
@@ -64,8 +64,7 @@
 		max-width: 700px;
 		margin: 15px auto;
 		padding: 15px;
-		border-radius: 10px;
-		background-color: var(--color-background-dark);
+		border-bottom: 1px solid var(--color-border);
 	}
 
 	.social__welcome h3 {
@@ -73,7 +72,15 @@
 	}
 
 	.social__welcome .icon-close {
-		float:right;
+		float: right;
+		padding: 22px;
+		margin: -15px;
+		opacity: .3;
+	}
+
+	.social__welcome .icon-close:hover,
+	.social__welcome .icon-close:focus {
+		opacity: 1;
 	}
 
 	.social__welcome .social-id {
