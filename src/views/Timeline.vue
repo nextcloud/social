@@ -95,7 +95,7 @@
 	.new-post {
 		display: flex;
 		padding: 10px;
-		background-color: var(--color-main-background);
+		background-color: var(--color-main-background-translucent);
 		position: sticky;
 		top: 47px;
 		z-index: 100;
@@ -187,7 +187,7 @@ export default {
 					classes: [],
 					href: '#',
 					icon: 'icon-category-user',
-					text: t('social', 'Your account')
+					text: t('social', 'Profile')
 				},
 				{
 					id: 'social-friends',

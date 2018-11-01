@@ -72,7 +72,7 @@ export default {
 					id: 'social-account',
 					classes: [],
 					icon: 'icon-user',
-					text: t('social', 'Your account'),
+					text: t('social', 'Profile'),
 					router: {
 						name: 'profile',
 						params: { account: this.currentUser.uid }
