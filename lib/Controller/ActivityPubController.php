@@ -33,8 +33,11 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Service\ActivityPubService;
+use OCA\Social\Db\NotesRequest;
+use OCA\Social\Service\ActivityPub\FollowService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
@@ -50,11 +53,20 @@ class ActivityPubController extends Controller {
 	/** @var SocialPubController */
 	private $socialPubController;
 
-	/** @var ActivityPubService */
-	private $activityPubService;
+	/** @var ActivityService */
+	private $activityService;
+
+	/** @var ImportService */
+	private $importService;
+
+	/** @var FollowService */
+	private $followService;
 
 	/** @var ActorService */
 	private $actorService;
+
+	/** @var NotesRequest */
+	private $notesRequest;
 
 	/** @var MiscService */
 	private $miscService;
@@ -63,22 +75,30 @@ class ActivityPubController extends Controller {
 	/**
 	 * ActivityPubController constructor.
 	 *
-	 * @param SocialPubController $socialPubController
-	 * @param ActivityPubService $activityPubService
-	 * @param ActorService $actorService
 	 * @param IRequest $request
+	 * @param SocialPubController $socialPubController
+	 * @param ActivityService $activityService
+	 * @param ImportService $importService
+	 * @param FollowService $followService
+	 * @param ActorService $actorService
+	 * @param NotesRequest $notesRequest
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		SocialPubController $socialPubController, ActivityPubService $activityPubService,
-		ActorService $actorService, IRequest $request,
+		IRequest $request, SocialPubController $socialPubController,
+		ActivityService $activityService, ImportService $importService,
+		FollowService $followService, ActorService $actorService, NotesRequest $notesRequest,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->socialPubController = $socialPubController;
-		$this->activityPubService = $activityPubService;
+
+		$this->activityService = $activityService;
+		$this->importService = $importService;
+		$this->followService = $followService;
 		$this->actorService = $actorService;
+		$this->notesRequest = $notesRequest;
 		$this->miscService = $miscService;
 	}
 
@@ -104,15 +124,15 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
-//			$this->activityPubService->generateActor($userId);
-
 			$actor = $this->actorService->getActor($username);
+			$actor->setTopLevel(true);
 
 			return $this->directSuccess($actor);
 		} catch (Exception $e) {
 			return $this->fail($e->getMessage());
 		}
 	}
+
 
 	/**
 	 * Alias to the actor() method.
@@ -127,7 +147,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function aliasactor(string $username): Response {
+	public function actorAlias(string $username): Response {
 		return $this->actor($username);
 	}
 
@@ -155,17 +175,23 @@ class ActivityPubController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
-	 * @param $username
+	 * @param string $username
 	 *
 	 * @return Response
 	 */
 	public function inbox(string $username): Response {
 
 		try {
-			$this->actorService->getActor($username);
-			$this->activityPubService->checkRequest($this->request);
-//			$this->noteService->receiving(file_get_contents('php://input'));
+			$actor = $this->actorService->getActor($username);
+			$this->activityService->checkRequest($this->request);
 			$body = file_get_contents('php://input');
+
+			$activity = $this->importService->import($body);
+
+			try {
+				$this->activityService->save($activity);
+			} catch (Exception $e) {
+			}
 
 			return $this->success([]);
 		} catch (Exception $e) {
@@ -212,12 +238,21 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function followers(string $username): Response {
+	public function followers(string $username, $data): Response {
+
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
 		}
 
-		return $this->success([$username]);
+		try {
+			$actor = $this->actorService->getActor($username);
+			$followers = $this->followService->getFollowers($actor);
+			$followers->setTopLevel(true);
+
+			return $this->directSuccess($followers);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
 	}
 
 

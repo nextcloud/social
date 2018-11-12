@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use OC\Accounts\AccountManager;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
@@ -46,6 +47,9 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 
 class NavigationController extends Controller {
+
+
+	use TArrayTools;
 
 	/** @var string */
 	private $userId;
@@ -114,8 +118,6 @@ class NavigationController extends Controller {
 			// we do nothing
 		}
 
-
-
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
 
@@ -152,10 +154,12 @@ class NavigationController extends Controller {
 	 * @PublicPage
 	 *
 	 * @param $username
+	 *
 	 * @return RedirectResponse|PublicTemplateResponse
 	 */
 	public function public($username) {
-		if (\OC::$server->getUserSession()->isLoggedIn()) {
+		if (\OC::$server->getUserSession()
+						->isLoggedIn()) {
 			return $this->navigate();
 		}
 
@@ -166,6 +170,7 @@ class NavigationController extends Controller {
 		];
 		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
 		$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
+
 		return $page;
 	}
 

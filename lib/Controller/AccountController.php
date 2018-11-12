@@ -27,7 +27,9 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Controller;
+
 
 use daita\MySmallPhpTools\Traits\TNCDataResponse;
 use Exception;
@@ -39,7 +41,6 @@ use OCP\Accounts\IAccountManager;
 use OCP\Accounts\IAccountProperty;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -47,10 +48,15 @@ use OCP\IUserManager;
 
 class AccountController extends Controller {
 
+
 	use TNCDataResponse;
+
 
 	/** @var string */
 	private $userId;
+
+	/** @var IUserManager */
+	private $userManager;
 
 	/** @var ConfigService */
 	private $configService;
@@ -69,32 +75,33 @@ class AccountController extends Controller {
 	 * AccountController constructor.
 	 *
 	 * @param IRequest $request
-	 * @param string $userId
+	 * @param IUserManager $userManager
 	 * @param ConfigService $configService
 	 * @param ActorService $actorService
 	 * @param MiscService $miscService
+	 * @param IAccountManager $accountManager
+	 * @param string $userId
 	 */
 	public function __construct(
-		IRequest $request, ConfigService $configService,
+		IRequest $request, $userId, IUserManager $userManager, ConfigService $configService,
 		ActorService $actorService, MiscService $miscService,
-		IAccountManager $accountManager, IUserManager $userManager, string $userId = null
+		IAccountManager $accountManager
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
+		$this->userManager = $userManager;
+		$this->accountManager = $accountManager;
+
 		$this->configService = $configService;
 		$this->actorService = $actorService;
 		$this->miscService = $miscService;
-		$this->accountManager = $accountManager;
-		$this->userManager = $userManager;
 	}
 
 
 	/**
 	 * Called by the frontend to create a new Social account
 	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -112,13 +119,15 @@ class AccountController extends Controller {
 		}
 	}
 
+
 	/**
 	 * @PublicPage
-	 * @NoAdminRequired
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 *
 	 * @param string $username
+	 *
 	 * @return DataResponse
 	 */
 	public function info(string $username): Response {
@@ -131,16 +140,25 @@ class AccountController extends Controller {
 			$props['posts'] = 1;
 			$props['following'] = 2;
 			$props['followers'] = 3;
+
 			return new DataResponse($props);
 		}
 		$account = $this->accountManager->getAccount($user);
 		/** @var IAccountProperty[] $props */
 		$props = $account->getFilteredProperties(IAccountManager::VISIBILITY_PUBLIC, null);
 		if ($this->userId !== null) {
-			$props = array_merge($props, $account->getFilteredProperties(IAccountManager::VISIBILITY_CONTACTS_ONLY, null));
+			$props = array_merge(
+				$props,
+				$account->getFilteredProperties(IAccountManager::VISIBILITY_CONTACTS_ONLY, null)
+			);
 		}
 		if (\array_key_exists('avatar', $props)) {
-			$props['avatar']->setValue(\OC::$server->getURLGenerator()->linkToRouteAbsolute('core.avatar.getAvatar', ['userId' => $username, 'size' => 128]));
+			$props['avatar']->setValue(
+				\OC::$server->getURLGenerator()
+							->linkToRouteAbsolute(
+								'core.avatar.getAvatar', ['userId' => $username, 'size' => 128]
+							)
+			);
 		}
 
 		// Add counters
@@ -148,6 +166,7 @@ class AccountController extends Controller {
 		$props['posts'] = 1;
 		$props['following'] = 2;
 		$props['followers'] = 3;
+
 		return new DataResponse($props);
 	}
 

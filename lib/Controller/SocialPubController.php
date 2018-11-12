@@ -32,7 +32,7 @@ namespace OCA\Social\Controller;
 
 use daita\MySmallPhpTools\Traits\TNCDataResponse;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Service\ActivityPubService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
@@ -45,8 +45,8 @@ class SocialPubController extends Controller {
 
 	use TNCDataResponse;
 
-	/** @var ActivityPubService */
-	private $activityPubService;
+	/** @var ActivityService */
+	private $activityService;
 
 	/** @var ActorService */
 	private $actorService;
@@ -58,18 +58,18 @@ class SocialPubController extends Controller {
 	/**
 	 * SocialPubController constructor.
 	 *
-	 * @param ActivityPubService $activityPubService
+	 * @param ActivityService $activityService
 	 * @param ActorService $actorService
 	 * @param IRequest $request
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityPubService $activityPubService, ActorService $actorService, IRequest $request,
+		ActivityService $activityService, ActorService $actorService, IRequest $request,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
-		$this->activityPubService = $activityPubService;
+		$this->activityService = $activityService;
 		$this->actorService = $actorService;
 		$this->miscService = $miscService;
 	}
