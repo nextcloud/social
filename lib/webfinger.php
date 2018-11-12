@@ -53,13 +53,14 @@ $finger = [
 		[
 			'rel'  => 'self',
 			'type' => 'application/activity+json',
-			//			'href' => 'https://test.artificial-owl.com/apps/social/@' . $username
 			'href' => $urlGenerator->linkToRouteAbsolute(
-				'social.ActivityPub.aliasactor', ['username' => $username]
+				'social.ActivityPub.actorAlias', ['username' => $username]
 			)
 		]
 	]
 ];
 
 header('Content-type: application/json');
+
 echo json_encode($finger);
+
