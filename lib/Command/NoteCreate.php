@@ -33,12 +33,14 @@ namespace OCA\Social\Command;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\NoteService;
-use OCA\Social\Service\ActivityPubService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\PostService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -50,14 +52,14 @@ class NoteCreate extends Base {
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var ActivityPubService */
-	private $activityPubService;
+	/** @var ActivityService */
+	private $activityService;
 
 	/** @var ActorService */
 	private $actorService;
 
 	/** @var NoteService */
-	private $noteService;
+	private $postService;
 
 	/** @var CurlService */
 	private $curlService;
@@ -69,23 +71,23 @@ class NoteCreate extends Base {
 	/**
 	 * NoteCreate constructor.
 	 *
-	 * @param ActivityPubService $activityPubService
+	 * @param ActivityService $activityService
 	 * @param ActorService $actorService
-	 * @param NoteService $noteService
+	 * @param PostService $postService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityPubService $activityPubService, ActorService $actorService,
-		NoteService $noteService, CurlService $curlService,
+		ActivityService $activityService, ActorService $actorService,
+		PostService $postService, CurlService $curlService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
-		$this->activityPubService = $activityPubService;
+		$this->activityService = $activityService;
 		$this->actorService = $actorService;
-		$this->noteService = $noteService;
+		$this->postService = $postService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -123,21 +125,15 @@ class NoteCreate extends Base {
 		$to = $input->getOption('to');
 		$replyTo = $input->getOption('replyTo');
 
-		$note = $this->noteService->generateNote($userId, $content);
+		$post = new Post($userId);
+		$post->setContent($content);
+		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
+		$post->addTo($to);
 
-		if ($to !== null) {
-			$this->noteService->assignTo($note, $to, InstancePath::INBOX);
-		}
+		$result = $this->postService->createPost($post, $activity);
 
-		if ($replyTo !== null) {
-			$this->noteService->replyTo($note, $replyTo);
-		}
-
-		$result = $this->activityPubService->createActivity($userId, $note, $activity);
-
-		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT) . "\n";
-		echo 'result: ' . json_encode($result, JSON_PRETTY_PRINT) . "\n";
-
+		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+		echo 'result: ' . json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 	}
 
 }
