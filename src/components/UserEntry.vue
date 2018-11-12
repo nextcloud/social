@@ -30,7 +30,7 @@
 				<router-link :to="{ name: 'profile', params: { account: item.id }}">
 					<span class="post-author">{{ item.displayName }}</span>
 				</router-link>
-				<p class="user-description">{{ item.description}}</p>
+				<p class="user-description">{{ item.description }}</p>
 			</div>
 			<button v-if="item.following" class="icon-checkmark-color">Following</button>
 			<button v-else class="primary">Follow</button>
@@ -58,7 +58,7 @@ export default {
 </script>
 <style scoped>
 	.user-entry {
-		padding: 10px;
+		padding: 20px;
 		margin-bottom: 10px;
 	}
 

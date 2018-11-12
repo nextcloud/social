@@ -22,7 +22,7 @@
 
 <template>
 	<div class="social__followers">
-		<user-entry :item="user" v-for="user in users" />
+		<user-entry v-for="user in users" :item="user" :key="user.id" />
 	</div>
 </template>
 
@@ -34,17 +34,16 @@
 	}
 	.user-entry {
 		width: 50%;
-		padding: 10px;
 	}
 </style>
 
 <script>
-import UserEntry from '../components/UserEntry';
+import UserEntry from '../components/UserEntry'
 
 export default {
 	name: 'ProfileFollowers',
 	components: {
-		UserEntry,
+		UserEntry
 	},
 	computed: {
 		timeline: function() {

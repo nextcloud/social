@@ -38,6 +38,7 @@
 
 	.setup input[type=url] {
 		width: 300px;
+	}
 
 	#app-content .social__wrapper {
 		margin: 15px calc(50% - 350px - 75px);
