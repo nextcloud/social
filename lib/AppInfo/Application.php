@@ -27,17 +27,18 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\AppInfo;
+
 
 use OCP\AppFramework\App;
 use OCP\AppFramework\IAppContainer;
 
+
 class Application extends App {
 
-	const APP_NAME = 'social';
 
-	/** @var IAppContainer */
-	private $container;
+	const APP_NAME = 'social';
 
 
 	/**
@@ -47,32 +48,7 @@ class Application extends App {
 	 */
 	public function __construct(array $params = []) {
 		parent::__construct(self::APP_NAME, $params);
-
-		$this->container = $this->getContainer();
 	}
-
-//
-//	/**
-//	 * Register Navigation Tab
-//	 */
-//	public function registerNavigation() {
-//
-//		$urlGen = \OC::$server->getURLGenerator();
-//		$navName = \OC::$server->getL10N(self::APP_NAME)
-//							   ->t('Social');
-//
-//		$social = [
-//			'id'    => self::APP_NAME,
-//			'order' => 5,
-//			'href'  => $urlGen->linkToRoute('social.Navigation.navigate'),
-//			'icon'  => $urlGen->imagePath(self::APP_NAME, 'social.svg'),
-//			'name'  => $navName
-//		];
-//
-//		$this->container->getServer()
-//						->getNavigationManager()
-//						->add($social);
-//	}
 
 }
 
