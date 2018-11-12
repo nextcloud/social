@@ -12,21 +12,7 @@
 				</div>
 			</transition>
 			<div class="social__timeline">
-				<div class="new-post" data-id="">
-					<div class="new-post-author">
-						<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :size="32" />
-					</div>
-					<form class="new-post-form">
-						<div class="author currentUser">
-							{{ currentUser.displayName }}
-							<span class="social-id">{{ socialId }}</span>
-						</div>
-						<div contenteditable="true" class="message" placeholder="Share a thought…" />
-						<input class="submit icon-confirm has-tooltip" type="submit" value=""
-							title="" data-original-title="Post">
-						<div class="submitLoading icon-loading-small hidden" />
-					</form>
-				</div>
+				<composer></composer>
 				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
 				<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
 					<div slot="spinner"><div class="icon-loading" /></div>
@@ -90,46 +76,6 @@
 		margin: 15px auto;
 	}
 
-	.new-post {
-		display: flex;
-		padding: 10px;
-		background-color: var(--color-main-background-translucent);
-		position: sticky;
-		top: 47px;
-		z-index: 100;
-		margin-bottom: 10px;
-	}
-	.new-post-author {
-		padding: 5px;
-	}
-	.author .social-id {
-		opacity: .5;
-	}
-	.new-post-form {
-		flex-grow: 1;
-		position: relative;
-	}
-	.message {
-		width: 100%;
-	}
-	[contenteditable=true]:empty:before{
-		content: attr(placeholder);
-		display: block; /* For Firefox */
-		opacity: .5;
-	}
-	input[type=submit] {
-		width: 44px;
-		height: 44px;
-		margin: 0;
-		padding: 13px;
-		background-color: transparent;
-		border: none;
-		opacity: 0.3;
-		position: absolute;
-		bottom: 0;
-		right: 0;
-	}
-
 	#app-content {
 		position: relative;
 	}
@@ -154,10 +100,11 @@ import {
 	PopoverMenu,
 	AppNavigation,
 	Multiselect,
-	Avatar
 } from 'nextcloud-vue'
 import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './../components/TimelineEntry'
+import Composer from './../components/Composer'
+import CurrentUserMixin from './../mixins/currentUserMixin'
 
 export default {
 	name: 'Timeline',
@@ -166,9 +113,10 @@ export default {
 		AppNavigation,
 		TimelineEntry,
 		Multiselect,
-		Avatar,
+		Composer,
 		InfiniteLoading
 	},
+	mixins: [CurrentUserMixin],
 	data: function() {
 		return {
 			infoHidden: false,
@@ -178,12 +126,6 @@ export default {
 	computed: {
 		url: function() {
 			return OC.linkTo('social', 'img/nextcloud.png')
-		},
-		currentUser: function() {
-			return OC.getCurrentUser()
-		},
-		socialId: function() {
-			return '@' + OC.getCurrentUser().uid + '@' + OC.getHost()
 		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
