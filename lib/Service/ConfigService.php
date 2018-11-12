@@ -29,24 +29,28 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use daita\MySmallPhpTools\Traits\TPathTools;
 use OCA\Social\AppInfo\Application;
 use OCP\IConfig;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 use OCP\PreConditionNotMetException;
 
 
+/**
+ * Class ConfigService
+ *
+ * @package OCA\Social\Service
+ */
 class ConfigService {
+
+
+	use TPathTools;
+
 
 	/** @var array */
 	public $defaults = [
 	];
-
-//	public $serviceTypes = [
-//		[
-//			'id'   => 'mastodon',
-//			'name' => 'Mastodon (OAuth2)'
-//		]
-//	];
 
 	/** @var string */
 	private $userId;
@@ -56,6 +60,9 @@ class ConfigService {
 
 	/** @var IRequest */
 	private $request;
+
+	/** @var IURLGenerator */
+	private $urlGenerator;
 
 	/** @var MiscService */
 	private $miscService;
@@ -67,15 +74,17 @@ class ConfigService {
 	 * @param string $userId
 	 * @param IConfig $config
 	 * @param IRequest $request
+	 * @param IURLGenerator $urlGenerator
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		$userId, IConfig $config, IRequest $request,
+		$userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
 		MiscService $miscService
 	) {
 		$this->userId = $userId;
 		$this->config = $config;
 		$this->request = $request;
+		$this->urlGenerator = $urlGenerator;
 		$this->miscService = $miscService;
 	}
 
@@ -202,9 +211,12 @@ class ConfigService {
 
 	/**
 	 * @return string
+	 * // TODO: improve this !
 	 */
 	public function getRoot(): string {
-		return 'https://test.artificial-owl.com/apps/social/';
+//			   $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+		return $this->withoutEndSlash($this->getSystemValue('overwrite.cli.url'), false, false)
+			   . '/apps/social/';
 	}
 
 
@@ -215,7 +227,7 @@ class ConfigService {
 	 * @return string
 	 */
 	public function generateId(string $path = '', $generateId = true): string {
-		$this->miscService->formatPath($path);
+		$path = $this->withoutBeginSlash($this->withEndSlash($path));
 
 		$id = $this->getRoot() . $path;
 		if ($generateId === true) {

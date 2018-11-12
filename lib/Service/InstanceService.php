@@ -30,13 +30,20 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TPathTools;
 use OCA\Social\Exceptions\RequestException;
-use OCA\Social\Model\ActivityPub\Core;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\InstancePath;
 
 class InstanceService {
+
+
+	use TPathTools;
+	use TArrayTools;
 
 
 	/** @var ConfigService */
@@ -66,6 +73,32 @@ class InstanceService {
 
 
 	/**
+	 * @param string $account
+	 *
+	 * @return mixed
+	 * @throws RequestException
+	 */
+	public function retrieveAccount(string $account) {
+		$account = $this->withoutBeginAt($account);
+
+		list($username, $host) = explode('@', $account);
+
+		$request = new Request('/.well-known/webfinger');
+		$request->addData('resource', 'acct:' . $account);
+		$request->setAddress($host);
+		$result = $this->curlService->request($request);
+
+		try {
+			$link = $this->extractArray('rel', 'self', $this->getArray('links', $result));
+		} catch (ArrayNotFoundException $e) {
+			throw new RequestException();
+		}
+
+		return $this->retrieveObject($this->get('href', $link, ''));
+	}
+
+
+	/**
 	 * @param $id
 	 *
 	 * @return mixed
@@ -73,7 +106,6 @@ class InstanceService {
 	 */
 	public function retrieveObject($id) {
 		$url = parse_url($id);
-
 		$request = new Request($url['path'], Request::TYPE_GET);
 		$request->setAddress($url['host']);
 
@@ -84,12 +116,13 @@ class InstanceService {
 
 
 	/**
-	 * @param Core $activity
+	 * @param ACore $activity
 	 *
 	 * @return Instance[]
 	 */
-	public function getInstancesFromActivity(Core $activity): array {
+	public function getInstancesFromActivity(ACore $activity): array {
 		$instances = [];
+
 		foreach ($activity->getInstancePaths() as $instancePath) {
 			$this->addInstances($instancePath, $instances);
 //			$uriIds[] = $to;
@@ -105,6 +138,7 @@ class InstanceService {
 	 */
 	private function addInstances(InstancePath $instancePath, array &$instances) {
 		$address = $this->getHostFromUriId($instancePath->getUri());
+
 		if ($address === '') {
 			return;
 		}

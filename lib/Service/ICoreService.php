@@ -30,10 +30,10 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use OCA\Social\Model\ActivityPub\Core;
+use OCA\Social\Model\ActivityPub\ACore;
 
 interface ICoreService {
 
-	public function save(Core $core);
+	public function save(ACore $core);
 
 }
