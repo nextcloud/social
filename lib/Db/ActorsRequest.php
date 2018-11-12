@@ -31,7 +31,7 @@ namespace OCA\Social\Db;
 
 
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Actor;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
@@ -54,19 +54,25 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
-	 * create a new Actor in the database.
+	 * create a new Person in the database.
 	 *
-	 * @param Actor $actor
+	 * @param Person $actor
 	 *
 	 * @return int
 	 * @throws \Exception
 	 */
-	public function create(Actor $actor): int {
+	public function create(Person $actor) {
+
+		$id = $this->configService->getRoot() . '@' . $actor->getPreferredUsername();
 
 		try {
 			$qb = $this->getActorsInsertSql();
-			$qb->setValue('type', $qb->createNamedParameter($actor->getType()))
+
+			$qb->setValue('id', $qb->createNamedParameter($id))
+//			   ->setValue('type', $qb->createNamedParameter($actor->getType()))
 			   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
+			   ->setValue('name', $qb->createNamedParameter($actor->getName()))
+			   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 			   ->setValue(
 				   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 			   )
@@ -74,8 +80,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 			   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
 
 			$qb->execute();
-
-			return $qb->getLastInsertId();
 		} catch (\Exception $e) {
 			throw $e;
 		}
@@ -87,10 +91,10 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @param string $username
 	 *
-	 * @return Actor
+	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 */
-	public function getFromUsername(string $username): Actor {
+	public function getFromUsername(string $username): Person {
 		$qb = $this->getActorsSelectSql();
 		$this->limitToPreferredUsername($qb, $username);
 
@@ -111,10 +115,10 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @param string $userId
 	 *
-	 * @return Actor
+	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 */
-	public function getFromUserId(string $userId): Actor {
+	public function getFromUserId(string $userId): Person {
 		$qb = $this->getActorsSelectSql();
 		$this->limitToUserId($qb, $userId);
 

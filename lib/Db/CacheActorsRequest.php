@@ -31,8 +31,8 @@ namespace OCA\Social\Db;
 
 
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Actor;
 use OCA\Social\Model\ActivityPub\Cache\CacheActor;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
@@ -57,19 +57,30 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	/**
 	 * insert cache about an Actor in database.
 	 *
-	 * @param Actor $actor
-	 * @param array $object
+	 * @param Person $actor
 	 *
 	 * @return int
 	 * @throws \Exception
 	 */
-	public function create(Actor $actor, array $object): int {
+	public function save(Person $actor): int {
 
 		try {
 			$qb = $this->getCacheActorsInsertSql();
-			$qb->setValue('account', $qb->createNamedParameter($actor->getAccount()))
-			   ->setValue('url', $qb->createNamedParameter($actor->getId()))
-			   ->setValue('actor', $qb->createNamedParameter(json_encode($object)));
+			$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
+			   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
+			   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
+			   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
+			   ->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))
+			   ->setValue('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
+			   ->setValue('outbox', $qb->createNamedParameter($actor->getOutbox()))
+			   ->setValue('featured', $qb->createNamedParameter($actor->getFeatured()))
+			   ->setValue('url', $qb->createNamedParameter($actor->getUrl()))
+			   ->setValue(
+				   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+			   )
+			   ->setValue('name', $qb->createNamedParameter($actor->getName()))
+			   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+			   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()));
 
 			$qb->execute();
 
@@ -80,41 +91,41 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 
-	/**
-	 * get Cached value about an Actor, based on the account.
-	 *
-	 * @param string $account
-	 *
-	 * @return CacheActor
-	 * @throws CacheActorDoesNotExistException
-	 */
-	public function getFromAccount(string $account): CacheActor {
-		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToAccount($qb, $account);
-
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new CacheActorDoesNotExistException();
-		}
-
-		return $this->parseCacheActorsSelectSql($data);
-	}
+//	/**
+//	 * get Cached value about an Actor, based on the account.
+//	 *
+//	 * @param string $account
+//	 *
+//	 * @return CacheActor
+//	 * @throws CacheActorDoesNotExistException
+//	 */
+//	public function getFromAccount(string $account): CacheActor {
+//		$qb = $this->getCacheActorsSelectSql();
+//		$this->limitToAccount($qb, $account);
+//
+//		$cursor = $qb->execute();
+//		$data = $cursor->fetch();
+//		$cursor->closeCursor();
+//
+//		if ($data === false) {
+//			throw new CacheActorDoesNotExistException();
+//		}
+//
+//		return $this->parseCacheActorsSelectSql($data);
+//	}
 
 
 	/**
 	 * get Cached version of an Actor, based on the UriId
 	 *
-	 * @param string $url
+	 * @param string $account
 	 *
-	 * @return CacheActor
+	 * @return Person
 	 * @throws CacheActorDoesNotExistException
 	 */
-	public function getFromUrl(string $url): CacheActor {
+	public function getFromAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToUrl($qb, $url);
+		$this->limitToAccount($qb, $account);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();

@@ -27,15 +27,21 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\Post;
+use OCA\Social\Model\ActivityPub\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-class NotesRequestBuilder extends CoreRequestBuilder {
+
+/**
+ * Class FollowsRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
+class FollowsRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -46,9 +52,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesInsertSql(): IQueryBuilder {
+	protected function getFollowsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_SERVER_NOTES);
+		$qb->insert(self::TABLE_SERVER_FOLLOWS);
 
 		return $qb;
 	}
@@ -59,9 +65,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesUpdateSql(): IQueryBuilder {
+	protected function getFollowsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_SERVER_NOTES);
+		$qb->update(self::TABLE_SERVER_FOLLOWS);
 
 		return $qb;
 	}
@@ -72,17 +78,14 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesSelectSql(): IQueryBuilder {
+	protected function getFollowsSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select(
-			'sn.id', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content', 'sn.summary',
-			'sn.published', 'sn.attributed_to', 'sn.in_reply_to', 'sn.creation'
-		)
-		   ->from(self::TABLE_SERVER_NOTES, 'sn');
+		$qb->select('f.id', 'f.actor_id', 'f.object_id', 'f.creation')
+		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
 
-		$this->defaultSelectAlias = 'sn';
+		$this->defaultSelectAlias = 'f';
 
 		return $qb;
 	}
@@ -93,9 +96,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesDeleteSql(): IQueryBuilder {
+	protected function getFollowsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_SERVER_NOTES);
+		$qb->delete(self::TABLE_SERVER_FOLLOWS);
 
 		return $qb;
 	}
@@ -104,45 +107,15 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Note
+	 * @return Follow
 	 */
-	protected function parseNotesSelectSql($data): Note {
-		$note = new Note();
-		$note->setId($data['id'])
-			 ->setTo($data['to'])
-			 ->setToArray(json_decode($data['to_array'], true))
-			 ->setCcArray(json_decode($data['cc'], true))
-			 ->setBccArray(json_decode($data['bcc']))
-			 ->setPublished($data['published']);
-		$note->setContent($data['content'])
-			 ->setAttributedTo($data['attributed_to'])
-			 ->setInReplyTo($data['in_reply_to']);
+	protected function parseFollowsSelectSql($data): Follow {
+		$follow = new Follow();
+		$follow->setId($data['id'])
+			   ->setActorId($data['actor_id'])
+			   ->setObjectId($data['object_id']);
 
-		return $note;
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Post
-	 */
-	protected function parsePostsSelectSql($userId, $data): Note {
-		$post = new Post($userId);
-
-		$post->setContent($data['content']);
-
-//		$note->setId($data['id'])
-//			 ->setTo($data['to'])
-//			 ->setToArray(json_decode($data['to_array'], true))
-//			 ->setCc(json_decode($data['cc'], true))
-//			 ->setBcc(json_decode($data['bcc']));
-//		$note->setContent($data['content'])
-//			 ->setPublished($data['published'])
-//			 ->setAttributedTo($data['attributed_to'])
-//			 ->setInReplyTo($data['in_reply_to']);
-
-		return $post;
+		return $follow;
 	}
 
 }
