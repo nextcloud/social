@@ -33,50 +33,101 @@ namespace OCA\Social\Model;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 
-
-/**
- * Class InstancePath
- *
- * @package OCA\Social\Model
- */
-class InstancePath implements JsonSerializable {
+class Post implements JsonSerializable {
 
 
 	use TArrayTools;
 
 
 	/** @var string */
-	private $uri = '';
+	private $userId = '';
+
+	/** @var array */
+	private $to = [];
+
+	/** @var string */
+	private $replyTo = '';
+
+	/** @var string */
+	private $content;
+
+	public function __construct($userId = '') {
+		$this->userId = $userId;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getUserId(): string {
+		return $this->userId;
+	}
 
 
-	public function __construct(string $uri) {
-		$this->uri = $uri;
+	/**
+	 * @param string $to
+	 */
+	public function addTo(string $to) {
+		if ($to === '') {
+			return;
+		}
+
+		$this->to[] = $to;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getTo(): array {
+		return $this->to;
+	}
+
+	/**
+	 * @param array $to
+	 */
+	public function setTo(array $to) {
+		$this->to = $to;
 	}
 
 
 	/**
 	 * @return string
 	 */
-	public function getUri(): string {
-		return $this->uri;
+	public function getReplyTo(): string {
+		return $this->replyTo;
+	}
+
+	/**
+	 * @param string $replyTo
+	 */
+	public function setReplyTo(string $replyTo) {
+		$this->replyTo = $replyTo;
 	}
 
 
 	/**
 	 * @return string
 	 */
-	public function getPath(): string {
-		$info = parse_url($this->uri);
-
-		return $this->get('path', $info, '');
+	public function getContent(): string {
+		return $this->content;
 	}
+
+	/**
+	 * @param string $content
+	 */
+	public function setContent(string $content) {
+		$this->content = $content;
+	}
+
 
 	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'uri' => $this->getUri()
+			'userId'  => $this->getUserId(),
+			'to'      => $this->getTo(),
+			'replyTo' => $this->getReplyTo(),
+			'content' => $this->getContent()
 		];
 	}
 

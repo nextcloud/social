@@ -27,23 +27,45 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Model\ActivityPub;
 
 
 use JsonSerializable;
 
-class ActivityCreate extends Core implements JsonSerializable {
+
+/**
+ * Class Undo
+ *
+ * @package OCA\Social\Model\ActivityPub
+ */
+class Undo extends ACore implements JsonSerializable {
+
+
+	private $actor;
+
+
+	private $object;
 
 
 	/**
-	 * ActivityCreate constructor.
+	 * Activity constructor.
 	 *
 	 * @param bool $isTopLevel
 	 */
 	public function __construct(bool $isTopLevel = false) {
 		parent::__construct($isTopLevel);
 
-		$this->setType('Create');
+		$this->setType('Undo');
+		$this->addMetaBool('Undo', true);
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	public function import(array $data) {
+		parent::import($data);
 	}
 
 

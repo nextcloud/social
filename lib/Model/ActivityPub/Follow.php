@@ -27,59 +27,51 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Model;
+
+namespace OCA\Social\Model\ActivityPub;
 
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 
 
 /**
- * Class InstancePath
+ * Class Follow
  *
- * @package OCA\Social\Model
+ * @package OCA\Social\Model\ActivityPub
  */
-class InstancePath implements JsonSerializable {
+class Follow extends ACore implements JsonSerializable {
 
 
-	use TArrayTools;
+	/**
+	 * Activity constructor.
+	 *
+	 * @param bool $isTopLevel
+	 */
+	public function __construct(bool $isTopLevel = false) {
+		parent::__construct($isTopLevel);
 
-
-	/** @var string */
-	private $uri = '';
-
-
-	public function __construct(string $uri) {
-		$this->uri = $uri;
+		$this->setType('Follow');
 	}
 
 
 	/**
-	 * @return string
+	 * @param array $data
 	 */
-	public function getUri(): string {
-		return $this->uri;
+	public function import(array $data) {
+		parent::import($data);
 	}
 
-
-	/**
-	 * @return string
-	 */
-	public function getPath(): string {
-		$info = parse_url($this->uri);
-
-		return $this->get('path', $info, '');
-	}
 
 	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		return [
-			'uri' => $this->getUri()
-		];
+		return array_merge(
+			parent::jsonSerialize(),
+			[
+			]
+		);
 	}
-
 
 }
 

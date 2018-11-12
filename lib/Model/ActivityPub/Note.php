@@ -32,23 +32,23 @@ namespace OCA\Social\Model\ActivityPub;
 
 use JsonSerializable;
 
-class Note extends Core implements JsonSerializable {
+class Note extends ACore implements JsonSerializable {
 
 
 	/** @var string */
 	private $content;
 
 	/** @var string */
-	private $summary = '';
-
-	/** @var string */
-	private $published;
-
-	/** @var string */
 	private $attributedTo;
 
 	/** @var string */
 	private $inReplyTo = '';
+
+	/** @var bool */
+	private $sensitive = false;
+
+	/** @var string */
+	private $conversation = '';
 
 
 	/**
@@ -81,43 +81,6 @@ class Note extends Core implements JsonSerializable {
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
-	public function getSummary(): string {
-		return $this->summary;
-	}
-
-	/**
-	 * @param string $summary
-	 *
-	 * @return Note
-	 */
-	public function setSummary(string $summary): Note {
-		$this->summary = $summary;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getPublished(): string {
-		return $this->published;
-	}
-
-	/**
-	 * @param string $published
-	 *
-	 * @return Note
-	 */
-	public function setPublished(string $published): Note {
-		$this->published = $published;
-
-		return $this;
-	}
 
 	/**
 	 * @return string
@@ -156,19 +119,57 @@ class Note extends Core implements JsonSerializable {
 	}
 
 
+	/**
+	 * @return bool
+	 */
+	public function isSensitive(): bool {
+		return $this->sensitive;
+	}
+
+	/**
+	 * @param bool $sensitive
+	 *
+	 * @return Note
+	 */
+	public function setSensitive(bool $sensitive): Note {
+		$this->sensitive = $sensitive;
+
+		return $this;
+	}
 
 
+	/**
+	 * @return string
+	 */
+	public function getConversation(): string {
+		return $this->conversation;
+	}
+
+	/**
+	 * @param string $conversation
+	 *
+	 * @return Note
+	 */
+	public function setConversation(string $conversation): Note {
+		$this->conversation = $conversation;
+
+		return $this;
+	}
 
 
+	/**
+	 * @param array $data
+	 */
+	public function import(array $data) {
+		parent::import($data);
 
-
-
-
-
-//	public function
-//"published": "2018-06-23T17:17:11Z",
-//"attributedTo": "https://my-example.com/actor",
-//"inReplyTo": "https://mastodon.social/@Gargron/100254678717223630",
+		$this->setSummary($this->get('summary', $data, ''));
+		$this->setInReplyTo($this->get('inReplyTo', $data, ''));
+		$this->setAttributedTo($this->get('attributedTo', $data, ''));
+		$this->setSensitive($this->getBool('sensitive', $data, false));
+		$this->setConversation($this->get('conversation', $data, ''));
+		$this->setContent($this->get('content', $data, ''));
+	}
 
 
 	/**
@@ -181,7 +182,9 @@ class Note extends Core implements JsonSerializable {
 				'content'      => $this->getContent(),
 				'published'    => $this->getPublished(),
 				'attributedTo' => $this->getRoot() . $this->getAttributedTo(),
-				'inReplyTo'    => $this->getInReplyTo()
+				'inReplyTo'    => $this->getInReplyTo(),
+				'sensitive'    => $this->isSensitive(),
+				'conversation' => $this->getConversation()
 			]
 		);
 	}

@@ -27,16 +27,26 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Model\ActivityPub;
 
 
 use JsonSerializable;
-use OCA\Social\Service\ActivityPubService;
 
-class Actor extends Core implements JsonSerializable {
+
+/**
+ * Class Actor
+ *
+ * @package OCA\Social\Model\ActivityPub
+ */
+class Person extends ACore implements JsonSerializable {
+
 
 	/** @var string */
 	private $userId = '';
+
+	/** @var string */
+	private $name = '';
 
 	/** @var string */
 	private $preferredUsername = '';
@@ -68,9 +78,12 @@ class Actor extends Core implements JsonSerializable {
 	/** @var string */
 	private $sharedInbox = '';
 
+	/** @var string */
+	private $featured = '';
+
 
 	/**
-	 * Actor constructor.
+	 * Person constructor.
 	 *
 	 * @param bool $isTopLevel
 	 */
@@ -91,14 +104,10 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $userId
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setUserId(string $userId): Actor {
+	public function setUserId(string $userId): Person {
 		$this->userId = $userId;
-
-		if ($this->getPreferredUsername() === '') {
-			$this->setPreferredUsername($userId);
-		}
 
 		return $this;
 	}
@@ -114,12 +123,10 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $preferredUsername
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setPreferredUsername(string $preferredUsername): Actor {
-		if ($preferredUsername !== '') {
-			$this->preferredUsername = $preferredUsername;
-		}
+	public function setPreferredUsername(string $preferredUsername): Person {
+		$this->preferredUsername = $preferredUsername;
 
 		return $this;
 	}
@@ -135,9 +142,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $publicKey
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setPublicKey(string $publicKey): Actor {
+	public function setPublicKey(string $publicKey): Person {
 		$this->publicKey = $publicKey;
 
 		return $this;
@@ -154,9 +161,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $privateKey
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setPrivateKey(string $privateKey): Actor {
+	public function setPrivateKey(string $privateKey): Person {
 		$this->privateKey = $privateKey;
 
 		return $this;
@@ -173,9 +180,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param int $creation
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setCreation(int $creation): Actor {
+	public function setCreation(int $creation): Person {
 		$this->creation = $creation;
 
 		return $this;
@@ -192,9 +199,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $following
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setFollowing(string $following): Actor {
+	public function setFollowing(string $following): Person {
 		$this->following = $following;
 
 		return $this;
@@ -210,9 +217,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $followers
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setFollowers(string $followers): Actor {
+	public function setFollowers(string $followers): Person {
 		$this->followers = $followers;
 
 		return $this;
@@ -228,9 +235,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $account
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setAccount(string $account): Actor {
+	public function setAccount(string $account): Person {
 		$this->account = $account;
 
 		return $this;
@@ -247,9 +254,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $inbox
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setInbox(string $inbox): Actor {
+	public function setInbox(string $inbox): Person {
 		$this->inbox = $inbox;
 
 		return $this;
@@ -265,9 +272,9 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $outbox
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setOutbox(string $outbox): Actor {
+	public function setOutbox(string $outbox): Person {
 		$this->outbox = $outbox;
 
 		return $this;
@@ -283,12 +290,69 @@ class Actor extends Core implements JsonSerializable {
 	/**
 	 * @param string $sharedInbox
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	public function setSharedInbox(string $sharedInbox): Actor {
+	public function setSharedInbox(string $sharedInbox): Person {
 		$this->sharedInbox = $sharedInbox;
 
 		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getName(): string {
+		return $this->name;
+	}
+
+	/**
+	 * @param string $name
+	 *
+	 * @return Person
+	 */
+	public function setName(string $name): Person {
+		$this->name = $name;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getFeatured(): string {
+		return $this->featured;
+	}
+
+	/**
+	 * @param string $featured
+	 *
+	 * @return Person
+	 */
+	public function setFeatured(string $featured): Person {
+		$this->featured = $featured;
+
+		return $this;
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	public function import(array $data) {
+		parent::import($data);
+		$this->setPreferredUsername($this->get('preferred_username', $data, ''))
+			 ->setName($this->get('name', $data, ''))
+			 ->setAccount($this->get('account', $data, ''))
+			 ->setPublicKey($this->get('public_key', $data, ''))
+			 ->setPrivateKey($this->get('private_key', $data, ''))
+			 ->setInbox($this->get('inbox', $data, ''))
+			 ->setOutbox($this->get('outbox', $data, ''))
+			 ->setFollowers($this->get('followers', $data, ''))
+			 ->setFollowing($this->get('following', $data, ''))
+			 ->setSharedInbox($this->get('shared_inbox', $data, ''))
+			 ->setFeatured($this->get('featured', $data, ''))
+			 ->setCreation($this->getInt('creation', $data, 0));
 	}
 
 
@@ -296,33 +360,28 @@ class Actor extends Core implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		return [
-			'@context' => [
-				ActivityPubService::CONTEXT_ACTIVITYSTREAMS,
-				ActivityPubService::CONTEXT_SECURITY
-			],
-			'aliases'  => [
-				$this->getRoot() . '@' . $this->getPreferredUsername(),
-				$this->getRoot() . 'users/' . $this->getPreferredUsername()
-			],
-
-			'id'                => $this->getId(),
-			'type'              => $this->getType(),
-			'preferredUsername' => $this->getPreferredUsername(),
-			'inbox'             => $this->getInbox(),
-			'outbox'            => $this->getOutbox(),
-			'following'         => $this->getFollowing(),
-			'followers'         => $this->getFollowers(),
-			'url'               => $this->getId(),
-			'endpoints'         =>
-				['sharedInbox' => $this->getSharedInbox()],
-
-			'publicKey' => [
-				'id'           => $this->getId() . '#main-key',
-				'owner'        => $this->getId(),
-				'publicKeyPem' => $this->getPublicKey()
+		return array_merge(
+			parent::jsonSerialize(),
+			[
+				'aliases'           => [
+					$this->getRoot() . '@' . $this->getPreferredUsername(),
+					$this->getRoot() . 'users/' . $this->getPreferredUsername()
+				],
+				'preferredUsername' => $this->getPreferredUsername(),
+				'name'              => $this->getName(),
+				'inbox'             => $this->getInbox(),
+				'outbox'            => $this->getOutbox(),
+				'following'         => $this->getFollowing(),
+				'followers'         => $this->getFollowers(),
+				'endpoints'         =>
+					['sharedInbox' => $this->getSharedInbox()],
+				'publicKey'         => [
+					'id'           => $this->getId() . '#main-key',
+					'owner'        => $this->getId(),
+					'publicKeyPem' => $this->getPublicKey()
+				]
 			]
-		];
+		);
 	}
 
 
