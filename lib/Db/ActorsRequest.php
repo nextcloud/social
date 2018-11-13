@@ -109,6 +109,26 @@ class ActorsRequest extends ActorsRequestBuilder {
 		return $this->parseActorsSelectSql($data);
 	}
 
+	/**
+	 * @param string $username
+	 * @return Person
+	 * @throws ActorDoesNotExistException
+	 */
+	public function getFromId(string $id): Person {
+		$qb = $this->getActorsSelectSql();
+		$this->limitToIdString($qb, $id);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new ActorDoesNotExistException('Actor not found');
+		}
+
+		return $this->parseActorsSelectSql($data);
+	}
+
 
 	/**
 	 * return Actor from database, based on the userId of the owner.
