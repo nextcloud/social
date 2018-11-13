@@ -28,70 +28,38 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Service\ActivityPub;
 
 
 use Exception;
-use OC\User\NoUserException;
-use OCA\Social\AppInfo\Application;
-use OCP\ILogger;
-use OCP\IUserManager;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Service\ICoreService;
+use OCA\Social\Service\MiscService;
 
 
-/**
- * Class MiscService
- *
- * @package OCA\Social\Service
- */
-class MiscService {
+class UndoService implements ICoreService {
 
 
-	/** @var ILogger */
-	private $logger;
-
-	/** @var IUserManager */
-	private $userManager;
+	/** @var MiscService */
+	private $miscService;
 
 
 	/**
-	 * MiscService constructor.
+	 * UndoService constructor.
 	 *
-	 * @param ILogger $logger
-	 * @param IUserManager $userManager
+	 * @param MiscService $miscService
 	 */
-	public function __construct(ILogger $logger, IUserManager $userManager) {
-		$this->logger = $logger;
-		$this->userManager = $userManager;
+	public function __construct(MiscService $miscService) {
+		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param $message
-	 * @param int $level
-	 */
-	public function log($message, $level = 2) {
-		$data = array(
-			'app'   => Application::APP_NAME,
-			'level' => $level
-		);
-
-		$this->logger->log($level, $message, $data);
-	}
-
-
-	/**
-	 * @param string $userId
+	 * @param ACore $undo
 	 *
-	 * @throws NoUserException
+	 * @throws Exception
 	 */
-	public function confirmUserId(string &$userId) {
-		$user = $this->userManager->get($userId);
-
-		if ($user === null) {
-			throw new NoUserException('user does not exist');
-		}
-
-		$userId = $user->getUID();
+	public function save(ACore $undo) {
 	}
 
 }

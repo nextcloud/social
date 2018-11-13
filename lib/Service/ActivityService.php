@@ -31,20 +31,31 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
-use OCA\Social\Model\ActivityPub\ActivityCreate;
-use OCA\Social\Model\ActivityPub\Actor;
-use OCA\Social\Model\ActivityPub\Core;
+use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityPub\FollowService;
+use OCA\Social\Service\ActivityPub\NoteService;
+use OCA\Social\Service\ActivityPub\PersonService;
+use OCA\Social\Service\ActivityPub\UndoService;
 use OCP\IRequest;
 
-class ActivityPubService {
+class ActivityService {
 
+
+	use TArrayTools;
+
+
+	const REQUEST_INBOX = 1;
 
 	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
@@ -60,6 +71,18 @@ class ActivityPubService {
 	/** @var ActorService */
 	private $actorService;
 
+	/** @var PersonService */
+	private $personService;
+
+	/** @var NoteService */
+	private $noteService;
+
+	/** @var UndoService */
+	private $undoService;
+
+	/** @var FollowService */
+	private $followService;
+
 	/** @var InstanceService */
 	private $instanceService;
 
@@ -74,22 +97,33 @@ class ActivityPubService {
 
 
 	/**
-	 * ActivityPubService constructor.
+	 * ActivityService constructor.
 	 *
 	 * @param ActorsRequest $actorsRequest
 	 * @param CurlService $curlService
 	 * @param ActorService $actorService
+	 * @param PersonService $personService
+	 * @param NoteService $noteService
+	 * @param UndoService $undoService
+	 * @param FollowService $followService
 	 * @param InstanceService $instanceService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		ActorsRequest $actorsRequest, CurlService $curlService, ActorService $actorService,
-		InstanceService $instanceService, ConfigService $configService, MiscService $miscService
+		PersonService $personService, NoteService $noteService, UndoService $undoService,
+		FollowService $followService,
+		InstanceService $instanceService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->curlService = $curlService;
 		$this->actorsRequest = $actorsRequest;
 		$this->actorService = $actorService;
+		$this->personService = $personService;
+		$this->noteService = $noteService;
+		$this->undoService = $undoService;
+		$this->followService = $followService;
 		$this->instanceService = $instanceService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -105,22 +139,24 @@ class ActivityPubService {
 	/**
 	 * @param string $userId
 	 *
-	 * @param Core $item
-	 * @param Core $activity
+	 * @param ACore $item
+	 * @param int $type
+	 * @param ACore $activity
 	 *
 	 * @return array
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 * @throws RequestException
 	 */
-	public function createActivity($userId, Core $item, Core &$activity = null): array {
+	public function createActivity($userId, ACore $item, int $type, ACore &$activity = null
+	): array {
 
-		$activity = new ActivityCreate(true);
+		$activity = new Activity(true);
+
 //		$this->activityStreamsService->initCore($activity);
 
-		$actor = $this->actorService->getActorFromUserId($userId);
+		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
-
 		$activity->addInstancePaths($item->getInstancePaths());
 
 //		if ($item->getToArray() !== []) {
@@ -129,30 +165,30 @@ class ActivityPubService {
 //			$activity->setTo($item->getTo());
 //		}
 
+		$actor = $this->actorService->getActorFromUserId($userId);
 		$activity->setActor($actor);
-		$activity->setObject($item);
 
 		$this->setupCore($activity);
-		$result = $this->request($activity);
+		$result = $this->request($activity, $type);
 
 		return $result;
 	}
 
 
 	/**
-	 * @param Core $activity
+	 * @param ACore $activity
 	 *
 	 * @return array
 	 * @throws RequestException
 	 */
-	public function request(Core $activity) {
+	public function request(ACore $activity, int $type) {
 
 		$hosts = $this->instanceService->getInstancesFromActivity($activity);
 
 		$result = [];
 		foreach ($hosts as $host) {
 			foreach ($host->getInstancePaths() as $path) {
-				$result[] = $this->generateRequest($host->getAddress(), $path, $activity);
+				$result[] = $this->generateRequest($host->getAddress(), $path, $type, $activity);
 			}
 		}
 
@@ -163,23 +199,24 @@ class ActivityPubService {
 	/**
 	 * @param string $address
 	 * @param InstancePath $path
-	 * @param Core $activity
+	 * @param ACore $activity
 	 *
 	 * @return Request[]
 	 * @throws RequestException
 	 */
-	public function generateRequest(string $address, InstancePath $path, Core $activity): array {
+	public function generateRequest(string $address, InstancePath $path, int $type, ACore $activity
+	): array {
 		$document = json_encode($activity);
-		$date = date(self::DATE_FORMAT);
-
+		$date = gmdate(self::DATE_FORMAT);
+//$date = str_replace('UTC', 'GMT', $date);
 		$localActor = $activity->getActor();
-		$remoteActor = $this->getRemoteActor($path->getUri());
+//		$remoteActor = $this->getRemoteActor($path->getUri());
 
-		$remotePath = $this->actorService->getPathFromActor($remoteActor, $path->getType());
+//		$remotePath = $this->personService->getPathFromActor($remoteActor, $path->getType());
 
 		$localActorLink =
 			$this->configService->getRoot() . '@' . $localActor->getPreferredUsername();
-		$signature = "(request-target): post " . $remotePath . "\nhost: " . $address
+		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $address
 					 . "\ndate: " . $date;
 
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
@@ -189,7 +226,11 @@ class ActivityPubService {
 			'keyId="' . $localActorLink . '",headers="(request-target) host date",signature="'
 			. $signed . '"';
 
-		$request = new Request($remotePath, Request::TYPE_POST);
+		if ($type === self::REQUEST_INBOX) {
+			$requestType = Request::TYPE_POST;
+		}
+
+		$request = new Request($path->getPath(), $requestType);
 		$request->addHeader('Host: ' . $address);
 		$request->addHeader('Date: ' . $date);
 		$request->addHeader('Signature: ' . $header);
@@ -245,11 +286,11 @@ class ActivityPubService {
 	/**
 	 * @param string $uriId
 	 *
-	 * @return Actor
+	 * @return Person
 	 * @throws RequestException
 	 */
 	private function getRemoteActor(string $uriId) {
-		$actor = $this->actorService->getFromUri($uriId);
+		$actor = $this->personService->getFromAccount($uriId);
 
 		return $actor;
 	}
@@ -284,7 +325,7 @@ class ActivityPubService {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);
-		$this->miscService->mustContains(['keyId', 'headers', 'signature'], $sign);
+		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
 
 		$keyId = $sign['keyId'];
 		$headers = $sign['headers'];
@@ -360,9 +401,9 @@ class ActivityPubService {
 
 
 	/**
-	 * @param Core $activity
+	 * @param ACore $activity
 	 */
-	private function setupCore(Core $activity) {
+	private function setupCore(ACore $activity) {
 
 //		$this->initCore($activity);
 		if ($activity->isTopLevel()) {
@@ -379,4 +420,46 @@ class ActivityPubService {
 		}
 	}
 
+
+	/**
+	 * @param ACore $activity
+	 *
+	 * @throws UnknownItemException
+	 */
+	public function save(Acore $activity) {
+
+		if ($activity->gotObject()) {
+			$this->save($activity->getObject());
+		}
+
+		switch ($activity->getType()) {
+//			case 'Activity':
+//				$service = $this;
+//				break;
+
+			case 'Undo':
+				$service = $this->undoService;
+				break;
+
+			case 'Follow':
+				$service = $this->followService;
+				break;
+
+			case 'Note':
+				$service = $this->noteService;
+				break;
+
+			default:
+				throw new UnknownItemException();
+		}
+
+		try {
+			$service->save($activity);
+		} catch (Exception $e) {
+			$this->miscService->log(
+				2, 'Cannot save ' . $activity->getType() . ': ' . $e->getMessage()
+			);
+		}
+	}
 }
+

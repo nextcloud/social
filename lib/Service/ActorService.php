@@ -34,31 +34,28 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
-use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Exceptions\RequestException;
-use OCA\Social\Model\ActivityPub\Actor;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
 
+
+/**
+ * Class ActorService
+ *
+ * @package OCA\Social\Service
+ */
 class ActorService {
 
 
 	use TArrayTools;
 
 
-	/** @var InstanceService */
-	private $instanceService;
-
 	/** @var ConfigService */
 	private $configService;
 
 	/** @var ActorsRequest */
 	private $actorsRequest;
-
-	/** @var CacheActorsRequest */
-	private $cacheActorsRequest;
 
 	/** @var MiscService */
 	private $miscService;
@@ -68,20 +65,14 @@ class ActorService {
 	 * ActorService constructor.
 	 *
 	 * @param ActorsRequest $actorsRequest
-	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param InstanceService $instanceService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest,
-		CacheActorsRequest $cacheActorsRequest, InstanceService $instanceService,
-		ConfigService $configService, MiscService $miscService
+		ActorsRequest $actorsRequest, ConfigService $configService, MiscService $miscService
 	) {
 		$this->configService = $configService;
-		$this->instanceService = $instanceService;
 		$this->actorsRequest = $actorsRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->miscService = $miscService;
 	}
 
@@ -89,11 +80,11 @@ class ActorService {
 	/**
 	 * @param string $username
 	 *
-	 * @return Actor
+	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 */
 
-	public function getActor(string $username): Actor {
+	public function getActor(string $username): Person {
 		$actor = $this->actorsRequest->getFromUsername($username);
 
 		return $actor;
@@ -103,11 +94,11 @@ class ActorService {
 	/**
 	 * @param string $userId
 	 *
-	 * @return Actor
+	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 */
-	public function getActorFromUserId(string $userId): Actor {
+	public function getActorFromUserId(string $userId): Person {
 		$this->miscService->confirmUserId($userId);
 		$actor = $this->actorsRequest->getFromUserId($userId);
 
@@ -115,67 +106,6 @@ class ActorService {
 	}
 
 
-	/**
-	 * @param string $uriId
-	 *
-	 * @return Actor
-	 * @throws RequestException
-	 * @throws Exception
-	 */
-	public function getFromUri(string $uriId) {
-
-		try {
-			$cache = $this->cacheActorsRequest->getFromUrl($uriId);
-
-			return $this->generateActor($cache->getActor());
-		} catch (CacheActorDoesNotExistException $e) {
-			$object = $this->instanceService->retrieveObject($uriId);
-			$actor = $this->generateActor($object);
-			$this->cacheActorsRequest->create($actor, $object);
-
-			return $actor;
-		}
-	}
-
-
-	/**
-	 * @param Actor $actor
-	 * @param int $type
-	 *
-	 * @return string
-	 */
-	public function getPathFromActor(Actor $actor, int $type) {
-		switch ($type) {
-			case InstancePath::INBOX:
-				return parse_url($actor->getInbox(), PHP_URL_PATH);
-		}
-
-		return '';
-	}
-
-
-	/**
-	 * @param array $object
-	 *
-	 * @return Actor
-	 */
-	public function generateActor(array $object) {
-		$actor = new Actor();
-
-
-		$actor->setId($this->get('id', $object));
-		$actor->setFollowers($this->get('followers', $object));
-		$actor->setFollowing($this->get('following', $object));
-		$actor->setInbox($this->get('inbox', $object));
-		$actor->setOutbox($this->get('outbox', $object));
-		$actor->setPublicKey($object['publicKey']['publicKeyPem']);
-		$actor->setPreferredUsername($this->get('preferredUsername', $object));
-		$actor->setAccount('@' . $actor->getPreferredUsername() . '@' . $object['_address']);
-
-//		$actor->setSharedInbox($this->get(''))
-
-		return $actor;
-	}
 
 
 	/**
@@ -215,7 +145,7 @@ class ActorService {
 
 		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 
-		$actor = new Actor();
+		$actor = new Person();
 		$actor->setUserId($userId);
 		$actor->setPreferredUsername($username);
 
@@ -233,10 +163,11 @@ class ActorService {
 		return;
 	}
 
+
 	/**
-	 * @param Actor $actor
+	 * @param Person $actor
 	 */
-	private function generateKeys(Actor &$actor) {
+	private function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
 				"digest_alg"       => "rsa",

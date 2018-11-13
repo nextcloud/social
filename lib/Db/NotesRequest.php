@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use OCA\Social\Model\ActivityPub\Note;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
@@ -60,15 +61,27 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @return int
 	 * @throws \Exception
 	 */
-	public function create(Note $note): int {
+	public function save(Note $note): int {
 
 		try {
 			$qb = $this->getNotesInsertSql();
 			$qb->setValue('id', $qb->createNamedParameter($note->getId()))
 			   ->setValue('to', $qb->createNamedParameter($note->getTo()))
-			   ->setValue('to_array', $qb->createNamedParameter(json_encode($note->getToArray())))
-			   ->setValue('cc', $qb->createNamedParameter(json_encode($note->getCc())))
-			   ->setValue('bcc', $qb->createNamedParameter(json_encode($note->getBcc())))
+			   ->setValue(
+				   'to_array', $qb->createNamedParameter(
+				   json_encode($note->getToArray(), JSON_UNESCAPED_SLASHES)
+			   )
+			   )
+			   ->setValue(
+				   'cc', $qb->createNamedParameter(
+				   json_encode($note->getCcArray(), JSON_UNESCAPED_SLASHES)
+			   )
+			   )
+			   ->setValue(
+				   'bcc', $qb->createNamedParameter(
+				   json_encode($note->getBccArray()), JSON_UNESCAPED_SLASHES
+			   )
+			   )
 			   ->setValue('content', $qb->createNamedParameter($note->getContent()))
 			   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
 			   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
@@ -82,5 +95,45 @@ class NotesRequest extends NotesRequestBuilder {
 			throw $e;
 		}
 	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return array
+	 */
+	public function getPublicNotes(): array {
+		$qb = $this->getNotesSelectSql();
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return array
+	 */
+	public function getNotesForActorId(string $actorId): array {
+		$qb = $this->getNotesSelectSql();
+		$this->limitToRecipient($qb, $actorId);
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
 
 }

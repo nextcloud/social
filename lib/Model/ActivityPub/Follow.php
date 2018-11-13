@@ -28,70 +28,49 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Model\ActivityPub;
 
 
-use Exception;
-use OC\User\NoUserException;
-use OCA\Social\AppInfo\Application;
-use OCP\ILogger;
-use OCP\IUserManager;
+use JsonSerializable;
 
 
 /**
- * Class MiscService
+ * Class Follow
  *
- * @package OCA\Social\Service
+ * @package OCA\Social\Model\ActivityPub
  */
-class MiscService {
-
-
-	/** @var ILogger */
-	private $logger;
-
-	/** @var IUserManager */
-	private $userManager;
+class Follow extends ACore implements JsonSerializable {
 
 
 	/**
-	 * MiscService constructor.
+	 * Activity constructor.
 	 *
-	 * @param ILogger $logger
-	 * @param IUserManager $userManager
+	 * @param bool $isTopLevel
 	 */
-	public function __construct(ILogger $logger, IUserManager $userManager) {
-		$this->logger = $logger;
-		$this->userManager = $userManager;
+	public function __construct(bool $isTopLevel = false) {
+		parent::__construct($isTopLevel);
+
+		$this->setType('Follow');
 	}
 
 
 	/**
-	 * @param $message
-	 * @param int $level
+	 * @param array $data
 	 */
-	public function log($message, $level = 2) {
-		$data = array(
-			'app'   => Application::APP_NAME,
-			'level' => $level
+	public function import(array $data) {
+		parent::import($data);
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function jsonSerialize(): array {
+		return array_merge(
+			parent::jsonSerialize(),
+			[
+			]
 		);
-
-		$this->logger->log($level, $message, $data);
-	}
-
-
-	/**
-	 * @param string $userId
-	 *
-	 * @throws NoUserException
-	 */
-	public function confirmUserId(string &$userId) {
-		$user = $this->userManager->get($userId);
-
-		if ($user === null) {
-			throw new NoUserException('user does not exist');
-		}
-
-		$userId = $user->getUID();
 	}
 
 }

@@ -114,11 +114,10 @@ class CurlService {
 	 */
 	private function generateCurlRequest(Request $request) {
 		$url = 'https://' . $request->getAddress() . $request->getParsedUrl();
-//		echo 'curl: ' . $request->getUrl() . "\n";
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
 		} else {
-			$curl = curl_init($url . '?' . $request->getDataBody());
+			$curl = curl_init($url . '?' . $request->getUrlData());
 		}
 
 		return $curl;

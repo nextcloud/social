@@ -40,6 +40,7 @@ class CoreRequestBuilder {
 
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
+	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
 
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 
@@ -80,7 +81,18 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param int $id
 	 */
-	protected function limitToId(IQueryBuilder &$qb, $id) {
+	protected function limitToId(IQueryBuilder &$qb, int $id) {
+		$this->limitToDBField($qb, 'id', $id);
+	}
+
+
+	/**
+	 * Limit the request to the Id
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $id
+	 */
+	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
 		$this->limitToDBField($qb, 'id', $id);
 	}
 
@@ -172,6 +184,22 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'address', $address);
 	}
 
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $recipient
+	 */
+	protected function limitToRecipient(IQueryBuilder &$qb, string $recipient) {
+		$expr = $qb->expr();
+		$orX = $expr->orX();
+
+		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
+		$orX->add($expr->like('to_array', $qb->createNamedParameter('%"' . $recipient . '"%')));
+		$orX->add($expr->like('cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+		$orX->add($expr->like('bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+
+		$qb->andWhere($orX);
+	}
 
 	/**
 	 * @param IQueryBuilder $qb

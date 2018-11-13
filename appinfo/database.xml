@@ -6,58 +6,15 @@
 	<charset>utf8</charset>
 
 	<table>
-		<name>*dbprefix*social_accounts</name>
-		<declaration>
-
-			<field>
-				<name>id</name>
-				<type>integer</type>
-				<length>7</length>
-				<unsigned>true</unsigned>
-				<notnull>true</notnull>
-				<autoincrement>true</autoincrement>
-				<primary>true</primary>
-			</field>
-
-			<field>
-				<name>user_id</name>
-				<type>text</type>
-				<length>63</length>
-			</field>
-
-			<field>
-				<name>account</name>
-				<type>text</type>
-				<length>63</length>
-			</field>
-
-			<field>
-				<name>creation</name>
-				<type>timestamp</type>
-			</field>
-
-		</declaration>
-	</table>
-
-	<table>
 		<name>*dbprefix*social_server_actors</name>
 		<declaration>
 
 			<field>
 				<name>id</name>
-				<type>integer</type>
-				<length>7</length>
-				<unsigned>true</unsigned>
-				<notnull>true</notnull>
-				<autoincrement>true</autoincrement>
-				<primary>true</primary>
-			</field>
-
-			<field>
-				<name>type</name>
 				<type>text</type>
-				<length>15</length>
+				<length>127</length>
 				<notnull>true</notnull>
+				<primary>true</primary>
 			</field>
 
 			<field>
@@ -75,6 +32,20 @@
 			</field>
 
 			<field>
+				<name>name</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>summary</name>
+				<type>text</type>
+				<length>500</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>public_key</name>
 				<type>text</type>
 				<length>1000</length>
@@ -84,6 +55,40 @@
 				<name>private_key</name>
 				<type>text</type>
 				<length>2000</length>
+			</field>
+
+			<field>
+				<name>creation</name>
+				<type>timestamp</type>
+			</field>
+
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_server_follows</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+				<primary>true</primary>
+			</field>
+
+			<field>
+				<name>actor_id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>object_id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
 			</field>
 
 			<field>
@@ -131,6 +136,7 @@
 				<type>text</type>
 				<length>127</length>
 				<notnull>true</notnull>
+				<primary>true</primary>
 			</field>
 
 			<!--<field>-->
@@ -215,16 +221,56 @@
 
 			<field>
 				<name>id</name>
-				<type>integer</type>
-				<length>8</length>
-				<unsigned>true</unsigned>
+				<type>string</type>
+				<length>127</length>
 				<notnull>true</notnull>
-				<autoincrement>true</autoincrement>
 				<primary>true</primary>
 			</field>
 
 			<field>
 				<name>account</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>following</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>followers</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>inbox</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>shared_inbox</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>outbox</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>featured</name>
 				<type>text</type>
 				<length>127</length>
 				<notnull>true</notnull>
@@ -238,9 +284,30 @@
 			</field>
 
 			<field>
-				<name>actor</name>
+				<name>preferred_username</name>
 				<type>text</type>
-				<length>8000</length>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>name</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>summary</name>
+				<type>text</type>
+				<length>500</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>public_key</name>
+				<type>text</type>
+				<length>500</length>
 				<notnull>true</notnull>
 			</field>
 

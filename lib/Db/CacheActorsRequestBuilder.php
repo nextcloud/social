@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Cache\CacheActor;
+use OCA\Social\Model\ActivityPub\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
@@ -76,7 +77,10 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.url', 'ca.actor', 'ca.creation'
+			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
+			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url',
+			'ca.preferred_username', 'ca.name', 'ca.summary',
+			'ca.public_key', 'ca.creation'
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
 
@@ -102,15 +106,11 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return CacheActor
+	 * @return Person
 	 */
-	protected function parseCacheActorsSelectSql($data): CacheActor {
-		$actor = new CacheActor();
-		$actor->setId($this->getInt('id', $data))
-			  ->setAccount($data['account'])
-			  ->setUrl($data['url'])
-			  ->setActor(json_decode($data['actor'], true))
-			  ->setCreation($this->getInt('creation', $data, 0));
+	protected function parseCacheActorsSelectSql(array $data): Person {
+		$actor = new Person();
+		$actor->import($data);
 
 		return $actor;
 	}

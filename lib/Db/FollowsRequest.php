@@ -28,71 +28,66 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Db;
 
 
 use Exception;
-use OC\User\NoUserException;
-use OCA\Social\AppInfo\Application;
-use OCP\ILogger;
-use OCP\IUserManager;
+use OCA\Social\Model\ActivityPub\Follow;
 
 
 /**
- * Class MiscService
+ * Class FollowsRequest
  *
- * @package OCA\Social\Service
+ * @package OCA\Social\Db
  */
-class MiscService {
-
-
-	/** @var ILogger */
-	private $logger;
-
-	/** @var IUserManager */
-	private $userManager;
+class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
-	 * MiscService constructor.
+	 * Insert a new Note in the database.
 	 *
-	 * @param ILogger $logger
-	 * @param IUserManager $userManager
-	 */
-	public function __construct(ILogger $logger, IUserManager $userManager) {
-		$this->logger = $logger;
-		$this->userManager = $userManager;
-	}
-
-
-	/**
-	 * @param $message
-	 * @param int $level
-	 */
-	public function log($message, $level = 2) {
-		$data = array(
-			'app'   => Application::APP_NAME,
-			'level' => $level
-		);
-
-		$this->logger->log($level, $message, $data);
-	}
-
-
-	/**
-	 * @param string $userId
+	 * @param Follow $follow
 	 *
-	 * @throws NoUserException
+	 * @return int
+	 * @throws Exception
 	 */
-	public function confirmUserId(string &$userId) {
-		$user = $this->userManager->get($userId);
+	public function save(Follow $follow): int {
 
-		if ($user === null) {
-			throw new NoUserException('user does not exist');
+		try {
+			$qb = $this->getFollowsInsertSql();
+			$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
+			   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
+			   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()));
+
+			$qb->execute();
+
+			return $qb->getLastInsertId();
+		} catch (Exception $e) {
+			throw $e;
 		}
-
-		$userId = $user->getUID();
 	}
+
+
+	/**
+	 * Insert a new Note in the database.
+	 *
+	 * @param Follow $follow
+	 *
+	 * @return int
+	 * @throws Exception
+	 */
+	public function delete(Follow $follow) {
+
+		try {
+			$qb = $this->getFollowsDeleteSql();
+			$this->limitToIdString($qb, $follow->getId());
+
+			$qb->execute();
+		} catch (Exception $e) {
+			throw $e;
+		}
+	}
+
 
 }
 

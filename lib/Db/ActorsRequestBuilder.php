@@ -31,7 +31,7 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Model\ActivityPub\Actor;
+use OCA\Social\Model\ActivityPub\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {
@@ -76,7 +76,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'sa.id', 'sa.type', 'sa.user_id', 'sa.preferred_username', 'sa.public_key',
+			'sa.id', 'sa.user_id', 'sa.preferred_username', 'sa.name', 'sa.summary', 'sa.public_key',
 			'sa.private_key', 'sa.creation'
 		)
 		   ->from(self::TABLE_SERVER_ACTORS, 'sa');
@@ -103,24 +103,18 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Actor
+	 * @return Person
 	 */
-	protected function parseActorsSelectSql($data): Actor {
-		$id = $this->configService->getRoot() . '@' . $data['preferred_username'];
-		$actor = new Actor();
-		$actor->setId($id)
-			  ->setType($this->get('type', $data, ''))
-			  ->setRoot($this->configService->getRoot());
-		$actor->setUserId($data['user_id'])
-			  ->setPreferredUsername($data['preferred_username'])
-			  ->setPublicKey($data['public_key'])
-			  ->setPrivateKey($data['private_key'])
-			  ->setInbox($id . '/inbox')
-			  ->setOutbox($id . '/outbox')
-			  ->setFollowers($id . '/followers')
-			  ->setFollowing($id . '/following')
-			  ->setSharedInbox($this->configService->getRoot() . 'inbox')
-			  ->setCreation($this->getInt('creation', $data, 0));
+	protected function parseActorsSelectSql($data): Person {
+		$root = $this->configService->getRoot();
+
+		$actor = new Person();
+		$actor->import($data);
+		$actor->setInbox($actor->getId() . '/inbox')
+			  ->setOutbox($actor->getId() . '/outbox')
+			  ->setFollowers($actor->getId() . '/followers')
+			  ->setFollowing($actor->getId() . '/following')
+			  ->setSharedInbox($root . 'inbox');
 
 		return $actor;
 	}

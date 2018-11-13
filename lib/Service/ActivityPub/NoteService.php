@@ -34,10 +34,12 @@ use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Core;
+use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Note;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Service\ActivityPubService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
@@ -52,6 +54,9 @@ class NoteService implements ICoreService {
 
 	/** @var ActorService */
 	private $actorService;
+
+	/** @var PersonService */
+	private $personService;
 
 	/** @var CurlService */
 	private $curlService;
@@ -68,17 +73,18 @@ class NoteService implements ICoreService {
 	 *
 	 * @param NotesRequest $notesRequest
 	 * @param ActorService $actorService
+	 * @param PersonService $personService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, ActorService $actorService,
-		CurlService $curlService, ConfigService $configService,
-		MiscService $miscService
+		NotesRequest $notesRequest, ActorService $actorService, PersonService $personService,
+		CurlService $curlService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
 		$this->actorService = $actorService;
+		$this->personService = $personService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -102,7 +108,7 @@ class NoteService implements ICoreService {
 		$note->setAttributedTo(
 			$this->configService->getRoot() . '@' . $actor->getPreferredUsername()
 		);
-		$note->setTo(ActivityPubService::TO_PUBLIC);
+		$note->setTo(ActivityService::TO_PUBLIC);
 		$note->setContent($content);
 
 		$note->saveAs($this);
@@ -113,19 +119,43 @@ class NoteService implements ICoreService {
 
 	/**
 	 * @param Note $note
-	 * @param string $to
-	 * @param int $type
+	 * @param string $account
+	 *
+	 * @throws RequestException
 	 */
-	public function assignTo(Note $note, string $to, int $type) {
-		$note->addToArray($to);
+	public function assignTo(Note $note, string $account) {
+		if ($account === '') {
+			return;
+		}
+
+		$actor = $this->personService->getFromAccount($account);
+
+		$note->addToArray($actor->getId());
 		$note->addTag(
 			[
 				'type' => 'Mention',
-				'href' => $to
+				'href' => $actor->getId()
 			]
 		);
 
-		$note->addInstancePath(new InstancePath($to, $type));
+		$note->addInstancePath(new InstancePath($actor->getInbox()));
+	}
+
+
+	/**
+	 * @param Note $note
+	 * @param array $accounts
+	 *
+	 * @throws RequestException
+	 */
+	public function assignToArray(Note $note, array $accounts) {
+		if ($accounts === []) {
+			return;
+		}
+
+		foreach ($accounts as $account) {
+			$this->assignTo($note, $account);
+		}
 	}
 
 
@@ -134,6 +164,10 @@ class NoteService implements ICoreService {
 	 * @param string $replyTo
 	 */
 	public function replyTo(Note $note, string $replyTo) {
+		if ($replyTo === '') {
+			return;
+		}
+
 		$note->setInReplyTo($replyTo);
 		$note->addInstancePath(new InstancePath($replyTo));
 	}
@@ -142,13 +176,44 @@ class NoteService implements ICoreService {
 	/**
 	 * This method is called when saving the Note object
 	 *
-	 * @param Core $note
+	 * @param ACore $note
 	 *
 	 * @throws Exception
 	 */
-	public function save(Core $note) {
+	public function save(ACore $note) {
 		/** @var Note $note */
-		$this->notesRequest->create($note);
+		$this->notesRequest->save($note);
 	}
 
+
+	/**
+	 * @param string $userId
+	 *
+	 * @return Note[]
+	 */
+	public function getTimeline(): array {
+		return $this->notesRequest->getPublicNotes();
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return Note[]
+	 */
+	public function getNotesForActor(Person $actor): array {
+		$privates = $this->getPrivateNotesForActor($actor);
+
+		return $privates;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return Note[]
+	 */
+	private function getPrivateNotesForActor(Person $actor): array {
+		return $this->notesRequest->getNotesForActorId($actor->getId());
+	}
 }
