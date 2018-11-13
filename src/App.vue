@@ -115,31 +115,6 @@ export default {
 		if (serverDataElmt !== null) {
 			this.$store.commit('setServerData', JSON.parse(document.getElementById('serverData').dataset.server))
 		}
-
-		let example = {
-			message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n'
-					+ '\n'
-					+ 'Get started right now: https://nextcloud.com/signup',
-			author: 'Nextcloud 📱☁️💻',
-			authorId: '@nextcloud@mastodon.xyz',
-			authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
-			timestamp: '1 day ago'
-		}
-		let data = []
-		for (let i = 0; i < 3; i++) {
-			example.id = Math.floor((Math.random() * 100))
-			data.push(example)
-		}
-		data.push({
-			message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n'
-					+ '\n'
-					+ 'Get started right now: https://nextcloud.com/signup',
-			author: 'Admin☁️💻',
-			authorId: 'admin',
-			authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
-			timestamp: '1 day ago'
-		})
-		this.$store.commit('addToTimeline', data)
 	},
 	methods: {
 		hideInfo() {

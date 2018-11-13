@@ -25,7 +25,18 @@
 						<div class="submitLoading icon-loading-small hidden" />
 					</form>
 				</div>
-				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
+				<!--<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" /> //-->
+				<div v-for="entry in timeline">{{entry}}</div>
+				<infinite-loading @infinite="infiniteHandler" ref="infiniteLoading">
+				<div slot="spinner"><div class="icon-loading"></div></div>
+				<div slot="no-more"><div class="list-end"></div></div>
+				<div slot="no-results">
+					<div id="emptycontent">
+						<div class="icon-social"></div>
+						<h2>{{t('social', 'No posts found.')}}</h2>
+					</div>
+				</div>
+				</infinite-loading>
 			</div>
 		</div>
 	</div>
@@ -124,12 +135,14 @@ import {
 	Multiselect,
 	Avatar
 } from 'nextcloud-vue'
+import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './../components/TimelineEntry'
 
 export default {
 	name: 'Timeline',
 	components: {
-		PopoverMenu, AppNavigation, TimelineEntry, Multiselect, Avatar
+		PopoverMenu, AppNavigation, TimelineEntry, Multiselect, Avatar,
+		InfiniteLoading
 	},
 	data: function() {
 		return {
@@ -198,7 +211,7 @@ export default {
 		}
 	},
 	beforeMount: function() {
-		let example = {
+		/*let example = {
 			message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n'
 					+ '\n'
 					+ 'Get started right now: https://nextcloud.com/signup',
@@ -213,12 +226,17 @@ export default {
 			item.id = i
 			data.push(item)
 		}
-		this.$store.commit('addToTimeline', data)
+		this.$store.commit('addToTimeline', data)*/
 	},
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
-		}
+		},
+		infiniteHandler($state) {
+			this.$store.dispatch('fetchTimeline', {
+				account: this.currentUser.uid
+			}).then((response) => { response.length > 0 ? $state.loaded() : $state.complete() });
+		},
 	}
 }
 </script>

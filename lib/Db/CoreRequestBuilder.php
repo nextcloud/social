@@ -224,7 +224,22 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $field
+	 * @param string $recipient
+	 */
+	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
+		if ($since > 0) {
+			$expr = $qb->expr();
+			$dt = new \DateTime();
+			$dt->setTimestamp($since);
+			$qb->andWhere('creation < "2020-10-10 10:00:00"');
+		}
+		$qb->setMaxResults($limit);
+		$qb->orderBy('creation', 'desc');
+	}
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field"
 	 * @param string|integer|array $values
 	 */
 	private function limitToDBField(IQueryBuilder &$qb, $field, $values) {
