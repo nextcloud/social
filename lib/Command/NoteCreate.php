@@ -32,7 +32,6 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\NoteService;
 use OCA\Social\Service\ActivityService;
@@ -104,7 +103,11 @@ class NoteCreate extends Base {
 				 'replyTo', 'r', InputOption::VALUE_OPTIONAL, 'in reply to an existing thread'
 			 )
 			 ->addOption(
-				 'to', 't', InputOption::VALUE_OPTIONAL, 'to (default Public)'
+				 'to', 't', InputOption::VALUE_OPTIONAL, 'mentioning people'
+			 )
+			 ->addOption(
+				 'type', 'y', InputOption::VALUE_OPTIONAL,
+				 'type: public (default), followers, unlisted, direct'
 			 )
 			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')
@@ -124,11 +127,13 @@ class NoteCreate extends Base {
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
 		$replyTo = $input->getOption('replyTo');
+		$type = $input->getOption('type');
 
 		$post = new Post($userId);
 		$post->setContent($content);
+		$post->setType(($type === null) ? '' : $type);
 		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
-		$post->addTo($to);
+		$post->addTo(($to === null) ? '' : $to);
 
 		$result = $this->postService->createPost($post, $activity);
 

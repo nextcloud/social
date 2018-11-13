@@ -78,9 +78,11 @@ class PostService {
 	 */
 	public function createPost(Post $post, ACore &$activity = null) {
 		$note =
-			$this->noteService->generateNote($post->getUserId(), $post->getContent());
+			$this->noteService->generateNote(
+				$post->getUserId(), $post->getContent(), $post->getType()
+			);
 
-		$this->noteService->assignToArray($note, $post->getTo());
+		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->noteService->replyTo($note, $post->getReplyTo());
 
 		return $this->activityService->createActivity(

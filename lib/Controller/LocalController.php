@@ -115,6 +115,7 @@ class LocalController extends Controller {
 			$post->setReplyTo($this->get('replyTo', $data, ''));
 			$post->setTo($this->getArray('to', $data, []));
 			$post->addTo($this->get('to', $data, ''));
+			$post->setType($this->get('type', $data, NoteService::TYPE_PUBLIC));
 
 			$result = $this->postService->createPost($post);
 

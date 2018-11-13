@@ -435,6 +435,12 @@ abstract class ACore implements JsonSerializable {
 	}
 
 
+	public function addCc(string $cc): Acore {
+		$this->cc[] = $cc;
+
+		return $this;
+	}
+
 	/**
 	 * @return array
 	 */
