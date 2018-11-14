@@ -175,6 +175,5 @@ class PersonService implements ICoreService {
 		$this->cacheActorsRequest->save($person);
 	}
 
-
 }
 

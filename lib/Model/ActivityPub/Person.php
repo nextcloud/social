@@ -353,6 +353,10 @@ class Person extends ACore implements JsonSerializable {
 			 ->setSharedInbox($this->get('shared_inbox', $data, ''))
 			 ->setFeatured($this->get('featured', $data, ''))
 			 ->setCreation($this->getInt('creation', $data, 0));
+
+		if ($this->getPreferredUsername() === '') {
+			$this->setType('Invalid');
+		}
 	}
 
 
@@ -371,6 +375,7 @@ class Person extends ACore implements JsonSerializable {
 				'name'              => $this->getName(),
 				'inbox'             => $this->getInbox(),
 				'outbox'            => $this->getOutbox(),
+				'account'           => $this->getAccount(),
 				'following'         => $this->getFollowing(),
 				'followers'         => $this->getFollowers(),
 				'endpoints'         =>

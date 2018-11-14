@@ -109,6 +109,8 @@ abstract class ACore implements JsonSerializable {
 	/** @var ICoreService */
 	private $saveAs;
 
+	/** @var bool */
+	private $completeDetails = false;
 
 	/**
 	 * Core constructor.
@@ -686,6 +688,25 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function isCompleteDetails(): bool {
+		return $this->completeDetails;
+	}
+
+	/**
+	 * @param bool $completeDetails
+	 *
+	 * @return ACore
+	 */
+	public function setCompleteDetails(bool $completeDetails): ACore {
+		$this->completeDetails = $completeDetails;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
@@ -727,6 +748,9 @@ abstract class ACore implements JsonSerializable {
 				'actor', $this->getActor()
 							  ->getId()
 			);
+			if ($this->isCompleteDetails()) {
+				$this->addEntryItem('actor_info', $this->getActor());
+			}
 		} else {
 			$this->addEntry('actor', $this->getActorId());
 		}
