@@ -20,12 +20,17 @@
  *
  */
 
+import axios from 'nextcloud-axios'
+
+
 const state = {
-	timeline: []
+	timeline: [],
+	since: new Date(),
 }
 const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
+			state.since = data[item].published;
 			state.timeline.push(data[item])
 		}
 	}
@@ -35,6 +40,19 @@ const getters = {
 		return state.timeline
 	}
 }
-const actions = {}
+const actions = {
+	post(context, post) {
+		axios.post(OC.generateUrl('apps/social/api/v1/post')).then((response) => {
+			context.commit('addPost', { uid: uid, data: response.data })
+		})
+	},
+	fetchTimeline(context, account) {
+		const sinceTimestamp = Date.parse(state.since)/1000;
+		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
+			context.commit('addToTimeline', response.data.result);
+			return response.data.result;
+		})
+	}
+}
 
 export default { state, mutations, getters, actions }

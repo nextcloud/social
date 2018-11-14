@@ -90,6 +90,12 @@ class ActorService {
 		return $actor;
 	}
 
+	public function getActorById(string $id): Person {
+		$actor = $this->actorsRequest->getFromId($id);
+
+		return $actor;
+	}
+
 
 	/**
 	 * @param string $userId

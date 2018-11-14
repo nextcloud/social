@@ -34,6 +34,7 @@ use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 class NotesRequest extends NotesRequestBuilder {
@@ -86,8 +87,8 @@ class NotesRequest extends NotesRequestBuilder {
 			   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
 			   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
 			   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
-			   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()));
-
+			   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
+			   ->setValue('creation', $qb->createNamedParameter(new \DateTime('now'), IQueryBuilder::PARAM_DATE));
 			$qb->execute();
 
 			return $qb->getLastInsertId();
@@ -102,9 +103,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 *
 	 * @return array
 	 */
-	public function getPublicNotes(): array {
+	public function getPublicNotes($since = 0, $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->limitPaginate($qb, $since, $limit);
 
 		$notes = [];
 		$cursor = $qb->execute();

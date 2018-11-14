@@ -31,8 +31,8 @@ return [
 		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET'],
 
 		['name' => 'Local#newPost', 'url' => '/api/v1/post', 'verb' => 'POST'],
-		['name' => 'Local#timeline', 'url' => '/api/v1/timeline', 'verb' => 'PUT'],
-		['name' => 'Local#direct', 'url' => '/api/v1/direct', 'verb' => 'PUT'],
+		['name' => 'Local#timeline', 'url' => '/api/v1/timeline', 'verb' => 'GET'],
+		['name' => 'Local#direct', 'url' => '/api/v1/direct', 'verb' => 'PUT']
 		['name' => 'Local#accountSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
 		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET']
 

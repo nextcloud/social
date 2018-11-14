@@ -144,12 +144,12 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function timeline(): DataResponse {
+	public function timeline($since = 0, $limit = 5): DataResponse {
 
 //		$this->miscService->log('timeline: ' . json_encode($data));
 
 		try {
-			$posts = $this->noteService->getTimeline();
+			$posts = $this->noteService->getTimeline((int)$since, (int)$limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
