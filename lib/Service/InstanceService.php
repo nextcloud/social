@@ -109,9 +109,12 @@ class InstanceService {
 		$request = new Request($url['path'], Request::TYPE_GET);
 		$request->setAddress($url['host']);
 
-//		$key = $url['fragment'];
+		$result = $this->curlService->request($request);
+		if (is_array($result)) {
+			$result['_host'] = $url['host'];
+		}
 
-		return $this->curlService->request($request);
+		return $result;
 	}
 
 
@@ -125,7 +128,6 @@ class InstanceService {
 
 		foreach ($activity->getInstancePaths() as $instancePath) {
 			$this->addInstances($instancePath, $instances);
-//			$uriIds[] = $to;
 		}
 
 		return $instances;
