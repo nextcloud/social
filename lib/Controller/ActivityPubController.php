@@ -186,6 +186,8 @@ class ActivityPubController extends Controller {
 			$this->activityService->checkRequest($this->request);
 			$body = file_get_contents('php://input');
 
+//			$this->miscService->log('Body: ' . $body);
+
 			$activity = $this->importService->import($body);
 
 			try {

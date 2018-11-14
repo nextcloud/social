@@ -49,6 +49,12 @@ use OCA\Social\Service\MiscService;
 class NoteService implements ICoreService {
 
 
+	const TYPE_PUBLIC = 'public';
+	const TYPE_UNLISTED = 'unlisted';
+	const TYPE_FOLLOWERS = 'followers';
+	const TYPE_DIRECT = 'direct';
+
+
 	/** @var NotesRequest */
 	private $notesRequest;
 
@@ -95,11 +101,13 @@ class NoteService implements ICoreService {
 	 * @param string $userId
 	 * @param string $content
 	 *
+	 * @param string $type
+	 *
 	 * @return Note
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 */
-	public function generateNote(string $userId, string $content) {
+	public function generateNote(string $userId, string $content, string $type) {
 		$note = new Note();
 		$actor = $this->actorService->getActorFromUserId($userId);
 
@@ -108,7 +116,8 @@ class NoteService implements ICoreService {
 		$note->setAttributedTo(
 			$this->configService->getRoot() . '@' . $actor->getPreferredUsername()
 		);
-		$note->setTo(ActivityService::TO_PUBLIC);
+
+		$this->setRecipient($note, $actor, $type);
 		$note->setContent($content);
 
 		$note->saveAs($this);
@@ -119,18 +128,53 @@ class NoteService implements ICoreService {
 
 	/**
 	 * @param Note $note
+	 * @param Person $actor
+	 * @param string $type
+	 */
+	private function setRecipient(Note $note, Person $actor, string $type) {
+		switch ($type) {
+			case self::TYPE_UNLISTED:
+				$note->setTo($actor->getFollowers());
+				$note->addCc(ActivityService::TO_PUBLIC);
+				break;
+
+			case self::TYPE_FOLLOWERS:
+				$note->setTo($actor->getFollowers());
+				break;
+
+			case self::TYPE_DIRECT:
+				break;
+
+			default:
+				$note->setTo(ActivityService::TO_PUBLIC);
+				$note->addCc($actor->getFollowers());
+				break;
+
+
+		}
+	}
+
+
+	/**
+	 * @param Note $note
+	 * @param string $type
 	 * @param string $account
 	 *
 	 * @throws RequestException
 	 */
-	public function assignTo(Note $note, string $account) {
+	public function addRecipient(Note $note, string $type, string $account) {
 		if ($account === '') {
 			return;
 		}
 
 		$actor = $this->personService->getFromAccount($account);
 
-		$note->addToArray($actor->getId());
+		if ($type === self::TYPE_DIRECT) {
+			$note->addToArray($actor->getId());
+		} else {
+			$note->addCc($actor->getId());
+		}
+
 		$note->addTag(
 			[
 				'type' => 'Mention',
@@ -144,17 +188,18 @@ class NoteService implements ICoreService {
 
 	/**
 	 * @param Note $note
+	 * @param string $type
 	 * @param array $accounts
 	 *
 	 * @throws RequestException
 	 */
-	public function assignToArray(Note $note, array $accounts) {
+	public function addRecipients(Note $note, string $type, array $accounts) {
 		if ($accounts === []) {
 			return;
 		}
 
 		foreach ($accounts as $account) {
-			$this->assignTo($note, $account);
+			$this->addRecipient($note, $type, $account);
 		}
 	}
 

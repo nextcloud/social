@@ -33,6 +33,12 @@ namespace OCA\Social\Model;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 
+
+/**
+ * Class Post
+ *
+ * @package OCA\Social\Model
+ */
 class Post implements JsonSerializable {
 
 
@@ -51,7 +57,16 @@ class Post implements JsonSerializable {
 	/** @var string */
 	private $content;
 
-	public function __construct($userId = '') {
+	/** @var string */
+	private $type;
+
+
+	/**
+	 * Post constructor.
+	 *
+	 * @param string $userId
+	 */
+	public function __construct(string $userId = '') {
 		$this->userId = $userId;
 	}
 
@@ -65,13 +80,15 @@ class Post implements JsonSerializable {
 
 	/**
 	 * @param string $to
+	 *
+	 * @return Post
 	 */
-	public function addTo(string $to) {
-		if ($to === '') {
-			return;
+	public function addTo(string $to): Post {
+		if ($to !== '') {
+			$this->to[] = $to;
 		}
 
-		$this->to[] = $to;
+		return $this;
 	}
 
 	/**
@@ -83,9 +100,13 @@ class Post implements JsonSerializable {
 
 	/**
 	 * @param array $to
+	 *
+	 * @return Post
 	 */
-	public function setTo(array $to) {
+	public function setTo(array $to): Post {
 		$this->to = $to;
+
+		return $this;
 	}
 
 
@@ -98,9 +119,31 @@ class Post implements JsonSerializable {
 
 	/**
 	 * @param string $replyTo
+	 *
+	 * @return Post
 	 */
-	public function setReplyTo(string $replyTo) {
+	public function setReplyTo(string $replyTo): Post {
 		$this->replyTo = $replyTo;
+
+		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getType(): string {
+		return $this->type;
+	}
+
+	/**
+	 * @param string $type
+	 *
+	 * @return Post
+	 */
+	public function setType(string $type): Post {
+		$this->type = $type;
+
+		return $this;
 	}
 
 
@@ -127,7 +170,8 @@ class Post implements JsonSerializable {
 			'userId'  => $this->getUserId(),
 			'to'      => $this->getTo(),
 			'replyTo' => $this->getReplyTo(),
-			'content' => $this->getContent()
+			'content' => $this->getContent(),
+			'type'    => $this->getType()
 		];
 	}
 

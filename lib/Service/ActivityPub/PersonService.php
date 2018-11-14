@@ -94,7 +94,6 @@ class PersonService implements ICoreService {
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
 		} catch (CacheActorDoesNotExistException $e) {
-
 			$object = $this->instanceService->retrieveAccount($account);
 			$actor = new Person();
 			$actor->import($object);
