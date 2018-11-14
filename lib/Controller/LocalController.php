@@ -149,7 +149,7 @@ class LocalController extends Controller {
 //		$this->miscService->log('timeline: ' . json_encode($data));
 
 		try {
-			$posts = $this->noteService->getTimeline($since, $limit);
+			$posts = $this->noteService->getTimeline((int)$since, (int)$limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {

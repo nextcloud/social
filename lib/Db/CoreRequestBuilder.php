@@ -231,7 +231,8 @@ class CoreRequestBuilder {
 			$expr = $qb->expr();
 			$dt = new \DateTime();
 			$dt->setTimestamp($since);
-			$qb->andWhere('creation < "2020-10-10 10:00:00"');
+			// TODO: Pagination should use published date, once we can properly query the db for that
+			$qb->andWhere($expr->lt('creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE), IQueryBuilder::PARAM_DATE));
 		}
 		$qb->setMaxResults($limit);
 		$qb->orderBy('creation', 'desc');

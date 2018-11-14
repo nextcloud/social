@@ -237,7 +237,7 @@ class NoteService implements ICoreService {
 	 * @return Note[]
 	 */
 	public function getTimeline($since = 0, $limit = 5): array {
-		$notes = $this->notesRequest->getPublicNotes($since = 0, $limit = 5);
+		$notes = $this->notesRequest->getPublicNotes($since, $limit);
 		$result = [];
 		/** @var Note $note */
 		foreach ($notes as $note) {

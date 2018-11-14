@@ -25,7 +25,7 @@ import axios from 'nextcloud-axios'
 
 const state = {
 	timeline: [],
-	since: 0,
+	since: new Date(),
 }
 const mutations = {
 	addToTimeline(state, data) {
@@ -47,7 +47,8 @@ const actions = {
 		})
 	},
 	fetchTimeline(context, account) {
-		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?since=' + state.since)).then((response) => {
+		const sinceTimestamp = Date.parse(state.since)/1000;
+		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
 			context.commit('addToTimeline', response.data.result);
 			return response.data.result;
 		})

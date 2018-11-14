@@ -26,7 +26,10 @@
 					</form>
 				</div>
 				<!--<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" /> //-->
-				<div v-for="entry in timeline">{{entry}}</div>
+				<div v-for="entry in timeline">
+					{{entry.content}}
+				<pre style="height: 200px; overflow:scroll;">{{entry}}</pre>
+				</div>
 				<infinite-loading @infinite="infiniteHandler" ref="infiniteLoading">
 				<div slot="spinner"><div class="icon-loading"></div></div>
 				<div slot="no-more"><div class="list-end"></div></div>
@@ -211,22 +214,7 @@ export default {
 		}
 	},
 	beforeMount: function() {
-		/*let example = {
-			message: 'Want to #DropDropbox? #DeleteGoogle? #decentralize? We got you covered, easy as a piece of 🥞\n'
-					+ '\n'
-					+ 'Get started right now: https://nextcloud.com/signup',
-			author: 'Nextcloud 📱☁️💻',
-			authorId: '@nextcloud@mastodon.xyz',
-			authorAvatar: OC.linkTo('social', 'img/nextcloud.png'),
-			timestamp: '1 day ago'
-		}
-		let data = []
-		for (let i = 0; i < 20; i++) {
-			let item = Object.assign({}, example)
-			item.id = i
-			data.push(item)
-		}
-		this.$store.commit('addToTimeline', data)*/
+
 	},
 	methods: {
 		hideInfo() {
