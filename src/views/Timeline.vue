@@ -1,14 +1,16 @@
 <template>
 	<div class="social__wrapper">
 		<div class="social__container">
-			<div v-if="!infoHidden" class="social__welcome">
-				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
-				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
-				<p>
-					{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
-					<span class="social-id">{{ socialId }}</span>
-				</p>
-			</div>
+			<transition name="slide-fade">
+				<div v-if="showInfo" class="social__welcome">
+					<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
+					<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
+					<p>
+						{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
+						<span class="social-id">{{ socialId }}</span>
+					</p>
+				</div>
+			</transition>
 			<div class="social__timeline">
 				<div class="new-post" data-id="">
 					<div class="new-post-author">
@@ -136,6 +138,19 @@
 		position: relative;
 	}
 
+	.slide-fade-leave-active {
+		position: relative;
+		overflow: hidden;
+		transition: all .5s ease-out;
+		max-height: 200px;
+	}
+	.slide-fade-leave-to {
+		max-height: 0;
+		opacity: 0;
+		padding-top: 0;
+		padding-bottom: 0;
+	}
+
 </style>
 
 <script>
@@ -172,6 +187,9 @@ export default {
 		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
+		},
+		showInfo() {
+			return this.$store.getters.getServerData.firstrun && !this.infoHidden
 		},
 		menu: function() {
 			let defaultCategories = [
