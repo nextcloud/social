@@ -390,13 +390,17 @@ class ActivityService {
 	/**
 	 * @param $keyId
 	 *
-	 * @return array
+	 * @return string
 	 * @throws RequestException
 	 */
-	private function retrieveKey($keyId) {
-		$actor = $this->instanceService->retrieveObject($keyId);
+	private function retrieveKey($keyId): string {
+		//check cache here
 
-		return $actor['publicKey']['publicKeyPem'];
+		$actor = $this->personService->getFromId($keyId);
+
+//		$actor = $this->instanceService->retrieveObject($keyId);
+
+		return $actor->getPublicKey();
 	}
 
 

@@ -35,10 +35,10 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Person;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
@@ -83,6 +83,46 @@ class PersonService implements ICoreService {
 
 
 	/**
+	 * @param string $id
+	 *
+	 * @return Person
+	 * @throws RequestException
+	 * @throws InvalidResourceException
+	 */
+	public function getFromId(string $id): Person {
+
+		$posAnchor = strpos($id, '#');
+		if ($posAnchor !== false) {
+			$id = substr($id, 0, $posAnchor);
+		}
+
+		try {
+			$actor = $this->cacheActorsRequest->getFromId($id);
+		} catch (CacheActorDoesNotExistException $e) {
+			$object = $this->instanceService->retrieveObject($id);
+			$actor = new Person();
+			$actor->import($object);
+
+			if ($actor->getType() !== 'Person') {
+				throw new InvalidResourceException();
+			}
+
+			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
+			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
+			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
+			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
+			try {
+				$this->save($actor);
+			} catch (Exception $e) {
+				throw new InvalidResourceException();
+			}
+		}
+
+		return $actor;
+	}
+
+
+	/**
 	 * @param string $account
 	 *
 	 * @return Person
@@ -98,6 +138,10 @@ class PersonService implements ICoreService {
 			$actor = new Person();
 			$actor->import($object);
 
+			if ($actor->getType() !== 'Person') {
+				throw new InvalidResourceException();
+			}
+
 			$actor->setAccount($account);
 			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
@@ -106,6 +150,16 @@ class PersonService implements ICoreService {
 		}
 
 		return $actor;
+	}
+
+
+	/**
+	 * @param string $search
+	 *
+	 * @return Person[]
+	 */
+	public function searchCachedAccounts(string $search): array {
+		return $this->cacheActorsRequest->searchAccounts($search);
 	}
 
 
@@ -120,22 +174,6 @@ class PersonService implements ICoreService {
 		/** @var Person $person */
 		$this->cacheActorsRequest->save($person);
 	}
-
-
-	//	/**
-	//	 * @param Person $actor
-	//	 * @param int $type
-	//	 *
-	//	 * @return string
-	//	 */
-	//	public function getPathFromActor(Person $actor, int $type) {
-	//		switch ($type) {
-	//			case InstancePath::INBOX:
-	//				return parse_url($actor->getInbox(), PHP_URL_PATH);
-	//		}
-	//
-	//		return '';
-	//	}
 
 
 }

@@ -134,5 +134,24 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 
+	/**
+	 * @param string $search
+	 *
+	 * @return Person[]
+	 */
+	public function searchFromUsername(string $search): array {
+		$qb = $this->getActorsSelectSql();
+		$this->searchInPreferredUsername($qb, $search);
+
+		$accounts = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$accounts[] = $this->parseActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $accounts;
+	}
+
 }
 

@@ -118,6 +118,16 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'preferred_username', $userId);
 	}
 
+	/**
+	 * Limit the request to the OwnerId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $username
+	 */
+	protected function searchInPreferredUsername(IQueryBuilder &$qb, $username) {
+		$this->searchInDBField($qb, 'preferred_username', $username . '%');
+	}
+
 
 	/**
 	 * Limit the request to the OwnerId
@@ -149,6 +159,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToAccount(IQueryBuilder &$qb, string $account) {
 		$this->limitToDBField($qb, 'account', $account);
+	}
+
+
+	/**
+	 * Limit the request to the account
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $account
+	 */
+	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
+		$this->searchInDBField($qb, 'account', $account . '%');
 	}
 
 
@@ -223,6 +244,18 @@ class CoreRequestBuilder {
 		$qb->andWhere($orX);
 	}
 
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $value
+	 */
+	private function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$qb->andWhere($expr->like($field, $qb->createNamedParameter($value)));
+	}
 
 //	/**
 //	 * Left Join service to get info about the serviceId
