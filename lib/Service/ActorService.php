@@ -38,6 +38,7 @@ use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityPub\PersonService;
 
 
 /**
@@ -51,11 +52,14 @@ class ActorService {
 	use TArrayTools;
 
 
-	/** @var ConfigService */
-	private $configService;
-
 	/** @var ActorsRequest */
 	private $actorsRequest;
+
+	/** @var PersonService */
+	private $personService;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -65,14 +69,17 @@ class ActorService {
 	 * ActorService constructor.
 	 *
 	 * @param ActorsRequest $actorsRequest
+	 * @param PersonService $personService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest, ConfigService $configService, MiscService $miscService
+		ActorsRequest $actorsRequest, PersonService $personService, ConfigService $configService,
+		MiscService $miscService
 	) {
-		$this->configService = $configService;
 		$this->actorsRequest = $actorsRequest;
+		$this->personService = $personService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -90,6 +97,12 @@ class ActorService {
 		return $actor;
 	}
 
+	/**
+	 * @param string $id
+	 *
+	 * @return Person
+	 * @throws ActorDoesNotExistException
+	 */
 	public function getActorById(string $id): Person {
 		$actor = $this->actorsRequest->getFromId($id);
 
@@ -120,8 +133,6 @@ class ActorService {
 	public function searchLocalAccounts(string $search): array {
 		return $this->actorsRequest->searchFromUsername($search);
 	}
-
-
 
 
 	/**
@@ -166,7 +177,10 @@ class ActorService {
 		$actor->setPreferredUsername($username);
 
 		$this->generateKeys($actor);
-		$this->actorsRequest->create($actor);
+		$id = $this->actorsRequest->create($actor);
+
+		// generate cache.
+		$this->personService->getFromId($id, true);
 	}
 
 

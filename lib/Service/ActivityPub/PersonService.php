@@ -85,11 +85,13 @@ class PersonService implements ICoreService {
 	/**
 	 * @param string $id
 	 *
+	 * @param bool $refresh
+	 *
 	 * @return Person
-	 * @throws RequestException
 	 * @throws InvalidResourceException
+	 * @throws RequestException
 	 */
-	public function getFromId(string $id): Person {
+	public function getFromId(string $id, bool $refresh = false): Person {
 
 		$posAnchor = strpos($id, '#');
 		if ($posAnchor !== false) {
@@ -97,24 +99,30 @@ class PersonService implements ICoreService {
 		}
 
 		try {
+			if ($refresh) {
+				$this->cacheActorsRequest->deleteFromId($id);
+				throw new CacheActorDoesNotExistException();
+			}
+
 			$actor = $this->cacheActorsRequest->getFromId($id);
 		} catch (CacheActorDoesNotExistException $e) {
 			$object = $this->instanceService->retrieveObject($id);
 			$actor = new Person();
 			$actor->import($object);
 
-			if ($actor->getType() !== 'Person') {
-				throw new InvalidResourceException();
-			}
-
 			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
 			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
+
+			if ($actor->getType() !== 'Person') {
+				throw new InvalidResourceException();
+			}
+
 			try {
 				$this->save($actor);
 			} catch (Exception $e) {
-				throw new InvalidResourceException();
+				throw new InvalidResourceException($e->getMessage());
 			}
 		}
 
@@ -138,15 +146,20 @@ class PersonService implements ICoreService {
 			$actor = new Person();
 			$actor->import($object);
 
-			if ($actor->getType() !== 'Person') {
-				throw new InvalidResourceException();
-			}
-
 			$actor->setAccount($account);
 			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
 			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
-			$this->save($actor);
+			
+			if ($actor->getType() !== 'Person') {
+				throw new InvalidResourceException();
+			}
+
+			try {
+				$this->save($actor);
+			} catch (Exception $e) {
+				throw new InvalidResourceException($e->getMessage());
+			}
 		}
 
 		return $actor;

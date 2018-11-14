@@ -58,10 +58,10 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @param Person $actor
 	 *
-	 * @return int
+	 * @return string
 	 * @throws \Exception
 	 */
-	public function create(Person $actor) {
+	public function create(Person $actor): string {
 
 		$id = $this->configService->getRoot() . '@' . $actor->getPreferredUsername();
 
@@ -80,6 +80,8 @@ class ActorsRequest extends ActorsRequestBuilder {
 			   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
 
 			$qb->execute();
+
+			return $id;
 		} catch (\Exception $e) {
 			throw $e;
 		}
@@ -110,7 +112,8 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
-	 * @param string $username
+	 * @param string $id
+	 *
 	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 */
