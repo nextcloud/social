@@ -28,7 +28,7 @@
 			<p>{{ accountInfo.cloudId }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
 
-			<button v-if="!serverData.public" class="primary" @click="follow">Follow this user</button>
+			<button v-if="!serverData.public" class="primary" @click="follow">Follow</button>
 		</div>
 
 		<ul class="user-profile--sections">

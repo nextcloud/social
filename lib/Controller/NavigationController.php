@@ -109,11 +109,13 @@ class NavigationController extends Controller {
 		$data = [
 			'serverData' => [
 				'public' => false,
+				'firstrun' => false,
 			]
 		];
 
 		try {
 			$this->actorService->createActor($this->userId, $this->userId);
+			$data['serverData']['firstrun'] = true;
 		} catch (AccountAlreadyExistsException $e) {
 			// we do nothing
 		}
