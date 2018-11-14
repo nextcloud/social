@@ -31,8 +31,8 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\Post;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class NotesRequestBuilder extends CoreRequestBuilder {
@@ -118,31 +118,14 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			 ->setAttributedTo($data['attributed_to'])
 			 ->setInReplyTo($data['in_reply_to']);
 
+		try {
+			$actor = $this->parseCacheActorsLeftJoin($data);
+			$note->setCompleteDetails(true);
+			$note->setActor($actor);
+		} catch (InvalidResourceException $e) {
+		}
+
 		return $note;
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Post
-	 */
-	protected function parsePostsSelectSql($userId, $data): Note {
-		$post = new Post($userId);
-
-		$post->setContent($data['content']);
-
-//		$note->setId($data['id'])
-//			 ->setTo($data['to'])
-//			 ->setToArray(json_decode($data['to_array'], true))
-//			 ->setCc(json_decode($data['cc'], true))
-//			 ->setBcc(json_decode($data['bcc']));
-//		$note->setContent($data['content'])
-//			 ->setPublished($data['published'])
-//			 ->setAttributedTo($data['attributed_to'])
-//			 ->setInReplyTo($data['in_reply_to']);
-
-		return $post;
 	}
 
 }

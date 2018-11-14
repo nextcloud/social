@@ -99,14 +99,16 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
-	 * @param string $actorId
+	 * @param int $since
+	 * @param int $limit
 	 *
 	 * @return array
 	 */
-	public function getPublicNotes($since = 0, $limit = 5): array {
+	public function getPublicNotes(int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -126,6 +128,7 @@ class NotesRequest extends NotesRequestBuilder {
 	public function getNotesForActorId(string $actorId): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToRecipient($qb, $actorId);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
 		$cursor = $qb->execute();

@@ -236,17 +236,9 @@ class NoteService implements ICoreService {
 	 *
 	 * @return Note[]
 	 */
-	public function getTimeline($since = 0, $limit = 5): array {
-		$notes = $this->notesRequest->getPublicNotes($since, $limit);
-		$result = [];
-		/** @var Note $note */
-		foreach ($notes as $note) {
-			$actor = $this->actorService->getActorById($note->getAttributedTo());
-			$noteEnhanced = $note->jsonSerialize();
-			$noteEnhanced['actor'] = $actor->jsonSerialize();
-			$result[] = $noteEnhanced;
-		}
-		return $result;
+	public function getTimeline(int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getPublicNotes($since, $limit);
+//		return $result;
 	}
 
 

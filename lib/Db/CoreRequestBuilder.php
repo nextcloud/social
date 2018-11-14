@@ -31,6 +31,8 @@ namespace OCA\Social\Db;
 
 
 use Doctrine\DBAL\Query\QueryBuilder;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -224,7 +226,8 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $recipient
+	 * @param int $since
+	 * @param int $limit
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
 		if ($since > 0) {
@@ -232,7 +235,12 @@ class CoreRequestBuilder {
 			$dt = new \DateTime();
 			$dt->setTimestamp($since);
 			// TODO: Pagination should use published date, once we can properly query the db for that
-			$qb->andWhere($expr->lt('creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE), IQueryBuilder::PARAM_DATE));
+			$qb->andWhere(
+				$expr->lt(
+					'creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE),
+					IQueryBuilder::PARAM_DATE
+				)
+			);
 		}
 		$qb->setMaxResults($limit);
 		$qb->orderBy('creation', 'desc');
@@ -273,30 +281,66 @@ class CoreRequestBuilder {
 		$qb->andWhere($expr->like($field, $qb->createNamedParameter($value)));
 	}
 
-//	/**
-//	 * Left Join service to get info about the serviceId
-//	 *
-//	 * @param IQueryBuilder $qb
-//	 */
-//	public function leftJoinService(IQueryBuilder &$qb) {
-//
-//		if ($qb->getType() !== QueryBuilder::SELECT) {
-//			return;
-//		}
-//
-//		$expr = $qb->expr();
-//		$pf = $this->defaultSelectAlias;
-//
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $fieldActorId
+	 */
+	protected function leftJoinCacheActors(IQueryBuilder &$qb, string $fieldActorId) {
+
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$pf = $this->defaultSelectAlias;
+
 //		/** @noinspection PhpMethodParametersCountMismatchInspection */
-//		$qb->selectAlias('s.address', 'service_address')
-//		   ->selectAlias('s.status', 'service_status')
-//		   ->selectAlias('s.config', 'service_config')
-//		   ->selectAlias('s.type', 'service_type')
-//		   ->leftJoin(
-//			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVICES, 's',
-//			   $expr->eq($pf . '.service_id', 's.id')
-//		   );
-//	}
+		$qb->selectAlias('ca.id', 'cacheactor_id')
+		   ->selectAlias('ca.account', 'cacheactor_account')
+		   ->selectAlias('ca.following', 'cacheactor_following')
+		   ->selectAlias('ca.followers', 'cacheactor_followers')
+		   ->selectAlias('ca.inbox', 'cacheactor_inbox')
+		   ->selectAlias('ca.shared_inbox', 'cacheactor_shared_inbox')
+		   ->selectAlias('ca.outbox', 'cacheactor_outbox')
+		   ->selectAlias('ca.featured', 'cacheactor_featured')
+		   ->selectAlias('ca.url', 'cacheactor_url')
+		   ->selectAlias('ca.preferred_username', 'cacheactor_preferred_username')
+		   ->selectAlias('ca.name', 'cacheactor_name')
+		   ->selectAlias('ca.summary', 'cacheactor_summary')
+		   ->selectAlias('ca.public_key', 'cacheactor_public_key')
+		   ->selectAlias('ca.creation', 'cacheactor_creation')
+		   ->leftJoin(
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca',
+			   $expr->eq($pf . '.' . $fieldActorId, 'ca.id')
+		   );
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return Person
+	 * @throws InvalidResourceException
+	 */
+	protected function parseCacheActorsLeftJoin(array $data): Person {
+		$new = [];
+
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 11) === 'cacheactor_') {
+				$new[substr($k, 11)] = $v;
+			}
+		}
+
+		$actor = new Person();
+		$actor->import($new);
+
+		if ($actor->getType() !== 'Person') {
+			throw new InvalidResourceException();
+		}
+
+		return $actor;
+	}
 
 }
 
