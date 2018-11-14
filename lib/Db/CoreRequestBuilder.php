@@ -237,7 +237,7 @@ class CoreRequestBuilder {
 			// TODO: Pagination should use published date, once we can properly query the db for that
 			$qb->andWhere(
 				$expr->lt(
-					'sn.creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE),
+					$this->defaultSelectAlias . '.creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE),
 					IQueryBuilder::PARAM_DATE
 				)
 			);
