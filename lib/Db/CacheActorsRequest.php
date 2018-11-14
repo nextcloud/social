@@ -118,6 +118,30 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	/**
 	 * get Cached version of an Actor, based on the UriId
 	 *
+	 * @param string $id
+	 *
+	 * @return Person
+	 * @throws CacheActorDoesNotExistException
+	 */
+	public function getFromId(string $id): Person {
+		$qb = $this->getCacheActorsSelectSql();
+		$this->limitToIdString($qb, $id);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheActorDoesNotExistException();
+		}
+
+		return $this->parseCacheActorsSelectSql($data);
+	}
+
+
+	/**
+	 * get Cached version of an Actor, based on the Account
+	 *
 	 * @param string $account
 	 *
 	 * @return Person
@@ -136,6 +160,26 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		}
 
 		return $this->parseCacheActorsSelectSql($data);
+	}
+
+
+	/**
+	 * @param string $search
+	 *
+	 * @return Person[]
+	 */
+	public function searchAccounts(string $search): array {
+		$qb = $this->getCacheActorsSelectSql();
+		$this->searchInAccount($qb, $search);
+
+		$accounts = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$accounts[] = $this->parseCacheActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $accounts;
 	}
 
 

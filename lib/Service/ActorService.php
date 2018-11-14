@@ -106,6 +106,16 @@ class ActorService {
 	}
 
 
+	/**
+	 * @param string $search
+	 *
+	 * @return Person[]
+	 */
+	public function searchLocalAccounts(string $search): array {
+		return $this->actorsRequest->searchFromUsername($search);
+	}
+
+
 
 
 	/**

@@ -87,7 +87,7 @@ class PersonService implements ICoreService {
 	 *
 	 * @return Person
 	 * @throws RequestException
-	 * @throws Exception
+	 * @throws InvalidResourceException
 	 */
 	public function getFromId(string $id): Person {
 
@@ -111,8 +111,11 @@ class PersonService implements ICoreService {
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
 			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
-
-			$this->save($actor);
+			try {
+				$this->save($actor);
+			} catch (Exception $e) {
+				throw new InvalidResourceException();
+			}
 		}
 
 		return $actor;
@@ -151,6 +154,16 @@ class PersonService implements ICoreService {
 
 
 	/**
+	 * @param string $search
+	 *
+	 * @return Person[]
+	 */
+	public function searchCachedAccounts(string $search): array {
+		return $this->cacheActorsRequest->searchAccounts($search);
+	}
+
+
+	/**
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $person
@@ -161,22 +174,6 @@ class PersonService implements ICoreService {
 		/** @var Person $person */
 		$this->cacheActorsRequest->save($person);
 	}
-
-
-	//	/**
-	//	 * @param Person $actor
-	//	 * @param int $type
-	//	 *
-	//	 * @return string
-	//	 */
-	//	public function getPathFromActor(Person $actor, int $type) {
-	//		switch ($type) {
-	//			case InstancePath::INBOX:
-	//				return parse_url($actor->getInbox(), PHP_URL_PATH);
-	//		}
-	//
-	//		return '';
-	//	}
 
 
 }

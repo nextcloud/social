@@ -36,6 +36,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\NoteService;
+use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
@@ -59,6 +60,9 @@ class LocalController extends Controller {
 	/** @var string */
 	private $userId;
 
+	/** @var PersonService */
+	private $personService;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -77,13 +81,15 @@ class LocalController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param string $userId
+	 * @param PersonService $personService
 	 * @param ActorService $actorService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, string $userId, ActorService $actorService, PostService $postService,
+		IRequest $request, string $userId, PersonService $personService, ActorService $actorService,
+		PostService $postService,
 		NoteService $noteService,
 		MiscService $miscService
 	) {
@@ -92,6 +98,7 @@ class LocalController extends Controller {
 		$this->userId = $userId;
 
 		$this->actorService = $actorService;
+		$this->personService = $personService;
 		$this->postService = $postService;
 		$this->noteService = $noteService;
 		$this->miscService = $miscService;
@@ -129,6 +136,8 @@ class LocalController extends Controller {
 	/**
 	 * Get timeline
 	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
@@ -165,8 +174,57 @@ class LocalController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e->getMessage());
 		}
+	}
 
 
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $search
+	 *
+	 * @return DataResponse
+	 */
+	public function accountSearch(string $search): DataResponse {
+		try {
+			$local = $this->actorService->searchLocalAccounts($search);
+			$remote = $this->personService->searchCachedAccounts($search);
+			$accounts = [
+				'local'  => $local,
+				'remote' => $remote
+			];
+
+			return $this->success(['accounts' => $accounts]);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return DataResponse
+	 */
+	public function actorInfo(string $id): DataResponse {
+		try {
+			$actor = $this->personService->getFromId($id);
+
+			return $this->success(['actor' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
 	}
 
 }
