@@ -183,5 +183,18 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 
+	/**
+	 * delete cached version of an Actor, based on the UriId
+	 *
+	 * @param string $id
+	 */
+	public function deleteFromId(string $id) {
+		$qb = $this->getCacheActorsDeleteSql();
+		$this->limitToIdString($qb, $id);
+
+		$qb->execute();
+	}
+
+
 }
 
