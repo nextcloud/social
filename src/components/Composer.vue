@@ -47,7 +47,7 @@
 			</div>
 			<emoji-picker @emoji="insert" :search="search">
 				<div slot="emoji-invoker" slot-scope="{ events }" v-on="events">
-					<button type="button" v-tooltip="'Insert emoji'">😄</button>
+					<button class="emoji-invoker" type="button" v-tooltip="'Insert emoji'">😄</button>
 				</div>
 				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
 					<div>
@@ -121,15 +121,17 @@
 		flex-direction: row-reverse;
 	}
 
+	.options > div {
+		position: relative;
+	}
+
 	.options button {
 		width: 34px;
 		height: 34px;
 	}
 
 	.emoji-invoker {
-		background-size: 16px;
-		background-position: center;
-		background-repeat: no-repeat;
+		text-indent: -3px;
 	}
 	.emoji-picker.popovermenu {
 		display: block;
