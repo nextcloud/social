@@ -237,7 +237,8 @@ class CoreRequestBuilder {
 			// TODO: Pagination should use published date, once we can properly query the db for that
 			$qb->andWhere(
 				$expr->lt(
-					$this->defaultSelectAlias . '.creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE),
+					$this->defaultSelectAlias . '.creation',
+					$qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE),
 					IQueryBuilder::PARAM_DATE
 				)
 			);
@@ -248,7 +249,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $field"
+	 * @param string $field
 	 * @param string|integer|array $values
 	 */
 	private function limitToDBField(IQueryBuilder &$qb, $field, $values) {
@@ -309,6 +310,7 @@ class CoreRequestBuilder {
 		   ->selectAlias('ca.name', 'cacheactor_name')
 		   ->selectAlias('ca.summary', 'cacheactor_summary')
 		   ->selectAlias('ca.public_key', 'cacheactor_public_key')
+		   ->selectAlias('ca.source', 'cacheactor_source')
 		   ->selectAlias('ca.creation', 'cacheactor_creation')
 		   ->leftJoin(
 			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca',
