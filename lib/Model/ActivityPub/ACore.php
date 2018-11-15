@@ -112,6 +112,10 @@ abstract class ACore implements JsonSerializable {
 	/** @var bool */
 	private $completeDetails = false;
 
+	/** @var string */
+	private $source = '';
+
+
 	/**
 	 * Core constructor.
 	 *
@@ -155,7 +159,9 @@ abstract class ACore implements JsonSerializable {
 	 * @return ACore
 	 */
 	public function setType(string $type): ACore {
-		$this->type = $type;
+		if ($type !== '') {
+			$this->type = $type;
+		}
 
 		return $this;
 	}
@@ -707,10 +713,30 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
+	 * @return string
+	 */
+	public function getSource(): string {
+		return $this->source;
+	}
+
+	/**
+	 * @param string $source
+	 *
+	 * @return ACore
+	 */
+	public function setSource(string $source): ACore {
+		$this->source = $source;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
 		$this->setId($this->get('id', $data, ''));
+		$this->setType($this->get('type', $data, ''));
 		$this->setUrl($this->get('url', $data, ''));
 		$this->setSummary($this->get('summary', $data, ''));
 		$this->setToArray($this->getArray('to', $data, []));
@@ -718,6 +744,7 @@ abstract class ACore implements JsonSerializable {
 		$this->setPublished($this->get('published', $data, ''));
 		$this->setActorId($this->get('actor', $data, ''));
 		$this->setObjectId($this->get('object', $data, ''));
+		$this->setSource($this->get('source', $data, ''));
 	}
 
 
@@ -764,6 +791,10 @@ abstract class ACore implements JsonSerializable {
 			$this->addEntryItem('object', $this->getObject());
 		} else {
 			$this->addEntry('object', $this->getObjectId());
+		}
+
+		if ($this->isCompleteDetails()) {
+			$this->addEntry('source', $this->getSource());
 		}
 
 		return $this->getEntries();

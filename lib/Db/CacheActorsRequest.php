@@ -61,35 +61,31 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @param bool $local
 	 *
 	 * @return int
-	 * @throws \Exception
 	 */
 	public function save(Person $actor, bool $local = false): int {
 
-		try {
-			$qb = $this->getCacheActorsInsertSql();
-			$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
-			   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
-			   ->setValue('local', $qb->createNamedParameter(($local) ? '1' : '0'))
-			   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
-			   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
-			   ->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))
-			   ->setValue('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
-			   ->setValue('outbox', $qb->createNamedParameter($actor->getOutbox()))
-			   ->setValue('featured', $qb->createNamedParameter($actor->getFeatured()))
-			   ->setValue('url', $qb->createNamedParameter($actor->getUrl()))
-			   ->setValue(
-				   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
-			   )
-			   ->setValue('name', $qb->createNamedParameter($actor->getName()))
-			   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
-			   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()));
+		$qb = $this->getCacheActorsInsertSql();
+		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
+		   ->setValue('local', $qb->createNamedParameter(($local) ? '1' : '0'))
+		   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
+		   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
+		   ->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))
+		   ->setValue('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
+		   ->setValue('outbox', $qb->createNamedParameter($actor->getOutbox()))
+		   ->setValue('featured', $qb->createNamedParameter($actor->getFeatured()))
+		   ->setValue('url', $qb->createNamedParameter($actor->getUrl()))
+		   ->setValue(
+			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+		   )
+		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
+		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+		   ->setValue('source', $qb->createNamedParameter($actor->getSource()));
 
-			$qb->execute();
+		$qb->execute();
 
-			return $qb->getLastInsertId();
-		} catch (\Exception $e) {
-			throw $e;
-		}
+		return $qb->getLastInsertId();
 	}
 
 
