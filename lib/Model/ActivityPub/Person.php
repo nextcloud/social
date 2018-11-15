@@ -347,9 +347,12 @@ class Person extends ACore implements JsonSerializable {
 
 	/**
 	 * @param bool $local
+	 *
+	 * @return Person
 	 */
-	public function setLocal(bool $local) {
+	public function setLocal(bool $local): Person {
 		$this->local = $local;
+		
 		return $this;
 	}
 
