@@ -36,8 +36,8 @@ use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Person;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityPub\PersonService;
 
 
@@ -89,6 +89,7 @@ class ActorService {
 	 *
 	 * @return Person
 	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
 	 */
 
 	public function getActor(string $username): Person {
@@ -102,6 +103,7 @@ class ActorService {
 	 *
 	 * @return Person
 	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
 	 */
 	public function getActorById(string $id): Person {
 		$actor = $this->actorsRequest->getFromId($id);
@@ -116,6 +118,7 @@ class ActorService {
 	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
+	 * @throws SocialAppConfigException
 	 */
 	public function getActorFromUserId(string $userId): Person {
 		$this->miscService->confirmUserId($userId);
@@ -128,7 +131,9 @@ class ActorService {
 	/**
 	 * @param string $search
 	 *
+	 * @deprecated - used !?
 	 * @return Person[]
+	 * @throws SocialAppConfigException
 	 */
 	public function searchLocalAccounts(string $search): array {
 		return $this->actorsRequest->searchFromUsername($search);
@@ -177,10 +182,25 @@ class ActorService {
 		$actor->setPreferredUsername($username);
 
 		$this->generateKeys($actor);
-		$id = $this->actorsRequest->create($actor);
+		$this->actorsRequest->create($actor);
 
 		// generate cache.
-		$this->personService->getFromId($id, true);
+		$this->cacheLocalActorByUsername($username, true);
+	}
+
+
+	/**
+	 * @param string $username
+	 * @param bool $refresh
+	 *
+	 * @throws SocialAppConfigException
+	 */
+	public function cacheLocalActorByUsername(string $username, bool $refresh = false) {
+		try {
+			$actor = $this->getActor($username);
+			$this->personService->cacheLocalActor($actor, $refresh);
+		} catch (ActorDoesNotExistException $e) {
+		}
 	}
 
 

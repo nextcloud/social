@@ -58,16 +58,18 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * insert cache about an Actor in database.
 	 *
 	 * @param Person $actor
+	 * @param bool $local
 	 *
 	 * @return int
 	 * @throws \Exception
 	 */
-	public function save(Person $actor): int {
+	public function save(Person $actor, bool $local = false): int {
 
 		try {
 			$qb = $this->getCacheActorsInsertSql();
 			$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 			   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
+			   ->setValue('local', $qb->createNamedParameter(($local) ? '1' : '0'))
 			   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
 			   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
 			   ->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))

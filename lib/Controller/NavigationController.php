@@ -31,13 +31,16 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OC\Accounts\AccountManager;
+use daita\MySmallPhpTools\Traits\TNCDataResponse;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -50,6 +53,8 @@ class NavigationController extends Controller {
 
 
 	use TArrayTools;
+	use TNCDataResponse;
+
 
 	/** @var string */
 	private $userId;
@@ -62,6 +67,9 @@ class NavigationController extends Controller {
 
 	/** @var ActorService */
 	private $actorService;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -77,11 +85,14 @@ class NavigationController extends Controller {
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
 	 * @param ActorService $actorService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
+	 * @param IL10N $l10n
 	 */
 	public function __construct(
 		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
-		ActorService $actorService, MiscService $miscService, IL10N $l10n
+		ActorService $actorService, ConfigService $configService, MiscService $miscService,
+		IL10N $l10n
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -90,6 +101,7 @@ class NavigationController extends Controller {
 		$this->urlGenerator = $urlGenerator;
 
 		$this->actorService = $actorService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 		$this->l10n = $l10n;
 	}
@@ -108,10 +120,17 @@ class NavigationController extends Controller {
 	public function navigate($path = ''): TemplateResponse {
 		$data = [
 			'serverData' => [
-				'public' => false,
+				'public'   => false,
 				'firstrun' => false,
+				'setup'    => false
 			]
 		];
+
+		try {
+			$this->configService->getCloudAddress();
+			$data['serverData']['setup'] = true;
+		} catch (SocialAppConfigException $e) {
+		}
 
 		try {
 			$this->actorService->createActor($this->userId, $this->userId);
@@ -122,6 +141,35 @@ class NavigationController extends Controller {
 
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
+
+
+	/**
+	 * Display the navigation page of the Social app.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function test(): DataResponse {
+
+		$setup = false;
+		try {
+			$address = $this->configService->getCloudAddress(true);
+			$setup = true;
+		} catch (SocialAppConfigException $e) {
+		}
+
+		return $this->success(
+			[
+				'version' => $this->configService->getAppValue('installed_version'),
+				'setup'   => $setup
+			]
+		);
+	}
+
 
 	/**
 	 * Display the navigation page of the Social app.
@@ -158,6 +206,7 @@ class NavigationController extends Controller {
 	 * @param $username
 	 *
 	 * @return RedirectResponse|PublicTemplateResponse
+	 * @throws NoUserException
 	 */
 	public function public($username) {
 		if (\OC::$server->getUserSession()

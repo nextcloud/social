@@ -235,6 +235,13 @@
 			</field>
 
 			<field>
+				<name>local</name>
+				<type>text</type>
+				<length>7</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>following</name>
 				<type>text</type>
 				<length>127</length>

@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -95,6 +96,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @return Person
 	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
 	 */
 	public function getFromUsername(string $username): Person {
 		$qb = $this->getActorsSelectSql();
@@ -116,6 +118,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @return Person
 	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
 	 */
 	public function getFromId(string $id): Person {
 		$qb = $this->getActorsSelectSql();
@@ -140,6 +143,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @return Person
 	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
 	 */
 	public function getFromUserId(string $userId): Person {
 		$qb = $this->getActorsSelectSql();
@@ -161,6 +165,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 * @param string $search
 	 *
 	 * @return Person[]
+	 * @throws SocialAppConfigException
 	 */
 	public function searchFromUsername(string $search): array {
 		$qb = $this->getActorsSelectSql();

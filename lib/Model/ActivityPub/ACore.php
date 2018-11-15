@@ -175,7 +175,7 @@ abstract class ACore implements JsonSerializable {
 
 	/**
 	 * @param string $meta
-	 * @param string $value
+	 * @param bool $value
 	 *
 	 * @return ACore
 	 */
