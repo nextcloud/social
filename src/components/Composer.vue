@@ -25,7 +25,7 @@
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :size="32" />
 		</div>
-		<form class="new-post-form">
+		<form class="new-post-form" v-on:submit.prevent="createPost">
 			<div class="author currentUser">
 				{{ currentUser.displayName }}
 				<span class="social-id">{{ socialId }}</span>
@@ -237,7 +237,7 @@ export default {
 						return 'icon-contacts-dark';
 					case 'direct':
 						return 'icon-external';
-					case 'private':
+					case 'unlisted':
 						return 'icon-password';
 				}
 			}
@@ -260,9 +260,9 @@ export default {
 					text: 'Followers'
 				},
 				{
-					action: () => { this.switchType('private') },
-					icon: this.visibilityIconClass('private'),
-					text: 'Private'
+					action: () => { this.switchType('unlisted') },
+					icon: this.visibilityIconClass('unlisted'),
+					text: 'Unlisted'
 				}
 			]
 		}
@@ -281,6 +281,13 @@ export default {
 		switchType(type) {
 			this.type = type;
 			this.menuOpened = false;
+		},
+		createPost(event) {
+			this.$store.dispatch('post', {
+				content: this.post,
+				type: this.type,
+			}).then((response) => { response.length > 0 ? $state.loaded() : $state.complete() });
+			event.preventDefault()
 		}
 	},
 	data() {
