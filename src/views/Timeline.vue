@@ -27,11 +27,7 @@
 						<div class="submitLoading icon-loading-small hidden" />
 					</form>
 				</div>
-				<!--<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" /> //-->
-				<div v-for="entry in timeline">
-					{{entry.content}}
-				<pre style="height: 200px; overflow:scroll;">{{entry}}</pre>
-				</div>
+				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
 				<infinite-loading @infinite="infiniteHandler" ref="infiniteLoading">
 				<div slot="spinner"><div class="icon-loading"></div></div>
 				<div slot="no-more"><div class="list-end"></div></div>

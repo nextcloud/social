@@ -2,24 +2,30 @@
 	<div class="timeline-entry">
 		<div class="entry-content">
 			<div class="post-avatar">
-				<avatar :size="32" :url="item.authorAvatar" />
+				<avatar :size="32" :user="item.actor_info.preferredUsername" />
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
-					<router-link :to="{ name: 'profile', params: { account: item.authorId }}">
-						<span class="post-author">{{ item.author }}</span>
-						<span class="post-author-id">{{ item.authorId }}</span>
+					<router-link v-if="item.actor_info.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
+						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
+						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
+					<a :href="item.actor_info.url" v-else>
+						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
+						<span class="post-author-id">{{ item.actor_info.account }}</span>
+					</a>
 				</div>
 				<div class="post-message" v-html="formatedMessage" />
+				<!--<pre style="height: 200px; overflow:scroll;">{{item}}</pre> //-->
 			</div>
-			<div class="post-timestamp">{{ item.timestamp }}</div>
+			<div class="post-timestamp">{{ item.published }}</div>
 		</div>
 	</div>
 </template>
 
 <script>
 import { Avatar } from 'nextcloud-vue'
+import linkifyStr from 'linkifyjs/string';
 
 export default {
 	name: 'TimelineEntry',
@@ -36,9 +42,9 @@ export default {
 	},
 	computed: {
 		formatedMessage: function() {
-			let message = this.item.message
+			let message = this.item.content
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
-			return message
+			return message.linkify()
 		}
 	}
 }
