@@ -83,6 +83,22 @@ class PersonService implements ICoreService {
 
 
 	/**
+	 * @param Person $actor
+	 * @param bool $refresh
+	 */
+	public function cacheLocalActor(Person $actor, bool $refresh = false) {
+		if ($refresh) {
+			$this->cacheActorsRequest->deleteFromId($actor->getId());
+		}
+
+		try {
+			$this->save($actor, true);
+		} catch (Exception $e) {
+		}
+	}
+
+
+	/**
 	 * @param string $id
 	 *
 	 * @param bool $refresh
@@ -150,7 +166,7 @@ class PersonService implements ICoreService {
 			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
 			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
-			
+
 			if ($actor->getType() !== 'Person') {
 				throw new InvalidResourceException();
 			}
@@ -180,12 +196,13 @@ class PersonService implements ICoreService {
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $person
+	 * @param bool $local
 	 *
 	 * @throws Exception
 	 */
-	public function save(ACore $person) {
+	public function save(ACore $person, bool $local = false) {
 		/** @var Person $person */
-		$this->cacheActorsRequest->save($person);
+		$this->cacheActorsRequest->save($person, $local);
 	}
 
 }

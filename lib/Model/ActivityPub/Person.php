@@ -81,6 +81,8 @@ class Person extends ACore implements JsonSerializable {
 	/** @var string */
 	private $featured = '';
 
+	/** @var bool */
+	private $local = false;
 
 	/**
 	 * Person constructor.
@@ -337,6 +339,25 @@ class Person extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function isLocal(): bool {
+		return $this->local;
+	}
+
+	/**
+	 * @param bool $local
+	 */
+	public function setLocal(bool $local) {
+		$this->local = $local;
+	}
+
+
+
+
+
+
+	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
@@ -352,6 +373,7 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFollowing($this->get('following', $data, ''))
 			 ->setSharedInbox($this->get('shared_inbox', $data, ''))
 			 ->setFeatured($this->get('featured', $data, ''))
+			->setLocal(($this->get('local', $data, '') === '1'))
 			 ->setCreation($this->getInt('creation', $data, 0));
 
 		if ($this->getPreferredUsername() === '') {
@@ -384,7 +406,8 @@ class Person extends ACore implements JsonSerializable {
 					'id'           => $this->getId() . '#main-key',
 					'owner'        => $this->getId(),
 					'publicKeyPem' => $this->getPublicKey()
-				]
+				],
+				'local' => $this->isLocal()
 			]
 		);
 	}

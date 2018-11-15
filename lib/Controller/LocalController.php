@@ -191,12 +191,7 @@ class LocalController extends Controller {
 	 */
 	public function accountSearch(string $search): DataResponse {
 		try {
-			$local = $this->actorService->searchLocalAccounts($search);
-			$remote = $this->personService->searchCachedAccounts($search);
-			$accounts = [
-				'local'  => $local,
-				'remote' => $remote
-			];
+			$accounts = $this->personService->searchCachedAccounts($search);
 
 			return $this->success(['accounts' => $accounts]);
 		} catch (Exception $e) {

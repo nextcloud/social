@@ -35,6 +35,7 @@ use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Model\ActivityPub\Person;
@@ -106,6 +107,7 @@ class NoteService implements ICoreService {
 	 * @return Note
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
+	 * @throws SocialAppConfigException
 	 */
 	public function generateNote(string $userId, string $content, string $type) {
 		$note = new Note();

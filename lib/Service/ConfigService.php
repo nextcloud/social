@@ -29,8 +29,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -46,10 +48,14 @@ class ConfigService {
 
 
 	use TPathTools;
+	use TArrayTools;
 
+
+	const SOCIAL_ADDRESS = 'address';
 
 	/** @var array */
 	public $defaults = [
+		self::SOCIAL_ADDRESS => ''
 	];
 
 	/** @var string */
@@ -204,19 +210,40 @@ class ConfigService {
 		return $this->config->getSystemValue($key, '');
 	}
 
-	public function getCloudAddress() {
-		return $this->request->getServerHost();
+
+	/**
+	 * @param bool $host
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function getCloudAddress(bool $host = false) {
+		$address = $this->getAppValue(self::SOCIAL_ADDRESS);
+		if ($address === '') {
+			throw new SocialAppConfigException();
+		}
+
+		if ($host === true) {
+			$parsed = parse_url($address);
+			$result = $this->get('host', $parsed, '');
+			$port = $this->get('port', $parsed, '');
+//			if ($port !== '') {
+//				$result .= ':' . $port;
+//			}
+
+			return $result;
+		}
+
+		return $address;
 	}
 
 
 	/**
 	 * @return string
-	 * // TODO: improve this !
+	 * @throws SocialAppConfigException
 	 */
 	public function getRoot(): string {
-//			   $this->urlGenerator->linkToRoute('social.Navigation.navigate');
-		return $this->withoutEndSlash($this->getSystemValue('overwrite.cli.url'), false, false)
-			   . '/apps/social/';
+		return $this->withoutEndSlash($this->getCloudAddress(), false, false) . '/apps/social/';
 	}
 
 
@@ -225,6 +252,7 @@ class ConfigService {
 	 * @param bool $generateId
 	 *
 	 * @return string
+	 * @throws SocialAppConfigException
 	 */
 	public function generateId(string $path = '', $generateId = true): string {
 		$path = $this->withoutBeginSlash($this->withEndSlash($path));

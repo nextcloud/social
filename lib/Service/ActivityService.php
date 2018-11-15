@@ -37,7 +37,9 @@ use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity;
@@ -178,8 +180,11 @@ class ActivityService {
 	/**
 	 * @param ACore $activity
 	 *
+	 * @param int $type
+	 *
 	 * @return array
 	 * @throws RequestException
+	 * @throws SocialAppConfigException
 	 */
 	public function request(ACore $activity, int $type) {
 
@@ -199,20 +204,18 @@ class ActivityService {
 	/**
 	 * @param string $address
 	 * @param InstancePath $path
+	 * @param int $type
 	 * @param ACore $activity
 	 *
 	 * @return Request[]
 	 * @throws RequestException
+	 * @throws SocialAppConfigException
 	 */
 	public function generateRequest(string $address, InstancePath $path, int $type, ACore $activity
 	): array {
 		$document = json_encode($activity);
 		$date = gmdate(self::DATE_FORMAT);
-//$date = str_replace('UTC', 'GMT', $date);
 		$localActor = $activity->getActor();
-//		$remoteActor = $this->getRemoteActor($path->getUri());
-
-//		$remotePath = $this->personService->getPathFromActor($remoteActor, $path->getType());
 
 		$localActorLink =
 			$this->configService->getRoot() . '@' . $localActor->getPreferredUsername();
@@ -392,13 +395,10 @@ class ActivityService {
 	 *
 	 * @return string
 	 * @throws RequestException
+	 * @throws InvalidResourceException
 	 */
 	private function retrieveKey($keyId): string {
-		//check cache here
-
 		$actor = $this->personService->getFromId($keyId);
-
-//		$actor = $this->instanceService->retrieveObject($keyId);
 
 		return $actor->getPublicKey();
 	}

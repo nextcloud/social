@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -105,6 +106,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 * @param array $data
 	 *
 	 * @return Person
+	 * @throws SocialAppConfigException
 	 */
 	protected function parseActorsSelectSql($data): Person {
 		$root = $this->configService->getRoot();
@@ -116,6 +118,10 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 			  ->setFollowers($actor->getId() . '/followers')
 			  ->setFollowing($actor->getId() . '/following')
 			  ->setSharedInbox($root . 'inbox');
+		$actor->setAccount(
+			$actor->getPreferredUsername() . '@' . $this->configService->getCloudAddress(true)
+		);
+		$actor->setUrl($actor->getId());
 
 		return $actor;
 	}

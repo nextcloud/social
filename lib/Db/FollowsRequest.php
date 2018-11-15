@@ -69,11 +69,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
-	 * Insert a new Note in the database.
-	 *
 	 * @param Follow $follow
 	 *
-	 * @return int
 	 * @throws Exception
 	 */
 	public function delete(Follow $follow) {
