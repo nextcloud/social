@@ -31,7 +31,7 @@
 				<span class="social-id">{{ socialId }}</span>
 			</div>
 			<vue-tribute :options="tributeOptions">
-				<div contenteditable="true" ref="composerInput" class="message" placeholder="Share a thought…" @input="updateInput" v-model="post"></div>
+				<div v-contenteditable contenteditable="true" ref="composerInput" class="message" placeholder="Share a thought…" @input="updateInput" v-model="post"></div>
 			</vue-tribute>
 			<input class="submit icon-confirm has-tooltip" type="submit" value=""
 				   title="" data-original-title="Post">
@@ -39,6 +39,12 @@
 		</form>
 
 		<div class="options">
+			<div>
+				<button :class="currentVisibilityIconClass" @click="togglePopoverMenu" />
+				<div class="popovermenu" :class="{open: menuOpened}">
+					<PopoverMenu :menu="visibilityPopover" />
+				</div>
+			</div>
 			<emoji-picker @emoji="insert" :search="search">
 				<div slot="emoji-invoker" slot-scope="{ events }" v-on="events">
 					<button type="button" v-tooltip="'Insert emoji'">😄</button>
@@ -111,9 +117,19 @@
 		display: flex;
 		align-items: flex-end;
 		width: 100%;
-		flex-direction: column;
+		flex-direction: row-reverse;
 	}
 
+	.options button {
+		width: 34px;
+		height: 34px;
+	}
+
+	.emoji-invoker {
+		background-size: 16px;
+		background-position: center;
+		background-repeat: no-repeat;
+	}
 	.emoji-picker.popovermenu {
 		display: block;
 		padding: 5px;
@@ -184,38 +200,92 @@
 </style>
 <script>
 
-import { Avatar } from 'nextcloud-vue'
+import { Avatar, PopoverMenu } from 'nextcloud-vue'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
 import { VTooltip } from 'v-tooltip'
+import contenteditableDirective from 'vue-contenteditable-directive'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 
 export default {
 	name: 'Composer',
 	components: {
+		PopoverMenu,
 		Avatar, EmojiPicker, VueTribute
 	},
 	directives: {
-		tooltip: VTooltip
+		tooltip: VTooltip,
+		contenteditable: contenteditableDirective
 	},
 	mixins: [CurrentUserMixin],
 	props: {
 
 	},
 	computed: {
-
+		currentVisibilityIconClass() {
+			return this.visibilityIconClass(this.type)
+		},
+		visibilityIconClass() {
+			return (type) => {
+				if (typeof type === 'undefined') {
+					type = this.type
+				}
+				switch (type) {
+					case 'public':
+						return 'icon-link';
+					case 'followers':
+						return 'icon-contacts-dark';
+					case 'direct':
+						return 'icon-external';
+					case 'private':
+						return 'icon-password';
+				}
+			}
+		},
+		visibilityPopover() {
+			return [
+				{
+					action: () => { this.switchType('public') },
+					icon: this.visibilityIconClass('public'),
+					text: 'Public'
+				},
+				{
+					action: () => { this.switchType('direct') },
+					icon: this.visibilityIconClass('direct'),
+					text: 'Direct'
+				},
+				{
+					action: () => { this.switchType('followers') },
+					icon: this.visibilityIconClass('followers'),
+					text: 'Followers'
+				},
+				{
+					action: () => { this.switchType('private') },
+					icon: this.visibilityIconClass('private'),
+					text: 'Private'
+				}
+			]
+		}
 	},
 	methods: {
 		insert(emoji) {
 			this.post += emoji;
 			this.$refs.composerInput.innerText = this.post;
 		},
-		updateInput (event) {
+		updateInput(event) {
 			this.post = this.$refs.composerInput.innerText;
+		},
+		togglePopoverMenu() {
+			this.menuOpened = !this.menuOpened
+		},
+		switchType(type) {
+			this.type = type;
+			this.menuOpened = false;
 		}
 	},
 	data() {
 		return {
+			type: 'public',
 			post: '',
 			search: '',
 			tributeOptions: {
@@ -223,7 +293,9 @@ export default {
 					{key: 'Phil Heartman', value: 'pheartman'},
 					{key: 'Gordon Ramsey', value: 'gramsey'}
 				]
-			}
+			},
+			menuOpened: false,
+
 		}
 	},
 }
