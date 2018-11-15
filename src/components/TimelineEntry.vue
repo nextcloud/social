@@ -25,6 +25,7 @@
 
 <script>
 import { Avatar } from 'nextcloud-vue'
+import linkifyStr from 'linkifyjs/string';
 
 export default {
 	name: 'TimelineEntry',
@@ -43,7 +44,7 @@ export default {
 		formatedMessage: function() {
 			let message = this.item.content
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
-			return message
+			return message.linkify()
 		}
 	}
 }
