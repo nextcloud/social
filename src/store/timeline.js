@@ -41,7 +41,7 @@ const getters = {
 }
 const actions = {
 	post(context, post) {
-		axios.post(OC.generateUrl('apps/social/api/v1/post'), {data: post}).then((response) => {
+		return axios.post(OC.generateUrl('apps/social/api/v1/post'), {data: post}).then((response) => {
 			let uid = ''
 			context.commit('addPost', { uid: uid, data: response.data })
 		})

@@ -34,7 +34,7 @@
 				<div v-contenteditable contenteditable="true" ref="composerInput" class="message" placeholder="Share a thought…" @input="updateInput" v-model="post"></div>
 			</vue-tribute>
 			<input class="submit icon-confirm has-tooltip" type="submit" value=""
-				   title="" data-original-title="Post">
+				   title="" data-original-title="Post" :disabled="post.length < 1">
 			<div class="submitLoading icon-loading-small hidden" />
 		</form>
 
@@ -90,6 +90,7 @@
 
 	.message {
 		width: 100%;
+		padding-right: 44px;
 	}
 
 	.author .social-id {
@@ -286,8 +287,10 @@ export default {
 			this.$store.dispatch('post', {
 				content: this.post,
 				type: this.type,
-			}).then((response) => { response.length > 0 ? $state.loaded() : $state.complete() });
-			event.preventDefault()
+			}).then((response) => {
+				this.post = ''
+				this.$refs.composerInput.innerText = this.post
+			});
 		}
 	},
 	data() {
