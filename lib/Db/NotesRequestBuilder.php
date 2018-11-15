@@ -78,7 +78,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'sn.id', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content', 'sn.summary',
-			'sn.published', 'sn.attributed_to', 'sn.in_reply_to', 'sn.creation'
+			'sn.published', 'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.creation'
 		)
 		   ->from(self::TABLE_SERVER_NOTES, 'sn');
 

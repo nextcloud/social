@@ -208,6 +208,13 @@
 			</field>
 
 			<field>
+				<name>source</name>
+				<type>text</type>
+				<length>3000</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>creation</name>
 				<type>timestamp</type>
 			</field>
@@ -236,8 +243,8 @@
 
 			<field>
 				<name>local</name>
-				<type>text</type>
-				<length>7</length>
+				<type>boolean</type>
+				<default>false</default>
 				<notnull>true</notnull>
 			</field>
 
@@ -315,6 +322,13 @@
 				<name>public_key</name>
 				<type>text</type>
 				<length>500</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>source</name>
+				<type>text</type>
+				<length>3000</length>
 				<notnull>true</notnull>
 			</field>
 

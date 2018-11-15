@@ -109,6 +109,7 @@ class ImportService {
 		}
 
 		$item->import($data);
+		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
 
 		try {
 			$object = $this->createItem($this->getArray('object', $data, []), $item);

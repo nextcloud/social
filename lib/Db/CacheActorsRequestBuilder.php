@@ -80,7 +80,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
 			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url',
 			'ca.preferred_username', 'ca.name', 'ca.summary',
-			'ca.public_key', 'ca.local', 'ca.creation'
+			'ca.public_key', 'ca.local', 'ca.source', 'ca.creation'
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
 

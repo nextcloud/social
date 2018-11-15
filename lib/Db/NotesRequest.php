@@ -63,7 +63,6 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @throws \Exception
 	 */
 	public function save(Note $note): int {
-
 		try {
 			$qb = $this->getNotesInsertSql();
 			$qb->setValue('id', $qb->createNamedParameter($note->getId()))
@@ -88,7 +87,11 @@ class NotesRequest extends NotesRequestBuilder {
 			   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
 			   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 			   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
-			   ->setValue('creation', $qb->createNamedParameter(new \DateTime('now'), IQueryBuilder::PARAM_DATE));
+			   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+			   ->setValue(
+				   'creation',
+				   $qb->createNamedParameter(new \DateTime('now'), IQueryBuilder::PARAM_DATE)
+			   );
 			$qb->execute();
 
 			return $qb->getLastInsertId();

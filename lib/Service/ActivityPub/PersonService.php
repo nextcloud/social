@@ -92,6 +92,7 @@ class PersonService implements ICoreService {
 		}
 
 		try {
+			$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
 			$this->save($actor, true);
 		} catch (Exception $e) {
 		}
@@ -125,6 +126,7 @@ class PersonService implements ICoreService {
 			$object = $this->instanceService->retrieveObject($id);
 			$actor = new Person();
 			$actor->import($object);
+			$actor->setSource(json_encode($object, JSON_UNESCAPED_SLASHES));
 
 			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
