@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use DateTime;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Note;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -108,6 +109,8 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @return Note
 	 */
 	protected function parseNotesSelectSql($data): Note {
+		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
+
 		$note = new Note();
 		$note->setId($data['id'])
 			 ->setTo($data['to'])
@@ -116,7 +119,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			 ->setBccArray(json_decode($data['bcc']))
 			 ->setPublished($data['published']);
 		$note->setContent($data['content'])
-			 ->setPublishedTime($this->getInt('published_time', $data, 0))
+			 ->setPublishedTime($dTime->getTimestamp())
 			 ->setAttributedTo($data['attributed_to'])
 			 ->setInReplyTo($data['in_reply_to']);
 
