@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
@@ -228,10 +229,17 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountsSearch(string $search): DataResponse {
+		/* Look for an exactly matching account */
+		$match = null;
+		try {
+			$match = $this->personService->getFromAccount($search);
+		} catch (Exception $e) {
+		}
+
 		try {
 			$accounts = $this->personService->searchCachedAccounts($search);
 
-			return $this->success(['accounts' => $accounts]);
+			return $this->success(['accounts' => $accounts, 'exact' => $match]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
