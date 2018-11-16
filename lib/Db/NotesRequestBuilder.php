@@ -78,7 +78,8 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'sn.id', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content', 'sn.summary',
-			'sn.published', 'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.creation'
+			'sn.published', 'sn.published_time', 'sn.attributed_to', 'sn.in_reply_to', 'sn.source',
+			'sn.creation'
 		)
 		   ->from(self::TABLE_SERVER_NOTES, 'sn');
 
@@ -115,6 +116,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			 ->setBccArray(json_decode($data['bcc']))
 			 ->setPublished($data['published']);
 		$note->setContent($data['content'])
+			 ->setPublishedTime($this->getInt('published_time', $data, 0))
 			 ->setAttributedTo($data['attributed_to'])
 			 ->setInReplyTo($data['in_reply_to']);
 

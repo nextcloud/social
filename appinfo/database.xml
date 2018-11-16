@@ -196,6 +196,12 @@
 			</field>
 
 			<field>
+				<name>published_time</name>
+				<type>timestamp</type>
+				<default>0</default>
+			</field>
+
+			<field>
 				<name>attributed_to</name>
 				<type>text</type>
 				<length>127</length>

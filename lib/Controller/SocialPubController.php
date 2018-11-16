@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
-use daita\MySmallPhpTools\Traits\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
