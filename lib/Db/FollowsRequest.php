@@ -32,7 +32,9 @@ namespace OCA\Social\Db;
 
 
 use Exception;
+use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Follow;
+use OCA\Social\Model\ActivityPub\Person;
 
 
 /**
@@ -47,42 +49,49 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * Insert a new Note in the database.
 	 *
 	 * @param Follow $follow
-	 *
-	 * @return int
-	 * @throws Exception
 	 */
-	public function save(Follow $follow): int {
+	public function save(Follow $follow) {
+		$qb = $this->getFollowsInsertSql();
+		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
+		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
+		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()));
 
-		try {
-			$qb = $this->getFollowsInsertSql();
-			$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
-			   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
-			   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()));
+		$qb->execute();
+	}
 
-			$qb->execute();
 
-			return $qb->getLastInsertId();
-		} catch (Exception $e) {
-			throw $e;
+	/**
+	 * @param Person $actor
+	 * @param Person $remote
+	 *
+	 * @return Follow
+	 * @throws FollowDoesNotExistException
+	 */
+	public function getByPersons(Person $actor, Person $remote) {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToActorId($qb, $actor->getId());
+		$this->limitToObjectId($qb, $remote->getId());
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new FollowDoesNotExistException();
 		}
+
+		return $this->parseFollowsSelectSql($data);
 	}
 
 
 	/**
 	 * @param Follow $follow
-	 *
-	 * @throws Exception
 	 */
 	public function delete(Follow $follow) {
+		$qb = $this->getFollowsDeleteSql();
+		$this->limitToIdString($qb, $follow->getId());
 
-		try {
-			$qb = $this->getFollowsDeleteSql();
-			$this->limitToIdString($qb, $follow->getId());
-
-			$qb->execute();
-		} catch (Exception $e) {
-			throw $e;
-		}
+		$qb->execute();
 	}
 
 

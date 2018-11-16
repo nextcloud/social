@@ -35,7 +35,9 @@ return [
 		['name' => 'Local#newPost', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#timeline', 'url' => '/api/v1/timeline', 'verb' => 'GET'],
 		['name' => 'Local#direct', 'url' => '/api/v1/direct', 'verb' => 'PUT'],
-		['name' => 'Local#accountSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
+		['name' => 'Local#accountsSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
+		['name' => 'Local#accountFollow', 'url' => '/api/v1/account/follow', 'verb' => 'PUT'],
+		['name' => 'Local#accountUnfollow', 'url' => '/api/v1/account/follow', 'verb' => 'DELETE'],
 		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET']
 
 	]

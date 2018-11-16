@@ -234,7 +234,7 @@ class ConfigService {
 			return $result;
 		}
 
-		return $address;
+		return $this->withoutEndSlash($address, false, false);
 	}
 
 
@@ -243,7 +243,7 @@ class ConfigService {
 	 * @throws SocialAppConfigException
 	 */
 	public function getRoot(): string {
-		return $this->withoutEndSlash($this->getCloudAddress(), false, false) . '/apps/social/';
+		return $this->getCloudAddress() . '/apps/social/';
 	}
 
 

@@ -133,7 +133,6 @@ abstract class ACore implements JsonSerializable {
 		return $this->id;
 	}
 
-
 	/**
 	 * @param string $id
 	 *
@@ -145,6 +144,15 @@ abstract class ACore implements JsonSerializable {
 		return $this;
 	}
 
+	public function generateUniqueId(string $base) {
+		$uuid = sprintf(
+			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+		);
+
+		$this->setId($base . '/' . $uuid);
+	}
 
 	/**
 	 * @return string

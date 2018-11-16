@@ -33,10 +33,14 @@ namespace OCA\Social\Service\ActivityPub;
 
 use Exception;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
@@ -47,6 +51,12 @@ class FollowService implements ICoreService {
 	/** @var FollowsRequest */
 	private $followsRequest;
 
+	/** @var PersonService */
+	private $personService;
+
+	/** @var ConfigService */
+	private $configService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -55,11 +65,57 @@ class FollowService implements ICoreService {
 	 * NoteService constructor.
 	 *
 	 * @param FollowsRequest $followsRequest
+	 * @param PersonService $personService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(FollowsRequest $followsRequest, MiscService $miscService) {
+	public function __construct(
+		FollowsRequest $followsRequest, PersonService $personService, ConfigService $configService,
+		MiscService $miscService
+	) {
 		$this->followsRequest = $followsRequest;
+		$this->personService = $personService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param string $account
+	 *
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 */
+	public function followAccount(Person $actor, string $account) {
+		$remoteActor = $this->personService->getFromAccount($account);
+		$follow = new Follow();
+		$follow->generateUniqueId($this->configService->getCloudAddress());
+		$follow->setActorId($actor->getId());
+		$follow->setObjectId($remoteActor->getId());
+
+		try {
+			$this->followsRequest->getByPersons($actor, $remoteActor);
+		} catch (FollowDoesNotExistException $e) {
+			$this->followsRequest->save($follow);
+		}
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param string $account
+	 *
+	 * @throws RequestException
+	 */
+	public function unfollowAccount(Person $actor, string $account) {
+		$remoteActor = $this->personService->getFromAccount($account);
+
+		try {
+			$follow = $this->followsRequest->getByPersons($actor, $remoteActor);
+			$this->followsRequest->delete($follow);
+		} catch (FollowDoesNotExistException $e) {
+		}
 	}
 
 
