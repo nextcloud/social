@@ -2,6 +2,7 @@ all: dev-setup lint build-js-production test
 
 # Dev env management
 dev-setup: clean clean-dev npm-init composer
+	cp -R node_modules/twemoji/2/svg img/twemoji
 
 npm-init:
 	npm install
