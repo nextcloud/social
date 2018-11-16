@@ -166,29 +166,28 @@
 		display: block;
 		z-index: 999999;
 		border-radius: 4px;
-		box-shadow: 0 1px 4px rgba(#000, 0.13);
+		box-shadow: 0 1px 3px var(--color-box-shadow);
 	}
 	.tribute-container ul {
 		margin: 0;
 		margin-top: 2px;
 		padding: 0;
 		list-style: none;
-		background: #fff;
+		background: var(--color-main-background);
 		border-radius: 4px;
-		border: 1px solid rgba(#000, 0.13);
 		background-clip: padding-box;
 		overflow: hidden;
 	}
 	.tribute-container li {
-		color: #3f5efb;
+		color: var(--color-text);
 		padding: 5px 10px;
 		cursor: pointer;
 		font-size: 14px;
 	}
 	.tribute-container li.highlight,
 	.tribute-container li:hover {
-		background: #3f5efb;
-		color: #fff;
+		background: var(--color-primary);
+		color: var(--color-primary-text);
 	}
 	.tribute-container li span {
 		font-weight: bold;
@@ -200,6 +199,21 @@
 		font-weight: bold;
 	}
 
+	.tribute-container .account {
+		font-weight: normal;
+		color: var(--color-text-light);
+	}
+	.tribute-container li.highlight .account,
+	.tribute-container li:hover .account {
+		color: var(--color-primary-text) !important;
+		opacity: .9;
+	}
+	.message .mention {
+		color: var(--color-primary-element);
+		background-color: var(--color-background-dark);
+		padding: 3px;
+		border-radius: 3px;
+	}
 </style>
 <script>
 
@@ -209,6 +223,7 @@ import VueTribute from 'vue-tribute'
 import { VTooltip } from 'v-tooltip'
 import contenteditableDirective from 'vue-contenteditable-directive'
 import CurrentUserMixin from './../mixins/currentUserMixin'
+import axios from 'nextcloud-axios'
 
 export default {
 	name: 'Composer',
@@ -293,6 +308,9 @@ export default {
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
 			});
+		},
+		remoteSearch(text) {
+			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + text))
 		}
 	},
 	data() {
@@ -301,10 +319,38 @@ export default {
 			post: '',
 			search: '',
 			tributeOptions: {
-				values: [
-					{key: 'Phil Heartman', value: 'pheartman'},
-					{key: 'Gordon Ramsey', value: 'gramsey'}
-				]
+				lookup: function (item) {
+					return item.key + item.value
+				},
+				menuItemTemplate: function (item) {
+					return item.original.key + '' + '<div class="account">' + item.original.value + '</div>'
+				},
+				selectTemplate: function (item) {
+					return '<span class="mention" contenteditable="false">' +
+						'<a href="' + item.original.url + '" target="_blank">@' + item.original.value + '</a></span>';
+				},
+				values: (text, cb) => {
+					this.remoteSearch(text).then((result) => {
+						var users = [];
+						if (result.data.result.exact) {
+							var user = result.data.result.exact;
+							users.push({
+								key: user.preferredUsername,
+								value: user.account,
+								url: user.url,
+							})
+						}
+						for (var i in result.data.result.accounts) {
+							var user = result.data.result.accounts[i];
+							users.push({
+								key: user.preferredUsername,
+								value: user.account,
+								url: user.url,
+							})
+						}
+						cb(users);
+					})
+				}
 			},
 			menuOpened: false,
 
