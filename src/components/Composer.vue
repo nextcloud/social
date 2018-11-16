@@ -58,7 +58,7 @@
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
 								<h5>{{ category }}</h5>
 								<div>
-							<span class="emoji" v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" @click="insert(emoji)" :title="emojiName">{{ emoji }}</span>
+							<span class="emoji" v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" @click="insert(emoji)" :title="emojiName" v-html="$twemoji.parse(emoji)"></span>
 								</div>
 							</div>
 						</div>
@@ -102,6 +102,7 @@
 		display: block; /* For Firefox */
 		opacity: .5;
 	}
+
 	input[type=submit] {
 		width: 44px;
 		height: 44px;
@@ -147,8 +148,9 @@
 	.emoji-picker input {
 		width: 100%;
 	}
-	.emoji-picker .emoji {
-		padding: 3px;
+	.emoji-picker .emoji img {
+		margin: 3px;
+		width: 16px;
 	}
 </style>
 <style>
@@ -211,8 +213,13 @@
 	.message .mention {
 		color: var(--color-primary-element);
 		background-color: var(--color-background-dark);
-		padding: 3px;
+		padding: 1px;
 		border-radius: 3px;
+	}
+	img.emoji {
+		margin: 3px;
+		width: 16px;
+		vertical-align: text-bottom;
 	}
 </style>
 <script>
@@ -287,11 +294,11 @@ export default {
 	},
 	methods: {
 		insert(emoji) {
-			this.post += emoji;
-			this.$refs.composerInput.innerText = this.post;
+			this.post += this.$twemoji.parse(emoji);
+			this.$refs.composerInput.innerHTML = this.post;
 		},
 		updateInput(event) {
-			this.post = this.$refs.composerInput.innerText;
+			this.post = this.$refs.composerInput.innerHTML;
 		},
 		togglePopoverMenu() {
 			this.menuOpened = !this.menuOpened
