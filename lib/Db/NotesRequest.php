@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use DateTime;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
@@ -64,6 +65,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 */
 	public function save(Note $note): int {
 		try {
+
+			$dTime = new DateTime();
+			$dTime->setTimestamp($note->getPublishedTime());
+
 			$qb = $this->getNotesInsertSql();
 			$qb->setValue('id', $qb->createNamedParameter($note->getId()))
 			   ->setValue('to', $qb->createNamedParameter($note->getTo()))
@@ -85,13 +90,17 @@ class NotesRequest extends NotesRequestBuilder {
 			   ->setValue('content', $qb->createNamedParameter($note->getContent()))
 			   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
 			   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
+			   ->setValue(
+				   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
+			   )
 			   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 			   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
 			   ->setValue('source', $qb->createNamedParameter($note->getSource()))
 			   ->setValue(
 				   'creation',
-				   $qb->createNamedParameter(new \DateTime('now'), IQueryBuilder::PARAM_DATE)
+				   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			   );
+
 			$qb->execute();
 
 			return $qb->getLastInsertId();

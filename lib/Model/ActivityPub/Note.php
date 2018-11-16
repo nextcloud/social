@@ -30,7 +30,9 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 
+use DateTime;
 use JsonSerializable;
+use OCA\Social\Service\ActivityService;
 
 class Note extends ACore implements JsonSerializable {
 
@@ -49,6 +51,9 @@ class Note extends ACore implements JsonSerializable {
 
 	/** @var string */
 	private $conversation = '';
+
+	/** @var int */
+	private $publishedTime;
 
 
 	/**
@@ -158,6 +163,34 @@ class Note extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getPublishedTime(): int {
+		return $this->publishedTime;
+	}
+
+	/**
+	 * @param int $time
+	 *
+	 * @return Note
+	 */
+	public function setPublishedTime(int $time): Note {
+		$this->publishedTime = $time;
+
+		return $this;
+	}
+
+	/**
+	 *
+	 */
+	public function convertPublished() {
+		$dTime = new DateTime($this->getPublished());
+		$dTime->format(ActivityService::DATE_FORMAT);
+		$this->publishedTime = $dTime->getTimestamp();
+	}
+
+
+	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
@@ -169,6 +202,7 @@ class Note extends ACore implements JsonSerializable {
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setConversation($this->get('conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
+		$this->convertPublished();
 	}
 
 
@@ -179,12 +213,12 @@ class Note extends ACore implements JsonSerializable {
 		return array_merge(
 			parent::jsonSerialize(),
 			[
-				'content'      => $this->getContent(),
-				'published'    => $this->getPublished(),
-				'attributedTo' => $this->getRoot() . $this->getAttributedTo(),
-				'inReplyTo'    => $this->getInReplyTo(),
-				'sensitive'    => $this->isSensitive(),
-				'conversation' => $this->getConversation()
+				'content'       => $this->getContent(),
+				'publishedTime' => $this->getPublishedTime(),
+				'attributedTo'  => $this->getRoot() . $this->getAttributedTo(),
+				'inReplyTo'     => $this->getInReplyTo(),
+				'sensitive'     => $this->isSensitive(),
+				'conversation'  => $this->getConversation()
 			]
 		);
 	}

@@ -31,7 +31,7 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Model\Post;
