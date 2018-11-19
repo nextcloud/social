@@ -181,7 +181,6 @@ class FollowService implements ICoreService {
 	 */
 	public function save(ACore $follow) {
 		/** @var Follow $follow */
-
 		if ($follow->isRoot()) {
 			$follow->verify($follow->getActorId());
 			try {
