@@ -37,6 +37,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
@@ -229,7 +230,20 @@ class NoteService implements ICoreService {
 	 */
 	public function save(ACore $note) {
 		/** @var Note $note */
-		$this->notesRequest->save($note);
+		if ($note->isRoot()) {
+			return;
+		}
+
+		$parent = $note->getParent();
+		if ($parent->isRoot() === false) {
+			return;
+		}
+
+		if ($parent->getType() === Create::TYPE) {
+			$parent->verify(($note->getAttributedTo()));
+			$this->notesRequest->save($note);
+		}
+
 	}
 
 

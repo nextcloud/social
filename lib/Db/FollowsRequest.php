@@ -33,7 +33,6 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Follow;
-use OCA\Social\Model\ActivityPub\Person;
 
 
 /**
@@ -74,22 +73,22 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
-	 * @param Person $actor
-	 * @param Person $remote
+	 * @param string $actorId
+	 * @param string $remoteActorId
 	 *
 	 * @return Follow
 	 * @throws FollowDoesNotExistException
 	 */
-	public function getByPersons(Person $actor, Person $remote) {
+	public function getByPersons(string $actorId, string $remoteActorId) {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToActorId($qb, $actor->getId());
-		$this->limitToObjectId($qb, $remote->getId());
+		$this->limitToActorId($qb, $actorId);
+		$this->limitToObjectId($qb, $remoteActorId);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
-
 		if ($data === false) {
+			$this->miscService->log('does not exisst ?');
 			throw new FollowDoesNotExistException();
 		}
 
@@ -103,6 +102,18 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function delete(Follow $follow) {
 		$qb = $this->getFollowsDeleteSql();
 		$this->limitToIdString($qb, $follow->getId());
+
+		$qb->execute();
+	}
+
+
+	/**
+	 * @param Follow $follow
+	 */
+	public function deleteByPersons(Follow $follow) {
+		$qb = $this->getFollowsDeleteSql();
+		$this->limitToActorId($qb, $follow->getActorId());
+		$this->limitToObjectId($qb, $follow->getObjectId());
 
 		$qb->execute();
 	}
