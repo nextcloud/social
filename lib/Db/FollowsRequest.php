@@ -31,7 +31,6 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
-use Exception;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\Person;
@@ -55,6 +54,20 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()));
+
+		$qb->execute();
+	}
+
+
+	/**
+	 * @param Follow $follow
+	 */
+	public function accepted(Follow $follow) {
+		$qb = $this->getFollowsUpdateSql();
+		$qb->set('accepted', $qb->createNamedParameter('1'));
+		$this->limitToIdString($qb, $follow->getId());
+		$this->limitToActorId($qb, $follow->getActorId());
+		$this->limitToObjectId($qb, $follow->getObjectId());
 
 		$qb->execute();
 	}

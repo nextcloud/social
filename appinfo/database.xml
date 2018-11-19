@@ -92,6 +92,13 @@
 			</field>
 
 			<field>
+				<name>accepted</name>
+				<type>boolean</type>
+				<default>false</default>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>creation</name>
 				<type>timestamp</type>
 			</field>
