@@ -210,6 +210,16 @@ class ConfigService {
 		return $this->config->getSystemValue($key, '');
 	}
 
+	/**
+	 * @param bool $host
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function setCloudAddress(string $cloudAddress) {
+		// TODO: Validate
+		$this->setAppValue(self::SOCIAL_ADDRESS, $cloudAddress);
+	}
 
 	/**
 	 * @param bool $host
