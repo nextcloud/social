@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Model\Post;
+use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActorService;
@@ -63,6 +64,9 @@ class LocalController extends Controller {
 	/** @var PersonService */
 	private $personService;
 
+	/** @var FollowService */
+	private $followService;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -82,15 +86,16 @@ class LocalController extends Controller {
 	 * @param IRequest $request
 	 * @param string $userId
 	 * @param PersonService $personService
+	 * @param FollowService $followService
 	 * @param ActorService $actorService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, string $userId, PersonService $personService, ActorService $actorService,
-		PostService $postService,
-		NoteService $noteService,
+		IRequest $request, string $userId, PersonService $personService,
+		FollowService $followService, ActorService $actorService,
+		PostService $postService, NoteService $noteService,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
@@ -99,6 +104,7 @@ class LocalController extends Controller {
 
 		$this->actorService = $actorService;
 		$this->personService = $personService;
+		$this->followService = $followService;
 		$this->postService = $postService;
 		$this->noteService = $noteService;
 		$this->miscService = $miscService;
@@ -189,11 +195,59 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function accountSearch(string $search): DataResponse {
+	public function accountsSearch(string $search): DataResponse {
 		try {
 			$accounts = $this->personService->searchCachedAccounts($search);
 
 			return $this->success(['accounts' => $accounts]);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollow(string $account): DataResponse {
+		try {
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$this->followService->followAccount($actor, $account);
+
+			return $this->success([]);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountUnfollow(string $account): DataResponse {
+		try {
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$this->followService->unfollowAccount($actor, $account);
+
+			return $this->success([]);
 		} catch (Exception $e) {
 			return $this->fail($e->getMessage());
 		}

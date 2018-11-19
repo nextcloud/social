@@ -28,25 +28,26 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**
- * Class Follow
+ * Class Create
  *
- * @package OCA\Social\Model\ActivityPub
+ * @package OCA\Social\Model\ActivityPub\Activity
  */
-class Follow extends ACore implements JsonSerializable {
+class Create extends ACore implements JsonSerializable {
 
 
-	const TYPE = 'Follow';
+	const TYPE = 'Create';
 
 
 	/**
-	 * Follow constructor.
+	 * Activity constructor.
 	 *
 	 * @param ACore $parent
 	 */
@@ -62,6 +63,7 @@ class Follow extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
+		$this->setActorId($this->get('actor', $data, ''));
 	}
 
 

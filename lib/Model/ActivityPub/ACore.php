@@ -49,8 +49,8 @@ abstract class ACore implements JsonSerializable {
 	/** @var string */
 	private $root = '';
 
-	/** @var bool */
-	private $isTopLevel = false;
+//	/** @var bool */
+//	private $isTopLevel = false;
 
 	/** @var array */
 	private $meta = [];
@@ -115,14 +115,20 @@ abstract class ACore implements JsonSerializable {
 	/** @var string */
 	private $source = '';
 
+	/** @var null ACore */
+	private $parent = null;
 
 	/**
 	 * Core constructor.
 	 *
-	 * @param bool $isTopLevel
+	 * @param ACore $parent
 	 */
-	public function __construct(bool $isTopLevel = false) {
-		$this->isTopLevel = $isTopLevel;
+	public function __construct($parent = null) {
+//		$this->isTopLevel = $isTopLevel;
+
+		if ($parent instanceof ACore) {
+			$this->setParent($parent);
+		}
 	}
 
 
@@ -132,7 +138,6 @@ abstract class ACore implements JsonSerializable {
 	public function getId(): string {
 		return $this->id;
 	}
-
 
 	/**
 	 * @param string $id
@@ -145,6 +150,15 @@ abstract class ACore implements JsonSerializable {
 		return $this;
 	}
 
+	public function generateUniqueId(string $base) {
+		$uuid = sprintf(
+			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+		);
+
+		$this->setId($base . '/' . $uuid);
+	}
 
 	/**
 	 * @return string
@@ -168,63 +182,22 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
-	 * @param string $meta
-	 * @param string $value
-	 *
-	 * @return ACore
-	 */
-	public function addMeta(string $meta, string $value): ACore {
-		$this->meta[$meta] = $value;
-
-		return $this;
-	}
-
-	/**
-	 * @param string $meta
-	 * @param bool $value
-	 *
-	 * @return ACore
-	 */
-	public function addMetaBool(string $meta, bool $value): ACore {
-		$this->meta[$meta] = $value;
-
-		return $this;
-	}
-
-	/**
-	 * @param string $meta
-	 *
-	 * @return string
-	 */
-	public function getMeta(string $meta): string {
-		return $this->get($meta, $this->meta, '');
-	}
-
-	/**
-	 * @param string $meta
+	 * @param string $url
 	 *
 	 * @return bool
 	 */
-	public function getMetaBool(string $meta): bool {
-		return $this->getBool($meta, $this->meta, false);
-	}
+	public function verify(string $url): bool {
+		if (parse_url($this->getId(), PHP_URL_HOST) !==
+			parse_url($url, PHP_URL_HOST))
+			return false;
 
-	/**
-	 * @param array $meta
-	 *
-	 * @return ACore
-	 */
-	public function setMetaAll(array $meta): ACore {
-		$this->meta = $meta;
+		\OC::$server->getLogger()->log(2, '####  ' . json_encode(parse_url($this->getId(), PHP_URL_PORT)));
+//		if (parse_url($this->getId(), PHP_URL_PORT) !==
+//			parse_url($url, PHP_URL_HOST))
+//			return false;
+//
 
-		return $this;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getMetaAll(): array {
-		return $this->meta;
+		return true;
 	}
 
 
@@ -360,7 +333,7 @@ abstract class ACore implements JsonSerializable {
 	/**
 	 * @return string
 	 */
-	public function getRoot(): string {
+	public function getUrlRoot(): string {
 		return $this->root;
 	}
 
@@ -369,7 +342,7 @@ abstract class ACore implements JsonSerializable {
 	 *
 	 * @return ACore
 	 */
-	public function setRoot(string $path): ACore {
+	public function setUrlRoot(string $path): ACore {
 		$this->root = $path;
 
 		return $this;
@@ -586,21 +559,44 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
-	 * @param bool $topLevel
+	 * @param ACore $parent
 	 *
 	 * @return ACore
 	 */
-	public function setTopLevel(bool $topLevel): ACore {
-		$this->isTopLevel = $topLevel;
+	public function setParent(ACore $parent): ACore {
+		$this->parent = $parent;
 
 		return $this;
 	}
 
 	/**
+	 * @return ACore
+	 */
+	public function getParent(): ACore {
+		return $this->parent;
+	}
+
+	/**
 	 * @return bool
 	 */
-	public function isTopLevel(): bool {
-		return $this->isTopLevel;
+	public function isRoot(): bool {
+		return ($this->parent === null);
+	}
+
+	/**
+	 * @param array $chain
+	 *
+	 * @return ACore
+	 */
+	public function getRoot(array &$chain = []): ACore {
+		$chain[] = $this;
+		if ($this->isRoot()) {
+			return $this;
+		}
+
+
+		return $this->getParent()
+					->getRoot($chain);
 	}
 
 
@@ -632,6 +628,22 @@ abstract class ACore implements JsonSerializable {
 		if ($v === '') {
 //			unset($this->entries[$k]);
 
+			return $this;
+		}
+
+		$this->entries[$k] = $v;
+
+		return $this;
+	}
+
+	/**
+	 * @param string $k
+	 * @param int $v
+	 *
+	 * @return ACore
+	 */
+	public function addEntryInt(string $k, int $v): ACore {
+		if ($v === 0) {
 			return $this;
 		}
 
@@ -752,8 +764,7 @@ abstract class ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-
-		if ($this->isTopLevel()) {
+		if ($this->isRoot()) {
 			$this->addEntryArray(
 				'@context', [
 							  self::CONTEXT_ACTIVITYSTREAMS,

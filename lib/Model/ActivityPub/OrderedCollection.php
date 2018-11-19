@@ -42,6 +42,9 @@ use JsonSerializable;
 class OrderedCollection extends ACore implements JsonSerializable {
 
 
+	const TYPE = 'OrderedCollection';
+
+
 	/** @var int */
 	private $totalItems = 0;
 
@@ -51,12 +54,12 @@ class OrderedCollection extends ACore implements JsonSerializable {
 	/**
 	 * Activity constructor.
 	 *
-	 * @param bool $isTopLevel
+	 * @param ACore $parent
 	 */
-	public function __construct(bool $isTopLevel = false) {
-		parent::__construct($isTopLevel);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
 
-		$this->setType('OrderedCollection');
+		$this->setType(self::TYPE);
 	}
 
 

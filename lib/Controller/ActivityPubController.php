@@ -125,7 +125,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$actor = $this->actorService->getActor($username);
-			$actor->setTopLevel(true);
+//			$actor->setTopLevel(true);
 
 			return $this->directSuccess($actor);
 		} catch (Exception $e) {
@@ -186,12 +186,11 @@ class ActivityPubController extends Controller {
 			$this->activityService->checkRequest($this->request);
 			$body = file_get_contents('php://input');
 
-//			$this->miscService->log('Body: ' . $body);
+			$this->miscService->log('Body: ' . $body);
 
 			$activity = $this->importService->import($body);
-
 			try {
-				$this->activityService->save($activity);
+				$this->importService->save($activity);
 			} catch (Exception $e) {
 			}
 
@@ -249,7 +248,7 @@ class ActivityPubController extends Controller {
 		try {
 			$actor = $this->actorService->getActor($username);
 			$followers = $this->followService->getFollowers($actor);
-			$followers->setTopLevel(true);
+//			$followers->setTopLevel(true);
 
 			return $this->directSuccess($followers);
 		} catch (Exception $e) {
