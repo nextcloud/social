@@ -28,36 +28,34 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**
  * Class Undo
  *
- * @package OCA\Social\Model\ActivityPub
+ * @package OCA\Social\Model\ActivityPub\Activity
  */
 class Undo extends ACore implements JsonSerializable {
 
 
-	private $actor;
+	const TYPE = 'Undo';
 
-
-	private $object;
 
 
 	/**
-	 * Activity constructor.
+	 * Undo constructor.
 	 *
-	 * @param bool $isTopLevel
+	 * @param ACore $parent
 	 */
-	public function __construct(bool $isTopLevel = false) {
-		parent::__construct($isTopLevel);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
 
-		$this->setType('Undo');
-		$this->addMetaBool('Undo', true);
+		$this->setType(self::TYPE);
 	}
 
 

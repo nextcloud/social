@@ -27,23 +27,35 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Model\ActivityPub;
+
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
 
-class Activity extends ACore implements JsonSerializable {
+
+/**
+ * Class Reject
+ *
+ * @package OCA\Social\Model\ActivityPub\Activity
+ */
+class Reject extends ACore implements JsonSerializable {
+
+
+	const TYPE = 'Reject';
+
 
 
 	/**
-	 * Activity constructor.
+	 * Undo constructor.
 	 *
-	 * @param bool $isTopLevel
+	 * @param ACore $parent
 	 */
-	public function __construct(bool $isTopLevel = false) {
-		parent::__construct($isTopLevel);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
 
-		$this->setType('Create');
+		$this->setType(self::TYPE);
 	}
 
 
@@ -52,7 +64,6 @@ class Activity extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setActorId($this->get('actor', $data, ''));
 	}
 
 
