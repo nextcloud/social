@@ -37,9 +37,14 @@ use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Accept;
+use OCA\Social\Model\ActivityPub\Activity\Reject;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
@@ -54,6 +59,9 @@ class FollowService implements ICoreService {
 	/** @var PersonService */
 	private $personService;
 
+	/** @var ActivityService */
+	private $activityService;
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -66,15 +74,18 @@ class FollowService implements ICoreService {
 	 *
 	 * @param FollowsRequest $followsRequest
 	 * @param PersonService $personService
+	 * @param ActivityService $activityService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		FollowsRequest $followsRequest, PersonService $personService, ConfigService $configService,
+		FollowsRequest $followsRequest, PersonService $personService,
+		ActivityService $activityService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->personService = $personService;
+		$this->activityService = $activityService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -98,6 +109,9 @@ class FollowService implements ICoreService {
 			$this->followsRequest->getByPersons($actor, $remoteActor);
 		} catch (FollowDoesNotExistException $e) {
 			$this->followsRequest->save($follow);
+
+			$follow->addInstancePath(new InstancePath($remoteActor->getInbox()));
+			$this->activityService->manageRequest($follow, ActivityService::REQUEST_INBOX);
 		}
 	}
 
@@ -135,6 +149,29 @@ class FollowService implements ICoreService {
 
 
 	/**
+	 * @param Follow $follow
+	 */
+	public function confirmFollowRequest(Follow $follow) {
+		try {
+			$remoteActor = $this->personService->getFromId($follow->getActorId());
+
+			$accept = new Accept();
+			$accept->setId($follow->getObjectId() . '#accepts/follows/1234');
+			$accept->setActorId($follow->getObjectId());
+			$accept->setObject($follow);
+
+			$accept->addInstancePath(new InstancePath($remoteActor->getInbox()));
+
+			$follow->setParent($accept);
+
+			$this->activityService->manageRequest($accept, ActivityService::REQUEST_INBOX);
+			$this->followsRequest->accepted($follow);
+		} catch (Exception $e) {
+		}
+	}
+
+
+	/**
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $follow
@@ -144,10 +181,27 @@ class FollowService implements ICoreService {
 	public function save(ACore $follow) {
 		/** @var Follow $follow */
 
-		if ($follow->getMetaBool('Undo') === false) {
+		if ($follow->isRoot()) {
 			$this->followsRequest->save($follow);
+			$this->confirmFollowRequest($follow);
 		} else {
-			$this->followsRequest->delete($follow);
+			$parent = $follow->getParent();
+			if ($parent->isRoot() === false) {
+				return;
+			}
+
+			if ($parent->getType() === Undo::TYPE && $parent->verify($follow->getActorId())) {
+				$this->followsRequest->delete($follow);
+			}
+
+			if ($parent->getType() === Reject::TYPE && $parent->verify($follow->getObjectId())) {
+				$this->followsRequest->delete($follow);
+			}
+
+			if ($parent->getType() === Accept::TYPE && $parent->verify($follow->getObjectId())) {
+				$this->followsRequest->accepted($follow);
+			}
+
 		}
 	}
 
