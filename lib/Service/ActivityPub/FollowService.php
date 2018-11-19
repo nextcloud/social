@@ -106,8 +106,9 @@ class FollowService implements ICoreService {
 		$follow->setObjectId($remoteActor->getId());
 
 		try {
-			$this->followsRequest->getByPersons($actor, $remoteActor);
+			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 		} catch (FollowDoesNotExistException $e) {
+			$this->miscService->log('CREATE NEW ONE !');
 			$this->followsRequest->save($follow);
 
 			$follow->addInstancePath(new InstancePath($remoteActor->getInbox()));
@@ -126,7 +127,7 @@ class FollowService implements ICoreService {
 		$remoteActor = $this->personService->getFromAccount($account);
 
 		try {
-			$follow = $this->followsRequest->getByPersons($actor, $remoteActor);
+			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
 		} catch (FollowDoesNotExistException $e) {
 		}
@@ -182,23 +183,31 @@ class FollowService implements ICoreService {
 		/** @var Follow $follow */
 
 		if ($follow->isRoot()) {
-			$this->followsRequest->save($follow);
-			$this->confirmFollowRequest($follow);
+			$follow->verify($follow->getActorId());
+			try {
+				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
+			} catch (FollowDoesNotExistException $e) {
+				$this->followsRequest->save($follow);
+				$this->confirmFollowRequest($follow);
+			}
 		} else {
 			$parent = $follow->getParent();
 			if ($parent->isRoot() === false) {
 				return;
 			}
 
-			if ($parent->getType() === Undo::TYPE && $parent->verify($follow->getActorId())) {
-				$this->followsRequest->delete($follow);
+			if ($parent->getType() === Undo::TYPE) {
+				$parent->verify($follow->getActorId());
+				$this->followsRequest->deleteByPersons($follow);
 			}
 
-			if ($parent->getType() === Reject::TYPE && $parent->verify($follow->getObjectId())) {
-				$this->followsRequest->delete($follow);
+			if ($parent->getType() === Reject::TYPE) {
+				$parent->verify($follow->getObjectId());
+				$this->followsRequest->deleteByPersons($follow);
 			}
 
-			if ($parent->getType() === Accept::TYPE && $parent->verify($follow->getObjectId())) {
+			if ($parent->getType() === Accept::TYPE) {
+				$parent->verify($follow->getObjectId());
 				$this->followsRequest->accepted($follow);
 			}
 

@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
+use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ICoreService;
 
@@ -184,20 +185,23 @@ abstract class ACore implements JsonSerializable {
 	/**
 	 * @param string $url
 	 *
-	 * @return bool
+	 * @throws ActivityCantBeVerifiedException
 	 */
-	public function verify(string $url): bool {
-		if (parse_url($this->getId(), PHP_URL_HOST) !==
-			parse_url($url, PHP_URL_HOST))
-			return false;
+	public function verify(string $url) {
+		$url1 = parse_url($this->getId());
+		$url2 = parse_url($url);
 
-		\OC::$server->getLogger()->log(2, '####  ' . json_encode(parse_url($this->getId(), PHP_URL_PORT)));
-//		if (parse_url($this->getId(), PHP_URL_PORT) !==
-//			parse_url($url, PHP_URL_HOST))
-//			return false;
-//
+		if ($this->get('host', $url1, '1') !== $this->get('host', $url2, '2')) {
+			throw new ActivityCantBeVerifiedException('activity cannot be verified');
+		}
 
-		return true;
+		if ($this->get('scheme', $url1, '1') !== $this->get('scheme', $url2, '2')) {
+			throw new ActivityCantBeVerifiedException('activity cannot be verified');
+		}
+
+		if ($this->getInt('port', $url1, 1) !== $this->getInt('port', $url2, 1)) {
+			throw new ActivityCantBeVerifiedException('activity cannot be verified');
+		}
 	}
 
 
