@@ -42,15 +42,18 @@ use JsonSerializable;
 class Follow extends ACore implements JsonSerializable {
 
 
-	/**
-	 * Activity constructor.
-	 *
-	 * @param bool $isTopLevel
-	 */
-	public function __construct(bool $isTopLevel = false) {
-		parent::__construct($isTopLevel);
+	const TYPE = 'Follow';
 
-		$this->setType('Follow');
+
+	/**
+	 * Follow constructor.
+	 *
+	 * @param ACore $parent
+	 */
+	public function __construct($parent = null) {
+		parent::__construct($parent);
+
+		$this->setType(self::TYPE);
 	}
 
 

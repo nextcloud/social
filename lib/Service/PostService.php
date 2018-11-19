@@ -33,8 +33,8 @@ namespace OCA\Social\Service;
 use OC\User\NoUserException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\NoteService;
 
@@ -43,6 +43,9 @@ class PostService {
 
 	/** @var NoteService */
 	private $noteService;
+
+	/** @var ActorService */
+	private $actorService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -55,13 +58,16 @@ class PostService {
 	 * PostService constructor.
 	 *
 	 * @param NoteService $noteService
+	 * @param ActorService $actorService
 	 * @param ActivityService $activityService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, ActivityService $activityService, MiscService $miscService
+		NoteService $noteService, ActorService $actorService, ActivityService $activityService,
+		MiscService $miscService
 	) {
 		$this->noteService = $noteService;
+		$this->actorService = $actorService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
 	}
@@ -75,6 +81,7 @@ class PostService {
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 * @throws RequestException
+	 * @throws SocialAppConfigException
 	 */
 	public function createPost(Post $post, ACore &$activity = null) {
 		$note =
@@ -85,8 +92,10 @@ class PostService {
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->noteService->replyTo($note, $post->getReplyTo());
 
+		$actor = $this->actorService->getActorFromUserId($post->getUserId());
+
 		return $this->activityService->createActivity(
-			$post->getUserId(), $note, ActivityService::REQUEST_INBOX, $activity
+			$actor, $note, ActivityService::REQUEST_INBOX, $activity
 		);
 	}
 

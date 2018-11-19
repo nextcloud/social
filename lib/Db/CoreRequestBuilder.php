@@ -359,7 +359,7 @@ class CoreRequestBuilder {
 		$actor = new Person();
 		$actor->import($new);
 
-		if ($actor->getType() !== 'Person') {
+		if ($actor->getType() !== Person::TYPE) {
 			throw new InvalidResourceException();
 		}
 

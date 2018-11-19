@@ -37,6 +37,9 @@ use OCA\Social\Service\ActivityService;
 class Note extends ACore implements JsonSerializable {
 
 
+	const TYPE = 'Note';
+
+
 	/** @var string */
 	private $content;
 
@@ -53,18 +56,18 @@ class Note extends ACore implements JsonSerializable {
 	private $conversation = '';
 
 	/** @var int */
-	private $publishedTime;
+	private $publishedTime = 0;
 
 
 	/**
 	 * Note constructor.
 	 *
-	 * @param bool $isTopLevel
+	 * @param ACore $parent
 	 */
-	public function __construct(bool $isTopLevel = false) {
-		parent::__construct($isTopLevel);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
 
-		$this->setType('Note');
+		$this->setType(self::TYPE);
 	}
 
 
@@ -210,15 +213,16 @@ class Note extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
+		$this->addEntryInt('publishedTime', $this->getPublishedTime());
+
 		return array_merge(
 			parent::jsonSerialize(),
 			[
-				'content'       => $this->getContent(),
-				'publishedTime' => $this->getPublishedTime(),
-				'attributedTo'  => $this->getRoot() . $this->getAttributedTo(),
-				'inReplyTo'     => $this->getInReplyTo(),
-				'sensitive'     => $this->isSensitive(),
-				'conversation'  => $this->getConversation()
+				'content'      => $this->getContent(),
+				'attributedTo' => $this->getUrlRoot() . $this->getAttributedTo(),
+				'inReplyTo'    => $this->getInReplyTo(),
+				'sensitive'    => $this->isSensitive(),
+				'conversation' => $this->getConversation()
 			]
 		);
 	}

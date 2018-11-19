@@ -242,7 +242,7 @@ class ConfigService {
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function getRoot(): string {
+	public function getUrlRoot(): string {
 		return $this->getCloudAddress() . '/apps/social/';
 	}
 
@@ -257,7 +257,7 @@ class ConfigService {
 	public function generateId(string $path = '', $generateId = true): string {
 		$path = $this->withoutBeginSlash($this->withEndSlash($path));
 
-		$id = $this->getRoot() . $path;
+		$id = $this->getUrlRoot() . $path;
 		if ($generateId === true) {
 			$id .= time() . crc32(uniqid());
 		}

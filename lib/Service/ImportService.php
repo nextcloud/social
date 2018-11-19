@@ -27,16 +27,24 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use Exception;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Activity;
+use OCA\Social\Model\ActivityPub\Activity\Accept;
+use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\ActivityPub\Undo;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Service\ActivityPub\FollowService;
+use OCA\Social\Service\ActivityPub\NoteService;
+use OCA\Social\Service\ActivityPub\UndoService;
+
 
 class ImportService {
 
@@ -44,16 +52,34 @@ class ImportService {
 	use TArrayTools;
 
 
+	/** @var NoteService */
+	private $noteService;
+
+	/** @var UndoService */
+	private $undoService;
+
+	/** @var FollowService */
+	private $followService;
+
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * ActorService constructor.
+	 * ImportService constructor.
 	 *
+	 * @param NoteService $noteService
+	 * @param UndoService $undoService
+	 * @param FollowService $followService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(MiscService $miscService) {
+	public function __construct(
+		NoteService $noteService, UndoService $undoService, FollowService $followService,
+		MiscService $miscService
+	) {
+		$this->noteService = $noteService;
+		$this->undoService = $undoService;
+		$this->followService = $followService;
 		$this->miscService = $miscService;
 	}
 
@@ -66,7 +92,6 @@ class ImportService {
 	 */
 	public function import(string $json) {
 		$data = json_decode($json, true);
-
 		$activity = $this->createItem($data, null);
 
 		return $activity;
@@ -82,30 +107,34 @@ class ImportService {
 	 */
 	private function createItem(array $data, $root = null): ACore {
 
-		$isTopLevel = ($root === null);
+//		$isTopLevel = ($root === null);
 		switch ($this->get('type', $data)) {
-			case 'Create':
-				$item = new Activity($isTopLevel);
+			case Create::TYPE:
+				$item = new Create($root);
 				break;
 
-			case 'Note':
-				$item = new Note($isTopLevel);
+			case Note::TYPE:
+				$item = new Note($root);
 				break;
 
-			case 'Follow':
-				$item = new Follow($isTopLevel);
+			case Follow::TYPE:
+				$item = new Follow($root);
 				break;
 
-			case 'Undo':
-				$item = new Undo($isTopLevel);
+			case Undo::TYPE:
+				$item = new Undo($root);
+				break;
+
+			case Accept::TYPE:
+				$item = new Accept($root);
+				break;
+
+			case Reject::TYPE:
+				$item = new Reject($root);
 				break;
 
 			default:
 				throw new UnknownItemException();
-		}
-
-		if ($root instanceof ACore) {
-			$item->setMetaAll($root->getMetaAll());
 		}
 
 		$item->import($data);
@@ -119,6 +148,57 @@ class ImportService {
 
 		return $item;
 	}
+
+
+	/**
+	 * @param ACore $activity
+	 *
+	 * @throws UnknownItemException
+	 */
+	public function save(Acore $activity) {
+
+		if ($activity->gotObject()) {
+			$this->save($activity->getObject());
+		}
+
+		switch ($activity->getType()) {
+//			case 'Activity':
+//				$service = $this;
+//				break;
+
+//			case Undo::TYPE:
+//				$service = $this->undoService;
+//				break;
+//
+//			case Accept::TYPE:
+//				$service = $this->acceptService;
+//				break;
+//
+//			case Reject::TYPE:
+//				$service = $this->rejectService;
+//				break;
+
+			case Follow::TYPE:
+				$service = $this->followService;
+				break;
+
+			case Note::TYPE:
+				$service = $this->noteService;
+				break;
+
+			default:
+				throw new UnknownItemException();
+		}
+
+		try {
+			$service->save($activity);
+		} catch (Exception $e) {
+			$this->miscService->log(
+				2, 'Cannot save ' . $activity->getType() . ': ' . $e->getMessage()
+			);
+		}
+	}
+
 
 }
 

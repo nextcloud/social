@@ -133,7 +133,7 @@ class PersonService implements ICoreService {
 			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 
-			if ($actor->getType() !== 'Person') {
+			if ($actor->getType() !== Person::TYPE) {
 				throw new InvalidResourceException();
 			}
 
@@ -169,7 +169,7 @@ class PersonService implements ICoreService {
 			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
 			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
 
-			if ($actor->getType() !== 'Person') {
+			if ($actor->getType() !== Person::TYPE) {
 				throw new InvalidResourceException();
 			}
 

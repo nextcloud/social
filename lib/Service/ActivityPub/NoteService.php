@@ -116,7 +116,7 @@ class NoteService implements ICoreService {
 		$note->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
 		$note->setPublished(date("c"));
 		$note->setAttributedTo(
-			$this->configService->getRoot() . '@' . $actor->getPreferredUsername()
+			$this->configService->getUrlRoot() . '@' . $actor->getPreferredUsername()
 		);
 
 		$this->setRecipient($note, $actor, $type);

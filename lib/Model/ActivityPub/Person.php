@@ -42,6 +42,9 @@ use JsonSerializable;
 class Person extends ACore implements JsonSerializable {
 
 
+	const TYPE = 'Person';
+
+
 	/** @var string */
 	private $userId = '';
 
@@ -84,15 +87,16 @@ class Person extends ACore implements JsonSerializable {
 	/** @var bool */
 	private $local = false;
 
+
 	/**
 	 * Person constructor.
 	 *
-	 * @param bool $isTopLevel
+	 * @param ACore $parent
 	 */
-	public function __construct(bool $isTopLevel = false) {
-		parent::__construct($isTopLevel);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
 
-		$this->setType('Person');
+		$this->setType(self::TYPE);
 	}
 
 
@@ -373,8 +377,8 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFollowing($this->get('following', $data, ''))
 			 ->setSharedInbox($this->get('shared_inbox', $data, ''))
 			 ->setFeatured($this->get('featured', $data, ''))
-			 ->setLocal(($this->getInt('local', $data, 0) === 1))
-			 ->setCreation($this->getInt('creation', $data, 0));
+			 ->setCreation($this->getInt('creation', $data, 0))
+			 ->setLocal(($this->getInt('local', $data, 0) === 1));
 
 //		if ($this->getPreferredUsername() === '') {
 //			$this->setType('Invalid');
@@ -390,8 +394,8 @@ class Person extends ACore implements JsonSerializable {
 			parent::jsonSerialize(),
 			[
 				'aliases'           => [
-					$this->getRoot() . '@' . $this->getPreferredUsername(),
-					$this->getRoot() . 'users/' . $this->getPreferredUsername()
+					$this->getUrlRoot() . '@' . $this->getPreferredUsername(),
+					$this->getUrlRoot() . 'users/' . $this->getPreferredUsername()
 				],
 				'preferredUsername' => $this->getPreferredUsername(),
 				'name'              => $this->getName(),
