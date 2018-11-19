@@ -223,8 +223,6 @@ class LocalController extends Controller {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
 
-//			$accounts = $this->personService->searchCachedAccounts($account);
-
 			return $this->success([]);
 		} catch (Exception $e) {
 			return $this->fail($e->getMessage());
