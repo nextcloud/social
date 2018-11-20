@@ -88,7 +88,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 		if ($data === false) {
-			$this->miscService->log('does not exisst ?');
 			throw new FollowDoesNotExistException();
 		}
 
