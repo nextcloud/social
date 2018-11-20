@@ -92,8 +92,9 @@ class PersonService implements ICoreService {
 		}
 
 		try {
+			$actor->setLocal(true);
 			$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
-			$this->parse($actor, true);
+			$this->parse($actor);
 		} catch (Exception $e) {
 		}
 	}
@@ -198,17 +199,20 @@ class PersonService implements ICoreService {
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $person
-	 * @param bool $local
 	 *
 	 * @throws Exception
 	 */
-	public function parse(ACore $person, bool $local = false) {
+	public function parse(ACore $person) {
 		/** @var Person $person */
 		if ($person->isRoot() === false) {
 			return;
 		}
 
-		$this->cacheActorsRequest->save($person, $local);
+		if ($person->getId() === '') {
+			return;
+		}
+
+		$this->cacheActorsRequest->save($person);
 	}
 
 
