@@ -37,10 +37,13 @@ use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
+use OCA\Social\Model\ActivityPub\Activity\Tombstone;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Service\ActivityPub\DeleteService;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
 use OCA\Social\Service\ActivityPub\UndoService;
@@ -61,6 +64,9 @@ class ImportService {
 	/** @var FollowService */
 	private $followService;
 
+	/** @var DeleteService */
+	private $deleteService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -71,15 +77,18 @@ class ImportService {
 	 * @param NoteService $noteService
 	 * @param UndoService $undoService
 	 * @param FollowService $followService
+	 * @param DeleteService $deleteService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		NoteService $noteService, UndoService $undoService, FollowService $followService,
+		DeleteService $deleteService,
 		MiscService $miscService
 	) {
 		$this->noteService = $noteService;
 		$this->undoService = $undoService;
 		$this->followService = $followService;
+		$this->deleteService = $deleteService;
 		$this->miscService = $miscService;
 	}
 
@@ -111,6 +120,14 @@ class ImportService {
 		switch ($this->get('type', $data)) {
 			case Create::TYPE:
 				$item = new Create($root);
+				break;
+
+			case Delete::TYPE:
+				$item = new Delete($root);
+				break;
+
+			case Tombstone::TYPE:
+				$item = new Tombstone($root);
 				break;
 
 			case Note::TYPE:
@@ -155,16 +172,23 @@ class ImportService {
 	 *
 	 * @throws UnknownItemException
 	 */
-	public function save(Acore $activity) {
+	public function parse(Acore $activity) {
 
 		if ($activity->gotObject()) {
-			$this->save($activity->getObject());
+			try {
+				$this->parse($activity->getObject());
+			} catch (UnknownItemException $e) {
+			}
 		}
 
 		switch ($activity->getType()) {
 //			case 'Activity':
 //				$service = $this;
 //				break;
+
+			case Delete::TYPE:
+				$service = $this->deleteService;
+				break;
 
 //			case Undo::TYPE:
 //				$service = $this->undoService;
@@ -191,10 +215,10 @@ class ImportService {
 		}
 
 		try {
-			$service->save($activity);
+			$service->parse($activity);
 		} catch (Exception $e) {
 			$this->miscService->log(
-				2, 'Cannot save ' . $activity->getType() . ': ' . $e->getMessage()
+				2, 'Cannot parse ' . $activity->getType() . ': ' . $e->getMessage()
 			);
 		}
 	}
