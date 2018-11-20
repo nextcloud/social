@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
@@ -39,6 +40,7 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
@@ -273,14 +275,17 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
-	 * @throws Exception
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws RequestException
+	 * @throws SignatureException
 	 */
 	public function checkRequest(IRequest $request) {
 		$dTime = new DateTime($request->getHeader('date'));
 		$dTime->format(self::DATE_FORMAT);
 
 		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
-			throw new Exception('object is too old');
+			throw new SignatureException('object is too old');
 		}
 
 		$this->checkSignature($request);
@@ -308,7 +313,10 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
-	 * @throws Exception
+	 * @throws InvalidResourceException
+	 * @throws RequestException
+	 * @throws SignatureException
+	 * @throws MalformedArrayException
 	 */
 	private function checkSignature(IRequest $request) {
 		$signatureHeader = $request->getHeader('Signature');
@@ -323,8 +331,8 @@ class ActivityService {
 
 		$publicKey = $this->retrieveKey($keyId);
 
-		if (openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
-			throw new Exception('signature cannot be checked');
+		if ($publicKey === '' || openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
+			throw new SignatureException('signature cannot be checked');
 		}
 
 	}

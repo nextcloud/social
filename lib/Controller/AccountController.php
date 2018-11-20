@@ -115,7 +115,7 @@ class AccountController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
