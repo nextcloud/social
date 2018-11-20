@@ -59,7 +59,14 @@ class UndoService implements ICoreService {
 	 *
 	 * @throws Exception
 	 */
-	public function save(ACore $undo) {
+	public function parse(ACore $undo) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function delete(ACore $item) {
 	}
 
 }

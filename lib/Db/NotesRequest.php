@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use DateTime;
+use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
@@ -61,52 +62,72 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param Note $note
 	 *
 	 * @return int
-	 * @throws \Exception
 	 */
 	public function save(Note $note): int {
-		try {
+		$dTime = new DateTime();
+		$dTime->setTimestamp($note->getPublishedTime());
 
-			$dTime = new DateTime();
-			$dTime->setTimestamp($note->getPublishedTime());
+		$qb = $this->getNotesInsertSql();
+		$qb->setValue('id', $qb->createNamedParameter($note->getId()))
+		   ->setValue('to', $qb->createNamedParameter($note->getTo()))
+		   ->setValue(
+			   'to_array', $qb->createNamedParameter(
+			   json_encode($note->getToArray(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
+		   ->setValue(
+			   'cc', $qb->createNamedParameter(
+			   json_encode($note->getCcArray(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
+		   ->setValue(
+			   'bcc', $qb->createNamedParameter(
+			   json_encode($note->getBccArray()), JSON_UNESCAPED_SLASHES
+		   )
+		   )
+		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
+		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
+		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
+		   ->setValue(
+			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
+		   )
+		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
+		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
+		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
 
-			$qb = $this->getNotesInsertSql();
-			$qb->setValue('id', $qb->createNamedParameter($note->getId()))
-			   ->setValue('to', $qb->createNamedParameter($note->getTo()))
-			   ->setValue(
-				   'to_array', $qb->createNamedParameter(
-				   json_encode($note->getToArray(), JSON_UNESCAPED_SLASHES)
-			   )
-			   )
-			   ->setValue(
-				   'cc', $qb->createNamedParameter(
-				   json_encode($note->getCcArray(), JSON_UNESCAPED_SLASHES)
-			   )
-			   )
-			   ->setValue(
-				   'bcc', $qb->createNamedParameter(
-				   json_encode($note->getBccArray()), JSON_UNESCAPED_SLASHES
-			   )
-			   )
-			   ->setValue('content', $qb->createNamedParameter($note->getContent()))
-			   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
-			   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
-			   ->setValue(
-				   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
-			   )
-			   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
-			   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
-			   ->setValue('source', $qb->createNamedParameter($note->getSource()))
-			   ->setValue(
-				   'creation',
-				   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-			   );
+		$qb->execute();
 
-			$qb->execute();
+		return $qb->getLastInsertId();
+	}
 
-			return $qb->getLastInsertId();
-		} catch (\Exception $e) {
-			throw $e;
+
+	/**
+	 * @param string $id
+	 *
+	 * @return Note
+	 * @throws NoteNotFoundException
+	 */
+	public function getFromId(string $id): Note {
+		if ($id === '') {
+			throw new NoteNotFoundException();
+		};
+
+		$qb = $this->getNotesSelectSql();
+		$this->limitToIdString($qb, $id);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new NoteNotFoundException();
 		}
+
+		return $this->parseNotesSelectSql($data);
 	}
 
 
@@ -153,4 +174,15 @@ class NotesRequest extends NotesRequestBuilder {
 	}
 
 
+	/**
+	 * @param string $id
+	 */
+	public function deleteNoteById(string $id) {
+		$qb = $this->getNotesDeleteSql();
+		$this->limitToIdString($qb, $id);
+
+		$qb->execute();
+	}
+
 }
+

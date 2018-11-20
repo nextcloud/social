@@ -93,7 +93,7 @@ class PersonService implements ICoreService {
 
 		try {
 			$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
-			$this->save($actor, true);
+			$this->parse($actor, true);
 		} catch (Exception $e) {
 		}
 	}
@@ -138,7 +138,7 @@ class PersonService implements ICoreService {
 			}
 
 			try {
-				$this->save($actor);
+				$this->parse($actor);
 			} catch (Exception $e) {
 				throw new InvalidResourceException($e->getMessage());
 			}
@@ -174,7 +174,7 @@ class PersonService implements ICoreService {
 			}
 
 			try {
-				$this->save($actor);
+				$this->parse($actor);
 			} catch (Exception $e) {
 				throw new InvalidResourceException($e->getMessage());
 			}
@@ -202,9 +202,20 @@ class PersonService implements ICoreService {
 	 *
 	 * @throws Exception
 	 */
-	public function save(ACore $person, bool $local = false) {
+	public function parse(ACore $person, bool $local = false) {
 		/** @var Person $person */
+		if ($person->isRoot() === false) {
+			return;
+		}
+
 		$this->cacheActorsRequest->save($person, $local);
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function delete(ACore $item) {
 	}
 
 }

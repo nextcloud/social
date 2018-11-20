@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
@@ -65,6 +66,9 @@ class ActivityService {
 	/** @var ActorsRequest */
 	private $actorsRequest;
 
+	/** @var NotesRequest */
+	private $notesRequest;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -88,6 +92,7 @@ class ActivityService {
 	 * ActivityService constructor.
 	 *
 	 * @param ActorsRequest $actorsRequest
+	 * @param NotesRequest $notesRequest
 	 * @param CurlService $curlService
 	 * @param ActorService $actorService
 	 * @param PersonService $personService
@@ -96,24 +101,20 @@ class ActivityService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest, CurlService $curlService, ActorService $actorService,
+		ActorsRequest $actorsRequest, NotesRequest $notesRequest, CurlService $curlService,
+		ActorService $actorService,
 		PersonService $personService, InstanceService $instanceService,
 		ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->curlService = $curlService;
 		$this->actorsRequest = $actorsRequest;
+		$this->notesRequest = $notesRequest;
 		$this->actorService = $actorService;
 		$this->personService = $personService;
 		$this->instanceService = $instanceService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
-	}
-
-
-	public function test() {
-
-
 	}
 
 
@@ -126,6 +127,7 @@ class ActivityService {
 	 * @return array
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	public function createActivity(Person $actor, ACore $item, int $type, ACore &$activity = null
 	): array {
@@ -154,11 +156,40 @@ class ActivityService {
 
 
 	/**
+	 * @param string $id
+	 *
+	 * @return ACore
+	 * @throws InvalidResourceException
+	 */
+	public function getItem(string $id): ACore {
+		if ($id === '') {
+			throw new InvalidResourceException();
+		}
+
+		$requests = [
+			$this->notesRequest
+		];
+
+		foreach ($requests as $request) {
+			try {
+				$toDelete = $request->getFromId($id);
+
+				return $toDelete;
+			} catch (Exception $e) {
+			}
+		}
+
+		throw new InvalidResourceException();
+	}
+
+
+	/**
 	 * @param ACore $activity
 	 * @param int $type
 	 *
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	public function manageRequest(ACore $activity, int $type) {
 		$result = $this->request($activity, $type);
@@ -175,6 +206,7 @@ class ActivityService {
 	 * @return array
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	public function request(ACore &$activity, int $type) {
 		$this->setupCore($activity);
@@ -206,7 +238,7 @@ class ActivityService {
 	): array {
 		$document = json_encode($activity);
 		$date = gmdate(self::DATE_FORMAT);
-		$localActor = $this->getActorFromActivity($activity);
+		$localActor = $this->getActorFromItem($activity);
 
 		$localActorLink =
 			$this->configService->getUrlRoot() . '@' . $localActor->getPreferredUsername();
@@ -255,49 +287,6 @@ class ActivityService {
 	}
 
 
-//	/**
-//	 * @param Core $activity
-//	 *
-//	 * @return array
-//	 */
-//	private function getHostsFromActivity(Core $activity) {
-//
-//		$hosts = [];
-//		$hosts[] = $this->getHostFromUriId($activity->getTo());
-//		foreach ($activity->getToArray() as $to) {
-//			$hosts[] = $this->getHostFromUriId($to);
-//		}
-//
-//		if ($activity instanceof Note) {
-//			/** @var Note $activity */
-//			$hosts[] = $this->getHostFromUriId($activity->getInReplyTo());
-//		}
-//
-//		$hosts = $this->cleaningHosts($hosts);
-//
-//		return $hosts;
-//	}
-
-
-//	/**
-//	 * @param array $hosts
-//	 *
-//	 * @return array
-//	 */
-//	private function cleaningHosts(array $hosts) {
-//		$ret = [];
-//		foreach ($hosts as $host) {
-//			if ($host === '') {
-//				continue;
-//			}
-//
-//			$ret[] = $host;
-//		}
-//
-//		return $ret;
-//	}
-
-
 	/**
 	 * @param ACore $activity
 	 *
@@ -305,7 +294,7 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 * @throws ActorDoesNotExistException
 	 */
-	private function getActorFromActivity(Acore $activity): Person {
+	private function getActorFromItem(Acore $activity): Person {
 		if ($activity->gotActor()) {
 			return $activity->getActor();
 		}
@@ -413,7 +402,7 @@ class ActivityService {
 
 		$coreService = $activity->savingAs();
 		if ($coreService !== null) {
-			$coreService->save($activity);
+			$coreService->parse($activity);
 		}
 
 		if ($activity->gotObject()) {

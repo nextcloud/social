@@ -28,31 +28,55 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
+use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**
- * Interface ICoreService
+ * Class Tombstone
  *
- * @package OCA\Social\Service
+ * @package OCA\Social\Model\ActivityPub\Activity
  */
-interface ICoreService {
+class Tombstone extends ACore implements JsonSerializable {
 
 
-	/**
-	 * @param ACore $item
-	 */
-	public function parse(ACore $item);
+	const TYPE = 'Tombstone';
+
 
 
 	/**
-	 * @param ACore $item
+	 * Undo constructor.
+	 *
+	 * @param ACore $parent
 	 */
-	public function delete(ACore $item);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
 
+		$this->setType(self::TYPE);
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	public function import(array $data) {
+		parent::import($data);
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function jsonSerialize(): array {
+		return array_merge(
+			parent::jsonSerialize(),
+			[
+			]
+		);
+	}
 
 }
 

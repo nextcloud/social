@@ -33,7 +33,9 @@ namespace OCA\Social\Service\ActivityPub;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
+use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -226,9 +228,9 @@ class NoteService implements ICoreService {
 	 *
 	 * @param ACore $note
 	 *
-	 * @throws Exception
+	 * @throws ActivityCantBeVerifiedException
 	 */
-	public function save(ACore $note) {
+	public function parse(ACore $note) {
 		/** @var Note $note */
 		if ($note->isRoot()) {
 			return;
@@ -241,9 +243,21 @@ class NoteService implements ICoreService {
 
 		if ($parent->getType() === Create::TYPE) {
 			$parent->verify(($note->getAttributedTo()));
-			$this->notesRequest->save($note);
+			try {
+				$this->notesRequest->getFromId($note->getId());
+			} catch (NoteNotFoundException $e) {
+				$this->notesRequest->save($note);
+			}
 		}
+	}
 
+
+	/**
+	 * @param ACore $item
+	 */
+	public function delete(ACore $item) {
+		/** @var Note $item */
+		$this->notesRequest->deleteNoteById($item->getId());
 	}
 
 

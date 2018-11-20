@@ -179,7 +179,7 @@ class FollowService implements ICoreService {
 	 *
 	 * @throws Exception
 	 */
-	public function save(ACore $follow) {
+	public function parse(ACore $follow) {
 		/** @var Follow $follow */
 		if ($follow->isRoot()) {
 			$follow->verify($follow->getActorId());
@@ -213,6 +213,12 @@ class FollowService implements ICoreService {
 		}
 	}
 
+
+	/**
+	 * @param ACore $item
+	 */
+	public function delete(ACore $item) {
+	}
 
 }
 

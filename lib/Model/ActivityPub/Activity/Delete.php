@@ -28,31 +28,55 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
+use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**
- * Interface ICoreService
+ * Class Delete
  *
- * @package OCA\Social\Service
+ * @package OCA\Social\Model\ActivityPub\Activity
  */
-interface ICoreService {
+class Delete extends ACore implements JsonSerializable {
+
+
+	const TYPE = 'Delete';
 
 
 	/**
-	 * @param ACore $item
+	 * Activity constructor.
+	 *
+	 * @param ACore $parent
 	 */
-	public function parse(ACore $item);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
+
+		$this->setType(self::TYPE);
+	}
 
 
 	/**
-	 * @param ACore $item
+	 * @param array $data
 	 */
-	public function delete(ACore $item);
+	public function import(array $data) {
+		parent::import($data);
+		$this->setActorId($this->get('actor', $data, ''));
+	}
 
+
+	/**
+	 * @return array
+	 */
+	public function jsonSerialize(): array {
+		return array_merge(
+			parent::jsonSerialize(),
+			[
+			]
+		);
+	}
 
 }
 

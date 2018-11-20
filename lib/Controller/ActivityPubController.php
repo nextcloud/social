@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\NotesRequest;
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
@@ -125,6 +126,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$actor = $this->actorService->getActor($username);
+
 //			$actor->setTopLevel(true);
 
 			return $this->directSuccess($actor);
@@ -161,7 +163,23 @@ class ActivityPubController extends Controller {
 	 * @return Response
 	 */
 	public function sharedInbox(): Response {
-		return $this->success([]);
+
+		try {
+			$this->activityService->checkRequest($this->request);
+
+			$body = file_get_contents('php://input');
+			$this->miscService->log('Shared Inbox: ' . $body);
+
+			$activity = $this->importService->import($body);
+			try {
+				$this->importService->parse($activity);
+			} catch (UnknownItemException $e) {
+			}
+
+			return $this->success([]);
+		} catch (Exception $e) {
+			return $this->fail($e->getMessage());
+		}
 	}
 
 
@@ -186,12 +204,12 @@ class ActivityPubController extends Controller {
 			$this->activityService->checkRequest($this->request);
 			$body = file_get_contents('php://input');
 
-			$this->miscService->log('Body: ' . $body);
+			$this->miscService->log('Inbox: ' . $body);
 
 			$activity = $this->importService->import($body);
 			try {
-				$this->importService->save($activity);
-			} catch (Exception $e) {
+				$this->importService->parse($activity);
+			} catch (UnknownItemException $e) {
 			}
 
 			return $this->success([]);
@@ -248,6 +266,7 @@ class ActivityPubController extends Controller {
 		try {
 			$actor = $this->actorService->getActor($username);
 			$followers = $this->followService->getFollowers($actor);
+
 //			$followers->setTopLevel(true);
 
 			return $this->directSuccess($followers);
