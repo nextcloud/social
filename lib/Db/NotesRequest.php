@@ -94,6 +94,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue('local', $qb->createNamedParameter(($note->isLocal()) ? '1' : '0'))
 		   ->setValue(
 			   'creation',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
@@ -111,7 +112,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @return Note
 	 * @throws NoteNotFoundException
 	 */
-	public function getFromId(string $id): Note {
+	public function getNoteById(string $id): Note {
 		if ($id === '') {
 			throw new NoteNotFoundException();
 		};

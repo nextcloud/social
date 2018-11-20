@@ -232,6 +232,13 @@
 				<type>timestamp</type>
 			</field>
 
+			<field>
+				<name>local</name>
+				<type>boolean</type>
+				<default>false</default>
+				<notnull>true</notnull>
+			</field>
+
 		</declaration>
 	</table>
 

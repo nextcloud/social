@@ -30,7 +30,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service\ActivityPub;
 
 
-use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
@@ -124,6 +123,8 @@ class NoteService implements ICoreService {
 
 		$this->setRecipient($note, $actor, $type);
 		$note->setContent($content);
+		$note->convertPublished();
+		$note->setLocal(true);
 
 		$note->saveAs($this);
 
@@ -244,7 +245,7 @@ class NoteService implements ICoreService {
 		if ($parent->getType() === Create::TYPE) {
 			$parent->verify(($note->getAttributedTo()));
 			try {
-				$this->notesRequest->getFromId($note->getId());
+				$this->notesRequest->getNoteById($note->getId());
 			} catch (NoteNotFoundException $e) {
 				$this->notesRequest->save($note);
 			}
@@ -258,6 +259,17 @@ class NoteService implements ICoreService {
 	public function delete(ACore $item) {
 		/** @var Note $item */
 		$this->notesRequest->deleteNoteById($item->getId());
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return Note
+	 * @throws NoteNotFoundException
+	 */
+	public function getNoteById(string $id): Note {
+		return $this->notesRequest->getNoteById($id);
 	}
 
 

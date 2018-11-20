@@ -119,6 +119,10 @@ abstract class ACore implements JsonSerializable {
 	/** @var null ACore */
 	private $parent = null;
 
+	/** @var bool */
+	private $local = false;
+
+
 	/**
 	 * Core constructor.
 	 *
@@ -563,6 +567,25 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function isLocal(): bool {
+		return $this->local;
+	}
+
+	/**
+	 * @param bool $local
+	 *
+	 * @return Person
+	 */
+	public function setLocal(bool $local): ACore {
+		$this->local = $local;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param ACore $parent
 	 *
 	 * @return ACore
@@ -647,6 +670,22 @@ abstract class ACore implements JsonSerializable {
 	 * @return ACore
 	 */
 	public function addEntryInt(string $k, int $v): ACore {
+		if ($v === 0) {
+			return $this;
+		}
+
+		$this->entries[$k] = $v;
+
+		return $this;
+	}
+
+	/**
+	 * @param string $k
+	 * @param bool $v
+	 *
+	 * @return ACore
+	 */
+	public function addEntryBool(string $k, bool $v): ACore {
 		if ($v === 0) {
 			return $this;
 		}
@@ -761,6 +800,7 @@ abstract class ACore implements JsonSerializable {
 		$this->setActorId($this->get('actor', $data, ''));
 		$this->setObjectId($this->get('object', $data, ''));
 		$this->setSource($this->get('source', $data, ''));
+		$this->setLocal(($this->getInt('local', $data, 0) === 1));
 	}
 
 
@@ -811,6 +851,8 @@ abstract class ACore implements JsonSerializable {
 		if ($this->isCompleteDetails()) {
 			$this->addEntry('source', $this->getSource());
 		}
+
+		$this->addEntryBool('local', $this->isLocal());
 
 		return $this->getEntries();
 	}

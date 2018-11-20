@@ -189,7 +189,7 @@ class Note extends ACore implements JsonSerializable {
 	public function convertPublished() {
 		$dTime = new DateTime($this->getPublished());
 		$dTime->format(ActivityService::DATE_FORMAT);
-		$this->publishedTime = $dTime->getTimestamp();
+		$this->setPublishedTime($dTime->getTimestamp());
 	}
 
 

@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
@@ -121,7 +122,7 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function newPost(array $data): DataResponse {
+	public function postCreate(array $data): DataResponse {
 		try {
 			$post = new Post($this->userId);
 			$post->setContent($this->get('content', $data, ''));
@@ -134,7 +135,38 @@ class LocalController extends Controller {
 
 			return $this->success($result);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * Create a new post.
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return DataResponse
+	 */
+	public function postDelete(string $id): DataResponse {
+		try {
+			$note = $this->noteService->getNoteById($id);
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+
+			if ($note->getAttributedTo() !== $actor->getId()) {
+				throw new InvalidResourceException('user have no rights');
+			}
+
+			$this->noteService->delete($note);
+
+			return $this->success();
+		} catch (Exception $e) {
+			return $this->fail($e);
 		}
 	}
 
@@ -159,7 +191,7 @@ class LocalController extends Controller {
 
 			return $this->success($posts);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -178,7 +210,7 @@ class LocalController extends Controller {
 
 			return $this->success($posts);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -201,7 +233,7 @@ class LocalController extends Controller {
 
 			return $this->success(['accounts' => $accounts]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -225,7 +257,7 @@ class LocalController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -249,7 +281,7 @@ class LocalController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -272,7 +304,7 @@ class LocalController extends Controller {
 
 			return $this->success(['actor' => $actor]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 

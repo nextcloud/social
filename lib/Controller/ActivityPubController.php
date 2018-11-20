@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\NotesRequest;
+use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityService;
@@ -131,7 +132,7 @@ class ActivityPubController extends Controller {
 
 			return $this->directSuccess($actor);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -178,7 +179,7 @@ class ActivityPubController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -214,7 +215,7 @@ class ActivityPubController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
@@ -271,7 +272,7 @@ class ActivityPubController extends Controller {
 
 			return $this->directSuccess($followers);
 		} catch (Exception $e) {
-			return $this->fail($e->getMessage());
+			return $this->fail($e);
 		}
 	}
 
