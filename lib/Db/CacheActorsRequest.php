@@ -31,7 +31,6 @@ namespace OCA\Social\Db;
 
 
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Cache\CacheActor;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -58,16 +57,14 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * insert cache about an Actor in database.
 	 *
 	 * @param Person $actor
-	 * @param bool $local
 	 *
 	 * @return int
 	 */
-	public function save(Person $actor, bool $local = false): int {
-
+	public function save(Person $actor): int {
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
-		   ->setValue('local', $qb->createNamedParameter(($local) ? '1' : '0'))
+		   ->setValue('local', $qb->createNamedParameter(($actor->isLocal()) ? '1' : '0'))
 		   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
 		   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
 		   ->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))
