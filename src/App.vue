@@ -106,13 +106,6 @@ export default {
 					}
 				},
 				{
-					id: 'social-friends',
-					classes: [],
-					href: '#',
-					icon: 'icon-category-social',
-					text: t('social', 'Friends')
-				},
-				{
 					id: 'social-favorites',
 					classes: [],
 					href: '#',
@@ -124,9 +117,6 @@ export default {
 					classes: [],
 					href: '#',
 					icon: 'icon-comment',
-					utils: {
-						counter: 3
-					},
 					text: t('social', 'Direct messages')
 				}
 			]
