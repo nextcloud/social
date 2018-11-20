@@ -33,13 +33,13 @@
 
 		<ul class="user-profile--sections">
 			<li>
-				<router-link to="./" class="icon-category-monitoring">{{ accountInfo.posts }} posts</router-link>
+				<router-link :to="{ name: 'profile', params: { account: $route.params.account }}" class="icon-category-monitoring">{{ accountInfo.posts }} posts</router-link>
 			</li>
 			<li>
-				<router-link to="./following" class="icon-category-social">{{ accountInfo.following }} following</router-link>
+				<router-link :to="{ name: 'following', params: { account: $route.params.account }}" class="icon-category-social">{{ accountInfo.following }} following</router-link>
 			</li>
 			<li>
-				<router-link to="./followers" class="icon-category-social">{{ accountInfo.followers }} followers</router-link>
+				<router-link :to="{ name: 'followers', params: { account: $route.params.account }}" class="icon-category-social">{{ accountInfo.followers }} followers</router-link>
 			</li>
 		</ul>
 	</div>
