@@ -290,6 +290,15 @@ export default {
 					text: 'Unlisted'
 				}
 			]
+		},
+		getCleanPost() {
+			let element = this.$refs.composerInput.cloneNode(true);
+			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
+				var em = document.createTextNode(emoji.getAttribute('alt'));
+				emoji.replaceWith(em);
+			});
+			console.log('Create new post: ' + element.innerText);
+			return element.innerText
 		}
 	},
 	methods: {
@@ -309,7 +318,7 @@ export default {
 		},
 		createPost(event) {
 			this.$store.dispatch('post', {
-				content: this.post,
+				content: this.getCleanPost,
 				type: this.type,
 			}).then((response) => {
 				this.post = ''
