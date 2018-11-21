@@ -28,15 +28,15 @@
 					</form>
 				</div>
 				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
-				<infinite-loading @infinite="infiniteHandler" ref="infiniteLoading">
-				<div slot="spinner"><div class="icon-loading"></div></div>
-				<div slot="no-more"><div class="list-end"></div></div>
-				<div slot="no-results">
-					<div id="emptycontent">
-						<div class="icon-social"></div>
-						<h2>{{t('social', 'No posts found.')}}</h2>
+				<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
+					<div slot="spinner"><div class="icon-loading" /></div>
+					<div slot="no-more"><div class="list-end" /></div>
+					<div slot="no-results">
+						<div id="emptycontent">
+							<div class="icon-social" />
+							<h2>{{ t('social', 'No posts found.') }}</h2>
+						</div>
 					</div>
-				</div>
 				</infinite-loading>
 			</div>
 		</div>
@@ -162,7 +162,11 @@ import TimelineEntry from './../components/TimelineEntry'
 export default {
 	name: 'Timeline',
 	components: {
-		PopoverMenu, AppNavigation, TimelineEntry, Multiselect, Avatar,
+		PopoverMenu,
+		AppNavigation,
+		TimelineEntry,
+		Multiselect,
+		Avatar,
 		InfiniteLoading
 	},
 	data: function() {
