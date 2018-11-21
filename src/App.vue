@@ -1,5 +1,5 @@
 <template>
-	<div class="app-social" v-if="!serverData.setup">
+	<div v-if="!serverData.setup" class="app-social">
 		<div v-if="!serverData.public" id="app-navigation">
 			<app-navigation :menu="menu" />
 		</div>
@@ -14,8 +14,9 @@
 			<form @submit.prevent="setCloudAddress">
 				<p>
 					<label class="hidden">{{ t('social', 'ActivityPub URL base') }}</label>
-					<input type="url" :placeholder="serverData.cliUrl" v-model="cloudAddress" required />
-					<input type="submit" :value="t('social', 'Finish setup')" class="primary" />
+					<input :placeholder="serverData.cliUrl" v-model="cloudAddress" type="url"
+						required>
+					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
 				</p>
 			</form>
 		</template>
@@ -64,7 +65,7 @@ export default {
 		return {
 			infoHidden: false,
 			state: [],
-			cloudAddress: '',
+			cloudAddress: ''
 		}
 	},
 	computed: {
@@ -147,10 +148,10 @@ export default {
 			this.infoHidden = true
 		},
 		setCloudAddress() {
-			axios.post(OC.generateUrl('apps/social/api/v1/config/cloudAddress'), {cloudAddress: this.cloudAddress}).then((response) => {
-				this.$store.commit('setServerDataEntry', 'setup', false);
-				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress);
-			});
+			axios.post(OC.generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
+				this.$store.commit('setServerDataEntry', 'setup', false)
+				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
+			})
 		}
 	}
 }

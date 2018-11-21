@@ -249,17 +249,18 @@ export default {
 			this.$store.dispatch('fetchTimeline', {
 				account: this.currentUser.uid
 			}).then((response) => {
-				if (response.status = -1) {
-					OC.Notification.showTemporary('Failed to load more timeline entries');
-					console.error('Failed to load more timeline entries', response);
-					$state.complete();
-					return;
+				if (response.status === -1) {
+					OC.Notification.showTemporary('Failed to load more timeline entries')
+					console.error('Failed to load more timeline entries', response)
+					$state.complete()
+					return
 				}
 				response.results.length > 0 ? $state.loaded() : $state.complete()
 			}).catch((error) => {
-
-			});
-		},
+				OC.Notification.showTemporary('Failed to load more timeline entries')
+				console.error('Failed to load more timeline entries', error)
+			})
+		}
 	}
 }
 </script>

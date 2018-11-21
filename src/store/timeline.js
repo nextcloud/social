@@ -51,10 +51,10 @@ const actions = {
 		const sinceTimestamp = Date.parse(state.since) / 1000
 		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
 			if (response.status === -1) {
-				throw response.message;
+				throw response.message
 			}
-			context.commit('addToTimeline', response.data.result);
-			return response.data;
+			context.commit('addToTimeline', response.data.result)
+			return response.data
 		})
 	}
 }
