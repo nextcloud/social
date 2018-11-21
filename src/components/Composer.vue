@@ -33,22 +33,8 @@
 			<vue-tribute :options="tributeOptions">
 				<div v-contenteditable contenteditable="true" ref="composerInput" class="message" placeholder="Share a thought…" @input="updateInput" v-model="post"></div>
 			</vue-tribute>
-			<input class="submit icon-confirm has-tooltip" type="submit" value=""
-				   title="" data-original-title="Post" :disabled="post.length < 1">
-			<div class="submitLoading icon-loading-small hidden" />
-		</form>
-
-		<div class="options">
-			<div>
-				<button :class="currentVisibilityIconClass" @click="togglePopoverMenu" />
-				<div class="popovermenu" :class="{open: menuOpened}">
-					<PopoverMenu :menu="visibilityPopover" />
-				</div>
-			</div>
-			<emoji-picker @emoji="insert" :search="search">
-				<div slot="emoji-invoker" slot-scope="{ events }" v-on="events">
-					<button class="emoji-invoker" type="button" v-tooltip="'Insert emoji'">😄</button>
-				</div>
+			<emoji-picker @emoji="insert" :search="search" class="emoji-picker-wrapper">
+				<div slot="emoji-invoker" slot-scope="{ events }" v-on="events" v-tooltip="'Insert emoji'" class="emoji-invoker"></div>
 				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
 					<div>
 						<div>
@@ -58,14 +44,24 @@
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
 								<h5>{{ category }}</h5>
 								<div>
-							<span class="emoji" v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" @click="insert(emoji)" :title="emojiName" v-html="$twemoji.parse(emoji)"></span>
+									<span class="emoji" v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" @click="insert(emoji)" :title="emojiName" v-html="$twemoji.parse(emoji)"></span>
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 			</emoji-picker>
-		</div>
+
+			<div class="options">
+				<input class="submit primary" type="submit" :value="t('social', 'Post')" title="" data-original-title="Post" :disabled="post.length < 1" />
+				<div>
+					<button :class="currentVisibilityIconClass" @click="togglePopoverMenu" />
+					<div class="popovermenu" :class="{open: menuOpened}">
+						<PopoverMenu :menu="visibilityPopover" />
+					</div>
+				</div>
+			</div>
+		</form>
 	</div>
 </template>
 <style scoped>
@@ -91,6 +87,7 @@
 	.message {
 		width: 100%;
 		padding-right: 44px;
+		min-height: 70px;
 	}
 
 	.author .social-id {
@@ -103,7 +100,7 @@
 		opacity: .5;
 	}
 
-	input[type=submit] {
+	input[type=submit].inline {
 		width: 44px;
 		height: 44px;
 		margin: 0;
@@ -132,7 +129,19 @@
 	}
 
 	.emoji-invoker {
-		text-indent: -3px;
+		background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OCIgaGVpZ2h0PSI2OCI+PHBhdGggZD0iTTM0IDBDMTUuMyAwIDAgMTUuMyAwIDM0czE1LjMgMzQgMzQgMzQgMzQtMTUuMyAzNC0zNFM1Mi43IDAgMzQgMHptMCA2NEMxNy41IDY0IDQgNTAuNSA0IDM0UzE3LjUgNCAzNCA0czMwIDEzLjUgMzAgMzAtMTMuNSAzMC0zMCAzMHoiLz48cGF0aCBkPSJNNDQuNiA0NC42Yy01LjggNS44LTE1LjQgNS44LTIxLjIgMC0uOC0uOC0yLS44LTIuOCAwLS44LjgtLjggMiAwIDIuOEMyNC4zIDUxLjEgMjkuMSA1MyAzNCA1M3M5LjctMS45IDEzLjQtNS42Yy44LS44LjgtMiAwLTIuOC0uOC0uOC0yLS44LTIuOCAweiIvPjxjaXJjbGUgcj0iNSIgY3k9IjI2IiBjeD0iMjQiLz48Y2lyY2xlIHI9IjUiIGN5PSIyNiIgY3g9IjQ0Ii8+PC9zdmc+);
+		background-position: center center;
+		background-repeat: no-repeat;
+		width: 38px;
+		opacity: 0.5;
+		background-size: 16px 16px;
+		height: 38px;
+		cursor: pointer;
+	}
+	.emoji-picker-wrapper {
+		position: absolute;
+		right: 0;
+		top: 22px;
 	}
 	.emoji-picker.popovermenu {
 		display: block;
@@ -164,6 +173,7 @@
 		height: auto;
 		max-height: 300px;
 		max-width: 500px;
+		min-width: 200px;
 		overflow: auto;
 		display: block;
 		z-index: 999999;
@@ -185,11 +195,24 @@
 		padding: 5px 10px;
 		cursor: pointer;
 		font-size: 14px;
+		display: flex;
+	}
+	.tribute-container li span {
+		display: block;
 	}
 	.tribute-container li.highlight,
 	.tribute-container li:hover {
 		background: var(--color-primary);
 		color: var(--color-primary-text);
+	}
+	.tribute-container li img {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		overflow: hidden;
+		margin-right: 10px;
+		margin-left: -3px;
+		margin-top: 3px;
 	}
 	.tribute-container li span {
 		font-weight: bold;
@@ -201,9 +224,12 @@
 		font-weight: bold;
 	}
 
-	.tribute-container .account {
+	.tribute-container .account,
+	.tribute-container li.highlight .account,
+	.tribute-container li:hover .account {
 		font-weight: normal;
 		color: var(--color-text-light);
+		opacity: 0.5;
 	}
 	.tribute-container li.highlight .account,
 	.tribute-container li:hover .account {
@@ -213,8 +239,19 @@
 	.message .mention {
 		color: var(--color-primary-element);
 		background-color: var(--color-background-dark);
-		padding: 1px;
-		border-radius: 3px;
+		border-radius: 5px;
+		padding-top: 1px;
+		padding-left: 2px;
+		padding-bottom: 1px;
+		padding-right: 5px;
+	}
+	.mention img {
+		width: 16px;
+		border-radius: 50%;
+		overflow: hidden;
+		margin-right: 3px;
+		vertical-align: middle;
+		margin-top: -1px;
 	}
 	img.emoji {
 		margin: 3px;
@@ -339,11 +376,14 @@ export default {
 					return item.key + item.value
 				},
 				menuItemTemplate: function (item) {
-					return item.original.key + '' + '<div class="account">' + item.original.value + '</div>'
+					return '<img src="' + item.original.avatar + '" /><div>'
+						+ '<span class="displayName">' +item.original.key + '</span>'
+						+ '<span class="account">' + item.original.value + '</span>'
+						+ '</div>';
 				},
 				selectTemplate: function (item) {
 					return '<span class="mention" contenteditable="false">' +
-						'<a href="' + item.original.url + '" target="_blank">@' + item.original.value + '</a></span>';
+						'<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>';
 				},
 				values: (text, cb) => {
 					this.remoteSearch(text).then((result) => {
@@ -354,6 +394,7 @@ export default {
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
+								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0', // TODO: use real avatar from server
 							})
 						}
 						for (var i in result.data.result.accounts) {
@@ -362,6 +403,7 @@ export default {
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
+								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0', // TODO: use real avatar from server
 							})
 						}
 						cb(users);
