@@ -1,5 +1,5 @@
 <template>
-	<div class="app-social">
+	<div class="app-social" v-if="!serverData.setup">
 		<div v-if="!serverData.public" id="app-navigation">
 			<app-navigation :menu="menu" />
 		</div>
@@ -7,11 +7,35 @@
 			<router-view :key="$route.fullPath" />
 		</div>
 	</div>
+	<div v-else class="setup">
+		<template v-if="serverData.isAdmin">
+			<h2>{{ t('social', 'Social app setup') }}</h2>
+			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Please configure a URL base. Note that this cannot be changed later without resetting the social app data.') }}</p>
+			<form @submit.prevent="setCloudAddress">
+				<p>
+					<label class="hidden">{{ t('social', 'ActivityPub URL base') }}</label>
+					<input type="url" :placeholder="serverData.cliUrl" v-model="cloudAddress" required />
+					<input type="submit" :value="t('social', 'Finish setup')" class="primary" />
+				</p>
+			</form>
+		</template>
+		<template v-else>
+			<p>{{ t('social', 'The social app requires to be setup by the server administrator.') }}</p>
+		</template>
+	</div>
 </template>
 
 <style scoped>
 	.app-social {
 		width: 100%;
+	}
+	.setup {
+		margin:	auto;
+		width: 700px;
+	}
+
+	.setup input[type=url] {
+		width: 300px;
 	}
 </style>
 
@@ -22,6 +46,7 @@ import {
 	Multiselect,
 	Avatar
 } from 'nextcloud-vue'
+import axios from 'nextcloud-axios'
 import TimelineEntry from './components/TimelineEntry'
 import ProfileInfo from './components/ProfileInfo'
 
@@ -38,7 +63,8 @@ export default {
 	data: function() {
 		return {
 			infoHidden: false,
-			state: []
+			state: [],
+			cloudAddress: '',
 		}
 	},
 	computed: {
@@ -119,6 +145,12 @@ export default {
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
+		},
+		setCloudAddress() {
+			axios.post(OC.generateUrl('apps/social/api/v1/config/cloudAddress'), {cloudAddress: this.cloudAddress}).then((response) => {
+				this.$store.commit('setServerDataEntry', 'setup', false);
+				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress);
+			});
 		}
 	}
 }

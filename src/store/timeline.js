@@ -49,8 +49,11 @@ const actions = {
 	fetchTimeline(context, account) {
 		const sinceTimestamp = Date.parse(state.since)/1000;
 		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
+			if (response.status === -1) {
+				throw response.message;
+			}
 			context.commit('addToTimeline', response.data.result);
-			return response.data.result;
+			return response.data;
 		})
 	}
 }

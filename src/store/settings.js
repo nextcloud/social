@@ -26,6 +26,9 @@ const state = {
 const mutations = {
 	setServerData(state, data) {
 		state.serverData = data
+	},
+	setServerDataEntry(state, key, value) {
+		state.serverData[key] = value;
 	}
 }
 const getters = {
