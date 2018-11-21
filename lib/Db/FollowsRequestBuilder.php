@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -82,7 +83,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('f.id', 'f.actor_id', 'f.object_id', 'f.creation')
+		$qb->select('f.id', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.creation')
 		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
@@ -114,6 +115,14 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$follow->setId($data['id'])
 			   ->setActorId($data['actor_id'])
 			   ->setObjectId($data['object_id']);
+		$follow->setFollowId($data['follow_id']);
+
+		try {
+			$actor = $this->parseCacheActorsLeftJoin($data);
+			$follow->setCompleteDetails(true);
+			$follow->setActor($actor);
+		} catch (InvalidResourceException $e) {
+		}
 
 		return $follow;
 	}

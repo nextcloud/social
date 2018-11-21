@@ -154,13 +154,24 @@ class CoreRequestBuilder {
 
 
 	/**
-	 * Limit the request to the ServiceId
+	 * Limit the request to the ActorId
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $actorId
 	 */
 	protected function limitToActorId(IQueryBuilder &$qb, string $actorId) {
 		$this->limitToDBField($qb, 'actor_id', $actorId);
+	}
+
+
+	/**
+	 * Limit the request to the FollowId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $followId
+	 */
+	protected function limitToFollowId(IQueryBuilder &$qb, string $followId) {
+		$this->limitToDBField($qb, 'follow_id', $followId);
 	}
 
 
