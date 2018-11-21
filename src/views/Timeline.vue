@@ -255,7 +255,7 @@ export default {
 					$state.complete()
 					return
 				}
-				response.results.length > 0 ? $state.loaded() : $state.complete()
+				response.result.length > 0 ? $state.loaded() : $state.complete()
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to load more timeline entries')
 				console.error('Failed to load more timeline entries', error)

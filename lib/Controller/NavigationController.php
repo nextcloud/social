@@ -137,7 +137,7 @@ class NavigationController extends Controller {
 					$this->configService->setCloudAddress($cloudAddress);
 				} else {
 					$data['serverData']['cliUrl'] = $this->config->getSystemValue('overwrite.cli.url', \OC::$server->getURLGenerator()->getBaseUrl());
-					return new TemplateResponse(Application::APP_NAME, 'setup', $data);
+					return new TemplateResponse(Application::APP_NAME, 'main', $data);
 				}
 			}
 		}
