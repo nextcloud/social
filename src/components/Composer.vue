@@ -386,13 +386,27 @@ export default {
 				}
 			]
 		},
-		getCleanPost() {
+		getPostData() {
 			let element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
 				var em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
-			return element.innerText
+			let to = []
+			const re = /@((\w+)(@[\w.]+)?)/g
+			let match = null
+			do {
+				match = re.exec(element.innerText)
+				if (match) {
+					to.push(match[1])
+				}
+			} while (match)
+
+			return {
+				content: element.innerText,
+				to: to,
+				type: this.type
+			}
 		}
 	},
 	methods: {
@@ -411,10 +425,7 @@ export default {
 			this.menuOpened = false
 		},
 		createPost(event) {
-			this.$store.dispatch('post', {
-				content: this.getCleanPost,
-				type: this.type
-			}).then((response) => {
+			this.$store.dispatch('post', this.getPostData).then((response) => {
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
 			})

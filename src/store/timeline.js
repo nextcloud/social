@@ -32,6 +32,10 @@ const mutations = {
 			state.since = data[item].published
 			state.timeline.push(data[item])
 		}
+	},
+	addPost(state, data) {
+		// FIXME: push data we receive to the timeline array
+		// state.timeline.push(data)
 	}
 }
 const getters = {
@@ -43,6 +47,9 @@ const actions = {
 	post(context, post) {
 		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
 			context.commit('addPost', { data: response.data })
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to create a post')
+			console.error('Failed to create a post', error)
 		})
 	},
 	fetchTimeline(context, account) {
