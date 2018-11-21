@@ -95,7 +95,7 @@ class LocalController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, string $userId, PersonService $personService,
+		IRequest $request, $userId, PersonService $personService,
 		FollowService $followService, ActorService $actorService,
 		PostService $postService, NoteService $noteService,
 		MiscService $miscService

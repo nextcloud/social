@@ -48,7 +48,7 @@ export default new Router({
 			name: 'timeline'
 		},
 		{
-			path: '/:index(index.php/)?apps/social/account/:account',
+			path: '/:index(index.php/)?apps/social/account/@:account',
 			components: {
 				default: Profile
 			},
@@ -78,7 +78,7 @@ export default new Router({
 			]
 		},
 		{
-			path: '/:index(index.php/)?apps/social/:account',
+			path: '/:index(index.php/)?apps/social/@:account',
 			component: Profile,
 			props: true,
 			name: 'public'
