@@ -83,6 +83,10 @@ class InstanceService {
 
 		list($username, $host) = explode('@', $account);
 
+		if ($username === null || $host === null) {
+			return;
+		}
+
 		$request = new Request('/.well-known/webfinger');
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);

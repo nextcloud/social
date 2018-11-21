@@ -21,34 +21,47 @@
  */
 
 import axios from 'nextcloud-axios'
+import Vue from 'vue'
 
 const state = {
-	timeline: [],
+	timeline: {},
 	since: new Date()
 }
 const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
 			state.since = data[item].published
-			state.timeline.push(data[item])
+			Vue.set(state.timeline, data[item].id, data[item])
 		}
+	},
+	addPost(state, data) {
+		// FIXME: push data we receive to the timeline array
+		// state.timeline.push(data)
 	}
 }
 const getters = {
 	getTimeline(state) {
-		return state.timeline
+		return Object.values(state.timeline).sort(function(a, b) {
+			return b.publishedTime - a.publishedTime
+		})
 	}
 }
 const actions = {
 	post(context, post) {
-		axios.post(OC.generateUrl('apps/social/api/v1/post')).then((response) => {
-			// FIXME: post composition is done in #18
-			let uid = ''
-			context.commit('addPost', { uid: uid, data: response.data })
+		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
+			context.commit('addPost', { data: response.data })
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to create a post')
+			console.error('Failed to create a post', error)
 		})
 	},
-	fetchTimeline(context, account) {
-		const sinceTimestamp = Date.parse(state.since) / 1000
+	refreshTimeline(context, account) {
+		return this.dispatch('fetchTimeline', { account: account, sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
+	},
+	fetchTimeline(context, { account, sinceTimestamp }) {
+		if (typeof sinceTimestamp === 'undefined') {
+			sinceTimestamp = Date.parse(state.since) / 1000
+		}
 		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
 			if (response.status === -1) {
 				throw response.message

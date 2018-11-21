@@ -27,6 +27,8 @@ import { sync } from 'vuex-router-sync'
 import App from './App'
 import store from './store'
 import router from './router'
+import vuetwemoji from 'vue-twemoji'
+import contenteditableDirective from 'vue-contenteditable-directive'
 
 sync(store, router)
 
@@ -43,6 +45,14 @@ Vue.prototype.t = t
 Vue.prototype.n = n
 Vue.prototype.OC = OC
 Vue.prototype.OCA = OCA
+
+Vue.use(contenteditableDirective)
+Vue.use(vuetwemoji, {
+	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/
+	extension: '.svg', // .svg, .png
+	className: 'emoji', // custom className for image output
+	size: 'twemoji' // image size
+})
 
 /* eslint-disable-next-line no-new */
 new Vue({
