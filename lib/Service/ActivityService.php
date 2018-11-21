@@ -131,7 +131,6 @@ class ActivityService {
 	/**
 	 * @param Person $actor
 	 * @param ACore $item
-	 * @param int $type
 	 * @param ACore $activity
 	 *
 	 * @return array
@@ -149,7 +148,7 @@ class ActivityService {
 
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
-		$activity->addInstancePaths($item->getInstancePaths());
+		$activity->setInstancePaths($item->getInstancePaths());
 
 //		if ($item->getToArray() !== []) {
 //			$activity->setToArray($item->getToArray());

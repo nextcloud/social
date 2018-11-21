@@ -158,7 +158,6 @@ class LocalController extends Controller {
 		try {
 			$note = $this->noteService->getNoteById($id);
 			$actor = $this->actorService->getActorFromUserId($this->userId);
-
 			if ($note->getAttributedTo() !== $actor->getId()) {
 				throw new InvalidResourceException('user have no rights');
 			}

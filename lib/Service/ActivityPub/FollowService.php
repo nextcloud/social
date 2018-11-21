@@ -110,7 +110,6 @@ class FollowService implements ICoreService {
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 		} catch (FollowDoesNotExistException $e) {
-			$this->miscService->log('CREATE NEW ONE !');
 			$this->followsRequest->save($follow);
 
 			$follow->addInstancePath(

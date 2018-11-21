@@ -269,17 +269,18 @@ class NoteService implements ICoreService {
 
 	/**
 	 * @param Note $note
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
 	 */
 	public function deleteLocalNote(Note $note) {
 		if (!$note->isLocal()) {
 			return;
 		}
 
-//		$this->notesRequest->deleteNoteById($note->getId());
-
-//		$this->miscService->log('___' . json_encode($note->getInstancePaths()));
+		$note->setActorId($note->getAttributedTo());
 		$this->activityService->deleteActivity($note);
-//		$this->deleteService->deleteItem($note);
 	}
 
 
