@@ -28,13 +28,13 @@
 		<form class="new-post-form" @submit.prevent="createPost">
 			<div class="author currentUser">
 				{{ currentUser.displayName }}
+
 				<span class="social-id">{{ socialId }}</span>
 			</div>
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
-				<div v-contenteditable ref="composerInput" v-model="post"
-					contenteditable="true" class="message" placeholder="Share a thought…"
-					@input="updateInput" />
+				<div v-contenteditable:post.dangerousHTML="canType" ref="composerInput" class="message"
+					placeholder="Share a thought…" @keyup.enter="keyup" />
 			</vue-tribute>
 			<emoji-picker :search="search" class="emoji-picker-wrapper" @emoji="insert">
 				<div v-tooltip="'Insert emoji'" slot="emoji-invoker" slot-scope="{ events }"
@@ -269,7 +269,6 @@ import { Avatar, PopoverMenu } from 'nextcloud-vue'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
 import { VTooltip } from 'v-tooltip'
-import contenteditableDirective from 'vue-contenteditable-directive'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import axios from 'nextcloud-axios'
 
@@ -282,8 +281,7 @@ export default {
 		VueTribute
 	},
 	directives: {
-		tooltip: VTooltip,
-		contenteditable: contenteditableDirective
+		tooltip: VTooltip
 	},
 	mixins: [CurrentUserMixin],
 	props: {
@@ -293,6 +291,7 @@ export default {
 		return {
 			type: 'public',
 			post: '',
+			canType: true,
 			search: '',
 			tributeOptions: {
 				lookup: function(item) {
@@ -385,6 +384,19 @@ export default {
 					longtext: t('social', 'Do not post to public timelines')
 				}
 			]
+		}
+	},
+	methods: {
+		insert(emoji) {
+			this.post += this.$twemoji.parse(emoji)
+			this.$refs.composerInput.innerHTML = this.post
+		},
+		togglePopoverMenu() {
+			this.menuOpened = !this.menuOpened
+		},
+		switchType(type) {
+			this.type = type
+			this.menuOpened = false
 		},
 		getPostData() {
 			let element = this.$refs.composerInput.cloneNode(true)
@@ -401,33 +413,25 @@ export default {
 					to.push(match[1])
 				}
 			} while (match)
-
+			let content = element.innerText.trim()
 			return {
-				content: element.innerText,
+				content: content,
 				to: to,
 				type: this.type
 			}
-		}
-	},
-	methods: {
-		insert(emoji) {
-			this.post += this.$twemoji.parse(emoji)
-			this.$refs.composerInput.innerHTML = this.post
 		},
-		updateInput(event) {
-			this.post = this.$refs.composerInput.innerHTML
-		},
-		togglePopoverMenu() {
-			this.menuOpened = !this.menuOpened
-		},
-		switchType(type) {
-			this.type = type
-			this.menuOpened = false
+		keyup(event) {
+			if (event.shiftKey) {
+				this.createPost(event)
+			}
 		},
 		createPost(event) {
-			this.$store.dispatch('post', this.getPostData).then((response) => {
+			this.$store.dispatch('post', this.getPostData()).then((response) => {
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
+				this.$store.dispatch('refreshTimeline', {
+					account: this.currentUser.uid
+				})
 			})
 		},
 		remoteSearch(text) {
