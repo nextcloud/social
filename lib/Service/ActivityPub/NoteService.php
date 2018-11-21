@@ -61,6 +61,9 @@ class NoteService implements ICoreService {
 	/** @var NotesRequest */
 	private $notesRequest;
 
+	/** @var ActivityService */
+	private $activityService;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -81,6 +84,7 @@ class NoteService implements ICoreService {
 	 * NoteService constructor.
 	 *
 	 * @param NotesRequest $notesRequest
+	 * @param ActivityService $activityService
 	 * @param ActorService $actorService
 	 * @param PersonService $personService
 	 * @param CurlService $curlService
@@ -88,10 +92,13 @@ class NoteService implements ICoreService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, ActorService $actorService, PersonService $personService,
-		CurlService $curlService, ConfigService $configService, MiscService $miscService
+		NotesRequest $notesRequest, ActivityService $activityService, ActorService $actorService,
+		PersonService $personService,
+		CurlService $curlService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
+		$this->activityService = $activityService;
 		$this->actorService = $actorService;
 		$this->personService = $personService;
 		$this->curlService = $curlService;
@@ -141,11 +148,17 @@ class NoteService implements ICoreService {
 		switch ($type) {
 			case self::TYPE_UNLISTED:
 				$note->setTo($actor->getFollowers());
+				$note->addInstancePath(
+					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS)
+				);
 				$note->addCc(ActivityService::TO_PUBLIC);
 				break;
 
 			case self::TYPE_FOLLOWERS:
 				$note->setTo($actor->getFollowers());
+				$note->addInstancePath(
+					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS)
+				);
 				break;
 
 			case self::TYPE_DIRECT:
@@ -154,9 +167,10 @@ class NoteService implements ICoreService {
 			default:
 				$note->setTo(ActivityService::TO_PUBLIC);
 				$note->addCc($actor->getFollowers());
+				$note->addInstancePath(
+					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS)
+				);
 				break;
-
-
 		}
 	}
 
@@ -188,7 +202,7 @@ class NoteService implements ICoreService {
 			]
 		);
 
-		$note->addInstancePath(new InstancePath($actor->getInbox()));
+		$note->addInstancePath(new InstancePath($actor->getInbox(), InstancePath::TYPE_INBOX));
 	}
 
 
@@ -251,6 +265,35 @@ class NoteService implements ICoreService {
 			}
 		}
 	}
+
+
+	/**
+	 * @param Note $note
+	 */
+	public function deleteLocalNote(Note $note) {
+		if (!$note->isLocal()) {
+			return;
+		}
+
+//		$this->notesRequest->deleteNoteById($note->getId());
+
+//		$this->miscService->log('___' . json_encode($note->getInstancePaths()));
+		$this->activityService->deleteActivity($note);
+//		$this->deleteService->deleteItem($note);
+	}
+
+
+//	/**
+//	 * @param Note $note
+//	 */
+//	private function assignInstances(Note $note) {
+//		$note->addInstancePath(new InstancePath($note->getTo()));
+//		$all = array_merge($note->getToArray(), $note->getCcArray(), $note->getBccArray());
+//		foreach ($all as $uri) {
+//			$note->addInstancePath(new InstancePath($uri));
+//		}
+//		$note->addInstancePath(new InstancePath($note->getInReplyTo()));
+//	}
 
 
 	/**

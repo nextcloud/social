@@ -94,9 +94,7 @@ class PostService {
 
 		$actor = $this->actorService->getActorFromUserId($post->getUserId());
 
-		return $this->activityService->createActivity(
-			$actor, $note, ActivityService::REQUEST_INBOX, $activity
-		);
+		return $this->activityService->createActivity($actor, $note, $activity);
 	}
 
 

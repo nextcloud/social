@@ -36,6 +36,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -44,6 +45,8 @@ use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Tombstone;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -71,6 +74,9 @@ class ActivityService {
 	/** @var NotesRequest */
 	private $notesRequest;
 
+	/** @var FollowsRequest */
+	private $followsRequest;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -95,6 +101,7 @@ class ActivityService {
 	 *
 	 * @param ActorsRequest $actorsRequest
 	 * @param NotesRequest $notesRequest
+	 * @param FollowsRequest $followsRequest
 	 * @param CurlService $curlService
 	 * @param ActorService $actorService
 	 * @param PersonService $personService
@@ -103,8 +110,8 @@ class ActivityService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest, NotesRequest $notesRequest, CurlService $curlService,
-		ActorService $actorService,
+		ActorsRequest $actorsRequest, NotesRequest $notesRequest, FollowsRequest $followsRequest,
+		CurlService $curlService, ActorService $actorService,
 		PersonService $personService, InstanceService $instanceService,
 		ConfigService $configService,
 		MiscService $miscService
@@ -112,6 +119,7 @@ class ActivityService {
 		$this->curlService = $curlService;
 		$this->actorsRequest = $actorsRequest;
 		$this->notesRequest = $notesRequest;
+		$this->followsRequest = $followsRequest;
 		$this->actorService = $actorService;
 		$this->personService = $personService;
 		$this->instanceService = $instanceService;
@@ -131,7 +139,7 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 * @throws ActorDoesNotExistException
 	 */
-	public function createActivity(Person $actor, ACore $item, int $type, ACore &$activity = null
+	public function createActivity(Person $actor, ACore $item, ACore &$activity = null
 	): array {
 
 		$activity = new Create();
@@ -151,9 +159,31 @@ class ActivityService {
 
 		$activity->setActor($actor);
 
-		$result = $this->request($activity, $type);
+		$result = $this->request($activity);
 
 		return $result;
+	}
+
+
+	/**
+	 * @param ACore $item
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 */
+	public function deleteActivity(ACore $item) {
+		$delete = new Delete();
+		$delete->setId($item->getId() . '#delete');
+		$delete->setActorId($item->getActorId());
+
+		$tombstone = new Tombstone($delete);
+		$tombstone->setId($item->getId());
+
+		$delete->setObject($tombstone);
+		$delete->addInstancePaths($item->getInstancePaths());
+
+		$this->request($delete);
 	}
 
 
@@ -174,7 +204,7 @@ class ActivityService {
 
 		foreach ($requests as $request) {
 			try {
-				$toDelete = $request->getFromId($id);
+				$toDelete = $request->getNoteById($id);
 
 				return $toDelete;
 			} catch (Exception $e) {
@@ -187,14 +217,13 @@ class ActivityService {
 
 	/**
 	 * @param ACore $activity
-	 * @param int $type
 	 *
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws ActorDoesNotExistException
 	 */
-	public function manageRequest(ACore $activity, int $type) {
-		$result = $this->request($activity, $type);
+	public function manageRequest(ACore $activity) {
+		$result = $this->request($activity);
 		$this->miscService->log('Activity: ' . json_encode($activity));
 		$this->miscService->log('Result: ' . json_encode($result));
 	}
@@ -203,22 +232,63 @@ class ActivityService {
 	/**
 	 * @param ACore $activity
 	 *
-	 * @param int $type
 	 *
 	 * @return array
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws ActorDoesNotExistException
 	 */
-	public function request(ACore &$activity, int $type) {
+	public function request(ACore &$activity) {
 		$this->setupCore($activity);
-		$hosts = $this->instanceService->getInstancesFromActivity($activity);
+//		$hosts = $this->instanceService->getInstancesFromActivity($activity);
 
 		$result = [];
-		foreach ($hosts as $host) {
-			foreach ($host->getInstancePaths() as $path) {
-				$result[] = $this->generateRequest($host->getAddress(), $path, $type, $activity);
+//		foreach ($hosts as $host) {
+//			foreach ($host->getInstancePaths() as $path) {
+		foreach ($activity->getInstancePaths() as $instancePath) {
+			if ($instancePath->getType() === InstancePath::TYPE_FOLLOWERS) {
+				$result = array_merge($result, $this->requestToFollowers($activity, $instancePath));
+			} else {
+				$result[] = $this->generateRequest($instancePath, $activity);
 			}
+		}
+
+//		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @param ACore $activity
+	 * @param InstancePath $instancePath
+	 *
+	 * @return array
+	 * @throws ActorDoesNotExistException
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 */
+	private function requestToFollowers(ACore &$activity, InstancePath $instancePath): array {
+		$result = [];
+
+		$sharedInboxes = [];
+		$follows = $this->followsRequest->getByFollowId($instancePath->getUri());
+		foreach ($follows as $follow) {
+			if (!$follow->gotActor()) {
+				// TODO - check if cache can be empty at this point ?
+				continue;
+			}
+
+			$sharedInbox = $follow->getActor()
+								  ->getSharedInbox();
+			if (in_array($sharedInbox, $sharedInboxes)) {
+				continue;
+			}
+
+			$sharedInboxes[] = $sharedInbox;
+			$result[] = $this->generateRequest(
+				new InstancePath($sharedInbox, InstancePath::TYPE_GLOBAL), $activity
+			);
 		}
 
 		return $result;
@@ -226,25 +296,22 @@ class ActivityService {
 
 
 	/**
-	 * @param string $address
 	 * @param InstancePath $path
-	 * @param int $type
 	 * @param ACore $activity
 	 *
 	 * @return Request[]
+	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
 	 */
-	public function generateRequest(string $address, InstancePath $path, int $type, ACore $activity
-	): array {
+	public function generateRequest(InstancePath $path, ACore $activity): array {
 		$document = json_encode($activity);
 		$date = gmdate(self::DATE_FORMAT);
 		$localActor = $this->getActorFromItem($activity);
 
 		$localActorLink =
 			$this->configService->getUrlRoot() . '@' . $localActor->getPreferredUsername();
-		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $address
+		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $path->getAddress()
 					 . "\ndate: " . $date;
 
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
@@ -255,18 +322,19 @@ class ActivityService {
 			. $signed . '"';
 
 		$requestType = Request::TYPE_GET;
-		if ($type === self::REQUEST_INBOX) {
+		if ($path->getType() === InstancePath::TYPE_INBOX
+			|| $path->getType() === InstancePath::TYPE_GLOBAL
+			|| $path->getType() === InstancePath::TYPE_FOLLOWERS) {
 			$requestType = Request::TYPE_POST;
 		}
 
-
 		$request = new Request($path->getPath(), $requestType);
-		$request->addHeader('Host: ' . $address);
+		$request->addHeader('Host: ' . $path->getAddress());
 		$request->addHeader('Date: ' . $date);
 		$request->addHeader('Signature: ' . $header);
 
 		$request->setDataJson($document);
-		$request->setAddress($address);
+		$request->setAddress($path->getAddress());
 
 		return $this->curlService->request($request);
 	}
@@ -317,6 +385,7 @@ class ActivityService {
 	 * @throws RequestException
 	 * @throws SignatureException
 	 * @throws MalformedArrayException
+	 * @throws Exception
 	 */
 	private function checkSignature(IRequest $request) {
 		$signatureHeader = $request->getHeader('Signature');

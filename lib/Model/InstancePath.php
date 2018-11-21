@@ -44,13 +44,28 @@ class InstancePath implements JsonSerializable {
 
 	use TArrayTools;
 
+	const TYPE_PUBLIC = 0;
+	const TYPE_INBOX = 1;
+	const TYPE_GLOBAL = 2;
+	const TYPE_FOLLOWERS = 3;
+
 
 	/** @var string */
 	private $uri = '';
 
+	/** @var int */
+	private $type = 0;
 
-	public function __construct(string $uri) {
+
+	/**
+	 * InstancePath constructor.
+	 *
+	 * @param string $uri
+	 * @param int $type
+	 */
+	public function __construct(string $uri = '', int $type = 0) {
 		$this->uri = $uri;
+		$this->type = $type;
 	}
 
 
@@ -63,6 +78,24 @@ class InstancePath implements JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getType(): int {
+		return $this->type;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getAddress(): string {
+		$info = parse_url($this->uri);
+
+		return $this->get('host', $info, '');
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getPath(): string {
@@ -71,12 +104,20 @@ class InstancePath implements JsonSerializable {
 		return $this->get('path', $info, '');
 	}
 
+
+	public function import(array $data) {
+
+
+	}
+
+
 	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'uri' => $this->getUri()
+			'uri'  => $this->getUri(),
+			'type' => $this->getType()
 		];
 	}
 
