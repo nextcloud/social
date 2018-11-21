@@ -21,16 +21,17 @@
  */
 
 import axios from 'nextcloud-axios'
+import Vue from 'vue'
 
 const state = {
-	timeline: [],
+	timeline: {},
 	since: new Date()
 }
 const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
 			state.since = data[item].published
-			state.timeline.push(data[item])
+			Vue.set(state.timeline, data[item].id, data[item])
 		}
 	},
 	addPost(state, data) {
@@ -40,7 +41,9 @@ const mutations = {
 }
 const getters = {
 	getTimeline(state) {
-		return state.timeline
+		return Object.values(state.timeline).sort(function(a, b) {
+			return b.publishedTime - a.publishedTime
+		})
 	}
 }
 const actions = {
@@ -52,8 +55,13 @@ const actions = {
 			console.error('Failed to create a post', error)
 		})
 	},
-	fetchTimeline(context, account) {
-		const sinceTimestamp = Date.parse(state.since) / 1000
+	refreshTimeline(context, account) {
+		return this.dispatch('fetchTimeline', { account: account, sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
+	},
+	fetchTimeline(context, { account, sinceTimestamp }) {
+		if (typeof sinceTimestamp === 'undefined') {
+			sinceTimestamp = Date.parse(state.since) / 1000
+		}
 		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
 			if (response.status === -1) {
 				throw response.message
