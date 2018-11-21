@@ -94,6 +94,11 @@ class NotesRequest extends NotesRequestBuilder {
 		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue(
+			   'instances', $qb->createNamedParameter(
+			   json_encode($note->getInstancePaths(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
 		   ->setValue('local', $qb->createNamedParameter(($note->isLocal()) ? '1' : '0'))
 		   ->setValue(
 			   'creation',

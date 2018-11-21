@@ -45,6 +45,10 @@ class Follow extends ACore implements JsonSerializable {
 	const TYPE = 'Follow';
 
 
+	/** @var string */
+	private $followId = '';
+
+
 	/**
 	 * Follow constructor.
 	 *
@@ -54,6 +58,25 @@ class Follow extends ACore implements JsonSerializable {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getFollowId(): string {
+		return $this->followId;
+	}
+
+	/**
+	 * @param string $followId
+	 *
+	 * @return Follow
+	 */
+	public function setFollowId(string $followId): Follow {
+		$this->followId = $followId;
+
+		return $this;
 	}
 
 

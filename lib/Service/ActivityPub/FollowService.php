@@ -33,6 +33,7 @@ namespace OCA\Social\Service\ActivityPub;
 
 use Exception;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -97,6 +98,7 @@ class FollowService implements ICoreService {
 	 *
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->personService->getFromAccount($account);
@@ -108,11 +110,12 @@ class FollowService implements ICoreService {
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 		} catch (FollowDoesNotExistException $e) {
-			$this->miscService->log('CREATE NEW ONE !');
 			$this->followsRequest->save($follow);
 
-			$follow->addInstancePath(new InstancePath($remoteActor->getInbox()));
-			$this->activityService->manageRequest($follow, ActivityService::REQUEST_INBOX);
+			$follow->addInstancePath(
+				new InstancePath($remoteActor->getInbox(), InstancePath::TYPE_INBOX)
+			);
+			$this->activityService->manageRequest($follow);
 		}
 	}
 
@@ -157,15 +160,18 @@ class FollowService implements ICoreService {
 			$remoteActor = $this->personService->getFromId($follow->getActorId());
 
 			$accept = new Accept();
-			$accept->setId($follow->getObjectId() . '#accepts/follows/1234');
+			// TODO: improve the generation of the Id
+			$accept->setId($follow->getObjectId() . '#accepts/follows/' . rand(1000, 100000000));
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
 
-			$accept->addInstancePath(new InstancePath($remoteActor->getInbox()));
+			$accept->addInstancePath(
+				new InstancePath($remoteActor->getInbox(), InstancePath::TYPE_INBOX)
+			);
 
 			$follow->setParent($accept);
 
-			$this->activityService->manageRequest($accept, ActivityService::REQUEST_INBOX);
+			$this->activityService->manageRequest($accept);
 			$this->followsRequest->accepted($follow);
 		} catch (Exception $e) {
 		}
@@ -186,8 +192,12 @@ class FollowService implements ICoreService {
 			try {
 				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
 			} catch (FollowDoesNotExistException $e) {
-				$this->followsRequest->save($follow);
-				$this->confirmFollowRequest($follow);
+				$actor = $this->personService->getFromId($follow->getObjectId());
+				if ($actor->isLocal()) {
+					$follow->setFollowId($actor->getFollowers());
+					$this->followsRequest->save($follow);
+					$this->confirmFollowRequest($follow);
+				}
 			}
 		} else {
 			$parent = $follow->getParent();

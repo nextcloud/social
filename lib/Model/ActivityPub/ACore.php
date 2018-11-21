@@ -234,7 +234,9 @@ abstract class ACore implements JsonSerializable {
 	 * @return ACore
 	 */
 	public function addInstancePath(InstancePath $instancePath): ACore {
-		$this->instancePaths[] = $instancePath;
+		if ($instancePath->getUri() !== '') {
+			$this->instancePaths[] = $instancePath;
+		}
 
 		return $this;
 	}

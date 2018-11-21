@@ -116,7 +116,6 @@ class ImportService {
 	 */
 	private function createItem(array $data, $root = null): ACore {
 
-//		$isTopLevel = ($root === null);
 		switch ($this->get('type', $data)) {
 			case Create::TYPE:
 				$item = new Create($root);

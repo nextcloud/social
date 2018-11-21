@@ -44,6 +44,7 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -158,12 +159,11 @@ class LocalController extends Controller {
 		try {
 			$note = $this->noteService->getNoteById($id);
 			$actor = $this->actorService->getActorFromUserId($this->userId);
-
 			if ($note->getAttributedTo() !== $actor->getId()) {
 				throw new InvalidResourceException('user have no rights');
 			}
 
-			$this->noteService->delete($note);
+			$this->noteService->deleteLocalNote($note);
 
 			return $this->success();
 		} catch (Exception $e) {
@@ -184,9 +184,6 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function timeline($since = 0, $limit = 5): DataResponse {
-
-//		$this->miscService->log('timeline: ' . json_encode($data));
-
 		try {
 			$posts = $this->noteService->getTimeline((int)$since, (int)$limit);
 

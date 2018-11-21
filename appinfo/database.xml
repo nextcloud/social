@@ -92,6 +92,13 @@
 			</field>
 
 			<field>
+				<name>follow_id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>accepted</name>
 				<type>boolean</type>
 				<default>false</default>
@@ -222,6 +229,13 @@
 
 			<field>
 				<name>source</name>
+				<type>text</type>
+				<length>3000</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>instances</name>
 				<type>text</type>
 				<length>3000</length>
 				<notnull>true</notnull>

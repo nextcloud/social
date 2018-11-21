@@ -82,6 +82,7 @@ class CurlService {
 		}
 
 		$ret['_address'] = $request->getAddress();
+		$ret['_path'] = $request->getUrl();
 		$ret['_code'] = $code;
 
 		return $ret;

@@ -52,7 +52,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
-		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()));
+		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
+		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()));
 
 		$qb->execute();
 	}
@@ -92,6 +93,27 @@ class FollowsRequest extends FollowsRequestBuilder {
 		}
 
 		return $this->parseFollowsSelectSql($data);
+	}
+
+
+	/**
+	 * @param string $followId
+	 *
+	 * @return Follow[]
+	 */
+	public function getByFollowId(string $followId): array {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToFollowId($qb, $followId);
+		$this->leftJoinCacheActors($qb, 'actor_id');
+
+		$follows = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$follows[] = $this->parseFollowsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $follows;
 	}
 
 
