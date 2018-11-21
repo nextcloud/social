@@ -10,7 +10,7 @@
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
-					<a :href="item.actor_info.url" v-else>
+					<a v-else :href="item.actor_info.url">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</a>
@@ -25,7 +25,7 @@
 
 <script>
 import { Avatar } from 'nextcloud-vue'
-import linkifyStr from 'linkifyjs/string';
+import 'linkifyjs/string'
 
 export default {
 	name: 'TimelineEntry',
