@@ -1,0 +1,31 @@
+clone:
+  git:
+    image: plugins/git
+    depth: 1
+
+pipeline:
+  eslint:
+    image: nextcloudci/jsunit:jsunit-5
+    commands:
+      - npm install
+      - npm run lint
+    when:
+      matrix:
+        TESTS: eslint
+
+  vue-build:
+    image: nextcloudci/jsunit:jsunit-5
+    commands:
+      - npm install
+      - npm run build
+    when:
+      matrix:
+        TESTS:vue-build 
+
+matrix:
+  include:
+    - TESTS: eslint
+    - TESTS: vue-build
+
+
+branches: [ master, stable* ]
