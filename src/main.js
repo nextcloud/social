@@ -46,10 +46,10 @@ Vue.prototype.OC = OC
 Vue.prototype.OCA = OCA
 
 Vue.use(vuetwemoji, {
-	baseUrl: OC.linkTo('social', 'img/'), //can set to local folder of emojis. default: https://twemoji.maxcdn.com/
-	extension: '.svg', //.svg, .png
-	className: 'emoji', //custom className for image output
-	size: 'twemoji' //image size
+	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/
+	extension: '.svg', // .svg, .png
+	className: 'emoji', // custom className for image output
+	size: 'twemoji' // image size
 })
 
 /* eslint-disable-next-line no-new */

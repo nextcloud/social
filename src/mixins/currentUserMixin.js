@@ -27,6 +27,6 @@ export default {
 		},
 		socialId: function() {
 			return '@' + OC.getCurrentUser().uid + '@' + OC.getHost()
-		},
+		}
 	}
-};
+}

@@ -25,26 +25,31 @@
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :size="32" />
 		</div>
-		<form class="new-post-form" v-on:submit.prevent="createPost">
+		<form class="new-post-form" @submit.prevent="createPost">
 			<div class="author currentUser">
 				{{ currentUser.displayName }}
 				<span class="social-id">{{ socialId }}</span>
 			</div>
 			<vue-tribute :options="tributeOptions">
-				<div v-contenteditable contenteditable="true" ref="composerInput" class="message" placeholder="Share a thought…" @input="updateInput" v-model="post"></div>
+				<!-- eslint-disable-next-line vue/valid-v-model -->
+				<div v-contenteditable ref="composerInput" v-model="post"
+					contenteditable="true" class="message" placeholder="Share a thought…"
+					@input="updateInput" />
 			</vue-tribute>
-			<emoji-picker @emoji="insert" :search="search" class="emoji-picker-wrapper">
-				<div slot="emoji-invoker" slot-scope="{ events }" v-on="events" v-tooltip="'Insert emoji'" class="emoji-invoker"></div>
+			<emoji-picker :search="search" class="emoji-picker-wrapper" @emoji="insert">
+				<div v-tooltip="'Insert emoji'" slot="emoji-invoker" slot-scope="{ events }"
+					class="emoji-invoker" v-on="events" />
 				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
 					<div>
 						<div>
-							<input type="text" v-model="search">
+							<input v-model="search" type="text">
 						</div>
 						<div>
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
 								<h5>{{ category }}</h5>
 								<div>
-									<span class="emoji" v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" @click="insert(emoji)" :title="emojiName" v-html="$twemoji.parse(emoji)"></span>
+									<span v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" :title="emojiName"
+										class="emoji" @click="insert(emoji)" v-html="$twemoji.parse(emoji)" />
 								</div>
 							</div>
 						</div>
@@ -53,10 +58,11 @@
 			</emoji-picker>
 
 			<div class="options">
-				<input class="submit primary" type="submit" :value="t('social', 'Post')" title="" data-original-title="Post" :disabled="post.length < 1" />
+				<input :value="t('social', 'Post')" :disabled="post.length < 1" class="submit primary"
+					type="submit" title="" data-original-title="Post">
 				<div>
 					<button :class="currentVisibilityIconClass" @click="togglePopoverMenu" />
-					<div class="popovermenu" :class="{open: menuOpened}">
+					<div :class="{open: menuOpened}" class="popovermenu">
 						<PopoverMenu :menu="visibilityPopover" />
 					</div>
 				</div>
@@ -163,9 +169,7 @@
 	}
 </style>
 <style>
-	/* Tribute-specific styles
-	 * TODO: properly scope component css
-	 */
+	/* Tribute-specific styles TODO: properly scope component css */
 	.tribute-container {
 		position: absolute;
 		top: 0;
@@ -273,7 +277,9 @@ export default {
 	name: 'Composer',
 	components: {
 		PopoverMenu,
-		Avatar, EmojiPicker, VueTribute
+		Avatar,
+		EmojiPicker,
+		VueTribute
 	},
 	directives: {
 		tooltip: VTooltip,
@@ -282,6 +288,54 @@ export default {
 	mixins: [CurrentUserMixin],
 	props: {
 
+	},
+	data() {
+		return {
+			type: 'public',
+			post: '',
+			search: '',
+			tributeOptions: {
+				lookup: function(item) {
+					return item.key + item.value
+				},
+				menuItemTemplate: function(item) {
+					return '<img src="' + item.original.avatar + '" /><div>'
+						+ '<span class="displayName">' + item.original.key + '</span>'
+						+ '<span class="account">' + item.original.value + '</span>'
+						+ '</div>'
+				},
+				selectTemplate: function(item) {
+					return '<span class="mention" contenteditable="false">'
+						+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
+				},
+				values: (text, cb) => {
+					this.remoteSearch(text).then((result) => {
+						let users = []
+						if (result.data.result.exact) {
+							let user = result.data.result.exact
+							users.push({
+								key: user.preferredUsername,
+								value: user.account,
+								url: user.url,
+								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0' // TODO: use real avatar from server
+							})
+						}
+						for (var i in result.data.result.accounts) {
+							let user = result.data.result.accounts[i]
+							users.push({
+								key: user.preferredUsername,
+								value: user.account,
+								url: user.url,
+								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0' // TODO: use real avatar from server
+							})
+						}
+						cb(users)
+					})
+				}
+			},
+			menuOpened: false
+
+		}
 	},
 	computed: {
 		currentVisibilityIconClass() {
@@ -293,14 +347,14 @@ export default {
 					type = this.type
 				}
 				switch (type) {
-					case 'public':
-						return 'icon-link';
-					case 'followers':
-						return 'icon-contacts-dark';
-					case 'direct':
-						return 'icon-external';
-					case 'unlisted':
-						return 'icon-password';
+				case 'public':
+					return 'icon-link'
+				case 'followers':
+					return 'icon-contacts-dark'
+				case 'direct':
+					return 'icon-external'
+				case 'unlisted':
+					return 'icon-password'
 				}
 			}
 		},
@@ -333,91 +387,42 @@ export default {
 			]
 		},
 		getCleanPost() {
-			let element = this.$refs.composerInput.cloneNode(true);
+			let element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
-				var em = document.createTextNode(emoji.getAttribute('alt'));
-				emoji.replaceWith(em);
-			});
-			console.log('Create new post: ' + element.innerText);
+				var em = document.createTextNode(emoji.getAttribute('alt'))
+				emoji.replaceWith(em)
+			})
 			return element.innerText
 		}
 	},
 	methods: {
 		insert(emoji) {
-			this.post += this.$twemoji.parse(emoji);
-			this.$refs.composerInput.innerHTML = this.post;
+			this.post += this.$twemoji.parse(emoji)
+			this.$refs.composerInput.innerHTML = this.post
 		},
 		updateInput(event) {
-			this.post = this.$refs.composerInput.innerHTML;
+			this.post = this.$refs.composerInput.innerHTML
 		},
 		togglePopoverMenu() {
 			this.menuOpened = !this.menuOpened
 		},
 		switchType(type) {
-			this.type = type;
-			this.menuOpened = false;
+			this.type = type
+			this.menuOpened = false
 		},
 		createPost(event) {
 			this.$store.dispatch('post', {
 				content: this.getCleanPost,
-				type: this.type,
+				type: this.type
 			}).then((response) => {
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
-			});
+			})
 		},
 		remoteSearch(text) {
 			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + text))
 		}
-	},
-	data() {
-		return {
-			type: 'public',
-			post: '',
-			search: '',
-			tributeOptions: {
-				lookup: function (item) {
-					return item.key + item.value
-				},
-				menuItemTemplate: function (item) {
-					return '<img src="' + item.original.avatar + '" /><div>'
-						+ '<span class="displayName">' +item.original.key + '</span>'
-						+ '<span class="account">' + item.original.value + '</span>'
-						+ '</div>';
-				},
-				selectTemplate: function (item) {
-					return '<span class="mention" contenteditable="false">' +
-						'<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>';
-				},
-				values: (text, cb) => {
-					this.remoteSearch(text).then((result) => {
-						var users = [];
-						if (result.data.result.exact) {
-							var user = result.data.result.exact;
-							users.push({
-								key: user.preferredUsername,
-								value: user.account,
-								url: user.url,
-								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0', // TODO: use real avatar from server
-							})
-						}
-						for (var i in result.data.result.accounts) {
-							var user = result.data.result.accounts[i];
-							users.push({
-								key: user.preferredUsername,
-								value: user.account,
-								url: user.url,
-								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0', // TODO: use real avatar from server
-							})
-						}
-						cb(users);
-					})
-				}
-			},
-			menuOpened: false,
-
-		}
-	},
+	}
 }
 
 </script>

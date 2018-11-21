@@ -12,7 +12,7 @@
 				</div>
 			</transition>
 			<div class="social__timeline">
-				<composer></composer>
+				<composer />
 				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
 				<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
 					<div slot="spinner"><div class="icon-loading" /></div>
@@ -99,7 +99,7 @@
 import {
 	PopoverMenu,
 	AppNavigation,
-	Multiselect,
+	Multiselect
 } from 'nextcloud-vue'
 import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './../components/TimelineEntry'

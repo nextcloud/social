@@ -41,9 +41,8 @@ const getters = {
 }
 const actions = {
 	post(context, post) {
-		return axios.post(OC.generateUrl('apps/social/api/v1/post'), {data: post}).then((response) => {
-			let uid = ''
-			context.commit('addPost', { uid: uid, data: response.data })
+		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
+			context.commit('addPost', { data: response.data })
 		})
 	},
 	fetchTimeline(context, account) {
