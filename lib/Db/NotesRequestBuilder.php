@@ -114,12 +114,38 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$expr = $qb->expr();
-		$pf = $this->defaultSelectAlias;
+		$func = $qb->func();
+		$dbConn = $this->dbConnection;
+		$pf = $this->defaultSelectAlias . '.';
+
 		$orX = $expr->orX();
 		$orX->add($expr->eq($pf . 'to', 'f.follow_id'));
-//			$orX->add($expr->like($pf.'to_array', $qb->createNamedParameter('%"' . $recipient . '"%')));
-//			$orX->add($expr->like($pf.'cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
-//			$orX->add($expr->like($pf.'bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+		$orX->add(
+			$expr->like(
+				$pf . 'to_array', $func->concat(
+				$expr->literal('%'), $func->concat('f.follow_id', $expr->literal('%'))
+			)
+			)
+		);
+		$orX->add(
+			$expr->like(
+				$pf . 'cc', $func->concat(
+				$expr->literal('%'), $func->concat('f.follow_id', $expr->literal('%'))
+			)
+			)
+		);
+		$orX->add(
+			$expr->like(
+				$pf . 'bcc', $func->concat(
+				$expr->literal('%'), $func->concat('f.follow_id', $expr->literal('%'))
+			)
+			)
+		);
+
+//
+//		$qb->createNamedParameter('%"' . $recipient . '"%')));
+////			$orX->add($expr->like($pf.'cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+////			$orX->add($expr->like($pf.'bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
 
 		$qb->rightJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f',

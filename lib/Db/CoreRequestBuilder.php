@@ -139,8 +139,7 @@ class CoreRequestBuilder {
 	 * @param string $alias
 	 */
 	protected function limitToActorId(IQueryBuilder &$qb, string $actorId, string $alias = '') {
-		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
-		$this->limitToDBField($qb, $pf . '.' . 'actor_id', $actorId);
+		$this->limitToDBField($qb, 'actor_id', $actorId, true, $alias);
 	}
 
 
@@ -278,12 +277,17 @@ class CoreRequestBuilder {
 	 * @param string $field
 	 * @param string $value
 	 * @param bool $cs - case sensitive
+	 * @param string $alias
 	 */
 	private function limitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+
+		$pf = '';
+		if ($qb->getType() === QueryBuilder::SELECT) {
+			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
+		}
 		$field = $pf . $field;
 
 		if ($cs) {
