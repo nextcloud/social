@@ -144,11 +144,6 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			)
 		);
 
-//
-//		$qb->createNamedParameter('%"' . $recipient . '"%')));
-////			$orX->add($expr->like($pf.'cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
-////			$orX->add($expr->like($pf.'bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
-
 		$qb->rightJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f',
 			$orX
