@@ -1,5 +1,6 @@
 <template>
 	<div class="social__wrapper">
+		{{ type }}
 		<div class="social__container">
 			<transition name="slide-fade">
 				<div v-if="showInfo" class="social__welcome">
@@ -124,6 +125,12 @@ export default {
 		}
 	},
 	computed: {
+		type: function() {
+			if (this.$route.params.type) {
+				return this.$route.params.type
+			}
+			return 'home'
+		},
 		url: function() {
 			return OC.linkTo('social', 'img/nextcloud.png')
 		},
@@ -181,7 +188,7 @@ export default {
 		}
 	},
 	beforeMount: function() {
-
+		this.$store.dispatch('changeTimelineType', this.type)
 	},
 	methods: {
 		hideInfo() {
@@ -201,6 +208,7 @@ export default {
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to load more timeline entries')
 				console.error('Failed to load more timeline entries', error)
+				$state.complete()
 			})
 		}
 	}

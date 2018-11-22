@@ -41,6 +41,10 @@ export default new Router({
 	routes: [
 		{
 			path: '/:index(index.php/)?apps/social/',
+			redirect: { name: 'timeline' }
+		},
+		{
+			path: '/:index(index.php/)?apps/social/timeline/:type?',
 			components: {
 				default: Timeline
 			},

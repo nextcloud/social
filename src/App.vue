@@ -89,11 +89,21 @@ export default {
 				{
 					id: 'social-timeline',
 					classes: [],
-					icon: 'icon-category-monitoring',
-					text: t('social', 'Timeline'),
+					icon: 'icon-home',
+					text: t('social', 'Home'),
 					router: {
 						name: 'timeline'
 					}
+				},
+				{
+					id: 'social-direct-messages',
+					classes: [],
+					router: {
+						name: 'timeline',
+						params: { type: 'direct' }
+					},
+					icon: 'icon-comment',
+					text: t('social', 'Direct messages')
 				},
 				{
 					id: 'social-account',
@@ -106,18 +116,28 @@ export default {
 					}
 				},
 				{
-					id: 'social-favorites',
-					classes: [],
-					href: '#',
-					icon: 'icon-favorite',
-					text: t('social', 'Favorites')
+					id: 'social-spacer',
+					classes: []
 				},
 				{
-					id: 'social-direct-messages',
+					id: 'social-timeline',
 					classes: [],
-					href: '#',
-					icon: 'icon-comment',
-					text: t('social', 'Direct messages')
+					icon: 'icon-category-monitoring',
+					text: t('social', 'Local timeline'),
+					router: {
+						name: 'timeline',
+						params: { type: 'local' }
+					}
+				},
+				{
+					id: 'social-timeline',
+					classes: [],
+					icon: 'icon-link',
+					text: t('social', 'Global timeline'),
+					router: {
+						name: 'timeline',
+						params: { type: 'global' }
+					}
 				}
 			]
 			return {
