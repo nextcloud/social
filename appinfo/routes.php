@@ -12,11 +12,13 @@ return [
 		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
 		['name' => 'Navigation#test', 'url' => '/test', 'verb' => 'GET'],
 
-		['name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
-		 'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
+		[
+			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
+			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
 		],
-		['name'         => 'Navigation#account', 'url' => '/account/{path}', 'verb' => 'GET',
-		 'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
+		[
+			'name'         => 'Navigation#account', 'url' => '/account/{path}', 'verb' => 'GET',
+			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
 		],
 		//		['name' => 'Navigation#public', 'url' => '/{username}', 'verb' => 'GET'],
 
@@ -36,16 +38,21 @@ return [
 
 		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET'],
 
+		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
+		['name' => 'Local#streamTimeline', 'url' => '/api/v1/stream/timeline', 'verb' => 'GET'],
+		['name' => 'Local#streamFederated', 'url' => '/api/v1/stream/federated', 'verb' => 'GET'],
+		['name' => 'Local#streamDirect', 'url' => '/api/v1/stream/direct', 'verb' => 'GET'],
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
-		['name' => 'Local#timeline', 'url' => '/api/v1/timeline', 'verb' => 'GET'],
-		['name' => 'Local#direct', 'url' => '/api/v1/direct', 'verb' => 'PUT'],
 		['name' => 'Local#accountsSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
 		['name' => 'Local#accountFollow', 'url' => '/api/v1/account/follow', 'verb' => 'PUT'],
 		['name' => 'Local#accountUnfollow', 'url' => '/api/v1/account/follow', 'verb' => 'DELETE'],
 		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET'],
 
-		['name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress', 'verb' => 'POST'],
+		[
+			'name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress',
+			'verb' => 'POST'
+		],
 
-]
+	]
 ];

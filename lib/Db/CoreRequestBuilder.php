@@ -84,12 +84,12 @@ class CoreRequestBuilder {
 	 * @param int $id
 	 */
 	protected function limitToId(IQueryBuilder &$qb, int $id) {
-		$this->limitToDBField($qb, 'id', $id);
+		$this->limitToDBFieldInt($qb, 'id', $id);
 	}
 
 
 	/**
-	 * Limit the request to the Id
+	 * Limit the request to the Id (string)
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
@@ -100,56 +100,37 @@ class CoreRequestBuilder {
 
 
 	/**
-	 * Limit the request to the OwnerId
+	 * Limit the request to the UserId
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $userId
 	 */
-	protected function limitToUserId(IQueryBuilder &$qb, $userId) {
+	protected function limitToUserId(IQueryBuilder &$qb, string $userId) {
 		$this->limitToDBField($qb, 'user_id', $userId);
 	}
 
 
 	/**
-	 * Limit the request to the OwnerId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $userId
-	 */
-	protected function limitToPreferredUsername(IQueryBuilder &$qb, $userId) {
-		$this->limitToDBField($qb, 'preferred_username', $userId);
-	}
-
-	/**
-	 * Limit the request to the OwnerId
+	 * Limit the request to the Preferred Username
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $username
 	 */
-	protected function searchInPreferredUsername(IQueryBuilder &$qb, $username) {
-		$this->searchInDBField($qb, 'preferred_username', $username . '%');
+	protected function limitToPreferredUsername(IQueryBuilder &$qb, string $username) {
+		$this->limitToDBField($qb, 'preferred_username', $username);
 	}
 
-
 	/**
-	 * Limit the request to the OwnerId
+	 * search using username
 	 *
 	 * @param IQueryBuilder $qb
-	 * @param int $accountId
+	 * @param string $username
 	 */
-	protected function limitToAccountId(IQueryBuilder &$qb, int $accountId) {
-		$this->limitToDBField($qb, 'account_id', $accountId);
-	}
-
-
-	/**
-	 * Limit the request to the ServiceId
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param int $serviceId
-	 */
-	protected function limitToServiceId(IQueryBuilder &$qb, int $serviceId) {
-		$this->limitToDBField($qb, 'service_id', $serviceId);
+	protected function searchInPreferredUsername(IQueryBuilder &$qb, string $username) {
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField(
+			$qb, 'preferred_username', $dbConn->escapeLikeParameter($username) . '%'
+		);
 	}
 
 
@@ -158,9 +139,10 @@ class CoreRequestBuilder {
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $actorId
+	 * @param string $alias
 	 */
-	protected function limitToActorId(IQueryBuilder &$qb, string $actorId) {
-		$this->limitToDBField($qb, 'actor_id', $actorId);
+	protected function limitToActorId(IQueryBuilder &$qb, string $actorId, string $alias = '') {
+		$this->limitToDBField($qb, 'actor_id', $actorId, true, $alias);
 	}
 
 
@@ -204,7 +186,8 @@ class CoreRequestBuilder {
 	 * @param string $account
 	 */
 	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
-		$this->searchInDBField($qb, 'account', $account . '%');
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
 	}
 
 
@@ -236,8 +219,19 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $address
 	 */
-	protected function limitToAddress(IQueryBuilder &$qb, $address) {
+	protected function limitToAddress(IQueryBuilder &$qb, string $address) {
 		$this->limitToDBField($qb, 'address', $address);
+	}
+
+
+	/**
+	 * Limit the request to the instance
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param bool $local
+	 */
+	protected function limitToLocal(IQueryBuilder &$qb, bool $local) {
+		$this->limitToDBField($qb, 'local', ($local) ? '1' : '0');
 	}
 
 
@@ -248,14 +242,31 @@ class CoreRequestBuilder {
 	protected function limitToRecipient(IQueryBuilder &$qb, string $recipient) {
 		$expr = $qb->expr();
 		$orX = $expr->orX();
+		$dbConn = $this->dbConnection;
 
 		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
-		$orX->add($expr->like('to_array', $qb->createNamedParameter('%"' . $recipient . '"%')));
-		$orX->add($expr->like('cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
-		$orX->add($expr->like('bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+		$orX->add(
+			$expr->like(
+				'to_array',
+				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
+			)
+		);
+		$orX->add(
+			$expr->like(
+				'cc',
+				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
+			)
+		);
+		$orX->add(
+			$expr->like(
+				'bcc',
+				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
+			)
+		);
 
 		$qb->andWhere($orX);
 	}
+
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -280,13 +291,56 @@ class CoreRequestBuilder {
 		$qb->orderBy('creation', 'desc');
 	}
 
+
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
-	 * @param string|integer|array $values
-	 * @param bool $cs Case Sensitive
+	 * @param string $value
+	 * @param bool $cs - case sensitive
+	 * @param string $alias
 	 */
-	private function limitToDBField(IQueryBuilder &$qb, string $field, $values, bool $cs = true) {
+	private function limitToDBField(
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+	) {
+		$expr = $qb->expr();
+
+		$pf = '';
+		if ($qb->getType() === QueryBuilder::SELECT) {
+			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
+		}
+		$field = $pf . $field;
+
+		if ($cs) {
+			$qb->andWhere($expr->eq($field, $qb->createNamedParameter($value)));
+		} else {
+			$func = $qb->func();
+			$qb->andWhere(
+				$expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)))
+			);
+		}
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param int $value
+	 */
+	private function limitToDBFieldInt(IQueryBuilder &$qb, string $field, int $value) {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$qb->andWhere($expr->eq($field, $qb->createNamedParameter($value)));
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param array $values
+	 */
+	private function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
@@ -297,15 +351,12 @@ class CoreRequestBuilder {
 
 		$orX = $expr->orX();
 		foreach ($values as $value) {
-			if ($cs) {
-				$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
-			} else {
-				$orX->add($expr->iLike($field, $qb->createNamedParameter($value)));
-			}
+			$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
 		}
 
 		$qb->andWhere($orX);
 	}
+
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -314,6 +365,7 @@ class CoreRequestBuilder {
 	 */
 	private function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
 		$expr = $qb->expr();
+
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 

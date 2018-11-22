@@ -62,7 +62,7 @@ const actions = {
 		if (typeof sinceTimestamp === 'undefined') {
 			sinceTimestamp = Date.parse(state.since) / 1000
 		}
-		return axios.get(OC.generateUrl('apps/social/api/v1/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
+		return axios.get(OC.generateUrl('apps/social/api/v1/stream/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
 			if (response.status === -1) {
 				throw response.message
 			}
