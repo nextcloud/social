@@ -115,7 +115,6 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 		$expr = $qb->expr();
 		$func = $qb->func();
-		$dbConn = $this->dbConnection;
 		$pf = $this->defaultSelectAlias . '.';
 
 		$orX = $expr->orX();
@@ -123,21 +122,21 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$orX->add(
 			$expr->like(
 				$pf . 'to_array', $func->concat(
-				$expr->literal('%'), $func->concat('f.follow_id', $expr->literal('%'))
+				$expr->literal('%"'), $func->concat('f.follow_id', $expr->literal('"%'))
 			)
 			)
 		);
 		$orX->add(
 			$expr->like(
 				$pf . 'cc', $func->concat(
-				$expr->literal('%'), $func->concat('f.follow_id', $expr->literal('%'))
+				$expr->literal('%"'), $func->concat('f.follow_id', $expr->literal('"%'))
 			)
 			)
 		);
 		$orX->add(
 			$expr->like(
 				$pf . 'bcc', $func->concat(
-				$expr->literal('%'), $func->concat('f.follow_id', $expr->literal('%'))
+				$expr->literal('%"'), $func->concat('f.follow_id', $expr->literal('"%'))
 			)
 			)
 		);
