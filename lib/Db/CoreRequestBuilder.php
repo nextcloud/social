@@ -358,33 +358,6 @@ class CoreRequestBuilder {
 	}
 
 
-//	/**
-//	 * @param IQueryBuilder $qb
-//	 * @param string $field
-//	 * @param string|integer|array $values
-//	 * @param bool $cs Case Sensitive
-//	 */
-//	private function limitToDBField(IQueryBuilder &$qb, string $field, $values, bool $cs = true) {
-//		$expr = $qb->expr();
-//		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
-//		$field = $pf . $field;
-//
-//		if (!is_array($values)) {
-//			$values = [$values];
-//		}
-//
-//		$orX = $expr->orX();
-//		foreach ($values as $value) {
-//			if ($cs) {
-//				$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
-//			} else {
-//				$orX->add($expr->iLike($field, $qb->createNamedParameter($value)));
-//			}
-//		}
-//
-//		$qb->andWhere($orX);
-//	}
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
