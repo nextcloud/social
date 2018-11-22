@@ -73,6 +73,9 @@ class ActivityPubController extends Controller {
 	/** @var MiscService */
 	private $miscService;
 
+	/** @var NavigationController */
+	private $navigationController;
+
 
 	/**
 	 * ActivityPubController constructor.
@@ -90,11 +93,13 @@ class ActivityPubController extends Controller {
 		IRequest $request, SocialPubController $socialPubController,
 		ActivityService $activityService, ImportService $importService,
 		FollowService $followService, ActorService $actorService, NotesRequest $notesRequest,
+		NavigationController $navigationController,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->socialPubController = $socialPubController;
+		$this->navigationController = $navigationController;
 
 		$this->activityService = $activityService;
 		$this->importService = $importService;
@@ -119,10 +124,11 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws \OC\User\NoUserException
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->socialPubController->actor($username);
+			return $this->navigationController->public($username);
 		}
 
 		try {
@@ -326,7 +332,7 @@ class ActivityPubController extends Controller {
 	private function checkSourceActivityStreams(): bool {
 
 		// uncomment this line to display the result that would be return to an ActivityPub service (TEST)
-		return true;
+		// return true;
 
 		if ($this->request->getHeader('Accept')
 			=== 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') {

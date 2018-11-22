@@ -89,11 +89,21 @@ export default {
 				{
 					id: 'social-timeline',
 					classes: [],
-					icon: 'icon-category-monitoring',
-					text: t('social', 'Timeline'),
+					icon: 'icon-home',
+					text: t('social', 'Home'),
 					router: {
 						name: 'timeline'
 					}
+				},
+				{
+					id: 'social-direct-messages',
+					classes: [],
+					router: {
+						name: 'timeline',
+						params: { type: 'direct' }
+					},
+					icon: 'icon-comment',
+					text: t('social', 'Direct messages')
 				},
 				{
 					id: 'social-account',
@@ -106,28 +116,28 @@ export default {
 					}
 				},
 				{
-					id: 'social-friends',
-					classes: [],
-					href: '#',
-					icon: 'icon-category-social',
-					text: t('social', 'Friends')
+					id: 'social-spacer',
+					classes: []
 				},
 				{
-					id: 'social-favorites',
+					id: 'social-local',
 					classes: [],
-					href: '#',
-					icon: 'icon-favorite',
-					text: t('social', 'Favorites')
+					icon: 'icon-category-monitoring',
+					text: t('social', 'Local timeline'),
+					router: {
+						name: 'timeline',
+						params: { type: 'timeline' }
+					}
 				},
 				{
-					id: 'social-direct-messages',
+					id: 'social-global',
 					classes: [],
-					href: '#',
-					icon: 'icon-comment',
-					utils: {
-						counter: 3
-					},
-					text: t('social', 'Direct messages')
+					icon: 'icon-link',
+					text: t('social', 'Global timeline'),
+					router: {
+						name: 'timeline',
+						params: { type: 'federated' }
+					}
 				}
 			]
 			return {

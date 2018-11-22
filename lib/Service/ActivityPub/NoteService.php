@@ -312,8 +312,8 @@ class NoteService implements ICoreService {
 	 *
 	 * @return Note[]
 	 */
-	public function getHomeNotesForActor(Person $actor): array {
-		return $this->notesRequest->getHomeNotesForActorId($actor->getId());
+	public function getHomeNotesForActor(Person $actor, $since, $limit): array {
+		return $this->notesRequest->getHomeNotesForActorId($actor->getId(), $since, $limit);
 	}
 
 
@@ -322,8 +322,8 @@ class NoteService implements ICoreService {
 	 *
 	 * @return Note[]
 	 */
-	public function getDirectNotesForActor(Person $actor): array {
-		return $this->notesRequest->getDirectNotesForActorId($actor->getId());
+	public function getDirectNotesForActor(Person $actor, $since, $limit): array {
+		return $this->notesRequest->getDirectNotesForActorId($actor->getId(), $since, $limit);
 	}
 
 

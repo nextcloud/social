@@ -25,18 +25,25 @@ import Vue from 'vue'
 
 const state = {
 	timeline: {},
-	since: new Date()
+	since: Math.floor(Date.now() / 1000) + 1,
+	type: 'home'
 }
 const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
-			state.since = data[item].published
+			state.since = data[item].publishedTime
 			Vue.set(state.timeline, data[item].id, data[item])
 		}
 	},
 	addPost(state, data) {
 		// FIXME: push data we receive to the timeline array
 		// state.timeline.push(data)
+	},
+	resetTimeline(state) {
+		state.timeline = {}
+	},
+	setTimelineType(state, type) {
+		state.type = type
 	}
 }
 const getters = {
@@ -47,6 +54,10 @@ const getters = {
 	}
 }
 const actions = {
+	changeTimelineType(context, type) {
+		context.commit('resetTimeline')
+		context.commit('setTimelineType', type)
+	},
 	post(context, post) {
 		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
 			context.commit('addPost', { data: response.data })
@@ -60,9 +71,9 @@ const actions = {
 	},
 	fetchTimeline(context, { account, sinceTimestamp }) {
 		if (typeof sinceTimestamp === 'undefined') {
-			sinceTimestamp = Date.parse(state.since) / 1000
+			sinceTimestamp = state.since - 1
 		}
-		return axios.get(OC.generateUrl('apps/social/api/v1/stream/timeline?limit=5&since=' + sinceTimestamp)).then((response) => {
+		return axios.get(OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=5&since=` + sinceTimestamp)).then((response) => {
 			if (response.status === -1) {
 				throw response.message
 			}
