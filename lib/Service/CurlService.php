@@ -74,9 +74,9 @@ class CurlService {
 //		$this->parseRequestResult($result);
 
 		$ret = json_decode((string)$result, true);
-		if ($ret === null) {
-			throw new RequestException('500 Internal server error - could not parse JSON response');
-		}
+//		if ($ret === null) {
+//			throw new RequestException('500 Internal server error - could not parse JSON response');
+//		}
 		if (!is_array($ret)) {
 			$ret = ['_result' => $result];
 		}

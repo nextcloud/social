@@ -193,7 +193,7 @@ class CoreRequestBuilder {
 	 * @param string $account
 	 */
 	protected function limitToAccount(IQueryBuilder &$qb, string $account) {
-		$this->limitToDBField($qb, 'account', $account);
+		$this->limitToDBField($qb, 'account', $account, false);
 	}
 
 
@@ -284,8 +284,9 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param string|integer|array $values
+	 * @param bool $cs Case Sensitive
 	 */
-	private function limitToDBField(IQueryBuilder &$qb, $field, $values) {
+	private function limitToDBField(IQueryBuilder &$qb, string $field, $values, bool $cs = true) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
@@ -296,7 +297,11 @@ class CoreRequestBuilder {
 
 		$orX = $expr->orX();
 		foreach ($values as $value) {
-			$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
+			if ($cs) {
+				$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
+			} else {
+				$orX->add($expr->iLike($field, $qb->createNamedParameter($value)));
+			}
 		}
 
 		$qb->andWhere($orX);
@@ -312,7 +317,7 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$qb->andWhere($expr->like($field, $qb->createNamedParameter($value)));
+		$qb->andWhere($expr->iLike($field, $qb->createNamedParameter($value)));
 	}
 
 

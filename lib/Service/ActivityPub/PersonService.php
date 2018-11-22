@@ -152,19 +152,24 @@ class PersonService implements ICoreService {
 	/**
 	 * @param string $account
 	 *
+	 * @param bool $retrieve
+	 *
 	 * @return Person
+	 * @throws InvalidResourceException
 	 * @throws RequestException
-	 * @throws Exception
+	 * @throws CacheActorDoesNotExistException
 	 */
-	public function getFromAccount(string $account): Person {
+	public function getFromAccount(string $account, bool $retrieve = true): Person {
 
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
 		} catch (CacheActorDoesNotExistException $e) {
-			$object = $this->instanceService->retrieveAccount($account);
-			if ($object === null) {
-				throw new InvalidResourceException();
+			if (!$retrieve) {
+				throw new CacheActorDoesNotExistException();
 			}
+
+			$object = $this->instanceService->retrieveAccount($account);
+
 			$actor = new Person();
 			$actor->import($object);
 
@@ -207,11 +212,7 @@ class PersonService implements ICoreService {
 	 */
 	public function parse(ACore $person) {
 		/** @var Person $person */
-		if ($person->isRoot() === false) {
-			return;
-		}
-
-		if ($person->getId() === '') {
+		if ($person->isRoot() === false || $person->getId() === '') {
 			return;
 		}
 

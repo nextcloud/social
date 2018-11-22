@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
@@ -77,15 +78,20 @@ class InstanceService {
 	 *
 	 * @return mixed
 	 * @throws RequestException
+	 * @throws InvalidResourceException
 	 */
 	public function retrieveAccount(string $account) {
 		$account = $this->withoutBeginAt($account);
 
+		if (strstr(substr($account, 0, -3), '@') === false)
+		{
+			throw new InvalidResourceException();
+		}
 		list($username, $host) = explode('@', $account);
 
-		if ($username === null || $host === null) {
-			return;
-		}
+//		if ($username === null || $host === null) {
+//			throw new InvalidResourceException();
+//		}
 
 		$request = new Request('/.well-known/webfinger');
 		$request->addData('resource', 'acct:' . $account);
