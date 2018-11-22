@@ -142,11 +142,12 @@ class NotesRequest extends NotesRequestBuilder {
 	 *
 	 * @return array
 	 */
-	public function getHomeNotesForActorId(string $actorId): array {
+	public function getHomeNotesForActorId(string $actorId, $since, $limit): array {
 		$qb = $this->getNotesSelectSql();
 
 		$this->rightJoinFollowing($qb);
 		$this->limitToActorId($qb, $actorId, 'f');
+		$this->limitPaginate($qb, $since, $limit);
 //		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
@@ -192,9 +193,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 *
 	 * @return array
 	 */
-	public function getDirectNotesForActorId(string $actorId): array {
+	public function getDirectNotesForActorId(string $actorId, $since, $limit): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToRecipient($qb, $actorId);
+		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];

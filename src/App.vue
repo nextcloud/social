@@ -120,23 +120,23 @@ export default {
 					classes: []
 				},
 				{
-					id: 'social-timeline',
+					id: 'social-local',
 					classes: [],
 					icon: 'icon-category-monitoring',
 					text: t('social', 'Local timeline'),
 					router: {
 						name: 'timeline',
-						params: { type: 'local' }
+						params: { type: 'timeline' }
 					}
 				},
 				{
-					id: 'social-timeline',
+					id: 'social-global',
 					classes: [],
 					icon: 'icon-link',
 					text: t('social', 'Global timeline'),
 					router: {
 						name: 'timeline',
-						params: { type: 'global' }
+						params: { type: 'federated' }
 					}
 				}
 			]

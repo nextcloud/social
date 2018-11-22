@@ -124,10 +124,11 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws \OC\User\NoUserException
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->navigationController->public();
+			return $this->navigationController->public($username);
 		}
 
 		try {

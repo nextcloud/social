@@ -181,11 +181,11 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function streamHome(): DataResponse {
+	public function streamHome(int $since = 0, int $limit = 5): DataResponse {
 
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
-			$posts = $this->noteService->getHomeNotesForActor($actor);
+			$posts = $this->noteService->getHomeNotesForActor($actor, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -203,11 +203,11 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function streamDirect(): DataResponse {
+	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
-			$posts = $this->noteService->getDirectNotesForActor($actor);
+			$posts = $this->noteService->getDirectNotesForActor($actor, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
