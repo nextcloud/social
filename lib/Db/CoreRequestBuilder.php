@@ -127,7 +127,10 @@ class CoreRequestBuilder {
 	 * @param string $username
 	 */
 	protected function searchInPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$this->searchInDBField($qb, 'preferred_username', $username . '%');
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField(
+			$qb, 'preferred_username', $dbConn->escapeLikeParameter($username) . '%'
+		);
 	}
 
 
@@ -183,7 +186,8 @@ class CoreRequestBuilder {
 	 * @param string $account
 	 */
 	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
-		$this->searchInDBField($qb, 'account', $account . '%');
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
 	}
 
 
@@ -238,11 +242,27 @@ class CoreRequestBuilder {
 	protected function limitToRecipient(IQueryBuilder &$qb, string $recipient) {
 		$expr = $qb->expr();
 		$orX = $expr->orX();
+		$dbConn = $this->dbConnection;
 
 		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
-		$orX->add($expr->like('to_array', $qb->createNamedParameter('%"' . $recipient . '"%')));
-		$orX->add($expr->like('cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
-		$orX->add($expr->like('bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+		$orX->add(
+			$expr->like(
+				'to_array',
+				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
+			)
+		);
+		$orX->add(
+			$expr->like(
+				'cc',
+				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
+			)
+		);
+		$orX->add(
+			$expr->like(
+				'bcc',
+				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
+			)
+		);
 
 		$qb->andWhere($orX);
 	}
@@ -372,6 +392,7 @@ class CoreRequestBuilder {
 	 */
 	private function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
 		$expr = $qb->expr();
+
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
