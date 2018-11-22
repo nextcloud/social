@@ -287,19 +287,6 @@ class NoteService implements ICoreService {
 	}
 
 
-//	/**
-//	 * @param Note $note
-//	 */
-//	private function assignInstances(Note $note) {
-//		$note->addInstancePath(new InstancePath($note->getTo()));
-//		$all = array_merge($note->getToArray(), $note->getCcArray(), $note->getBccArray());
-//		foreach ($all as $uri) {
-//			$note->addInstancePath(new InstancePath($uri));
-//		}
-//		$note->addInstancePath(new InstancePath($note->getInReplyTo()));
-//	}
-
-
 	/**
 	 * @param ACore $item
 	 */
@@ -321,13 +308,12 @@ class NoteService implements ICoreService {
 
 
 	/**
-	 * @param string $userId
+	 * @param Person $actor
 	 *
 	 * @return Note[]
 	 */
-	public function getTimeline(int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getPublicNotes($since, $limit);
-//		return $result;
+	public function getHomeNotesForActor(Person $actor): array {
+		return $this->notesRequest->getHomeNotesForActorId($actor->getId());
 	}
 
 
@@ -336,19 +322,31 @@ class NoteService implements ICoreService {
 	 *
 	 * @return Note[]
 	 */
-	public function getNotesForActor(Person $actor): array {
-		$privates = $this->getPrivateNotesForActor($actor);
-
-		return $privates;
+	public function getDirectNotesForActor(Person $actor): array {
+		return $this->notesRequest->getDirectNotesForActorId($actor->getId());
 	}
 
 
 	/**
-	 * @param Person $actor
+	 * @param int $since
+	 * @param int $limit
 	 *
 	 * @return Note[]
 	 */
-	private function getPrivateNotesForActor(Person $actor): array {
-		return $this->notesRequest->getNotesForActorId($actor->getId());
+	public function getLocalTimeline(int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getPublicNotes($since, $limit, true);
 	}
+
+
+	/**
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 */
+	public function getFederatedTimeline(int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getPublicNotes($since, $limit, false);
+	}
+
 }
+

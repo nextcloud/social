@@ -30,12 +30,11 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\FollowService;
@@ -45,7 +44,6 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -135,7 +133,7 @@ class LocalController extends Controller {
 			$post->setType($this->get('type', $data, NoteService::TYPE_PUBLIC));
 
 			/** @var ACore $activity */
-			$result = $this->postService->createPost($post, $activity);
+			$this->postService->createPost($post, $activity);
 
 			return $this->directSuccess($activity->getObject());
 		} catch (Exception $e) {
@@ -175,8 +173,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * Get timeline
-	 *
 	 * // TODO: Delete the NoCSRF check
 	 *
 	 * @NoCSRFRequired
@@ -185,9 +181,11 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function timeline($since = 0, $limit = 5): DataResponse {
+	public function streamHome(): DataResponse {
+
 		try {
-			$posts = $this->noteService->getTimeline((int)$since, (int)$limit);
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$posts = $this->noteService->getHomeNotesForActor($actor);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -197,16 +195,68 @@ class LocalController extends Controller {
 
 
 	/**
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
 	 * @return DataResponse
 	 */
-	public function direct(): DataResponse {
+	public function streamDirect(): DataResponse {
 
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
-			$posts = $this->noteService->getNotesForActor($actor);
+			$posts = $this->noteService->getDirectNotesForActor($actor);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * Get timeline
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
+		try {
+			$posts = $this->noteService->getLocalTimeline($since, $limit);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * Get timeline
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
+		try {
+			$posts = $this->noteService->getFederatedTimeline($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
