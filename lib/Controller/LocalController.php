@@ -36,6 +36,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
@@ -133,9 +134,10 @@ class LocalController extends Controller {
 			$post->addTo($this->get('to', $data, ''));
 			$post->setType($this->get('type', $data, NoteService::TYPE_PUBLIC));
 
-			$result = $this->postService->createPost($post);
+			/** @var ACore $activity */
+			$result = $this->postService->createPost($post, $activity);
 
-			return $this->success($result);
+			return $this->directSuccess($activity->getObject());
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -229,7 +231,7 @@ class LocalController extends Controller {
 		/* Look for an exactly matching account */
 		$match = null;
 		try {
-			$match = $this->personService->getFromAccount($search);
+			$match = $this->personService->getFromAccount($search, false);
 		} catch (Exception $e) {
 		}
 

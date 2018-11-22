@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service\ActivityPub;
 
 
+use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
@@ -179,15 +180,17 @@ class NoteService implements ICoreService {
 	 * @param Note $note
 	 * @param string $type
 	 * @param string $account
-	 *
-	 * @throws RequestException
 	 */
 	public function addRecipient(Note $note, string $type, string $account) {
 		if ($account === '') {
 			return;
 		}
 
-		$actor = $this->personService->getFromAccount($account);
+		try {
+			$actor = $this->personService->getFromAccount($account);
+		} catch (Exception $e) {
+			return;
+		}
 
 		if ($type === self::TYPE_DIRECT) {
 			$note->addToArray($actor->getId());

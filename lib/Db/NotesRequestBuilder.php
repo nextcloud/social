@@ -126,8 +126,10 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			 ->setInReplyTo($data['in_reply_to']);
 
 		$instances = json_decode($data['instances'], true);
-		foreach ($instances as $instance) {
-			$note->addInstancePath(new InstancePath($instance['uri'], $instance['type']));
+		if (is_array($instances)) {
+			foreach ($instances as $instance) {
+				$note->addInstancePath(new InstancePath($instance['uri'], $instance['type']));
+			}
 		}
 
 		try {
