@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
+use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Model\InstancePath;
@@ -101,6 +102,30 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$qb->delete(self::TABLE_SERVER_NOTES);
 
 		return $qb;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 */
+	protected function rightJoinFollowing(IQueryBuilder $qb) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$pf = $this->defaultSelectAlias;
+		$orX = $expr->orX();
+		$orX->add($expr->eq($pf . 'to', 'f.follow_id'));
+//			$orX->add($expr->like($pf.'to_array', $qb->createNamedParameter('%"' . $recipient . '"%')));
+//			$orX->add($expr->like($pf.'cc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+//			$orX->add($expr->like($pf.'bcc', $qb->createNamedParameter('%"' . $recipient . '"%')));
+
+		$qb->rightJoin(
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f',
+			$orX
+		);
+
 	}
 
 

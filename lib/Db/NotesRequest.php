@@ -138,15 +138,42 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
-	 * @param int $since
-	 * @param int $limit
+	 * @param string $actorId
 	 *
 	 * @return array
 	 */
-	public function getPublicNotes(int $since = 0, int $limit = 5): array {
+	public function getHomeNotesForActorId(string $actorId): array {
+		$qb = $this->getNotesSelectSql();
+
+		$this->rightJoinFollowing($qb);
+		$this->limitToActorId($qb, $actorId, 'f');
+//		$this->leftJoinCacheActors($qb, 'attributed_to');
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+
+	/**
+	 * @param int $since
+	 * @param int $limit
+	 * @param bool $localOnly
+	 *
+	 * @return array
+	 */
+	public function getPublicNotes(int $since = 0, int $limit = 5, bool $localOnly = true): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
+		if ($localOnly) {
+			$this->limitToLocal($qb, true);
+		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
@@ -159,12 +186,13 @@ class NotesRequest extends NotesRequestBuilder {
 		return $notes;
 	}
 
+
 	/**
 	 * @param string $actorId
 	 *
 	 * @return array
 	 */
-	public function getNotesForActorId(string $actorId): array {
+	public function getDirectNotesForActorId(string $actorId): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToRecipient($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
