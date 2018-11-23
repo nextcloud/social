@@ -211,13 +211,11 @@ class ConfigService {
 	}
 
 	/**
-	 * @param bool $host
+	 * @param string $cloudAddress
 	 *
 	 * @return string
-	 * @throws SocialAppConfigException
 	 */
 	public function setCloudAddress(string $cloudAddress) {
-		// TODO: Validate
 		$this->setAppValue(self::SOCIAL_ADDRESS, $cloudAddress);
 	}
 
@@ -249,10 +247,11 @@ class ConfigService {
 
 
 	/**
+	 * // TODO - check the Apps folder
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function getUrlRoot(): string {
+	public function getUrlSocial(): string {
 		return $this->getCloudAddress() . '/apps/social/';
 	}
 
@@ -267,7 +266,7 @@ class ConfigService {
 	public function generateId(string $path = '', $generateId = true): string {
 		$path = $this->withoutBeginSlash($this->withEndSlash($path));
 
-		$id = $this->getUrlRoot() . $path;
+		$id = $this->getUrlSocial() . $path;
 		if ($generateId === true) {
 			$id .= time() . crc32(uniqid());
 		}

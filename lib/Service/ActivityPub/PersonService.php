@@ -34,11 +34,16 @@ namespace OCA\Social\Service\ActivityPub;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
@@ -58,8 +63,14 @@ class PersonService implements ICoreService {
 	/** @var CacheActorsRequest */
 	private $cacheActorsRequest;
 
+	/** @var CacheDocumentsRequest */
+	private $cacheDocumentsRequest;
+
 	/** @var InstanceService */
 	private $instanceService;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -69,15 +80,19 @@ class PersonService implements ICoreService {
 	 * UndoService constructor.
 	 *
 	 * @param CacheActorsRequest $cacheActorsRequest
+	 * @param CacheDocumentsRequest $cacheDocumentsRequest
 	 * @param InstanceService $instanceService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheActorsRequest $cacheActorsRequest, InstanceService $instanceService,
-		MiscService $miscService
+		CacheActorsRequest $cacheActorsRequest, CacheDocumentsRequest $cacheDocumentsRequest,
+		InstanceService $instanceService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
+		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
 		$this->instanceService = $instanceService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -108,6 +123,8 @@ class PersonService implements ICoreService {
 	 * @return Person
 	 * @throws InvalidResourceException
 	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 
@@ -125,19 +142,8 @@ class PersonService implements ICoreService {
 			$actor = $this->cacheActorsRequest->getFromId($id);
 		} catch (CacheActorDoesNotExistException $e) {
 			$object = $this->instanceService->retrieveObject($id);
-			$actor = new Person();
-			$actor->import($object);
-			$actor->setSource(json_encode($object, JSON_UNESCAPED_SLASHES));
-
-			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
-			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
-			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
+			$actor = $this->generateActorFromObject($object);
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
-
-			if ($actor->getType() !== Person::TYPE) {
-				throw new InvalidResourceException();
-			}
-
 			try {
 				$this->parse($actor);
 			} catch (Exception $e) {
@@ -158,6 +164,8 @@ class PersonService implements ICoreService {
 	 * @throws InvalidResourceException
 	 * @throws RequestException
 	 * @throws CacheActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 
@@ -169,19 +177,8 @@ class PersonService implements ICoreService {
 			}
 
 			$object = $this->instanceService->retrieveAccount($account);
-
-			$actor = new Person();
-			$actor->import($object);
-
+			$actor = $this->generateActorFromObject($object);
 			$actor->setAccount($account);
-			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
-			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
-			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
-
-			if ($actor->getType() !== Person::TYPE) {
-				throw new InvalidResourceException();
-			}
-
 			try {
 				$this->parse($actor);
 			} catch (Exception $e) {
@@ -192,6 +189,40 @@ class PersonService implements ICoreService {
 		return $actor;
 	}
 
+
+	/**
+	 * @param array $object
+	 *
+	 * @return Person
+	 * @throws InvalidResourceException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 */
+	private function generateActorFromObject(array $object) {
+
+		$actor = new Person();
+		$actor->setUrlCloud($this->configService->getCloudAddress());
+		$actor->import($object);
+
+		if ($actor->getType() !== Person::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		$actor->setSource(json_encode($object, JSON_UNESCAPED_SLASHES));
+//			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
+//			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
+//			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
+//			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
+//
+//			$icon = new Image($actor);
+//			$icon->setUrlCloud($this->configService->getCloudAddress());
+//			$icon->import($this->getArray('icon', $object, []));
+//			if ($icon->getType() === Image::TYPE) {
+//				$actor->setIcon($icon);
+//			}
+//
+		return $actor;
+	}
 
 	/**
 	 * @param string $search
