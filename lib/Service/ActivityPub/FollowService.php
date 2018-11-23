@@ -34,7 +34,9 @@ namespace OCA\Social\Service\ActivityPub;
 use Exception;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -96,14 +98,17 @@ class FollowService implements ICoreService {
 	 * @param Person $actor
 	 * @param string $account
 	 *
+	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
+	 * @throws CacheActorDoesNotExistException
+	 * @throws InvalidResourceException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->personService->getFromAccount($account);
 		$follow = new Follow();
-		$follow->generateUniqueId($this->configService->getCloudAddress());
+		$follow->setUrlCloud($this->configService->getCloudAddress());
+		$follow->generateUniqueId();
 		$follow->setActorId($actor->getId());
 		$follow->setObjectId($remoteActor->getId());
 
@@ -124,6 +129,8 @@ class FollowService implements ICoreService {
 	 * @param Person $actor
 	 * @param string $account
 	 *
+	 * @throws CacheActorDoesNotExistException
+	 * @throws InvalidResourceException
 	 * @throws RequestException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {

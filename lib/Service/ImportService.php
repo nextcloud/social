@@ -153,6 +153,7 @@ class ImportService {
 				throw new UnknownItemException();
 		}
 
+		$item->setUrlCloud($this->configService->getCloudAddress());
 		$item->import($data);
 		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
 

@@ -64,7 +64,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function create(Person $actor): string {
 
-		$id = $this->configService->getUrlRoot() . '@' . $actor->getPreferredUsername();
+		$id = $this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername();
 
 		try {
 			$qb = $this->getActorsInsertSql();
