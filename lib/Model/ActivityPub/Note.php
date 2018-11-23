@@ -199,7 +199,6 @@ class Note extends ACore implements JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 
-		$this->setSummary($this->get('summary', $data, ''));
 		$this->setInReplyTo($this->get('inReplyTo', $data, ''));
 		$this->setAttributedTo($this->get('attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
@@ -219,7 +218,7 @@ class Note extends ACore implements JsonSerializable {
 			parent::jsonSerialize(),
 			[
 				'content'      => $this->getContent(),
-				'attributedTo' => $this->getUrlRoot() . $this->getAttributedTo(),
+				'attributedTo' => $this->getUrlSocial() . $this->getAttributedTo(),
 				'inReplyTo'    => $this->getInReplyTo(),
 				'sensitive'    => $this->isSensitive(),
 				'conversation' => $this->getConversation()

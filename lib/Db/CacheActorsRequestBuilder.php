@@ -31,7 +31,7 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Model\ActivityPub\Cache\CacheActor;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -110,7 +110,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function parseCacheActorsSelectSql(array $data): Person {
 		$actor = new Person();
-		$actor->import($data);
+		$actor->importFromDatabase($data);
 
 		return $actor;
 	}

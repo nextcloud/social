@@ -27,24 +27,36 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Db;
 
 
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Model\ActivityPub\Image;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
+
+/**
+ * Class CoreRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
 class CoreRequestBuilder {
+
 
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
 	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
 
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
+	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
 
 	/** @var IDBConnection */
@@ -425,7 +437,7 @@ class CoreRequestBuilder {
 		}
 
 		$actor = new Person();
-		$actor->import($new);
+		$actor->importFromDatabase($new);
 
 		if ($actor->getType() !== Person::TYPE) {
 			throw new InvalidResourceException();
