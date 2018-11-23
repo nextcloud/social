@@ -32,6 +32,7 @@ namespace OCA\Social\Controller;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use Exception;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -235,6 +236,50 @@ class NavigationController extends Controller {
 		$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
 
 		return $page;
+	}
+
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return DataResponse
+	 */
+	public function documentsGet(string $id): DataResponse {
+		try {
+			return $this->success([$id]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return DataResponse
+	 */
+	public function documentsGetPublic(string $id): DataResponse {
+		try {
+			return $this->success([$id]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
 	}
 
 }
