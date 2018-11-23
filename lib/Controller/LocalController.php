@@ -37,6 +37,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
+use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -78,6 +79,9 @@ class LocalController extends Controller {
 	/** @var NoteService */
 	private $noteService;
 
+	/** @var DocumentService */
+	private $documentService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -92,12 +96,14 @@ class LocalController extends Controller {
 	 * @param ActorService $actorService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
+	 * @param DocumentService $documentService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IRequest $request, $userId, PersonService $personService,
 		FollowService $followService, ActorService $actorService,
 		PostService $postService, NoteService $noteService,
+		DocumentService $documentService,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
@@ -109,6 +115,7 @@ class LocalController extends Controller {
 		$this->followService = $followService;
 		$this->postService = $postService;
 		$this->noteService = $noteService;
+		$this->documentService = $documentService;
 		$this->miscService = $miscService;
 	}
 
@@ -178,6 +185,9 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 *
+	 * @param int $since
+	 * @param int $limit
 	 *
 	 * @return DataResponse
 	 */
@@ -337,6 +347,29 @@ class LocalController extends Controller {
 			$this->followService->unfollowAccount($actor, $account);
 
 			return $this->success([]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountInfo(string $account): DataResponse {
+		try {
+			$actor = $this->personService->getFromAccount($account);
+
+			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
