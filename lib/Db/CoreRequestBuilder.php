@@ -446,6 +446,60 @@ class CoreRequestBuilder {
 		return $actor;
 	}
 
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $fieldDocumentId
+	 */
+	protected function leftJoinCacheDocuments(IQueryBuilder &$qb, string $fieldDocumentId) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$pf = $this->defaultSelectAlias;
+
+//		/** @noinspection PhpMethodParametersCountMismatchInspection */
+		$qb->selectAlias('cd.id', 'cachedocument_id')
+		   ->selectAlias('cd.type', 'cachedocument_type')
+		   ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
+		   ->selectAlias('cd.media_type', 'cachedocument_media_type')
+		   ->selectAlias('cd.url', 'cachedocument_url')
+		   ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
+		   ->selectAlias('cd.caching', 'cachedocument_caching')
+		   ->selectAlias('ca.creation', 'cachedocument_creation')
+		   ->leftJoin(
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
+			   $expr->eq($pf . '.' . $fieldDocumentId, 'cd.id')
+		   );
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return Document
+	 * @throws InvalidResourceException
+	 */
+	protected function parseCacheDocumentsLeftJoin(array $data): Document {
+		$new = [];
+
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 14) === 'cachedocument_') {
+				$new[substr($k, 14)] = $v;
+			}
+		}
+		$document = new Document();
+
+		$document->importFromDatabase($new);
+
+		if ($document->getType() !== Image::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		return $document;
+	}
+
 }
 
 
