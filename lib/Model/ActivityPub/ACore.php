@@ -571,6 +571,36 @@ abstract class ACore implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
+	public function gotIcon(): bool {
+		if ($this->icon === null) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * @return Document
+	 */
+	public function getIcon(): Document {
+		return $this->icon;
+	}
+
+	/**
+	 * @param Document $icon
+	 *
+	 * @return ACore
+	 */
+	public function setIcon(Document $icon): ACore {
+		$this->icon = $icon;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
 	public function isLocal(): bool {
 		return $this->local;
 	}

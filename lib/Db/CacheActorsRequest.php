@@ -80,6 +80,12 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->setValue('source', $qb->createNamedParameter($actor->getSource()));
 
+		if ($actor->gotIcon()) {
+			$iconId = $actor->getIcon()
+							->getId();
+			$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
+		}
+
 		$qb->execute();
 
 		return $qb->getLastInsertId();
@@ -121,6 +127,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getFromId(string $id): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToIdString($qb, $id);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -145,6 +152,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getFromAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToAccount($qb, $account);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -166,6 +174,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->searchInAccount($qb, $search);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$accounts = [];
 		$cursor = $qb->execute();

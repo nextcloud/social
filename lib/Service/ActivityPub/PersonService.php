@@ -216,6 +216,18 @@ class PersonService implements ICoreService {
 			return;
 		}
 
+		if ($person->gotIcon()) {
+			try {
+				$icon = $this->cacheDocumentsRequest->getFromSource(
+					$person->getIcon()
+						   ->getUrl()
+				);
+				$person->setIcon($icon);
+			} catch (CacheDocumentDoesNotExistException $e) {
+				$this->cacheDocumentsRequest->save($person->getIcon());
+			}
+		}
+
 		$this->cacheActorsRequest->save($person);
 	}
 
