@@ -133,6 +133,10 @@ class ImportService {
 				$item = new Note($root);
 				break;
 
+			case Image::TYPE:
+				$item = new Image($root);
+				break;
+
 			case Follow::TYPE:
 				$item = new Follow($root);
 				break;
@@ -160,6 +164,13 @@ class ImportService {
 		try {
 			$object = $this->createItem($this->getArray('object', $data, []), $item);
 			$item->setObject($object);
+		} catch (UnknownItemException $e) {
+		}
+
+		try {
+			/** @var Document $icon */
+			$icon = $this->createItem($this->getArray('icon', $data, []), $item);
+			$item->setIcon($icon);
 		} catch (UnknownItemException $e) {
 		}
 

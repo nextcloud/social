@@ -346,6 +346,13 @@
 			</field>
 
 			<field>
+				<name>icon_id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>summary</name>
 				<type>text</type>
 				<length>500</length>

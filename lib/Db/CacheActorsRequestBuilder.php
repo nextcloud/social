@@ -112,6 +112,13 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		$actor = new Person();
 		$actor->importFromDatabase($data);
 
+		try {
+			$icon = $this->parseCacheDocumentsLeftJoin($data);
+			$icon->setParent($actor);
+			$actor->setIcon($icon);
+		} catch (InvalidResourceException $e) {
+		}
+
 		return $actor;
 	}
 
