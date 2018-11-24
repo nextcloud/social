@@ -21,8 +21,8 @@ return [
 			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
 		],
 		['name' => 'Navigation#public', 'url' => '/{username}', 'verb' => 'GET'],
-		['name' => 'Navigation#documentsGet', 'url' => '/documents/get', 'verb' => 'GET'],
-		['name' => 'Navigation#documentsGetPublic', 'url' => '/documents/public', 'verb' => 'GET'],
+		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
+		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
 
 		//		['name' => 'Account#create', 'url' => '/local/account/{username}', 'verb' => 'POST'],
 		['name' => 'Account#info', 'url' => '/local/account/{username}', 'verb' => 'GET'],
@@ -50,6 +50,7 @@ return [
 		['name' => 'Local#accountUnfollow', 'url' => '/api/v1/account/follow', 'verb' => 'DELETE'],
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/info', 'verb' => 'GET'],
 		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET'],
+		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
 		[
 			'name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress',
