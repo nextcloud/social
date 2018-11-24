@@ -58,6 +58,9 @@ class Document extends ACore implements JsonSerializable {
 	/** @var string */
 	private $caching = '';
 
+	/** @var bool */
+	private $public = false;
+
 
 	/**
 	 * Document constructor.
@@ -129,6 +132,25 @@ class Document extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function isPublic(): bool {
+		return $this->public;
+	}
+
+	/**
+	 * @param bool $public
+	 *
+	 * @return Document
+	 */
+	public function setPublic(bool $public): Document {
+		$this->public = $public;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getCaching(): string {
@@ -169,6 +191,8 @@ class Document extends ACore implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
+		$this->setPublic(($this->getInt('public', $data, 0) === 1) ? true : false);
+		$this->setLocalCopy($this->get('local_copy', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));
 		$this->setCaching($this->get('caching', $data, ''));
