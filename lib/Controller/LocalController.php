@@ -398,4 +398,35 @@ class LocalController extends Controller {
 		}
 	}
 
+
+	/**
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param array $documents
+	 *
+	 * @return DataResponse
+	 */
+	public function documentsCache(array $documents): DataResponse {
+		try {
+			$cached = [];
+			foreach ($documents as $id) {
+				try {
+
+					$document = $this->documentService->cacheRemoteDocument($id);
+					$cached[] = $document;
+				} catch (Exception $e) {
+				}
+			}
+
+			return $this->success($cached);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 }
+
