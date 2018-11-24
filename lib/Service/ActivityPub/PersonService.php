@@ -249,7 +249,7 @@ class PersonService implements ICoreService {
 
 		if ($person->gotIcon()) {
 			try {
-				$icon = $this->cacheDocumentsRequest->getFromSource(
+				$icon = $this->cacheDocumentsRequest->getBySource(
 					$person->getIcon()
 						   ->getUrl()
 				);
