@@ -33,7 +33,6 @@ namespace OCA\Social\Db;
 
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Document;
 use OCA\Social\Model\ActivityPub\Image;
 use OCA\Social\Model\ActivityPub\Person;
@@ -144,6 +143,17 @@ class CoreRequestBuilder {
 			$qb, 'preferred_username', $dbConn->escapeLikeParameter($username) . '%'
 		);
 	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
+	 */
+	protected function limitToPublic(IQueryBuilder &$qb) {
+		$this->limitToDBFieldInt($qb, 'public', 1);
+	}
+
 
 
 	/**

@@ -27,19 +27,30 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Service\ActivityPub;
 
 
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Exceptions\CacheContentException;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Service\CacheService;
 use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
+use OCP\Files\NotPermittedException;
+use OCP\Files\SimpleFS\ISimpleFile;
 
 
 class DocumentService implements ICoreService {
 
+
 	/** @var CacheDocumentsRequest */
 	private $cacheDocumentsRequest;
+
+	/** @var CacheService */
+	private $cacheService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -49,18 +60,65 @@ class DocumentService implements ICoreService {
 	 * DocumentService constructor.
 	 *
 	 * @param CacheDocumentsRequest $cacheDocumentsRequest
+	 * @param CacheService $cacheService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheDocumentsRequest $cacheDocumentsRequest, MiscService $miscService
+		CacheDocumentsRequest $cacheDocumentsRequest, CacheService $cacheService,
+		MiscService $miscService
 	) {
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
+		$this->cacheService = $cacheService;
 		$this->miscService = $miscService;
 	}
 
 
-	public function getFromCache(array $documents) {
+	/**
+	 * @param string $id
+	 *
+	 * @return Document
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws NotPermittedException
+	 */
+	public function cacheRemoteDocument(string $id) {
+		$document = $this->cacheDocumentsRequest->getById($id);
+		if ($document->getLocalCopy() !== '') {
+			return $document;
+		}
 
+		// TODO - check the size of the attachment, also to stop download after a certain size of content.
+		// TODO - ignore this is getCaching is older than 15 minutes
+		if ($document->getCaching() !== '') {
+			return $document;
+		}
+
+		$this->cacheDocumentsRequest->initCaching($document);
+
+		try {
+			$localCopy = $this->cacheService->saveRemoteFileToCache($document->getUrl(), $mime);
+			$document->setMimeType($mime);
+			$document->setLocalCopy($localCopy);
+			$this->cacheDocumentsRequest->endCaching($document);
+		} catch (CacheContentException $e) {
+		}
+
+		return $document;
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @param bool $public
+	 *
+	 * @return ISimpleFile
+	 * @throws CacheContentException
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getFromCache(string $id, bool $public = false) {
+		$document = $this->cacheDocumentsRequest->getById($id, $public);
+
+		return $this->cacheService->getContentFromCache($document->getLocalCopy());
 	}
 
 

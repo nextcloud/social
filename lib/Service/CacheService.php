@@ -30,169 +30,115 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use daita\MySmallPhpTools\Model\Request;
-use OCA\Social\Exceptions\RequestException;
+use Exception;
+use OCA\Social\Exceptions\CacheContentException;
+use OCP\Files\IAppData;
+use OCP\Files\NotFoundException;
+use OCP\Files\NotPermittedException;
+use OCP\Files\SimpleFS\ISimpleFile;
 
-class CurlService {
 
+class CacheService {
+
+
+	/** @var IAppData */
+	private $appData;
 
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * CurlService constructor.
+	 * CacheService constructor.
 	 *
+	 * @param IAppData $appData
 	 * @param MiscService $miscService
 	 */
-	public function __construct(MiscService $miscService) {
+	public function __construct(IAppData $appData, MiscService $miscService) {
+		$this->appData = $appData;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param Request $request
+	 * @param string $url
 	 *
-	 * @return array
-	 * @throws RequestException
-	 */
-	public function request(Request $request): array {
-		$curl = $this->initRequest($request);
-
-		$this->initRequestPost($curl, $request);
-		$this->initRequestPut($curl, $request);
-		$this->initRequestDelete($curl, $request);
-
-		$result = curl_exec($curl);
-		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-
-		$this->parseRequestResultCode301($code);
-//		$this->parseRequestResultCode401($code);
-		$this->parseRequestResultCode404($code, $request);
-//		$this->parseRequestResultCode503($code);
-//		$this->parseRequestResultCode500($code);
-//		$this->parseRequestResult($result);
-
-		$ret = json_decode((string)$result, true);
-//		if ($ret === null) {
-//			throw new RequestException('500 Internal server error - could not parse JSON response');
-//		}
-		if (!is_array($ret)) {
-			$ret = ['_result' => $result];
-		}
-
-		$ret['_address'] = $request->getAddress();
-		$ret['_path'] = $request->getUrl();
-		$ret['_code'] = $code;
-
-		return $ret;
-	}
-
-
-	/**
-	 * @param Request $request
+	 * @param string $mime
 	 *
-	 * @return resource
+	 * @return string
+	 * @throws CacheContentException
+	 * @throws NotPermittedException
 	 */
-	private function initRequest(Request $request) {
+	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
-		$curl = $this->generateCurlRequest($request);
-		$headers = $request->getHeaders();
+		$filename = sprintf(
+			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+		);
 
-		$headers[] = 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
+		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
+		$path = chunk_split(substr($filename, 0, 8), 2, '/');
 
-		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($curl, CURLOPT_TIMEOUT, 20);
+		try {
+			$folder = $this->appData->getFolder($path);
+		} catch (NotFoundException $e) {
+			$folder = $this->appData->newFolder($path);
+		}
 
-		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+		$content = $this->retrieveContent($url);
 
-		return $curl;
+		// TODO - get mime type in a better way.
+		// To get the mime type, we create a temp file
+		$tmpFile = tmpfile();
+		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
+		fwrite($tmpFile, $content);
+		$mime = mime_content_type($tmpPath);
+		fclose($tmpFile);
+
+		$cache = $folder->newFile($filename);
+		$cache->putContent($content);
+
+		return $path . $filename;
 	}
 
 
 	/**
-	 * @param Request $request
+	 * @param string $path
 	 *
-	 * @return resource
+	 * @return ISimpleFile
+	 * @throws CacheContentException
 	 */
-	private function generateCurlRequest(Request $request) {
-		$url = 'https://' . $request->getAddress() . $request->getParsedUrl();
-		if ($request->getType() !== Request::TYPE_GET) {
-			$curl = curl_init($url);
-		} else {
-			$curl = curl_init($url . '?' . $request->getUrlData());
-		}
+	public function getContentFromCache(string $path) {
 
-		return $curl;
+		$pos = strrpos($path, '/');
+		$dir = substr($path, 0, $pos);
+		$filename = substr($path, $pos + 1);
+
+		try {
+			$file = $this->appData->getFolder($dir)
+								  ->getFile($filename);
+
+			return $file;
+		} catch (Exception $e) {
+			throw new CacheContentException();
+		}
 	}
 
 
 	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	private function initRequestPost($curl, Request $request) {
-		if ($request->getType() !== Request::TYPE_POST) {
-			return;
-		}
-
-		curl_setopt($curl, CURLOPT_POST, true);
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	private function initRequestPut($curl, Request $request) {
-		if ($request->getType() !== Request::TYPE_PUT) {
-			return;
-		}
-
-		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	private function initRequestDelete($curl, Request $request) {
-		if ($request->getType() !== Request::TYPE_DELETE) {
-			return;
-		}
-
-		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-	}
-
-
-	/**
-	 * @param int $code
+	 * @param string $url
 	 *
-	 * @throws RequestException
+	 * @return string
+	 * @throws CacheContentException
 	 */
-	private function parseRequestResultCode301($code) {
-		if ($code === 301) {
-			throw new RequestException('301 Moved Permanently');
+	public function retrieveContent(string $url) {
+		$content = file_get_contents($url);
+		if ($content === false) {
+			throw new CacheContentException();
 		}
-	}
 
-
-	/**
-	 * @param int $code
-	 *
-	 * @param Request $request
-	 *
-	 * @throws RequestException
-	 */
-	private function parseRequestResultCode404(int $code, Request $request) {
-		if ($code === 404) {
-			throw new RequestException('404 Not Found - ' . json_encode($request));
-		}
+		return $content;
 	}
 
 

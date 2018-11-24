@@ -32,8 +32,6 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Document;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -50,7 +48,9 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->setValue('id', $qb->createNamedParameter($document->getId()))
 		   ->setValue('type', $qb->createNamedParameter($document->getType()))
 		   ->setValue('url', $qb->createNamedParameter($document->getUrl()))
+		   ->setValue('media_type', $qb->createNamedParameter($document->getMediaType()))
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'))
 		   ->setValue(
 			   'creation',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
@@ -60,17 +60,68 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 
 	/**
+	 * @param Document $document
+	 */
+	public function initCaching(Document $document) {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$this->limitToIdString($qb, $document->getId());
+		$qb->set(
+			'caching', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		);
+
+		$qb->execute();
+	}
+
+
+	/**
+	 * @param Document $document
+	 */
+	public function endCaching(Document $document) {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$this->limitToIdString($qb, $document->getId());
+		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
+
+		$qb->execute();
+	}
+
+
+	/**
 	 * @param string $url
 	 *
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
 	 */
-	public function getFromSource(string $url) {
+	public function getBySource(string $url) {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToUrl($qb, $url);
 
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
+		return $this->parseCacheDocumentsSelectSql($data);
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @param bool $public
+	 *
+	 * @return Document
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getById(string $id, bool $public = false) {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$this->limitToIdString($qb, $id);
+
+		if ($public === true) {
+			$this->limitToPublic($qb);
+		}
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
