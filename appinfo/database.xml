@@ -429,6 +429,12 @@
 			</field>
 
 			<field>
+				<name>public</name>
+				<type>boolean</type>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>creation</name>
 				<type>timestamp</type>
 			</field>
