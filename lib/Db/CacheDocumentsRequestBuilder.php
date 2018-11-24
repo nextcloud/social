@@ -79,7 +79,7 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'cd.id', 'cd.type', 'cd.media_type', 'cd.mime_type', 'cd.url', 'cd.local_copy',
-			'cd.creation', 'cd.caching'
+			'cd.public', 'cd.creation', 'cd.caching'
 		)
 		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 
@@ -106,12 +106,9 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	 * @param array $data
 	 *
 	 * @return Document
-	 * @throws UrlCloudException
-	 * @throws SocialAppConfigException
 	 */
 	protected function parseCacheDocumentsSelectSql(array $data): Document {
 		$document = new Document();
-		$document->setUrlCloud($this->configService->getCloudAddress());
 		$document->importFromDatabase($data);
 
 		return $document;
