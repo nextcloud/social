@@ -155,7 +155,6 @@ class CoreRequestBuilder {
 	}
 
 
-
 	/**
 	 * Limit the request to the ActorId
 	 *
@@ -477,6 +476,8 @@ class CoreRequestBuilder {
 		   ->selectAlias('cd.url', 'cachedocument_url')
 		   ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
 		   ->selectAlias('cd.caching', 'cachedocument_caching')
+		   ->selectAlias('cd.public', 'cachedocument_public')
+		   ->selectAlias('cd.error', 'cachedocument_error')
 		   ->selectAlias('ca.creation', 'cachedocument_creation')
 		   ->leftJoin(
 			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',

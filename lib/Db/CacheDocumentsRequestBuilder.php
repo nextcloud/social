@@ -31,8 +31,6 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Document;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -79,7 +77,7 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'cd.id', 'cd.type', 'cd.media_type', 'cd.mime_type', 'cd.url', 'cd.local_copy',
-			'cd.public', 'cd.creation', 'cd.caching'
+			'cd.public', 'cd.error', 'cd.creation', 'cd.caching'
 		)
 		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 

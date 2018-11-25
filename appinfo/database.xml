@@ -435,6 +435,13 @@
 			</field>
 
 			<field>
+				<name>error</name>
+				<type>integer</type>
+				<length>1</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>creation</name>
 				<type>timestamp</type>
 			</field>

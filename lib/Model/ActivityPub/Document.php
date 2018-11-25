@@ -61,6 +61,9 @@ class Document extends ACore implements JsonSerializable {
 	/** @var bool */
 	private $public = false;
 
+	/** @var int */
+	private $error = 0;
+
 
 	/**
 	 * Document constructor.
@@ -151,6 +154,25 @@ class Document extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getError(): int {
+		return $this->error;
+	}
+
+	/**
+	 * @param int $error
+	 *
+	 * @return Document
+	 */
+	public function setError(int $error): Document {
+		$this->error = $error;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getCaching(): string {
@@ -192,6 +214,7 @@ class Document extends ACore implements JsonSerializable {
 		parent::importFromDatabase($data);
 
 		$this->setPublic(($this->getInt('public', $data, 0) === 1) ? true : false);
+		$this->setError($this->getInt('error', $data, 0));
 		$this->setLocalCopy($this->get('local_copy', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));

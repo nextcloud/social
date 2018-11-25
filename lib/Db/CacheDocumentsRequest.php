@@ -80,6 +80,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$this->limitToIdString($qb, $document->getId());
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
+		$qb->set('error', $qb->createNamedParameter($document->getError()));
 
 		$qb->execute();
 	}

@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\Exceptions\CacheContentException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -41,8 +42,14 @@ use OCP\Files\SimpleFS\ISimpleFile;
 class CacheService {
 
 
+	const ERROR_MAX_SIZE = 1;
+
+
 	/** @var IAppData */
 	private $appData;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -52,10 +59,14 @@ class CacheService {
 	 * CacheService constructor.
 	 *
 	 * @param IAppData $appData
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(IAppData $appData, MiscService $miscService) {
+	public function __construct(
+		IAppData $appData, ConfigService $configService, MiscService $miscService
+	) {
 		$this->appData = $appData;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -68,6 +79,7 @@ class CacheService {
 	 * @return string
 	 * @throws CacheContentException
 	 * @throws NotPermittedException
+	 * @throws CacheContentSizeException
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
@@ -131,12 +143,25 @@ class CacheService {
 	 *
 	 * @return string
 	 * @throws CacheContentException
+	 * @throws CacheContentSizeException
 	 */
 	public function retrieveContent(string $url) {
-		$content = file_get_contents($url);
-		if ($content === false) {
+		$maxSize =
+			$this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE) * 1024 * 1024;
+
+		$fd = fopen($url, "r");
+		if ($fd === false) {
 			throw new CacheContentException();
 		}
+
+		$content = '';
+		while (!feof($fd)) {
+			$content .= fread($fd, 4096);
+			if (strlen($content) > $maxSize) {
+				throw new CacheContentSizeException();
+			}
+		}
+		fclose($fd);
 
 		return $content;
 	}
