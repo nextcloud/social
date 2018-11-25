@@ -52,10 +52,12 @@ class ConfigService {
 
 
 	const SOCIAL_ADDRESS = 'address';
+	const SOCIAL_MAX_SIZE = 'max_size';
 
 	/** @var array */
 	public $defaults = [
-		self::SOCIAL_ADDRESS => ''
+		self::SOCIAL_ADDRESS  => '',
+		self::SOCIAL_MAX_SIZE => 25
 	];
 
 	/** @var string */
@@ -109,6 +111,22 @@ class ConfigService {
 		}
 
 		return $this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
+	}
+
+	/**
+	 * Get a value by key
+	 *
+	 * @param string $key
+	 *
+	 * @return int
+	 */
+	public function getAppValueInt(string $key): int {
+		$defaultValue = null;
+		if (array_key_exists($key, $this->defaults)) {
+			$defaultValue = $this->defaults[$key];
+		}
+
+		return (int)$this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
 	}
 
 	/**
@@ -248,6 +266,7 @@ class ConfigService {
 
 	/**
 	 * // TODO - check the Apps folder
+	 *
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */

@@ -33,6 +33,7 @@ namespace OCA\Social\Service\ActivityPub;
 
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheContentException;
+use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Document;
@@ -98,6 +99,8 @@ class DocumentService implements ICoreService {
 			$localCopy = $this->cacheService->saveRemoteFileToCache($document->getUrl(), $mime);
 			$document->setMimeType($mime);
 			$document->setLocalCopy($localCopy);
+			$this->cacheDocumentsRequest->endCaching($document);
+		} catch (CacheContentSizeException $e) {
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (CacheContentException $e) {
 		}
