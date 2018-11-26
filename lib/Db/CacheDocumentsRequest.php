@@ -31,11 +31,15 @@ namespace OCA\Social\Db;
 
 
 use DateTime;
+use Exception;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Document;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
+
+
+	const CACHE_TTL = 15; // 15 min
 
 
 	/**
@@ -133,6 +137,26 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		}
 
 		return $this->parseCacheDocumentsSelectSql($data);
+	}
+
+
+	/**
+	 * @return Document[]
+	 * @throws Exception
+	 */
+	public function getNotCachedDocuments() {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$this->limitToDBFieldEmpty($qb, 'local_copy');
+		$this->limitToCaching($qb, self::CACHE_TTL);
+
+		$documents = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
 	}
 
 }

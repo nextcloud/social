@@ -162,6 +162,24 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
+	 * @return Person[]
+	 * @throws SocialAppConfigException
+	 */
+	public function getAll(): array {
+		$qb = $this->getActorsSelectSql();
+
+		$accounts = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$accounts[] = $this->parseActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $accounts;
+	}
+
+
+	/**
 	 * @param string $search
 	 *
 	 * @return Person[]

@@ -31,7 +31,10 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use DateInterval;
+use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
+use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Document;
 use OCA\Social\Model\ActivityPub\Image;
@@ -213,6 +216,38 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * Limit the request to the creation
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $delay
+	 *
+	 * @throws Exception
+	 */
+	protected function limitToCreation(IQueryBuilder &$qb, int $delay = 0) {
+		$date = new DateTime('now');
+		$date->sub(new DateInterval('PT' . $delay . 'M'));
+
+		$this->limitToDBFieldDateTime($qb, 'creation', $date);
+	}
+
+
+	/**
+	 * Limit the request to the creation
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $delay
+	 *
+	 * @throws Exception
+	 */
+	protected function limitToCaching(IQueryBuilder &$qb, int $delay = 0) {
+		$date = new DateTime('now');
+		$date->sub(new DateInterval('PT' . $delay . 'M'));
+
+		$this->limitToDBFieldDateTime($qb, 'caching', $date);
+	}
+
+
+	/**
 	 * Limit the request to the url
 	 *
 	 * @param IQueryBuilder $qb
@@ -320,7 +355,7 @@ class CoreRequestBuilder {
 	 * @param bool $cs - case sensitive
 	 * @param string $alias
 	 */
-	private function limitToDBField(
+	protected function limitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
 		$expr = $qb->expr();
@@ -347,7 +382,7 @@ class CoreRequestBuilder {
 	 * @param string $field
 	 * @param int $value
 	 */
-	private function limitToDBFieldInt(IQueryBuilder &$qb, string $field, int $value) {
+	protected function limitToDBFieldInt(IQueryBuilder &$qb, string $field, int $value) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
@@ -359,9 +394,39 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
+	 */
+	protected function limitToDBFieldEmpty(IQueryBuilder &$qb, string $field) {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$qb->andWhere($expr->eq($field, $qb->createNamedParameter('')));
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param DateTime $date
+	 */
+	protected function limitToDBFieldDateTime(IQueryBuilder &$qb, string $field, DateTime $date) {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$orX = $expr->orX();
+		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
+		$orX->add($expr->isNull($field));
+		$qb->andWhere($orX);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
 	 * @param array $values
 	 */
-	private function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values) {
+	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
@@ -384,7 +449,7 @@ class CoreRequestBuilder {
 	 * @param string $field
 	 * @param string $value
 	 */
-	private function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
+	protected function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
 		$expr = $qb->expr();
 
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';

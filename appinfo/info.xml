@@ -26,7 +26,12 @@
 		</navigation>
 	</navigations>
 
+	<background-jobs>
+		<job>OCA\Social\Cron\Cache</job>
+	</background-jobs>
+
 	<commands>
+		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\NoteCreate</command>
 	</commands>
 

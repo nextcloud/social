@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 
+use DateTime;
 use JsonSerializable;
 use OCA\Social\Exceptions\UrlCloudException;
 
@@ -55,8 +56,8 @@ class Document extends ACore implements JsonSerializable {
 	/** @var string */
 	private $localCopy = '';
 
-	/** @var string */
-	private $caching = '';
+	/** @var int */
+	private $caching = 0;
 
 	/** @var bool */
 	private $public = false;
@@ -173,18 +174,18 @@ class Document extends ACore implements JsonSerializable {
 
 
 	/**
-	 * @return string
+	 * @return int
 	 */
-	public function getCaching(): string {
+	public function getCaching(): int {
 		return $this->caching;
 	}
 
 	/**
-	 * @param string $caching
+	 * @param int $caching
 	 *
 	 * @return Document
 	 */
-	public function setCaching(string $caching): Document {
+	public function setCaching(int $caching): Document {
 		$this->caching = $caching;
 
 		return $this;
@@ -218,7 +219,13 @@ class Document extends ACore implements JsonSerializable {
 		$this->setLocalCopy($this->get('local_copy', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));
-		$this->setCaching($this->get('caching', $data, ''));
+
+		if ($this->get('caching', $data, '') === '') {
+			$this->setCaching(0);
+		} else {
+			$date = new DateTime($this->get('caching', $data, ''));
+			$this->setCaching($date->getTimestamp());
+		}
 	}
 
 	/**
