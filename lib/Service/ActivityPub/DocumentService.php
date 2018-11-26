@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service\ActivityPub;
 
 
+use Exception;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentSizeException;
@@ -87,9 +88,8 @@ class DocumentService implements ICoreService {
 			return $document;
 		}
 
-		// TODO - check the size of the attachment, also to stop download after a certain size of content.
-		// TODO - ignore this is getCaching is older than 15 minutes
-		if ($document->getCaching() !== '') {
+		// TODO - ignore this if getCaching is older than 15 minutes
+		if ($document->getCaching() > (time() - (CacheDocumentsRequest::CACHE_TTL * 60))) {
 			return $document;
 		}
 
@@ -122,6 +122,23 @@ class DocumentService implements ICoreService {
 		$document = $this->cacheDocumentsRequest->getById($id, $public);
 
 		return $this->cacheService->getContentFromCache($document->getLocalCopy());
+	}
+
+
+	/**
+	 * @return int
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws NotPermittedException
+	 * @throws Exception
+	 */
+	public function manageCacheDocuments(): int {
+		$update = $this->cacheDocumentsRequest->getNotCachedDocuments();
+
+		foreach ($update as $item) {
+			$this->cacheRemoteDocument($item->getId());
+		}
+
+		return sizeof($update);
 	}
 
 

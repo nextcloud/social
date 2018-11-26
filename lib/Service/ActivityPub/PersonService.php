@@ -264,6 +264,24 @@ class PersonService implements ICoreService {
 
 
 	/**
+	 * @throws Exception
+	 * @return int
+	 */
+	public function manageCacheRemoteActors(): int {
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate();
+
+		foreach ($update as $item) {
+			try {
+				$this->getFromId($item->getId(), true);
+			} catch (Exception $e) {
+			}
+		}
+
+		return sizeof($update);
+	}
+
+
+	/**
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {

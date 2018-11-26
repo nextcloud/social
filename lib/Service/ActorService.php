@@ -129,18 +129,6 @@ class ActorService {
 
 
 	/**
-	 * @param string $search
-	 *
-	 * @deprecated - used !?
-	 * @return Person[]
-	 * @throws SocialAppConfigException
-	 */
-	public function searchLocalAccounts(string $search): array {
-		return $this->actorsRequest->searchFromUsername($search);
-	}
-
-
-	/**
 	 * Method should be called by the frontend and will generate a fresh Social account for
 	 * the user, using the userId and the username.
 	 *
@@ -231,6 +219,24 @@ class ActorService {
 
 		$actor->setPublicKey($publicKey);
 		$actor->setPrivateKey($privateKey);
+	}
+
+
+	/**
+	 * @throws Exception
+	 * @return int
+	 */
+	public function manageCacheLocalActors(): int {
+		$update = $this->actorsRequest->getAll();
+
+		foreach ($update as $item) {
+			try {
+				$this->cacheLocalActorByUsername($item->getPreferredUsername(), true);
+			} catch (Exception $e) {
+			}
+		}
+
+		return sizeof($update);
 	}
 
 
