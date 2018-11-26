@@ -17,7 +17,7 @@
 	<bugs>https://github.com/nextcloud/social/issues</bugs>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/screenshots/screenshot.png</screenshot>
 	<dependencies>
-		<nextcloud min-version="15" max-version="15"/>
+		<nextcloud min-version="15" max-version="16"/>
 	</dependencies>
 	<navigations>
 		<navigation>
