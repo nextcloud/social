@@ -27,99 +27,88 @@ declare(strict_types=1);
  *
  */
 
+namespace OCA\Social\Controller;
 
-namespace OCA\Social\Service\ActivityPub;
 
-
-use Exception;
-use OCA\Social\Db\NotesRequest;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\UnknownItemException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Activity\Delete;
+use daita\MySmallPhpTools\Traits\TAsync;
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\QueueService;
+use OCP\AppFramework\Controller;
+use OCP\IRequest;
 
 
-class DeleteService implements ICoreService {
+/**
+ * Class QueueController
+ *
+ * @package OCA\Social\Controller
+ */
+class QueueController extends Controller {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	use TAsync;
+
+	/** @var QueueService */
+	private $queueService;
 
 	/** @var ActivityService */
 	private $activityService;
-
-	/** @var NoteService */
-	private $noteService;
 
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * UndoService constructor.
+	 * QueueController constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param IRequest $request
+	 * @param QueueService $queueService
 	 * @param ActivityService $activityService
-	 * @param NoteService $noteService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, ActivityService $activityService, NoteService $noteService,
+		IRequest $request, QueueService $queueService, ActivityService $activityService,
 		MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		parent::__construct(Application::APP_NAME, $request);
+
+		$this->queueService = $queueService;
 		$this->activityService = $activityService;
-		$this->noteService = $noteService;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param ACore $delete
+	 * // TODO: Delete the NoCSRF check
 	 *
-	 * @throws UnknownItemException
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $token
 	 */
-	public function parse(ACore $delete) {
+	public function asyncWithToken(string $token) {
+		$this->async();
 
-		if ($delete->gotObject()) {
-			$id = $delete->getObject()
-						 ->getId();
-		} else {
-			$id = $delete->getObjectId();
-		}
-
-		/** @var Delete $delete */
-		try {
-			$item = $this->activityService->getItem($id);
-
-			switch ($item->getType()) {
-
-				case 'Note':
-					$service = $this->noteService;
-					break;
-
-				default:
-					throw new UnknownItemException();
-			}
-
+		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		foreach ($requests as $request) {
 			try {
-				$service->delete($item);
-			} catch (Exception $e) {
-				$this->miscService->log(
-					2, 'Cannot delete ' . $delete->getType() . ': ' . $e->getMessage()
-				);
+				$this->activityService->manageRequest($request);
+			} catch (ActorDoesNotExistException $e) {
+			} catch (RequestException $e) {
+			} catch (SocialAppConfigException $e) {
 			}
-		} catch (InvalidResourceException $e) {
 		}
-	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
+		// or it will feed the logs.
+		exit();
 	}
 
 }

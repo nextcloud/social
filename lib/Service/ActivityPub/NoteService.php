@@ -47,7 +47,6 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
 class NoteService implements ICoreService {
@@ -150,7 +149,7 @@ class NoteService implements ICoreService {
 			case self::TYPE_UNLISTED:
 				$note->setTo($actor->getFollowers());
 				$note->addInstancePath(
-					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS)
+					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
 				);
 				$note->addCc(ActivityService::TO_PUBLIC);
 				break;
@@ -158,7 +157,7 @@ class NoteService implements ICoreService {
 			case self::TYPE_FOLLOWERS:
 				$note->setTo($actor->getFollowers());
 				$note->addInstancePath(
-					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS)
+					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
 				);
 				break;
 
@@ -169,7 +168,7 @@ class NoteService implements ICoreService {
 				$note->setTo(ActivityService::TO_PUBLIC);
 				$note->addCc($actor->getFollowers());
 				$note->addInstancePath(
-					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS)
+					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
 				);
 				break;
 		}
@@ -192,7 +191,9 @@ class NoteService implements ICoreService {
 			return;
 		}
 
+		$instancePath = new InstancePath($actor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM);
 		if ($type === self::TYPE_DIRECT) {
+			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
 			$note->addToArray($actor->getId());
 		} else {
 			$note->addCc($actor->getId());
@@ -205,7 +206,7 @@ class NoteService implements ICoreService {
 			]
 		);
 
-		$note->addInstancePath(new InstancePath($actor->getInbox(), InstancePath::TYPE_INBOX));
+		$note->addInstancePath($instancePath);
 	}
 
 
@@ -213,8 +214,6 @@ class NoteService implements ICoreService {
 	 * @param Note $note
 	 * @param string $type
 	 * @param array $accounts
-	 *
-	 * @throws RequestException
 	 */
 	public function addRecipients(Note $note, string $type, array $accounts) {
 		if ($accounts === []) {
@@ -237,7 +236,8 @@ class NoteService implements ICoreService {
 		}
 
 		$note->setInReplyTo($replyTo);
-		$note->addInstancePath(new InstancePath($replyTo));
+		// TODO - type can be NOT public !
+		$note->addInstancePath(new InstancePath($replyTo, InstancePath::TYPE_PUBLIC, InstancePath::PRIORITY_HIGH));
 	}
 
 

@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Service\ActivityPub;
 
 
 use OCA\Social\Model\ActivityPub\ACore;

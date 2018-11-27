@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
@@ -49,7 +50,6 @@ use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
 
@@ -103,6 +103,7 @@ class FollowService implements ICoreService {
 	 * @throws SocialAppConfigException
 	 * @throws CacheActorDoesNotExistException
 	 * @throws InvalidResourceException
+	 * @throws UrlCloudException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->personService->getFromAccount($account);
@@ -118,9 +119,11 @@ class FollowService implements ICoreService {
 			$this->followsRequest->save($follow);
 
 			$follow->addInstancePath(
-				new InstancePath($remoteActor->getInbox(), InstancePath::TYPE_INBOX)
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
 			);
-			$this->activityService->manageRequest($follow);
+			$this->activityService->request($follow);
 		}
 	}
 
@@ -132,6 +135,8 @@ class FollowService implements ICoreService {
 	 * @throws CacheActorDoesNotExistException
 	 * @throws InvalidResourceException
 	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->personService->getFromAccount($account);
@@ -173,12 +178,14 @@ class FollowService implements ICoreService {
 			$accept->setObject($follow);
 
 			$accept->addInstancePath(
-				new InstancePath($remoteActor->getInbox(), InstancePath::TYPE_INBOX)
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
 			);
 
 			$follow->setParent($accept);
 
-			$this->activityService->manageRequest($accept);
+			$this->activityService->request($accept);
 			$this->followsRequest->accepted($follow);
 		} catch (Exception $e) {
 		}

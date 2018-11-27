@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
@@ -77,20 +78,20 @@ class PostService {
 	 * @param Post $post
 	 * @param ACore $activity
 	 *
-	 * @return array
+	 * @return string
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
-	 * @throws RequestException
 	 * @throws SocialAppConfigException
+	 * @throws Exception
 	 */
-	public function createPost(Post $post, ACore &$activity = null) {
+	public function createPost(Post $post, ACore &$activity = null): string {
 		$note =
 			$this->noteService->generateNote(
 				$post->getUserId(), $post->getContent(), $post->getType()
 			);
 
-		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->noteService->replyTo($note, $post->getReplyTo());
+		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 
 		$actor = $this->actorService->getActorFromUserId($post->getUserId());
 

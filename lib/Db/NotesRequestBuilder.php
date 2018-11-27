@@ -177,7 +177,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$instances = json_decode($data['instances'], true);
 		if (is_array($instances)) {
 			foreach ($instances as $instance) {
-				$note->addInstancePath(new InstancePath($instance['uri'], $instance['type']));
+				$instancePath = new InstancePath();
+				$instancePath->import($instance);
+				$note->addInstancePath($instancePath);
 			}
 		}
 

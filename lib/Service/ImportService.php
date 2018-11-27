@@ -71,6 +71,7 @@ class ImportService {
 	/** @var DeleteService */
 	private $deleteService;
 
+	/** @var ConfigService */
 	private $configService;
 
 	/** @var MiscService */

@@ -135,10 +135,10 @@ class NoteCreate extends Base {
 		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
 		$post->addTo(($to === null) ? '' : $to);
 
-		$result = $this->postService->createPost($post, $activity);
+		$token = $this->postService->createPost($post, $activity);
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-		echo 'result: ' . json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+		echo 'token: ' . $token . "\n";
 	}
 
 }

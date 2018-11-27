@@ -31,11 +31,10 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\RequestQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-class CacheActorsRequestBuilder extends CoreRequestBuilder {
+class RequestQueueRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -46,9 +45,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsInsertSql(): IQueryBuilder {
+	protected function getQueueInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_CACHE_ACTORS);
+		$qb->insert(self::TABLE_REQUEST_QUEUE);
 
 		return $qb;
 	}
@@ -59,9 +58,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsUpdateSql(): IQueryBuilder {
+	protected function getQueueUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_CACHE_ACTORS);
+		$qb->update(self::TABLE_REQUEST_QUEUE);
 
 		return $qb;
 	}
@@ -72,19 +71,17 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql(): IQueryBuilder {
+	protected function getQueueSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
-			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url', 'ca.type',
-			'ca.preferred_username', 'ca.name', 'ca.summary',
-			'ca.public_key', 'ca.local', 'ca.source', 'ca.creation'
+			'rq.id', 'rq.token', 'rq.author', 'rq.activity', 'rq.instance', 'rq.priority',
+			'rq.status', 'rq.tries', 'rq.last'
 		)
-		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
+		   ->from(self::TABLE_REQUEST_QUEUE, 'rq');
 
-		$this->defaultSelectAlias = 'ca';
+		$this->defaultSelectAlias = 'rq';
 
 		return $qb;
 	}
@@ -95,9 +92,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsDeleteSql(): IQueryBuilder {
+	protected function getQueueDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_CACHE_ACTORS);
+		$qb->delete(self::TABLE_REQUEST_QUEUE);
 
 		return $qb;
 	}
@@ -106,20 +103,13 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Person
+	 * @return RequestQueue
 	 */
-	protected function parseCacheActorsSelectSql(array $data): Person {
-		$actor = new Person();
-		$actor->importFromDatabase($data);
+	protected function parseQueueSelectSql($data): RequestQueue {
+		$queue = new RequestQueue();
+		$queue->importFromDatabase($data);
 
-		try {
-			$icon = $this->parseCacheDocumentsLeftJoin($data);
-			$icon->setParent($actor);
-			$actor->setIcon($icon);
-		} catch (InvalidResourceException $e) {
-		}
-
-		return $actor;
+		return $queue;
 	}
 
 }

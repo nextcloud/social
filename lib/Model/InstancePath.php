@@ -44,11 +44,17 @@ class InstancePath implements JsonSerializable {
 
 	use TArrayTools;
 
+
 	const TYPE_PUBLIC = 0;
 	const TYPE_INBOX = 1;
 	const TYPE_GLOBAL = 2;
 	const TYPE_FOLLOWERS = 3;
 
+	const PRIORITY_NONE = 0;
+	const PRIORITY_LOW = 1;
+	const PRIORITY_MEDIUM = 2;
+	const PRIORITY_HIGH = 3;
+	const PRIORITY_TOP = 4;
 
 	/** @var string */
 	private $uri = '';
@@ -56,18 +62,34 @@ class InstancePath implements JsonSerializable {
 	/** @var int */
 	private $type = 0;
 
+	/** @var int */
+	private $priority = 0;
+
 
 	/**
 	 * InstancePath constructor.
 	 *
 	 * @param string $uri
 	 * @param int $type
+	 * @param int $priority
 	 */
-	public function __construct(string $uri = '', int $type = 0) {
+	public function __construct(string $uri = '', int $type = 0, int $priority = 0) {
 		$this->uri = $uri;
 		$this->type = $type;
+		$this->priority = $priority;
 	}
 
+
+	/**
+	 * @param string $uri
+	 *
+	 * @return InstancePath
+	 */
+	public function setUri(string $uri): InstancePath {
+		$this->uri = $uri;
+
+		return $this;
+	}
 
 	/**
 	 * @return string
@@ -78,6 +100,17 @@ class InstancePath implements JsonSerializable {
 
 
 	/**
+	 * @param int $type
+	 *
+	 * @return InstancePath
+	 */
+	public function setType(int $type): InstancePath {
+		$this->type = $type;
+
+		return $this;
+	}
+
+	/**
 	 * @return int
 	 */
 	public function getType(): int {
@@ -86,10 +119,29 @@ class InstancePath implements JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getPriority(): int {
+		return $this->priority;
+	}
+
+	/**
+	 * @param int $priority
+	 *
+	 * @return InstancePath
+	 */
+	public function setPriority(int $priority): InstancePath {
+		$this->priority = $priority;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getAddress(): string {
-		$info = parse_url($this->uri);
+		$info = parse_url($this->getUri());
 
 		return $this->get('host', $info, '');
 	}
@@ -99,15 +151,19 @@ class InstancePath implements JsonSerializable {
 	 * @return string
 	 */
 	public function getPath(): string {
-		$info = parse_url($this->uri);
+		$info = parse_url($this->getUri());
 
 		return $this->get('path', $info, '');
 	}
 
 
+	/**
+	 * @param array $data
+	 */
 	public function import(array $data) {
-
-
+		$this->setUri($this->get('uri', $data, ''));
+		$this->setType($this->getInt('type', $data, 0));
+		$this->setPriority($this->getInt('priority', $data, 0));
 	}
 
 
@@ -116,8 +172,9 @@ class InstancePath implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'uri'  => $this->getUri(),
-			'type' => $this->getType()
+			'uri'      => $this->getUri(),
+			'type'     => $this->getType(),
+			'priority' => $this->getPriority()
 		];
 	}
 
