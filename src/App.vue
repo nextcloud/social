@@ -83,11 +83,6 @@ export default {
 			searchTerm: ''
 		}
 	},
-	watch:{
-		$route (to, from){
-			this.searchTerm = ''
-		}
-	},
 	computed: {
 		url: function() {
 			return OC.linkTo('social', 'img/nextcloud.png')
@@ -136,7 +131,7 @@ export default {
 					}
 				},
 				{
-					id: 'social-spacer',
+					id: 'social-spacer'
 				},
 				{
 					id: 'social-local',
@@ -163,6 +158,11 @@ export default {
 				items: defaultCategories,
 				loading: false
 			}
+		}
+	},
+	watch: {
+		$route(to, from) {
+			this.searchTerm = ''
 		}
 	},
 	beforeMount: function() {

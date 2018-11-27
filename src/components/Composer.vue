@@ -308,11 +308,12 @@ export default {
 						+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
 				},
 				values: (text, cb) => {
+					let users = []
+
 					if (text.length < 1) {
-						cb([])
+						cb(users)
 					}
 					this.remoteSearch(text).then((result) => {
-						let users = []
 						if (result.data.result.exact) {
 							let user = result.data.result.exact
 							users.push({
