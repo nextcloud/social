@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Document;
 use OCA\Social\Service\CacheService;
+use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
