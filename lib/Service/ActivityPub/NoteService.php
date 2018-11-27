@@ -310,9 +310,12 @@ class NoteService implements ICoreService {
 	/**
 	 * @param Person $actor
 	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
 	 * @return Note[]
 	 */
-	public function getHomeNotesForActor(Person $actor, $since, $limit): array {
+	public function getHomeNotesForActor(Person $actor, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getHomeNotesForActorId($actor->getId(), $since, $limit);
 	}
 
