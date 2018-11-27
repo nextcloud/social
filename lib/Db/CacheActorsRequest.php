@@ -69,6 +69,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
+		   ->setValue('type', $qb->createNamedParameter($actor->getType()))
 		   ->setValue('local', $qb->createNamedParameter(($actor->isLocal()) ? '1' : '0'))
 		   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
 		   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))

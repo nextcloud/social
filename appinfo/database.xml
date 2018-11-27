@@ -269,6 +269,13 @@
 			</field>
 
 			<field>
+				<name>type</name>
+				<type>text</type>
+				<length>31</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>account</name>
 				<type>text</type>
 				<length>127</length>
