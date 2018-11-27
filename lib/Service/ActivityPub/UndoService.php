@@ -33,7 +33,6 @@ namespace OCA\Social\Service\ActivityPub;
 
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
 

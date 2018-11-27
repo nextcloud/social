@@ -49,7 +49,6 @@ use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
 

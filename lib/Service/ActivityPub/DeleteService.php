@@ -38,7 +38,6 @@ use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
 

@@ -47,7 +47,6 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 
 class NoteService implements ICoreService {

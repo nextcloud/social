@@ -36,7 +36,7 @@ use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Service\ICoreService;
+use OCA\Social\Service\ActivityPub\ICoreService;
 
 
 abstract class ACore implements JsonSerializable {

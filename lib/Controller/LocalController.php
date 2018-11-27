@@ -87,7 +87,7 @@ class LocalController extends Controller {
 
 
 	/**
-	 * NavigationController constructor.
+	 * LocalController constructor.
 	 *
 	 * @param IRequest $request
 	 * @param string $userId
