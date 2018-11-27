@@ -4,7 +4,8 @@
 			<app-navigation :menu="menu" />
 		</div>
 		<div id="app-content">
-			<router-view :key="$route.fullPath" />
+			<Search v-if="searchTerm != ''" :term="searchTerm" />
+			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
 		</div>
 	</div>
 	<div v-else class="setup">
@@ -55,6 +56,7 @@ import {
 import axios from 'nextcloud-axios'
 import TimelineEntry from './components/TimelineEntry'
 import ProfileInfo from './components/ProfileInfo'
+import Search from './components/Search'
 
 export default {
 	name: 'App',
@@ -64,13 +66,15 @@ export default {
 		TimelineEntry,
 		Multiselect,
 		Avatar,
-		ProfileInfo
+		ProfileInfo,
+		Search
 	},
 	data: function() {
 		return {
 			infoHidden: false,
 			state: [],
-			cloudAddress: ''
+			cloudAddress: '',
+			searchTerm: ''
 		}
 	},
 	computed: {
@@ -157,6 +161,8 @@ export default {
 		if (serverDataElmt !== null) {
 			this.$store.commit('setServerData', JSON.parse(document.getElementById('serverData').dataset.server))
 		}
+
+		this.search = new OCA.Search(this.search, this.resetSearch)
 	},
 	methods: {
 		hideInfo() {
@@ -167,6 +173,12 @@ export default {
 				this.$store.commit('setServerDataEntry', 'setup', false)
 				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
 			})
+		},
+		search(term) {
+			this.searchTerm = term
+		},
+		resetSearch() {
+			this.searchTerm = ''
 		}
 	}
 }

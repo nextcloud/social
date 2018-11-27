@@ -21,64 +21,54 @@
   -->
 
 <template>
-	<div class="user-entry">
-		<div class="entry-content">
-			<div class="user-avatar">
-				<avatar :size="32" :user="item.account" />
-			</div>
-			<div class="user-details">
-				<router-link :to="{ name: 'profile', params: { account: item.account }}">
-					<span class="post-author">{{ item.preferredUsername }}</span>
-				</router-link>
-				<p class="user-description">{{ item.account }}</p>
-			</div>
-			<button v-if="item.following" class="icon-checkmark-color">Following</button>
-			<button v-else class="primary">Follow</button>
+	<div>
+		<h3>{{ t('social', 'Search') }} {{ term }}</h3>
+		<div v-if="results.length < 1" :class="{'icon-loading': loading}" class="emptycontent emptycontent-search" />
+		<div>
+			<UserEntry v-for="result in results" :key="result.id" :item="result" />
 		</div>
 	</div>
 </template>
 
+<style scoped>
+
+</style>
+
 <script>
-import { Avatar } from 'nextcloud-vue'
+
+import UserEntry from './UserEntry'
+import axios from 'nextcloud-axios'
 
 export default {
-	name: 'UserEntry',
+	name: 'Search',
 	components: {
-		Avatar
+		UserEntry
 	},
 	props: {
-		item: { type: Object, default: () => {} }
+		term: {
+			type: String,
+			default: ''
+		}
 	},
-	data: function() {
+	data() {
 		return {
-
+			results: [],
+			loading: false
+		}
+	},
+	watch: {
+		term(val) {
+			this.remoteSearch(val).then((response) => {
+				this.results = response.data.result.accounts
+				this.loading = false
+			})
+		}
+	},
+	methods: {
+		remoteSearch(term) {
+			this.loading = true
+			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + term))
 		}
 	}
 }
 </script>
-<style scoped>
-	.user-entry {
-		padding: 20px;
-		margin-bottom: 10px;
-	}
-
-	.user-avatar {
-		margin: 5px;
-		margin-right: 10px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.entry-content {
-		display: flex;
-		align-items: flex-start;
-	}
-
-	.user-details {
-		flex-grow: 1;
-	}
-
-	.user-description {
-		opacity: 0.7;
-	}
-</style>
