@@ -320,7 +320,7 @@ export default {
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
-								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0' // TODO: use real avatar from server
+								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
 							})
 						}
 						for (var i in result.data.result.accounts) {
@@ -329,7 +329,7 @@ export default {
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
-								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0' // TODO: use real avatar from server
+								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
 							})
 						}
 						cb(users)
