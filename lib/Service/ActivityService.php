@@ -39,16 +39,21 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\NoHighPriorityRequestException;
+use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Tombstone;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCP\IRequest;
 
@@ -68,6 +73,7 @@ class ActivityService {
 	const DATE_FORMAT = 'D, d M Y H:i:s T';
 	const DATE_DELAY = 30;
 
+
 	/** @var ActorsRequest */
 	private $actorsRequest;
 
@@ -76,6 +82,9 @@ class ActivityService {
 
 	/** @var FollowsRequest */
 	private $followsRequest;
+
+	/** @var QueueService */
+	private $queueService;
 
 	/** @var ActorService */
 	private $actorService;
@@ -99,6 +108,7 @@ class ActivityService {
 	/**
 	 * ActivityService constructor.
 	 *
+	 * @param QueueService $queueService
 	 * @param ActorsRequest $actorsRequest
 	 * @param NotesRequest $notesRequest
 	 * @param FollowsRequest $followsRequest
@@ -111,15 +121,15 @@ class ActivityService {
 	 */
 	public function __construct(
 		ActorsRequest $actorsRequest, NotesRequest $notesRequest, FollowsRequest $followsRequest,
-		CurlService $curlService, ActorService $actorService,
+		QueueService $queueService, CurlService $curlService, ActorService $actorService,
 		PersonService $personService, InstanceService $instanceService,
-		ConfigService $configService,
-		MiscService $miscService
+		ConfigService $configService, MiscService $miscService
 	) {
-		$this->curlService = $curlService;
 		$this->actorsRequest = $actorsRequest;
 		$this->notesRequest = $notesRequest;
 		$this->followsRequest = $followsRequest;
+		$this->queueService = $queueService;
+		$this->curlService = $curlService;
 		$this->actorService = $actorService;
 		$this->personService = $personService;
 		$this->instanceService = $instanceService;
@@ -133,13 +143,11 @@ class ActivityService {
 	 * @param ACore $item
 	 * @param ACore $activity
 	 *
-	 * @return array
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
+	 * @return string
+	 * @throws Exception
 	 */
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null
-	): array {
+	): string {
 
 		$activity = new Create();
 		$item->setParent($activity);
@@ -158,20 +166,17 @@ class ActivityService {
 
 		$activity->setActor($actor);
 
-		$result = $this->request($activity);
-
-		return $result;
+		return $this->request($activity);
 	}
 
 
 	/**
 	 * @param ACore $item
 	 *
-	 * @throws ActorDoesNotExistException
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
+	 * @return string
+	 * @throws Exception
 	 */
-	public function deleteActivity(ACore $item) {
+	public function deleteActivity(ACore $item): string {
 		$delete = new Delete();
 		$delete->setId($item->getId() . '#delete');
 		$delete->setActorId($item->getActorId());
@@ -182,7 +187,7 @@ class ActivityService {
 		$delete->setObject($tombstone);
 		$delete->addInstancePaths($item->getInstancePaths());
 
-		$this->request($delete);
+		return $this->request($delete);
 	}
 
 
@@ -217,61 +222,91 @@ class ActivityService {
 	/**
 	 * @param ACore $activity
 	 *
+	 * @return string
+	 * @throws Exception
+	 */
+	public function request(ACore $activity): string {
+		$this->setupCore($activity);
+
+		$author = $this->getAuthorFromItem($activity);
+		$instancePaths = $this->generateInstancePaths($activity);
+		$token = $this->queueService->generateRequestQueue($instancePaths, $activity, $author);
+
+		try {
+			$directRequest = $this->queueService->getPriorityRequest($token);
+			$this->manageRequest($directRequest);
+		} catch (NoHighPriorityRequestException $e) {
+		} catch (EmptyQueueException $e) {
+			return '';
+		}
+
+		$this->curlService->asyncWithToken($token);
+
+		return $token;
+	}
+
+
+	/**
+	 * @param RequestQueue $queue
+	 *
+	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
 	 */
-	public function manageRequest(ACore $activity) {
-		$result = $this->request($activity);
-		$this->miscService->log('Activity: ' . json_encode($activity));
-		$this->miscService->log('Result: ' . json_encode($result));
+	public function manageRequest(RequestQueue $queue) {
+
+		try {
+			$this->queueService->initRequest($queue);
+		} catch (QueueStatusException $e) {
+			return;
+		}
+
+		$result = $this->generateRequest(
+			$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
+		);
+
+		try {
+			if ($this->getint('_code', $result, 500) === 202) {
+				$this->queueService->endRequest($queue, true);
+			} else {
+				$this->queueService->endRequest($queue, false);
+			}
+		} catch (QueueStatusException $e) {
+		}
 	}
 
 
 	/**
 	 * @param ACore $activity
 	 *
-	 *
-	 * @return array
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
+	 * @return InstancePath[]
 	 */
-	public function request(ACore &$activity) {
-		$this->setupCore($activity);
-//		$hosts = $this->instanceService->getInstancesFromActivity($activity);
-
-		$result = [];
-//		foreach ($hosts as $host) {
-//			foreach ($host->getInstancePaths() as $path) {
+	private function generateInstancePaths(ACore $activity): array {
+		$instancePaths = [];
 		foreach ($activity->getInstancePaths() as $instancePath) {
 			if ($instancePath->getType() === InstancePath::TYPE_FOLLOWERS) {
-				$result = array_merge($result, $this->requestToFollowers($activity, $instancePath));
+				$instancePaths = array_merge(
+					$instancePaths, $this->generateInstancePathsFollowers($instancePath)
+				);
 			} else {
-				$result[] = $this->generateRequest($instancePath, $activity);
+				$instancePaths[] = $instancePath;
 			}
 		}
 
-//		}
-
-		return $result;
+		return $instancePaths;
 	}
 
 
 	/**
-	 * @param ACore $activity
 	 * @param InstancePath $instancePath
 	 *
-	 * @return array
-	 * @throws ActorDoesNotExistException
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
+	 * @return InstancePath[]
 	 */
-	private function requestToFollowers(ACore &$activity, InstancePath $instancePath): array {
-		$result = [];
+	private function generateInstancePathsFollowers(InstancePath $instancePath): array {
+		$follows = $this->followsRequest->getByFollowId($instancePath->getUri());
 
 		$sharedInboxes = [];
-		$follows = $this->followsRequest->getByFollowId($instancePath->getUri());
+		$instancePaths = [];
 		foreach ($follows as $follow) {
 			if (!$follow->gotActor()) {
 				// TODO - check if cache can be empty at this point ?
@@ -285,28 +320,32 @@ class ActivityService {
 			}
 
 			$sharedInboxes[] = $sharedInbox;
-			$result[] = $this->generateRequest(
-				new InstancePath($sharedInbox, InstancePath::TYPE_GLOBAL), $activity
+			$instancePaths[] = new InstancePath(
+				$sharedInbox, InstancePath::TYPE_GLOBAL, $instancePath->getPriority()
 			);
+//			$result[] = $this->generateRequest(
+//				new InstancePath($sharedInbox, InstancePath::TYPE_GLOBAL), $activity
+//			);
 		}
 
-		return $result;
+		return $instancePaths;
 	}
 
 
 	/**
 	 * @param InstancePath $path
-	 * @param ACore $activity
+	 * @param string $activity
+	 * @param string $author
 	 *
 	 * @return Request[]
 	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
-	public function generateRequest(InstancePath $path, ACore $activity): array {
-		$document = json_encode($activity);
+	public function generateRequest(InstancePath $path, string $activity, string $author): array {
+//		$document = json_encode($activity);
 		$date = gmdate(self::DATE_FORMAT);
-		$localActor = $this->getActorFromItem($activity);
+		$localActor = $this->getActorFromAuthor($author);
 
 		$localActorLink =
 			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
@@ -332,7 +371,7 @@ class ActivityService {
 		$request->addHeader('Date: ' . $date);
 		$request->addHeader('Signature: ' . $header);
 
-		$request->setDataJson($document);
+		$request->setDataJson($activity);
 		$request->setAddress($path->getAddress());
 
 		return $this->curlService->request($request);
@@ -362,18 +401,27 @@ class ActivityService {
 	/**
 	 * @param ACore $activity
 	 *
-	 * @return Person
-	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
+	 * @return string
 	 */
-	private function getActorFromItem(Acore $activity): Person {
+	private function getAuthorFromItem(Acore $activity): string {
 		if ($activity->gotActor()) {
-			return $activity->getActor();
+			return $activity->getActor()
+							->getId();
 		}
 
-		$actorId = $activity->getActorId();
+		return $activity->getActorId();
+	}
 
-		return $this->actorService->getActorById($actorId);
+
+	/**
+	 * @param string $author
+	 *
+	 * @return Person
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 */
+	private function getActorFromAuthor(string $author): Person {
+		return $this->actorService->getActorById($author);
 	}
 
 
@@ -456,8 +504,10 @@ class ActivityService {
 	 * @param $keyId
 	 *
 	 * @return string
-	 * @throws RequestException
 	 * @throws InvalidResourceException
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	private function retrieveKey($keyId): string {
 		$actor = $this->personService->getFromId($keyId);
@@ -467,6 +517,8 @@ class ActivityService {
 
 
 	/**
+	 * @deprecated !??? - do we need this !?
+	 *
 	 * @param ACore $activity
 	 */
 	private function setupCore(ACore $activity) {

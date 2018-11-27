@@ -31,10 +31,23 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TPathTools;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 
 class CurlService {
 
+
+	use TArrayTools;
+	use TPathTools;
+
+
+	const ASYNC_TOKEN = '/async/token/{token}';
+
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -43,9 +56,11 @@ class CurlService {
 	/**
 	 * CurlService constructor.
 	 *
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(MiscService $miscService) {
+	public function __construct(ConfigService $configService, MiscService $miscService) {
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -86,6 +101,29 @@ class CurlService {
 		$ret['_code'] = $code;
 
 		return $ret;
+	}
+
+
+	/**
+	 * @param string $token
+	 *
+	 * @throws SocialAppConfigException
+	 */
+	public function asyncWithToken(string $token) {
+		$address = $this->configService->getUrlSocial();
+		$parse = parse_url($address);
+		$host = $this->get('host', $parse, '');
+		$path = $this->withEndSlash($this->get('path', $parse, '')) . $this->withoutBeginSlash(
+				self::ASYNC_TOKEN
+			);
+		$path = str_replace('{token}', $token, $path);
+
+		$request = new Request($path, Request::TYPE_POST);
+		$request->setAddress($host);
+		try {
+			$this->request($request);
+		} catch (RequestException $e) {
+		}
 	}
 
 

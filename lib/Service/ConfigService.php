@@ -52,11 +52,18 @@ class ConfigService {
 
 
 	const SOCIAL_ADDRESS = 'address';
+	const SOCIAL_SERVICE = 'service';
 	const SOCIAL_MAX_SIZE = 'max_size';
+
+	const BACKGROUND_CRON = 1;
+	const BACKGROUND_ASYNC = 2;
+	const BACKGROUND_SERVICE = 3;
+	const BACKGROUND_FULL_SERVICE = 4;
 
 	/** @var array */
 	public $defaults = [
 		self::SOCIAL_ADDRESS  => '',
+		self::SOCIAL_SERVICE  => 1,
 		self::SOCIAL_MAX_SIZE => 25
 	];
 

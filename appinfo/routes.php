@@ -1,12 +1,39 @@
 <?php
+declare(strict_types=1);
+
+
 /**
- * Create your routes in here. The name is the lowercase name of the controller
- * without the controller part, the stuff after the hash is the method.
- * e.g. page#index -> OCA\MailTest\Controller\PageController->index()
+ * Nextcloud - Social Support
  *
- * The controller class has to be registered in the application.php file since
- * it's instantiated in there
+ * This file is licensed under the Affero General Public License version 3 or
+ * later. See the COPYING file.
+ *
+ * @author Maxence Lange <maxence@artificial-owl.com>
+ * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
+ * @license GNU AGPL version 3 or any later version
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
+
+
+namespace OCA\Social\AppInfo;
+
+
+use OCA\Social\Service\CurlService;
+
+
 return [
 	'routes' => [
 		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
@@ -51,6 +78,8 @@ return [
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/info', 'verb' => 'GET'],
 		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET'],
 		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
+
+		['name' => 'Queue#asyncWithToken', 'url' => CurlService::ASYNC_TOKEN, 'verb' => 'POST'],
 
 		[
 			'name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress',

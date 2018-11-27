@@ -53,6 +53,8 @@ use OCP\IDBConnection;
 class CoreRequestBuilder {
 
 
+	const TABLE_REQUEST_QUEUE = 'social_request_queue';
+
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
 	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
@@ -155,6 +157,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToPublic(IQueryBuilder &$qb) {
 		$this->limitToDBFieldInt($qb, 'public', 1);
+	}
+
+
+	/**
+	 * Limit the request to the token
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $token
+	 */
+	protected function limitToToken(IQueryBuilder &$qb, string $token) {
+		$this->limitToDBField($qb, 'token', $token);
 	}
 
 
@@ -262,10 +275,10 @@ class CoreRequestBuilder {
 	 * Limit the request to the status
 	 *
 	 * @param IQueryBuilder $qb
-	 * @param string $status
+	 * @param int $status
 	 */
-	protected function limitToStatus(IQueryBuilder &$qb, $status) {
-		$this->limitToDBField($qb, 'status', $status);
+	protected function limitToStatus(IQueryBuilder &$qb, int $status) {
+		$this->limitToDBFieldInt($qb, 'status', $status);
 	}
 
 
