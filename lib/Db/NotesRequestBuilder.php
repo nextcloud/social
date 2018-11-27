@@ -160,6 +160,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	protected function parseNotesSelectSql($data): Note {
 		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
 
+		// TODO - use $note->importFromDatabase() ?
 		$note = new Note();
 		$note->setId($data['id'])
 			 ->setTo($data['to'])

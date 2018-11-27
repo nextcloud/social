@@ -309,7 +309,7 @@ class ActivityService {
 		$localActor = $this->getActorFromItem($activity);
 
 		$localActorLink =
-			$this->configService->getUrlRoot() . '@' . $localActor->getPreferredUsername();
+			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
 		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $path->getAddress()
 					 . "\ndate: " . $date;
 

@@ -31,11 +31,10 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Document;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-class CacheActorsRequestBuilder extends CoreRequestBuilder {
+class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -46,9 +45,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsInsertSql(): IQueryBuilder {
+	protected function getCacheDocumentsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_CACHE_ACTORS);
+		$qb->insert(self::TABLE_CACHE_DOCUMENTS);
 
 		return $qb;
 	}
@@ -59,9 +58,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsUpdateSql(): IQueryBuilder {
+	protected function getCacheDocumentsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_CACHE_ACTORS);
+		$qb->update(self::TABLE_CACHE_DOCUMENTS);
 
 		return $qb;
 	}
@@ -72,19 +71,17 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql(): IQueryBuilder {
+	protected function getCacheDocumentsSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
-			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url',
-			'ca.preferred_username', 'ca.name', 'ca.summary',
-			'ca.public_key', 'ca.local', 'ca.source', 'ca.creation'
+			'cd.id', 'cd.type', 'cd.media_type', 'cd.mime_type', 'cd.url', 'cd.local_copy',
+			'cd.public', 'cd.error', 'cd.creation', 'cd.caching'
 		)
-		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
+		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 
-		$this->defaultSelectAlias = 'ca';
+		$this->defaultSelectAlias = 'cd';
 
 		return $qb;
 	}
@@ -95,9 +92,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsDeleteSql(): IQueryBuilder {
+	protected function getCacheDocumentsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_CACHE_ACTORS);
+		$qb->delete(self::TABLE_CACHE_DOCUMENTS);
 
 		return $qb;
 	}
@@ -106,20 +103,13 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Person
+	 * @return Document
 	 */
-	protected function parseCacheActorsSelectSql(array $data): Person {
-		$actor = new Person();
-		$actor->importFromDatabase($data);
+	protected function parseCacheDocumentsSelectSql(array $data): Document {
+		$document = new Document();
+		$document->importFromDatabase($data);
 
-		try {
-			$icon = $this->parseCacheDocumentsLeftJoin($data);
-			$icon->setParent($actor);
-			$actor->setIcon($icon);
-		} catch (InvalidResourceException $e) {
-		}
-
-		return $actor;
+		return $document;
 	}
 
 }

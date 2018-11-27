@@ -31,8 +31,10 @@ namespace OCA\Social\Model\ActivityPub;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TPathTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ICoreService;
 
@@ -41,6 +43,7 @@ abstract class ACore implements JsonSerializable {
 
 
 	use TArrayTools;
+	use TPathTools;
 
 
 	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
@@ -48,7 +51,10 @@ abstract class ACore implements JsonSerializable {
 
 
 	/** @var string */
-	private $root = '';
+	private $urlSocial = '';
+
+	/** @var string */
+	private $urlCloud = '';
 
 //	/** @var bool */
 //	private $isTopLevel = false;
@@ -100,6 +106,9 @@ abstract class ACore implements JsonSerializable {
 
 	/** @var string */
 	private $actorId = '';
+
+	/** @var Document */
+	private $icon = null;
 
 	/** @var ACore */
 	private $object = null;
@@ -155,14 +164,27 @@ abstract class ACore implements JsonSerializable {
 		return $this;
 	}
 
-	public function generateUniqueId(string $base) {
+	/**
+	 * @param string $base
+	 *
+	 * @throws UrlCloudException
+	 */
+	public function generateUniqueId(string $base = '') {
+		if ($this->getUrlCloud() === '') {
+			throw new UrlCloudException();
+		}
+
+		if ($base !== '') {
+			$base = $this->withoutEndSlash($this->withBeginSlash($base));
+		}
+
 		$uuid = sprintf(
 			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
 			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
 			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
 		);
 
-		$this->setId($base . '/' . $uuid);
+		$this->setId($this->getUrlCloud() . $base . '/' . $uuid);
 	}
 
 	/**
@@ -178,9 +200,10 @@ abstract class ACore implements JsonSerializable {
 	 * @return ACore
 	 */
 	public function setType(string $type): ACore {
-		if ($type !== '') {
-			$this->type = $type;
-		}
+//		if ($type !== '') {
+		$this->type = $type;
+
+//		}
 
 		return $this;
 	}
@@ -343,8 +366,8 @@ abstract class ACore implements JsonSerializable {
 	/**
 	 * @return string
 	 */
-	public function getUrlRoot(): string {
-		return $this->root;
+	public function getUrlSocial(): string {
+		return $this->urlSocial;
 	}
 
 	/**
@@ -352,8 +375,27 @@ abstract class ACore implements JsonSerializable {
 	 *
 	 * @return ACore
 	 */
-	public function setUrlRoot(string $path): ACore {
-		$this->root = $path;
+	public function setUrlSocial(string $path): ACore {
+		$this->urlSocial = $path;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getUrlCloud(): string {
+		return $this->urlCloud;
+	}
+
+	/**
+	 * @param string $path
+	 *
+	 * @return ACore
+	 */
+	public function setUrlCloud(string $path): ACore {
+		$this->urlCloud = $path;
 
 		return $this;
 	}
@@ -571,6 +613,36 @@ abstract class ACore implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
+	public function gotIcon(): bool {
+		if ($this->icon === null) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * @return Document
+	 */
+	public function getIcon(): Document {
+		return $this->icon;
+	}
+
+	/**
+	 * @param Document $icon
+	 *
+	 * @return ACore
+	 */
+	public function setIcon(Document $icon): ACore {
+		$this->icon = $icon;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
 	public function isLocal(): bool {
 		return $this->local;
 	}
@@ -622,7 +694,6 @@ abstract class ACore implements JsonSerializable {
 		if ($this->isRoot()) {
 			return $this;
 		}
-
 
 		return $this->getParent()
 					->getRoot($chain);
@@ -801,6 +872,23 @@ abstract class ACore implements JsonSerializable {
 		$this->setPublished($this->get('published', $data, ''));
 		$this->setActorId($this->get('actor', $data, ''));
 		$this->setObjectId($this->get('object', $data, ''));
+		$this->setLocal(($this->getInt('local', $data, 0) === 1));
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	public function importFromDatabase(array $data) {
+		$this->setId($this->get('id', $data, ''));
+		$this->setType($this->get('type', $data, ''));
+		$this->setUrl($this->get('url', $data, ''));
+		$this->setSummary($this->get('summary', $data, ''));
+		$this->setToArray($this->getArray('to', $data, []));
+		$this->setCcArray($this->getArray('cc', $data, []));
+		$this->setPublished($this->get('published', $data, ''));
+		$this->setActorId($this->get('actor', $data, ''));
+		$this->setObjectId($this->get('object', $data, ''));
 		$this->setSource($this->get('source', $data, ''));
 		$this->setLocal(($this->getInt('local', $data, 0) === 1));
 	}
@@ -821,7 +909,7 @@ abstract class ACore implements JsonSerializable {
 
 		$this->addEntry('id', $this->getId());
 		$this->addEntry('type', $this->getType());
-		$this->addEntry('url', $this->getId());
+		$this->addEntry('url', $this->getUrl());
 
 		$this->addEntry('to', $this->getTo());
 		$this->addEntryArray('to', $this->getToArray());
@@ -850,11 +938,17 @@ abstract class ACore implements JsonSerializable {
 			$this->addEntry('object', $this->getObjectId());
 		}
 
+		if ($this->gotIcon()) {
+			$this->addEntryItem('icon', $this->getIcon());
+		}
+
 		if ($this->isCompleteDetails()) {
 			$this->addEntry('source', $this->getSource());
 		}
 
-		$this->addEntryBool('local', $this->isLocal());
+		if ($this->isLocal()) {
+			$this->addEntryBool('local', $this->isLocal());
+		}
 
 		return $this->getEntries();
 	}

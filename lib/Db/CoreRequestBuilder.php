@@ -27,24 +27,38 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Db;
 
 
+use DateInterval;
+use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
+use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Model\ActivityPub\Image;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
+
+/**
+ * Class CoreRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
 class CoreRequestBuilder {
+
 
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
 	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
 
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
+	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
 
 	/** @var IDBConnection */
@@ -138,6 +152,16 @@ class CoreRequestBuilder {
 	 * Limit the request to the ActorId
 	 *
 	 * @param IQueryBuilder $qb
+	 */
+	protected function limitToPublic(IQueryBuilder &$qb) {
+		$this->limitToDBFieldInt($qb, 'public', 1);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
 	 * @param string $actorId
 	 * @param string $alias
 	 */
@@ -188,6 +212,38 @@ class CoreRequestBuilder {
 	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
 		$dbConn = $this->dbConnection;
 		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
+	}
+
+
+	/**
+	 * Limit the request to the creation
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $delay
+	 *
+	 * @throws Exception
+	 */
+	protected function limitToCreation(IQueryBuilder &$qb, int $delay = 0) {
+		$date = new DateTime('now');
+		$date->sub(new DateInterval('PT' . $delay . 'M'));
+
+		$this->limitToDBFieldDateTime($qb, 'creation', $date);
+	}
+
+
+	/**
+	 * Limit the request to the creation
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $delay
+	 *
+	 * @throws Exception
+	 */
+	protected function limitToCaching(IQueryBuilder &$qb, int $delay = 0) {
+		$date = new DateTime('now');
+		$date->sub(new DateInterval('PT' . $delay . 'M'));
+
+		$this->limitToDBFieldDateTime($qb, 'caching', $date);
 	}
 
 
@@ -299,7 +355,7 @@ class CoreRequestBuilder {
 	 * @param bool $cs - case sensitive
 	 * @param string $alias
 	 */
-	private function limitToDBField(
+	protected function limitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
 		$expr = $qb->expr();
@@ -326,7 +382,7 @@ class CoreRequestBuilder {
 	 * @param string $field
 	 * @param int $value
 	 */
-	private function limitToDBFieldInt(IQueryBuilder &$qb, string $field, int $value) {
+	protected function limitToDBFieldInt(IQueryBuilder &$qb, string $field, int $value) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
@@ -338,9 +394,39 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
+	 */
+	protected function limitToDBFieldEmpty(IQueryBuilder &$qb, string $field) {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$qb->andWhere($expr->eq($field, $qb->createNamedParameter('')));
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param DateTime $date
+	 */
+	protected function limitToDBFieldDateTime(IQueryBuilder &$qb, string $field, DateTime $date) {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$orX = $expr->orX();
+		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
+		$orX->add($expr->isNull($field));
+		$qb->andWhere($orX);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
 	 * @param array $values
 	 */
-	private function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values) {
+	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
@@ -363,7 +449,7 @@ class CoreRequestBuilder {
 	 * @param string $field
 	 * @param string $value
 	 */
-	private function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
+	protected function searchInDBField(IQueryBuilder &$qb, string $field, string $value) {
 		$expr = $qb->expr();
 
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
@@ -425,13 +511,69 @@ class CoreRequestBuilder {
 		}
 
 		$actor = new Person();
-		$actor->import($new);
+		$actor->importFromDatabase($new);
 
 		if ($actor->getType() !== Person::TYPE) {
 			throw new InvalidResourceException();
 		}
 
 		return $actor;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $fieldDocumentId
+	 */
+	protected function leftJoinCacheDocuments(IQueryBuilder &$qb, string $fieldDocumentId) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$pf = $this->defaultSelectAlias;
+
+//		/** @noinspection PhpMethodParametersCountMismatchInspection */
+		$qb->selectAlias('cd.id', 'cachedocument_id')
+		   ->selectAlias('cd.type', 'cachedocument_type')
+		   ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
+		   ->selectAlias('cd.media_type', 'cachedocument_media_type')
+		   ->selectAlias('cd.url', 'cachedocument_url')
+		   ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
+		   ->selectAlias('cd.caching', 'cachedocument_caching')
+		   ->selectAlias('cd.public', 'cachedocument_public')
+		   ->selectAlias('cd.error', 'cachedocument_error')
+		   ->selectAlias('ca.creation', 'cachedocument_creation')
+		   ->leftJoin(
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
+			   $expr->eq($pf . '.' . $fieldDocumentId, 'cd.id')
+		   );
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return Document
+	 * @throws InvalidResourceException
+	 */
+	protected function parseCacheDocumentsLeftJoin(array $data): Document {
+		$new = [];
+
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 14) === 'cachedocument_') {
+				$new[substr($k, 14)] = $v;
+			}
+		}
+		$document = new Document();
+
+		$document->importFromDatabase($new);
+
+		if ($document->getType() !== Image::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		return $document;
 	}
 
 }

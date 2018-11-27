@@ -33,14 +33,18 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Tombstone;
+use OCA\Social\Model\ActivityPub\Document;
 use OCA\Social\Model\ActivityPub\Follow;
+use OCA\Social\Model\ActivityPub\Image;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Service\ActivityPub\DeleteService;
@@ -67,6 +71,8 @@ class ImportService {
 	/** @var DeleteService */
 	private $deleteService;
 
+	private $configService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -78,17 +84,18 @@ class ImportService {
 	 * @param UndoService $undoService
 	 * @param FollowService $followService
 	 * @param DeleteService $deleteService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		NoteService $noteService, UndoService $undoService, FollowService $followService,
-		DeleteService $deleteService,
-		MiscService $miscService
+		DeleteService $deleteService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->noteService = $noteService;
 		$this->undoService = $undoService;
 		$this->followService = $followService;
 		$this->deleteService = $deleteService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -98,6 +105,8 @@ class ImportService {
 	 *
 	 * @return ACore
 	 * @throws UnknownItemException
+	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function import(string $json) {
 		$data = json_decode($json, true);
@@ -113,6 +122,8 @@ class ImportService {
 	 *
 	 * @return ACore
 	 * @throws UnknownItemException
+	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	private function createItem(array $data, $root = null): ACore {
 
@@ -131,6 +142,10 @@ class ImportService {
 
 			case Note::TYPE:
 				$item = new Note($root);
+				break;
+
+			case Image::TYPE:
+				$item = new Image($root);
 				break;
 
 			case Follow::TYPE:
@@ -153,12 +168,20 @@ class ImportService {
 				throw new UnknownItemException();
 		}
 
+		$item->setUrlCloud($this->configService->getCloudAddress());
 		$item->import($data);
 		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
 
 		try {
 			$object = $this->createItem($this->getArray('object', $data, []), $item);
 			$item->setObject($object);
+		} catch (UnknownItemException $e) {
+		}
+
+		try {
+			/** @var Document $icon */
+			$icon = $this->createItem($this->getArray('icon', $data, []), $item);
+			$item->setIcon($icon);
 		} catch (UnknownItemException $e) {
 		}
 
@@ -204,6 +227,10 @@ class ImportService {
 			case Follow::TYPE:
 				$service = $this->followService;
 				break;
+
+//			case Image::TYPE:
+//				$service = $this->imageService;
+//				break;
 
 			case Note::TYPE:
 				$service = $this->noteService;

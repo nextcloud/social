@@ -30,14 +30,19 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use DateTime;
+use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 
+
+	const CACHE_TTL = 60 * 24; // 1d
 
 	/**
 	 * CacheActorsRequest constructor.
@@ -78,36 +83,22 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->setValue('source', $qb->createNamedParameter($actor->getSource()));
+		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
+		   ->setValue(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
+
+		if ($actor->gotIcon()) {
+			$iconId = $actor->getIcon()
+							->getId();
+			$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
+		}
 
 		$qb->execute();
 
 		return $qb->getLastInsertId();
 	}
-
-
-//	/**
-//	 * get Cached value about an Actor, based on the account.
-//	 *
-//	 * @param string $account
-//	 *
-//	 * @return CacheActor
-//	 * @throws CacheActorDoesNotExistException
-//	 */
-//	public function getFromAccount(string $account): CacheActor {
-//		$qb = $this->getCacheActorsSelectSql();
-//		$this->limitToAccount($qb, $account);
-//
-//		$cursor = $qb->execute();
-//		$data = $cursor->fetch();
-//		$cursor->closeCursor();
-//
-//		if ($data === false) {
-//			throw new CacheActorDoesNotExistException();
-//		}
-//
-//		return $this->parseCacheActorsSelectSql($data);
-//	}
 
 
 	/**
@@ -121,6 +112,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getFromId(string $id): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToIdString($qb, $id);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -145,6 +137,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getFromAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToAccount($qb, $account);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -166,6 +159,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->searchInAccount($qb, $search);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$accounts = [];
 		$cursor = $qb->execute();
@@ -175,6 +169,26 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$cursor->closeCursor();
 
 		return $accounts;
+	}
+
+
+	/**
+	 * @return Person[]
+	 * @throws Exception
+	 */
+	public function getRemoteActorsToUpdate(): array {
+		$qb = $this->getCacheActorsSelectSql();
+		$this->limitToLocal($qb, false);
+		$this->limitToCreation($qb, self::CACHE_TTL);
+
+		$update = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$update[] = $this->parseCacheActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $update;
 	}
 
 

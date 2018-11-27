@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 
 use JsonSerializable;
+use OCA\Social\Exceptions\UrlCloudException;
 
 
 /**
@@ -340,9 +341,44 @@ class Person extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws UrlCloudException
 	 */
 	public function import(array $data) {
 		parent::import($data);
+		$this->setPreferredUsername($this->get('preferredUsername', $data, ''))
+			 ->setPublicKey($this->get('publicKey.publicKeyPem', $data))
+			 ->setSharedInbox($this->get('endpoints.sharedInbox', $data))
+			 ->setName($this->get('name', $data, ''))
+			 ->setAccount($this->get('account', $data, ''))
+			 ->setInbox($this->get('inbox', $data, ''))
+			 ->setOutbox($this->get('outbox', $data, ''))
+			 ->setFollowers($this->get('followers', $data, ''))
+			 ->setFollowing($this->get('following', $data, ''))
+			 ->setFeatured($this->get('featured', $data, ''));
+
+		$icon = new Image($this);
+		$icon->setUrlCloud($this->getUrlCloud());
+		$icon->import($this->getArray('icon', $data, []));
+
+		if ($icon->getType() === Image::TYPE) {
+			$this->setIcon($icon);
+		}
+
+
+//			 ->setCreation($this->getInt('creation', $data, 0));
+
+//		if ($this->getPreferredUsername() === '') {
+//			$this->setType('Invalid');
+//		}
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	public function importFromDatabase(array $data) {
+		parent::importFromDatabase($data);
 		$this->setPreferredUsername($this->get('preferred_username', $data, ''))
 			 ->setName($this->get('name', $data, ''))
 			 ->setAccount($this->get('account', $data, ''))
@@ -370,8 +406,8 @@ class Person extends ACore implements JsonSerializable {
 			parent::jsonSerialize(),
 			[
 				'aliases'           => [
-					$this->getUrlRoot() . '@' . $this->getPreferredUsername(),
-					$this->getUrlRoot() . 'users/' . $this->getPreferredUsername()
+					$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
+					$this->getUrlSocial() . 'users/' . $this->getPreferredUsername()
 				],
 				'preferredUsername' => $this->getPreferredUsername(),
 				'name'              => $this->getName(),

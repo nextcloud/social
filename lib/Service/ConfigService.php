@@ -52,10 +52,12 @@ class ConfigService {
 
 
 	const SOCIAL_ADDRESS = 'address';
+	const SOCIAL_MAX_SIZE = 'max_size';
 
 	/** @var array */
 	public $defaults = [
-		self::SOCIAL_ADDRESS => ''
+		self::SOCIAL_ADDRESS  => '',
+		self::SOCIAL_MAX_SIZE => 25
 	];
 
 	/** @var string */
@@ -109,6 +111,22 @@ class ConfigService {
 		}
 
 		return $this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
+	}
+
+	/**
+	 * Get a value by key
+	 *
+	 * @param string $key
+	 *
+	 * @return int
+	 */
+	public function getAppValueInt(string $key): int {
+		$defaultValue = null;
+		if (array_key_exists($key, $this->defaults)) {
+			$defaultValue = $this->defaults[$key];
+		}
+
+		return (int)$this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
 	}
 
 	/**
@@ -211,13 +229,11 @@ class ConfigService {
 	}
 
 	/**
-	 * @param bool $host
+	 * @param string $cloudAddress
 	 *
 	 * @return string
-	 * @throws SocialAppConfigException
 	 */
 	public function setCloudAddress(string $cloudAddress) {
-		// TODO: Validate
 		$this->setAppValue(self::SOCIAL_ADDRESS, $cloudAddress);
 	}
 
@@ -249,10 +265,12 @@ class ConfigService {
 
 
 	/**
+	 * // TODO - check the Apps folder
+	 *
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function getUrlRoot(): string {
+	public function getUrlSocial(): string {
 		return $this->getCloudAddress() . '/apps/social/';
 	}
 
@@ -267,7 +285,7 @@ class ConfigService {
 	public function generateId(string $path = '', $generateId = true): string {
 		$path = $this->withoutBeginSlash($this->withEndSlash($path));
 
-		$id = $this->getUrlRoot() . $path;
+		$id = $this->getUrlSocial() . $path;
 		if ($generateId === true) {
 			$id .= time() . crc32(uniqid());
 		}

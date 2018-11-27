@@ -64,7 +64,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function create(Person $actor): string {
 
-		$id = $this->configService->getUrlRoot() . '@' . $actor->getPreferredUsername();
+		$id = $this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername();
 
 		try {
 			$qb = $this->getActorsInsertSql();
@@ -158,6 +158,24 @@ class ActorsRequest extends ActorsRequestBuilder {
 		}
 
 		return $this->parseActorsSelectSql($data);
+	}
+
+
+	/**
+	 * @return Person[]
+	 * @throws SocialAppConfigException
+	 */
+	public function getAll(): array {
+		$qb = $this->getActorsSelectSql();
+
+		$accounts = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$accounts[] = $this->parseActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $accounts;
 	}
 
 

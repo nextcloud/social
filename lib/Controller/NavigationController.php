@@ -32,16 +32,22 @@ namespace OCA\Social\Controller;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use Exception;
+use OC\Files\Node\File;
+use OC\Files\SimpleFS\SimpleFile;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
@@ -68,6 +74,8 @@ class NavigationController extends Controller {
 	/** @var ActorService */
 	private $actorService;
 
+	private $documentService;
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -85,14 +93,15 @@ class NavigationController extends Controller {
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
 	 * @param ActorService $actorService
+	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 * @param IL10N $l10n
 	 */
 	public function __construct(
 		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
-		ActorService $actorService, ConfigService $configService, MiscService $miscService,
-		IL10N $l10n
+		ActorService $actorService, DocumentService $documentService, ConfigService $configService,
+		MiscService $miscService, IL10N $l10n
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -101,6 +110,7 @@ class NavigationController extends Controller {
 		$this->urlGenerator = $urlGenerator;
 
 		$this->actorService = $actorService;
+		$this->documentService = $documentService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 		$this->l10n = $l10n;
@@ -130,13 +140,18 @@ class NavigationController extends Controller {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
 			$data['serverData']['setup'] = true;
-			$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()->isAdmin($this->userId);
+			$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()
+														 ->isAdmin($this->userId);
 			if ($data['serverData']['isAdmin']) {
 				$cloudAddress = $this->request->getParam('cloudAddress');
 				if ($cloudAddress !== null) {
 					$this->configService->setCloudAddress($cloudAddress);
 				} else {
-					$data['serverData']['cliUrl'] = $this->config->getSystemValue('overwrite.cli.url', \OC::$server->getURLGenerator()->getBaseUrl());
+					$data['serverData']['cliUrl'] = $this->config->getSystemValue(
+						'overwrite.cli.url', \OC::$server->getURLGenerator()
+														 ->getBaseUrl()
+					);
+
 					return new TemplateResponse(Application::APP_NAME, 'main', $data);
 				}
 			}
@@ -151,8 +166,6 @@ class NavigationController extends Controller {
 
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
-
-
 
 
 	/**
@@ -237,4 +250,54 @@ class NavigationController extends Controller {
 		return $page;
 	}
 
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return Response
+	 */
+	public function documentGet(string $id): Response {
+
+		try {
+			$file = $this->documentService->getFromCache($id);
+
+			return new FileDisplayResponse($file);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return Response
+	 */
+	public function documentGetPublic(string $id): Response {
+
+		try {
+			$file = $this->documentService->getFromCache($id, true);
+
+			return new FileDisplayResponse($file);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 }
+

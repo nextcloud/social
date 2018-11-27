@@ -346,6 +346,13 @@
 			</field>
 
 			<field>
+				<name>icon_id</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
 				<name>summary</name>
 				<type>text</type>
 				<length>500</length>
@@ -371,6 +378,86 @@
 				<type>timestamp</type>
 			</field>
 
+		</declaration>
+	</table>
+
+	<table>
+		<name>*dbprefix*social_cache_documents</name>
+		<declaration>
+
+			<field>
+				<name>id</name>
+				<type>string</type>
+				<length>127</length>
+				<notnull>true</notnull>
+				<primary>true</primary>
+			</field>
+
+			<field>
+				<name>type</name>
+				<type>text</type>
+				<length>31</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>media_type</name>
+				<type>text</type>
+				<length>63</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>mime_type</name>
+				<type>text</type>
+				<length>63</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>url</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>local_copy</name>
+				<type>text</type>
+				<length>127</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>public</name>
+				<type>boolean</type>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>error</name>
+				<type>integer</type>
+				<length>1</length>
+				<notnull>true</notnull>
+			</field>
+
+			<field>
+				<name>creation</name>
+				<type>timestamp</type>
+			</field>
+
+			<field>
+				<name>caching</name>
+				<type>timestamp</type>
+			</field>
+
+			<index>
+				<name>unique_url</name>
+				<unique>true</unique>
+				<field>
+					<name>url</name>
+				</field>
+			</index>
 		</declaration>
 	</table>
 
