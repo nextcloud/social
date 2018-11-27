@@ -350,6 +350,14 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 */
+	protected function orderByPriority(IQueryBuilder &$qb) {
+		$qb->orderBy('priority', 'desc');
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param string $value
 	 * @param bool $cs - case sensitive
@@ -474,6 +482,7 @@ class CoreRequestBuilder {
 
 //		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectAlias('ca.id', 'cacheactor_id')
+		   ->selectAlias('ca.type', 'cacheactor_type')
 		   ->selectAlias('ca.account', 'cacheactor_account')
 		   ->selectAlias('ca.following', 'cacheactor_following')
 		   ->selectAlias('ca.followers', 'cacheactor_followers')
