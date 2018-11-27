@@ -53,6 +53,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('type', $qb->createNamedParameter($document->getType()))
 		   ->setValue('url', $qb->createNamedParameter($document->getUrl()))
 		   ->setValue('media_type', $qb->createNamedParameter($document->getMediaType()))
+		   ->setValue('mime_type', $qb->createNamedParameter($document->getMimeType()))
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'))
 		   ->setValue(
