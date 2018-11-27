@@ -39,7 +39,6 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Document;
 use OCA\Social\Service\CacheService;
-use OCA\Social\Service\ICoreService;
 use OCA\Social\Service\MiscService;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -77,13 +76,14 @@ class DocumentService implements ICoreService {
 
 	/**
 	 * @param string $id
+	 * @param bool $public
 	 *
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws NotPermittedException
 	 */
-	public function cacheRemoteDocument(string $id) {
-		$document = $this->cacheDocumentsRequest->getById($id);
+	public function cacheRemoteDocument(string $id, bool $public = false) {
+		$document = $this->cacheDocumentsRequest->getById($id, $public);
 		if ($document->getLocalCopy() !== '') {
 			return $document;
 		}
@@ -117,9 +117,10 @@ class DocumentService implements ICoreService {
 	 * @return ISimpleFile
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
+	 * @throws NotPermittedException
 	 */
 	public function getFromCache(string $id, bool $public = false) {
-		$document = $this->cacheDocumentsRequest->getById($id, $public);
+		$document = $this->cacheRemoteDocument($id, $public);
 
 		return $this->cacheService->getContentFromCache($document->getLocalCopy());
 	}
