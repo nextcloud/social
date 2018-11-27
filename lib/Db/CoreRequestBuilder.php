@@ -313,6 +313,7 @@ class CoreRequestBuilder {
 		$orX = $expr->orX();
 		$dbConn = $this->dbConnection;
 
+		$orX->add($expr->eq('attributed_to', $qb->createNamedParameter($recipient)));
 		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
 		$orX->add(
 			$expr->like(
