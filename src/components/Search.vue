@@ -25,6 +25,7 @@
 		<h3>{{ t('social', 'Search') }} {{ term }}</h3>
 		<div v-if="results.length < 1" :class="{'icon-loading': loading}" class="emptycontent emptycontent-search" />
 		<div>
+			<UserEntry v-if="match" :item="match" />
 			<UserEntry v-for="result in results" :key="result.id" :item="result" />
 		</div>
 	</div>
@@ -53,21 +54,32 @@ export default {
 	data() {
 		return {
 			results: [],
-			loading: false
+			loading: false,
+			match: null
 		}
 	},
 	watch: {
 		term(val) {
-			this.remoteSearch(val).then((response) => {
+			this.loading = true
+			this.accountSearch(val).then((response) => {
 				this.results = response.data.result.accounts
 				this.loading = false
 			})
+			const re = /@((\w+)(@[\w.]+)?)/g
+			if (val.match(re)) {
+				this.remoteSearch(val).then((response) => {
+					this.match = response.data.result.account
+				}).catch((e) => { this.match = null })
+			}
 		}
 	},
 	methods: {
-		remoteSearch(term) {
+		accountSearch(term) {
 			this.loading = true
 			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + term))
+		},
+		remoteSearch(term) {
+			return axios.get(OC.generateUrl('apps/social/api/v1/account/info?account=' + term))
 		}
 	}
 }

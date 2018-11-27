@@ -24,7 +24,8 @@
 	<div class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
-				<avatar :size="32" :user="item.account" />
+				<avatar v-if="item.local" :size="32" :user="item.preferredUsername" />
+				<avatar v-else url="" />
 			</div>
 			<div class="user-details">
 				<router-link :to="{ name: 'profile', params: { account: item.account }}">

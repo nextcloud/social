@@ -44,6 +44,12 @@
 	#app-content .social__wrapper {
 		margin: 15px calc(50% - 350px - 75px);
 	}
+
+	#social-spacer a:hover,
+	#social-spacer a:focus {
+		border: none !important;
+	}
+
 </style>
 
 <script>
@@ -75,6 +81,11 @@ export default {
 			state: [],
 			cloudAddress: '',
 			searchTerm: ''
+		}
+	},
+	watch:{
+		$route (to, from){
+			this.searchTerm = ''
 		}
 	},
 	computed: {
@@ -126,7 +137,6 @@ export default {
 				},
 				{
 					id: 'social-spacer',
-					classes: []
 				},
 				{
 					id: 'social-local',
