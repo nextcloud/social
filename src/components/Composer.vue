@@ -61,7 +61,7 @@
 				<input :value="t('social', 'Post')" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div>
-					<button :class="currentVisibilityIconClass" @click="togglePopoverMenu" />
+					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu">
 						<PopoverMenu :menu="visibilityPopover" />
 					</div>
@@ -308,6 +308,9 @@ export default {
 						+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
 				},
 				values: (text, cb) => {
+					if (text.length < 1) {
+						cb([])
+					}
 					this.remoteSearch(text).then((result) => {
 						let users = []
 						if (result.data.result.exact) {
