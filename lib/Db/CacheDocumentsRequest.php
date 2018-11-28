@@ -39,7 +39,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 
-	const CACHE_TTL = 15; // 15 min
+	const CACHE_TTL = 5; // 5 min
 
 
 	/**
