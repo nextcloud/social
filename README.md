@@ -16,6 +16,7 @@ Mockup:
 - **📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.
 - **👐 Own your posts:** Everything you post stays on your Nextcloud!
 - **🕸 Open standards:** We use the established [ActivityPub](https://en.wikipedia.org/wiki/ActivityPub) standard!
+- **🎨 Nice illustrations:** Made by [Katerina Limpitsouni of unDraw](https://undraw.co).
 
 
 ## Development setup
