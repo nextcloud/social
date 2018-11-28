@@ -27,79 +27,91 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Controller;
+
+namespace OCA\Social\Command;
 
 
-use daita\MySmallPhpTools\Traits\TAsync;
-use OCA\Social\AppInfo\Application;
+use Exception;
+use OC\Core\Command\Base;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\CurlService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\QueueService;
-use OCP\AppFramework\Controller;
-use OCP\IRequest;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 
-/**
- * Class QueueController
- *
- * @package OCA\Social\Controller
- */
-class QueueController extends Controller {
+class QueueProcess extends Base {
 
 
-	use TAsync;
+	/** @var ActivityService */
+	private $activityService;
 
 	/** @var QueueService */
 	private $queueService;
 
-	/** @var ActivityService */
-	private $activityService;
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * QueueController constructor.
+	 * NoteCreate constructor.
 	 *
-	 * @param IRequest $request
-	 * @param QueueService $queueService
 	 * @param ActivityService $activityService
+	 * @param QueueService $queueService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, QueueService $queueService, ActivityService $activityService,
+		ActivityService $activityService, QueueService $queueService, ConfigService $configService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct();
 
-		$this->queueService = $queueService;
 		$this->activityService = $activityService;
+		$this->queueService = $queueService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
 	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
-	 *
-	 * @param string $token
 	 */
-	public function asyncWithToken(string $token) {
-		$this->async();
+	protected function configure() {
+		parent::configure();
+		$this->setName('social:queue:process')
+			 ->setDescription('Process the request queue');
+	}
 
-		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+
+	/**
+	 * @param InputInterface $input
+	 * @param OutputInterface $output
+	 */
+	protected function execute(InputInterface $input, OutputInterface $output) {
+
+		$requests = $this->queueService->getRequestStandby($total = 0);
+
+		$output->writeLn('found a total of ' . $total . ' requests in the queue');
+		if ($total === 0) {
+			return;
+		}
+
+		$output->writeLn(sizeof($requests) . ' are processable at this time');
+		if (sizeof($requests) === 0) {
+			return;
+		}
+
 		$this->activityService->manageInit();
 		foreach ($requests as $request) {
+			$output->write('.');
 			try {
 				$this->activityService->manageRequest($request);
 			} catch (RequestException $e) {
@@ -107,8 +119,7 @@ class QueueController extends Controller {
 			}
 		}
 
-		// or it will feed the logs.
-		exit();
+		$output->writeLn('done');
 	}
 
 }

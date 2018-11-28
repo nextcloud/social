@@ -140,9 +140,14 @@ class LocalController extends Controller {
 			$post->setType($this->get('type', $data, NoteService::TYPE_PUBLIC));
 
 			/** @var ACore $activity */
-			$this->postService->createPost($post, $activity);
+			$token = $this->postService->createPost($post, $activity);
 
-			return $this->directSuccess($activity->getObject());
+			return $this->success(
+				[
+					'post'  => $activity->getObject(),
+					'token' => $token
+				]
+			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -415,7 +420,6 @@ class LocalController extends Controller {
 			$cached = [];
 			foreach ($documents as $id) {
 				try {
-
 					$document = $this->documentService->cacheRemoteDocument($id);
 					$cached[] = $document;
 				} catch (Exception $e) {

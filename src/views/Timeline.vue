@@ -1,6 +1,5 @@
 <template>
 	<div class="social__wrapper">
-		{{ type }}
 		<div class="social__container">
 			<transition name="slide-fade">
 				<div v-if="showInfo" class="social__welcome">

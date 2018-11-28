@@ -11,6 +11,10 @@
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
+					<a v-else-if="item.local" :href="item.id">
+						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
+						<span class="post-author-id">{{ item.actor_info.account }}</span>
+					</a>
 					<a v-else :href="item.actor_info.url">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
@@ -44,7 +48,13 @@ export default {
 		formatedMessage: function() {
 			let message = this.item.content
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
-			message = message.linkify()
+			message = message.linkify({
+				formatHref: {
+					email: function(href) {
+						return OC.generateUrl('/apps/social/@' + (href.indexOf('mailto:') === 0 ? href.substring(7) : href))
+					}
+				}
+			})
 			message = this.$twemoji.parse(message)
 			return message
 		}

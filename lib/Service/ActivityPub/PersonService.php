@@ -38,6 +38,7 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -124,6 +125,7 @@ class PersonService implements ICoreService {
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws Request410Exception
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 

@@ -27,78 +27,74 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Controller;
+
+namespace OCA\Social\Cron;
 
 
-use daita\MySmallPhpTools\Traits\TAsync;
+use Exception;
+use OC\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\RequestQueue;
+use OCA\Social\Service\ActivityPub\DocumentService;
+use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\CurlService;
+use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CacheService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\QueueService;
-use OCP\AppFramework\Controller;
-use OCP\IRequest;
+use OCP\AppFramework\QueryException;
 
 
 /**
- * Class QueueController
+ * Class Queue
  *
- * @package OCA\Social\Controller
+ * @package OCA\Social\Cron
  */
-class QueueController extends Controller {
+class Queue extends TimedJob {
 
-
-	use TAsync;
-
-	/** @var QueueService */
-	private $queueService;
 
 	/** @var ActivityService */
 	private $activityService;
+
+	/** @var QueueService */
+	private $queueService;
 
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * QueueController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param QueueService $queueService
-	 * @param ActivityService $activityService
-	 * @param MiscService $miscService
+	 * Cache constructor.
 	 */
-	public function __construct(
-		IRequest $request, QueueService $queueService, ActivityService $activityService,
-		MiscService $miscService
-	) {
-		parent::__construct(Application::APP_NAME, $request);
-
-		$this->queueService = $queueService;
-		$this->activityService = $activityService;
-		$this->miscService = $miscService;
+	public function __construct() {
+		$this->setInterval(12 * 60); // 12 minutes
 	}
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
+	 * @param mixed $argument
 	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
-	 *
-	 * @param string $token
+	 * @throws QueryException
 	 */
-	public function asyncWithToken(string $token) {
-		$this->async();
+	protected function run($argument) {
+		$app = new Application();
+		$c = $app->getContainer();
 
-		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		$this->queueService = $c->query(QueueService::class);
+		$this->activityService = $c->query(ActivityService::class);
+		$this->miscService = $c->query(MiscService::class);
+
+		$this->manageQueue();
+	}
+
+
+	private function manageQueue() {
+		$requests = $this->queueService->getRequestStandby($total = 0);
 		$this->activityService->manageInit();
+
 		foreach ($requests as $request) {
 			try {
 				$this->activityService->manageRequest($request);
@@ -107,8 +103,6 @@ class QueueController extends Controller {
 			}
 		}
 
-		// or it will feed the logs.
-		exit();
 	}
 
 }

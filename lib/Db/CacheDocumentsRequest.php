@@ -150,6 +150,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToDBFieldEmpty($qb, 'local_copy');
 		$this->limitToCaching($qb, self::CACHING_TIMEOUT);
+		$this->limitToDBFieldInt($qb, 'error', 0);
 
 		$documents = [];
 		$cursor = $qb->execute();

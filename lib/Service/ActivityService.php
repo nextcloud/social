@@ -43,8 +43,10 @@ use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SignatureException;
+use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -103,6 +105,10 @@ class ActivityService {
 
 	/** @var MiscService */
 	private $miscService;
+
+
+	/** @var array */
+	private $failInstances;
 
 
 	/**
@@ -231,10 +237,12 @@ class ActivityService {
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
 		$token = $this->queueService->generateRequestQueue($instancePaths, $activity, $author);
+		$this->manageInit();
 
 		try {
 			$directRequest = $this->queueService->getPriorityRequest($token);
 			$this->manageRequest($directRequest);
+		} catch (RequestException $e) {
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
 			return '';
@@ -246,14 +254,23 @@ class ActivityService {
 	}
 
 
+	public function manageInit() {
+		$this->failInstances = [];
+	}
+
+
 	/**
 	 * @param RequestQueue $queue
 	 *
-	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
 	public function manageRequest(RequestQueue $queue) {
+		$host = $queue->getInstance()
+					  ->getAddress();
+		if (in_array($host, $this->failInstances)) {
+			throw new RequestException();
+		}
 
 		try {
 			$this->queueService->initRequest($queue);
@@ -261,15 +278,22 @@ class ActivityService {
 			return;
 		}
 
-		$result = $this->generateRequest(
-			$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
-		);
+		try {
+			$result = $this->generateRequest(
+				$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
+			);
+		} catch (ActorDoesNotExistException $e) {
+			$this->queueService->deleteRequest($queue);
+		} catch (Request410Exception $e) {
+			$this->queueService->deleteRequest($queue);
+		}
 
 		try {
 			if ($this->getint('_code', $result, 500) === 202) {
 				$this->queueService->endRequest($queue, true);
 			} else {
 				$this->queueService->endRequest($queue, false);
+				$this->failInstances[] = $host;
 			}
 		} catch (QueueStatusException $e) {
 		}
@@ -339,6 +363,7 @@ class ActivityService {
 	 *
 	 * @return Request[]
 	 * @throws ActorDoesNotExistException
+	 * @throws Request410Exception
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
@@ -385,6 +410,9 @@ class ActivityService {
 	 * @throws MalformedArrayException
 	 * @throws RequestException
 	 * @throws SignatureException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws SignatureIsGoneException
 	 */
 	public function checkRequest(IRequest $request) {
 		$dTime = new DateTime($request->getHeader('date'));
@@ -394,7 +422,12 @@ class ActivityService {
 			throw new SignatureException('object is too old');
 		}
 
-		$this->checkSignature($request);
+		try {
+			$this->checkSignature($request);
+		} catch (Request410Exception $e) {
+			throw new SignatureIsGoneException();
+		}
+
 	}
 
 
@@ -429,9 +462,12 @@ class ActivityService {
 	 * @param IRequest $request
 	 *
 	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws Request410Exception
 	 * @throws RequestException
 	 * @throws SignatureException
-	 * @throws MalformedArrayException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 * @throws Exception
 	 */
 	private function checkSignature(IRequest $request) {
@@ -508,6 +544,7 @@ class ActivityService {
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws Request410Exception
 	 */
 	private function retrieveKey($keyId): string {
 		$actor = $this->personService->getFromId($keyId);

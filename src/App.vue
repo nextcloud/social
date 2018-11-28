@@ -4,7 +4,8 @@
 			<app-navigation :menu="menu" />
 		</div>
 		<div id="app-content">
-			<router-view :key="$route.fullPath" />
+			<Search v-if="searchTerm != ''" :term="searchTerm" />
+			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
 		</div>
 	</div>
 	<div v-else class="setup">
@@ -30,6 +31,7 @@
 	.app-social {
 		width: 100%;
 	}
+
 	.setup {
 		margin:	auto;
 		width: 700px;
@@ -38,6 +40,16 @@
 	.setup input[type=url] {
 		width: 300px;
 	}
+
+	#app-content .social__wrapper {
+		margin: 15px calc(50% - 350px - 75px);
+	}
+
+	#social-spacer a:hover,
+	#social-spacer a:focus {
+		border: none !important;
+	}
+
 </style>
 
 <script>
@@ -50,6 +62,7 @@ import {
 import axios from 'nextcloud-axios'
 import TimelineEntry from './components/TimelineEntry'
 import ProfileInfo from './components/ProfileInfo'
+import Search from './components/Search'
 
 export default {
 	name: 'App',
@@ -59,13 +72,15 @@ export default {
 		TimelineEntry,
 		Multiselect,
 		Avatar,
-		ProfileInfo
+		ProfileInfo,
+		Search
 	},
 	data: function() {
 		return {
 			infoHidden: false,
 			state: [],
-			cloudAddress: ''
+			cloudAddress: '',
+			searchTerm: ''
 		}
 	},
 	computed: {
@@ -116,8 +131,7 @@ export default {
 					}
 				},
 				{
-					id: 'social-spacer',
-					classes: []
+					id: 'social-spacer'
 				},
 				{
 					id: 'social-local',
@@ -146,12 +160,19 @@ export default {
 			}
 		}
 	},
+	watch: {
+		$route(to, from) {
+			this.searchTerm = ''
+		}
+	},
 	beforeMount: function() {
 		// importing server data into the store
 		const serverDataElmt = document.getElementById('serverData')
 		if (serverDataElmt !== null) {
 			this.$store.commit('setServerData', JSON.parse(document.getElementById('serverData').dataset.server))
 		}
+
+		this.search = new OCA.Search(this.search, this.resetSearch)
 	},
 	methods: {
 		hideInfo() {
@@ -162,6 +183,12 @@ export default {
 				this.$store.commit('setServerDataEntry', 'setup', false)
 				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
 			})
+		},
+		search(term) {
+			this.searchTerm = term
+		},
+		resetSearch() {
+			this.searchTerm = ''
 		}
 	}
 }

@@ -58,11 +58,11 @@
 			</emoji-picker>
 
 			<div class="options">
-				<input :value="t('social', 'Post')" :disabled="post.length < 1" class="submit primary"
+				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div>
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu">
+					<div :class="{open: menuOpened}" class="popovermenu menu-center">
 						<PopoverMenu :menu="visibilityPopover" />
 					</div>
 				</div>
@@ -154,6 +154,7 @@
 		padding: 5px;
 		width: 200px;
 		height: 200px;
+		top: 44px;
 	}
 	.emoji-picker > div {
 		overflow: hidden;
@@ -166,6 +167,9 @@
 	.emoji-picker .emoji img {
 		margin: 3px;
 		width: 16px;
+	}
+	.popovermenu {
+		top: 55px;
 	}
 </style>
 <style>
@@ -289,7 +293,7 @@ export default {
 	},
 	data() {
 		return {
-			type: 'public',
+			type: localStorage.getItem('social.lastPostType') || 'followers',
 			post: '',
 			canType: true,
 			search: '',
@@ -308,18 +312,19 @@ export default {
 						+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
 				},
 				values: (text, cb) => {
+					let users = []
+
 					if (text.length < 1) {
-						cb([])
+						cb(users)
 					}
 					this.remoteSearch(text).then((result) => {
-						let users = []
 						if (result.data.result.exact) {
 							let user = result.data.result.exact
 							users.push({
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
-								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0' // TODO: use real avatar from server
+								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
 							})
 						}
 						for (var i in result.data.result.accounts) {
@@ -328,7 +333,7 @@ export default {
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
-								avatar: 'http://localhost:8000/index.php/avatar/admin/32?v=0' // TODO: use real avatar from server
+								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
 							})
 						}
 						cb(users)
@@ -360,19 +365,39 @@ export default {
 				}
 			}
 		},
+		currentVisibilityPostLabel() {
+			return this.visibilityPostLabel(this.type)
+		},
+		visibilityPostLabel() {
+			return (type) => {
+				if (typeof type === 'undefined') {
+					type = this.type
+				}
+				switch (type) {
+				case 'public':
+					return t('social', 'Post publicly')
+				case 'followers':
+					return t('social', 'Post to followers')
+				case 'direct':
+					return t('social', 'Post to recipients')
+				case 'unlisted':
+					return t('social', 'Post unlisted')
+				}
+			}
+		},
 		visibilityPopover() {
 			return [
-				{
-					action: () => { this.switchType('public') },
-					icon: this.visibilityIconClass('public'),
-					text: t('social', 'Public'),
-					longtext: t('social', 'Post to public timelines')
-				},
 				{
 					action: () => { this.switchType('direct') },
 					icon: this.visibilityIconClass('direct'),
 					text: t('social', 'Direct'),
 					longtext: t('social', 'Post to mentioned users only')
+				},
+				{
+					action: () => { this.switchType('unlisted') },
+					icon: this.visibilityIconClass('unlisted'),
+					text: t('social', 'Unlisted'),
+					longtext: t('social', 'Do not post to public timelines')
 				},
 				{
 					action: () => { this.switchType('followers') },
@@ -381,10 +406,10 @@ export default {
 					longtext: t('social', 'Post to followers only')
 				},
 				{
-					action: () => { this.switchType('unlisted') },
-					icon: this.visibilityIconClass('unlisted'),
-					text: t('social', 'Unlisted'),
-					longtext: t('social', 'Do not post to public timelines')
+					action: () => { this.switchType('public') },
+					icon: this.visibilityIconClass('public'),
+					text: t('social', 'Public'),
+					longtext: t('social', 'Post to public timelines')
 				}
 			]
 		}
@@ -400,6 +425,7 @@ export default {
 		switchType(type) {
 			this.type = type
 			this.menuOpened = false
+			localStorage.setItem('social.lastPostType', type)
 		},
 		getPostData() {
 			let element = this.$refs.composerInput.cloneNode(true)
