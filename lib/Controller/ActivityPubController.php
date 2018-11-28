@@ -227,19 +227,6 @@ class ActivityPubController extends Controller {
 
 
 	/**
-	 * Testing method. does nothing.
-	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 *
-	 * @return Response
-	 */
-	public function test(): Response {
-		return $this->success(['toto']);
-	}
-
-
-	/**
 	 * Outbox. does nothing.
 	 *
 	 * @NoCSRFRequired
