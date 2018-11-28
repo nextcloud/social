@@ -44,6 +44,7 @@ class CurlService {
 
 
 	const ASYNC_TOKEN = '/async/token/{token}';
+	const USER_AGENT = 'Nextcloud Social';
 
 
 	/** @var ConfigService */
@@ -104,6 +105,13 @@ class CurlService {
 	}
 
 
+	public function assignUserAgent(Request $request) {
+		$request->setUserAgent(
+			self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version')
+		);
+	}
+
+
 	/**
 	 * @param string $token
 	 *
@@ -139,6 +147,7 @@ class CurlService {
 
 		$headers[] = 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
 
+		curl_setopt($curl, CURLOPT_USERAGENT, $request->getUserAgent());
 		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($curl, CURLOPT_TIMEOUT, 20);
 
