@@ -148,7 +148,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->rightJoinFollowing($qb);
 		$this->limitToActorId($qb, $actorId, 'f');
 		$this->limitPaginate($qb, $since, $limit);
-//		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
 		$cursor = $qb->execute();
