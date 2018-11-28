@@ -42,7 +42,7 @@ use OCP\IDBConnection;
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
-	const CACHING_TIMEOUT = 60 * 24; // 1d
+	const CACHE_TTL = 60 * 24; // 1d
 
 	/**
 	 * CacheActorsRequest constructor.
@@ -180,7 +180,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getRemoteActorsToUpdate(): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToLocal($qb, false);
-		$this->limitToCreation($qb, self::CACHING_TIMEOUT);
+		$this->limitToCreation($qb, self::CACHE_TTL);
 
 		$update = [];
 		$cursor = $qb->execute();
