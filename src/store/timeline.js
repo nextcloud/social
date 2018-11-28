@@ -58,7 +58,8 @@ const actions = {
 	},
 	post(context, post) {
 		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
-			context.commit('addPost', { data: response.data })
+			// eslint-disable-next-line no-console
+			console.log('Post created with token ' + response.data.result.token)
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to create a post')
 			console.error('Failed to create a post', error)
