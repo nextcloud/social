@@ -106,12 +106,9 @@ class PersonService implements ICoreService {
 			$this->cacheActorsRequest->deleteFromId($actor->getId());
 		}
 
-		try {
-			$actor->setLocal(true);
-			$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
-			$this->parse($actor);
-		} catch (Exception $e) {
-		}
+		$actor->setLocal(true);
+		$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
+		$this->parse($actor);
 	}
 
 
@@ -167,6 +164,7 @@ class PersonService implements ICoreService {
 	 * @throws CacheActorDoesNotExistException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws Request410Exception
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 
@@ -239,8 +237,6 @@ class PersonService implements ICoreService {
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $person
-	 *
-	 * @throws Exception
 	 */
 	public function parse(ACore $person) {
 		/** @var Person $person */
