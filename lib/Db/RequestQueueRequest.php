@@ -86,14 +86,14 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 
 	/**
-	 * return Queue from database based on the status != 9
+	 * return Queue from database based on the status=0
 	 *
 	 * @return RequestQueue[]
 	 */
 	public function getStandby(): array {
 		$qb = $this->getQueueSelectSql();
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
-		$this->orderByPriority($qb, 'desc');
+		$qb->orderBy('id', 'asc');
 
 		$requests = [];
 		$cursor = $qb->execute();
@@ -122,7 +122,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			$this->limitToStatus($qb, $status);
 		}
 
-		$this->orderByPriority($qb);
+		$qb->orderBy('priority', 'desc');
 
 		$requests = [];
 		$cursor = $qb->execute();

@@ -109,11 +109,11 @@ class QueueProcess extends Base {
 			return;
 		}
 
+		$this->activityService->manageInit();
 		foreach ($requests as $request) {
 			$output->write('.');
 			try {
 				$this->activityService->manageRequest($request);
-			} catch (ActorDoesNotExistException $e) {
 			} catch (RequestException $e) {
 			} catch (SocialAppConfigException $e) {
 			}

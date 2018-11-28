@@ -93,11 +93,11 @@ class Queue extends TimedJob {
 
 	private function manageQueue() {
 		$requests = $this->queueService->getRequestStandby($total = 0);
+		$this->activityService->manageInit();
 
 		foreach ($requests as $request) {
 			try {
 				$this->activityService->manageRequest($request);
-			} catch (ActorDoesNotExistException $e) {
 			} catch (RequestException $e) {
 			} catch (SocialAppConfigException $e) {
 			}

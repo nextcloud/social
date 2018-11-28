@@ -98,10 +98,10 @@ class QueueController extends Controller {
 		$this->async();
 
 		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		$this->activityService->manageInit();
 		foreach ($requests as $request) {
 			try {
 				$this->activityService->manageRequest($request);
-			} catch (ActorDoesNotExistException $e) {
 			} catch (RequestException $e) {
 			} catch (SocialAppConfigException $e) {
 			}

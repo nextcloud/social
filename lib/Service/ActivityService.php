@@ -107,6 +107,10 @@ class ActivityService {
 	private $miscService;
 
 
+	/** @var array */
+	private $failInstances;
+
+
 	/**
 	 * ActivityService constructor.
 	 *
@@ -233,10 +237,12 @@ class ActivityService {
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
 		$token = $this->queueService->generateRequestQueue($instancePaths, $activity, $author);
+		$this->manageInit();
 
 		try {
 			$directRequest = $this->queueService->getPriorityRequest($token);
 			$this->manageRequest($directRequest);
+		} catch (RequestException $e) {
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
 			return '';
@@ -248,6 +254,11 @@ class ActivityService {
 	}
 
 
+	public function manageInit() {
+		$this->failInstances = [];
+	}
+
+
 	/**
 	 * @param RequestQueue $queue
 	 *
@@ -255,13 +266,17 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 */
 	public function manageRequest(RequestQueue $queue) {
+		$host = $queue->getInstance()
+					  ->getAddress();
+		if (in_array($host, $this->failInstances)) {
+			throw new RequestException();
+		}
 
 		try {
 			$this->queueService->initRequest($queue);
 		} catch (QueueStatusException $e) {
 			return;
 		}
-
 
 		try {
 			$result = $this->generateRequest(
@@ -278,6 +293,7 @@ class ActivityService {
 				$this->queueService->endRequest($queue, true);
 			} else {
 				$this->queueService->endRequest($queue, false);
+				$this->failInstances[] = $host;
 			}
 		} catch (QueueStatusException $e) {
 		}
