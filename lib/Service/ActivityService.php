@@ -107,6 +107,10 @@ class ActivityService {
 	private $miscService;
 
 
+	/** @var array */
+	private $failInstances;
+
+
 	/**
 	 * ActivityService constructor.
 	 *
@@ -233,10 +237,12 @@ class ActivityService {
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
 		$token = $this->queueService->generateRequestQueue($instancePaths, $activity, $author);
+		$this->manageInit();
 
 		try {
 			$directRequest = $this->queueService->getPriorityRequest($token);
 			$this->manageRequest($directRequest);
+		} catch (RequestException $e) {
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
 			return '';
@@ -248,14 +254,23 @@ class ActivityService {
 	}
 
 
+	public function manageInit() {
+		$this->failInstances = [];
+	}
+
+
 	/**
 	 * @param RequestQueue $queue
 	 *
-	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
 	public function manageRequest(RequestQueue $queue) {
+		$host = $queue->getInstance()
+					  ->getAddress();
+		if (in_array($host, $this->failInstances)) {
+			throw new RequestException();
+		}
 
 		try {
 			$this->queueService->initRequest($queue);
@@ -263,15 +278,22 @@ class ActivityService {
 			return;
 		}
 
-		$result = $this->generateRequest(
-			$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
-		);
+		try {
+			$result = $this->generateRequest(
+				$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
+			);
+		} catch (ActorDoesNotExistException $e) {
+			$this->queueService->deleteRequest($queue);
+		} catch (Request410Exception $e) {
+			$this->queueService->deleteRequest($queue);
+		}
 
 		try {
 			if ($this->getint('_code', $result, 500) === 202) {
 				$this->queueService->endRequest($queue, true);
 			} else {
 				$this->queueService->endRequest($queue, false);
+				$this->failInstances[] = $host;
 			}
 		} catch (QueueStatusException $e) {
 		}
@@ -341,6 +363,7 @@ class ActivityService {
 	 *
 	 * @return Request[]
 	 * @throws ActorDoesNotExistException
+	 * @throws Request410Exception
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */

@@ -147,6 +147,22 @@ class QueueService {
 	}
 
 
+	public function getRequestStandby(int &$total = 0): array {
+		$requests = $this->requestQueueRequest->getStandby();
+		$total = sizeof($requests);
+
+		$result = [];
+		foreach ($requests as $request) {
+			$delay = floor(pow($request->getTries(), 4) / 3);
+			if ($request->getLast() < (time() - $delay)) {
+				$result[] = $request;
+			}
+		}
+
+		return $result;
+	}
+
+
 	/**
 	 * @param string $token
 	 * @param int $status
@@ -186,6 +202,12 @@ class QueueService {
 		}
 	}
 
+	/**
+	 * @param RequestQueue $queue
+	 */
+	public function deleteRequest(RequestQueue $queue) {
+		$this->requestQueueRequest->delete($queue);
+	}
 
 }
 
