@@ -32,6 +32,7 @@ namespace OCA\Social\Model;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use DateTime;
 use JsonSerializable;
 
 
@@ -299,9 +300,15 @@ class RequestQueue implements JsonSerializable {
 		$this->setActivity($this->get('activity', $data, ''));
 		$this->setStatus($this->getInt('status', $data, 0));
 		$this->setTries($this->getInt('tries', $data, 0));
-		$this->setLast($this->getInt('last', $data, 0));
-	}
 
+		$last = $this->get('last', $data, '');
+		if ($last === '') {
+			$this->setLast(0);
+		} else {
+			$dTime = new DateTime($last);
+			$this->setLast($dTime->getTimestamp());
+		}
+	}
 
 	/**
 	 * @return array

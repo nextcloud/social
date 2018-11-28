@@ -251,7 +251,6 @@ class ActivityService {
 	/**
 	 * @param RequestQueue $queue
 	 *
-	 * @throws ActorDoesNotExistException
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
@@ -263,9 +262,16 @@ class ActivityService {
 			return;
 		}
 
-		$result = $this->generateRequest(
-			$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
-		);
+
+		try {
+			$result = $this->generateRequest(
+				$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
+			);
+		} catch (ActorDoesNotExistException $e) {
+			$this->queueService->deleteRequest($queue);
+		} catch (Request410Exception $e) {
+			$this->queueService->deleteRequest($queue);
+		}
 
 		try {
 			if ($this->getint('_code', $result, 500) === 202) {
@@ -341,6 +347,7 @@ class ActivityService {
 	 *
 	 * @return Request[]
 	 * @throws ActorDoesNotExistException
+	 * @throws Request410Exception
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */

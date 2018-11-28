@@ -57,18 +57,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function multiple(array $queues) {
 		foreach ($queues as $queue) {
 			$this->create($queue);
-//			$qb->values(
-//				[
-//					'source'   => $qb->createNamedParameter($queue->getSource()),
-//					'activity' => $qb->createNamedParameter($queue->getActivity()),
-//					'instance' => $qb->createNamedParameter(
-//						json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
-//					),
-//					'status'   => $qb->createNamedParameter($queue->getStatus()),
-//					'tries'    => $qb->createNamedParameter($queue->getTries()),
-//					'last'     => $qb->createNamedParameter($queue->getLast())
-//				]
-//			);
 		}
 	}
 
@@ -92,14 +80,34 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		   )
 		   ->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
 		   ->setValue('status', $qb->createNamedParameter($queue->getStatus()))
-		   ->setValue('tries', $qb->createNamedParameter($queue->getTries()))
-		   ->setValue('last', $qb->createNamedParameter($queue->getLast()));
+		   ->setValue('tries', $qb->createNamedParameter($queue->getTries()));
 		$qb->execute();
 	}
 
 
 	/**
-	 * return Actor from database based on the username
+	 * return Queue from database based on the status != 9
+	 *
+	 * @return RequestQueue[]
+	 */
+	public function getStandby(): array {
+		$qb = $this->getQueueSelectSql();
+		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
+		$this->orderByPriority($qb, 'desc');
+
+		$requests = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$requests[] = $this->parseQueueSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $requests;
+	}
+
+
+	/**
+	 * return Queue from database based on the token
 	 *
 	 * @param string $token
 	 * @param int $status
@@ -195,6 +203,14 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		}
 
 		$queue->setStatus(RequestQueue::STATUS_SUCCESS);
+	}
+
+
+	public function delete(RequestQueue $queue) {
+		$qb = $this->getQueueDeleteSql();
+		$this->limitToId($qb, $queue->getId());
+
+		$qb->execute();
 	}
 
 }
