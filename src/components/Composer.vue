@@ -58,7 +58,7 @@
 			</emoji-picker>
 
 			<div class="options">
-				<input :value="t('social', 'Post')" :disabled="post.length < 1" class="submit primary"
+				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div>
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
@@ -362,6 +362,26 @@ export default {
 					return 'icon-external'
 				case 'unlisted':
 					return 'icon-password'
+				}
+			}
+		},
+		currentVisibilityPostLabel() {
+			return this.visibilityPostLabel(this.type)
+		},
+		visibilityPostLabel() {
+			return (type) => {
+				if (typeof type === 'undefined') {
+					type = this.type
+				}
+				switch (type) {
+				case 'public':
+					return t('social', 'Post publicly')
+				case 'followers':
+					return t('social', 'Post to followers')
+				case 'direct':
+					return t('social', 'Post to recipients')
+				case 'unlisted':
+					return t('social', 'Post unlisted')
 				}
 			}
 		},
