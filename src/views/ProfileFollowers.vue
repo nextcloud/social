@@ -21,31 +21,49 @@
   -->
 
 <template>
-	<div class="social__timeline">
-		<ul>
-			<li>User List</li>
-		</ul>
+	<div class="social__followers">
+		<user-entry v-for="user in users" :item="user" :key="user.id" />
 	</div>
 </template>
 
 <style scoped>
-	.social__timeline {
+	.social__followers {
 		max-width: 700px;
 		margin: 15px auto;
+		display: flex;
+	}
+	.user-entry {
+		width: 50%;
 	}
 </style>
 
 <script>
-import TimelineEntry from './../components/TimelineEntry'
+import UserEntry from '../components/UserEntry'
 
 export default {
 	name: 'ProfileFollowers',
 	components: {
-		TimelineEntry
+		UserEntry
 	},
 	computed: {
 		timeline: function() {
 			return this.$store.getters.getTimeline
+		},
+		users() {
+			return [
+				{
+					id: 'admin',
+					displayName: 'Administrator',
+					description: 'My social account',
+					following: true
+				},
+				{
+					id: 'admin',
+					displayName: 'Administrator',
+					description: 'My social account',
+					following: false
+				}
+			]
 		}
 	}
 }

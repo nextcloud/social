@@ -40,6 +40,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityPub\DocumentService;
+use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -85,6 +86,9 @@ class NavigationController extends Controller {
 	/** @var IL10N */
 	private $l10n;
 
+	/** @var PersonService */
+	private $personService;
+
 	/**
 	 * NavigationController constructor.
 	 *
@@ -95,12 +99,14 @@ class NavigationController extends Controller {
 	 * @param ActorService $actorService
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
+	 * @param PersonService $personService
 	 * @param MiscService $miscService
 	 * @param IL10N $l10n
 	 */
 	public function __construct(
 		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
 		ActorService $actorService, DocumentService $documentService, ConfigService $configService,
+		PersonService $personService,
 		MiscService $miscService, IL10N $l10n
 	) {
 		parent::__construct(Application::APP_NAME, $request);
@@ -112,6 +118,7 @@ class NavigationController extends Controller {
 		$this->actorService = $actorService;
 		$this->documentService = $documentService;
 		$this->configService = $configService;
+		$this->personService = $personService;
 		$this->miscService = $miscService;
 		$this->l10n = $l10n;
 	}
@@ -236,6 +243,11 @@ class NavigationController extends Controller {
 	 * @return RedirectResponse|PublicTemplateResponse
 	 */
 	public function public($username) {
+		// Redirect to external instances
+		if (preg_match('/@[\w._-]+@[\w._-]+/', $username) === 1) {
+			$actor = $this->personService->getFromAccount(substr($username, 1));
+			return new RedirectResponse($actor->getUrl());
+		}
 		if (\OC::$server->getUserSession()
 						->isLoggedIn()) {
 			return $this->navigate();

@@ -53,29 +53,32 @@ export default new Router({
 		},
 		{
 			path: '/:index(index.php/)?apps/social/account/@:account',
+			alias: './timeline',
 			components: {
-				default: Profile
+				default: Profile,
+				details: ProfileTimeline
 			},
 			props: true,
-			name: 'profile',
 			children: [
 				{
 					path: '',
+					name: 'profile',
 					components: {
 						details: ProfileTimeline
 					}
 				},
 				{
 					path: 'followers',
+					name: 'profile.followers',
 					components: {
-						default: Profile,
 						details: ProfileFollowers
 					}
 				},
 				{
 					path: 'following',
+					name: 'profile.following',
+
 					components: {
-						default: Profile,
 						details: ProfileFollowers
 					}
 				}
