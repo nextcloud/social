@@ -2,11 +2,12 @@
 	<div class="timeline-entry">
 		<div class="entry-content">
 			<div class="post-avatar">
-				<avatar :size="32" :user="item.actor_info.preferredUsername" />
+				<avatar v-if="item.actor_info" :size="32" :user="item.actor_info.preferredUsername" />
+				<avatar :size="32" user="?" />
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
-					<router-link v-if="item.actor_info.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
+					<router-link v-if="item.actor_info && item.actor_info.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
@@ -16,7 +17,6 @@
 					</a>
 				</div>
 				<div class="post-message" v-html="formatedMessage" />
-				<!--<pre style="height: 200px; overflow:scroll;">{{item}}</pre> //-->
 			</div>
 			<div class="post-timestamp">{{ item.published }}</div>
 		</div>
@@ -44,7 +44,9 @@ export default {
 		formatedMessage: function() {
 			let message = this.item.content
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
-			return message.linkify()
+			message = message.linkify()
+			message = this.$twemoji.parse(message)
+			return message
 		}
 	}
 }
@@ -91,5 +93,10 @@ export default {
 
 	.post-timestamp {
 		opacity: .7;
+	}
+</style>
+<style>
+	.post-message a {
+		text-decoration: underline;
 	}
 </style>
