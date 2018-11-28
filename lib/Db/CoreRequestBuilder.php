@@ -109,9 +109,10 @@ class CoreRequestBuilder {
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
+	 * @param bool $cs
 	 */
-	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
-		$this->limitToDBField($qb, 'id', $id);
+	protected function limitToIdString(IQueryBuilder &$qb, string $id, bool $cs = true) {
+		$this->limitToDBField($qb, 'id', $id, $cs);
 	}
 
 
