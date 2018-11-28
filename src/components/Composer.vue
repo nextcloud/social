@@ -62,7 +62,7 @@
 					type="submit" title="" data-original-title="Post">
 				<div>
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu">
+					<div :class="{open: menuOpened}" class="popovermenu menu-center">
 						<PopoverMenu :menu="visibilityPopover" />
 					</div>
 				</div>
@@ -154,6 +154,7 @@
 		padding: 5px;
 		width: 200px;
 		height: 200px;
+		top: 44px;
 	}
 	.emoji-picker > div {
 		overflow: hidden;
@@ -166,6 +167,9 @@
 	.emoji-picker .emoji img {
 		margin: 3px;
 		width: 16px;
+	}
+	.popovermenu {
+		top: 55px;
 	}
 </style>
 <style>
