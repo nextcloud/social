@@ -125,7 +125,6 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
-	 * @throws \OC\User\NoUserException
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
@@ -210,9 +209,12 @@ class ActivityPubController extends Controller {
 	public function inbox(string $username): Response {
 
 		try {
-			$actor = $this->actorService->getActor($username);
+
 			$this->activityService->checkRequest($this->request);
 			$body = file_get_contents('php://input');
+
+			// TODO - check the recipient <-> username
+//			$actor = $this->actorService->getActor($username);
 
 			$this->miscService->log('Inbox: ' . $body);
 

@@ -80,6 +80,7 @@ class InstanceService {
 	 * @return mixed
 	 * @throws RequestException
 	 * @throws InvalidResourceException
+	 * @throws Request410Exception
 	 */
 	public function retrieveAccount(string $account) {
 		$account = $this->withoutBeginAt($account);
