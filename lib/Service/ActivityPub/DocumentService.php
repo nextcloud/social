@@ -97,7 +97,7 @@ class DocumentService implements ICoreService {
 			return $document;
 		}
 
-		if ($document->getCaching() > (time() - (CacheDocumentsRequest::CACHE_TTL * 60))) {
+		if ($document->getCaching() > (time() - (CacheDocumentsRequest::CACHING_TIMEOUT * 60))) {
 			return $document;
 		}
 
