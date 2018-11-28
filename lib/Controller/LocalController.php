@@ -420,7 +420,6 @@ class LocalController extends Controller {
 			$cached = [];
 			foreach ($documents as $id) {
 				try {
-
 					$document = $this->documentService->cacheRemoteDocument($id);
 					$cached[] = $document;
 				} catch (Exception $e) {

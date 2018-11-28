@@ -180,9 +180,11 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 */
 	public function setAsFailure(RequestQueue &$queue) {
 		$qb = $this->getQueueUpdateSql();
-		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY));
-		// TODO - increment tries++
-//		   ->set('tries', 'tries+1');
+		$func = $qb->func();
+		$expr = $qb->expr();
+
+		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY))
+		   ->set('tries', $func->add('tries', $expr->literal(1)));
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
 
