@@ -50,9 +50,9 @@ export default {
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 			message = message.linkify({
 				formatHref: {
-					email: function (href) {
-						return OC.generateUrl('/apps/social/@' + (href.indexOf('mailto:') == 0 ? href.substring(7) : href))
-					},
+					email: function(href) {
+						return OC.generateUrl('/apps/social/@' + (href.indexOf('mailto:') === 0 ? href.substring(7) : href))
+					}
 				}
 			})
 			message = this.$twemoji.parse(message)

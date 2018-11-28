@@ -293,7 +293,7 @@ export default {
 	},
 	data() {
 		return {
-			type: localStorage.getItem('social.lastPostType'),
+			type: localStorage.getItem('social.lastPostType') || 'followers',
 			post: '',
 			canType: true,
 			search: '',
@@ -425,7 +425,7 @@ export default {
 		switchType(type) {
 			this.type = type
 			this.menuOpened = false
-			localStorage.setItem('social.lastPostType', type);
+			localStorage.setItem('social.lastPostType', type)
 		},
 		getPostData() {
 			let element = this.$refs.composerInput.cloneNode(true)

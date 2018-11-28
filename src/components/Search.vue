@@ -22,8 +22,9 @@
 
 <template>
 	<div class="social__wrapper">
-		<div v-if="results.length < 1" :class="{'icon-loading': loading}" id="emptycontent" class="">
-			<div class="icon-search"></div>
+		<div v-if="results.length < 1" id="emptycontent" :class="{'icon-loading': loading}"
+			class="">
+			<div class="icon-search" />
 			<h2>{{ t('social', 'No accounts found') }}</h2>
 			<p>No accounts found for {{ term }}</p>
 		</div>

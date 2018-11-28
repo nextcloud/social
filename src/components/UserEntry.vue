@@ -31,7 +31,8 @@
 				<router-link v-if="item.local" :to="{ name: 'profile', params: { account: item.account }}">
 					<span class="post-author">{{ item.preferredUsername }}</span>
 				</router-link>
-				<a v-else href="{{ item.id }}" target="_blank" rel="noreferrer">{{ item.preferredUsername }}</a>
+				<a v-else href="{{ item.id }}" target="_blank"
+					rel="noreferrer">{{ item.preferredUsername }}</a>
 				<p class="user-description">{{ item.account }}</p>
 			</div>
 			<button v-if="item.following" class="icon-checkmark-color">Following</button>
