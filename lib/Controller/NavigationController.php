@@ -145,20 +145,31 @@ class NavigationController extends Controller {
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
-			$data['serverData']['setup'] = true;
-			$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()
-														 ->isAdmin($this->userId);
-			if ($data['serverData']['isAdmin']) {
-				$cloudAddress = $this->request->getParam('cloudAddress');
-				if ($cloudAddress !== null) {
-					$this->configService->setCloudAddress($cloudAddress);
-				} else {
-					$data['serverData']['cliUrl'] = $this->config->getSystemValue(
-						'overwrite.cli.url', \OC::$server->getURLGenerator()
-														 ->getBaseUrl()
-					);
+			$data['serverData']['cliUrl'] = rtrim(
+				$this->config->getSystemValue('overwrite.cli.url', ''), "/"
+			);
+			$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+			if ($data['serverData']['cliUrl']){
+				if (!$frontControllerActive){
+					$data['serverData']['cliUrl'] .= '/index.php';
+				}
+				$this->configService->setCloudAddress($data['serverData']['cliUrl']);
+			} else {
+				$data['serverData']['setup'] = true;
+				$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()
+															 ->isAdmin($this->userId);
+				if ($data['serverData']['isAdmin']) {
+					$cloudAddress = $this->request->getParam('cloudAddress');
+					if ($cloudAddress !== null) {
+						$this->configService->setCloudAddress($cloudAddress);
+					} else {
+						$data['serverData']['cliUrl'] = $this->config->getSystemValue(
+							'overwrite.cli.url', \OC::$server->getURLGenerator()
+															 ->getBaseUrl()
+						);
 
-					return new TemplateResponse(Application::APP_NAME, 'main', $data);
+						return new TemplateResponse(Application::APP_NAME, 'main', $data);
+					}
 				}
 			}
 		}
