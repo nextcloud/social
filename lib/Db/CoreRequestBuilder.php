@@ -363,9 +363,10 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param string $order
 	 */
-	protected function orderByPriority(IQueryBuilder &$qb) {
-		$qb->orderBy('priority', 'desc');
+	protected function orderByPriority(IQueryBuilder &$qb, string $order = 'desc') {
+		$qb->orderBy('priority', $order);
 	}
 
 

@@ -43,8 +43,10 @@ use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SignatureException;
+use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -385,6 +387,9 @@ class ActivityService {
 	 * @throws MalformedArrayException
 	 * @throws RequestException
 	 * @throws SignatureException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws SignatureIsGoneException
 	 */
 	public function checkRequest(IRequest $request) {
 		$dTime = new DateTime($request->getHeader('date'));
@@ -394,7 +399,12 @@ class ActivityService {
 			throw new SignatureException('object is too old');
 		}
 
-		$this->checkSignature($request);
+		try {
+			$this->checkSignature($request);
+		} catch (Request410Exception $e) {
+			throw new SignatureIsGoneException();
+		}
+
 	}
 
 
@@ -429,9 +439,12 @@ class ActivityService {
 	 * @param IRequest $request
 	 *
 	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws Request410Exception
 	 * @throws RequestException
 	 * @throws SignatureException
-	 * @throws MalformedArrayException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 * @throws Exception
 	 */
 	private function checkSignature(IRequest $request) {
@@ -508,6 +521,7 @@ class ActivityService {
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws Request410Exception
 	 */
 	private function retrieveKey($keyId): string {
 		$actor = $this->personService->getFromId($keyId);

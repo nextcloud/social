@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
@@ -79,12 +80,12 @@ class InstanceService {
 	 * @return mixed
 	 * @throws RequestException
 	 * @throws InvalidResourceException
+	 * @throws Request410Exception
 	 */
 	public function retrieveAccount(string $account) {
 		$account = $this->withoutBeginAt($account);
 
-		if (strstr(substr($account, 0, -3), '@') === false)
-		{
+		if (strstr(substr($account, 0, -3), '@') === false) {
 			throw new InvalidResourceException();
 		}
 		list($username, $host) = explode('@', $account);
@@ -113,6 +114,7 @@ class InstanceService {
 	 *
 	 * @return mixed
 	 * @throws RequestException
+	 * @throws Request410Exception
 	 */
 	public function retrieveObject($id) {
 		$url = parse_url($id);

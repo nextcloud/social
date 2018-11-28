@@ -60,32 +60,28 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 * @param Person $actor
 	 *
 	 * @return string
-	 * @throws \Exception
+	 * @throws SocialAppConfigException
 	 */
 	public function create(Person $actor): string {
 
 		$id = $this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername();
 
-		try {
-			$qb = $this->getActorsInsertSql();
+		$qb = $this->getActorsInsertSql();
 
-			$qb->setValue('id', $qb->createNamedParameter($id))
+		$qb->setValue('id', $qb->createNamedParameter($id))
 //			   ->setValue('type', $qb->createNamedParameter($actor->getType()))
-			   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
-			   ->setValue('name', $qb->createNamedParameter($actor->getName()))
-			   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
-			   ->setValue(
-				   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
-			   )
-			   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-			   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+		   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
+		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
+		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+		   ->setValue(
+			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+		   )
+		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+		   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
 
-			$qb->execute();
+		$qb->execute();
 
-			return $id;
-		} catch (\Exception $e) {
-			throw $e;
-		}
+		return $id;
 	}
 
 

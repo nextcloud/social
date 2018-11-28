@@ -142,7 +142,7 @@ class ActorService {
 	 *
 	 * @throws AccountAlreadyExistsException
 	 * @throws NoUserException
-	 * @throws Exception
+	 * @throws SocialAppConfigException
 	 */
 	public function createActor(string $userId, string $username) {
 

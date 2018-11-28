@@ -33,6 +33,8 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
+use Exception;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 
@@ -71,6 +73,7 @@ class CurlService {
 	 *
 	 * @return array
 	 * @throws RequestException
+	 * @throws Request410Exception
 	 */
 	public function request(Request $request): array {
 		$curl = $this->initRequest($request);
@@ -85,6 +88,7 @@ class CurlService {
 		$this->parseRequestResultCode301($code);
 //		$this->parseRequestResultCode401($code);
 		$this->parseRequestResultCode404($code, $request);
+		$this->parseRequestResultCode410($code);
 //		$this->parseRequestResultCode503($code);
 //		$this->parseRequestResultCode500($code);
 //		$this->parseRequestResult($result);
@@ -130,7 +134,7 @@ class CurlService {
 		$request->setAddress($host);
 		try {
 			$this->request($request);
-		} catch (RequestException $e) {
+		} catch (Exception $e) {
 		}
 	}
 
@@ -234,11 +238,24 @@ class CurlService {
 	 *
 	 * @param Request $request
 	 *
-	 * @throws RequestException
+	 * @throws Request410Exception
 	 */
 	private function parseRequestResultCode404(int $code, Request $request) {
 		if ($code === 404) {
-			throw new RequestException('404 Not Found - ' . json_encode($request));
+			throw new Request410Exception('404 Not Found - ' . json_encode($request));
+		}
+	}
+
+	/**
+	 * @param int $code
+	 *
+	 * @param Request $request
+	 *
+	 * @throws Request410Exception
+	 */
+	private function parseRequestResultCode410(int $code) {
+		if ($code === 410) {
+			throw new Request410Exception();
 		}
 	}
 

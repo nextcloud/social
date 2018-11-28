@@ -125,7 +125,6 @@ class NavigationController extends Controller {
 	 * @NoSubAdminRequired
 	 *
 	 * @return TemplateResponse
-	 * @throws NoUserException
 	 */
 	public function navigate($path = ''): TemplateResponse {
 		$data = [
@@ -162,6 +161,10 @@ class NavigationController extends Controller {
 			$data['serverData']['firstrun'] = true;
 		} catch (AccountAlreadyExistsException $e) {
 			// we do nothing
+		} catch (NoUserException $e) {
+			// well, should not happens
+		} catch (SocialAppConfigException $e) {
+			// neither.
 		}
 
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
@@ -231,7 +234,6 @@ class NavigationController extends Controller {
 	 * @param $username
 	 *
 	 * @return RedirectResponse|PublicTemplateResponse
-	 * @throws NoUserException
 	 */
 	public function public($username) {
 		if (\OC::$server->getUserSession()
