@@ -145,15 +145,16 @@ class NavigationController extends Controller {
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
-			$data['serverData']['cliUrl'] = rtrim(
-				$this->config->getSystemValue('overwrite.cli.url', ''), "/"
+			$cloudAddress = rtrim(
+				$this->config->getSystemValue('overwrite.cli.url', ''), '/'
 			);
 			$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
-			if ($data['serverData']['cliUrl']){
+			if ($cloudAddress !== ''){
 				if (!$frontControllerActive){
-					$data['serverData']['cliUrl'] .= '/index.php';
+					$cloudAddress .= '/index.php';
 				}
-				$this->configService->setCloudAddress($data['serverData']['cliUrl']);
+				$this->configService->setCloudAddress($cloudAddress);
+				$data['serverData']['cloudAddress'] = $cloudAddress;
 			} else {
 				$data['serverData']['setup'] = true;
 				$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()
