@@ -11,6 +11,10 @@
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
+					<a v-else-if="item.local" :href="item.id">
+						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
+						<span class="post-author-id">{{ item.actor_info.account }}</span>
+					</a>
 					<a v-else :href="item.actor_info.url">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
