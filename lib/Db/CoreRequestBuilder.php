@@ -307,13 +307,19 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $recipient
+	 * @param bool $asAuthor
 	 */
-	protected function limitToRecipient(IQueryBuilder &$qb, string $recipient) {
+	protected function limitToRecipient(
+		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
+	) {
 		$expr = $qb->expr();
 		$orX = $expr->orX();
 		$dbConn = $this->dbConnection;
 
-		$orX->add($expr->eq('attributed_to', $qb->createNamedParameter($recipient)));
+		if ($asAuthor === true) {
+			$orX->add($expr->eq('attributed_to', $qb->createNamedParameter($recipient)));
+		}
+
 		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
 		$orX->add(
 			$expr->like(
@@ -373,6 +379,23 @@ class CoreRequestBuilder {
 	protected function limitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
+		$expr = $this->exprLimitToDBField($qb, $field, $value, $cs, $alias);
+		$qb->andWhere($expr);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $value
+	 * @param bool $cs
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	protected function exprLimitToDBField(
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+	): string {
 		$expr = $qb->expr();
 
 		$pf = '';
@@ -382,12 +405,11 @@ class CoreRequestBuilder {
 		$field = $pf . $field;
 
 		if ($cs) {
-			$qb->andWhere($expr->eq($field, $qb->createNamedParameter($value)));
+			return $expr->eq($field, $qb->createNamedParameter($value));
 		} else {
 			$func = $qb->func();
-			$qb->andWhere(
-				$expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)))
-			);
+
+			return $expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)));
 		}
 	}
 
