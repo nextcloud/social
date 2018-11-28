@@ -191,7 +191,7 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function streamHome(int $since = 0, int $limit = 5): DataResponse {
+	public function streamHome($since = 0, int $limit = 5): DataResponse {
 
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
