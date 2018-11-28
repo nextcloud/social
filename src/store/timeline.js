@@ -32,15 +32,13 @@ const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
 			state.since = data[item].publishedTime
+			data[item].actor_info = {}
 			Vue.set(state.timeline, data[item].id, data[item])
 		}
 	},
-	addPost(state, data) {
-		// FIXME: push data we receive to the timeline array
-		// state.timeline.push(data)
-	},
 	resetTimeline(state) {
 		state.timeline = {}
+		state.since = Math.floor(Date.now() / 1000) + 1
 	},
 	setTimelineType(state, type) {
 		state.type = type

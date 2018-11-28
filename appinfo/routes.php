@@ -62,7 +62,6 @@ return [
 		['name' => 'ActivityPub#outbox', 'url' => '/@{username}/outbox', 'verb' => 'POST'],
 		['name' => 'ActivityPub#followers', 'url' => '/@{username}/followers', 'verb' => 'GET'],
 		['name' => 'ActivityPub#following', 'url' => '/@{username}/following', 'verb' => 'GET'],
-		['name' => 'ActivityPub#test', 'url' => '/inbox/{username}', 'verb' => 'POST'],
 
 		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET'],
 

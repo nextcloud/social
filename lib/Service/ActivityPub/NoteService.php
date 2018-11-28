@@ -149,7 +149,10 @@ class NoteService implements ICoreService {
 			case self::TYPE_UNLISTED:
 				$note->setTo($actor->getFollowers());
 				$note->addInstancePath(
-					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
+					new InstancePath(
+						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						InstancePath::PRIORITY_LOW
+					)
 				);
 				$note->addCc(ActivityService::TO_PUBLIC);
 				break;
@@ -157,7 +160,10 @@ class NoteService implements ICoreService {
 			case self::TYPE_FOLLOWERS:
 				$note->setTo($actor->getFollowers());
 				$note->addInstancePath(
-					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
+					new InstancePath(
+						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						InstancePath::PRIORITY_LOW
+					)
 				);
 				break;
 
@@ -168,7 +174,10 @@ class NoteService implements ICoreService {
 				$note->setTo(ActivityService::TO_PUBLIC);
 				$note->addCc($actor->getFollowers());
 				$note->addInstancePath(
-					new InstancePath($actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
+					new InstancePath(
+						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						InstancePath::PRIORITY_LOW
+					)
 				);
 				break;
 		}
@@ -191,7 +200,9 @@ class NoteService implements ICoreService {
 			return;
 		}
 
-		$instancePath = new InstancePath($actor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM);
+		$instancePath = new InstancePath(
+			$actor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM
+		);
 		if ($type === self::TYPE_DIRECT) {
 			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
 			$note->addToArray($actor->getId());
@@ -237,7 +248,9 @@ class NoteService implements ICoreService {
 
 		$note->setInReplyTo($replyTo);
 		// TODO - type can be NOT public !
-		$note->addInstancePath(new InstancePath($replyTo, InstancePath::TYPE_PUBLIC, InstancePath::PRIORITY_HIGH));
+		$note->addInstancePath(
+			new InstancePath($replyTo, InstancePath::TYPE_PUBLIC, InstancePath::PRIORITY_HIGH)
+		);
 	}
 
 
@@ -310,9 +323,12 @@ class NoteService implements ICoreService {
 	/**
 	 * @param Person $actor
 	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
 	 * @return Note[]
 	 */
-	public function getHomeNotesForActor(Person $actor, $since, $limit): array {
+	public function getHomeNotesForActor(Person $actor, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getHomeNotesForActorId($actor->getId(), $since, $limit);
 	}
 

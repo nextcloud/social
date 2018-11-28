@@ -240,7 +240,7 @@ class CoreRequestBuilder {
 		$date = new DateTime('now');
 		$date->sub(new DateInterval('PT' . $delay . 'M'));
 
-		$this->limitToDBFieldDateTime($qb, 'creation', $date);
+		$this->limitToDBFieldDateTime($qb, 'creation', $date, true);
 	}
 
 
@@ -256,7 +256,7 @@ class CoreRequestBuilder {
 		$date = new DateTime('now');
 		$date->sub(new DateInterval('PT' . $delay . 'M'));
 
-		$this->limitToDBFieldDateTime($qb, 'caching', $date);
+		$this->limitToDBFieldDateTime($qb, 'caching', $date, true);
 	}
 
 
@@ -307,11 +307,18 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $recipient
+	 * @param bool $asAuthor
 	 */
-	protected function limitToRecipient(IQueryBuilder &$qb, string $recipient) {
+	protected function limitToRecipient(
+		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
+	) {
 		$expr = $qb->expr();
 		$orX = $expr->orX();
 		$dbConn = $this->dbConnection;
+
+		if ($asAuthor === true) {
+			$orX->add($expr->eq('attributed_to', $qb->createNamedParameter($recipient)));
+		}
 
 		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
 		$orX->add(
@@ -344,18 +351,11 @@ class CoreRequestBuilder {
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
 		if ($since > 0) {
-			$expr = $qb->expr();
-			$dt = new \DateTime();
-			$dt->setTimestamp($since);
-			// TODO: Pagination should use published date, once we can properly query the db for that
-			$qb->andWhere(
-				$expr->lt(
-					$this->defaultSelectAlias . '.creation',
-					$qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE),
-					IQueryBuilder::PARAM_DATE
-				)
-			);
+			$dTime = new \DateTime();
+			$dTime->setTimestamp($since);
+			$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
 		}
+
 		$qb->setMaxResults($limit);
 		$qb->orderBy('creation', 'desc');
 	}
@@ -379,6 +379,23 @@ class CoreRequestBuilder {
 	protected function limitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
+		$expr = $this->exprLimitToDBField($qb, $field, $value, $cs, $alias);
+		$qb->andWhere($expr);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $value
+	 * @param bool $cs
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	protected function exprLimitToDBField(
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+	): string {
 		$expr = $qb->expr();
 
 		$pf = '';
@@ -388,12 +405,11 @@ class CoreRequestBuilder {
 		$field = $pf . $field;
 
 		if ($cs) {
-			$qb->andWhere($expr->eq($field, $qb->createNamedParameter($value)));
+			return $expr->eq($field, $qb->createNamedParameter($value));
 		} else {
 			$func = $qb->func();
-			$qb->andWhere(
-				$expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)))
-			);
+
+			return $expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)));
 		}
 	}
 
@@ -429,15 +445,20 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param DateTime $date
+	 * @param bool $orNull
 	 */
-	protected function limitToDBFieldDateTime(IQueryBuilder &$qb, string $field, DateTime $date) {
+	protected function limitToDBFieldDateTime(
+		IQueryBuilder &$qb, string $field, DateTime $date, bool $orNull = false
+	) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
 		$orX = $expr->orX();
 		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
-		$orX->add($expr->isNull($field));
+		if ($orNull === true) {
+			$orX->add($expr->isNull($field));
+		}
 		$qb->andWhere($orX);
 	}
 
