@@ -34,6 +34,7 @@ namespace OCA\Social\Service\ActivityPub;
 use Exception;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheContentException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -45,6 +46,10 @@ use OCP\Files\SimpleFS\ISimpleFile;
 
 
 class DocumentService implements ICoreService {
+
+
+	const ERROR_SIZE = 1;
+	const ERROR_MIMETYPE = 2;
 
 
 	/** @var CacheDocumentsRequest */
@@ -84,15 +89,19 @@ class DocumentService implements ICoreService {
 	 */
 	public function cacheRemoteDocument(string $id, bool $public = false) {
 		$document = $this->cacheDocumentsRequest->getById($id, $public);
+		if ($document->getError() > 0) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
 		if ($document->getLocalCopy() !== '') {
 			return $document;
 		}
 
-		// TODO - ignore this if getCaching is older than 15 minutes
-		if ($document->getCaching() > (time() - (CacheDocumentsRequest::CACHE_TTL * 60))) {
+		if ($document->getCaching() > (time() - (CacheDocumentsRequest::CACHING_TIMEOUT * 60))) {
 			return $document;
 		}
 
+		$mime = '';
 		$this->cacheDocumentsRequest->initCaching($document);
 
 		try {
@@ -100,12 +109,19 @@ class DocumentService implements ICoreService {
 			$document->setMimeType($mime);
 			$document->setLocalCopy($localCopy);
 			$this->cacheDocumentsRequest->endCaching($document);
+
+			return $document;
+		} catch (CacheContentMimeTypeException $e) {
+			$document->setMimeType($mime);
+			$document->setError(self::ERROR_MIMETYPE);
+			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (CacheContentSizeException $e) {
+			$document->setError(self::ERROR_SIZE);
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (CacheContentException $e) {
 		}
 
-		return $document;
+		throw new CacheDocumentDoesNotExistException();
 	}
 
 
@@ -128,18 +144,22 @@ class DocumentService implements ICoreService {
 
 	/**
 	 * @return int
-	 * @throws CacheDocumentDoesNotExistException
-	 * @throws NotPermittedException
 	 * @throws Exception
 	 */
 	public function manageCacheDocuments(): int {
 		$update = $this->cacheDocumentsRequest->getNotCachedDocuments();
 
+		$count = 0;
 		foreach ($update as $item) {
-			$this->cacheRemoteDocument($item->getId());
+			try {
+				$this->cacheRemoteDocument($item->getId());
+			} catch (Exception $e) {
+				continue;
+			}
+			$count++;
 		}
 
-		return sizeof($update);
+		return $count;
 	}
 
 

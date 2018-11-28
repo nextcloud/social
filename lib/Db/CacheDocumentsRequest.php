@@ -39,7 +39,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 
-	const CACHE_TTL = 15; // 15 min
+	const CACHING_TIMEOUT = 5; // 5 min
 
 
 	/**
@@ -149,7 +149,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function getNotCachedDocuments() {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToDBFieldEmpty($qb, 'local_copy');
-		$this->limitToCaching($qb, self::CACHE_TTL);
+		$this->limitToCaching($qb, self::CACHING_TIMEOUT);
 		$this->limitToDBFieldInt($qb, 'error', 0);
 
 		$documents = [];

@@ -32,7 +32,9 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\Exceptions\CacheContentException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheContentSizeException;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -80,6 +82,7 @@ class CacheService {
 	 * @throws CacheContentException
 	 * @throws NotPermittedException
 	 * @throws CacheContentSizeException
+	 * @throws CacheContentMimeTypeException
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
@@ -108,6 +111,8 @@ class CacheService {
 		$mime = mime_content_type($tmpPath);
 		fclose($tmpFile);
 
+		$this->filterMimeTypes($mime);
+
 		$cache = $folder->newFile($filename);
 		$cache->putContent($content);
 
@@ -116,12 +121,37 @@ class CacheService {
 
 
 	/**
+	 *
+	 * @param string $mime
+	 *
+	 * @throws CacheContentMimeTypeException
+	 */
+	public function filterMimeTypes(string $mime) {
+
+		$allowedMimeType = [
+			'image/jpeg',
+			'image/gif',
+			'image/png'
+		];
+
+		if (in_array($mime, $allowedMimeType)) {
+			return;
+		}
+
+		throw new CacheContentMimeTypeException();
+	}
+
+	/**
 	 * @param string $path
 	 *
 	 * @return ISimpleFile
 	 * @throws CacheContentException
+	 * @throws CacheDocumentDoesNotExistException
 	 */
 	public function getContentFromCache(string $path) {
+		if ($path === '') {
+			throw new CacheDocumentDoesNotExistException();
+		}
 
 		$pos = strrpos($path, '/');
 		$dir = substr($path, 0, $pos);
