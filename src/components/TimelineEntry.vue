@@ -48,7 +48,13 @@ export default {
 		formatedMessage: function() {
 			let message = this.item.content
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
-			message = message.linkify()
+			message = message.linkify({
+				formatHref: {
+					email: function (href) {
+						return OC.generateUrl('/apps/social/@' + (href.indexOf('mailto:') == 0 ? href.substring(7) : href))
+					},
+				}
+			})
 			message = this.$twemoji.parse(message)
 			return message
 		}
