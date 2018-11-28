@@ -28,13 +28,14 @@
 
 	<background-jobs>
 		<job>OCA\Social\Cron\Cache</job>
+		<job>OCA\Social\Cron\Queue</job>
 	</background-jobs>
 
 	<commands>
 		<command>OCA\Social\Command\CacheRefresh</command>
+		<command>OCA\Social\Command\NoteCreate</command>
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>
-		<command>OCA\Social\Command\NoteCreate</command>
 	</commands>
 
 </info>
