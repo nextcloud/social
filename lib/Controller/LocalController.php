@@ -403,6 +403,26 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 * @param string $id
+	 * @return DataResponse
+	 */
+	public function actorAvatar(string $id): DataResponse {
+		try {
+			$actor = $this->personService->getFromId($id);
+			$avatar = $actor->getIcon();
+			$this->documentService->getFromCache($avatar->getId());
+
+
+			return $this->success(['actor' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 
 	/**
 	 * // TODO: Delete the NoCSRF check
