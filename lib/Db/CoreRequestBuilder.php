@@ -134,7 +134,7 @@ class CoreRequestBuilder {
 	 * @param string $username
 	 */
 	protected function limitToPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$this->limitToDBField($qb, 'preferred_username', $username);
+		$this->limitToDBField($qb, 'preferred_username', $username, false);
 	}
 
 	/**
