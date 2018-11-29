@@ -85,6 +85,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
+		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
 		   ->setValue(
 			   'creation',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)

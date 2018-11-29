@@ -381,6 +381,13 @@
 			</field>
 
 			<field>
+				<name>details</name>
+				<type>text</type>
+				<length>3000</length>
+				<notnull>false</notnull>
+			</field>
+
+			<field>
 				<name>creation</name>
 				<type>timestamp</type>
 			</field>
