@@ -81,12 +81,14 @@
 <script>
 
 import { Avatar } from 'nextcloud-vue'
+import serverData from '../mixins/serverData'
 
 export default {
 	name: 'ProfileInfo',
 	components: {
 		Avatar
 	},
+	mixins: [serverData],
 	props: {
 		uid: {
 			type: String,
@@ -98,17 +100,12 @@ export default {
 			if (typeof this.accountInfo.displayname !== 'undefined') { return this.accountInfo.displayname.value || '' }
 			return this.uid
 		},
-		serverData: function() {
-			return this.$store.getters.getServerData
-		},
 		accountInfo: function() {
 			return this.$store.getters.getAccount(this.uid)
 		}
 	},
 	methods: {
-		follow() {
-			// TODO: implement following users
-		}
+
 	}
 }
 
