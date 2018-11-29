@@ -128,7 +128,7 @@ class ActivityPubController extends Controller {
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->navigationController->public($username);
+			return $this->socialPubController->actor($username);
 		}
 
 		try {
