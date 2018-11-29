@@ -190,6 +190,17 @@ class PersonService implements ICoreService {
 
 
 	/**
+	 * @param string $account
+	 *
+	 * @return Person
+	 * @throws CacheActorDoesNotExistException
+	 */
+	public function getFromLocalAccount(string $account): Person {
+		return $this->cacheActorsRequest->getFromLocalAccount($account);
+	}
+
+
+	/**
 	 * @param array $object
 	 *
 	 * @return Person

@@ -36,6 +36,7 @@ use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -114,15 +115,26 @@ class ActorService {
 
 	/**
 	 * @param string $userId
+	 * @param bool $create
 	 *
 	 * @return Person
+	 * @throws AccountAlreadyExistsException
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 */
-	public function getActorFromUserId(string $userId): Person {
+	public function getActorFromUserId(string $userId, bool $create = false): Person {
 		$this->miscService->confirmUserId($userId);
-		$actor = $this->actorsRequest->getFromUserId($userId);
+		try {
+			$actor = $this->actorsRequest->getFromUserId($userId);
+		} catch (ActorDoesNotExistException $e) {
+			if ($create) {
+				$this->createActor($userId, $userId);
+				$actor = $this->actorsRequest->getFromUserId($userId);
+			} else {
+				throw new ActorDoesNotExistException();
+			}
+		}
 
 		return $actor;
 	}
@@ -178,6 +190,21 @@ class ActorService {
 
 
 	/**
+	 * @param Person $local
+	 * @param Person $actor
+	 */
+	public function acquaintLinksBetweenPersons(Person $actor, Person $local) {
+		$actor->addDetailArray(
+			'links',
+			[
+				'follower'  => true,
+				'following' => true
+			]
+		);
+	}
+
+
+	/**
 	 * @param string $username
 	 * @param bool $refresh
 	 *
@@ -186,6 +213,10 @@ class ActorService {
 	public function cacheLocalActorByUsername(string $username, bool $refresh = false) {
 		try {
 			$actor = $this->getActor($username);
+			$actor->addDetailInt('followers', 10);
+			$actor->addDetailInt('following', 10);
+			$actor->addDetailInt('post', 100);
+
 			$this->personService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {
 		}
