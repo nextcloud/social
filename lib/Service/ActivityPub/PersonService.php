@@ -264,6 +264,25 @@ class PersonService implements ICoreService {
 	 * @throws Exception
 	 * @return int
 	 */
+	public function missingCacheRemoteActors(): int {
+		// TODO - looking for missing cache remote actors...
+		$missing = [];
+
+		foreach ($missing as $item) {
+			try {
+				$this->getFromId($item->getId());
+			} catch (Exception $e) {
+			}
+		}
+
+		return sizeof($missing);
+	}
+
+
+	/**
+	 * @throws Exception
+	 * @return int
+	 */
 	public function manageCacheRemoteActors(): int {
 		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate();
 

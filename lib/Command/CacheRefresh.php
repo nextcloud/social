@@ -105,6 +105,9 @@ class CacheRefresh extends Base {
 		$result = $this->actorService->manageCacheLocalActors();
 		$output->writeLn($result . ' local accounts regenerated');
 
+		$result = $this->personService->missingCacheRemoteActors();
+		$output->writeLn($result . ' remote accounts created');
+
 		$result = $this->personService->manageCacheRemoteActors();
 		$output->writeLn($result . ' remote accounts updated');
 
