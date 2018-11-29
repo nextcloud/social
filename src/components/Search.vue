@@ -61,14 +61,14 @@ export default {
 			match: null
 		}
 	},
-	beforeMount() {
-		this.search(this.term)
-	},
 	watch: {
 		term(val) {
 			// TODO: debounce
 			this.search(val)
 		}
+	},
+	beforeMount() {
+		this.search(this.term)
 	},
 	methods: {
 		search(val) {
