@@ -38,6 +38,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -203,15 +204,29 @@ class ActorService {
 	/**
 	 * @param Person $local
 	 * @param Person $actor
+	 *
+	 * @return array
 	 */
-	public function acquaintLinksBetweenPersons(Person $actor, Person $local) {
-		$actor->addDetailArray(
-			'links',
-			[
-				'follower'  => true,
-				'following' => true
-			]
-		);
+	public function getLinksBetweenPersons(Person $local, Person $actor): array {
+
+		$links = [
+			'follower'  => false,
+			'following' => false
+		];
+
+		try {
+			$this->followsRequest->getByPersons($local->getId(), $actor->getId());
+			$links['following'] = true;
+		} catch (FollowDoesNotExistException $e) {
+		}
+
+		try {
+			$this->followsRequest->getByPersons($actor->getId(), $local->getId());
+			$links['follower'] = true;
+		} catch (FollowDoesNotExistException $e) {
+		}
+
+		return $links;
 	}
 
 
