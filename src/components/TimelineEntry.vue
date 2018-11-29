@@ -3,7 +3,7 @@
 		<div class="entry-content">
 			<div class="post-avatar">
 				<avatar v-if="item.actor_info" :size="32" :user="item.actor_info.preferredUsername" />
-				<avatar :size="32" user="?" />
+				<avatar :size="32" :url="avatarUrl" />
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
@@ -57,6 +57,9 @@ export default {
 			})
 			message = this.$twemoji.parse(message)
 			return message
+		},
+		avatarUrl: function() {
+			return OC.generateUrl('/apps/social/api/v1/actor/avatar?id=' + this.item.attributedTo)
 		}
 	}
 }

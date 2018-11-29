@@ -46,6 +46,8 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 
@@ -410,14 +412,14 @@ class LocalController extends Controller {
 	 * @param string $id
 	 * @return DataResponse
 	 */
-	public function actorAvatar(string $id): DataResponse {
+	public function actorAvatar(string $id): Response {
 		try {
 			$actor = $this->personService->getFromId($id);
 			$avatar = $actor->getIcon();
-			$this->documentService->getFromCache($avatar->getId());
+			$document = $this->documentService->getFromCache($avatar->getId());
 
 
-			return $this->success(['actor' => $actor]);
+			return new FileDisplayResponse($document);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
