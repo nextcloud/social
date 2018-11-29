@@ -22,15 +22,13 @@
 
 <template>
 	<div class="social__wrapper">
-		<div v-if="results.length < 1" id="emptycontent" :class="{'icon-loading': loading}"
-			class="">
-			<div class="icon-search" />
-			<h2>{{ t('social', 'No accounts found') }}</h2>
-			<p>No accounts found for {{ term }}</p>
+		<div v-if="results.length < 1" id="emptycontent" :class="{'icon-loading': loading}">
+			<div v-if="!loading" class="icon-search" />
+			<h2 v-if="!loading">{{ t('social', 'No accounts found') }}</h2>
+			<p v-if="!loading">No accounts found for {{ term }}</p>
 		</div>
 		<div v-if="match || results.length > 0">
 			<h3>{{ t('social', 'Search') }} {{ term }}</h3>
-			<UserEntry :item="match" />
 			<UserEntry v-for="result in results" :key="result.id" :item="result" />
 		</div>
 	</div>
@@ -63,22 +61,34 @@ export default {
 			match: null
 		}
 	},
+	beforeMount() {
+		this.search(this.term)
+	},
 	watch: {
 		term(val) {
+			// TODO: debounce
+			this.search(val)
+		}
+	},
+	methods: {
+		search(val) {
 			this.loading = true
-			this.accountSearch(val).then((response) => {
-				this.results = response.data.result.accounts
-				this.loading = false
-			})
 			const re = /@((\w+)(@[\w.]+)?)/g
 			if (val.match(re)) {
 				this.remoteSearch(val).then((response) => {
 					this.match = response.data.result.account
+					this.accountSearch(val).then((response) => {
+						this.results = response.data.result.accounts
+						this.loading = false
+					})
 				}).catch((e) => { this.match = null })
+			} else {
+				this.accountSearch(val).then((response) => {
+					this.results = response.data.result.accounts
+					this.loading = false
+				})
 			}
-		}
-	},
-	methods: {
+		},
 		accountSearch(term) {
 			this.loading = true
 			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + term))
