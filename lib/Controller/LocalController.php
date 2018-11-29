@@ -46,6 +46,9 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\NotFoundResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 
@@ -398,6 +401,27 @@ class LocalController extends Controller {
 			$actor = $this->personService->getFromId($id);
 
 			return $this->success(['actor' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 * @param string $id
+	 * @return DataResponse
+	 */
+	public function actorAvatar(string $id): Response {
+		try {
+			$actor = $this->personService->getFromId($id);
+			if ($actor->gotIcon()) {
+				$avatar = $actor->getIcon();
+				$document = $this->documentService->getFromCache($avatar->getId());
+				return new FileDisplayResponse($document);
+			}
+			return new NotFoundResponse();
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

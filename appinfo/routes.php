@@ -76,6 +76,7 @@ return [
 		['name' => 'Local#accountUnfollow', 'url' => '/api/v1/account/follow', 'verb' => 'DELETE'],
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/info', 'verb' => 'GET'],
 		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET'],
+		['name' => 'Local#actorAvatar', 'url' => '/api/v1/actor/avatar', 'verb' => 'GET'],
 		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
 		['name' => 'Queue#asyncWithToken', 'url' => CurlService::ASYNC_TOKEN, 'verb' => 'POST'],
