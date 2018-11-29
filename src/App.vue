@@ -63,6 +63,7 @@ import axios from 'nextcloud-axios'
 import TimelineEntry from './components/TimelineEntry'
 import ProfileInfo from './components/ProfileInfo'
 import Search from './components/Search'
+import currentuserMixin from './mixins/currentUserMixin'
 
 export default {
 	name: 'App',
@@ -75,6 +76,7 @@ export default {
 		ProfileInfo,
 		Search
 	},
+	mixins: [currentuserMixin],
 	data: function() {
 		return {
 			infoHidden: false,
@@ -84,20 +86,8 @@ export default {
 		}
 	},
 	computed: {
-		url: function() {
-			return OC.linkTo('social', 'img/nextcloud.png')
-		},
-		currentUser: function() {
-			return OC.getCurrentUser()
-		},
-		socialId: function() {
-			return '@' + OC.getCurrentUser().uid + '@' + OC.getHost()
-		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
-		},
-		serverData: function() {
-			return this.$store.getters.getServerData
 		},
 		menu: function() {
 			let defaultCategories = [

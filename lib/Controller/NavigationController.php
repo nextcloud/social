@@ -45,6 +45,7 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
@@ -186,7 +187,11 @@ class NavigationController extends Controller {
 			// neither.
 		}
 
-		return new TemplateResponse(Application::APP_NAME, 'main', $data);
+		$csp = new ContentSecurityPolicy();
+		$csp->addAllowedImageDomain('*');
+		$response = new TemplateResponse(Application::APP_NAME, 'main', $data);
+		$response->setContentSecurityPolicy($csp);
+		return $response;
 	}
 
 

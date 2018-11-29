@@ -28,7 +28,6 @@
 		<form class="new-post-form" @submit.prevent="createPost">
 			<div class="author currentUser">
 				{{ currentUser.displayName }}
-
 				<span class="social-id">{{ socialId }}</span>
 			</div>
 			<vue-tribute :options="tributeOptions">
