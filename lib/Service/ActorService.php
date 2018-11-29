@@ -34,9 +34,10 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -56,6 +57,12 @@ class ActorService {
 	/** @var ActorsRequest */
 	private $actorsRequest;
 
+	/** @var FollowsRequest */
+	private $followsRequest;
+
+	/** @var NotesRequest */
+	private $notesRequest;
+
 	/** @var PersonService */
 	private $personService;
 
@@ -70,15 +77,19 @@ class ActorService {
 	 * ActorService constructor.
 	 *
 	 * @param ActorsRequest $actorsRequest
+	 * @param FollowsRequest $followsRequest
+	 * @param NotesRequest $notesRequest
 	 * @param PersonService $personService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest, PersonService $personService, ConfigService $configService,
-		MiscService $miscService
+		ActorsRequest $actorsRequest, FollowsRequest $followsRequest, NotesRequest $notesRequest,
+		PersonService $personService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->actorsRequest = $actorsRequest;
+		$this->followsRequest = $followsRequest;
+		$this->notesRequest = $notesRequest;
 		$this->personService = $personService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -212,10 +223,13 @@ class ActorService {
 	 */
 	public function cacheLocalActorByUsername(string $username, bool $refresh = false) {
 		try {
-			$actor = $this->getActor($username);
-			$actor->addDetailInt('followers', 10);
-			$actor->addDetailInt('following', 10);
-			$actor->addDetailInt('post', 100);
+			$actor = $this->getActor($username);;
+			$count = [
+				'followers', $this->followsRequest->countFollowers($actor->getId()),
+				'following', $this->followsRequest->countFollowing($actor->getId()),
+				'post', $this->notesRequest->countNotesFromActorId($actor->getId())
+			];
+			$actor->addDetailArray('count', $count);
 
 			$this->personService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {

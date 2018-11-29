@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Follow;
 
@@ -41,6 +42,9 @@ use OCA\Social\Model\ActivityPub\Follow;
  * @package OCA\Social\Db
  */
 class FollowsRequest extends FollowsRequestBuilder {
+
+
+	use TArrayTools;
 
 
 	/**
@@ -93,6 +97,42 @@ class FollowsRequest extends FollowsRequestBuilder {
 		}
 
 		return $this->parseFollowsSelectSql($data);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return int
+	 */
+	public function countFollowers(string $actorId): int {
+		$qb = $this->countFollowsSelectSql();
+		$this->limitToObjectId($qb, $actorId);
+		$this->limitToAccepted($qb, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return int
+	 */
+	public function countFollowing(string $actorId): int {
+		$qb = $this->countFollowsSelectSql();
+		$this->limitToActorId($qb, $actorId);
+		$this->limitToAccepted($qb, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
 	}
 
 

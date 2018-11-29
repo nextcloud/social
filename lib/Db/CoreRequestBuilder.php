@@ -196,6 +196,18 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * Limit the request to the FollowId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param bool $accepted
+	 */
+	protected function limitToAccepted(IQueryBuilder &$qb, bool $accepted) {
+		$this->limitToDBField($qb, 'accepted', ($accepted) ? '1' : '0');
+
+	}
+
+
+	/**
 	 * Limit the request to the ServiceId
 	 *
 	 * @param IQueryBuilder $qb
@@ -269,6 +281,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToUrl(IQueryBuilder &$qb, string $url) {
 		$this->limitToDBField($qb, 'url', $url);
+	}
+
+
+	/**
+	 * Limit the request to the url
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $actorId
+	 */
+	protected function limitToAttributedTo(IQueryBuilder &$qb, string $actorId) {
+		$this->limitToDBField($qb, 'attributed_to', $actorId, false);
 	}
 
 
