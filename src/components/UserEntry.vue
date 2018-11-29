@@ -21,40 +21,47 @@
   -->
 
 <template>
-	<div class="user-entry">
+	<div v-if="item" class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.preferredUsername" />
-				<avatar v-else url="" />
+				<avatar v-else :url="item.icon.url" />
 			</div>
 			<div class="user-details">
 				<router-link v-if="item.local" :to="{ name: 'profile', params: { account: item.account }}">
 					<span class="post-author">{{ item.preferredUsername }}</span>
 				</router-link>
 				<a v-else :href="item.id" target="_blank"
-					rel="noreferrer">{{ item.preferredUsername }}</a>
-				<p class="user-description">{{ item.account }}</p>
+					rel="noreferrer">{{ item.name }} <span class="user-description">{{ item.account }}</span></a>
+				<!-- TODO check where the html is coming from to avoid security issues -->
+				<p v-html="item.summary" />
 			</div>
-			<button v-if="item.following" class="icon-checkmark-color">Following</button>
-			<button v-else class="primary">Follow</button>
+			<button class="icon-checkmark-color" @click="unfollow()"
+				@mouseover="followingText=t('social', 'Unfollow')"
+				@mouseleave="followingText=t('social', 'Following')">{{ followingText }}</button>
+			<button class="primary" @click="follow">Follow</button>
 		</div>
 	</div>
 </template>
 
 <script>
 import { Avatar } from 'nextcloud-vue'
+import follow from '../mixins/follow'
 
 export default {
 	name: 'UserEntry',
 	components: {
 		Avatar
 	},
+	mixins: [
+		follow
+	],
 	props: {
 		item: { type: Object, default: () => {} }
 	},
 	data: function() {
 		return {
-
+			followingText: t('social', 'Following')
 		}
 	}
 }
