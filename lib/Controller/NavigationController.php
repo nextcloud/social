@@ -246,36 +246,6 @@ class NavigationController extends Controller {
 		return $this->navigate();
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 *
-	 * @param $username
-	 *
-	 * @return RedirectResponse|PublicTemplateResponse
-	 */
-	public function public($username) {
-		// Redirect to external instances
-		if (preg_match('/@[\w._-]+@[\w._-]+/', $username) === 1) {
-			$actor = $this->personService->getFromAccount(substr($username, 1));
-			return new RedirectResponse($actor->getUrl());
-		}
-		if (\OC::$server->getUserSession()
-						->isLoggedIn()) {
-			return $this->navigate();
-		}
-
-		$data = [
-			'serverData' => [
-				'public' => true,
-			]
-		];
-		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
-		$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
-
-		return $page;
-	}
-
 
 	/**
 	 *
