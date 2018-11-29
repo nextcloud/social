@@ -872,7 +872,6 @@ abstract class ACore implements JsonSerializable {
 		$this->setPublished($this->get('published', $data, ''));
 		$this->setActorId($this->get('actor', $data, ''));
 		$this->setObjectId($this->get('object', $data, ''));
-		$this->setLocal(($this->getInt('local', $data, 0) === 1));
 	}
 
 
