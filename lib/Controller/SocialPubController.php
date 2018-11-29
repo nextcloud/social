@@ -105,11 +105,11 @@ class SocialPubController extends Controller {
 
 		try {
 			$actor = $this->personService->getFromLocalAccount($username);
+			$actor->setCompleteDetails(true);
 
 			if ($this->userId !== null) {
 				$local = $this->actorService->getActorFromUserId($this->userId, true);
 				$this->actorService->acquaintLinksBetweenPersons($actor, $local);
-				$actor->setCompleteDetails(true);
 			}
 
 			$data = [
