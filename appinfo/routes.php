@@ -47,7 +47,6 @@ return [
 			'name'         => 'Navigation#account', 'url' => '/account/{path}', 'verb' => 'GET',
 			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
 		],
-		['name' => 'Navigation#public', 'url' => '/{username}', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
 
