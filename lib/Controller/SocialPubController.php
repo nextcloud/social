@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
@@ -107,21 +108,30 @@ class SocialPubController extends Controller {
 			$actor = $this->personService->getFromLocalAccount($username);
 			$actor->setCompleteDetails(true);
 
+			$logged = false;
+			$ownAccount = false;
 			if ($this->userId !== null) {
+				$logged = true;
 				$local = $this->actorService->getActorFromUserId($this->userId, true);
-				$this->actorService->acquaintLinksBetweenPersons($actor, $local);
+				if ($local->getId() === $actor->getId()) {
+					$ownAccount = true;
+				} else {
+					$this->fillActorWithLinks($actor, $local);
+				}
 			}
 
 			$data = [
 				'serverData' => [
 					'public' => true,
 				],
-				'actor'      => $actor
+				'actor'      => $actor,
+				'logged'     => $logged,
+				'ownAccount' => $ownAccount
 			];
+
+
 			$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
 			$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
-
-			$this->miscService->log(json_encode($actor));
 
 			return $page;
 		} catch (CacheActorDoesNotExistException $e) {
@@ -179,6 +189,15 @@ class SocialPubController extends Controller {
 		return $this->success([$username, $postId]);
 	}
 
-}
 
+	/**
+	 * @param Person $actor
+	 * @param Person $local
+	 */
+	private function fillActorWithLinks(Person $actor, Person $local) {
+		$links = $this->actorService->getLinksBetweenPersons($local, $actor);
+		$actor->addDetailArray('link', $links);
+	}
+
+}
 
