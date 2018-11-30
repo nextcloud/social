@@ -20,19 +20,15 @@
  *
  */
 
-import serverData from './serverData'
+import axios from 'nextcloud-axios'
+
 export default {
-	mixins: [
-		serverData
-	],
-	computed: {
-		currentUser: function() {
-			return OC.getCurrentUser()
+	methods: {
+		follow() {
+			return axios.put(OC.generateUrl('/apps/social/api/v1/account/follow?account=' + this.item.account))
 		},
-		socialId: function() {
-			const url = document.createElement('a')
-			url.setAttribute('href', this.serverData.cloudAddress)
-			return '@' + OC.getCurrentUser().uid + '@' + url.hostname
+		unfollow() {
+			return axios.delete(OC.generateUrl('/apps/social/api/v1/account/follow?account=' + this.item.account))
 		}
 	}
 }

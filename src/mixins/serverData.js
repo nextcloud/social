@@ -20,19 +20,10 @@
  *
  */
 
-import serverData from './serverData'
 export default {
-	mixins: [
-		serverData
-	],
 	computed: {
-		currentUser: function() {
-			return OC.getCurrentUser()
-		},
-		socialId: function() {
-			const url = document.createElement('a')
-			url.setAttribute('href', this.serverData.cloudAddress)
-			return '@' + OC.getCurrentUser().uid + '@' + url.hostname
+		serverData: function() {
+			return this.$store.getters.getServerData
 		}
 	}
 }
