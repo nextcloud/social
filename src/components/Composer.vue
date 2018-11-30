@@ -384,29 +384,42 @@ export default {
 				}
 			}
 		},
+		activeState() {
+			return (type) => {
+				if (type === this.type) {
+					return true
+				} else {
+					return false
+				}
+			}
+		},
 		visibilityPopover() {
 			return [
 				{
 					action: () => { this.switchType('direct') },
 					icon: this.visibilityIconClass('direct'),
+					active: this.activeState('direct'),
 					text: t('social', 'Direct'),
 					longtext: t('social', 'Post to mentioned users only')
 				},
 				{
 					action: () => { this.switchType('unlisted') },
 					icon: this.visibilityIconClass('unlisted'),
+					active: this.activeState('unlisted'),
 					text: t('social', 'Unlisted'),
 					longtext: t('social', 'Do not post to public timelines')
 				},
 				{
 					action: () => { this.switchType('followers') },
 					icon: this.visibilityIconClass('followers'),
+					active: this.activeState('followers'),
 					text: t('social', 'Followers'),
 					longtext: t('social', 'Post to followers only')
 				},
 				{
 					action: () => { this.switchType('public') },
 					icon: this.visibilityIconClass('public'),
+					active: this.activeState('public'),
 					text: t('social', 'Public'),
 					longtext: t('social', 'Post to public timelines')
 				}
@@ -433,7 +446,7 @@ export default {
 				emoji.replaceWith(em)
 			})
 			let to = []
-			const re = /@(([\w-\_.]+)(@[\w-.]+)?)/g
+			const re = /@(([\w-_.]+)(@[\w-.]+)?)/g
 			let match = null
 			do {
 				match = re.exec(element.innerText)
