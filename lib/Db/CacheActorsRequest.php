@@ -166,7 +166,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		}
 
 		try {
-			$this->parseFollowLeftJoin($data, 'as_following');
+			$this->parseFollowLeftJoin($data, 'as_followed');
 			$account->addDetailBool('following', true);
 		} catch (InvalidResourceException $e) {
 		}
