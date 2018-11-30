@@ -387,6 +387,18 @@ class Person extends ACore implements JsonSerializable {
 	}
 
 	/**
+	 * @param string $detail
+	 * @param bool $value
+	 *
+	 * @return Person
+	 */
+	public function addDetailBool(string $detail, bool $value): Person {
+		$this->details[$detail] = $value;
+
+		return $this;
+	}
+
+	/**
 	 * @param array $details
 	 *
 	 * @return Person
@@ -424,12 +436,6 @@ class Person extends ACore implements JsonSerializable {
 			$this->setIcon($icon);
 		}
 
-
-//			 ->setCreation($this->getInt('creation', $data, 0));
-
-//		if ($this->getPreferredUsername() === '') {
-//			$this->setType('Invalid');
-//		}
 	}
 
 
@@ -451,10 +457,6 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFeatured($this->get('featured', $data, ''))
 			 ->setDetails($this->getArray('details', $data, []))
 			 ->setCreation($this->getInt('creation', $data, 0));
-
-//		if ($this->getPreferredUsername() === '') {
-//			$this->setType('Invalid');
-//		}
 	}
 
 
