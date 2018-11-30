@@ -23,6 +23,11 @@
 				</p>
 			</form>
 		</template>
+		<template v-else-if="serverData.error">
+			<h2>{{ t('social', 'Social app setup') }}</h2>
+			<p>{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</p>
+			<p>{{ t('social', 'Social needs the .well-known auto discovery to be properly set up. If Nextcloud is not installed in the root of the domain it is often the case, that Nextcloud can\'t configure this automatically. To use Social the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank" rel="noreferrer noopener">{{ t('social', 'Open Documentation') }} ↗</a></p>
+		</template>
 		<template v-else>
 			<p>{{ t('social', 'The social app requires to be setup by the server administrator.') }}</p>
 		</template>
@@ -56,6 +61,9 @@
 	#social-spacer a:hover,
 	#social-spacer a:focus {
 		border: none !important;
+	}
+	a.external_link {
+		text-decoration: underline;
 	}
 
 </style>

@@ -52,6 +52,7 @@ use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\Http\Client\IClientService;
 
 class NavigationController extends Controller {
 
@@ -68,6 +69,9 @@ class NavigationController extends Controller {
 
 	/** @var IURLGenerator */
 	private $urlGenerator;
+
+	/** @var IClientService */
+	private $clientService;
 
 	/** @var ActorService */
 	private $actorService;
@@ -93,6 +97,7 @@ class NavigationController extends Controller {
 	 * @param string $userId
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
+	 * @param IClientService $clientService
 	 * @param ActorService $actorService
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
@@ -101,7 +106,7 @@ class NavigationController extends Controller {
 	 * @param IL10N $l10n
 	 */
 	public function __construct(
-		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
+		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator, IClientService $clientService,
 		ActorService $actorService, DocumentService $documentService, ConfigService $configService,
 		PersonService $personService,
 		MiscService $miscService, IL10N $l10n
@@ -111,6 +116,7 @@ class NavigationController extends Controller {
 		$this->userId = $userId;
 		$this->config = $config;
 		$this->urlGenerator = $urlGenerator;
+		$this->clientService = $clientService;
 
 		$this->actorService = $actorService;
 		$this->documentService = $documentService;
@@ -172,6 +178,14 @@ class NavigationController extends Controller {
 					}
 				}
 			}
+		}
+
+		try {
+			$url = $this->request->getServerProtocol() . '://' . $this->request->getServerHost() . '/.well-known/webfinger';
+			$response = $this->clientService->newClient()->get($url);
+		} catch (\GuzzleHttp\Exception\ClientException $e) {
+			$data['serverData']['error'] = $this->l10n->t('.well-known/webfinger isn\'t properly set up');
+			$data['serverData']['setup'] = true;
 		}
 
 		try {
@@ -301,4 +315,3 @@ class NavigationController extends Controller {
 	}
 
 }
-
