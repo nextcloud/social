@@ -83,7 +83,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('f.id', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.creation')
+		$qb->select('f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.creation')
 		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
@@ -128,10 +128,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function parseFollowsSelectSql($data): Follow {
 		$follow = new Follow();
-		$follow->setId($data['id'])
-			   ->setActorId($data['actor_id'])
-			   ->setObjectId($data['object_id']);
-		$follow->setFollowId($data['follow_id']);
+		$follow->importFromDatabase($data);
 
 		try {
 			$actor = $this->parseCacheActorsLeftJoin($data);

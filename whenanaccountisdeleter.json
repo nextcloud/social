@@ -1,0 +1,45 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "sensitive": "as:sensitive",
+      "movedTo": {
+        "@id": "as:movedTo",
+        "@type": "@id"
+      },
+      "Hashtag": "as:Hashtag",
+      "ostatus": "http://ostatus.org#",
+      "atomUri": "ostatus:atomUri",
+      "inReplyToAtomUri": "ostatus:inReplyToAtomUri",
+      "conversation": "ostatus:conversation",
+      "toot": "http://joinmastodon.org/ns#",
+      "Emoji": "toot:Emoji",
+      "focalPoint": {
+        "@container": "@list",
+        "@id": "toot:focalPoint"
+      },
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "schema": "http://schema.org#",
+      "PropertyValue": "schema:PropertyValue",
+      "value": "schema:value"
+    }
+  ],
+  "id": "https://mastodon.social/users/twospirit#delete",
+  "type": "Delete",
+  "actor": "https://mastodon.social/users/twospirit",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "object": "https://mastodon.social/users/twospirit",
+  "signature": {
+    "type": "RsaSignature2017",
+    "creator": "https://mastodon.social/users/twospirit#main-key",
+    "created": "2018-11-26T14:33:30Z",
+    "signatureValue": "e20O0AYwAGLgHyb/xD1fO+v7gnE8aONFR3iMb/4ULd+Qjz4fV1/ay0IRFdatWGRP4uG/XzjdW6hJTR69wjQUag9k0JOvHkOssUHIXkmBEsKZURyEVWrjT1+Dyx1ZFwsbhjSXCkvbz70mq+1JPx2zDK+fTsG8TPIKBpvj9LYmQbF3Z4n7wRRxibCCL8oGlrHlwWwABYkZKoruLYJya9a6eVvbCD1P5TO+M1CUdMHhqez8k3ll50ZsGRlHqnojR0V9AjMixuMNMx4qvcC+wwJb4QBorfPJDh843Pw4lybwbs5/bXwErxR+Infc61w/dkyw1MvZdPYD2dy+uOHdndRRdQ=="
+  }
+}

@@ -56,6 +56,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
+		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
 		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()));
 
