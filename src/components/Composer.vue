@@ -446,7 +446,7 @@ export default {
 				emoji.replaceWith(em)
 			})
 			let to = []
-			const re = /@(([\w-\_.]+)(@[\w-.]+)?)/g
+			const re = /@(([\w-_.]+)(@[\w-.]+)?)/g
 			let match = null
 			do {
 				match = re.exec(element.innerText)
