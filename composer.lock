@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "39ea0ce3f9442cb507c0bfaa4be36c3e90d6903e"
+                "reference": "36ea85a58ceb57a521c8f5a43effb4a7330e7b4c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/39ea0ce3f9442cb507c0bfaa4be36c3e90d6903e",
-                "reference": "39ea0ce3f9442cb507c0bfaa4be36c3e90d6903e",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/36ea85a58ceb57a521c8f5a43effb4a7330e7b4c",
+                "reference": "36ea85a58ceb57a521c8f5a43effb4a7330e7b4c",
                 "shasum": ""
             },
             "require": {
@@ -40,7 +40,7 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2018-11-29T12:56:09+00:00"
+            "time": "2018-11-29T16:46:38+00:00"
         }
     ],
     "packages-dev": [],

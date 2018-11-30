@@ -78,6 +78,7 @@ class QueueService {
 	/**
 	 * @param array $instancePaths
 	 * @param ACore $item
+	 * @param string $author
 	 *
 	 * @return string
 	 * @throws Exception

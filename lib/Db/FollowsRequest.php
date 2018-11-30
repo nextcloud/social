@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Follow;
 
@@ -43,6 +44,9 @@ use OCA\Social\Model\ActivityPub\Follow;
 class FollowsRequest extends FollowsRequestBuilder {
 
 
+	use TArrayTools;
+
+
 	/**
 	 * Insert a new Note in the database.
 	 *
@@ -52,6 +56,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
+		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
 		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()));
 
@@ -93,6 +98,42 @@ class FollowsRequest extends FollowsRequestBuilder {
 		}
 
 		return $this->parseFollowsSelectSql($data);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return int
+	 */
+	public function countFollowers(string $actorId): int {
+		$qb = $this->countFollowsSelectSql();
+		$this->limitToObjectId($qb, $actorId);
+		$this->limitToAccepted($qb, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return int
+	 */
+	public function countFollowing(string $actorId): int {
+		$qb = $this->countFollowsSelectSql();
+		$this->limitToActorId($qb, $actorId);
+		$this->limitToAccepted($qb, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
 	}
 
 

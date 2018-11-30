@@ -74,9 +74,6 @@ class ActivityPubController extends Controller {
 	/** @var MiscService */
 	private $miscService;
 
-	/** @var NavigationController */
-	private $navigationController;
-
 
 	/**
 	 * ActivityPubController constructor.
@@ -94,13 +91,11 @@ class ActivityPubController extends Controller {
 		IRequest $request, SocialPubController $socialPubController,
 		ActivityService $activityService, ImportService $importService,
 		FollowService $followService, ActorService $actorService, NotesRequest $notesRequest,
-		NavigationController $navigationController,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->socialPubController = $socialPubController;
-		$this->navigationController = $navigationController;
 
 		$this->activityService = $activityService;
 		$this->importService = $importService;
@@ -128,7 +123,7 @@ class ActivityPubController extends Controller {
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->navigationController->public($username);
+			return $this->socialPubController->actor($username);
 		}
 
 		try {
@@ -258,7 +253,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function followers(string $username, $data): Response {
+	public function followers(string $username): Response {
 
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);

@@ -76,6 +76,10 @@ class PersonService implements ICoreService {
 	private $miscService;
 
 
+	/** @var string */
+	private $viewerId = '';
+
+
 	/**
 	 * UndoService constructor.
 	 *
@@ -94,6 +98,18 @@ class PersonService implements ICoreService {
 		$this->instanceService = $instanceService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @param string $viewerId
+	 */
+	public function setViewerId(string $viewerId) {
+		$this->viewerId = $viewerId;
+	}
+
+	public function getViewerId(): string {
+		return $this->viewerId;
 	}
 
 
@@ -169,7 +185,7 @@ class PersonService implements ICoreService {
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 
 		try {
-			$actor = $this->cacheActorsRequest->getFromAccount($account);
+			$actor = $this->cacheActorsRequest->getFromAccount($account, $this->getViewerId());
 		} catch (CacheActorDoesNotExistException $e) {
 			if (!$retrieve) {
 				throw new CacheActorDoesNotExistException();
@@ -186,6 +202,17 @@ class PersonService implements ICoreService {
 		}
 
 		return $actor;
+	}
+
+
+	/**
+	 * @param string $account
+	 *
+	 * @return Person
+	 * @throws CacheActorDoesNotExistException
+	 */
+	public function getFromLocalAccount(string $account): Person {
+		return $this->cacheActorsRequest->getFromLocalAccount($account);
 	}
 
 
@@ -208,18 +235,7 @@ class PersonService implements ICoreService {
 		}
 
 		$actor->setSource(json_encode($object, JSON_UNESCAPED_SLASHES));
-//			$actor->setPreferredUsername($this->get('preferredUsername', $object, ''));
-//			$actor->setPublicKey($this->get('publicKey.publicKeyPem', $object));
-//			$actor->setSharedInbox($this->get('endpoints.sharedInbox', $object));
-//			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
-//
-//			$icon = new Image($actor);
-//			$icon->setUrlCloud($this->configService->getCloudAddress());
-//			$icon->import($this->getArray('icon', $object, []));
-//			if ($icon->getType() === Image::TYPE) {
-//				$actor->setIcon($icon);
-//			}
-//
+
 		return $actor;
 	}
 
@@ -229,7 +245,7 @@ class PersonService implements ICoreService {
 	 * @return Person[]
 	 */
 	public function searchCachedAccounts(string $search): array {
-		return $this->cacheActorsRequest->searchAccounts($search);
+		return $this->cacheActorsRequest->searchAccounts($search, $this->getViewerId());
 	}
 
 
@@ -257,6 +273,25 @@ class PersonService implements ICoreService {
 		}
 
 		$this->cacheActorsRequest->save($person);
+	}
+
+
+	/**
+	 * @throws Exception
+	 * @return int
+	 */
+	public function missingCacheRemoteActors(): int {
+		// TODO - looking for missing cache remote actors...
+		$missing = [];
+
+		foreach ($missing as $item) {
+			try {
+				$this->getFromId($item->getId());
+			} catch (Exception $e) {
+			}
+		}
+
+		return sizeof($missing);
 	}
 
 

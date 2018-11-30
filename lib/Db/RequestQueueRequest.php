@@ -35,7 +35,6 @@ use DateTime;
 use Exception;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\RequestQueue;
-use OCA\Social\Service\QueueService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 

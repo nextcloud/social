@@ -89,6 +89,16 @@ class Follow extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @param array $data
+	 */
+	public function importFromDatabase(array $data) {
+		parent::importFromDatabase($data);
+
+		$this->setFollowId($this->get('follow_id', $data, ''));
+	}
+
+
+	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {

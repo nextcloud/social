@@ -33,7 +33,6 @@ namespace OCA\Social\Service;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;

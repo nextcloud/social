@@ -284,8 +284,12 @@ class ActivityService {
 			);
 		} catch (ActorDoesNotExistException $e) {
 			$this->queueService->deleteRequest($queue);
+
+			return;
 		} catch (Request410Exception $e) {
 			$this->queueService->deleteRequest($queue);
+
+			return;
 		}
 
 		try {

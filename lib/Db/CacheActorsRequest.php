@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -85,6 +86,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
+		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
 		   ->setValue(
 			   'creation',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
@@ -132,12 +134,59 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 *
 	 * @param string $account
 	 *
+	 * @param string $viewerId
+	 *
 	 * @return Person
 	 * @throws CacheActorDoesNotExistException
 	 */
-	public function getFromAccount(string $account): Person {
+	public function getFromAccount(string $account, string $viewerId = ''): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToAccount($qb, $account);
+		$this->leftJoinCacheDocuments($qb, 'icon_id');
+
+		if ($viewerId !== '') {
+			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, true, 'as_follower');
+			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, false, 'as_followed');
+		}
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheActorDoesNotExistException();
+		}
+
+		$account = $this->parseCacheActorsSelectSql($data);
+
+		try {
+			$this->parseFollowLeftJoin($data, 'as_follower');
+			$account->addDetailBool('follower', true);
+		} catch (InvalidResourceException $e) {
+		}
+
+		try {
+			$this->parseFollowLeftJoin($data, 'as_followed');
+			$account->addDetailBool('following', true);
+		} catch (InvalidResourceException $e) {
+		}
+
+		return $account;
+	}
+
+
+	/**
+	 * get Cached version of a local Actor, based on the preferred username
+	 *
+	 * @param string $account
+	 *
+	 * @return Person
+	 * @throws CacheActorDoesNotExistException
+	 */
+	public function getFromLocalAccount(string $account): Person {
+		$qb = $this->getCacheActorsSelectSql();
+		$this->limitToPreferredUsername($qb, $account);
+		$this->limitToLocal($qb, true);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$cursor = $qb->execute();
@@ -154,18 +203,42 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 	/**
 	 * @param string $search
+	 * @param string $viewerId
 	 *
 	 * @return Person[]
 	 */
-	public function searchAccounts(string $search): array {
+	public function searchAccounts(string $search, string $viewerId = ''): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->searchInAccount($qb, $search);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
+		if ($viewerId !== '') {
+			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, true, 'as_follower');
+			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, false, 'as_followed');
+		}
+
 		$accounts = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$accounts[] = $this->parseCacheActorsSelectSql($data);
+			$account = $this->parseCacheActorsSelectSql($data);
+
+			if ($viewerId !== '') {
+				try {
+					$this->parseFollowLeftJoin($data, 'as_follower');
+					$account->addDetailBool('following', true);
+				} catch (InvalidResourceException $e) {
+				}
+
+				try {
+					$this->parseFollowLeftJoin($data, 'as_followed');
+					$account->addDetailBool('follower', true);
+				} catch (InvalidResourceException $e) {
+				}
+
+				$account->setCompleteDetails(true);
+			}
+
+			$accounts[] = $account;
 		}
 		$cursor->closeCursor();
 

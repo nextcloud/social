@@ -37,6 +37,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\Image;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ConfigService;
@@ -134,7 +135,7 @@ class CoreRequestBuilder {
 	 * @param string $username
 	 */
 	protected function limitToPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$this->limitToDBField($qb, 'preferred_username', $username);
+		$this->limitToDBField($qb, 'preferred_username', $username, false);
 	}
 
 	/**
@@ -192,6 +193,18 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToFollowId(IQueryBuilder &$qb, string $followId) {
 		$this->limitToDBField($qb, 'follow_id', $followId);
+	}
+
+
+	/**
+	 * Limit the request to the FollowId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param bool $accepted
+	 */
+	protected function limitToAccepted(IQueryBuilder &$qb, bool $accepted) {
+		$this->limitToDBField($qb, 'accepted', ($accepted) ? '1' : '0');
+
 	}
 
 
@@ -269,6 +282,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToUrl(IQueryBuilder &$qb, string $url) {
 		$this->limitToDBField($qb, 'url', $url);
+	}
+
+
+	/**
+	 * Limit the request to the url
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $actorId
+	 */
+	protected function limitToAttributedTo(IQueryBuilder &$qb, string $actorId) {
+		$this->limitToDBField($qb, 'attributed_to', $actorId, false);
 	}
 
 
@@ -507,7 +531,6 @@ class CoreRequestBuilder {
 		$expr = $qb->expr();
 		$pf = $this->defaultSelectAlias;
 
-//		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectAlias('ca.id', 'cacheactor_id')
 		   ->selectAlias('ca.type', 'cacheactor_type')
 		   ->selectAlias('ca.account', 'cacheactor_account')
@@ -569,7 +592,6 @@ class CoreRequestBuilder {
 		$expr = $qb->expr();
 		$pf = $this->defaultSelectAlias;
 
-//		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectAlias('cd.id', 'cachedocument_id')
 		   ->selectAlias('cd.type', 'cachedocument_type')
 		   ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
@@ -611,6 +633,75 @@ class CoreRequestBuilder {
 
 		return $document;
 	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $fieldActorId
+	 * @param string $viewerId
+	 * @param bool $asFollower
+	 * @param string $prefix
+	 */
+	protected function leftJoinFollowAsViewer(
+		IQueryBuilder &$qb, string $fieldActorId, string $viewerId, bool $asFollower = true,
+		string $prefix = 'follow'
+	) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$pf = $this->defaultSelectAlias;
+
+		$andX = $expr->andX();
+		if ($asFollower === true) {
+			$andX->add($expr->eq($pf . '.' . $fieldActorId, $prefix . '_f.object_id'));
+			$andX->add($expr->eq($prefix . '_f.actor_id', $qb->createNamedParameter($viewerId)));
+		} else {
+			$andX->add($expr->eq($pf . '.' . $fieldActorId, $prefix . '_f.actor_id'));
+			$andX->add($expr->eq($prefix . '_f.object_id', $qb->createNamedParameter($viewerId)));
+		}
+
+		$qb->selectAlias($prefix . '_f.id', $prefix . '_id')
+		   ->selectAlias($prefix . '_f.type', $prefix . '_type')
+		   ->selectAlias($prefix . '_f.actor_id', $prefix . '_actor_id')
+		   ->selectAlias($prefix . '_f.object_id', $prefix . '_object_id')
+		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
+		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
+		   ->leftJoin(
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, $prefix . '_f',
+			   $andX
+		   );
+	}
+
+
+	/**
+	 * @param array $data
+	 * @param string $prefix
+	 *
+	 * @return Follow
+	 * @throws InvalidResourceException
+	 */
+	protected function parseFollowLeftJoin(array $data, string $prefix): Follow {
+		$new = [];
+
+		$length = strlen($prefix) + 1;
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, $length) === $prefix . '_') {
+				$new[substr($k, $length)] = $v;
+			}
+		}
+
+		$follow = new Follow();
+		$follow->importFromDatabase($new);
+
+		if ($follow->getType() !== Follow::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		return $follow;
+	}
+
 
 }
 

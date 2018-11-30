@@ -31,18 +31,11 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 
-use Exception;
 use OC\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Service\ActivityPub\DocumentService;
-use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\ActorService;
-use OCA\Social\Service\CacheService;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\QueueService;
 use OCP\AppFramework\QueryException;

@@ -85,6 +85,10 @@ class Person extends ACore implements JsonSerializable {
 	/** @var string */
 	private $featured = '';
 
+	/** @var array */
+	private $details = [];
+
+
 	/**
 	 * Person constructor.
 	 *
@@ -340,6 +344,73 @@ class Person extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return array
+	 */
+	public function getDetails(): array {
+		return $this->details;
+	}
+
+	/**
+	 * @param string $detail
+	 * @param string $value
+	 *
+	 * @return Person
+	 */
+	public function addDetail(string $detail, string $value): Person {
+		$this->details[$detail] = $value;
+
+		return $this;
+	}
+
+	/**
+	 * @param string $detail
+	 * @param int $value
+	 *
+	 * @return Person
+	 */
+	public function addDetailInt(string $detail, int $value): Person {
+		$this->details[$detail] = $value;
+
+		return $this;
+	}
+
+	/**
+	 * @param string $detail
+	 * @param array $value
+	 *
+	 * @return Person
+	 */
+	public function addDetailArray(string $detail, array $value): Person {
+		$this->details[$detail] = $value;
+
+		return $this;
+	}
+
+	/**
+	 * @param string $detail
+	 * @param bool $value
+	 *
+	 * @return Person
+	 */
+	public function addDetailBool(string $detail, bool $value): Person {
+		$this->details[$detail] = $value;
+
+		return $this;
+	}
+
+	/**
+	 * @param array $details
+	 *
+	 * @return Person
+	 */
+	public function setDetails(array $details): Person {
+		$this->details = $details;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param array $data
 	 *
 	 * @throws UrlCloudException
@@ -365,12 +436,6 @@ class Person extends ACore implements JsonSerializable {
 			$this->setIcon($icon);
 		}
 
-
-//			 ->setCreation($this->getInt('creation', $data, 0));
-
-//		if ($this->getPreferredUsername() === '') {
-//			$this->setType('Invalid');
-//		}
 	}
 
 
@@ -390,11 +455,8 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFollowing($this->get('following', $data, ''))
 			 ->setSharedInbox($this->get('shared_inbox', $data, ''))
 			 ->setFeatured($this->get('featured', $data, ''))
+			 ->setDetails($this->getArray('details', $data, []))
 			 ->setCreation($this->getInt('creation', $data, 0));
-
-//		if ($this->getPreferredUsername() === '') {
-//			$this->setType('Invalid');
-//		}
 	}
 
 
@@ -402,7 +464,7 @@ class Person extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		return array_merge(
+		$result = array_merge(
 			parent::jsonSerialize(),
 			[
 				'aliases'           => [
@@ -425,8 +487,12 @@ class Person extends ACore implements JsonSerializable {
 				]
 			]
 		);
+
+		if ($this->isCompleteDetails()) {
+			$result['details'] = $this->getDetails();
+		}
+
+		return $result;
 	}
 
-
 }
-

@@ -219,6 +219,9 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
 	 * @return DataResponse
 	 */
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
@@ -294,12 +297,22 @@ class LocalController extends Controller {
 	 * @param string $search
 	 *
 	 * @return DataResponse
+	 * @throws Exception
 	 */
 	public function accountsSearch(string $search): DataResponse {
+		try {
+			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
+		} catch (Exception $e) {
+			throw new Exception();
+		}
+
+		$this->personService->setViewerId($viewer->getId());
+
 		/* Look for an exactly matching account */
 		$match = null;
 		try {
 			$match = $this->personService->getFromAccount($search, false);
+			$match->setCompleteDetails(true);
 		} catch (Exception $e) {
 		}
 
@@ -410,6 +423,7 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 *
 	 * @param string $id
 	 * @return DataResponse
 	 */
@@ -419,8 +433,10 @@ class LocalController extends Controller {
 			if ($actor->gotIcon()) {
 				$avatar = $actor->getIcon();
 				$document = $this->documentService->getFromCache($avatar->getId());
+
 				return new FileDisplayResponse($document);
 			}
+
 			return new NotFoundResponse();
 		} catch (Exception $e) {
 			return $this->fail($e);

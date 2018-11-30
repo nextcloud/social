@@ -139,6 +139,23 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * @param string $actorId
+	 *
+	 * @return int
+	 */
+	public function countNotesFromActorId(string $actorId): int {
+		$qb = $this->countNotesSelectSql();
+		$this->limitToAttributedTo($qb, $actorId);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
+	 * @param string $actorId
 	 * @param int $since
 	 * @param int $limit
 	 *
