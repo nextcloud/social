@@ -261,7 +261,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$actor = $this->actorService->getActor($username);
-			$followers = $this->followService->getFollowers($actor);
+			$followers = $this->followService->getFollowersCollection($actor);
 
 //			$followers->setTopLevel(true);
 

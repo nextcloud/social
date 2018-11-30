@@ -375,6 +375,82 @@ class LocalController extends Controller {
 
 
 	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function currentFollowers(): DataResponse {
+		try {
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$followers = $this->followService->getFollowers($actor);
+
+			return $this->success($followers);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function currentFollowing(): DataResponse {
+		try {
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$followers = $this->followService->getFollowing($actor);
+
+			return $this->success($followers);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollowers(string $username): DataResponse {
+		try {
+			$actor = $this->actorService->getActor($username);
+			$followers = $this->followService->getFollowers($actor);
+
+			return $this->success($followers);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollowing(string $username): DataResponse {
+		try {
+			$actor = $this->actorService->getActor($username);
+			$followers = $this->followService->getFollowing($actor);
+
+			return $this->success($followers);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
 	 *
 	 * // TODO: Delete the NoCSRF check
 	 *
@@ -425,6 +501,7 @@ class LocalController extends Controller {
 	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
+	 *
 	 * @return DataResponse
 	 */
 	public function actorAvatar(string $id): Response {
