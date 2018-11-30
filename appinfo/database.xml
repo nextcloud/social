@@ -121,34 +121,6 @@
 	</table>
 
 	<table>
-		<name>*dbprefix*social_server_activities</name>
-		<declaration>
-
-			<field>
-				<name>id</name>
-				<type>text</type>
-				<length>127</length>
-				<notnull>true</notnull>
-			</field>
-
-			<field>
-				<name>activity</name>
-				<type>text</type>
-				<length>6000</length>
-				<notnull>true</notnull>
-			</field>
-
-			<field>
-				<name>object</name>
-				<type>text</type>
-				<length>127</length>
-				<notnull>true</notnull>
-			</field>
-
-		</declaration>
-	</table>
-
-	<table>
 		<name>*dbprefix*social_server_notes</name>
 		<declaration>
 
@@ -160,12 +132,12 @@
 				<primary>true</primary>
 			</field>
 
-			<!--<field>-->
-			<!--<name>type</name>-->
-			<!--<type>text</type>-->
-			<!--<length>15</length>-->
-			<!--<notnull>true</notnull>-->
-			<!--</field>-->
+			<field>
+				<name>type</name>
+				<type>text</type>
+				<length>31</length>
+				<notnull>true</notnull>
+			</field>
 
 			<field>
 				<name>to</name>
