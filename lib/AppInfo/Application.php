@@ -32,7 +32,6 @@ namespace OCA\Social\AppInfo;
 
 
 use OCP\AppFramework\App;
-use OCP\AppFramework\IAppContainer;
 
 
 class Application extends App {

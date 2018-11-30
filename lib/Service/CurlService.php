@@ -249,8 +249,6 @@ class CurlService {
 	/**
 	 * @param int $code
 	 *
-	 * @param Request $request
-	 *
 	 * @throws Request410Exception
 	 */
 	private function parseRequestResultCode410(int $code) {

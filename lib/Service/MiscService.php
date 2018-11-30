@@ -31,7 +31,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use Exception;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCP\ILogger;

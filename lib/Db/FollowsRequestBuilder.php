@@ -109,22 +109,6 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 
 
 	/**
-	 * Base of the Sql Select request for Shares
-	 *
-	 * @return IQueryBuilder
-	 */
-	protected function countFollowsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
-
-		$this->defaultSelectAlias = 'f';
-
-		return $qb;
-	}
-
-
-	/**
 	 * Base of the Sql Delete request
 	 *
 	 * @return IQueryBuilder

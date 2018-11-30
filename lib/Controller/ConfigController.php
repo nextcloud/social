@@ -25,11 +25,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Activity\Data;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -46,16 +43,12 @@ class ConfigController extends Controller {
 
 	/**
 	 * @param string $cloudAddress
+	 *
 	 * @return DataResponse
 	 */
 	public function setCloudAddress(string $cloudAddress): DataResponse {
-		try {
-			$this->configService->setCloudAddress($cloudAddress);
-			return new DataResponse([]);
-		} catch (SocialAppConfigException $e) {
-			return new DataResponse([
-				'message' => $e->getMessage()
-			], Http::STATUS_BAD_REQUEST);
-		}
+		$this->configService->setCloudAddress($cloudAddress);
+
+		return new DataResponse([]);
 	}
 }

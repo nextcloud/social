@@ -30,11 +30,9 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
-use OC\Files\Node\File;
-use OC\Files\SimpleFS\SimpleFile;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -48,9 +46,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
-use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
-use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\IL10N;
@@ -132,9 +128,11 @@ class NavigationController extends Controller {
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
+	 * @param string $path
+	 *
 	 * @return TemplateResponse
 	 */
-	public function navigate($path = ''): TemplateResponse {
+	public function navigate(string $path = ''): TemplateResponse {
 		$data = [
 			'serverData' => [
 				'public'   => false,
@@ -230,10 +228,11 @@ class NavigationController extends Controller {
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
+	 * @param string $path
+	 *
 	 * @return TemplateResponse
-	 * @throws NoUserException
 	 */
-	public function timeline($path = ''): TemplateResponse {
+	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();
 	}
 
@@ -244,10 +243,11 @@ class NavigationController extends Controller {
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
+	 * @param string $path
+	 *
 	 * @return TemplateResponse
-	 * @throws NoUserException
 	 */
-	public function account($path = ''): TemplateResponse {
+	public function account(string $path = ''): TemplateResponse {
 		return $this->navigate();
 	}
 

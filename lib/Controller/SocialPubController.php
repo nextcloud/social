@@ -137,7 +137,7 @@ class SocialPubController extends Controller {
 		} catch (CacheActorDoesNotExistException $e) {
 			return new NotFoundResponse();
 		} catch (Exception $e) {
-			$this->fail($e);
+			return $this->fail($e);
 		}
 	}
 

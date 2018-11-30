@@ -219,6 +219,9 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
 	 * @return DataResponse
 	 */
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {

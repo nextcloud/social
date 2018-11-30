@@ -237,8 +237,6 @@ class ConfigService {
 
 	/**
 	 * @param string $cloudAddress
-	 *
-	 * @return string
 	 */
 	public function setCloudAddress(string $cloudAddress) {
 		$this->setAppValue(self::SOCIAL_ADDRESS, $cloudAddress);

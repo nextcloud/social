@@ -32,12 +32,10 @@ namespace OCA\Social\Controller;
 
 use daita\MySmallPhpTools\Traits\TAsync;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\QueueService;
 use OCP\AppFramework\Controller;

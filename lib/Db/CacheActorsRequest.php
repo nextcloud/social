@@ -202,32 +202,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	/**
-	 * get Cached version of a local Actor, based on the preferred username
-	 *
-	 * @param string $account
-	 *
-	 * @return Person
-	 * @throws CacheActorDoesNotExistException
-	 */
-	public function getFromLocalAccount(string $account): Person {
-		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToPreferredUsername($qb, $account);
-		$this->limitToLocal($qb, true);
-		$this->leftJoinCacheDocuments($qb, 'icon_id');
-
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new CacheActorDoesNotExistException();
-		}
-
-		return $this->parseCacheActorsSelectSql($data);
-	}
-
-
-	/**
 	 * @param string $search
 	 * @param string $viewerId
 	 *
@@ -242,7 +216,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, true, 'as_follower');
 			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, false, 'as_followed');
 		}
-
 
 		$accounts = [];
 		$cursor = $qb->execute();

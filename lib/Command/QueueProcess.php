@@ -31,9 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 
-use Exception;
 use OC\Core\Command\Base;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
