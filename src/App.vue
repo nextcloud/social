@@ -121,9 +121,6 @@ export default {
 					}
 				},
 				{
-					id: 'social-spacer'
-				},
-				{
 					id: 'social-local',
 					classes: [],
 					icon: 'icon-category-monitoring',
