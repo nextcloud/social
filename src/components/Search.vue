@@ -91,10 +91,10 @@ export default {
 		},
 		accountSearch(term) {
 			this.loading = true
-			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + term))
+			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + term))
 		},
 		remoteSearch(term) {
-			return axios.get(OC.generateUrl('apps/social/api/v1/account/info?account=' + term))
+			return axios.get(OC.generateUrl('apps/social/api/v1/global/account/info?account=' + term))
 		}
 	}
 }

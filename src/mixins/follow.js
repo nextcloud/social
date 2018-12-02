@@ -25,10 +25,10 @@ import axios from 'nextcloud-axios'
 export default {
 	methods: {
 		follow() {
-			return axios.put(OC.generateUrl('/apps/social/api/v1/account/follow?account=' + this.item.account))
+			return axios.put(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account))
 		},
 		unfollow() {
-			return axios.delete(OC.generateUrl('/apps/social/api/v1/account/follow?account=' + this.item.account))
+			return axios.delete(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account))
 		}
 	}
 }
