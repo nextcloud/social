@@ -25,3 +25,6 @@ Mockup:
 3. 🏗 To build the Javascript whenever you make changes, run `make build-js`
 4. ✅ Enable the app through the app management of your Nextcloud
 5. 🎉 Partytime! Help fix [some issues](https://github.com/nextcloud/social/issues) and [review pull requests](https://github.com/nextcloud/social/pulls) 👍
+
+
+![](img/social-promo.png)
