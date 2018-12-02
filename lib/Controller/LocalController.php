@@ -294,51 +294,11 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
-	 * @param string $search
-	 *
-	 * @return DataResponse
-	 * @throws Exception
-	 */
-	public function accountsSearch(string $search): DataResponse {
-		try {
-			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
-		} catch (Exception $e) {
-			throw new Exception();
-		}
-
-		$this->personService->setViewerId($viewer->getId());
-
-		/* Look for an exactly matching account */
-		$match = null;
-		try {
-			$match = $this->personService->getFromAccount($search, false);
-			$match->setCompleteDetails(true);
-		} catch (Exception $e) {
-		}
-
-		try {
-			$accounts = $this->personService->searchCachedAccounts($search);
-
-			return $this->success(['accounts' => $accounts, 'exact' => $match]);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-
-	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
-	 *
 	 * @param string $account
 	 *
 	 * @return DataResponse
 	 */
-	public function accountFollow(string $account): DataResponse {
+	public function actionFollow(string $account): DataResponse {
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
@@ -362,12 +322,34 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function accountUnfollow(string $account): DataResponse {
+	public function actionUnfollow(string $account): DataResponse {
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$this->followService->unfollowAccount($actor, $account);
 
 			return $this->success([]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function currentInfo(): DataResponse {
+		try {
+			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$actor = $this->personService->getFromLocalAccount($actor->getPreferredUsername());
+
+			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -413,9 +395,35 @@ class LocalController extends Controller {
 
 
 	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 *
+	 * @param string $username
+	 *
+	 * @return DataResponse
+	 */
+	public function accountInfo(string $username): DataResponse {
+		try {
+			$actor = $this->actorService->getActor($username);
+			$actor = $this->personService->getFromLocalAccount($actor->getPreferredUsername());
+
+			return $this->success(['account' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $username
 	 *
 	 * @return DataResponse
 	 */
@@ -435,6 +443,8 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 *
+	 * @param string $username
 	 *
 	 * @return DataResponse
 	 */
@@ -462,7 +472,7 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function accountInfo(string $account): DataResponse {
+	public function globalAccountInfo(string $account): DataResponse {
 		try {
 			$actor = $this->personService->getFromAccount($account);
 
@@ -485,7 +495,7 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function actorInfo(string $id): DataResponse {
+	public function globalActorInfo(string $id): DataResponse {
 		try {
 			$actor = $this->personService->getFromId($id);
 
@@ -504,7 +514,7 @@ class LocalController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
-	public function actorAvatar(string $id): Response {
+	public function globalActorAvatar(string $id): Response {
 		try {
 			$actor = $this->personService->getFromId($id);
 			if ($actor->gotIcon()) {
@@ -515,6 +525,46 @@ class LocalController extends Controller {
 			}
 
 			return new NotFoundResponse();
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 *
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $search
+	 *
+	 * @return DataResponse
+	 * @throws Exception
+	 */
+	public function globalAccountsSearch(string $search): DataResponse {
+		try {
+			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
+		} catch (Exception $e) {
+			throw new Exception();
+		}
+
+		$this->personService->setViewerId($viewer->getId());
+
+		/* Look for an exactly matching account */
+		$match = null;
+		try {
+			$match = $this->personService->getFromAccount($search, false);
+			$match->setCompleteDetails(true);
+		} catch (Exception $e) {
+		}
+
+		try {
+			$accounts = $this->personService->searchCachedAccounts($search);
+
+			return $this->success(['accounts' => $accounts, 'exact' => $match]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
