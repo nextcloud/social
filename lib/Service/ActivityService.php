@@ -472,7 +472,6 @@ class ActivityService {
 	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
-	 * @throws Exception
 	 */
 	private function checkSignature(IRequest $request) {
 		$signatureHeader = $request->getHeader('Signature');
@@ -499,13 +498,17 @@ class ActivityService {
 	 * @param IRequest $request
 	 *
 	 * @return string
-	 * @throws Exception
 	 */
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
 
-		$remoteTarget = strtolower($request->getMethod()) . " " . $request->getPathInfo();
-		$estimated = "(request-target): " . $remoteTarget;
+		$target = '';
+		try {
+			$target = strtolower($request->getMethod()) . " " . $request->getPathInfo();
+		} catch (Exception $e) {
+		}
+
+		$estimated = "(request-target): " . $target;
 
 		foreach ($keys as $key) {
 			if ($key === '(request-target)') {
