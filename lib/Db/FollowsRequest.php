@@ -194,7 +194,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getFollowingByActorId(string $actorId): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToActorId($qb, $actorId);
-		$this->leftJoinCacheActors($qb, 'actor_id');
+		$this->leftJoinCacheActors($qb, 'object_id');
 		$qb->orderBy('creation', 'desc');
 
 		$follows = [];
