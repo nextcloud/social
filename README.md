@@ -2,7 +2,12 @@
 
 **🎉 Nextcloud becomes part of the federated social networks!**
 
-The app is in alpha stage, so it’s time for you to get involved! 👩‍💻
+The app is in alpha stage, so it’s time for you to [get involved! 👩‍💻](https://github.com/nextcloud/social#development-setup)
+
+Some requirements in this alpha stage are that your Nextcloud:
+- must use a real SSL certificate
+- must be accessible from the internet
+- must run on the default port
 
 Mockup:
 ![](img/screenshot.png)
@@ -15,8 +20,8 @@ Mockup:
 
 ## Development setup
 
-1. ☁ Clone the app into the `apps` folder of your Nextcloud: `git clone https://github.com/nextcloud-gmbh/social.git`
+1. ☁ Clone the app into the `apps` folder of your Nextcloud: `git clone https://github.com/nextcloud/social.git`
 2. 👩‍💻 Run `make dev-setup` to install the dependencies
 3. 🏗 To build the Javascript whenever you make changes, run `make build-js`
 4. ✅ Enable the app through the app management of your Nextcloud
-5. 🎉 Partytime!
+5. 🎉 Partytime! Help fix [some issues](https://github.com/nextcloud/social/issues) and [review pull requests](https://github.com/nextcloud/social/pulls) 👍
