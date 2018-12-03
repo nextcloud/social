@@ -33,7 +33,6 @@ namespace OCA\Social\Service\ActivityPub;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
-use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\NoteNotFoundException;
