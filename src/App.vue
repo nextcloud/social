@@ -6,8 +6,8 @@
 		<div id="app-content">
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup">
 				<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
-				<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known auto discovery to be properly set up. If Nextcloud is not installed in the root of the domain it is often the case, that Nextcloud can\'t configure this automatically. To use Social the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
-					rel="noreferrer noopener">{{ t('social', 'Open Documentation') }} ↗</a></p>
+				<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+					rel="noreferrer noopener">{{ t('social', 'Open documentation') }} ↗</a></p>
 			</div>
 			<Search v-if="searchTerm != ''" :term="searchTerm" />
 			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
@@ -16,7 +16,7 @@
 	<div v-else class="setup">
 		<template v-if="serverData.isAdmin">
 			<h2>{{ t('social', 'Social app setup') }}</h2>
-			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Please configure a URL base. Note that this cannot be changed later without resetting the social app data.') }}</p>
+			<p>{{ t('social', 'ActivityPub requires a fixed domain to make entries unique. Please configure a domain base. Note that this can not be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
 				<p>
 					<label class="hidden">{{ t('social', 'ActivityPub URL base') }}</label>
@@ -26,13 +26,13 @@
 				</p>
 				<template v-if="!serverData.checks.success">
 					<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
-					<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known auto discovery to be properly set up. If Nextcloud is not installed in the root of the domain it is often the case, that Nextcloud can\'t configure this automatically. To use Social the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
-						rel="noreferrer noopener">{{ t('social', 'Open Documentation') }} ↗</a></p>
+					<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+						rel="noreferrer noopener">{{ t('social', 'Open documentation') }} ↗</a></p>
 				</template>
 			</form>
 		</template>
 		<template v-else>
-			<p>{{ t('social', 'The social app requires to be setup by the server administrator.') }}</p>
+			<p>{{ t('social', 'The Social app needs to be set up by the server administrator.') }}</p>
 		</template>
 	</div>
 </template>
