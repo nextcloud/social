@@ -190,10 +190,7 @@ class ActivityPubController extends Controller {
 
 	/**
 	 * Method is called when a remote ActivityPub server wants to POST in the INBOX of a USER
-	 *
 	 * Checking that the user exists, and that the header is properly signed.
-	 *
-	 * Does nothing. Should save data ($body) in database.
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
