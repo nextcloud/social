@@ -80,7 +80,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'sn.id', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content', 'sn.summary',
+			'sn.id', 'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content', 'sn.summary',
 			'sn.published', 'sn.published_time', 'sn.attributed_to', 'sn.in_reply_to', 'sn.source',
 			'sn.local', 'sn.instances', 'sn.creation'
 		)

@@ -152,13 +152,48 @@ class FollowService implements ICoreService {
 	/**
 	 * @param Person $actor
 	 *
+	 * @return Person[]
+	 */
+	public function getFollowers(Person $actor): array {
+		return $this->followsRequest->getFollowersByActorId($actor->getId());
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
 	 * @return OrderedCollection
 	 */
-	public function getFollowers(Person $actor): OrderedCollection {
+	public function getFollowersCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
 		$collection->setId($actor->getFollowers());
 		$collection->setTotalItems(20);
 		$collection->setFirst('...');
+
+		return $collection;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return Person[]
+	 */
+	public function getFollowing(Person $actor): array {
+		return $this->followsRequest->getFollowingByActorId($actor->getId());
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return OrderedCollection
+	 */
+	public function getFollowingCollection(Person $actor): OrderedCollection {
+		$collection = new OrderedCollection();
+//		$collection->setId($actor->getFollowers());
+//		$collection->setTotalItems(20);
+//		$collection->setFirst('...');
 
 		return $collection;
 	}

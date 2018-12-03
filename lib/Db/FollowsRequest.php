@@ -32,8 +32,10 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use DateTime;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Follow;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
@@ -58,7 +60,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
 		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
-		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()));
+		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
+		   ->setValue(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
 
 		$qb->execute();
 	}
@@ -146,6 +152,50 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToFollowId($qb, $followId);
 		$this->leftJoinCacheActors($qb, 'actor_id');
+
+		$follows = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$follows[] = $this->parseFollowsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $follows;
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollowersByActorId(string $actorId): array {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToOBjectId($qb, $actorId);
+		$this->leftJoinCacheActors($qb, 'actor_id');
+		$qb->orderBy('creation', 'desc');
+
+		$follows = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$follows[] = $this->parseFollowsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $follows;
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollowingByActorId(string $actorId): array {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToActorId($qb, $actorId);
+		$this->leftJoinCacheActors($qb, 'object_id');
+		$qb->orderBy('creation', 'desc');
 
 		$follows = [];
 		$cursor = $qb->execute();

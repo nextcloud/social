@@ -68,14 +68,26 @@ return [
 		['name' => 'Local#streamTimeline', 'url' => '/api/v1/stream/timeline', 'verb' => 'GET'],
 		['name' => 'Local#streamFederated', 'url' => '/api/v1/stream/federated', 'verb' => 'GET'],
 		['name' => 'Local#streamDirect', 'url' => '/api/v1/stream/direct', 'verb' => 'GET'],
+
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
-		['name' => 'Local#accountsSearch', 'url' => '/api/v1/accounts/search', 'verb' => 'GET'],
-		['name' => 'Local#accountFollow', 'url' => '/api/v1/account/follow', 'verb' => 'PUT'],
-		['name' => 'Local#accountUnfollow', 'url' => '/api/v1/account/follow', 'verb' => 'DELETE'],
-		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/info', 'verb' => 'GET'],
-		['name' => 'Local#actorInfo', 'url' => '/api/v1/actor/info', 'verb' => 'GET'],
-		['name' => 'Local#actorAvatar', 'url' => '/api/v1/actor/avatar', 'verb' => 'GET'],
+
+		['name' => 'Local#actionFollow', 'url' => '/api/v1/current/follow', 'verb' => 'PUT'],
+		['name' => 'Local#actionUnfollow', 'url' => '/api/v1/current/follow', 'verb' => 'DELETE'],
+
+		['name' => 'Local#currentInfo', 'url' => '/api/v1/current/info', 'verb' => 'PUT'],
+		['name' => 'Local#currentFollowers', 'url' => '/api/v1/current/followers', 'verb' => 'GET'],
+		['name' => 'Local#currentFollowing', 'url' => '/api/v1/current/following', 'verb' => 'GET'],
+
+		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/{username}/info', 'verb' => 'GET'],
+		['name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers', 'verb' => 'GET'],
+		['name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following', 'verb' => 'GET'],
+
+		['name' => 'Local#globalAccountInfo', 'url' => '/api/v1/global/account/info', 'verb' => 'GET'],
+		['name' => 'Local#globalActorInfo', 'url' => '/api/v1/global/actor/info', 'verb' => 'GET'],
+		['name' => 'Local#globalActorAvatar', 'url' => '/api/v1/global/actor/avatar', 'verb' => 'GET'],
+		['name' => 'Local#globalAccountsSearch', 'url' => '/api/v1/global/accounts/search', 'verb' => 'GET'],
+
 		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
 		['name' => 'Queue#asyncWithToken', 'url' => CurlService::ASYNC_TOKEN, 'verb' => 'POST'],

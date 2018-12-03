@@ -22,13 +22,49 @@
 
 import axios from 'nextcloud-axios'
 
+class FollowException {
+
+}
+
+class UnfollowException {
+
+}
+
 export default {
+	data() {
+		return {
+			followLoading: false
+		}
+	},
 	methods: {
 		follow() {
-			return axios.put(OC.generateUrl('/apps/social/api/v1/account/follow?account=' + this.item.account))
+			this.followLoading = true
+			return axios.put(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account)).then((response) => {
+				this.followLoading = false
+				if (response.data.status === -1) {
+					throw new FollowException()
+				}
+				this.item.details.following = true
+			}).catch((error) => {
+				this.followLoading = false
+				OC.Notification.showTemporary(`Failed to follow user ${this.item.account}`)
+				console.error(`Failed to follow user ${this.item.account}`, error)
+			})
+
 		},
 		unfollow() {
-			return axios.delete(OC.generateUrl('/apps/social/api/v1/account/follow?account=' + this.item.account))
+			this.followLoading = true
+			return axios.delete(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account)).then((response) => {
+				this.followLoading = false
+				if (response.data.status === -1) {
+					throw new UnfollowException()
+				}
+				this.item.details.following = false
+			}).catch((error) => {
+				this.followLoading = false
+				OC.Notification.showTemporary(`Failed to unfollow user ${this.item.account}`)
+				console.error(`Failed to unfollow user ${this.item.account}`, error)
+			})
 		}
 	}
 }

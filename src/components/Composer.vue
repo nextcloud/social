@@ -59,7 +59,7 @@
 			<div class="options">
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
-				<div>
+				<div v-click-outside="hidePopoverMenu">
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">
 						<PopoverMenu :menu="visibilityPopover" />
@@ -269,6 +269,7 @@
 <script>
 
 import { Avatar, PopoverMenu } from 'nextcloud-vue'
+import ClickOutside from 'vue-click-outside'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
 import { VTooltip } from 'v-tooltip'
@@ -284,7 +285,8 @@ export default {
 		VueTribute
 	},
 	directives: {
-		tooltip: VTooltip
+		tooltip: VTooltip,
+		ClickOutside: ClickOutside
 	},
 	mixins: [CurrentUserMixin],
 	props: {
@@ -433,6 +435,9 @@ export default {
 		},
 		togglePopoverMenu() {
 			this.menuOpened = !this.menuOpened
+		},
+		hidePopoverMenu() {
+			this.menuOpened = false
 		},
 		switchType(type) {
 			this.type = type

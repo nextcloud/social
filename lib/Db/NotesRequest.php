@@ -69,6 +69,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$qb = $this->getNotesInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($note->getId()))
+		   ->setValue('type', $qb->createNamedParameter($note->getType()))
 		   ->setValue('to', $qb->createNamedParameter($note->getTo()))
 		   ->setValue(
 			   'to_array', $qb->createNamedParameter(
