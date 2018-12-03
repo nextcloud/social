@@ -417,16 +417,18 @@ class Person extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setPreferredUsername($this->get('preferredUsername', $data, ''))
+		$this->setPreferredUsername(
+			$this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, '')
+		)
 			 ->setPublicKey($this->get('publicKey.publicKeyPem', $data))
-			 ->setSharedInbox($this->get('endpoints.sharedInbox', $data))
-			 ->setName($this->get('name', $data, ''))
-			 ->setAccount($this->get('account', $data, ''))
-			 ->setInbox($this->get('inbox', $data, ''))
-			 ->setOutbox($this->get('outbox', $data, ''))
-			 ->setFollowers($this->get('followers', $data, ''))
-			 ->setFollowing($this->get('following', $data, ''))
-			 ->setFeatured($this->get('featured', $data, ''));
+			 ->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
+			 ->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
+			 ->setAccount($this->validate(ACore::AS_ACCOUNT, 'account', $data, ''))
+			 ->setInbox($this->validate(ACore::AS_URL, 'inbox', $data, ''))
+			 ->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
+			 ->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
+			 ->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
+			 ->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
 
 		$icon = new Image($this);
 		$icon->setUrlCloud($this->getUrlCloud());

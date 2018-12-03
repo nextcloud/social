@@ -50,6 +50,14 @@ abstract class ACore implements JsonSerializable {
 	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
+	const AS_ID = 1;
+	const AS_TYPE = 2;
+	const AS_URL = 3;
+	const AS_DATE = 4;
+	const AS_USERNAME = 5;
+	const AS_ACCOUNT = 6;
+	const AS_STRING = 7;
+
 
 	/** @var string */
 	private $urlSocial = '';
@@ -900,20 +908,92 @@ abstract class ACore implements JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * @param int $as
+	 * @param string $k
+	 * @param array $arr
+	 * @param string $default
+	 *
+	 * @return string
+	 */
+	public function validate(int $as, string $k, array $arr, string $default = ''): string {
+		$value = $this->valideEntryString($as, $this->get($k, $arr, $default));
+
+
+		return $value;
+	}
+
+
+	/**
+	 * @param $as
+	 * @param $value
+	 *
+	 * @return string
+	 */
+	public function validateEntryString(int $as, string $value): string {
+		switch ($as) {
+			case self::AS_ID:
+				// TODO check if id looks valid or Exception
+				break;
+
+			case self::AS_TYPE:
+				// TODO check if type looks valid or Exception
+				break;
+
+			case self::AS_URL:
+				// TODO check if url looks valid or Exception
+				break;
+
+			case self::AS_DATE:
+				// TODO check that date is valid
+				break;
+
+			case self::AS_STRING:
+				// Clean string
+				break;
+
+			default:
+				// exception
+				break;
+		}
+
+		return $value;
+	}
+
+
+	/**
+	 * @param int $as
+	 * @param string $k
+	 * @param array $arr
+	 * @param array $default
+	 *
+	 * @return array
+	 */
+	public function validateArray(int $as, string $k, array $arr, array $default = []): array {
+		$values = $this->getArray($k, $arr, $default);
+
+		$result = [];
+		foreach ($values as $value) {
+			$result[] = $this->validateEntryString($as, $value);
+		}
+
+		return $result;
+	}
+
 
 	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
-		$this->setId($this->get('id', $data, ''));
-		$this->setType($this->get('type', $data, ''));
-		$this->setUrl($this->get('url', $data, ''));
-		$this->setSummary($this->get('summary', $data, ''));
-		$this->setToArray($this->getArray('to', $data, []));
-		$this->setCcArray($this->getArray('cc', $data, []));
-		$this->setPublished($this->get('published', $data, ''));
-		$this->setActorId($this->get('actor', $data, ''));
-		$this->setObjectId($this->get('object', $data, ''));
+		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
+		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
+		$this->setUrl($this->validate(self::AS_URL, 'url', $data, ''));
+		$this->setSummary($this->validate(self::AS_STRING, 'summary', $data, ''));
+		$this->setToArray($this->validateArray(self::AS_ID, 'to', $data, []));
+		$this->setCcArray($this->validateArray(self::AS_ID, 'cc', $data, []));
+		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
+		$this->setActorId($this->validate(self::AS_ID, 'actor', $data, ''));
+		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
 	}
 
 
