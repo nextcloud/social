@@ -4,7 +4,17 @@
 	<id>social</id>
 	<name>Social</name>
 	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
-	<description><![CDATA[test]]></description>
+	<description><![CDATA[
+**🎉 Nextcloud becomes part of the federated social networks!**
+
+**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!
+
+**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.
+
+**👐 Own your posts:** Everything you post stays on your Nextcloud!
+
+**🕸 Open standards:** We use the established ActivityPub standard!
+	]]></description>
 	<version>0.0.60</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
@@ -15,7 +25,7 @@
 	<website>https://github.com/nextcloud/social</website>
 	<repository type="git">https://github.com/nextcloud/social.git</repository>
 	<bugs>https://github.com/nextcloud/social/issues</bugs>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/screenshots/screenshot.png</screenshot>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="15" max-version="16"/>
 	</dependencies>
@@ -23,6 +33,7 @@
 		<navigation>
 			<name>Social</name>
 			<route>social.Navigation.navigate</route>
+			<order>6</order>
 		</navigation>
 	</navigations>
 
