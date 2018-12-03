@@ -69,13 +69,17 @@
 		flex-grow: 1;
 	}
 	.user-profile--sections li a {
+		padding: 10px;
 		padding-left: 24px;
+		display: inline-block;
 		background-position: 0 center;
 		height: 40px;
 		opacity: .6;
 	}
-	.user-profile--sections li a.active {
+	.user-profile--sections li a.router-link-exact-active,
+	.user-profile--sections li a:focus{
 		opacity: 1;
+		border-bottom: 1px solid var(--color-main-text);
 	}
 </style>
 <script>
