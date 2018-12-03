@@ -29,20 +29,25 @@ use OCP\Http\Client\IClientService;
 use OCP\ICache;
 use OCP\IConfig;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 
 class CheckService {
 
 	private $cache;
 	private $config;
+	private $clientService;
+	private $request;
+	private $urlGenerator;
 
 	const CACHE_PREFIX = 'social_check_';
 
 
-	public function __construct(ICache $cache, IConfig $config, IClientService $clientService, IRequest $request) {
+	public function __construct(ICache $cache, IConfig $config, IClientService $clientService, IRequest $request, IURLGenerator $urlGenerator) {
 		$this->cache = $cache;
 		$this->config = $config;
 		$this->clientService = $clientService;
 		$this->request = $request;
+		$this->urlGenerator = $urlGenerator;
 	}
 
 	public function checkDefault(): array {
@@ -65,19 +70,27 @@ class CheckService {
 		if ($state === true) {
 			return true;
 		}
-		try {
-			$url = $this->request->getServerProtocol() . '://' . $this->request->getServerHost() . '/.well-known/webfinger';
-			$response = $this->clientService->newClient()->get($url);
-			if ($response->getStatusCode() === Http::STATUS_OK) {
-				$this->cache->set(self::CACHE_PREFIX . 'wellknown', 'true', 3600);
-				return true;
-			}
-		} catch (\GuzzleHttp\Exception\ClientException $e) {
-		} catch (\Exception $e) {
+
+		$address = $this->config->getAppValue('social', 'address', '');
+
+		if ($address !== '' && $this->requestWellKnown($address)) {
+			return true;
 		}
 
+		if ($this->requestWellKnown($this->request->getServerProtocol() . '://' . $this->request->getServerHost())) {
+			return true;
+		}
+
+		if ($this->requestWellKnown($this->urlGenerator->getBaseUrl())) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private function requestWellKnown($base) {
 		try {
-			$url = \OC::$server->getURLGenerator()->getBaseUrl() . '/.well-known/webfinger';
+			$url = $base . '/.well-known/webfinger';
 			$response = $this->clientService->newClient()->get($url);
 			if ($response->getStatusCode() === Http::STATUS_OK) {
 				$this->cache->set(self::CACHE_PREFIX . 'wellknown', 'true', 3600);

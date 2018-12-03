@@ -147,10 +147,7 @@ class NavigationController extends Controller {
 				'firstrun' => false,
 				'setup'    => false,
 				'isAdmin'  => \OC::$server->getGroupManager()->isAdmin($this->userId),
-				'cliUrl'   => $this->config->getSystemValue(
-					'overwrite.cli.url', \OC::$server->getURLGenerator()
-					->getBaseUrl()
-				)
+				'cliUrl'   => $this->getCliUrl()
 			]
 		];
 
@@ -195,7 +192,6 @@ class NavigationController extends Controller {
 	}
 
 	private function setupCloudAddress(): string {
-		return '';
 		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
 
 		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
@@ -207,6 +203,15 @@ class NavigationController extends Controller {
 			return $cloudAddress;
 		}
 		return '';
+	}
+
+	private function getCliUrl() {
+		$url = rtrim($this->urlGenerator->getBaseUrl(), '/');
+		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+		if (!$frontControllerActive) {
+			$url .= '/index.php';
+		}
+		return $url;
 	}
 
 	/**
