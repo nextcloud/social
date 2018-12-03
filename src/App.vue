@@ -16,7 +16,7 @@
 	<div v-else class="setup">
 		<template v-if="serverData.isAdmin">
 			<h2>{{ t('social', 'Social app setup') }}</h2>
-			<p>{{ t('social', 'ActivityPub requires a fixed domain to make entries unique. Please configure a domain base. Note that this can not be changed later without resetting the Social app.') }}</p>
+			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
 				<p>
 					<label class="hidden">{{ t('social', 'ActivityPub URL base') }}</label>
