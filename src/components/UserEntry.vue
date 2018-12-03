@@ -36,10 +36,12 @@
 				<!-- TODO check where the html is coming from to avoid security issues -->
 				<p v-html="item.summary" />
 			</div>
-			<button class="icon-checkmark-color" @click="unfollow()"
-				@mouseover="followingText=t('social', 'Unfollow')"
-				@mouseleave="followingText=t('social', 'Following')">{{ followingText }}</button>
-			<button class="primary" @click="follow">Follow</button>
+			<button v-if="item.details.following" :class="{'icon-loading-small': followLoading}"
+				@click="unfollow()"
+				@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
+			<span><span class="icon-checkmark" />{{ followingText }}</span></button>
+			<button v-else :class="{'icon-loading-small': followLoading}" class="primary"
+				@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
 		</div>
 	</div>
 </template>
@@ -90,5 +92,13 @@ export default {
 
 	.user-description {
 		opacity: 0.7;
+	}
+
+	button {
+		min-width: 110px;
+	}
+
+	button * {
+		cursor: pointer;
 	}
 </style>
