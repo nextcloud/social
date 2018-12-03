@@ -36,11 +36,10 @@ use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityPub\ICoreService;
 
 
-abstract class ACore implements JsonSerializable {
+abstract class ACore extends Item implements JsonSerializable {
 
 
 	use TArrayTools;
@@ -59,90 +58,17 @@ abstract class ACore implements JsonSerializable {
 	const AS_STRING = 7;
 
 
-	/** @var string */
-	private $urlSocial = '';
-
-	/** @var string */
-	private $urlCloud = '';
-
-//	/** @var bool */
-//	private $isTopLevel = false;
-
-	/** @var array */
-	private $meta = [];
-
-	/** @var string */
-	private $address = '';
-
-	/** @var string */
-	private $id = '';
-
-	/** @var string */
-	private $type = '';
-
-	/** @var string */
-	private $url = '';
-
-	/** @var string */
-	private $summary = '';
-
-	/** @var InstancePath[] */
-	private $instancePaths = [];
-
-	/** @var string */
-	private $to = '';
-
-	/** @var array */
-	private $toArray = [];
-
-	/** @var array */
-	private $cc = [];
-
-	/** @var array */
-	private $bcc = [];
-
-	/** @var string */
-	private $published = '';
-
-	/** @var array */
-	private $tags = [];
+	/** @var null Item */
+	private $parent = null;
 
 	/** @var array */
 	private $entries = [];
 
-	/** @var Person */
-	private $actor = null;
-
-	/** @var string */
-	private $actorId = '';
-
-	/** @var Document */
-	private $icon = null;
-
 	/** @var ACore */
 	private $object = null;
 
-	/** @var string */
-	private $objectId = '';
-
 	/** @var ICoreService */
 	private $saveAs;
-
-	/** @var bool */
-	private $completeDetails = false;
-
-	/** @var string */
-	private $source = '';
-
-	/** @var null ACore */
-	private $parent = null;
-
-	/** @var bool */
-	private $local = false;
-
-	/** @var string */
-	private $origin = '';
-
 
 	/**
 	 * Core constructor.
@@ -150,8 +76,6 @@ abstract class ACore implements JsonSerializable {
 	 * @param ACore $parent
 	 */
 	public function __construct($parent = null) {
-//		$this->isTopLevel = $isTopLevel;
-
 		if ($parent instanceof ACore) {
 			$this->setParent($parent);
 		}
@@ -159,22 +83,67 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
-	 * @return string
-	 */
-	public function getId(): string {
-		return $this->id;
-	}
-
-	/**
-	 * @param string $id
+	 * @param Item $parent
 	 *
-	 * @return ACore
+	 * @return Item
 	 */
-	public function setId(string $id): ACore {
-		$this->id = $id;
+	public function setParent(Item $parent): ACore {
+		$this->parent = $parent;
 
 		return $this;
 	}
+
+	/**
+	 * @return Item
+	 */
+	public function getParent(): ACore {
+		return $this->parent;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function gotObject(): bool {
+		if ($this->object === null) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * @return ACore
+	 */
+	public function getObject(): ACore {
+		return $this->object;
+	}
+
+	/**
+	 * @param ACore $object
+	 *
+	 * @return ACore
+	 */
+	public function setObject(ACore $object): ACore {
+		$this->object = $object;
+
+		return $this;
+	}
+
+	/**
+	 * @param ICoreService $class
+	 */
+	public function saveAs(ICoreService $class) {
+		$this->saveAs = $class;
+	}
+
+	/**
+	 * @return ICoreService
+	 */
+	public function savingAs() {
+		return $this->saveAs;
+	}
+
 
 	/**
 	 * @param string $base
@@ -199,325 +168,6 @@ abstract class ACore implements JsonSerializable {
 		$this->setId($this->getUrlCloud() . $base . '/' . $uuid);
 	}
 
-	/**
-	 * @return string
-	 */
-	public function getType(): string {
-		return $this->type;
-	}
-
-	/**
-	 * @param string $type
-	 *
-	 * @return ACore
-	 */
-	public function setType(string $type): ACore {
-//		if ($type !== '') {
-		$this->type = $type;
-
-//		}
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getUrl(): string {
-		return $this->url;
-	}
-
-	/**
-	 * @param string $url
-	 *
-	 * @return ACore
-	 */
-	public function setUrl(string $url): ACore {
-		$this->url = $url;
-
-		return $this;
-	}
-
-
-	/**
-	 * @param InstancePath $instancePath
-	 *
-	 * @return ACore
-	 */
-	public function addInstancePath(InstancePath $instancePath): ACore {
-		if ($instancePath->getUri() !== '') {
-			$this->instancePaths[] = $instancePath;
-		}
-
-		return $this;
-	}
-
-
-	/**
-	 * @param InstancePath[] $path
-	 *
-	 * @return ACore
-	 */
-	public function addInstancePaths(array $path): ACore {
-		$this->instancePaths = array_merge($this->instancePaths, $path);
-
-		return $this;
-	}
-
-	/**
-	 * @return InstancePath[]
-	 */
-	public function getInstancePaths(): array {
-		return $this->instancePaths;
-	}
-
-	/**
-	 * @param InstancePath[] $instancePaths
-	 *
-	 * @return ACore
-	 */
-	public function setInstancePaths(array $instancePaths): ACore {
-		$this->instancePaths = $instancePaths;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getSummary(): string {
-		return $this->summary;
-	}
-
-	/**
-	 * @param string $summary
-	 *
-	 * @return ACore
-	 */
-	public function setSummary(string $summary): ACore {
-		$this->summary = $summary;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return Person
-	 */
-	public function getActor(): Person {
-		return $this->actor;
-	}
-
-	/**
-	 * @param Person $actor
-	 *
-	 * @return ACore
-	 */
-	public function setActor(Person $actor): ACore {
-		$this->actor = $actor;
-
-		return $this;
-	}
-
-	/**
-	 * @return bool
-	 */
-	public function gotActor(): bool {
-		if ($this->actor === null) {
-			return false;
-		}
-
-		return true;
-	}
-
-
-	/**
-	 * @param string $actorId
-	 *
-	 * @return ACore
-	 */
-	public function setActorId(string $actorId): ACore {
-		$this->actorId = $actorId;
-
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getActorId(): string {
-		return $this->actorId;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getUrlSocial(): string {
-		return $this->urlSocial;
-	}
-
-	/**
-	 * @param string $path
-	 *
-	 * @return ACore
-	 */
-	public function setUrlSocial(string $path): ACore {
-		$this->urlSocial = $path;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getUrlCloud(): string {
-		return $this->urlCloud;
-	}
-
-	/**
-	 * @param string $path
-	 *
-	 * @return ACore
-	 */
-	public function setUrlCloud(string $path): ACore {
-		$this->urlCloud = $path;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getAddress(): string {
-		return $this->address;
-	}
-
-	/**
-	 * @param string $address
-	 *
-	 * @return ACore
-	 */
-	public function setAddress(string $address) {
-		$this->address = $address;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getTo(): string {
-		return $this->to;
-	}
-
-	/**
-	 * @param string $to
-	 *
-	 * @return ACore
-	 */
-	public function setTo(string $to): ACore {
-		$this->to = $to;
-
-		return $this;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getToArray(): array {
-		return $this->toArray;
-	}
-
-	/**
-	 * @param string $to
-	 *
-	 * @return ACore
-	 */
-	public function addToArray(string $to): ACore {
-		$this->toArray[] = $to;
-
-		return $this;
-	}
-
-	/**
-	 * @param array $toArray
-	 *
-	 * @return ACore
-	 */
-	public function setToArray(array $toArray): ACore {
-		$this->toArray = $toArray;
-
-		return $this;
-	}
-
-
-	public function addCc(string $cc): Acore {
-		$this->cc[] = $cc;
-
-		return $this;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getCcArray(): array {
-		return $this->cc;
-	}
-
-	/**
-	 * @param array $cc
-	 *
-	 * @return ACore
-	 */
-	public function setCcArray(array $cc): ACore {
-		$this->cc = $cc;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return array
-	 */
-	public function getBccArray(): array {
-		return $this->bcc;
-	}
-
-	/**
-	 * @param array $bcc
-	 *
-	 * @return ACore
-	 */
-	public function setBccArray(array $bcc): ACore {
-		$this->bcc = $bcc;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getOrigin(): string {
-		return $this->origin;
-	}
-
-	/**
-	 * @param string $origin
-	 *
-	 * @return ACore
-	 */
-	public function setOrigin(string $origin): ACore {
-		$this->origin = $origin;
-
-		return $this;
-	}
 
 	/**
 	 * @param $id
@@ -525,7 +175,7 @@ abstract class ACore implements JsonSerializable {
 	 * @throws InvalidOriginException
 	 */
 	public function checkOrigin($id) {
-
+		// TODO - compare with verify
 		$host = parse_url($id, PHP_URL_HOST);
 		if ($this->getRoot()
 				 ->getOrigin() === $host) {
@@ -561,171 +211,6 @@ abstract class ACore implements JsonSerializable {
 		}
 	}
 
-
-	/**
-	 * @param string $published
-	 *
-	 * @return ACore
-	 */
-	public function setPublished(string $published): ACore {
-		$this->published = $published;
-
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getPublished(): string {
-		return $this->published;
-	}
-
-
-	/**
-	 * @param array $tag
-	 *
-	 * @return ACore
-	 */
-	public function addTag(array $tag): ACore {
-		$this->tags[] = $tag;
-
-		return $this;
-	}
-
-	/**
-	 * @return array
-	 */
-	public function getTags(): array {
-		return $this->tags;
-	}
-
-	/**
-	 * @param array $tag
-	 *
-	 * @return ACore
-	 */
-	public function setTags(array $tag): ACore {
-		$this->tags = $tag;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	public function gotObject(): bool {
-		if ($this->object === null) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * @return ACore
-	 */
-	public function getObject(): ACore {
-		return $this->object;
-	}
-
-	/**
-	 * @param ACore $object
-	 *
-	 * @return ACore
-	 */
-	public function setObject(ACore $object): ACore {
-		$this->object = $object;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getObjectId(): string {
-		return $this->objectId;
-	}
-
-	/**
-	 * @param string $objectId
-	 *
-	 * @return ACore
-	 */
-	public function setObjectId(string $objectId): ACore {
-		$this->objectId = $objectId;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	public function gotIcon(): bool {
-		if ($this->icon === null) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * @return Document
-	 */
-	public function getIcon(): Document {
-		return $this->icon;
-	}
-
-	/**
-	 * @param Document $icon
-	 *
-	 * @return ACore
-	 */
-	public function setIcon(Document $icon): ACore {
-		$this->icon = $icon;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	public function isLocal(): bool {
-		return $this->local;
-	}
-
-	/**
-	 * @param bool $local
-	 *
-	 * @return Person
-	 */
-	public function setLocal(bool $local): ACore {
-		$this->local = $local;
-
-		return $this;
-	}
-
-
-	/**
-	 * @param ACore $parent
-	 *
-	 * @return ACore
-	 */
-	public function setParent(ACore $parent): ACore {
-		$this->parent = $parent;
-
-		return $this;
-	}
-
-	/**
-	 * @return ACore
-	 */
-	public function getParent(): ACore {
-		return $this->parent;
-	}
 
 	/**
 	 * @return bool
@@ -857,58 +342,6 @@ abstract class ACore implements JsonSerializable {
 
 
 	/**
-	 * @param ICoreService $class
-	 */
-	public function saveAs(ICoreService $class) {
-		$this->saveAs = $class;
-	}
-
-	/**
-	 * @return ICoreService
-	 */
-	public function savingAs() {
-		return $this->saveAs;
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	public function isCompleteDetails(): bool {
-		return $this->completeDetails;
-	}
-
-	/**
-	 * @param bool $completeDetails
-	 *
-	 * @return ACore
-	 */
-	public function setCompleteDetails(bool $completeDetails): ACore {
-		$this->completeDetails = $completeDetails;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getSource(): string {
-		return $this->source;
-	}
-
-	/**
-	 * @param string $source
-	 *
-	 * @return ACore
-	 */
-	public function setSource(string $source): ACore {
-		$this->source = $source;
-
-		return $this;
-	}
-
-	/**
 	 * @param int $as
 	 * @param string $k
 	 * @param array $arr
@@ -917,10 +350,30 @@ abstract class ACore implements JsonSerializable {
 	 * @return string
 	 */
 	public function validate(int $as, string $k, array $arr, string $default = ''): string {
-		$value = $this->valideEntryString($as, $this->get($k, $arr, $default));
+		$value = $this->validateEntryString($as, $this->get($k, $arr, $default));
 
 
 		return $value;
+	}
+
+
+	/**
+	 * @param int $as
+	 * @param string $k
+	 * @param array $arr
+	 * @param array $default
+	 *
+	 * @return array
+	 */
+	public function validateArray(int $as, string $k, array $arr, array $default = []): array {
+		$values = $this->getArray($k, $arr, $default);
+
+		$result = [];
+		foreach ($values as $value) {
+			$result[] = $this->validateEntryString($as, $value);
+		}
+
+		return $result;
 	}
 
 
@@ -958,26 +411,6 @@ abstract class ACore implements JsonSerializable {
 		}
 
 		return $value;
-	}
-
-
-	/**
-	 * @param int $as
-	 * @param string $k
-	 * @param array $arr
-	 * @param array $default
-	 *
-	 * @return array
-	 */
-	public function validateArray(int $as, string $k, array $arr, array $default = []): array {
-		$values = $this->getArray($k, $arr, $default);
-
-		$result = [];
-		foreach ($values as $value) {
-			$result[] = $this->validateEntryString($as, $value);
-		}
-
-		return $result;
 	}
 
 
