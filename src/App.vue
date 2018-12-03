@@ -4,10 +4,13 @@
 			<app-navigation :menu="menu" />
 		</div>
 		<div id="app-content">
-			<div class="social__wrapper">
-				<Search v-if="searchTerm != ''" :term="searchTerm" />
-				<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
+			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup">
+				<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
+				<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known auto discovery to be properly set up. If Nextcloud is not installed in the root of the domain it is often the case, that Nextcloud can\'t configure this automatically. To use Social the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+					rel="noreferrer noopener">{{ t('social', 'Open Documentation') }} ↗</a></p>
 			</div>
+			<Search v-if="searchTerm != ''" :term="searchTerm" />
+			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
 		</div>
 	</div>
 	<div v-else class="setup">
@@ -21,12 +24,12 @@
 						required>
 					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
 				</p>
+				<template v-if="!serverData.checks.success">
+					<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
+					<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known auto discovery to be properly set up. If Nextcloud is not installed in the root of the domain it is often the case, that Nextcloud can\'t configure this automatically. To use Social the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+						rel="noreferrer noopener">{{ t('social', 'Open Documentation') }} ↗</a></p>
+				</template>
 			</form>
-		</template>
-		<template v-else-if="serverData.error">
-			<h2>{{ t('social', 'Social app setup') }}</h2>
-			<p>{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</p>
-			<p>{{ t('social', 'Social needs the .well-known auto discovery to be properly set up. If Nextcloud is not installed in the root of the domain it is often the case, that Nextcloud can\'t configure this automatically. To use Social the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank" rel="noreferrer noopener">{{ t('social', 'Open Documentation') }} ↗</a></p>
 		</template>
 		<template v-else>
 			<p>{{ t('social', 'The social app requires to be setup by the server administrator.') }}</p>

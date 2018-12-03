@@ -40,9 +40,11 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
@@ -70,9 +72,6 @@ class NavigationController extends Controller {
 	/** @var IURLGenerator */
 	private $urlGenerator;
 
-	/** @var IClientService */
-	private $clientService;
-
 	/** @var ActorService */
 	private $actorService;
 
@@ -90,6 +89,9 @@ class NavigationController extends Controller {
 	/** @var PersonService */
 	private $personService;
 
+	/** @var CheckService */
+	private $checkService;
+
 	/**
 	 * NavigationController constructor.
 	 *
@@ -97,18 +99,18 @@ class NavigationController extends Controller {
 	 * @param string $userId
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
-	 * @param IClientService $clientService
 	 * @param ActorService $actorService
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
 	 * @param PersonService $personService
+	 * @param CheckService $checkService
 	 * @param MiscService $miscService
 	 * @param IL10N $l10n
 	 */
 	public function __construct(
-		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator, IClientService $clientService,
+		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
 		ActorService $actorService, DocumentService $documentService, ConfigService $configService,
-		PersonService $personService,
+		PersonService $personService, CheckService $checkService,
 		MiscService $miscService, IL10N $l10n
 	) {
 		parent::__construct(Application::APP_NAME, $request);
@@ -116,7 +118,7 @@ class NavigationController extends Controller {
 		$this->userId = $userId;
 		$this->config = $config;
 		$this->urlGenerator = $urlGenerator;
-		$this->clientService = $clientService;
+		$this->checkService = $checkService;
 
 		$this->actorService = $actorService;
 		$this->documentService = $documentService;
@@ -144,50 +146,40 @@ class NavigationController extends Controller {
 				'public'   => false,
 				'firstrun' => false,
 				'setup'    => false,
+				'isAdmin'  => \OC::$server->getGroupManager()->isAdmin($this->userId),
+				'cliUrl'   => $this->config->getSystemValue(
+					'overwrite.cli.url', \OC::$server->getURLGenerator()
+					->getBaseUrl()
+				)
 			]
 		];
+
+		$checks = $this->checkService->checkDefault();
+		$data['serverData']['checks'] = $checks;
 
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
-			$cloudAddress = rtrim(
-				$this->config->getSystemValue('overwrite.cli.url', ''), '/'
-			);
-			$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+			$cloudAddress = $this->setupCloudAddress();
 			if ($cloudAddress !== ''){
-				if (!$frontControllerActive){
-					$cloudAddress .= '/index.php';
-				}
-				$this->configService->setCloudAddress($cloudAddress);
 				$data['serverData']['cloudAddress'] = $cloudAddress;
 			} else {
 				$data['serverData']['setup'] = true;
-				$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()
-															 ->isAdmin($this->userId);
+
 				if ($data['serverData']['isAdmin']) {
 					$cloudAddress = $this->request->getParam('cloudAddress');
 					if ($cloudAddress !== null) {
 						$this->configService->setCloudAddress($cloudAddress);
 					} else {
-						$data['serverData']['cliUrl'] = $this->config->getSystemValue(
-							'overwrite.cli.url', \OC::$server->getURLGenerator()
-															 ->getBaseUrl()
-						);
-
 						return new TemplateResponse(Application::APP_NAME, 'main', $data);
 					}
 				}
 			}
 		}
 
-		try {
-			$url = $this->request->getServerProtocol() . '://' . $this->request->getServerHost() . '/.well-known/webfinger';
-			$response = $this->clientService->newClient()->get($url);
-		} catch (\GuzzleHttp\Exception\ClientException $e) {
-			$data['serverData']['error'] = $this->l10n->t('.well-known/webfinger isn\'t properly set up');
-			$data['serverData']['setup'] = true;
-		}
-
+		/*
+		 * Create social user account if it doesn't exist yet
+		 */
 		try {
 			$this->actorService->createActor($this->userId, $this->userId);
 			$data['serverData']['firstrun'] = true;
@@ -199,13 +191,23 @@ class NavigationController extends Controller {
 			// neither.
 		}
 
-		$csp = new ContentSecurityPolicy();
-		$csp->addAllowedImageDomain('*');
-		$response = new TemplateResponse(Application::APP_NAME, 'main', $data);
-		$response->setContentSecurityPolicy($csp);
-		return $response;
+		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
 
+	private function setupCloudAddress(): string {
+		return '';
+		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+
+		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
+		if ($cloudAddress !== '') {
+			if (!$frontControllerActive) {
+				$cloudAddress .= '/index.php';
+			}
+			$this->configService->setCloudAddress($cloudAddress);
+			return $cloudAddress;
+		}
+		return '';
+	}
 
 	/**
 	 * Display the navigation page of the Social app.
