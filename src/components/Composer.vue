@@ -349,7 +349,7 @@ export default {
 								key: user.preferredUsername,
 								value: user.account,
 								url: user.url,
-								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
+								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : OC.generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
 							})
 						}
 						cb(users)
@@ -496,7 +496,7 @@ export default {
 			})
 		},
 		remoteSearch(text) {
-			return axios.get(OC.generateUrl('apps/social/api/v1/accounts/search?search=' + text))
+			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
 		}
 	}
 }

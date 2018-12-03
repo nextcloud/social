@@ -9,7 +9,7 @@
 				<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
 					rel="noreferrer noopener">{{ t('social', 'Open documentation') }} ↗</a></p>
 			</div>
-			<Search v-if="searchTerm != ''" :term="searchTerm" />
+			<Search v-if="searchTerm !== ''" :term="searchTerm" />
 			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
 		</div>
 	</div>
@@ -178,7 +178,9 @@ export default {
 			this.$store.commit('setServerData', JSON.parse(document.getElementById('serverData').dataset.server))
 		}
 
-		this.search = new OCA.Search(this.search, this.resetSearch)
+		if (!this.serverData.public) {
+			this.search = new OCA.Search(this.search, this.resetSearch)
+		}
 	},
 	methods: {
 		hideInfo() {
