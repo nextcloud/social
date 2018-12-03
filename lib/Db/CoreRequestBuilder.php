@@ -77,6 +77,9 @@ class CoreRequestBuilder {
 	/** @var string */
 	protected $defaultSelectAlias;
 
+	/** @var string */
+	private $viewerId = '';
+
 
 	/**
 	 * CoreRequestBuilder constructor.
@@ -91,6 +94,21 @@ class CoreRequestBuilder {
 		$this->dbConnection = $connection;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getViewerId(): string {
+		return $this->viewerId;
+	}
+
+	/**
+	 * @param string $viewerId
+	 */
+	public function setViewerId(string $viewerId) {
+		$this->viewerId = $viewerId;
 	}
 
 

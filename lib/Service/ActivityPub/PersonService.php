@@ -106,6 +106,7 @@ class PersonService implements ICoreService {
 	 */
 	public function setViewerId(string $viewerId) {
 		$this->viewerId = $viewerId;
+		$this->cacheActorsRequest->setViewerId($viewerId);
 	}
 
 	public function getViewerId(): string {
@@ -185,7 +186,7 @@ class PersonService implements ICoreService {
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 
 		try {
-			$actor = $this->cacheActorsRequest->getFromAccount($account, $this->getViewerId());
+			$actor = $this->cacheActorsRequest->getFromAccount($account);
 		} catch (CacheActorDoesNotExistException $e) {
 			if (!$retrieve) {
 				throw new CacheActorDoesNotExistException();
@@ -245,7 +246,7 @@ class PersonService implements ICoreService {
 	 * @return Person[]
 	 */
 	public function searchCachedAccounts(string $search): array {
-		return $this->cacheActorsRequest->searchAccounts($search, $this->getViewerId());
+		return $this->cacheActorsRequest->searchAccounts($search);
 	}
 
 

@@ -407,7 +407,15 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountInfo(string $username): DataResponse {
+
 		try {
+			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
+			$this->personService->setViewerId($viewer->getId());
+		} catch (Exception $e) {
+		}
+
+		try {
+
 			$actor = $this->actorService->getActor($username);
 			$actor = $this->personService->getFromLocalAccount($actor->getPreferredUsername());
 
@@ -473,6 +481,12 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function globalAccountInfo(string $account): DataResponse {
+		try {
+			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
+			$this->personService->setViewerId($viewer->getId());
+		} catch (Exception $e) {
+		}
+
 		try {
 			$actor = $this->personService->getFromAccount($account);
 
