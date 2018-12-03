@@ -535,7 +535,9 @@ class LocalController extends Controller {
 				$avatar = $actor->getIcon();
 				$document = $this->documentService->getFromCache($avatar->getId());
 
-				return new FileDisplayResponse($document);
+				$response = new FileDisplayResponse($document);
+				$response->cacheFor(86400);
+				return $response;
 			}
 
 			return new NotFoundResponse();

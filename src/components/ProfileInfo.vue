@@ -25,21 +25,27 @@
 		<div class="user-profile--info">
 			<avatar :user="uid" :display-name="displayName" :size="128" />
 			<h2>{{ displayName }}</h2>
-			<p>{{ accountInfo.cloudId }}</p>
+			<p>{{ accountInfo.account }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
-
-			<button v-if="!serverData.public" class="primary" @click="follow">Follow</button>
+			<template v-if="currentUser.uid !== accountInfo.preferredUsername">
+				<button v-if="accountInfo.details && accountInfo.details.following" :class="{'icon-loading-small': followLoading}"
+					@click="unfollow()"
+					@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
+				<span><span class="icon-checkmark" />{{ followingText }}</span></button>
+				<button v-else-if="accountInfo.details" :class="{'icon-loading-small': followLoading}" class="primary"
+					@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
+			</template>
 		</div>
 
-		<ul class="user-profile--sections">
+		<ul v-if="accountInfo.details" class="user-profile--sections">
 			<li>
-				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.posts }} posts</router-link>
+				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.details.count.post }} {{ t('social', 'Posts') }}</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ accountInfo.following }} following</router-link>
+				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.count.following }}  {{ t('social', 'Following') }}</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ accountInfo.followers }} followers</router-link>
+				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.count.followers }}  {{ t('social', 'Followers') }}</router-link>
 			</li>
 		</ul>
 	</div>
@@ -82,22 +88,31 @@
 
 import { Avatar } from 'nextcloud-vue'
 import serverData from '../mixins/serverData'
+import currentUser from '../mixins/currentUserMixin'
+import follow from '../mixins/follow'
 
 export default {
 	name: 'ProfileInfo',
 	components: {
 		Avatar
 	},
-	mixins: [serverData],
+	mixins: [serverData, currentUser, follow],
 	props: {
 		uid: {
 			type: String,
 			default: ''
 		}
 	},
+	data: function() {
+		return {
+			followingText: t('social', 'Following')
+		}
+	},
 	computed: {
 		displayName() {
-			if (typeof this.accountInfo.displayname !== 'undefined') { return this.accountInfo.displayname.value || '' }
+			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
+				return this.accountInfo.name
+			}
 			return this.uid
 		},
 		accountInfo: function() {

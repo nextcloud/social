@@ -24,22 +24,54 @@ import axios from 'nextcloud-axios'
 import Vue from 'vue'
 
 const state = {
-	accounts: {}
+	accounts: {},
+	accountsFollowers: {},
+	accountsFollowing: {}
 }
 const mutations = {
 	addAccount(state, { uid, data }) {
 		Vue.set(state.accounts, uid, data)
+	},
+	addFollowers(state, { uid, data }) {
+		let users = []
+		for (var index in data) {
+			users.push(data[index].actor_info)
+		}
+		Vue.set(state.accountsFollowers, uid, users)
+	},
+	addFollowing(state, { uid, data }) {
+		let users = []
+		for (var index in data) {
+			users.push(data[index].actor_info)
+		}
+		Vue.set(state.accountsFollowing, uid, users)
 	}
 }
 const getters = {
 	getAccount(state) {
 		return (uid) => state.accounts[uid]
+	},
+	getAccountFollowers(state) {
+		return (uid) => state.accountsFollowers[uid]
+	},
+	getAccountFollowing(state) {
+		return (uid) => state.accountsFollowing[uid]
 	}
 }
 const actions = {
 	fetchAccountInfo(context, uid) {
-		axios.get(OC.generateUrl('apps/social/local/account/' + uid)).then((response) => {
-			context.commit('addAccount', { uid: uid, data: response.data })
+		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
+			context.commit('addAccount', { uid: uid, data: response.data.result.account })
+		})
+	},
+	fetchAccountFollowers(context, uid) {
+		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/followers`)).then((response) => {
+			context.commit('addFollowers', { uid: uid, data: response.data.result })
+		})
+	},
+	fetchAccountFollowing(context, uid) {
+		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/following`)).then((response) => {
+			context.commit('addFollowing', { uid: uid, data: response.data.result })
 		})
 	}
 }

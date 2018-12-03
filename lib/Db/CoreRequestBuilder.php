@@ -565,6 +565,7 @@ class CoreRequestBuilder {
 		   ->selectAlias('ca.public_key', 'cacheactor_public_key')
 		   ->selectAlias('ca.source', 'cacheactor_source')
 		   ->selectAlias('ca.creation', 'cacheactor_creation')
+		   ->selectAlias('ca.local', 'cacheactor_local')
 		   ->leftJoin(
 			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca',
 			   $expr->eq($pf . '.' . $fieldActorId, 'ca.id')
