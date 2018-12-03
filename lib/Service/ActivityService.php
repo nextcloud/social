@@ -35,7 +35,6 @@ use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
-use OCA\ShareByMail\Activity;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
@@ -54,8 +53,8 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
-use OCA\Social\Model\ActivityPub\Tombstone;
 use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -420,13 +419,15 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 * @throws SignatureIsGoneException
+	 * @throws InvalidOriginException
 	 */
 	public function checkRequest(IRequest $request): string {
-		$host = $request->getHeader('host');
+		// TODO : check host is our current host.
 
-		if ($host === '') {
-			throw new SignatureException('host is not set');
-		}
+//		$host = $request->getHeader('host');
+//		if ($host === '') {
+//			throw new SignatureException('host is not set');
+//		}
 
 		$dTime = new DateTime($request->getHeader('date'));
 		$dTime->format(self::DATE_FORMAT);
@@ -436,12 +437,12 @@ class ActivityService {
 		}
 
 		try {
-			$this->checkSignature($request, $host);
+			$origin = $this->checkSignature($request);
 		} catch (Request410Exception $e) {
 			throw new SignatureIsGoneException();
 		}
 
-		return $host;
+		return $origin;
 	}
 
 
@@ -475,8 +476,7 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
-	 * @param string $host
-	 *
+	 * @return
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws Request410Exception
@@ -486,15 +486,14 @@ class ActivityService {
 	 * @throws UrlCloudException
 	 * @throws InvalidOriginException
 	 */
-	private function checkSignature(IRequest $request, string $host) {
+	private function checkSignature(IRequest $request) {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);
 		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
 
 		$keyId = $sign['keyId'];
-
-		$this->checkKeyOrigin($keyId, $host);
+		$origin = $this->getKeyOrigin($keyId);
 
 		$headers = $sign['headers'];
 		$signed = base64_decode($sign['signature']);
@@ -505,19 +504,24 @@ class ActivityService {
 		if ($publicKey === '' || openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
 			throw new SignatureException('signature cannot be checked');
 		}
+
+		return $origin;
 	}
 
 
 	/**
 	 * @param $id
-	 * @param $host
 	 *
+	 * @return string
 	 * @throws InvalidOriginException
 	 */
-	private function checkKeyOrigin($id, $host) {
-		$temp = new Person();
-		$temp->setOrigin($host);
-		$temp->checkOrigin($id);
+	private function getKeyOrigin($id) {
+		$host = parse_url($id, PHP_URL_HOST);
+		if (is_string($host) && ($host !== '')) {
+			return $host;
+		}
+
+		throw new InvalidOriginException();
 	}
 
 

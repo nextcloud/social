@@ -213,7 +213,6 @@ class ActivityPubController extends Controller {
 			// TODO - check the recipient <-> username
 //			$actor = $this->actorService->getActor($username);
 
-
 			$activity = $this->importService->importFromJson($body);
 			$activity->setOrigin($origin);
 			try {
