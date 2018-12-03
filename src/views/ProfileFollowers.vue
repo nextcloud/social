@@ -31,6 +31,7 @@
 		max-width: 700px;
 		margin: 15px auto;
 		display: flex;
+		flex-wrap: wrap;
 	}
 	.user-entry {
 		width: 50%;

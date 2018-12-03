@@ -28,7 +28,7 @@
 				<avatar v-else :url="avatarUrl" />
 			</div>
 			<div class="user-details">
-				<router-link v-if="item.local" :to="{ name: 'profile', params: { account: item.account }}">
+				<router-link v-if="item.local" :to="{ name: 'profile', params: { account: item.preferredUsername }}">
 					<span class="post-author">{{ item.preferredUsername }}</span>
 				</router-link>
 				<a v-else :href="item.id" target="_blank"
