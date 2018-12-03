@@ -445,8 +445,9 @@ export default {
 	},
 	methods: {
 		insert(emoji) {
-			this.post += this.$twemoji.parse(emoji)
+			this.post += this.$twemoji.parse(emoji) + ' '
 			this.$refs.composerInput.innerHTML = this.post
+			this.hidePopoverMenu()
 		},
 		togglePopoverMenu() {
 			this.menuOpened = !this.menuOpened
