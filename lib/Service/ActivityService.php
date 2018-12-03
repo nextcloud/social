@@ -40,6 +40,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
@@ -52,8 +53,8 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
-use OCA\Social\Model\ActivityPub\Activity\Tombstone;
 use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityPub\PersonService;
@@ -410,6 +411,7 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
+	 * @return string
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RequestException
@@ -417,8 +419,16 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 * @throws SignatureIsGoneException
+	 * @throws InvalidOriginException
 	 */
-	public function checkRequest(IRequest $request) {
+	public function checkRequest(IRequest $request): string {
+		// TODO : check host is our current host.
+
+//		$host = $request->getHeader('host');
+//		if ($host === '') {
+//			throw new SignatureException('host is not set');
+//		}
+
 		$dTime = new DateTime($request->getHeader('date'));
 		$dTime->format(self::DATE_FORMAT);
 
@@ -427,11 +437,12 @@ class ActivityService {
 		}
 
 		try {
-			$this->checkSignature($request);
+			$origin = $this->checkSignature($request);
 		} catch (Request410Exception $e) {
 			throw new SignatureIsGoneException();
 		}
 
+		return $origin;
 	}
 
 
@@ -465,6 +476,7 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
+	 * @return
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws Request410Exception
@@ -472,6 +484,7 @@ class ActivityService {
 	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
 	 */
 	private function checkSignature(IRequest $request) {
 		$signatureHeader = $request->getHeader('Signature');
@@ -480,6 +493,8 @@ class ActivityService {
 		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
 
 		$keyId = $sign['keyId'];
+		$origin = $this->getKeyOrigin($keyId);
+
 		$headers = $sign['headers'];
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
@@ -490,6 +505,23 @@ class ActivityService {
 			throw new SignatureException('signature cannot be checked');
 		}
 
+		return $origin;
+	}
+
+
+	/**
+	 * @param $id
+	 *
+	 * @return string
+	 * @throws InvalidOriginException
+	 */
+	private function getKeyOrigin($id) {
+		$host = parse_url($id, PHP_URL_HOST);
+		if (is_string($host) && ($host !== '')) {
+			return $host;
+		}
+
+		throw new InvalidOriginException();
 	}
 
 

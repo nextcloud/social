@@ -35,6 +35,7 @@ use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -259,21 +260,22 @@ class NoteService implements ICoreService {
 	 *
 	 * @param ACore $note
 	 *
-	 * @throws ActivityCantBeVerifiedException
+	 * @throws InvalidOriginException
 	 */
 	public function parse(ACore $note) {
+
 		/** @var Note $note */
 		if ($note->isRoot()) {
 			return;
 		}
 
 		$parent = $note->getParent();
-		if ($parent->isRoot() === false) {
+		if (!$parent->isRoot()) {
 			return;
 		}
 
 		if ($parent->getType() === Create::TYPE) {
-			$parent->verify(($note->getAttributedTo()));
+			$parent->checkOrigin($note->getAttributedTo());
 			try {
 				$this->notesRequest->getNoteById($note->getId());
 			} catch (NoteNotFoundException $e) {

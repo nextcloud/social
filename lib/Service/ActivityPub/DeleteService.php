@@ -33,6 +33,7 @@ namespace OCA\Social\Service\ActivityPub;
 
 use Exception;
 use OCA\Social\Db\NotesRequest;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -80,8 +81,13 @@ class DeleteService implements ICoreService {
 	 * @param ACore $delete
 	 *
 	 * @throws UnknownItemException
+	 * @throws InvalidOriginException
 	 */
 	public function parse(ACore $delete) {
+
+		if (!$delete->isRoot()) {
+			throw new UnknownItemException();
+		}
 
 		if ($delete->gotObject()) {
 			$id = $delete->getObject()
@@ -89,6 +95,8 @@ class DeleteService implements ICoreService {
 		} else {
 			$id = $delete->getObjectId();
 		}
+
+		$delete->checkOrigin($id);
 
 		/** @var Delete $delete */
 		try {
