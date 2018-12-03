@@ -240,9 +240,9 @@ class ActorService {
 		try {
 			$actor = $this->getActor($username);;
 			$count = [
-				'followers', $this->followsRequest->countFollowers($actor->getId()),
-				'following', $this->followsRequest->countFollowing($actor->getId()),
-				'post', $this->notesRequest->countNotesFromActorId($actor->getId())
+				'followers' => $this->followsRequest->countFollowers($actor->getId()),
+				'following' => $this->followsRequest->countFollowing($actor->getId()),
+				'post'      => $this->notesRequest->countNotesFromActorId($actor->getId())
 			];
 			$actor->addDetailArray('count', $count);
 
