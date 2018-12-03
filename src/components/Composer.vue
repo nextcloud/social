@@ -36,19 +36,22 @@
 					placeholder="Share a thought…" @keyup.enter="keyup" />
 			</vue-tribute>
 			<emoji-picker :search="search" class="emoji-picker-wrapper" @emoji="insert">
-				<div v-tooltip="'Insert emoji'" slot="emoji-invoker" slot-scope="{ events }"
-					class="emoji-invoker" v-on="events" />
+				<a v-tooltip="'Insert emoji'" slot="emoji-invoker" slot-scope="{ events }"
+					class="emoji-invoker" tabindex="0" v-on="events"
+					@keyup.enter="events.click" @keyup.space="events.click" />
 				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
 					<div>
 						<div>
-							<input v-model="search" type="text">
+							<input v-focus-on-create v-model="search" type="text">
 						</div>
 						<div>
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
 								<h5>{{ category }}</h5>
 								<div>
 									<span v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" :title="emojiName"
-										class="emoji" @click="insert(emoji)" v-html="$twemoji.parse(emoji)" />
+										tabindex="0"
+										class="emoji" @click="insert(emoji)" @keyup.enter="insert(emoji)"
+										@keyup.space="insert(emoji)" v-html="$twemoji.parse(emoji)" />
 								</div>
 							</div>
 						</div>
@@ -142,6 +145,11 @@
 		background-size: 16px 16px;
 		height: 38px;
 		cursor: pointer;
+		display: block;
+	}
+	.emoji-invoker:focus,
+	.emoji-invoker:hover {
+		opacity: 1;
 	}
 	.emoji-picker-wrapper {
 		position: absolute;
@@ -163,8 +171,13 @@
 	.emoji-picker input {
 		width: 100%;
 	}
+	.emoji-picker span.emoji {
+		padding: 3px;
+	}
+	.emoji-picker span.emoji:focus {
+		background-color: var(--color-background-dark);
+	}
 	.emoji-picker .emoji img {
-		margin: 3px;
 		width: 16px;
 	}
 	.popovermenu {
@@ -274,6 +287,7 @@ import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
 import { VTooltip } from 'v-tooltip'
 import CurrentUserMixin from './../mixins/currentUserMixin'
+import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
 
 export default {
@@ -286,7 +300,8 @@ export default {
 	},
 	directives: {
 		tooltip: VTooltip,
-		ClickOutside: ClickOutside
+		ClickOutside: ClickOutside,
+		FocusOnCreate: FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
 	props: {
