@@ -35,14 +35,16 @@
 				<div v-contenteditable:post.dangerousHTML="canType" ref="composerInput" class="message"
 					placeholder="Share a thought…" @keyup.enter="keyup" />
 			</vue-tribute>
-			<emoji-picker :search="search" class="emoji-picker-wrapper" @emoji="insert">
+			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
+				@emoji="insert">
 				<a v-tooltip="'Insert emoji'" slot="emoji-invoker" slot-scope="{ events }"
 					class="emoji-invoker" tabindex="0" v-on="events"
 					@keyup.enter="events.click" @keyup.space="events.click" />
 				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
 					<div>
 						<div>
-							<input v-focus-on-create v-model="search" type="text">
+							<input v-focus-on-create v-model="search" type="text"
+								@keyup.enter="insert(emojis)">
 						</div>
 						<div>
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
@@ -445,9 +447,15 @@ export default {
 	},
 	methods: {
 		insert(emoji) {
+			if (typeof emoji === 'object') {
+				let category = Object.keys(emoji)[0]
+				let emojis = emoji[category]
+				let firstEmoji = Object.keys(emojis)[0]
+				emoji = emojis[firstEmoji]
+			}
 			this.post += this.$twemoji.parse(emoji) + ' '
-			this.$refs.composerInput.innerHTML = this.post
-			this.hidePopoverMenu()
+			this.$refs.composerInput.innerHTML += this.$twemoji.parse(emoji) + ' '
+			this.$refs.emojiPicker.hide()
 		},
 		togglePopoverMenu() {
 			this.menuOpened = !this.menuOpened
