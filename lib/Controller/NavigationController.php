@@ -40,9 +40,11 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
@@ -52,6 +54,7 @@ use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\Http\Client\IClientService;
 
 class NavigationController extends Controller {
 
@@ -86,6 +89,9 @@ class NavigationController extends Controller {
 	/** @var PersonService */
 	private $personService;
 
+	/** @var CheckService */
+	private $checkService;
+
 	/**
 	 * NavigationController constructor.
 	 *
@@ -97,13 +103,14 @@ class NavigationController extends Controller {
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
 	 * @param PersonService $personService
+	 * @param CheckService $checkService
 	 * @param MiscService $miscService
 	 * @param IL10N $l10n
 	 */
 	public function __construct(
 		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
 		ActorService $actorService, DocumentService $documentService, ConfigService $configService,
-		PersonService $personService,
+		PersonService $personService, CheckService $checkService,
 		MiscService $miscService, IL10N $l10n
 	) {
 		parent::__construct(Application::APP_NAME, $request);
@@ -111,6 +118,7 @@ class NavigationController extends Controller {
 		$this->userId = $userId;
 		$this->config = $config;
 		$this->urlGenerator = $urlGenerator;
+		$this->checkService = $checkService;
 
 		$this->actorService = $actorService;
 		$this->documentService = $documentService;
@@ -138,42 +146,37 @@ class NavigationController extends Controller {
 				'public'   => false,
 				'firstrun' => false,
 				'setup'    => false,
+				'isAdmin'  => \OC::$server->getGroupManager()->isAdmin($this->userId),
+				'cliUrl'   => $this->getCliUrl()
 			]
 		];
+
+		$checks = $this->checkService->checkDefault();
+		$data['serverData']['checks'] = $checks;
 
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
-			$cloudAddress = rtrim(
-				$this->config->getSystemValue('overwrite.cli.url', ''), '/'
-			);
-			$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+			$cloudAddress = $this->setupCloudAddress();
 			if ($cloudAddress !== ''){
-				if (!$frontControllerActive){
-					$cloudAddress .= '/index.php';
-				}
-				$this->configService->setCloudAddress($cloudAddress);
 				$data['serverData']['cloudAddress'] = $cloudAddress;
 			} else {
 				$data['serverData']['setup'] = true;
-				$data['serverData']['isAdmin'] = \OC::$server->getGroupManager()
-															 ->isAdmin($this->userId);
+
 				if ($data['serverData']['isAdmin']) {
 					$cloudAddress = $this->request->getParam('cloudAddress');
 					if ($cloudAddress !== null) {
 						$this->configService->setCloudAddress($cloudAddress);
 					} else {
-						$data['serverData']['cliUrl'] = $this->config->getSystemValue(
-							'overwrite.cli.url', \OC::$server->getURLGenerator()
-															 ->getBaseUrl()
-						);
-
 						return new TemplateResponse(Application::APP_NAME, 'main', $data);
 					}
 				}
 			}
 		}
 
+		/*
+		 * Create social user account if it doesn't exist yet
+		 */
 		try {
 			$this->actorService->createActor($this->userId, $this->userId);
 			$data['serverData']['firstrun'] = true;
@@ -185,13 +188,31 @@ class NavigationController extends Controller {
 			// neither.
 		}
 
-		$csp = new ContentSecurityPolicy();
-		$csp->addAllowedImageDomain('*');
-		$response = new TemplateResponse(Application::APP_NAME, 'main', $data);
-		$response->setContentSecurityPolicy($csp);
-		return $response;
+		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
 
+	private function setupCloudAddress(): string {
+		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+
+		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
+		if ($cloudAddress !== '') {
+			if (!$frontControllerActive) {
+				$cloudAddress .= '/index.php';
+			}
+			$this->configService->setCloudAddress($cloudAddress);
+			return $cloudAddress;
+		}
+		return '';
+	}
+
+	private function getCliUrl() {
+		$url = rtrim($this->urlGenerator->getBaseUrl(), '/');
+		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+		if (!$frontControllerActive) {
+			$url .= '/index.php';
+		}
+		return $url;
+	}
 
 	/**
 	 * Display the navigation page of the Social app.
@@ -301,4 +322,3 @@ class NavigationController extends Controller {
 	}
 
 }
-
