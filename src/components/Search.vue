@@ -21,21 +21,28 @@
   -->
 
 <template>
-	<div class="social__wrapper">
+	<div class="social__container">
 		<div v-if="results.length < 1" id="emptycontent" :class="{'icon-loading': loading}">
 			<div v-if="!loading" class="icon-search" />
 			<h2 v-if="!loading">{{ t('social', 'No accounts found') }}</h2>
 			<p v-if="!loading">No accounts found for {{ term }}</p>
 		</div>
 		<div v-if="match || results.length > 0">
-			<h3>{{ t('social', 'Search') }} {{ term }}</h3>
+			<h3>{{ t('social', 'Searching for') }} {{ term }}</h3>
 			<UserEntry v-for="result in results" :key="result.id" :item="result" />
 		</div>
 	</div>
 </template>
 
 <style scoped>
+	.user-entry {
+		padding: 0;
+	}
 
+	h3 {
+		margin-top: -3px;
+		margin-left: 47px;
+	}
 </style>
 
 <script>

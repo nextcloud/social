@@ -4,8 +4,10 @@
 			<app-navigation :menu="menu" />
 		</div>
 		<div id="app-content">
-			<Search v-if="searchTerm != ''" :term="searchTerm" />
-			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
+			<div class="social__wrapper">
+				<Search v-if="searchTerm != ''" :term="searchTerm" />
+				<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
+			</div>
 		</div>
 	</div>
 	<div v-else class="setup">
@@ -42,7 +44,13 @@
 	}
 
 	#app-content .social__wrapper {
-		margin: 15px calc(50% - 350px - 75px);
+		padding: 15px;
+	}
+	@media (min-width: 1200px) {
+		#app-content .social__wrapper {
+			margin: 15px calc(50% - 350px - 75px);
+			max-width: 700px;
+		}
 	}
 
 	#social-spacer a:hover,
