@@ -19,7 +19,7 @@
 				</div>
 				<div class="post-message" v-html="formatedMessage" />
 			</div>
-			<div :data-timestamp="item.published" class="post-timestamp live-relative-timestamp">{{ relativeTimestamp }}</div>
+			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">{{ relativeTimestamp }}</div>
 		</div>
 	</div>
 </template>
@@ -44,6 +44,9 @@ export default {
 	computed: {
 		relativeTimestamp() {
 			return OC.Util.relativeModifiedDate(this.item.published)
+		},
+		timestamp() {
+			return Date.parse(this.item.published)
 		},
 		formatedMessage() {
 			let message = this.item.content

@@ -42,7 +42,7 @@
 				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
 					<div>
 						<div>
-							<input v-model="search" type="text">
+							<input v-focus-on-create v-model="search" type="text">
 						</div>
 						<div>
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
@@ -287,6 +287,7 @@ import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
 import { VTooltip } from 'v-tooltip'
 import CurrentUserMixin from './../mixins/currentUserMixin'
+import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
 
 export default {
@@ -299,7 +300,8 @@ export default {
 	},
 	directives: {
 		tooltip: VTooltip,
-		ClickOutside: ClickOutside
+		ClickOutside: ClickOutside,
+		FocusOnCreate: FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
 	props: {
