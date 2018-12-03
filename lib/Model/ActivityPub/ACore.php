@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityPub\ICoreService;
@@ -131,6 +132,9 @@ abstract class ACore implements JsonSerializable {
 	/** @var bool */
 	private $local = false;
 
+	/** @var string */
+	private $origin = '';
+
 
 	/**
 	 * Core constructor.
@@ -206,29 +210,6 @@ abstract class ACore implements JsonSerializable {
 //		}
 
 		return $this;
-	}
-
-
-	/**
-	 * @param string $url
-	 *
-	 * @throws ActivityCantBeVerifiedException
-	 */
-	public function verify(string $url) {
-		$url1 = parse_url($this->getId());
-		$url2 = parse_url($url);
-
-		if ($this->get('host', $url1, '1') !== $this->get('host', $url2, '2')) {
-			throw new ActivityCantBeVerifiedException('activity cannot be verified');
-		}
-
-		if ($this->get('scheme', $url1, '1') !== $this->get('scheme', $url2, '2')) {
-			throw new ActivityCantBeVerifiedException('activity cannot be verified');
-		}
-
-		if ($this->getInt('port', $url1, 1) !== $this->getInt('port', $url2, 1)) {
-			throw new ActivityCantBeVerifiedException('activity cannot be verified');
-		}
 	}
 
 
@@ -509,6 +490,67 @@ abstract class ACore implements JsonSerializable {
 		$this->bcc = $bcc;
 
 		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getOrigin(): string {
+		return $this->origin;
+	}
+
+	/**
+	 * @param string $origin
+	 *
+	 * @return ACore
+	 */
+	public function setOrigin(string $origin): ACore {
+		$this->origin = $origin;
+
+		return $this;
+	}
+
+	/**
+	 * @param $id
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function checkOrigin($id) {
+
+		$host = parse_url($id, PHP_URL_HOST);
+		if ($this->getRoot()
+				 ->getOrigin() === $host) {
+			return;
+		}
+
+		throw new InvalidOriginException();
+	}
+
+
+	/**
+	 * @deprecated
+	 *
+	 * @param string $url
+	 *
+	 * @throws ActivityCantBeVerifiedException
+	 */
+	public function verify(string $url) {
+		// TODO - Compare this with checkOrigin()
+		$url1 = parse_url($this->getId());
+		$url2 = parse_url($url);
+
+		if ($this->get('host', $url1, '1') !== $this->get('host', $url2, '2')) {
+			throw new ActivityCantBeVerifiedException('activity cannot be verified');
+		}
+
+		if ($this->get('scheme', $url1, '1') !== $this->get('scheme', $url2, '2')) {
+			throw new ActivityCantBeVerifiedException('activity cannot be verified');
+		}
+
+		if ($this->getInt('port', $url1, 1) !== $this->getInt('port', $url2, 1)) {
+			throw new ActivityCantBeVerifiedException('activity cannot be verified');
+		}
 	}
 
 

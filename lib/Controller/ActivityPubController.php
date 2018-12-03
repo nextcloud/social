@@ -167,14 +167,15 @@ class ActivityPubController extends Controller {
 	public function sharedInbox(): Response {
 
 		try {
-			$this->activityService->checkRequest($this->request);
-
 			$body = file_get_contents('php://input');
-			$this->miscService->log('Shared Inbox: ' . $body);
+			$this->miscService->log('Shared Inbox: ' . $body, 0);
 
-			$activity = $this->importService->import($body);
+			$origin = $this->activityService->checkRequest($this->request);
+
+			$activity = $this->importService->importFromJson($body);
+			$activity->setOrigin($origin);
 			try {
-				$this->importService->parse($activity);
+				$this->importService->parseIncomingRequest($activity);
 			} catch (UnknownItemException $e) {
 			}
 
@@ -204,18 +205,19 @@ class ActivityPubController extends Controller {
 	public function inbox(string $username): Response {
 
 		try {
-
-			$this->activityService->checkRequest($this->request);
 			$body = file_get_contents('php://input');
+			$this->miscService->log('Inbox: ' . $body, 0);
+
+			$origin = $this->activityService->checkRequest($this->request);
 
 			// TODO - check the recipient <-> username
 //			$actor = $this->actorService->getActor($username);
 
-			$this->miscService->log('Inbox: ' . $body);
 
-			$activity = $this->importService->import($body);
+			$activity = $this->importService->importFromJson($body);
+			$activity->setOrigin($origin);
 			try {
-				$this->importService->parse($activity);
+				$this->importService->parseIncomingRequest($activity);
 			} catch (UnknownItemException $e) {
 			}
 

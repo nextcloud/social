@@ -33,6 +33,8 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OCA\Social\Exceptions\ActivityPubFormatException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -41,7 +43,7 @@ use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
-use OCA\Social\Model\ActivityPub\Activity\Tombstone;
+use OCA\Social\Model\ActivityPub\Tombstone;
 use OCA\Social\Model\ActivityPub\Document;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\Image;
@@ -108,10 +110,14 @@ class ImportService {
 	 * @throws UnknownItemException
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
+	 * @throws ActivityPubFormatException
 	 */
-	public function import(string $json) {
+	public function importFromJson(string $json) {
 		$data = json_decode($json, true);
-		$activity = $this->createItem($data, null);
+		if (!is_array($data)) {
+			throw new ActivityPubFormatException();
+		}
+		$activity = $this->importFromData($data, null);
 
 		return $activity;
 	}
@@ -126,9 +132,14 @@ class ImportService {
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
-	private function createItem(array $data, $root = null): ACore {
+	private function importFromData(array $data, $root = null): ACore {
 
-		switch ($this->get('type', $data)) {
+		// TODO - missing : Person (why not ?), OrderCollection (not yet), Document (should ?)
+		switch ($this->get('type', $data, '')) {
+			case Accept::TYPE:
+				$item = new Accept($root);
+				break;
+
 			case Create::TYPE:
 				$item = new Create($root);
 				break;
@@ -137,32 +148,28 @@ class ImportService {
 				$item = new Delete($root);
 				break;
 
-			case Tombstone::TYPE:
-				$item = new Tombstone($root);
-				break;
-
-			case Note::TYPE:
-				$item = new Note($root);
+			case Follow::TYPE:
+				$item = new Follow($root);
 				break;
 
 			case Image::TYPE:
 				$item = new Image($root);
 				break;
 
-			case Follow::TYPE:
-				$item = new Follow($root);
-				break;
-
-			case Undo::TYPE:
-				$item = new Undo($root);
-				break;
-
-			case Accept::TYPE:
-				$item = new Accept($root);
+			case Note::TYPE:
+				$item = new Note($root);
 				break;
 
 			case Reject::TYPE:
 				$item = new Reject($root);
+				break;
+
+			case Tombstone::TYPE:
+				$item = new Tombstone($root);
+				break;
+
+			case Undo::TYPE:
+				$item = new Undo($root);
 				break;
 
 			default:
@@ -174,14 +181,16 @@ class ImportService {
 		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
 
 		try {
-			$object = $this->createItem($this->getArray('object', $data, []), $item);
+			$object = $this->importFromData($this->getArray('object', $data, []), $item);
+			$object->setParent($item);
 			$item->setObject($object);
 		} catch (UnknownItemException $e) {
 		}
 
 		try {
 			/** @var Document $icon */
-			$icon = $this->createItem($this->getArray('icon', $data, []), $item);
+			$icon = $this->importFromData($this->getArray('icon', $data, []), $item);
+			$icon->setParent($item);
 			$item->setIcon($icon);
 		} catch (UnknownItemException $e) {
 		}
@@ -195,43 +204,24 @@ class ImportService {
 	 *
 	 * @throws UnknownItemException
 	 */
-	public function parse(Acore $activity) {
+	public function parseIncomingRequest(ACore $activity) {
 
 		if ($activity->gotObject()) {
 			try {
-				$this->parse($activity->getObject());
+				$this->parseIncomingRequest($activity->getObject());
 			} catch (UnknownItemException $e) {
 			}
 		}
 
 		switch ($activity->getType()) {
-//			case 'Activity':
-//				$service = $this;
-//				break;
 
 			case Delete::TYPE:
 				$service = $this->deleteService;
 				break;
 
-//			case Undo::TYPE:
-//				$service = $this->undoService;
-//				break;
-//
-//			case Accept::TYPE:
-//				$service = $this->acceptService;
-//				break;
-//
-//			case Reject::TYPE:
-//				$service = $this->rejectService;
-//				break;
-
 			case Follow::TYPE:
 				$service = $this->followService;
 				break;
-
-//			case Image::TYPE:
-//				$service = $this->imageService;
-//				break;
 
 			case Note::TYPE:
 				$service = $this->noteService;
@@ -250,6 +240,17 @@ class ImportService {
 		}
 	}
 
+
+	/**
+	 * @param ACore $activity
+	 *
+	 * @param string $id
+	 *
+	 * @throws InvalidResourceException
+	 */
+	public function verifyOrigin(ACore $activity, string $id) {
+		throw new InvalidResourceException();
+	}
 
 }
 

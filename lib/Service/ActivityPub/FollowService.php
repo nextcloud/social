@@ -235,9 +235,11 @@ class FollowService implements ICoreService {
 	 * @throws Exception
 	 */
 	public function parse(ACore $follow) {
+
 		/** @var Follow $follow */
 		if ($follow->isRoot()) {
-			$follow->verify($follow->getActorId());
+			$follow->checkOrigin($follow->getActorId());
+
 			try {
 				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
 			} catch (FollowDoesNotExistException $e) {
@@ -248,24 +250,25 @@ class FollowService implements ICoreService {
 					$this->confirmFollowRequest($follow);
 				}
 			}
+
 		} else {
 			$parent = $follow->getParent();
-			if ($parent->isRoot() === false) {
+			if (!$parent->isRoot()) {
 				return;
 			}
 
 			if ($parent->getType() === Undo::TYPE) {
-				$parent->verify($follow->getActorId());
+				$parent->checkOrigin($follow->getActorId());
 				$this->followsRequest->deleteByPersons($follow);
 			}
 
 			if ($parent->getType() === Reject::TYPE) {
-				$parent->verify($follow->getObjectId());
+				$parent->checkOrigin($follow->getObjectId());
 				$this->followsRequest->deleteByPersons($follow);
 			}
 
 			if ($parent->getType() === Accept::TYPE) {
-				$parent->verify($follow->getObjectId());
+				$parent->checkOrigin($follow->getObjectId());
 				$this->followsRequest->accepted($follow);
 			}
 
