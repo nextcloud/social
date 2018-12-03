@@ -276,11 +276,21 @@ class NoteService implements ICoreService {
 
 		if ($parent->getType() === Create::TYPE) {
 			$parent->checkOrigin($note->getAttributedTo());
-			try {
-				$this->notesRequest->getNoteById($note->getId());
-			} catch (NoteNotFoundException $e) {
-				$this->notesRequest->save($note);
-			}
+			$this->save($note);
+		}
+	}
+
+
+	/**
+	 * @param ACore $note
+	 */
+	public function save(ACore $note) {
+		/** @var Note $note */
+
+		try {
+			$this->notesRequest->getNoteById($note->getId());
+		} catch (NoteNotFoundException $e) {
+			$this->notesRequest->save($note);
 		}
 	}
 

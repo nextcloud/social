@@ -125,7 +125,7 @@ class PersonService implements ICoreService {
 
 		$actor->setLocal(true);
 		$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
-		$this->parse($actor);
+		$this->save($actor);
 	}
 
 
@@ -160,7 +160,7 @@ class PersonService implements ICoreService {
 			$actor = $this->generateActorFromObject($object);
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 			try {
-				$this->parse($actor);
+				$this->save($actor);
 			} catch (Exception $e) {
 				throw new InvalidResourceException($e->getMessage());
 			}
@@ -196,7 +196,7 @@ class PersonService implements ICoreService {
 			$actor = $this->generateActorFromObject($object);
 			$actor->setAccount($account);
 			try {
-				$this->parse($actor);
+				$this->save($actor);
 			} catch (Exception $e) {
 				throw new InvalidResourceException($e->getMessage());
 			}
@@ -261,6 +261,15 @@ class PersonService implements ICoreService {
 			return;
 		}
 
+		$this->save($person);
+	}
+
+
+	/**
+	 * @param ACore $person
+	 */
+	public function save(ACore $person) {
+		/** @var Person $person */
 		if ($person->gotIcon()) {
 			try {
 				$icon = $this->cacheDocumentsRequest->getBySource(

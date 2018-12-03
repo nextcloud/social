@@ -153,8 +153,7 @@ class ActivityService {
 	 * @return string
 	 * @throws Exception
 	 */
-	public function createActivity(Person $actor, ACore $item, ACore &$activity = null
-	): string {
+	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
 
 		$activity = new Create();
 		$item->setParent($activity);
@@ -233,7 +232,7 @@ class ActivityService {
 	 * @throws Exception
 	 */
 	public function request(ACore $activity): string {
-		$this->setupCore($activity);
+		$this->saveActivity($activity);
 
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
@@ -593,24 +592,16 @@ class ActivityService {
 
 
 	/**
-	 * @deprecated !??? - do we need this !?
-	 *
 	 * @param ACore $activity
 	 */
-	private function setupCore(ACore $activity) {
-
-//		$this->initCore($activity);
-		if ($activity->isRoot()) {
-			$activity->addEntry('@context', self::CONTEXT_ACTIVITYSTREAMS);
-		}
-
+	private function saveActivity(ACore $activity) {
 		$coreService = $activity->savingAs();
 		if ($coreService !== null) {
-			$coreService->parse($activity);
+			$coreService->save($activity);
 		}
 
 		if ($activity->gotObject()) {
-			$this->setupCore($activity->getObject());
+			$this->saveActivity($activity->getObject());
 		}
 	}
 

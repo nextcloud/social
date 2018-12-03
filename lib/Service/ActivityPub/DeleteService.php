@@ -130,5 +130,13 @@ class DeleteService implements ICoreService {
 	public function delete(ACore $item) {
 	}
 
+
+	/**
+	 * @param ACore $item
+	 */
+	public function save(ACore $item) {
+	}
+
+
 }
 
