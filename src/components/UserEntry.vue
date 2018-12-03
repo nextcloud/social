@@ -25,7 +25,7 @@
 		<div class="entry-content">
 			<div class="user-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.preferredUsername" />
-				<avatar v-else :url="item.icon.url" />
+				<avatar v-else :url="avatarUrl" />
 			</div>
 			<div class="user-details">
 				<router-link v-if="item.local" :to="{ name: 'profile', params: { account: item.account }}">
@@ -36,11 +36,11 @@
 				<!-- TODO check where the html is coming from to avoid security issues -->
 				<p v-html="item.summary" />
 			</div>
-			<button v-if="item.details.following" :class="{'icon-loading-small': followLoading}"
+			<button v-if="item.details && item.details.following" :class="{'icon-loading-small': followLoading}"
 				@click="unfollow()"
 				@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
 			<span><span class="icon-checkmark" />{{ followingText }}</span></button>
-			<button v-else :class="{'icon-loading-small': followLoading}" class="primary"
+			<button v-else-if="item.details" :class="{'icon-loading-small': followLoading}" class="primary"
 				@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
 		</div>
 	</div>
@@ -64,6 +64,17 @@ export default {
 	data: function() {
 		return {
 			followingText: t('social', 'Following')
+		}
+	},
+	computed: {
+		id() {
+			if (this.item.actor_info) {
+				return this.item.actor_info.id
+			}
+			return this.item.id
+		},
+		avatarUrl() {
+			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.id)
 		}
 	}
 }

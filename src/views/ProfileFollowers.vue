@@ -46,24 +46,19 @@ export default {
 		UserEntry
 	},
 	computed: {
-		timeline: function() {
-			return this.$store.getters.getTimeline
-		},
-		users() {
-			return [
-				{
-					id: 'admin',
-					displayName: 'Administrator',
-					description: 'My social account',
-					following: true
-				},
-				{
-					id: 'admin',
-					displayName: 'Administrator',
-					description: 'My social account',
-					following: false
-				}
-			]
+		users: function() {
+			if (this.$route.name === 'profile.followers') {
+				return this.$store.getters.getAccountFollowers(this.$route.params.account)
+			} else {
+				return this.$store.getters.getAccountFollowing(this.$route.params.account)
+			}
+		}
+	},
+	beforeMount() {
+		if (this.$route.name === 'profile.followers') {
+			this.$store.dispatch('fetchAccountFollowers', this.$route.params.account)
+		} else {
+			this.$store.dispatch('fetchAccountFollowing', this.$route.params.account)
 		}
 	}
 }

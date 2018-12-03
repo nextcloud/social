@@ -28,18 +28,18 @@
 			<p>{{ accountInfo.cloudId }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
 
-			<button v-if="!serverData.public" class="primary" @click="follow">Follow</button>
+			<button v-if="!serverData.public && accountInfo.preferredUsername !== currentUser" class="primary" @click="follow">Follow</button>
 		</div>
 
-		<ul class="user-profile--sections">
+		<ul v-if="accountInfo.details" class="user-profile--sections">
 			<li>
-				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.posts }} posts</router-link>
+				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.details.posts }} {{ t('social', 'Posts') }}</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ accountInfo.following }} following</router-link>
+				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.following }}  {{ t('social', 'Following') }}</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ accountInfo.followers }} followers</router-link>
+				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.followers }}  {{ t('social', 'Followers') }}</router-link>
 			</li>
 		</ul>
 	</div>
@@ -82,13 +82,15 @@
 
 import { Avatar } from 'nextcloud-vue'
 import serverData from '../mixins/serverData'
+import currentUser from '../mixins/currentUserMixin'
+import follow from '../mixins/follow'
 
 export default {
 	name: 'ProfileInfo',
 	components: {
 		Avatar
 	},
-	mixins: [serverData],
+	mixins: [serverData, currentUser, follow],
 	props: {
 		uid: {
 			type: String,
@@ -97,7 +99,9 @@ export default {
 	},
 	computed: {
 		displayName() {
-			if (typeof this.accountInfo.displayname !== 'undefined') { return this.accountInfo.displayname.value || '' }
+			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
+				return this.accountInfo.name
+			}
 			return this.uid
 		},
 		accountInfo: function() {
