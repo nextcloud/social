@@ -19,7 +19,7 @@
 				</div>
 				<div class="post-message" v-html="formatedMessage" />
 			</div>
-			<div class="post-timestamp">{{ item.published }}</div>
+			<div :data-timestamp="item.published" class="post-timestamp live-relative-timestamp">{{ relativeTimestamp }}</div>
 		</div>
 	</div>
 </template>
@@ -36,13 +36,16 @@ export default {
 	props: {
 		item: { type: Object, default: () => {} }
 	},
-	data: function() {
+	data() {
 		return {
 
 		}
 	},
 	computed: {
-		formatedMessage: function() {
+		relativeTimestamp() {
+			return OC.Util.relativeModifiedDate(this.item.published)
+		},
+		formatedMessage() {
 			let message = this.item.content
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 			message = message.linkify({
