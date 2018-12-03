@@ -27,6 +27,7 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Service\ActivityPub;
 
 
@@ -48,6 +49,7 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+
 
 class NoteService implements ICoreService {
 
@@ -93,8 +95,7 @@ class NoteService implements ICoreService {
 	 */
 	public function __construct(
 		NotesRequest $notesRequest, ActivityService $activityService, ActorService $actorService,
-		PersonService $personService,
-		CurlService $curlService, ConfigService $configService,
+		PersonService $personService, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;

@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\TPathTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\ActivityPub\ICoreService;
 
@@ -175,7 +176,6 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @throws InvalidOriginException
 	 */
 	public function checkOrigin($id) {
-		// TODO - compare with verify
 		$host = parse_url($id, PHP_URL_HOST);
 		if ($this->getRoot()
 				 ->getOrigin() === $host) {
@@ -194,7 +194,7 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @throws ActivityCantBeVerifiedException
 	 */
 	public function verify(string $url) {
-		// TODO - Compare this with checkOrigin()
+		// TODO - Compare this with checkOrigin() - and delete this method.
 		$url1 = parse_url($this->getId());
 		$url2 = parse_url($url);
 
@@ -348,6 +348,7 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @param string $default
 	 *
 	 * @return string
+	 * @throws InvalidResourceEntryException
 	 */
 	public function validate(int $as, string $k, array $arr, string $default = ''): string {
 		$value = $this->validateEntryString($as, $this->get($k, $arr, $default));
@@ -364,6 +365,7 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @param array $default
 	 *
 	 * @return array
+	 * @throws InvalidResourceEntryException
 	 */
 	public function validateArray(int $as, string $k, array $arr, array $default = []): array {
 		$values = $this->getArray($k, $arr, $default);
@@ -378,44 +380,51 @@ abstract class ACore extends Item implements JsonSerializable {
 
 
 	/**
+	 * // TODO - better checks
+	 *
 	 * @param $as
 	 * @param $value
 	 *
 	 * @return string
+	 * @throws InvalidResourceEntryException
 	 */
 	public function validateEntryString(int $as, string $value): string {
 		switch ($as) {
 			case self::AS_ID:
-				// TODO check if id looks valid or Exception
+				if (parse_url($value) !== false) {
+					return $value;
+				}
 				break;
 
 			case self::AS_TYPE:
-				// TODO check if type looks valid or Exception
-				break;
+				return $value;
 
 			case self::AS_URL:
-				// TODO check if url looks valid or Exception
+				if (parse_url($value) !== false) {
+					return $value;
+				}
 				break;
 
 			case self::AS_DATE:
-				// TODO check that date is valid
-				break;
+				return $value;
 
 			case self::AS_STRING:
-				// Clean string
-				break;
+				$value = strip_tags($value);
+
+				return $value;
 
 			default:
-				// exception
 				break;
 		}
 
-		return $value;
+		throw new InvalidResourceEntryException($as . ' ' . $value);
 	}
 
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
