@@ -1,39 +1,33 @@
 <template>
-	<div class="social__wrapper">
-		<div class="social__container">
-			<transition name="slide-fade">
-				<div v-if="showInfo" class="social__welcome">
-					<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
-					<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
-					<p>
-						{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
-						<span class="social-id">{{ socialId }}</span>
-					</p>
-				</div>
-			</transition>
-			<div class="social__timeline">
-				<composer />
-				<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
-				<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
-					<div slot="spinner"><div class="icon-loading" /></div>
-					<div slot="no-more"><div class="list-end" /></div>
-					<div slot="no-results">
-						<div id="emptycontent">
-							<div class="icon-social" />
-							<h2>{{ t('social', 'No posts found.') }}</h2>
-						</div>
-					</div>
-				</infinite-loading>
+	<div class="social__container">
+		<transition name="slide-fade">
+			<div v-if="showInfo" class="social__welcome">
+				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
+				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
+				<p>
+					{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
+					<span class="social-id">{{ socialId }}</span>
+				</p>
 			</div>
+		</transition>
+		<div class="social__timeline">
+			<composer />
+			<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
+			<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
+				<div slot="spinner"><div class="icon-loading" /></div>
+				<div slot="no-more"><div class="list-end" /></div>
+				<div slot="no-results">
+					<div id="emptycontent">
+						<div class="icon-social" />
+						<h2>{{ t('social', 'No posts found.') }}</h2>
+					</div>
+				</div>
+			</infinite-loading>
 		</div>
 	</div>
 </template>
 
 <style scoped>
-	.social__wrapper {
-		display: flex;
-	}
-
 	.social__container {
 		flex-grow: 1;
 	}
