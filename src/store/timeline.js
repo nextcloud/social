@@ -32,7 +32,6 @@ const mutations = {
 	addToTimeline(state, data) {
 		for (let item in data) {
 			state.since = data[item].publishedTime
-			data[item].actor_info = {}
 			Vue.set(state.timeline, data[item].id, data[item])
 		}
 	},

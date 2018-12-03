@@ -1,20 +1,17 @@
 <template>
 	<div class="timeline-entry">
 		<div class="entry-content">
-			<div class="post-avatar">
-				<avatar v-if="item.actor_info" :size="32" :user="item.actor_info.preferredUsername" />
-				<avatar :size="32" :url="avatarUrl" />
+			<div v-if="item.actor_info" class="post-avatar">
+				<avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
+					:display-name="item.actor_info.account" />
+				<avatar v-else :size="32" :url="avatarUrl" />
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
-					<router-link v-if="item.actor_info && item.actor_info.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
+					<router-link v-if="item.actor_info && item.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
-					<a v-else-if="item.local" :href="item.id">
-						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
-						<span class="post-author-id">{{ item.actor_info.account }}</span>
-					</a>
 					<a v-else :href="item.actor_info.url">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
@@ -58,8 +55,8 @@ export default {
 			message = this.$twemoji.parse(message)
 			return message
 		},
-		avatarUrl: function() {
-			return OC.generateUrl('/apps/social/api/v1/actor/avatar?id=' + this.item.attributedTo)
+		avatarUrl() {
+			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
 		}
 	}
 }
