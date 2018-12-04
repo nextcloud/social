@@ -23,25 +23,11 @@
 <template>
 	<div class="social__wrapper">
 		<profile-info :uid="uid" />
-		<div class="social__container">
-			<router-view name="details" />
-		</div>
+		<router-view name="details" />
 	</div>
 </template>
 
 <style scoped>
-	.social__wrapper {
-		max-width: 700px;
-		margin: 15px auto;
-	}
-
-	.social__welcome {
-		max-width: 700px;
-		margin: 15px auto;
-		padding: 15px;
-		border-radius: 10px;
-		background-color: var(--color-background-dark);
-	}
 
 	.social__welcome h3 {
 		margin-top: 0;
@@ -56,7 +42,7 @@
 	}
 
 	.social__timeline {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 	}
 

@@ -39,13 +39,13 @@
 
 		<ul v-if="accountInfo.details" class="user-profile--sections">
 			<li>
-				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.details.count.post }} {{ t('social', 'Posts') }}</router-link>
+				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.details.count.post }} {{ t('social', 'posts') }}</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.count.following }}  {{ t('social', 'Following') }}</router-link>
+				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.count.following }}  {{ t('social', 'following') }}</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.count.followers }}  {{ t('social', 'Followers') }}</router-link>
+				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ accountInfo.details.count.followers }}  {{ t('social', 'followers') }}</router-link>
 			</li>
 		</ul>
 	</div>

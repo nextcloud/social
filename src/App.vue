@@ -4,7 +4,7 @@
 			<app-navigation :menu="menu" />
 		</div>
 		<div id="app-content">
-			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup">
+			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
 				<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
 					rel="noreferrer noopener">{{ t('social', 'Open documentation') }} ↗</a></p>
@@ -57,7 +57,7 @@
 	@media (min-width: 1200px) {
 		#app-content .social__wrapper {
 			margin: 15px calc(50% - 350px - 75px);
-			max-width: 700px;
+			max-width: 600px;
 		}
 	}
 
