@@ -80,7 +80,8 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'sn.id', 'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content', 'sn.summary',
+			'sn.id', 'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
+			'sn.summary',
 			'sn.published', 'sn.published_time', 'sn.attributed_to', 'sn.in_reply_to', 'sn.source',
 			'sn.local', 'sn.instances', 'sn.creation'
 		)
@@ -134,28 +135,28 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$pf = $this->defaultSelectAlias . '.';
 
 		$orX = $expr->orX();
-		$orX->add($expr->eq($pf . 'to', 'f.follow_id'));
+		$orX->add($expr->eq($func->lower($pf . 'to'), $func->lower('f.follow_id')));
 		$orX->add(
 			$expr->like(
-				$pf . 'to_array', $func->concat(
+				$func->lower($pf . 'to_array'), $func->concat(
 				$qb->createNamedParameter('%"'),
-				$func->concat('f.follow_id', $qb->createNamedParameter('"%'))
+				$func->concat($func->lower('f.follow_id'), $qb->createNamedParameter('"%'))
 			)
 			)
 		);
 		$orX->add(
 			$expr->like(
-				$pf . 'cc', $func->concat(
+				$func->lower($pf . 'cc'), $func->concat(
 				$qb->createNamedParameter('%"'),
-				$func->concat('f.follow_id', $qb->createNamedParameter('"%'))
+				$func->concat($func->lower('f.follow_id'), $qb->createNamedParameter('"%'))
 			)
 			)
 		);
 		$orX->add(
 			$expr->like(
-				$pf . 'bcc', $func->concat(
+				$func->lower($pf . 'bcc'), $func->concat(
 				$qb->createNamedParameter('%"'),
-				$func->concat('f.follow_id', $qb->createNamedParameter('"%'))
+				$func->concat($func->lower('f.follow_id'), $qb->createNamedParameter('"%'))
 			)
 			)
 		);
