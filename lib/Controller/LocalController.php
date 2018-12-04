@@ -45,6 +45,7 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\NotFoundResponse;
@@ -537,12 +538,13 @@ class LocalController extends Controller {
 
 				$response = new FileDisplayResponse($document);
 				$response->cacheFor(86400);
-				return $response;
-			}
 
-			return new NotFoundResponse();
+				return $response;
+			} else {
+				throw new InvalidResourceException('no avatar for this Actor');
+			}
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->fail($e, [], Http::STATUS_NOT_FOUND);
 		}
 	}
 
