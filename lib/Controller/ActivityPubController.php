@@ -170,7 +170,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('Shared Inbox: ' . $body, 0);
+			$this->miscService->log('[<<] shared-inbox: ' . $body, 1);
 
 			$origin = $this->activityService->checkRequest($this->request);
 
@@ -205,7 +205,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('Inbox: ' . $body, 0);
+			$this->miscService->log('[<<] inbox: ' . $body, 1);
 
 			$origin = $this->activityService->checkRequest($this->request);
 
