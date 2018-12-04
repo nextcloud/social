@@ -167,14 +167,20 @@ class DocumentService implements ICoreService {
 	 * @param ACore $item
 	 */
 	public function parse(ACore $item) {
-		// TODO: Implement parse() method.
 	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function save(ACore $item) {
+	}
+
 
 	/**
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
-		// TODO: Implement delete() method.
 	}
 
 }
