@@ -82,6 +82,10 @@ class NoteService implements ICoreService {
 	private $miscService;
 
 
+	/** @var string */
+	private $viewerId = '';
+
+
 	/**
 	 * NoteService constructor.
 	 *
@@ -105,6 +109,19 @@ class NoteService implements ICoreService {
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @param string $viewerId
+	 */
+	public function setViewerId(string $viewerId) {
+		$this->viewerId = $viewerId;
+		$this->notesRequest->setViewerId($viewerId);
+	}
+
+	public function getViewerId(): string {
+		return $this->viewerId;
 	}
 
 
@@ -333,28 +350,39 @@ class NoteService implements ICoreService {
 
 
 	/**
-	 * @param Person $actor
+	 * @param string $actorId
 	 *
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Note[]
 	 */
-	public function getHomeNotesForActor(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getHomeNotesForActorId($actor->getId(), $since, $limit);
+	public function getStreamHome(string $actorId, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamHome($actorId, $since, $limit);
 	}
 
 
 	/**
-	 * @param Person $actor
-	 *
+	 * @param string $actorId
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Note[]
 	 */
-	public function getDirectNotesForActor(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getDirectNotesForActorId($actor->getId(), $since, $limit);
+	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamHome($actorId, $since, $limit);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 */
+	public function getStreamDirect(string $actorId, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamDirect($actorId, $since, $limit);
 	}
 
 
@@ -364,8 +392,8 @@ class NoteService implements ICoreService {
 	 *
 	 * @return Note[]
 	 */
-	public function getLocalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getPublicNotes($since, $limit, true);
+	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamTimeline($since, $limit, true);
 	}
 
 
@@ -375,8 +403,19 @@ class NoteService implements ICoreService {
 	 *
 	 * @return Note[]
 	 */
-	public function getFederatedTimeline(int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getPublicNotes($since, $limit, false);
+	public function getStreamInternalTimeline(int $since = 0, int $limit = 5): array {
+		// TODO - admin should be able to provide a list of 'friendly/internal' instance of ActivityPub
+	}
+
+
+	/**
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 */
+	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamTimeline($since, $limit, false);
 	}
 
 }
