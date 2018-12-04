@@ -27,8 +27,8 @@
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<div class="author currentUser">
-				{{ currentUser.displayName }}
-				<span class="social-id">{{ socialId }}</span>
+				<span class="post-author">{{ currentUser.displayName }}</span>
+				<span class="post-author-id">{{ socialId }}</span>
 			</div>
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
@@ -85,6 +85,7 @@
 		z-index: 100;
 		margin-bottom: 10px;
 	}
+
 	.new-post-author {
 		padding: 5px;
 	}
@@ -100,8 +101,12 @@
 		min-height: 70px;
 	}
 
-	.author .social-id {
-		opacity: .5;
+	.post-author {
+		font-weight: bold;
+	}
+
+	.post-author-id {
+		opacity: .7;
 	}
 
 	[contenteditable=true]:empty:before{
