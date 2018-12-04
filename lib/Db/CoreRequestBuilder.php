@@ -128,10 +128,9 @@ class CoreRequestBuilder {
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
-	 * @param bool $cs
 	 */
-	protected function limitToIdString(IQueryBuilder &$qb, string $id, bool $cs = true) {
-		$this->limitToDBField($qb, 'id', $id, $cs);
+	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
+		$this->limitToDBField($qb, 'id', $id, false);
 	}
 
 
@@ -142,7 +141,7 @@ class CoreRequestBuilder {
 	 * @param string $userId
 	 */
 	protected function limitToUserId(IQueryBuilder &$qb, string $userId) {
-		$this->limitToDBField($qb, 'user_id', $userId);
+		$this->limitToDBField($qb, 'user_id', $userId, false);
 	}
 
 
@@ -199,7 +198,7 @@ class CoreRequestBuilder {
 	 * @param string $alias
 	 */
 	protected function limitToActorId(IQueryBuilder &$qb, string $actorId, string $alias = '') {
-		$this->limitToDBField($qb, 'actor_id', $actorId, true, $alias);
+		$this->limitToDBField($qb, 'actor_id', $actorId, false, $alias);
 	}
 
 
@@ -210,7 +209,7 @@ class CoreRequestBuilder {
 	 * @param string $followId
 	 */
 	protected function limitToFollowId(IQueryBuilder &$qb, string $followId) {
-		$this->limitToDBField($qb, 'follow_id', $followId);
+		$this->limitToDBField($qb, 'follow_id', $followId, false);
 	}
 
 
@@ -233,7 +232,7 @@ class CoreRequestBuilder {
 	 * @param string $objectId
 	 */
 	protected function limitToObjectId(IQueryBuilder &$qb, string $objectId) {
-		$this->limitToDBField($qb, 'object_id', $objectId);
+		$this->limitToDBField($qb, 'object_id', $objectId, false);
 	}
 
 
@@ -360,7 +359,13 @@ class CoreRequestBuilder {
 		$dbConn = $this->dbConnection;
 
 		if ($asAuthor === true) {
-			$orX->add($expr->eq('attributed_to', $qb->createNamedParameter($recipient)));
+			$func = $qb->func();
+			$orX->add(
+				$expr->eq(
+					$func->lower('attributed_to'),
+					$func->lower($qb->createNamedParameter($recipient))
+				)
+			);
 		}
 
 		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
@@ -541,12 +546,13 @@ class CoreRequestBuilder {
 	 * @param string $fieldActorId
 	 */
 	protected function leftJoinCacheActors(IQueryBuilder &$qb, string $fieldActorId) {
-
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
 
 		$expr = $qb->expr();
+		$func = $qb->func();
+
 		$pf = $this->defaultSelectAlias;
 
 		$qb->selectAlias('ca.id', 'cacheactor_id')
@@ -568,7 +574,7 @@ class CoreRequestBuilder {
 		   ->selectAlias('ca.local', 'cacheactor_local')
 		   ->leftJoin(
 			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca',
-			   $expr->eq($pf . '.' . $fieldActorId, 'ca.id')
+			   $expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id'))
 		   );
 	}
 
@@ -609,6 +615,7 @@ class CoreRequestBuilder {
 		}
 
 		$expr = $qb->expr();
+		$func = $qb->func();
 		$pf = $this->defaultSelectAlias;
 
 		$qb->selectAlias('cd.id', 'cachedocument_id')
@@ -623,7 +630,7 @@ class CoreRequestBuilder {
 		   ->selectAlias('ca.creation', 'cachedocument_creation')
 		   ->leftJoin(
 			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
-			   $expr->eq($pf . '.' . $fieldDocumentId, 'cd.id')
+			   $expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
 		   );
 	}
 
@@ -675,17 +682,36 @@ class CoreRequestBuilder {
 		}
 
 		$expr = $qb->expr();
+		$func = $qb->func();
 		if ($pf === '') {
 			$pf = $this->defaultSelectAlias;
 		}
 
 		$andX = $expr->andX();
 		if ($asFollower === true) {
-			$andX->add($expr->eq($pf . '.' . $fieldActorId, $prefix . '_f.object_id'));
-			$andX->add($expr->eq($prefix . '_f.actor_id', $qb->createNamedParameter($viewerId)));
+			$andX->add(
+				$expr->eq(
+					$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
+				)
+			);
+			$andX->add(
+				$expr->eq(
+					$func->lower($prefix . '_f.actor_id'),
+					$func->lower($qb->createNamedParameter($viewerId))
+				)
+			);
 		} else {
-			$andX->add($expr->eq($pf . '.' . $fieldActorId, $prefix . '_f.actor_id'));
-			$andX->add($expr->eq($prefix . '_f.object_id', $qb->createNamedParameter($viewerId)));
+			$andX->add(
+				$expr->eq(
+					$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.actor_id')
+				)
+			);
+			$andX->add(
+				$expr->eq(
+					$func->lower($prefix . '_f.object_id'),
+					$func->lower($qb->createNamedParameter($viewerId))
+				)
+			);
 		}
 
 		$qb->selectAlias($prefix . '_f.id', $prefix . '_id')
