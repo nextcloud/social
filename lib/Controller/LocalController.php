@@ -33,7 +33,10 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
@@ -364,6 +367,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function currentFollowers(): DataResponse {
+		$this->initViewer();
+
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$followers = $this->followService->getFollowers($actor);
@@ -383,6 +388,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function currentFollowing(): DataResponse {
+		$this->initViewer();
+
 		try {
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$followers = $this->followService->getFollowing($actor);
@@ -407,12 +414,7 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountInfo(string $username): DataResponse {
-
-		try {
-			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
-			$this->personService->setViewerId($viewer->getId());
-		} catch (Exception $e) {
-		}
+		$this->initViewer();
 
 		try {
 
@@ -436,6 +438,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountFollowers(string $username): DataResponse {
+		$this->initViewer();
+
 		try {
 			$actor = $this->actorService->getActor($username);
 			$followers = $this->followService->getFollowers($actor);
@@ -457,11 +461,13 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountFollowing(string $username): DataResponse {
+		$this->initViewer();
+
 		try {
 			$actor = $this->actorService->getActor($username);
-			$followers = $this->followService->getFollowing($actor);
+			$following = $this->followService->getFollowing($actor);
 
-			return $this->success($followers);
+			return $this->success($following);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -481,11 +487,7 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function globalAccountInfo(string $account): DataResponse {
-		try {
-			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
-			$this->personService->setViewerId($viewer->getId());
-		} catch (Exception $e) {
-		}
+		$this->initViewer();
 
 		try {
 			$actor = $this->personService->getFromAccount($account);
@@ -510,6 +512,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function globalActorInfo(string $id): DataResponse {
+		$this->initViewer();
+
 		try {
 			$actor = $this->personService->getFromId($id);
 
@@ -537,6 +541,7 @@ class LocalController extends Controller {
 
 				$response = new FileDisplayResponse($document);
 				$response->cacheFor(86400);
+
 				return $response;
 			}
 
@@ -561,13 +566,7 @@ class LocalController extends Controller {
 	 * @throws Exception
 	 */
 	public function globalAccountsSearch(string $search): DataResponse {
-		try {
-			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
-		} catch (Exception $e) {
-			throw new Exception();
-		}
-
-		$this->personService->setViewerId($viewer->getId());
+		$this->initViewer();
 
 		/* Look for an exactly matching account */
 		$match = null;
@@ -612,6 +611,19 @@ class LocalController extends Controller {
 			return $this->success($cached);
 		} catch (Exception $e) {
 			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @throws Exception
+	 */
+	private function initViewer() {
+		try {
+			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
+			$this->followService->setViewerId($viewer->getId());
+			$this->personService->setViewerId($viewer->getId());
+		} catch (Exception $e) {
 		}
 	}
 

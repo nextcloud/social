@@ -125,35 +125,5 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	}
 
 
-	protected function leftJoinDetails(IQueryBuilder $qb) {
-		$viewerId = $this->getViewerId();
-		if ($viewerId !== '') {
-			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, true, 'as_follower');
-			$this->leftJoinFollowAsViewer($qb, 'id', $viewerId, false, 'as_followed');
-		}
-	}
-
-
-	protected function assignDetails(Person $actor, array $data) {
-		if ($this->getViewerId() !== '') {
-
-			try {
-				$this->parseFollowLeftJoin($data, 'as_follower');
-				$actor->addDetailBool('following', true);
-			} catch (InvalidResourceException $e) {
-				$actor->addDetailBool('following', false);
-			}
-
-			try {
-				$this->parseFollowLeftJoin($data, 'as_followed');
-				$actor->addDetailBool('followed', true);
-			} catch (InvalidResourceException $e) {
-				$actor->addDetailBool('followed', false);
-			}
-
-			$actor->setCompleteDetails(true);
-		}
-	}
-
 }
 
