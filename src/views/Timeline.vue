@@ -113,17 +113,17 @@ export default {
 				},
 				direct: {
 					image: 'img/undraw/direct.svg',
-					title: t('social', 'No posts found'),
+					title: t('social', 'No direct messages found'),
 					description: t('social', 'Posts directed to you will show up here')
 				},
 				timeline: {
 					image: 'img/undraw/local.svg',
-					title: t('social', 'No posts found'),
-					description: t('social', 'Posts from this instance will show up here')
+					title: t('social', 'No local posts found'),
+					description: t('social', 'Posts from other people on this instance will show up here')
 				},
 				federated: {
 					image: 'img/undraw/global.svg',
-					title: t('social', 'No posts found'),
+					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here')
 				}
 			}
