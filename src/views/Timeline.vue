@@ -1,5 +1,5 @@
 <template>
-	<div class="social__container">
+	<div class="social__wrapper">
 		<transition name="slide-fade">
 			<div v-if="showInfo" class="social__welcome">
 				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>

@@ -21,7 +21,7 @@
   -->
 
 <template>
-	<div class="social__container">
+	<div class="social__wrapper">
 		<div v-if="results.length < 1" id="emptycontent" :class="{'icon-loading': loading}">
 			<div v-if="!loading" class="icon-search" />
 			<h2 v-if="!loading">{{ t('social', 'No accounts found') }}</h2>

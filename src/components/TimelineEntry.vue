@@ -92,8 +92,10 @@ export default {
 		flex-shrink: 0;
 	}
 
-	.timestamp {
-		float: right;
+	.post-timestamp {
+		width: 120px;
+		text-align: right;
+		flex-shrink: 0;
 	}
 
 	span {
