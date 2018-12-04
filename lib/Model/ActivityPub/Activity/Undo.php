@@ -46,7 +46,6 @@ class Undo extends ACore implements JsonSerializable {
 	const TYPE = 'Undo';
 
 
-
 	/**
 	 * Undo constructor.
 	 *

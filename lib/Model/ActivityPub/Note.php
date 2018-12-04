@@ -199,11 +199,11 @@ class Note extends ACore implements JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 
-		$this->setInReplyTo($this->get('inReplyTo', $data, ''));
-		$this->setAttributedTo($this->get('attributedTo', $data, ''));
+		$this->setInReplyTo($this->validate(ACore::AS_ID, 'inReplyTo', $data, ''));
+		$this->setAttributedTo($this->validate(ACore::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
-		$this->setConversation($this->get('conversation', $data, ''));
-		$this->setContent($this->get('content', $data, ''));
+		$this->setConversation($this->validate(ACore::AS_ID, 'conversation', $data, ''));
+		$this->setContent($this->validate(ACore::AS_STRING, 'content', $data, ''));
 		$this->convertPublished();
 	}
 

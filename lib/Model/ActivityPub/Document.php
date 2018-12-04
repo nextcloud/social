@@ -200,7 +200,7 @@ class Document extends ACore implements JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 
-		$this->setMediaType($this->get('mediaType', $data, ''));
+		$this->setMediaType($this->validate(ACore::AS_STRING, 'mediaType', $data, ''));
 
 		if ($this->getId() === '') {
 			$this->generateUniqueId('/documents/g');

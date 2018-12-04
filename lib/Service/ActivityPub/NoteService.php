@@ -27,13 +27,13 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Service\ActivityPub;
 
 
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
-use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\NoteNotFoundException;
@@ -49,6 +49,7 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+
 
 class NoteService implements ICoreService {
 
@@ -94,8 +95,7 @@ class NoteService implements ICoreService {
 	 */
 	public function __construct(
 		NotesRequest $notesRequest, ActivityService $activityService, ActorService $actorService,
-		PersonService $personService,
-		CurlService $curlService, ConfigService $configService,
+		PersonService $personService, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;

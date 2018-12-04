@@ -63,7 +63,7 @@ class Create extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setActorId($this->get('actor', $data, ''));
+		$this->setActorId($this->validate(ACore::AS_ID, 'actor', $data, ''));
 	}
 
 
