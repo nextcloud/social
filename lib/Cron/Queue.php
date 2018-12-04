@@ -89,6 +89,7 @@ class Queue extends TimedJob {
 		$this->activityService->manageInit();
 
 		foreach ($requests as $request) {
+			$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
 			try {
 				$this->activityService->manageRequest($request);
 			} catch (RequestException $e) {

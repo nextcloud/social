@@ -68,6 +68,10 @@ class ActivityService {
 
 	const REQUEST_INBOX = 1;
 
+	const TIMEOUT_LIVE = 2;
+	const TIMEOUT_ASYNC = 5;
+	const TIMEOUT_SERVICE = 10;
+
 	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
@@ -242,6 +246,7 @@ class ActivityService {
 
 		try {
 			$directRequest = $this->queueService->getPriorityRequest($token);
+			$directRequest->setTimeout(self::TIMEOUT_LIVE);
 			$this->manageRequest($directRequest);
 		} catch (RequestException $e) {
 		} catch (NoHighPriorityRequestException $e) {
@@ -280,9 +285,7 @@ class ActivityService {
 		}
 
 		try {
-			$result = $this->generateRequest(
-				$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
-			);
+			$result = $this->generateRequestFromQueue($queue);
 		} catch (ActorDoesNotExistException $e) {
 			$this->queueService->deleteRequest($queue);
 
@@ -362,9 +365,7 @@ class ActivityService {
 
 
 	/**
-	 * @param InstancePath $path
-	 * @param string $activity
-	 * @param string $author
+	 * @param RequestQueue $queue
 	 *
 	 * @return Request[]
 	 * @throws ActorDoesNotExistException
@@ -372,10 +373,15 @@ class ActivityService {
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
-	public function generateRequest(InstancePath $path, string $activity, string $author): array {
+	public function generateRequestFromQueue(RequestQueue $queue): array {
+		//InstancePath $path, string $activity, string $author
+//		$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
+//			);
+		$path = $queue->getInstance();
+
 //		$document = json_encode($activity);
 		$date = gmdate(self::DATE_FORMAT);
-		$localActor = $this->getActorFromAuthor($author);
+		$localActor = $this->getActorFromAuthor($queue->getAuthor());
 
 		$localActorLink =
 			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
@@ -397,11 +403,12 @@ class ActivityService {
 		}
 
 		$request = new Request($path->getPath(), $requestType);
+		$request->setTimeout($queue->getTimeout());
 		$request->addHeader('Host: ' . $path->getAddress());
 		$request->addHeader('Date: ' . $date);
 		$request->addHeader('Signature: ' . $header);
 
-		$request->setDataJson($activity);
+		$request->setDataJson($queue->getActivity());
 		$request->setAddress($path->getAddress());
 
 		return $this->curlService->request($request);
