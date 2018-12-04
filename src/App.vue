@@ -57,7 +57,7 @@
 	@media (min-width: 1200px) {
 		#app-content .social__wrapper {
 			margin: 15px calc(50% - 350px - 75px);
-			max-width: 700px;
+			max-width: 600px;
 		}
 	}
 

@@ -28,7 +28,7 @@
 
 <style scoped>
 	.social__timeline {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 	}
 </style>

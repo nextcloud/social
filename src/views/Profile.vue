@@ -31,12 +31,12 @@
 
 <style scoped>
 	.social__wrapper {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 	}
 
 	.social__welcome {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 		padding: 15px;
 		border-radius: 10px;
@@ -56,7 +56,7 @@
 	}
 
 	.social__timeline {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 	}
 

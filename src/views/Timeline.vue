@@ -39,7 +39,7 @@
 		padding-top: 20px;
 	}
 	.social__welcome {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 		padding: 15px;
 		border-bottom: 1px solid var(--color-border);
@@ -66,7 +66,7 @@
 	}
 
 	.social__timeline {
-		max-width: 700px;
+		max-width: 600px;
 		margin: 15px auto;
 	}
 
