@@ -113,7 +113,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromId(string $id): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToIdString($qb, $id, false);
+		$this->limitToIdString($qb, $id);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
 		$cursor = $qb->execute();
