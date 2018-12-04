@@ -664,21 +664,28 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
-	 * @param string $viewerId
 	 * @param bool $asFollower
 	 * @param string $prefix
+	 * @param string $pf
 	 */
 	protected function leftJoinFollowAsViewer(
-		IQueryBuilder &$qb, string $fieldActorId, string $viewerId, bool $asFollower = true,
-		string $prefix = 'follow'
+		IQueryBuilder &$qb, string $fieldActorId, bool $asFollower = true,
+		string $prefix = 'follow', string $pf = ''
 	) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
 
+		$viewerId = $this->getViewerId();
+		if ($viewerId === '') {
+			return;
+		}
+
 		$expr = $qb->expr();
 		$func = $qb->func();
-		$pf = $this->defaultSelectAlias;
+		if ($pf === '') {
+			$pf = $this->defaultSelectAlias;
+		}
 
 		$andX = $expr->andX();
 		if ($asFollower === true) {
@@ -748,6 +755,43 @@ class CoreRequestBuilder {
 	}
 
 
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $fieldActorId
+	 * @param string $pf
+	 */
+	protected function leftJoinDetails(
+		IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = ''
+	) {
+		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
+		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param array $data
+	 */
+	protected function assignDetails(Person $actor, array $data) {
+		if ($this->getViewerId() !== '') {
+
+			try {
+				$this->parseFollowLeftJoin($data, 'as_follower');
+				$actor->addDetailBool('following', true);
+			} catch (InvalidResourceException $e) {
+				$actor->addDetailBool('following', false);
+			}
+
+			try {
+				$this->parseFollowLeftJoin($data, 'as_followed');
+				$actor->addDetailBool('followed', true);
+			} catch (InvalidResourceException $e) {
+				$actor->addDetailBool('followed', false);
+			}
+
+			$actor->setCompleteDetails(true);
+		}
+	}
 }
 
 

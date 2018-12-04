@@ -43,6 +43,7 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
@@ -133,7 +134,8 @@ class ActivityPubController extends Controller {
 
 			return $this->directSuccess($actor);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			http_response_code(404);
+			exit();
 		}
 	}
 
@@ -181,7 +183,7 @@ class ActivityPubController extends Controller {
 
 			return $this->success([]);
 		} catch (SignatureIsGoneException $e) {
-			return $this->fail($e, [], Http::STATUS_GONE);
+			return $this->fail($e, [], Http::STATUS_GONE, false);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

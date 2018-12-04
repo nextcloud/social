@@ -72,6 +72,10 @@ class FollowService implements ICoreService {
 	private $miscService;
 
 
+	/** @var string */
+	private $viewerId = '';
+
+
 	/**
 	 * NoteService constructor.
 	 *
@@ -91,6 +95,19 @@ class FollowService implements ICoreService {
 		$this->activityService = $activityService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @param string $viewerId
+	 */
+	public function setViewerId(string $viewerId) {
+		$this->viewerId = $viewerId;
+		$this->followsRequest->setViewerId($viewerId);
+	}
+
+	public function getViewerId(): string {
+		return $this->viewerId;
 	}
 
 
@@ -273,6 +290,13 @@ class FollowService implements ICoreService {
 			}
 
 		}
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function save(ACore $item) {
 	}
 
 

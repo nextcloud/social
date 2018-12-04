@@ -79,6 +79,9 @@ class RequestQueue implements JsonSerializable {
 	/** @var int */
 	private $last = 0;
 
+	/** @var int */
+	private $timeout = 5;
+
 
 	/**
 	 * RequestQueue constructor.
@@ -284,6 +287,24 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
+
+	/**
+	 * @param int $timeout
+	 *
+	 * @return RequestQueue
+	 */
+	public function setTimeout(int $timeout): RequestQueue {
+		$this->timeout = $timeout;
+
+		return $this;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getTimeout(): int {
+		return $this->timeout;
+	}
 
 	/**
 	 * @param array $data

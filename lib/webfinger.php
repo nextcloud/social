@@ -28,7 +28,13 @@ declare(strict_types=1);
 
 namespace OCA\Social;
 
+
+use Exception;
+use OCA\Social\Service\ActorService;
+use OCP\AppFramework\QueryException;
+
 require_once(__DIR__ . '/../appinfo/autoload.php');
+
 
 if (!array_key_exists('resource', $_GET)) {
 	echo 'missing resource';
@@ -47,6 +53,16 @@ if ($type !== 'acct') {
 
 
 $username = substr($account, 0, strrpos($account, '@'));
+
+/** @var ActorService $actorService */
+try {
+	$actorService = \OC::$server->query(ActorService::class);
+	$actorService->getActor($username);
+} catch (Exception $e) {
+	http_response_code(404);
+	exit;
+}
+
 $finger = [
 	'subject' => $subject,
 	'links'   => [
@@ -59,6 +75,7 @@ $finger = [
 		]
 	]
 ];
+
 
 header('Content-type: application/json');
 

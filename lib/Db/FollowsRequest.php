@@ -34,6 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -173,6 +174,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToOBjectId($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'actor_id');
+		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('creation', 'desc');
 
 		$follows = [];
@@ -195,6 +197,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToActorId($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'object_id');
+		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('creation', 'desc');
 
 		$follows = [];

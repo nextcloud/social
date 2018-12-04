@@ -148,6 +148,11 @@ class QueueService {
 	}
 
 
+	/**
+	 * @param int $total
+	 *
+	 * @return RequestQueue[]
+	 */
 	public function getRequestStandby(int &$total = 0): array {
 		$requests = $this->requestQueueRequest->getStandby();
 		$total = sizeof($requests);
@@ -168,7 +173,7 @@ class QueueService {
 	 * @param string $token
 	 * @param int $status
 	 *
-	 * @return array
+	 * @return RequestQueue[]
 	 */
 	public function getRequestFromToken(string $token, int $status = -1): array {
 		if ($token === '') {

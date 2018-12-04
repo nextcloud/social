@@ -98,6 +98,7 @@ class QueueController extends Controller {
 		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		$this->activityService->manageInit();
 		foreach ($requests as $request) {
+			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
 			try {
 				$this->activityService->manageRequest($request);
 			} catch (RequestException $e) {

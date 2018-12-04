@@ -132,6 +132,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 
 		try {
 			$actor = $this->parseCacheActorsLeftJoin($data);
+			$actor->setCompleteDetails(true);
+			$this->assignDetails($actor, $data);
+
 			$follow->setCompleteDetails(true);
 			$follow->setActor($actor);
 		} catch (InvalidResourceException $e) {
