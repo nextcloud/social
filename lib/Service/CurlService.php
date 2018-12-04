@@ -152,8 +152,8 @@ class CurlService {
 		$headers[] = 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
 
 		curl_setopt($curl, CURLOPT_USERAGENT, $request->getUserAgent());
-		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($curl, CURLOPT_TIMEOUT, 20);
+		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, $request->getTimeout());
+		curl_setopt($curl, CURLOPT_TIMEOUT, $request->getTimeout());
 
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);

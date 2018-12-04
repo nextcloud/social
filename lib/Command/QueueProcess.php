@@ -109,6 +109,7 @@ class QueueProcess extends Base {
 
 		$this->activityService->manageInit();
 		foreach ($requests as $request) {
+			$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
 			$output->write('.');
 			try {
 				$this->activityService->manageRequest($request);
