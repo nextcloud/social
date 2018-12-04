@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 
 use JsonSerializable;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 
 
 /**
@@ -47,6 +48,9 @@ class Follow extends ACore implements JsonSerializable {
 
 	/** @var string */
 	private $followId = '';
+
+	/** @var bool */
+	private $accepted = false;
 
 
 	/**
@@ -81,7 +85,28 @@ class Follow extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function isAccepted(): bool {
+		return $this->accepted;
+	}
+
+	/**
+	 * @param bool $accepted
+	 *
+	 * @return Follow
+	 */
+	public function setAccepted(bool $accepted): Follow {
+		$this->accepted = $accepted;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param array $data
+	 *
+	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		parent::import($data);
@@ -94,6 +119,7 @@ class Follow extends ACore implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
+		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
 		$this->setFollowId($this->get('follow_id', $data, ''));
 	}
 
@@ -105,6 +131,8 @@ class Follow extends ACore implements JsonSerializable {
 		return array_merge(
 			parent::jsonSerialize(),
 			[
+				'follow_id' => $this->getFollowId(),
+				'accepted'  => $this->isAccepted()
 			]
 		);
 	}

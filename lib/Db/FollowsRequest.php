@@ -152,6 +152,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getByFollowId(string $followId): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToFollowId($qb, $followId);
+		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 
 		$follows = [];
@@ -173,6 +174,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getFollowersByActorId(string $actorId): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToOBjectId($qb, $actorId);
+		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('creation', 'desc');
@@ -196,6 +198,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getFollowingByActorId(string $actorId): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToActorId($qb, $actorId);
+		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'object_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('creation', 'desc');

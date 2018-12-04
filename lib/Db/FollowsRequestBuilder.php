@@ -83,7 +83,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.creation')
+		$qb->select(
+			'f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.accepted', 'f.creation'
+		)
 		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';

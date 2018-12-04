@@ -156,17 +156,22 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
+	 * Should returns:
+	 *  * Own posts,
+	 *  * Followed accounts
+	 *
 	 * @param string $actorId
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return array
 	 */
-	public function getHomeNotesForActorId(string $actorId, int $since = 0, int $limit = 5): array {
+	public function getStreamHome(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
 
 		$this->rightJoinFollowing($qb);
 		$this->limitToActorId($qb, $actorId, 'f');
+		$this->limitToAccepted($qb, true, 'f');
 		$qb->orWhere($this->exprLimitToDBField($qb, 'attributed_to', $actorId));
 
 		$this->limitPaginate($qb, $since, $limit);
@@ -184,19 +189,20 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
+ 	 * Should returns:
+	 *  * Private message.
+	 *  - group messages.
+
+	 * @param string $actorId
 	 * @param int $since
 	 * @param int $limit
-	 * @param bool $localOnly
 	 *
 	 * @return array
 	 */
-	public function getPublicNotes(int $since = 0, int $limit = 5, bool $localOnly = true): array {
+	public function getStreamDirect(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->limitToRecipient($qb, $actorId, true);
 		$this->limitPaginate($qb, $since, $limit);
-		if ($localOnly) {
-			$this->limitToLocal($qb, true);
-		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
@@ -211,17 +217,23 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
-	 * @param string $actorId
+	 * Should returns:
+	 *  - All local public/federated posts
+	 *
 	 * @param int $since
 	 * @param int $limit
+	 * @param bool $localOnly
 	 *
 	 * @return array
 	 */
-	public function getDirectNotesForActorId(string $actorId, int $since = 0, int $limit = 5
+	public function getStreamTimeline(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, $actorId, true);
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
+		if ($localOnly) {
+			$this->limitToLocal($qb, true);
+		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
