@@ -18,8 +18,9 @@
 				<div slot="no-more"><div class="list-end" /></div>
 				<div slot="no-results">
 					<div id="emptycontent">
-						<div class="icon-social" />
-						<h2>{{ t('social', 'No posts found.') }}</h2>
+						<img class="icon-illustration" src="../../img/undraw/posts.svg" alt="" />
+						<h2>{{ t('social', 'No posts found') }}</h2>
+						<p>{{ t('social', 'Posts from people you follow will show up here') }}</p>
 					</div>
 				</div>
 			</infinite-loading>
