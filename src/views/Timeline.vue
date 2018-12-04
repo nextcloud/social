@@ -1,5 +1,5 @@
 <template>
-	<div class="social__container">
+	<div class="social__wrapper">
 		<transition name="slide-fade">
 			<div v-if="showInfo" class="social__welcome">
 				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
@@ -28,16 +28,7 @@
 </template>
 
 <style scoped>
-	.social__container {
-		flex-grow: 1;
-	}
-	.social__profile {
-		max-width: 500px;
-		flex-grow: 1;
-		border-right: 1px solid var(--color-background-dark);
-		text-align: center;
-		padding-top: 20px;
-	}
+
 	.social__welcome {
 		max-width: 600px;
 		margin: 15px auto;
