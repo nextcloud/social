@@ -31,6 +31,7 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
@@ -81,6 +82,7 @@ class InstanceService {
 	 * @throws RequestException
 	 * @throws InvalidResourceException
 	 * @throws Request410Exception
+	 * @throws MalformedArrayException
 	 */
 	public function retrieveAccount(string $account) {
 		$account = $this->withoutBeginAt($account);
@@ -115,9 +117,11 @@ class InstanceService {
 	 * @return mixed
 	 * @throws RequestException
 	 * @throws Request410Exception
+	 * @throws MalformedArrayException
 	 */
 	public function retrieveObject($id) {
 		$url = parse_url($id);
+		$this->mustContains(['path', 'host'], $url);
 		$request = new Request($url['path'], Request::TYPE_GET);
 		$request->setAddress($url['host']);
 

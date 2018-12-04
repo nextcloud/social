@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service\ActivityPub;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Db\CacheActorsRequest;
@@ -140,6 +141,7 @@ class PersonService implements ICoreService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 * @throws Request410Exception
+	 * @throws MalformedArrayException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 
@@ -182,6 +184,7 @@ class PersonService implements ICoreService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 * @throws Request410Exception
+	 * @throws MalformedArrayException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 

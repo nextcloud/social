@@ -537,13 +537,14 @@ class LocalController extends Controller {
 
 				$response = new FileDisplayResponse($document);
 				$response->cacheFor(86400);
+
 				return $response;
 			}
-
-			return new NotFoundResponse();
 		} catch (Exception $e) {
-			return $this->fail($e);
 		}
+
+		http_response_code(404);
+		exit();
 	}
 
 
