@@ -183,7 +183,7 @@ class ActivityPubController extends Controller {
 
 			return $this->success([]);
 		} catch (SignatureIsGoneException $e) {
-			return $this->fail($e, [], Http::STATUS_GONE);
+			return $this->fail($e, [], Http::STATUS_GONE, false);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
