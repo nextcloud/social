@@ -26,13 +26,16 @@ export default {
 		serverData
 	],
 	computed: {
-		currentUser: function() {
+		currentUser() {
 			return OC.getCurrentUser()
 		},
-		socialId: function() {
+		socialId() {
+			return '@' + this.cloudId
+		},
+		cloudId() {
 			const url = document.createElement('a')
 			url.setAttribute('href', this.serverData.cloudAddress)
-			return '@' + OC.getCurrentUser().uid + '@' + url.hostname
+			return this.currentUser.uid + '@' + url.hostname
 		}
 	}
 }

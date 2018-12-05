@@ -27,7 +27,7 @@
 			<h2>{{ displayName }}</h2>
 			<p>{{ accountInfo.account }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
-			<template v-if="currentUser.uid !== accountInfo.preferredUsername">
+			<template v-if="cloudId !== accountInfo.account">
 				<button v-if="accountInfo.details && accountInfo.details.following" :class="{'icon-loading-small': followLoading}"
 					@click="unfollow()"
 					@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
@@ -100,7 +100,11 @@ export default {
 	components: {
 		Avatar
 	},
-	mixins: [serverData, currentUser, follow],
+	mixins: [
+		serverData,
+		currentUser,
+		follow
+	],
 	props: {
 		uid: {
 			type: String,

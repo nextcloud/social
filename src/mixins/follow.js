@@ -48,7 +48,7 @@ export default {
 			}).catch((error) => {
 				this.followLoading = false
 				OC.Notification.showTemporary(`Failed to follow user ${this.item.account}`)
-				console.error(`Failed to follow user ${this.item.account}`, error)
+				console.error(`Failed to follow user ${this.item.account}`, error.response.data)
 			})
 
 		},
@@ -63,7 +63,7 @@ export default {
 			}).catch((error) => {
 				this.followLoading = false
 				OC.Notification.showTemporary(`Failed to unfollow user ${this.item.account}`)
-				console.error(`Failed to unfollow user ${this.item.account}`, error)
+				console.error(`Failed to unfollow user ${this.item.account}`, error.response.data)
 			})
 		}
 	}
