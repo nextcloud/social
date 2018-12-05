@@ -68,6 +68,9 @@ abstract class ACore extends Item implements JsonSerializable {
 	/** @var ACore */
 	private $object = null;
 
+	/** @var Document */
+	private $icon = null;
+
 	/** @var ICoreService */
 	private $saveAs;
 
@@ -125,11 +128,44 @@ abstract class ACore extends Item implements JsonSerializable {
 	 *
 	 * @return ACore
 	 */
-	public function setObject(ACore $object): ACore {
+	public function setObject(ACore &$object): ACore {
+		$object->setParent($this);
 		$this->object = $object;
 
 		return $this;
 	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function gotIcon(): bool {
+		if ($this->icon === null) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * @return Document
+	 */
+	public function getIcon(): Document {
+		return $this->icon;
+	}
+
+	/**
+	 * @param Document $icon
+	 *
+	 * @return ACore
+	 */
+	public function setIcon(Document &$icon): ACore {
+		$icon->setParent($this);
+		$this->icon = $icon;
+
+		return $this;
+	}
+
 
 	/**
 	 * @param ICoreService $class
@@ -511,6 +547,7 @@ abstract class ACore extends Item implements JsonSerializable {
 			$this->addEntry('object', $this->getObjectId());
 		}
 
+		// TODO - moving the $this->icon to Model/Person ?
 		if ($this->gotIcon()) {
 			$this->addEntryItem('icon', $this->getIcon());
 		}

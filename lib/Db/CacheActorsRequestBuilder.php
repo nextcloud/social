@@ -114,7 +114,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		try {
 			$icon = $this->parseCacheDocumentsLeftJoin($data);
-			$icon->setParent($actor);
 			$actor->setIcon($icon);
 		} catch (InvalidResourceException $e) {
 		}

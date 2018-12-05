@@ -84,9 +84,6 @@ class Item {
 	/** @var string */
 	private $actorId = '';
 
-	/** @var Document */
-	private $icon = null;
-
 	/** @var string */
 	private $iconId = '';
 
@@ -514,34 +511,6 @@ class Item {
 	}
 
 
-	/**
-	 * @return bool
-	 */
-	public function gotIcon(): bool {
-		if ($this->icon === null) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * @return Document
-	 */
-	public function getIcon(): Document {
-		return $this->icon;
-	}
-
-	/**
-	 * @param Document $icon
-	 *
-	 * @return Item
-	 */
-	public function setIcon(Document $icon): Item {
-		$this->icon = $icon;
-
-		return $this;
-	}
 
 	/**
 	 * @return string

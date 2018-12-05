@@ -34,6 +34,7 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\ActivityPubFormatException;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
@@ -131,6 +132,7 @@ class ImportService {
 	 * @throws UnknownItemException
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
+	 * @throws InvalidResourceEntryException
 	 */
 	private function importFromData(array $data, $root = null): ACore {
 
@@ -182,7 +184,6 @@ class ImportService {
 
 		try {
 			$object = $this->importFromData($this->getArray('object', $data, []), $item);
-			$object->setParent($item);
 			$item->setObject($object);
 		} catch (UnknownItemException $e) {
 		}
@@ -190,7 +191,6 @@ class ImportService {
 		try {
 			/** @var Document $icon */
 			$icon = $this->importFromData($this->getArray('icon', $data, []), $item);
-			$icon->setParent($item);
 			$item->setIcon($icon);
 		} catch (UnknownItemException $e) {
 		}
