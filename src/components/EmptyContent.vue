@@ -22,7 +22,7 @@
 
 <template>
 	<div class="emptycontent">
-		<img class="icon-illustration" :src="'../' + item.image" alt="" />
+		<img :src="imageUrl" class="icon-illustration" alt="">
 		<h2>{{ item.title }}</h2>
 		<p>{{ item.description }}</p>
 	</div>
@@ -34,18 +34,23 @@ export default {
 	name: 'EmptyContent',
 	props: {
 		item: { type: Object, default: () => {} }
+	},
+	computed: {
+		imageUrl() {
+			return OC.linkTo('social', this.item.image)
+		}
 	}
 }
 </script>
 <style scoped>
 	.emptycontent {
-	    margin-top: 5vh;
+		margin-top: 5vh;
 	}
 
 	.emptycontent .icon-illustration {
-	    height: 256px;
-	    width: 256px;
-	    margin: 0;
-	    opacity: 1;
+		height: 256px;
+		width: 256px;
+		margin: 0;
+		opacity: 1;
 	}
 </style>
