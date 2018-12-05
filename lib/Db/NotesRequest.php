@@ -201,10 +201,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -230,9 +230,9 @@ class NotesRequest extends NotesRequestBuilder {
 	 */
 	public function getStreamDirect(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, $actorId, true);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->limitToRecipient($qb, $actorId, true);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -258,12 +258,12 @@ class NotesRequest extends NotesRequestBuilder {
 	public function getStreamTimeline(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
 		if ($localOnly) {
 			$this->limitToLocal($qb, true);
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 
 		$notes = [];
 		$cursor = $qb->execute();
