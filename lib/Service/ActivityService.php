@@ -543,7 +543,7 @@ class ActivityService {
 
 		$target = '';
 		try {
-			$target = strtolower($request->getMethod()) . " " . $request->getPathInfo();
+			$target = strtolower($request->getMethod()) . " " . $request->getRequestUri();
 		} catch (Exception $e) {
 		}
 

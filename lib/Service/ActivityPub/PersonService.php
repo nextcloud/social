@@ -38,6 +38,7 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
@@ -227,6 +228,7 @@ class PersonService implements ICoreService {
 	 * @throws InvalidResourceException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws InvalidResourceEntryException
 	 */
 	private function generateActorFromObject(array $object) {
 
