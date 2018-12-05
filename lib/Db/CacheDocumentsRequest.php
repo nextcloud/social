@@ -162,5 +162,16 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		return $documents;
 	}
 
+
+	/**
+	 * @param string $url
+	 */
+	public function deleteByUrl(string $url) {
+		$qb = $this->getCacheDocumentsDeleteSql();
+		$this->limitToUrl($qb, $url);
+
+		$qb->execute();
+	}
+
 }
 

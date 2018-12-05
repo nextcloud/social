@@ -65,7 +65,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function create(Person $actor): string {
 
 		$id = $this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername();
-
 		$qb = $this->getActorsInsertSql();
 
 		$qb->setValue('id', $qb->createNamedParameter($id))
@@ -73,6 +72,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
 		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+		   ->setValue('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
 		   ->setValue(
 			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 		   )
@@ -82,6 +82,15 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb->execute();
 
 		return $id;
+	}
+
+
+	public function update(Person $actor) {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()));
+		$this->limitToIdString($qb, $actor->getId());
+
+		$qb->execute();
 	}
 
 

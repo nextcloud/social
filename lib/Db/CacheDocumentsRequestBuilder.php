@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Model\ActivityPub\Image;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheDocumentsRequestBuilder extends CoreRequestBuilder {

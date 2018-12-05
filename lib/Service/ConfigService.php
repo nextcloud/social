@@ -31,6 +31,8 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
+use OC\IntegrityCheck\Helpers\AppLocator;
+use OCA\Files\App;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\IConfig;
@@ -163,18 +165,25 @@ class ConfigService {
 	 * Get a user value by key
 	 *
 	 * @param string $key
+	 * @param string $userId
+	 * @param string $app
 	 *
 	 * @return string
 	 */
-	public function getUserValue($key) {
-		$defaultValue = null;
-		if (array_key_exists($key, $this->defaults)) {
-			$defaultValue = $this->defaults[$key];
+	public function getUserValue(string $key, string $userId = '', string $app = '') {
+		if ($userId === '') {
+			$userId = $this->userId;
 		}
 
-		return $this->config->getUserValue(
-			$this->userId, Application::APP_NAME, $key, $defaultValue
-		);
+		$defaultValue = '';
+		if ($app === '') {
+			$app = Application::APP_NAME;
+			if (array_key_exists($key, $this->defaults)) {
+				$defaultValue = $this->defaults[$key];
+			}
+		}
+
+		return $this->config->getUserValue($userId, $app, $key, $defaultValue);
 	}
 
 	/**

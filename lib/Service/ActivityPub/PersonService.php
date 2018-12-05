@@ -127,6 +127,7 @@ class PersonService implements ICoreService {
 
 		$actor->setLocal(true);
 		$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
+
 		$this->save($actor);
 	}
 

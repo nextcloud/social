@@ -88,6 +88,9 @@ class Item {
 	private $icon = null;
 
 	/** @var string */
+	private $iconId = '';
+
+	/** @var string */
 	private $objectId = '';
 
 	/** @var bool */
@@ -536,6 +539,24 @@ class Item {
 	 */
 	public function setIcon(Document $icon): Item {
 		$this->icon = $icon;
+
+		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getIconId(): string {
+		return $this->iconId;
+	}
+
+	/**
+	 * @param string $iconId
+	 *
+	 * @return Item
+	 */
+	public function setIconId(string $iconId): Item {
+		$this->iconId = $iconId;
 
 		return $this;
 	}
