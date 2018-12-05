@@ -45,7 +45,7 @@ use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCP\Accounts\IAccountManager;
-use OCP\IURLGenerator;
+use OCP\Accounts\PropertyDoesNotExistException;
 use OCP\IUserManager;
 
 
@@ -59,6 +59,9 @@ class ActorService {
 
 	use TArrayTools;
 
+
+	/** @var IUserManager */
+	private $userManager;
 
 	/** @var IAccountManager */
 	private $accountManager;
@@ -88,6 +91,7 @@ class ActorService {
 	/**
 	 * ActorService constructor.
 	 *
+	 * @param IUserManager $userManager
 	 * @param IAccountManager $accountManager
 	 * @param ActorsRequest $actorsRequest
 	 * @param FollowsRequest $followsRequest
@@ -98,10 +102,11 @@ class ActorService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IAccountManager $accountManager, ActorsRequest $actorsRequest,
+		IUserManager $userManager, IAccountManager $accountManager, ActorsRequest $actorsRequest,
 		FollowsRequest $followsRequest, NotesRequest $notesRequest, PersonService $personService,
 		DocumentService $documentService, ConfigService $configService, MiscService $miscService
 	) {
+		$this->userManager = $userManager;
 		$this->accountManager = $accountManager;
 		$this->actorsRequest = $actorsRequest;
 		$this->followsRequest = $followsRequest;
@@ -269,9 +274,29 @@ class ActorService {
 			];
 			$actor->addDetailArray('count', $count);
 
+			$this->updateCacheLocalActorName($actor);
+
 			$this->personService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {
 		}
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	private function updateCacheLocalActorName(Person &$actor) {
+		$user = $this->userManager->get($actor->getUserId());
+		$account = $this->accountManager->getAccount($user);
+
+		try {
+			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
+			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
+				$actor->setName($displayNameProperty->getValue());
+			}
+		} catch (PropertyDoesNotExistException $e) {
+		}
+
 	}
 
 
