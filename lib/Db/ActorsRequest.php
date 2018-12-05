@@ -97,6 +97,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function getFromUsername(string $username): Person {
 		$qb = $this->getActorsSelectSql();
 		$this->limitToPreferredUsername($qb, $username);
+		$this->limitToLocal($qb, true);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();

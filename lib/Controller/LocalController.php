@@ -465,9 +465,9 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountFollowers(string $username): DataResponse {
-		$this->initViewer();
-
 		try {
+			$this->initViewer();
+
 			$actor = $this->actorService->getActor($username);
 			$followers = $this->followService->getFollowers($actor);
 
@@ -574,7 +574,7 @@ class LocalController extends Controller {
 				throw new InvalidResourceException('no avatar for this Actor');
 			}
 		} catch (Exception $e) {
-			return $this->fail($e, [], Http::STATUS_NOT_FOUND);
+			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		}
 	}
 
@@ -594,6 +594,14 @@ class LocalController extends Controller {
 	 */
 	public function globalAccountsSearch(string $search): DataResponse {
 		$this->initViewer();
+
+		if (substr($search, 0, 1) === '@') {
+			$search = substr($search, 1);
+		}
+
+		if ($search === '') {
+			return $this->success(['accounts' => [], 'exact' => []]);
+		}
 
 		/* Look for an exactly matching account */
 		$match = null;

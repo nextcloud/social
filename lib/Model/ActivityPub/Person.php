@@ -246,6 +246,10 @@ class Person extends ACore implements JsonSerializable {
 	 * @return Person
 	 */
 	public function setAccount(string $account): Person {
+		if ($account !== '' && substr($account, 0, 1) === '@') {
+			$account = substr($account, 1);
+		}
+
 		$this->account = $account;
 
 		return $this;
