@@ -296,7 +296,8 @@ class ActivityService {
 		}
 
 		try {
-			if ($this->getint('_code', $result, 500) === 202) {
+			$accepted = [200, 202];
+			if (in_array($this->getint('_code', $result, 500), $accepted)) {
 				$this->queueService->endRequest($queue, true);
 			} else {
 				$this->queueService->endRequest($queue, false);

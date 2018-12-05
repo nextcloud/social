@@ -76,6 +76,7 @@ class CurlService {
 	 * @throws Request410Exception
 	 */
 	public function request(Request $request): array {
+
 		$curl = $this->initRequest($request);
 
 		$this->initRequestPost($curl, $request);
@@ -105,10 +106,17 @@ class CurlService {
 		$ret['_path'] = $request->getUrl();
 		$ret['_code'] = $code;
 
+		$this->miscService->log(
+			'[>>] request: ' . json_encode($request) . ' - result: ' . json_encode($ret), 1
+		);
+
 		return $ret;
 	}
 
 
+	/**
+	 * @param Request $request
+	 */
 	public function assignUserAgent(Request $request) {
 		$request->setUserAgent(
 			self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version')

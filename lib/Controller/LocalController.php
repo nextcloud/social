@@ -33,12 +33,11 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
-use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\AccountAlreadyExistsException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\FollowService;
@@ -51,7 +50,6 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
-use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
@@ -91,6 +89,10 @@ class LocalController extends Controller {
 
 	/** @var MiscService */
 	private $miscService;
+
+
+	/** @var Person */
+	private $viewer;
 
 
 	/**
@@ -204,10 +206,36 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function streamHome($since = 0, int $limit = 5): DataResponse {
-
 		try {
-			$actor = $this->actorService->getActorFromUserId($this->userId);
-			$posts = $this->noteService->getHomeNotesForActor($actor, $since, $limit);
+			$this->initViewer(true);
+			$posts = $this->noteService->getStreamHome($this->viewer->getId(), $since, $limit);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * // TODO: Delete the NoCSRF check
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param string $username
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamAccount(string $username, $since = 0, int $limit = 5): DataResponse {
+		try {
+			$this->initViewer();
+
+			$account = $this->actorService->getActor($username);
+			$posts = $this->noteService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -229,10 +257,9 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
-
 		try {
-			$actor = $this->actorService->getActorFromUserId($this->userId);
-			$posts = $this->noteService->getDirectNotesForActor($actor, $since, $limit);
+			$this->initViewer();
+			$posts = $this->noteService->getStreamDirect($this->viewer->getId(), $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -257,7 +284,7 @@ class LocalController extends Controller {
 	 */
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
 		try {
-			$posts = $this->noteService->getLocalTimeline($since, $limit);
+			$posts = $this->noteService->getStreamLocalTimeline($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -281,7 +308,7 @@ class LocalController extends Controller {
 	 */
 	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
 		try {
-			$posts = $this->noteService->getFederatedTimeline($since, $limit);
+			$posts = $this->noteService->getStreamGlobalTimeline($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -368,9 +395,9 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function currentFollowers(): DataResponse {
-		$this->initViewer();
-
 		try {
+			$this->initViewer();
+
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$followers = $this->followService->getFollowers($actor);
 
@@ -389,9 +416,9 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function currentFollowing(): DataResponse {
-		$this->initViewer();
-
 		try {
+			$this->initViewer();
+
 			$actor = $this->actorService->getActorFromUserId($this->userId);
 			$followers = $this->followService->getFollowing($actor);
 
@@ -415,9 +442,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountInfo(string $username): DataResponse {
-		$this->initViewer();
-
 		try {
+			$this->initViewer();
 
 			$actor = $this->actorService->getActor($username);
 			$actor = $this->personService->getFromLocalAccount($actor->getPreferredUsername());
@@ -462,9 +488,10 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function accountFollowing(string $username): DataResponse {
-		$this->initViewer();
 
 		try {
+			$this->initViewer();
+
 			$actor = $this->actorService->getActor($username);
 			$following = $this->followService->getFollowing($actor);
 
@@ -488,9 +515,9 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function globalAccountInfo(string $account): DataResponse {
-		$this->initViewer();
-
 		try {
+			$this->initViewer();
+
 			$actor = $this->personService->getFromAccount($account);
 
 			return $this->success(['account' => $actor]);
@@ -513,9 +540,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	public function globalActorInfo(string $id): DataResponse {
-		$this->initViewer();
-
 		try {
+			$this->initViewer();
 			$actor = $this->personService->getFromId($id);
 
 			return $this->success(['actor' => $actor]);
@@ -617,14 +643,22 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @throws Exception
+	 *
+	 * @param bool $exception
+	 *
+	 * @throws AccountDoesNotExistException
 	 */
-	private function initViewer() {
+	private function initViewer(bool $exception = false) {
 		try {
-			$viewer = $this->actorService->getActorFromUserId($this->userId, true);
-			$this->followService->setViewerId($viewer->getId());
-			$this->personService->setViewerId($viewer->getId());
+			$this->viewer = $this->actorService->getActorFromUserId($this->userId, true);
+
+			$this->followService->setViewerId($this->viewer->getId());
+			$this->personService->setViewerId($this->viewer->getId());
+			$this->noteService->setViewerId($this->viewer->getId());
 		} catch (Exception $e) {
+			if ($exception) {
+				throw new AccountDoesNotExistException();
+			}
 		}
 	}
 

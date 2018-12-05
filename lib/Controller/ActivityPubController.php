@@ -170,7 +170,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('Shared Inbox: ' . $body, 0);
+			$this->miscService->log('[<<] shared-inbox: ' . $body, 1);
 
 			$origin = $this->activityService->checkRequest($this->request);
 
@@ -205,7 +205,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('Inbox: ' . $body, 0);
+			$this->miscService->log('[<<] inbox: ' . $body, 1);
 
 			$origin = $this->activityService->checkRequest($this->request);
 
@@ -322,6 +322,16 @@ class ActivityPubController extends Controller {
 
 		// uncomment this line to display the result that would be return to an ActivityPub service (TEST)
 		// return true;
+
+		// TODO - cleaner to being able to parse:
+		//  - 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+		//  - 'application/activity+json, application/ld+json'
+		$accept = explode(',', $this->request->getHeader('Accept'));
+		$accept = array_map('trim', $accept);
+
+		if (in_array('application/ld+json', $accept)) {
+			return true;
+		}
 
 		if ($this->request->getHeader('Accept')
 			=== 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') {

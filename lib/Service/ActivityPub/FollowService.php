@@ -129,11 +129,14 @@ class FollowService implements ICoreService {
 		$follow->generateUniqueId();
 		$follow->setActorId($actor->getId());
 		$follow->setObjectId($remoteActor->getId());
+		$follow->setFollowId($remoteActor->getFollowers());
 
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 		} catch (FollowDoesNotExistException $e) {
 			$this->followsRequest->save($follow);
+			// TODO - Remove this auto-accepted.
+			$this->followsRequest->accepted($follow);
 
 			$follow->addInstancePath(
 				new InstancePath(
@@ -258,7 +261,14 @@ class FollowService implements ICoreService {
 			$follow->checkOrigin($follow->getActorId());
 
 			try {
-				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
+				$knownFollow = $this->followsRequest->getByPersons(
+					$follow->getActorId(), $follow->getObjectId()
+				);
+				// in case of local follower.
+				// TODO - remove when following a local account does not need curl request anymore
+				if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
+					$this->confirmFollowRequest($follow);
+				}
 			} catch (FollowDoesNotExistException $e) {
 				$actor = $this->personService->getFromId($follow->getObjectId());
 				if ($actor->isLocal()) {

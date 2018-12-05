@@ -7,14 +7,19 @@
 				<avatar v-else :size="32" :url="avatarUrl" />
 			</div>
 			<div class="post-content">
+				{{ item.account_info }}
+
 				<div class="post-author-wrapper">
 					<router-link v-if="item.actor_info && item.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
-					<a v-else :href="item.actor_info.url">
+					<a v-else-if="item.actor_info" :href="item.actor_info.url">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
+					</a>
+					<a v-else :href="item.attributedTo">
+						<span class="post-author-id">{{ item.attributedTo }}</span>
 					</a>
 				</div>
 				<div class="post-message" v-html="formatedMessage" />

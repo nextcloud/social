@@ -218,10 +218,10 @@ class CoreRequestBuilder {
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param bool $accepted
+	 * @param string $alias
 	 */
-	protected function limitToAccepted(IQueryBuilder &$qb, bool $accepted) {
-		$this->limitToDBField($qb, 'accepted', ($accepted) ? '1' : '0');
-
+	protected function limitToAccepted(IQueryBuilder &$qb, bool $accepted, string $alias = '') {
+		$this->limitToDBField($qb, 'accepted', ($accepted) ? '1' : '0', true, $alias);
 	}
 
 
@@ -458,13 +458,37 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param int $value
+	 * @param string $alias
 	 */
-	protected function limitToDBFieldInt(IQueryBuilder &$qb, string $field, int $value) {
+	protected function limitToDBFieldInt(
+		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
+	) {
+		$expr = $this->exprLimitToDBFieldInt($qb, $field, $value, $alias);
+		$qb->andWhere($expr);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param int $value
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	protected function exprLimitToDBFieldInt(
+		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
+	): string {
 		$expr = $qb->expr();
-		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+
+		$pf = '';
+		if ($qb->getType() === QueryBuilder::SELECT) {
+			$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
+		}
 		$field = $pf . $field;
 
-		$qb->andWhere($expr->eq($field, $qb->createNamedParameter($value)));
+
+		return $expr->eq($field, $qb->createNamedParameter($value));
 	}
 
 
@@ -688,6 +712,7 @@ class CoreRequestBuilder {
 		}
 
 		$andX = $expr->andX();
+		$andX->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f'));
 		if ($asFollower === true) {
 			$andX->add(
 				$expr->eq(

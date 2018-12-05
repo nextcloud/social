@@ -21,30 +21,26 @@
   -->
 
 <template>
-	<div class="social__timeline">
-		<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
-	</div>
+	<timeline-list />
 </template>
 
 <style scoped>
-	.social__timeline {
-		max-width: 600px;
-		margin: 15px auto;
-	}
+
 </style>
 
 <script>
-import TimelineEntry from './../components/TimelineEntry'
+import TimelineList from './../components/TimelineList'
 
 export default {
 	name: 'ProfileTimeline',
 	components: {
-		TimelineEntry
+		TimelineList
 	},
 	computed: {
-		timeline: function() {
-			return this.$store.getters.getTimeline
-		}
+
+	},
+	beforeMount: function() {
+		this.$store.dispatch('changeTimelineTypeAccount', this.$route.params.account)
 	}
 }
 </script>
