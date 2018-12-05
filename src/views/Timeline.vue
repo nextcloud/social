@@ -5,11 +5,11 @@
 				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
 				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
 				<p>
-					{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
+					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:') }}
 					<span class="social-id">{{ socialId }}</span>
 				</p>
 				<div ng-show="followingNextcloud" class="follow-nextcloud">
-					<p>{{ t('social', 'Since you are new to social, you might be interested to follow the Nextcloud account, so you don\'t miss any news') }}</p>
+					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
 					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')" type="button" class="primary"
 						@click="followNextcloud">
 				</div>
