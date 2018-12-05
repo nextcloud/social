@@ -296,7 +296,6 @@ class ActorService {
 			}
 		} catch (PropertyDoesNotExistException $e) {
 		}
-
 	}
 
 
