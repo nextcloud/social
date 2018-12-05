@@ -206,10 +206,7 @@ class DocumentService implements ICoreService {
 		$versionCurrent =
 			(int)$this->configService->getUserValue('version', $actor->getUserId(), 'avatar');
 		$versionCached = $actor->getAvatarVersion();
-
 		if ($versionCurrent > $versionCached) {
-			echo $actor->getUserId() . '  ' . $versionCurrent . '   ' . $versionCached . "\n";
-
 			$icon = new Image();
 			$icon->setUrl($url);
 			$icon->setUrlcloud($this->configService->getCloudAddress());
