@@ -26,7 +26,8 @@ import Vue from 'vue'
 const state = {
 	timeline: {},
 	since: Math.floor(Date.now() / 1000) + 1,
-	type: 'home'
+	type: 'home',
+	account: ''
 }
 const mutations = {
 	addToTimeline(state, data) {
@@ -41,6 +42,9 @@ const mutations = {
 	},
 	setTimelineType(state, type) {
 		state.type = type
+	},
+	setAccount(state, account) {
+		state.account = account
 	}
 }
 const getters = {
@@ -54,6 +58,12 @@ const actions = {
 	changeTimelineType(context, type) {
 		context.commit('resetTimeline')
 		context.commit('setTimelineType', type)
+		context.commit('setAccount', '')
+	},
+	changeTimelineTypeAccount(context, account) {
+		context.commit('resetTimeline')
+		context.commit('setTimelineType', 'account')
+		context.commit('setAccount', account)
 	},
 	post(context, post) {
 		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
@@ -64,14 +74,20 @@ const actions = {
 			console.error('Failed to create a post', error)
 		})
 	},
-	refreshTimeline(context, account) {
-		return this.dispatch('fetchTimeline', { account: account, sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
+	refreshTimeline(context) {
+		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},
-	fetchTimeline(context, { account, sinceTimestamp }) {
+	fetchTimeline(context, { sinceTimestamp }) {
 		if (typeof sinceTimestamp === 'undefined') {
 			sinceTimestamp = state.since - 1
 		}
-		return axios.get(OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=5&since=` + sinceTimestamp)).then((response) => {
+		let url
+		if (state.type === 'account') {
+			url = OC.generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
+		} else {
+			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
+		}
+		return axios.get(url).then((response) => {
 			if (response.status === -1) {
 				throw response.message
 			}

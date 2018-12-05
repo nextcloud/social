@@ -499,9 +499,7 @@ export default {
 			this.$store.dispatch('post', this.getPostData()).then((response) => {
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
-				this.$store.dispatch('refreshTimeline', {
-					account: this.currentUser.uid
-				})
+				this.$store.dispatch('refreshTimeline')
 			})
 		},
 		remoteSearch(text) {

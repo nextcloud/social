@@ -10,17 +10,8 @@
 				</p>
 			</div>
 		</transition>
-		<div class="social__timeline">
-			<composer />
-			<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
-			<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
-				<div slot="spinner"><div class="icon-loading" /></div>
-				<div slot="no-more"><div class="list-end" /></div>
-				<div slot="no-results">
-					<empty-content :item="emptyContentData" />
-				</div>
-			</infinite-loading>
-		</div>
+		<composer />
+		<timeline-list />
 	</div>
 </template>
 
@@ -88,6 +79,7 @@ import TimelineEntry from './../components/TimelineEntry'
 import Composer from './../components/Composer'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import EmptyContent from './../components/EmptyContent'
+import TimelineList from './../components/TimelineList'
 
 export default {
 	name: 'Timeline',
@@ -98,104 +90,24 @@ export default {
 		Multiselect,
 		Composer,
 		InfiniteLoading,
-		EmptyContent
+		EmptyContent,
+		TimelineList
 	},
 	mixins: [CurrentUserMixin],
 	data: function() {
 		return {
-			infoHidden: false,
-			state: [],
-			emptyContent: {
-				default: {
-					image: 'img/undraw/posts.svg',
-					title: t('social', 'No posts found'),
-					description: t('social', 'Posts from people you follow will show up here')
-				},
-				direct: {
-					image: 'img/undraw/direct.svg',
-					title: t('social', 'No direct messages found'),
-					description: t('social', 'Posts directed to you will show up here')
-				},
-				timeline: {
-					image: 'img/undraw/local.svg',
-					title: t('social', 'No local posts found'),
-					description: t('social', 'Posts from other people on this instance will show up here')
-				},
-				federated: {
-					image: 'img/undraw/global.svg',
-					title: t('social', 'No global posts found'),
-					description: t('social', 'Posts from federated instances will show up here')
-				}
-			}
+			infoHidden: false
 		}
 	},
 	computed: {
-		emptyContentData() {
-			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
-				return this.emptyContent[this.$route.params.type]
-			}
-			return this.emptyContent.default
-		},
 		type: function() {
 			if (this.$route.params.type) {
 				return this.$route.params.type
 			}
 			return 'home'
 		},
-		url: function() {
-			return OC.linkTo('social', 'img/nextcloud.png')
-		},
-		timeline: function() {
-			return this.$store.getters.getTimeline
-		},
 		showInfo() {
 			return this.$store.getters.getServerData.firstrun && !this.infoHidden
-		},
-		menu: function() {
-			let defaultCategories = [
-				{
-					id: 'social-timeline',
-					classes: [],
-					href: '#',
-					icon: 'icon-category-monitoring',
-					text: t('social', 'Timeline')
-				},
-				{
-					id: 'social-account',
-					classes: [],
-					href: '#',
-					icon: 'icon-category-user',
-					text: t('social', 'Profile')
-				},
-				{
-					id: 'social-friends',
-					classes: [],
-					href: '#',
-					icon: 'icon-category-social',
-					text: t('social', 'Friends')
-				},
-				{
-					id: 'social-favorites',
-					classes: [],
-					href: '#',
-					icon: 'icon-favorite',
-					text: t('social', 'Favorites')
-				},
-				{
-					id: 'social-direct-messages',
-					classes: [],
-					href: '#',
-					icon: 'icon-comment',
-					utils: {
-						counter: 3
-					},
-					text: t('social', 'Direct messages')
-				}
-			]
-			return {
-				items: defaultCategories,
-				loading: false
-			}
 		}
 	},
 	beforeMount: function() {
@@ -204,23 +116,6 @@ export default {
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
-		},
-		infiniteHandler($state) {
-			this.$store.dispatch('fetchTimeline', {
-				account: this.currentUser.uid
-			}).then((response) => {
-				if (response.status === -1) {
-					OC.Notification.showTemporary('Failed to load more timeline entries')
-					console.error('Failed to load more timeline entries', response)
-					$state.complete()
-					return
-				}
-				response.result.length > 0 ? $state.loaded() : $state.complete()
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to load more timeline entries')
-				console.error('Failed to load more timeline entries', error)
-				$state.complete()
-			})
 		}
 	}
 }
