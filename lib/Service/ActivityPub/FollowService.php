@@ -36,6 +36,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -121,9 +122,14 @@ class FollowService implements ICoreService {
 	 * @throws CacheActorDoesNotExistException
 	 * @throws InvalidResourceException
 	 * @throws UrlCloudException
+	 * @throws FollowSameAccountException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->personService->getFromAccount($account);
+		if ($remoteActor->getId() === $actor->getId()) {
+			throw new FollowSameAccountException("Don't follow yourself, be your own lead");
+		}
+
 		$follow = new Follow();
 		$follow->setUrlCloud($this->configService->getCloudAddress());
 		$follow->generateUniqueId();

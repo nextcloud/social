@@ -36,12 +36,14 @@
 				<!-- TODO check where the html is coming from to avoid security issues -->
 				<p v-html="item.summary" />
 			</div>
-			<button v-if="item.details && item.details.following" :class="{'icon-loading-small': followLoading}"
-				@click="unfollow()"
-				@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
-			<span><span class="icon-checkmark" />{{ followingText }}</span></button>
-			<button v-else-if="item.details" :class="{'icon-loading-small': followLoading}" class="primary"
-				@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
+			<template v-if="cloudId !== item.account">
+				<button v-if="item.details && item.details.following" :class="{'icon-loading-small': followLoading}"
+					@click="unfollow()"
+					@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
+				<span><span class="icon-checkmark" />{{ followingText }}</span></button>
+				<button v-else-if="item.details" :class="{'icon-loading-small': followLoading}" class="primary"
+					@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
+			</template>
 		</div>
 	</div>
 </template>
@@ -49,6 +51,7 @@
 <script>
 import { Avatar } from 'nextcloud-vue'
 import follow from '../mixins/follow'
+import currentUser from '../mixins/currentUserMixin'
 
 export default {
 	name: 'UserEntry',
@@ -56,7 +59,8 @@ export default {
 		Avatar
 	},
 	mixins: [
-		follow
+		follow,
+		currentUser
 	],
 	props: {
 		item: { type: Object, default: () => {} }
