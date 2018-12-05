@@ -204,6 +204,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToAttributedTo($qb, $actorId);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
 		$cursor = $qb->execute();
