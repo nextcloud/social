@@ -401,6 +401,7 @@ class CoreRequestBuilder {
 		if ($since > 0) {
 			$dTime = new \DateTime();
 			$dTime->setTimestamp($since);
+			// This line stuck on sqlite
 			$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
 		}
 

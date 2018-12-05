@@ -161,7 +161,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			)
 		);
 
-		$qb->rightJoin(
+		// TODO: SQLite does not support RIGHT JOIN
+//		$qb->rightJoin(
+		$qb->join(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f',
 			$orX
 		);
