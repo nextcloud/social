@@ -33,7 +33,7 @@
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div v-contenteditable:post.dangerousHTML="canType" ref="composerInput" class="message"
-					placeholder="Share a thought…" @keyup.enter="keyup" />
+					placeholder="What would you like to share?" @keyup.enter="keyup" />
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
 				@emoji="insert">

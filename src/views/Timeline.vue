@@ -17,10 +17,7 @@
 				<div slot="spinner"><div class="icon-loading" /></div>
 				<div slot="no-more"><div class="list-end" /></div>
 				<div slot="no-results">
-					<div id="emptycontent">
-						<div class="icon-social" />
-						<h2>{{ t('social', 'No posts found.') }}</h2>
-					</div>
+					<empty-content :item="emptyContentData" />
 				</div>
 			</infinite-loading>
 		</div>
@@ -90,6 +87,7 @@ import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './../components/TimelineEntry'
 import Composer from './../components/Composer'
 import CurrentUserMixin from './../mixins/currentUserMixin'
+import EmptyContent from './../components/EmptyContent'
 
 export default {
 	name: 'Timeline',
@@ -99,16 +97,45 @@ export default {
 		TimelineEntry,
 		Multiselect,
 		Composer,
-		InfiniteLoading
+		InfiniteLoading,
+		EmptyContent
 	},
 	mixins: [CurrentUserMixin],
 	data: function() {
 		return {
 			infoHidden: false,
-			state: []
+			state: [],
+			emptyContent: {
+				default: {
+					image: 'img/undraw/posts.svg',
+					title: t('social', 'No posts found'),
+					description: t('social', 'Posts from people you follow will show up here')
+				},
+				direct: {
+					image: 'img/undraw/direct.svg',
+					title: t('social', 'No direct messages found'),
+					description: t('social', 'Posts directed to you will show up here')
+				},
+				timeline: {
+					image: 'img/undraw/local.svg',
+					title: t('social', 'No local posts found'),
+					description: t('social', 'Posts from other people on this instance will show up here')
+				},
+				federated: {
+					image: 'img/undraw/global.svg',
+					title: t('social', 'No global posts found'),
+					description: t('social', 'Posts from federated instances will show up here')
+				}
+			}
 		}
 	},
 	computed: {
+		emptyContentData() {
+			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
+				return this.emptyContent[this.$route.params.type]
+			}
+			return this.emptyContent.default
+		},
 		type: function() {
 			if (this.$route.params.type) {
 				return this.$route.params.type
