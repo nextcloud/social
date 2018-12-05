@@ -189,10 +189,38 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
- 	 * Should returns:
+	 * Should returns:
+	 *  * public message from actorId.
+	 *  - to followers-only if follower is logged.
+	 *
+	 * @param string $actorId
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return array
+	 */
+	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
+		$qb = $this->getNotesSelectSql();
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->limitPaginate($qb, $since, $limit);
+		$this->limitToAttributedTo($qb, $actorId);
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+
+	/**
+	 * Should returns:
 	 *  * Private message.
 	 *  - group messages.
-
+	 *
 	 * @param string $actorId
 	 * @param int $since
 	 * @param int $limit

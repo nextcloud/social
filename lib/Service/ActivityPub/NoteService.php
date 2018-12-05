@@ -370,7 +370,7 @@ class NoteService implements ICoreService {
 	 * @return Note[]
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamHome($actorId, $since, $limit);
+		return $this->notesRequest->getStreamAccount($actorId, $since, $limit);
 	}
 
 
