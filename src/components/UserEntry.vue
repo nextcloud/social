@@ -92,6 +92,10 @@ export default {
 		flex-shrink: 0;
 	}
 
+	.post-author {
+		font-weight: bold;
+	}
+
 	.entry-content {
 		display: flex;
 		align-items: flex-start;

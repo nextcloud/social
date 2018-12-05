@@ -77,6 +77,10 @@ export default {
 		margin-top: 0;
 	}
 
+	.post-author {
+		font-weight: bold;
+	}
+
 	.post-author-id {
 		opacity: .7;
 	}
