@@ -9,7 +9,6 @@ Some requirements in this alpha stage are that your Nextcloud:
 - must be accessible from the internet
 - must run on the default port
 
-Mockup:
 ![](img/screenshot.png)
 
 - **🙋 Find your friends:** No matter if they use Nextcloud, [🐘 Mastodon](https://joinmastodon.org), [🇫 Friendica](https://friendi.ca), and soon [✱ Diaspora](https://joindiaspora.com), [👹 MediaGoblin](https://www.mediagoblin.org) and more – you can follow them!
