@@ -24,7 +24,8 @@
 	<div v-if="item" class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
-				<avatar v-if="item.local" :size="32" :user="item.preferredUsername" />
+				<avatar v-if="item.local" :size="32" :user="item.preferredUsername"
+					:disable-tooltip="true" />
 				<avatar v-else :url="avatarUrl" />
 			</div>
 			<div class="user-details">
