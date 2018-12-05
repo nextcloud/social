@@ -413,6 +413,16 @@ abstract class ACore extends Item implements JsonSerializable {
 
 				return $value;
 
+			case self::AS_USERNAME:
+				$value = strip_tags($value);
+
+				return $value;
+
+			case self::AS_ACCOUNT:
+				$value = strip_tags($value);
+
+				return $value;
+
 			default:
 				break;
 		}

@@ -405,7 +405,9 @@ class CoreRequestBuilder {
 		}
 
 		$qb->setMaxResults($limit);
-		$qb->orderBy('creation', 'desc');
+
+		$pf = $this->defaultSelectAlias;
+		$qb->orderBy($pf . '.creation', 'desc');
 	}
 
 
