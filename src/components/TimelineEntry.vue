@@ -3,12 +3,12 @@
 		<div class="entry-content">
 			<div v-if="item.actor_info" class="post-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
-					:display-name="item.actor_info.account" />
-				<avatar v-else :size="32" :url="avatarUrl" />
+					:display-name="item.actor_info.account" :disable-tooltip="true"
+				/>
+				<avatar v-else :size="32" :url="avatarUrl"
+					:disable-tooltip="true" />
 			</div>
 			<div class="post-content">
-				{{ item.account_info }}
-
 				<div class="post-author-wrapper">
 					<router-link v-if="item.actor_info && item.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
 						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>

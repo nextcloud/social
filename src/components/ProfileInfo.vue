@@ -23,7 +23,7 @@
 <template>
 	<div v-if="uid && accountInfo" class="user-profile">
 		<div class="user-profile--info">
-			<avatar :user="uid" :display-name="displayName" :size="128" />
+			<avatar :user="uid" :disable-tooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<p>{{ accountInfo.account }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>

@@ -23,7 +23,8 @@
 <template>
 	<div class="new-post" data-id="">
 		<div class="new-post-author">
-			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :size="32" />
+			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
+				:size="32" />
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<div class="author currentUser">
