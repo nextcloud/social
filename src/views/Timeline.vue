@@ -8,6 +8,11 @@
 					{{ t('social', 'We automatically created a social account for you. Your social ID is the same as your federated cloud ID:') }}
 					<span class="social-id">{{ socialId }}</span>
 				</p>
+				<div ng-show="followingNextcloud" class="follow-nextcloud">
+					<p>{{ t('social', 'Since you are new to social, you might be interested to follow the Nextcloud account, so you don\'t miss any news') }}</p>
+					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')" type="button" class="primary"
+						@click="followNextcloud">
+				</div>
 			</div>
 		</transition>
 		<composer />
@@ -44,6 +49,15 @@
 		font-weight: bold;
 	}
 
+	.social__welcome .follow-nextcloud {
+		overflow: hidden;
+		margin-top: 20px;
+	}
+
+	.social__welcome .follow-nextcloud input[type=button] {
+		float: right;
+	}
+
 	.social__timeline {
 		max-width: 600px;
 		margin: 15px auto;
@@ -78,6 +92,7 @@ import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './../components/TimelineEntry'
 import Composer from './../components/Composer'
 import CurrentUserMixin from './../mixins/currentUserMixin'
+import follow from './../mixins/follow'
 import EmptyContent from './../components/EmptyContent'
 import TimelineList from './../components/TimelineList'
 
@@ -93,10 +108,17 @@ export default {
 		EmptyContent,
 		TimelineList
 	},
-	mixins: [CurrentUserMixin],
+	mixins: [
+		CurrentUserMixin,
+		follow
+	],
 	data: function() {
 		return {
-			infoHidden: false
+			infoHidden: false,
+			followingNextcloud: false,
+			item: {
+				account: 'nextcloud@mastodon.xyz'
+			}
 		}
 	},
 	computed: {
@@ -116,6 +138,11 @@ export default {
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
+		},
+		followNextcloud() {
+			this.follow().then(() => {
+				this.followingNextcloud = true
+			})
 		}
 	}
 }
