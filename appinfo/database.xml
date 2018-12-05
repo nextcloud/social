@@ -32,13 +32,6 @@
 			</field>
 
 			<field>
-				<name>name</name>
-				<type>text</type>
-				<length>127</length>
-				<notnull>true</notnull>
-			</field>
-
-			<field>
 				<name>summary</name>
 				<type>text</type>
 				<length>3000</length>
