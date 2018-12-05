@@ -169,11 +169,7 @@ class NotesRequest extends NotesRequestBuilder {
 	public function getStreamHome(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
 
-		$this->rightJoinFollowing($qb);
-		$this->limitToActorId($qb, $actorId, 'f');
-		$this->limitToAccepted($qb, true, 'f');
-		$qb->orWhere($this->exprLimitToDBField($qb, 'attributed_to', $actorId));
-
+		$this->rightJoinFollowing($qb, $actorId);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 

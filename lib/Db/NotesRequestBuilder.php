@@ -124,8 +124,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param string $actorId
 	 */
-	protected function rightJoinFollowing(IQueryBuilder $qb) {
+	protected function rightJoinFollowing(IQueryBuilder $qb, string $actorId = '') {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -135,8 +136,14 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$pf = $this->defaultSelectAlias . '.';
 
 		$orX = $expr->orX();
-		$orX->add($expr->eq($func->lower($pf . 'to'), $func->lower('f.follow_id')));
-		$orX->add(
+		if ($actorId !== '') {
+			$orX->add($this->exprLimitToDBField($qb, 'attributed_to', $actorId, false));
+		}
+
+		// list of possible follow (to, to_array, cc, ...)
+		$orXFollow = $expr->orX();
+		$orXFollow->add($expr->eq($func->lower($pf . 'to'), $func->lower('f.follow_id')));
+		$orXFollow->add(
 			$expr->like(
 				$func->lower($pf . 'to_array'), $func->concat(
 				$qb->createNamedParameter('%"'),
@@ -144,7 +151,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			)
 			)
 		);
-		$orX->add(
+		$orXFollow->add(
 			$expr->like(
 				$func->lower($pf . 'cc'), $func->concat(
 				$qb->createNamedParameter('%"'),
@@ -152,7 +159,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			)
 			)
 		);
-		$orX->add(
+		$orXFollow->add(
 			$expr->like(
 				$func->lower($pf . 'bcc'), $func->concat(
 				$qb->createNamedParameter('%"'),
@@ -160,6 +167,14 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			)
 			)
 		);
+
+		// all possible follow, but linked by followers (actor_id) and accepted follow
+		$andXFollow = $expr->andX();
+		$andXFollow->add($orXFollow);
+		$andXFollow->add($this->exprLimitToDBField($qb, 'actor_id', $actorId, false, 'f'));
+		$andXFollow->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
+
+		$orX->add($andXFollow);
 
 		// TODO: SQLite does not support RIGHT JOIN
 //		$qb->rightJoin(
