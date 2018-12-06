@@ -71,6 +71,10 @@ class Version0001Date20181204203147 extends SimpleMigrationStep {
 				'notnull' => false,
 				'length' => 2000,
 			]);
+			$table->addColumn('avatar_version', 'integer', [
+				'notnull' => false,
+				'length' => 2,
+			]);
 			$table->addColumn('creation', 'datetime', [
 				'notnull' => false,
 			]);
@@ -101,7 +105,7 @@ class Version0001Date20181204203147 extends SimpleMigrationStep {
 			]);
 			$table->addColumn('accepted', 'boolean', [
 				'notnull' => true,
-				'default' => '',
+				'default' => false
 			]);
 			$table->addColumn('creation', 'datetime', [
 				'notnull' => false,
@@ -171,7 +175,7 @@ class Version0001Date20181204203147 extends SimpleMigrationStep {
 			]);
 			$table->addColumn('local', 'boolean', [
 				'notnull' => true,
-				'default' => '',
+				'default' => false
 			]);
 			$table->setPrimaryKey(['id']);
 		}
@@ -192,7 +196,7 @@ class Version0001Date20181204203147 extends SimpleMigrationStep {
 			]);
 			$table->addColumn('local', 'boolean', [
 				'notnull' => true,
-				'default' => '',
+				'default' => false
 			]);
 			$table->addColumn('following', 'string', [
 				'notnull' => true,
@@ -284,6 +288,7 @@ class Version0001Date20181204203147 extends SimpleMigrationStep {
 			]);
 			$table->addColumn('public', 'boolean', [
 				'notnull' => true,
+				'default' => false
 			]);
 			$table->addColumn('error', 'smallint', [
 				'notnull' => true,
