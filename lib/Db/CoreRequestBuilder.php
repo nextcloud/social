@@ -348,52 +348,6 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $recipient
-	 * @param bool $asAuthor
-	 */
-	protected function limitToRecipient(
-		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
-	) {
-		$expr = $qb->expr();
-		$orX = $expr->orX();
-		$dbConn = $this->dbConnection;
-
-		if ($asAuthor === true) {
-			$func = $qb->func();
-			$orX->add(
-				$expr->eq(
-					$func->lower('attributed_to'),
-					$func->lower($qb->createNamedParameter($recipient))
-				)
-			);
-		}
-
-		$orX->add($expr->eq('to', $qb->createNamedParameter($recipient)));
-		$orX->add(
-			$expr->like(
-				'to_array',
-				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
-			)
-		);
-		$orX->add(
-			$expr->like(
-				'cc',
-				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
-			)
-		);
-		$orX->add(
-			$expr->like(
-				'bcc',
-				$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($recipient) . '"%')
-			)
-		);
-
-		$qb->andWhere($orX);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
 	 * @param int $since
 	 * @param int $limit
 	 */
@@ -401,14 +355,12 @@ class CoreRequestBuilder {
 		if ($since > 0) {
 			$dTime = new \DateTime();
 			$dTime->setTimestamp($since);
-			// This line stuck on sqlite
 			$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
 		}
 
 		$qb->setMaxResults($limit);
-
 		$pf = $this->defaultSelectAlias;
-		$qb->orderBy($pf . '.creation', 'desc');
+		$qb->orderBy($pf . '.published_time', 'desc');
 	}
 
 
@@ -523,6 +475,7 @@ class CoreRequestBuilder {
 
 		$orX = $expr->orX();
 		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
+
 		if ($orNull === true) {
 			$orX->add($expr->isNull($field));
 		}
@@ -820,7 +773,6 @@ class CoreRequestBuilder {
 			$actor->setCompleteDetails(true);
 		}
 	}
+
 }
-
-
 
