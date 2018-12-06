@@ -154,9 +154,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
 		$on->add($crossFollows);
 
-		$qb->join(
-			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on
-		);
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
 	}
 
 
@@ -180,7 +178,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 		$concat = $func->concat(
 			$qb->createNamedParameter('%"'),
-			$func->concat($func->lower($fieldRight), $qb->createNamedParameter('"%'))
+			$func->concat($fieldRight, $qb->createNamedParameter('"%'))
 		);
 
 		return $expr->iLike($alias . '.' . $field, $concat);
