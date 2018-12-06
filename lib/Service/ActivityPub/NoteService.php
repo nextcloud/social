@@ -350,15 +350,14 @@ class NoteService implements ICoreService {
 
 
 	/**
-	 * @param string $actorId
-	 *
+	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Note[]
 	 */
-	public function getStreamHome(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamHome($actorId, $since, $limit);
+	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamHome($actor, $since, $limit);
 	}
 
 
@@ -375,14 +374,14 @@ class NoteService implements ICoreService {
 
 
 	/**
-	 * @param string $actorId
+	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Note[]
 	 */
-	public function getStreamDirect(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamDirect($actorId, $since, $limit);
+	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamDirect($actor, $since, $limit);
 	}
 
 

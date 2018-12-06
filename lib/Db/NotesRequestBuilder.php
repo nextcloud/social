@@ -35,7 +35,9 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Note;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class NotesRequestBuilder extends CoreRequestBuilder {
@@ -124,9 +126,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $actorId
+	 * @param Person $actor
 	 */
-	protected function rightJoinFollowing(IQueryBuilder $qb, string $actorId = '') {
+	protected function joinFollowing(IQueryBuilder $qb, Person $actor) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
