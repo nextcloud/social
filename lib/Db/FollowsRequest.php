@@ -177,7 +177,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
-		$qb->orderBy('creation', 'desc');
+		$qb->orderBy('f.creation', 'desc');
 
 		$follows = [];
 		$cursor = $qb->execute();
@@ -201,7 +201,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'object_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
-		$qb->orderBy('creation', 'desc');
+		$qb->orderBy('f.creation', 'desc');
 
 		$follows = [];
 		$cursor = $qb->execute();
