@@ -40,8 +40,13 @@ use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\PersonService;
+use OCP\Accounts\IAccountManager;
+use OCP\Accounts\PropertyDoesNotExistException;
+use OCP\IUserManager;
 
 
 /**
@@ -55,6 +60,12 @@ class ActorService {
 	use TArrayTools;
 
 
+	/** @var IUserManager */
+	private $userManager;
+
+	/** @var IAccountManager */
+	private $accountManager;
+
 	/** @var ActorsRequest */
 	private $actorsRequest;
 
@@ -67,6 +78,9 @@ class ActorService {
 	/** @var PersonService */
 	private $personService;
 
+	/** @var DocumentService */
+	private $documentService;
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -77,21 +91,28 @@ class ActorService {
 	/**
 	 * ActorService constructor.
 	 *
+	 * @param IUserManager $userManager
+	 * @param IAccountManager $accountManager
 	 * @param ActorsRequest $actorsRequest
 	 * @param FollowsRequest $followsRequest
 	 * @param NotesRequest $notesRequest
 	 * @param PersonService $personService
+	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest, FollowsRequest $followsRequest, NotesRequest $notesRequest,
-		PersonService $personService, ConfigService $configService, MiscService $miscService
+		IUserManager $userManager, IAccountManager $accountManager, ActorsRequest $actorsRequest,
+		FollowsRequest $followsRequest, NotesRequest $notesRequest, PersonService $personService,
+		DocumentService $documentService, ConfigService $configService, MiscService $miscService
 	) {
+		$this->userManager = $userManager;
+		$this->accountManager = $accountManager;
 		$this->actorsRequest = $actorsRequest;
 		$this->followsRequest = $followsRequest;
 		$this->notesRequest = $notesRequest;
 		$this->personService = $personService;
+		$this->documentService = $documentService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -134,6 +155,7 @@ class ActorService {
 	 * @throws ActorDoesNotExistException
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function getActorFromUserId(string $userId, bool $create = false): Person {
 		$this->miscService->confirmUserId($userId);
@@ -167,6 +189,7 @@ class ActorService {
 	 * @throws AccountAlreadyExistsException
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function createActor(string $userId, string $username) {
 
@@ -235,10 +258,15 @@ class ActorService {
 	 * @param bool $refresh
 	 *
 	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function cacheLocalActorByUsername(string $username, bool $refresh = false) {
 		try {
-			$actor = $this->getActor($username);;
+			$actor = $this->getActor($username);
+
+			$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
+			$actor->setIconId($iconId);
+
 			$count = [
 				'followers' => $this->followsRequest->countFollowers($actor->getId()),
 				'following' => $this->followsRequest->countFollowing($actor->getId()),
@@ -246,8 +274,27 @@ class ActorService {
 			];
 			$actor->addDetailArray('count', $count);
 
+			$this->updateCacheLocalActorName($actor);
+
 			$this->personService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {
+		}
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	private function updateCacheLocalActorName(Person &$actor) {
+		$user = $this->userManager->get($actor->getUserId());
+		$account = $this->accountManager->getAccount($user);
+
+		try {
+			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
+			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
+				$actor->setName($displayNameProperty->getValue());
+			}
+		} catch (PropertyDoesNotExistException $e) {
 		}
 	}
 

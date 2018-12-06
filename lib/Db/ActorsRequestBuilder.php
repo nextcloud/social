@@ -78,8 +78,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'sa.id', 'sa.user_id', 'sa.preferred_username', 'sa.name', 'sa.summary',
-			'sa.public_key',
-			'sa.private_key', 'sa.creation'
+			'sa.public_key', 'sa.avatar_version', 'sa.private_key', 'sa.creation'
 		)
 		   ->from(self::TABLE_SERVER_ACTORS, 'sa');
 
@@ -116,10 +115,12 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		$actor->setType('Person');
 		$actor->setInbox($actor->getId() . '/inbox')
 			  ->setOutbox($actor->getId() . '/outbox')
+			  ->setUserId($this->get('user_id', $data, ''))
 			  ->setFollowers($actor->getId() . '/followers')
 			  ->setFollowing($actor->getId() . '/following')
 			  ->setSharedInbox($root . 'inbox')
 			  ->setLocal(true)
+			  ->setAvatarVersion($this->getInt('avatar_version', $data, -1))
 			  ->setAccount(
 				  $actor->getPreferredUsername() . '@' . $this->configService->getCloudAddress(true)
 			  );

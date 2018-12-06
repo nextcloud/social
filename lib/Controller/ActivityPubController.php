@@ -38,6 +38,7 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Service\ActivityPub\FollowService;
+use OCA\Social\Service\ActivityPub\PersonService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ImportService;
@@ -69,6 +70,9 @@ class ActivityPubController extends Controller {
 	/** @var ActorService */
 	private $actorService;
 
+	/** @var PersonService */
+	private $personService;
+
 	/** @var NotesRequest */
 	private $notesRequest;
 
@@ -85,14 +89,15 @@ class ActivityPubController extends Controller {
 	 * @param ImportService $importService
 	 * @param FollowService $followService
 	 * @param ActorService $actorService
+	 * @param PersonService $personService
 	 * @param NotesRequest $notesRequest
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController,
 		ActivityService $activityService, ImportService $importService,
-		FollowService $followService, ActorService $actorService, NotesRequest $notesRequest,
-		MiscService $miscService
+		FollowService $followService, ActorService $actorService, PersonService $personService,
+		NotesRequest $notesRequest, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -102,6 +107,7 @@ class ActivityPubController extends Controller {
 		$this->importService = $importService;
 		$this->followService = $followService;
 		$this->actorService = $actorService;
+		$this->personService = $personService;
 		$this->notesRequest = $notesRequest;
 		$this->miscService = $miscService;
 	}
@@ -128,7 +134,7 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
-			$actor = $this->actorService->getActor($username);
+			$actor = $this->personService->getFromLocalAccount($username);
 
 //			$actor->setTopLevel(true);
 

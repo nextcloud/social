@@ -34,6 +34,7 @@ namespace OCA\Social\Service;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCP\ILogger;
+use OCP\IUser;
 use OCP\IUserManager;
 
 
@@ -81,9 +82,10 @@ class MiscService {
 	/**
 	 * @param string $userId
 	 *
+	 * @return IUser
 	 * @throws NoUserException
 	 */
-	public function confirmUserId(string &$userId) {
+	public function confirmUserId(string &$userId): IUser {
 		$user = $this->userManager->get($userId);
 
 		if ($user === null) {
@@ -91,6 +93,8 @@ class MiscService {
 		}
 
 		$userId = $user->getUID();
+
+		return $user;
 	}
 
 }

@@ -33,6 +33,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 use DateTime;
 use JsonSerializable;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 
 
@@ -196,6 +197,7 @@ class Document extends ACore implements JsonSerializable {
 	 * @param array $data
 	 *
 	 * @throws UrlCloudException
+	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		parent::import($data);

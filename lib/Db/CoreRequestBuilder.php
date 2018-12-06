@@ -676,7 +676,6 @@ class CoreRequestBuilder {
 			}
 		}
 		$document = new Document();
-
 		$document->importFromDatabase($new);
 
 		if ($document->getType() !== Image::TYPE) {

@@ -94,8 +94,11 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		if ($actor->gotIcon()) {
 			$iconId = $actor->getIcon()
 							->getId();
-			$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
+		} else {
+			$iconId = $actor->getIconId();
 		}
+
+		$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
 
 		$qb->execute();
 

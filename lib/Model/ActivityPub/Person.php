@@ -89,6 +89,9 @@ class Person extends ACore implements JsonSerializable {
 	/** @var array */
 	private $details = [];
 
+	/** @var int */
+	private $avatarVersion = -1;
+
 
 	/**
 	 * Person constructor.
@@ -410,6 +413,25 @@ class Person extends ACore implements JsonSerializable {
 	 */
 	public function setDetails(array $details): Person {
 		$this->details = $details;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function getAvatarVersion(): int {
+		return $this->avatarVersion;
+	}
+
+	/**
+	 * @param int $avatarVersion
+	 *
+	 * @return Person
+	 */
+	public function setAvatarVersion(int $avatarVersion): Person {
+		$this->avatarVersion = $avatarVersion;
 
 		return $this;
 	}

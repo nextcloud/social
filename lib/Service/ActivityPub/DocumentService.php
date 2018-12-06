@@ -32,17 +32,24 @@ namespace OCA\Social\Service\ActivityPub;
 
 
 use Exception;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Model\ActivityPub\Image;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\CacheService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
+use OCP\IURLGenerator;
 
 
 class DocumentService implements ICoreService {
@@ -52,11 +59,20 @@ class DocumentService implements ICoreService {
 	const ERROR_MIMETYPE = 2;
 
 
+	/** @var IURLGenerator */
+	private $urlGenerator;
+
 	/** @var CacheDocumentsRequest */
 	private $cacheDocumentsRequest;
 
+	/** @var ActorsRequest */
+	private $actorRequest;
+
 	/** @var CacheService */
 	private $cacheService;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -65,15 +81,23 @@ class DocumentService implements ICoreService {
 	/**
 	 * DocumentService constructor.
 	 *
+	 * @param IUrlGenerator $urlGenerator
 	 * @param CacheDocumentsRequest $cacheDocumentsRequest
+	 * @param ActorsRequest $actorRequest
 	 * @param CacheService $cacheService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheDocumentsRequest $cacheDocumentsRequest, CacheService $cacheService,
-		MiscService $miscService
+		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
+		ActorsRequest $actorRequest,
+		CacheService $cacheService,
+		ConfigService $configService, MiscService $miscService
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
+		$this->actorRequest = $actorRequest;
+		$this->configService = $configService;
 		$this->cacheService = $cacheService;
 		$this->miscService = $miscService;
 	}
@@ -151,6 +175,10 @@ class DocumentService implements ICoreService {
 
 		$count = 0;
 		foreach ($update as $item) {
+			if ($item->getLocalCopy() === 'avatar') {
+				continue;
+			}
+
 			try {
 				$this->cacheRemoteDocument($item->getId());
 			} catch (Exception $e) {
@@ -160,6 +188,46 @@ class DocumentService implements ICoreService {
 		}
 
 		return $count;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 */
+	public function cacheLocalAvatarByUsername(Person $actor): string {
+		$url = $this->urlGenerator->linkToRouteAbsolute(
+			'core.avatar.getAvatar', ['userId' => $actor->getUserId(), 'size' => 128]
+		);
+
+		$versionCurrent =
+			(int)$this->configService->getUserValue('version', $actor->getUserId(), 'avatar');
+		$versionCached = $actor->getAvatarVersion();
+		if ($versionCurrent > $versionCached) {
+			$icon = new Image();
+			$icon->setUrl($url);
+			$icon->setUrlcloud($this->configService->getCloudAddress());
+			$icon->generateUniqueId('/documents/avatar');
+			$icon->setMediaType('');
+			$icon->setLocalCopy('avatar');
+
+			$this->cacheDocumentsRequest->deleteByUrl($icon->getUrl());
+			$this->cacheDocumentsRequest->save($icon);
+
+			$actor->setAvatarVersion($versionCurrent);
+			$this->actorRequest->update($actor);
+		} else {
+			try {
+				$icon = $this->cacheDocumentsRequest->getBySource($url);
+			} catch (CacheDocumentDoesNotExistException $e) {
+				return '';
+			}
+		}
+
+		return $icon->getId();
 	}
 
 
@@ -174,6 +242,8 @@ class DocumentService implements ICoreService {
 	 * @param ACore $item
 	 */
 	public function save(ACore $item) {
+		/** @var Document $item */
+		$this->cacheDocumentsRequest->save($item);
 	}
 
 
@@ -181,7 +251,9 @@ class DocumentService implements ICoreService {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
+//		$this->cacheDocumentsRequest->delete($item);
 	}
+
 
 }
 
