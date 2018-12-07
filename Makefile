@@ -99,8 +99,16 @@ appstore: dev-setup lint build-js-production composer
 	--exclude=/tests \
 	--exclude=/.git \
 	--exclude=/.github \
+	--exclude=/.babelrc.js \
+	--exclude=/.drone.yml \
+	--exclude=/.eslintrc.js \
 	--exclude=/composer.json \
 	--exclude=/composer.lock \
+	--exclude=/src \
+	--exclude=/node_modules \
+	--exclude=/webpack.*.js \
+	--exclude=/package.json \
+	--exclude=/package-lock.json \
 	--exclude=/l10n/l10n.pl \
 	--exclude=/CONTRIBUTING.md \
 	--exclude=/issue_template.md \
