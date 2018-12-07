@@ -5,6 +5,9 @@
 	<name>Social</name>
 	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
 	<description><![CDATA[
+
+	** Disclaimer: this is an ALPHA version **
+
 **🎉 Nextcloud becomes part of the federated social networks!**
 
 **🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!
@@ -15,7 +18,7 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.0.64</version>
+	<version>0.1.0</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
