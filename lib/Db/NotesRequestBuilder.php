@@ -35,7 +35,9 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Note;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\InstancePath;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class NotesRequestBuilder extends CoreRequestBuilder {
@@ -124,8 +126,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param Person $actor
 	 */
-	protected function rightJoinFollowing(IQueryBuilder $qb) {
+	protected function joinFollowing(IQueryBuilder $qb, Person $actor) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -134,38 +137,156 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$func = $qb->func();
 		$pf = $this->defaultSelectAlias . '.';
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq($func->lower($pf . 'to'), $func->lower('f.follow_id')));
-		$orX->add(
-			$expr->like(
-				$func->lower($pf . 'to_array'), $func->concat(
-				$qb->createNamedParameter('%"'),
-				$func->concat($func->lower('f.follow_id'), $qb->createNamedParameter('"%'))
-			)
-			)
-		);
-		$orX->add(
-			$expr->like(
-				$func->lower($pf . 'cc'), $func->concat(
-				$qb->createNamedParameter('%"'),
-				$func->concat($func->lower('f.follow_id'), $qb->createNamedParameter('"%'))
-			)
-			)
-		);
-		$orX->add(
-			$expr->like(
-				$func->lower($pf . 'bcc'), $func->concat(
-				$qb->createNamedParameter('%"'),
-				$func->concat($func->lower('f.follow_id'), $qb->createNamedParameter('"%'))
-			)
-			)
+		$on = $expr->orX();
+		$on->add($this->exprLimitToRecipient($qb, $actor->getFollowers(), true));
+
+		// list of possible recipient as a follower (to, to_array, cc, ...)
+		$recipientFields = $expr->orX();
+		$recipientFields->add($expr->eq($func->lower($pf . 'to'), $func->lower('f.follow_id')));
+		$recipientFields->add($this->exprFieldWithinJsonFormat($qb, 'to_array', 'f.follow_id'));
+		$recipientFields->add($this->exprFieldWithinJsonFormat($qb, 'cc', 'f.follow_id'));
+		$recipientFields->add($this->exprFieldWithinJsonFormat($qb, 'bcc', 'f.follow_id'));
+
+		// all possible follow, but linked by followers (actor_id) and accepted follow
+		$crossFollows = $expr->andX();
+		$crossFollows->add($recipientFields);
+		$crossFollows->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'f'));
+		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
+		$on->add($crossFollows);
+
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $fieldRight
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	protected function exprFieldWithinJsonFormat(
+		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = ''
+	) {
+		$func = $qb->func();
+		$expr = $qb->expr();
+
+		if ($alias === '') {
+			$alias = $this->defaultSelectAlias;
+		}
+
+		$concat = $func->concat(
+			$qb->createNamedParameter('%"'),
+			$func->concat($fieldRight, $qb->createNamedParameter('"%'))
 		);
 
-		$qb->rightJoin(
-			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f',
-			$orX
-		);
+		return $expr->iLike($alias . '.' . $field, $concat);
+	}
 
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $value
+	 *
+	 * @return string
+	 */
+	protected function exprValueWithinJsonFormat(IQueryBuilder $qb, string $field, string $value
+	): string {
+		$dbConn = $this->dbConnection;
+		$expr = $qb->expr();
+
+		return $expr->iLike(
+			$field,
+			$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($value) . '"%')
+		);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $value
+	 *
+	 * @return string
+	 */
+	protected function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value
+	): string {
+		$dbConn = $this->dbConnection;
+		$expr = $qb->expr();
+		$func = $qb->func();
+
+		return $expr->notLike(
+			$func->lower($field),
+			$qb->createNamedParameter(
+				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
+			)
+		);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $recipient
+	 * @param bool $asAuthor
+	 */
+	protected function limitToRecipient(
+		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
+	) {
+		$qb->andWhere($this->exprLimitToRecipient($qb, $recipient, $asAuthor));
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $recipient
+	 * @param bool $asAuthor
+	 *
+	 * @return ICompositeExpression
+	 */
+	protected function exprLimitToRecipient(
+		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
+	): ICompositeExpression {
+
+		$expr = $qb->expr();
+		$limit = $expr->orX();
+
+		if ($asAuthor === true) {
+			$func = $qb->func();
+			$limit->add(
+				$expr->eq(
+					$func->lower('attributed_to'),
+					$func->lower($qb->createNamedParameter($recipient))
+				)
+			);
+		}
+
+		$limit->add($expr->eq('to', $qb->createNamedParameter($recipient)));
+		$limit->add($this->exprValueWithinJsonFormat($qb, 'to_array', $recipient));
+		$limit->add($this->exprValueWithinJsonFormat($qb, 'cc', $recipient));
+		$limit->add($this->exprValueWithinJsonFormat($qb, 'bcc', $recipient));
+
+		return $limit;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $recipient
+	 */
+	protected function filterToRecipient(IQueryBuilder &$qb, string $recipient) {
+
+		$expr = $qb->expr();
+		$filter = $expr->andX();
+
+		$filter->add($expr->neq('to', $qb->createNamedParameter($recipient)));
+		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'to_array', $recipient));
+		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'cc', $recipient));
+		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'bcc', $recipient));
+
+		$qb->andWhere($filter);
+//		return $filter;
 	}
 
 

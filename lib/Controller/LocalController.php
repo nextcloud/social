@@ -208,7 +208,7 @@ class LocalController extends Controller {
 	public function streamHome($since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamHome($this->viewer->getId(), $since, $limit);
+			$posts = $this->noteService->getStreamHome($this->viewer, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -259,7 +259,7 @@ class LocalController extends Controller {
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer();
-			$posts = $this->noteService->getStreamDirect($this->viewer->getId(), $since, $limit);
+			$posts = $this->noteService->getStreamDirect($this->viewer, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {

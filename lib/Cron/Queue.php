@@ -85,7 +85,7 @@ class Queue extends TimedJob {
 
 
 	private function manageQueue() {
-		$requests = $this->queueService->getRequestStandby($total = 0);
+		$requests = $this->queueService->getRequestStandby();
 		$this->activityService->manageInit();
 
 		foreach ($requests as $request) {

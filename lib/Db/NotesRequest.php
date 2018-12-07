@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 use DateTime;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Model\ActivityPub\Note;
+use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -160,20 +161,16 @@ class NotesRequest extends NotesRequestBuilder {
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
-	 * @param string $actorId
+	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return array
 	 */
-	public function getStreamHome(string $actorId, int $since = 0, int $limit = 5): array {
+	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
 
-		$this->rightJoinFollowing($qb);
-		$this->limitToActorId($qb, $actorId, 'f');
-		$this->limitToAccepted($qb, true, 'f');
-		$qb->orWhere($this->exprLimitToDBField($qb, 'attributed_to', $actorId));
-
+		$this->joinFollowing($qb, $actor);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
@@ -201,10 +198,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -222,16 +219,20 @@ class NotesRequest extends NotesRequestBuilder {
 	 *  * Private message.
 	 *  - group messages.
 	 *
-	 * @param string $actorId
+	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return array
 	 */
-	public function getStreamDirect(string $actorId, int $since = 0, int $limit = 5): array {
+	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, $actorId, true);
 		$this->limitPaginate($qb, $since, $limit);
+
+		$this->limitToRecipient($qb, $actor->getId(), true);
+		$this->filterToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->filterToRecipient($qb, $actor->getFollowers());
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
@@ -258,12 +259,13 @@ class NotesRequest extends NotesRequestBuilder {
 	public function getStreamTimeline(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
 		$qb = $this->getNotesSelectSql();
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 		$this->limitPaginate($qb, $since, $limit);
 		if ($localOnly) {
 			$this->limitToLocal($qb, true);
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		// TODO: to: = real public, cc: = unlisted !?
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
 
 		$notes = [];
 		$cursor = $qb->execute();
