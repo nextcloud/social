@@ -61,10 +61,8 @@ class NotesRequest extends NotesRequestBuilder {
 	 * Insert a new Note in the database.
 	 *
 	 * @param Note $note
-	 *
-	 * @return int
 	 */
-	public function save(Note $note): int {
+	public function save(Note $note) {
 		$dTime = new DateTime();
 		$dTime->setTimestamp($note->getPublishedTime());
 
@@ -108,8 +106,6 @@ class NotesRequest extends NotesRequestBuilder {
 		   );
 
 		$qb->execute();
-
-		return $qb->getLastInsertId();
 	}
 
 
