@@ -217,6 +217,31 @@ class LocalController extends Controller {
 	}
 
 
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @NoSubAdminRequired
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamNotifications($since = 0, int $limit = 5): DataResponse {
+		try {
+			$this->initViewer(true);
+			$posts = $this->noteService->getStreamNotifications($this->viewer, $since, $limit);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+
 	/**
 	 * // TODO: Delete the NoCSRF check
 	 *

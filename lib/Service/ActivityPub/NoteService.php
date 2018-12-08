@@ -362,6 +362,18 @@ class NoteService implements ICoreService {
 
 
 	/**
+	 * @param Person $actor
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 */
+	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamNotifications($actor, $since, $limit);
+	}
+
+
+	/**
 	 * @param string $actorId
 	 * @param int $since
 	 * @param int $limit

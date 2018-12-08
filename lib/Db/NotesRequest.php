@@ -187,6 +187,38 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * Should returns:
+	 *  - Public/Unlisted/Followers-only post where current $actor is tagged,
+	 *  - Events:
+	 *    - people liking or re-posting your posts
+	 *    - someone wants to follow you
+	 *    - someone is following you
+	 *
+	 * @param Person $actor
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return array
+	 */
+	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
+		$qb = $this->getNotesSelectSql();
+
+		$this->limitPaginate($qb, $since, $limit);
+		$this->limitToRecipient($qb, $actor->getId(), false);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+
+	/**
+	 * Should returns:
 	 *  * public message from actorId.
 	 *  - to followers-only if follower is logged.
 	 *
