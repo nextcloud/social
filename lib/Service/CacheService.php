@@ -103,7 +103,6 @@ class CacheService {
 
 		$content = $this->retrieveContent($url);
 
-		// TODO - get mime type in a better way.
 		// To get the mime type, we create a temp file
 		$tmpFile = tmpfile();
 		$tmpPath = stream_get_meta_data($tmpFile)['uri'];

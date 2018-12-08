@@ -233,8 +233,8 @@ class FollowService implements ICoreService {
 			$remoteActor = $this->personService->getFromId($follow->getActorId());
 
 			$accept = new Accept();
-			// TODO: improve the generation of the Id
-			$accept->setId($follow->getObjectId() . '#accepts/follows/' . rand(1000, 100000000));
+			$accept->setUrlCloud($this->configService->getCloudAddress());
+			$accept->generateUniqueId($follow->getObjectId() . '#accepts/follows/', false);
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
 

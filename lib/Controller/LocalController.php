@@ -164,11 +164,8 @@ class LocalController extends Controller {
 
 
 	/**
-	 * Create a new post.
+	 * Delete your own post.
 	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -194,9 +191,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -218,9 +212,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -245,9 +236,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -271,9 +259,6 @@ class LocalController extends Controller {
 	/**
 	 * Get timeline
 	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -295,9 +280,6 @@ class LocalController extends Controller {
 	/**
 	 * Get timeline
 	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -318,10 +300,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -342,10 +320,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -366,10 +340,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -388,7 +358,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -409,7 +378,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -430,10 +398,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -503,10 +467,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -528,10 +488,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -580,10 +536,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -622,9 +574,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *

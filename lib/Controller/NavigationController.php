@@ -271,10 +271,6 @@ class NavigationController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -295,9 +291,6 @@ class NavigationController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
 	 * @PublicPage
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
