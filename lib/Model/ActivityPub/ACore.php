@@ -184,12 +184,17 @@ abstract class ACore extends Item implements JsonSerializable {
 
 	/**
 	 * @param string $base
+	 * @param bool $root
 	 *
 	 * @throws UrlCloudException
 	 */
-	public function generateUniqueId(string $base = '') {
-		if ($this->getUrlCloud() === '') {
-			throw new UrlCloudException();
+	public function generateUniqueId(string $base = '', bool $root = true) {
+		$url = '';
+		if ($root) {
+			$url = $this->getUrlCloud();
+			if ($url === '') {
+				throw new UrlCloudException();
+			}
 		}
 
 		if ($base !== '') {
@@ -202,7 +207,7 @@ abstract class ACore extends Item implements JsonSerializable {
 			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
 		);
 
-		$this->setId($this->getUrlCloud() . $base . '/' . $uuid);
+		$this->setId($url . $base . '/' . $uuid);
 	}
 
 
