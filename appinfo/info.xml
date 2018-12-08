@@ -32,6 +32,13 @@
 	<dependencies>
 		<nextcloud min-version="15" max-version="16"/>
 	</dependencies>
+
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Social\Migration\CheckInstallation</step>
+		</post-migration>
+	</repair-steps>
+
 	<navigations>
 		<navigation>
 			<name>Social</name>
