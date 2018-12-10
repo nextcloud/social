@@ -62,10 +62,8 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * insert cache about an Actor in database.
 	 *
 	 * @param Person $actor
-	 *
-	 * @return int
 	 */
-	public function save(Person $actor): int {
+	public function save(Person $actor) {
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
@@ -101,8 +99,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
 
 		$qb->execute();
-
-		return $qb->getLastInsertId();
 	}
 
 
