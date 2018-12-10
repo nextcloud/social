@@ -138,7 +138,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$pf = $this->defaultSelectAlias . '.';
 
 		$on = $expr->orX();
-		$on->add($this->exprLimitToRecipient($qb, $actor->getFollowers(), true));
+		$on->add($this->exprLimitToRecipient($qb, $actor->getFollowers(), false));
 
 		// list of possible recipient as a follower (to, to_array, cc, ...)
 		$recipientFields = $expr->orX();
