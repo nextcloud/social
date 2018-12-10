@@ -66,6 +66,11 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @return int
 	 */
 	public function save(Person $actor): int {
+		$source = $actor->getSource();
+		if (sizeof($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
+			$source = 'too_big';
+		}
+
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
@@ -84,7 +89,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
+		   ->setValue('source', $qb->createNamedParameter($source))
 		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
 		   ->setValue(
 			   'creation',
