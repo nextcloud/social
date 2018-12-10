@@ -62,10 +62,8 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * insert cache about an Actor in database.
 	 *
 	 * @param Person $actor
-	 *
-	 * @return int
 	 */
-	public function save(Person $actor): int {
+	public function save(Person $actor) {
 		$source = $actor->getSource();
 		if (strlen($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
 			$source = 'too_big';
@@ -106,8 +104,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
 
 		$qb->execute();
-
-		return $qb->getLastInsertId();
 	}
 
 
