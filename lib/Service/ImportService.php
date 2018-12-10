@@ -235,7 +235,7 @@ class ImportService {
 			$service->parse($activity);
 		} catch (Exception $e) {
 			$this->miscService->log(
-				2, 'Cannot parse ' . $activity->getType() . ': ' . $e->getMessage()
+				'Cannot parse ' . $activity->getType() . ': ' . $e->getMessage()
 			);
 		}
 	}
