@@ -66,6 +66,11 @@ class NotesRequest extends NotesRequestBuilder {
 		$dTime = new DateTime();
 		$dTime->setTimestamp($note->getPublishedTime());
 
+		$source = $note->getSource();
+		if (strlen($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
+			$source = 'too_big';
+		}
+
 		$qb = $this->getNotesInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($note->getId()))
 		   ->setValue('type', $qb->createNamedParameter($note->getType()))
@@ -93,7 +98,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   )
 		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
-		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue('source', $qb->createNamedParameter($source))
 		   ->setValue(
 			   'instances', $qb->createNamedParameter(
 			   json_encode($note->getInstancePaths(), JSON_UNESCAPED_SLASHES)
