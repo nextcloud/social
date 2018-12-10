@@ -75,6 +75,14 @@ class Version0001Date20181208185242 extends SimpleMigrationStep {
 					]
 		);
 
+		$table = $schema->getTable(CoreRequestBuilder::TABLE_REQUEST_QUEUE);
+		$table->changeColumn(
+			'activity', [
+						  'notnull' => true,
+						  'length'  => CoreRequestBuilder::SOURCE_LENGTH,
+					  ]
+		);
+
 		return $schema;
 	}
 }
