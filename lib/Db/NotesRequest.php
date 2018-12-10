@@ -69,7 +69,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$dTime->setTimestamp($note->getPublishedTime());
 
 		$source = $note->getSource();
-		if (sizeof($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
+		if (strlen($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
 			$source = 'too_big';
 		}
 

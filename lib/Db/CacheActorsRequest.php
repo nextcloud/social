@@ -67,7 +67,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function save(Person $actor): int {
 		$source = $actor->getSource();
-		if (sizeof($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
+		if (strlen($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
 			$source = 'too_big';
 		}
 
