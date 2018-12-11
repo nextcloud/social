@@ -205,7 +205,28 @@ class LinkedDataSignature implements JsonSerializable {
 	}
 
 
+	/**
+	 * @throws LinkedDataSignatureMissingException
+	 */
 	public function sign() {
+		$header = [
+			'@context' => 'https://w3id.org/identity/v1',
+			'creator'  => $this->getCreator(),
+			'created'  => $this->getCreated()
+		];
+
+		$hash = $this->hashedCanonicalize($header) . $this->hashedCanonicalize($this->getObject());
+
+		$algo = OPENSSL_ALGO_SHA256;
+		if ($this->getType() === 'RsaSignature2017') {
+			$algo = OPENSSL_ALGO_SHA256;
+		}
+
+		if (!openssl_sign($hash, $signed, $this->getPrivateKey(), $algo)) {
+			throw new LinkedDataSignatureMissingException();
+		}
+
+		$this->setSignatureValue(base64_encode($signed));
 	}
 
 
@@ -235,7 +256,11 @@ class LinkedDataSignature implements JsonSerializable {
 		return false;
 	}
 
-
+	/**
+	 * @param array $data
+	 *
+	 * @return string
+	 */
 	private function hashedCanonicalize(array $data): string {
 		$object = json_decode(json_encode($data), false);
 		$res = jsonld_normalize(

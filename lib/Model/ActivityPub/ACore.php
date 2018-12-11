@@ -37,6 +37,7 @@ use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Service\ActivityPub\ICoreService;
 
 
@@ -73,6 +74,10 @@ abstract class ACore extends Item implements JsonSerializable {
 
 	/** @var ICoreService */
 	private $saveAs;
+
+	/** @var LinkedDataSignature */
+	private $signature = null;
+
 
 	/**
 	 * Core constructor.
@@ -162,6 +167,32 @@ abstract class ACore extends Item implements JsonSerializable {
 	public function setIcon(Document &$icon): ACore {
 		$icon->setParent($this);
 		$this->icon = $icon;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function gotSignature(): bool {
+		return ($this->signature !== null);
+	}
+
+	/**
+	 * @return LinkedDataSignature
+	 */
+	public function getSignature(): LinkedDataSignature {
+		return $this->signature;
+	}
+
+	/**
+	 * @param LinkedDataSignature $signature
+	 *
+	 * @return ACore
+	 */
+	public function setSignature(LinkedDataSignature $signature): Acore {
+		$this->signature = $signature;
 
 		return $this;
 	}
@@ -507,13 +538,14 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
+		$context = [self::CONTEXT_ACTIVITYSTREAMS];
+		if ($this->gotSignature()) {
+			$this->entries['signature'] = $this->getSignature();
+			array_push($context, self::CONTEXT_SECURITY);
+		}
+
 		if ($this->isRoot()) {
-			$this->addEntryArray(
-				'@context', [
-							  self::CONTEXT_ACTIVITYSTREAMS,
-							  self::CONTEXT_SECURITY
-						  ]
-			);
+			$this->addEntryArray('@context', $context);
 		}
 
 		$this->addEntry('id', $this->getId());
@@ -540,7 +572,6 @@ abstract class ACore extends Item implements JsonSerializable {
 		$this->addEntry('published', $this->getPublished());
 		$this->addEntryArray('tag', $this->getTags());
 
-//		$arr = $this->getEntries();
 		if ($this->gotObject()) {
 			$this->addEntryItem('object', $this->getObject());
 		} else {

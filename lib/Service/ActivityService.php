@@ -161,6 +161,7 @@ class ActivityService {
 		$activity = new Create();
 
 //		$this->activityStreamsService->initCore($activity);
+		$this->signObject($actor, $item);
 
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
@@ -448,6 +449,26 @@ class ActivityService {
 		}
 
 		return $origin;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param ACore $object
+	 */
+	public function signObject(Person $actor, ACore &$object) {
+		$signature = new LinkedDataSignature();
+		$signature->setPrivateKey($actor->getPrivateKey());
+		$signature->setType('RsaSignature2017');
+		$signature->setCreator($actor->getId() . '#main-key');
+		$signature->setCreated($object->getPublished());
+		$signature->setObject(json_decode(json_encode($object), true));
+
+		try {
+			$signature->sign();
+			$object->setSignature($signature);
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
 	}
 
 
