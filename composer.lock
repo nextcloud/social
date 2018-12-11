@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "17d7e7fc4c9cdd0ddc5d6166607fce8f",
+    "content-hash": "2c21b8c338f3d2f929f349df19edbc0e",
     "packages": [
         {
             "name": "daita/my-small-php-tools",
@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "405a5e6afadfd7c0630cf33b9e48a39f6938f605"
+                "reference": "29754f18951856a22c0fd5fc388b6162ea98fe8a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/405a5e6afadfd7c0630cf33b9e48a39f6938f605",
-                "reference": "405a5e6afadfd7c0630cf33b9e48a39f6938f605",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/29754f18951856a22c0fd5fc388b6162ea98fe8a",
+                "reference": "29754f18951856a22c0fd5fc388b6162ea98fe8a",
                 "shasum": ""
             },
             "require": {
@@ -40,7 +40,53 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2018-12-08T15:17:26+00:00"
+            "time": "2018-12-18T00:38:01+00:00"
+        },
+        {
+            "name": "digitalbazaar/json-ld",
+            "version": "0.4.7",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/digitalbazaar/php-json-ld.git",
+                "reference": "dc1bd23f0ee2efd27ccf636d32d2738dabcee182"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/digitalbazaar/php-json-ld/zipball/dc1bd23f0ee2efd27ccf636d32d2738dabcee182",
+                "reference": "dc1bd23f0ee2efd27ccf636d32d2738dabcee182",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": ">=5.3.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "jsonld.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Digital Bazaar, Inc.",
+                    "email": "support@digitalbazaar.com"
+                }
+            ],
+            "description": "A JSON-LD Processor and API implementation in PHP.",
+            "homepage": "https://github.com/digitalbazaar/php-json-ld",
+            "keywords": [
+                "JSON-LD",
+                "Linked Data",
+                "RDF",
+                "Semantic Web",
+                "json",
+                "jsonld"
+            ],
+            "time": "2016-04-25T04:17:52+00:00"
         }
     ],
     "packages-dev": [
