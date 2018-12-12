@@ -32,6 +32,9 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
+use Doctrine\DBAL\DBALException;
+use Doctrine\DBAL\Schema\SchemaException;
+use Doctrine\DBAL\Types\Type;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCP\DB\ISchemaWrapper;
 use OCP\Migration\IOutput;
@@ -39,11 +42,11 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0001Date20181208185242
+ * Class Version0001Date20181211222142
  *
  * @package OCA\Social\Migration
  */
-class Version0001Date20181208185242 extends SimpleMigrationStep {
+class Version0001Date20181211222142 extends SimpleMigrationStep {
 
 
 	/**
@@ -52,7 +55,8 @@ class Version0001Date20181208185242 extends SimpleMigrationStep {
 	 * @param array $options
 	 *
 	 * @return ISchemaWrapper
-	 * @throws \Doctrine\DBAL\Schema\SchemaException
+	 * @throws SchemaException
+	 * @throws DBALException
 	 */
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options
 	): ISchemaWrapper {
@@ -62,27 +66,28 @@ class Version0001Date20181208185242 extends SimpleMigrationStep {
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_ACTORS);
 		$table->changeColumn(
 			'source', [
-						'notnull' => true,
-						'length'  => CoreRequestBuilder::SOURCE_LENGTH,
+						'notnull' => false,
+						'type'    => Type::getType(Type::TEXT)
 					]
 		);
 
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
 		$table->changeColumn(
 			'source', [
-						'notnull' => true,
-						'length'  => CoreRequestBuilder::SOURCE_LENGTH,
+						'notnull' => false,
+						'type'    => Type::getType(Type::TEXT)
 					]
 		);
 
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_REQUEST_QUEUE);
 		$table->changeColumn(
 			'activity', [
-						  'notnull' => true,
-						  'length'  => CoreRequestBuilder::SOURCE_LENGTH,
+						  'notnull' => false,
+						  'type'    => Type::getType(Type::TEXT)
 					  ]
 		);
 
 		return $schema;
 	}
 }
+
