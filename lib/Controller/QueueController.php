@@ -93,19 +93,21 @@ class QueueController extends Controller {
 	 * @param string $token
 	 */
 	public function asyncWithToken(string $token) {
-		$this->async();
-
 		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
-		$this->activityService->manageInit();
-		foreach ($requests as $request) {
-			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
-			try {
-				$this->activityService->manageRequest($request);
-			} catch (RequestException $e) {
-			} catch (SocialAppConfigException $e) {
+
+		if (!empty($requests)) {
+			$this->async();
+
+			$this->activityService->manageInit();
+			foreach ($requests as $request) {
+				$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
+				try {
+					$this->activityService->manageRequest($request);
+				} catch (RequestException $e) {
+				} catch (SocialAppConfigException $e) {
+				}
 			}
 		}
-
 		// or it will feed the logs.
 		exit();
 	}
