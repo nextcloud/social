@@ -64,6 +64,9 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
 
+	const SOURCE_LENGTH = 10000;
+
+
 	/** @var IDBConnection */
 	protected $dbConnection;
 

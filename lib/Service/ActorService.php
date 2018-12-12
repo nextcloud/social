@@ -45,7 +45,6 @@ use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCP\Accounts\IAccountManager;
-use OCP\Accounts\PropertyDoesNotExistException;
 use OCP\IUserManager;
 
 
@@ -297,14 +296,17 @@ class ActorService {
 		if ($user === null) {
 			throw new NoUserException();
 		}
-		$account = $this->accountManager->getAccount($user);
 
 		try {
+			$account = $this->accountManager->getAccount($user);
 			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
 			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
 				$actor->setName($displayNameProperty->getValue());
 			}
-		} catch (PropertyDoesNotExistException $e) {
+		} catch (Exception $e) {
+			$this->miscService->log(
+				'Issue while trying to updateCacheLocalActorName: ' . $e->getMessage(), 1
+			);
 		}
 	}
 

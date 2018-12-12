@@ -61,12 +61,15 @@ class NotesRequest extends NotesRequestBuilder {
 	 * Insert a new Note in the database.
 	 *
 	 * @param Note $note
-	 *
-	 * @return int
 	 */
-	public function save(Note $note): int {
+	public function save(Note $note) {
 		$dTime = new DateTime();
 		$dTime->setTimestamp($note->getPublishedTime());
+
+		$source = $note->getSource();
+		if (strlen($source) >= CoreRequestBuilder::SOURCE_LENGTH) {
+			$source = 'too_big';
+		}
 
 		$qb = $this->getNotesInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($note->getId()))
@@ -95,7 +98,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   )
 		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
-		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue('source', $qb->createNamedParameter($source))
 		   ->setValue(
 			   'instances', $qb->createNamedParameter(
 			   json_encode($note->getInstancePaths(), JSON_UNESCAPED_SLASHES)
@@ -108,8 +111,6 @@ class NotesRequest extends NotesRequestBuilder {
 		   );
 
 		$qb->execute();
-
-		return $qb->getLastInsertId();
 	}
 
 
