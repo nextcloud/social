@@ -263,6 +263,12 @@ class ActorService {
 		try {
 			$actor = $this->getActor($username);
 
+			try {
+				$this->updateCacheLocalActorName($actor);
+			} catch (NoUserException $e) {
+				return;
+			}
+
 			$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 			$actor->setIconId($iconId);
 
@@ -273,7 +279,6 @@ class ActorService {
 			];
 			$actor->addDetailArray('count', $count);
 
-			$this->updateCacheLocalActorName($actor);
 
 			$this->personService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {
@@ -283,9 +288,14 @@ class ActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @throws NoUserException
 	 */
 	private function updateCacheLocalActorName(Person &$actor) {
 		$user = $this->userManager->get($actor->getUserId());
+		if ($user === null) {
+			throw new NoUserException();
+		}
 
 		try {
 			$account = $this->accountManager->getAccount($user);
@@ -337,7 +347,6 @@ class ActorService {
 	 */
 	public function manageCacheLocalActors(): int {
 		$update = $this->actorsRequest->getAll();
-
 		foreach ($update as $item) {
 			try {
 				$this->cacheLocalActorByUsername($item->getPreferredUsername(), true);
