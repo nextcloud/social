@@ -294,6 +294,9 @@ class ActorService {
 				$actor->setName($displayNameProperty->getValue());
 			}
 		} catch (Exception $e) {
+			$this->miscService->log(
+				'Issue while trying to updateCacheLocalActorName: ' . $e->getMessage(), 1
+			);
 		}
 	}
 
