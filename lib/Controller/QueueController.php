@@ -95,7 +95,7 @@ class QueueController extends Controller {
 	public function asyncWithToken(string $token) {
 		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 
-		if (sizeof($requests) > 0) {
+		if (!empty($requests)) {
 			$this->async();
 
 			$this->activityService->manageInit();
