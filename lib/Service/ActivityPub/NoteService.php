@@ -31,14 +31,18 @@ declare(strict_types=1);
 namespace OCA\Social\Service\ActivityPub;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Note;
@@ -258,16 +262,27 @@ class NoteService implements ICoreService {
 	/**
 	 * @param Note $note
 	 * @param string $replyTo
+	 *
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws NoteNotFoundException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
 	public function replyTo(Note $note, string $replyTo) {
 		if ($replyTo === '') {
 			return;
 		}
 
+		$author = $this->getAuthorFromPostId($replyTo);
 		$note->setInReplyTo($replyTo);
 		// TODO - type can be NOT public !
 		$note->addInstancePath(
-			new InstancePath($replyTo, InstancePath::TYPE_PUBLIC, InstancePath::PRIORITY_HIGH)
+			new InstancePath(
+				$author->getSharedInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH
+			)
 		);
 	}
 
@@ -417,5 +432,23 @@ class NoteService implements ICoreService {
 		return $this->notesRequest->getStreamTimeline($since, $limit, false);
 	}
 
+
+	/**
+	 * @param $noteId
+	 *
+	 * @return Person
+	 * @throws NoteNotFoundException
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws InvalidResourceException
+	 * @throws Request410Exception
+	 * @throws UrlCloudException
+	 * @throws MalformedArrayException
+	 */
+	public function getAuthorFromPostId($noteId) {
+		$note = $this->notesRequest->getNoteById($noteId);
+
+		return $this->personService->getFromId($note->getAttributedTo());
+	}
 }
 

@@ -133,7 +133,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new NoteNotFoundException();
+			throw new NoteNotFoundException('Post not found');
 		}
 
 		return $this->parseNotesSelectSql($data);

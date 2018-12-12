@@ -538,13 +538,20 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		$context = [self::CONTEXT_ACTIVITYSTREAMS];
+
 		if ($this->gotSignature()) {
 			$this->entries['signature'] = $this->getSignature();
-			array_push($context, self::CONTEXT_SECURITY);
 		}
 
 		if ($this->isRoot()) {
+			$context = [self::CONTEXT_ACTIVITYSTREAMS];
+
+			if ($this->gotObject()
+				&& $this->getObject()
+						->gotSignature()) {
+				array_push($context, self::CONTEXT_SECURITY);
+			}
+
 			$this->addEntryArray('@context', $context);
 		}
 
