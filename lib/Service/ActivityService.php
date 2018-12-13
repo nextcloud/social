@@ -162,7 +162,6 @@ class ActivityService {
 		$item->setParent($activity);
 
 //		$this->activityStreamsService->initCore($activity);
-		$this->signObject($actor, $item);
 
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
@@ -175,6 +174,7 @@ class ActivityService {
 //		}
 
 		$activity->setActor($actor);
+		$this->signObject($actor, $activity);
 
 		return $this->request($activity);
 	}
