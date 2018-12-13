@@ -36,7 +36,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
-use OCA\Social\Service\ActivityPub\NoteService;
+use OCA\Social\Service\ActivityPub\Object\NoteService;
 
 class PostService {
 

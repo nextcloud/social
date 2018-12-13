@@ -37,14 +37,13 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\UnknownItemException;
-use OCA\Social\Service\ActivityPub\FollowService;
-use OCA\Social\Service\ActivityPub\PersonService;
+use OCA\Social\Service\ActivityPub\Activity\FollowService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 

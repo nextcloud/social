@@ -37,6 +37,7 @@ use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\ActivityPub\ICoreService;
 
 
@@ -87,18 +88,18 @@ abstract class ACore extends Item implements JsonSerializable {
 
 
 	/**
-	 * @param Item $parent
+	 * @param ACore $parent
 	 *
-	 * @return Item
+	 * @return ACore
 	 */
-	public function setParent(Item $parent): ACore {
+	public function setParent(ACore $parent): ACore {
 		$this->parent = $parent;
 
 		return $this;
 	}
 
 	/**
-	 * @return Item
+	 * @return ACore
 	 */
 	public function getParent(): ACore {
 		return $this->parent;
@@ -384,13 +385,13 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @param string $default
 	 *
 	 * @return string
-	 * @throws InvalidResourceEntryException
 	 */
 	public function validate(int $as, string $k, array $arr, string $default = ''): string {
-		$value = $this->validateEntryString($as, $this->get($k, $arr, $default));
-
-
-		return $value;
+		try {
+			return $this->validateEntryString($as, $this->get($k, $arr, $default));
+		} catch (InvalidResourceEntryException $e) {
+			return $default;
+		}
 	}
 
 
@@ -401,14 +402,16 @@ abstract class ACore extends Item implements JsonSerializable {
 	 * @param array $default
 	 *
 	 * @return array
-	 * @throws InvalidResourceEntryException
 	 */
 	public function validateArray(int $as, string $k, array $arr, array $default = []): array {
 		$values = $this->getArray($k, $arr, $default);
 
 		$result = [];
 		foreach ($values as $value) {
-			$result[] = $this->validateEntryString($as, $value);
+			try {
+				$result[] = $this->validateEntryString($as, $value);
+			} catch (InvalidResourceEntryException $e) {
+			}
 		}
 
 		return $result;
@@ -469,8 +472,6 @@ abstract class ACore extends Item implements JsonSerializable {
 
 	/**
 	 * @param array $data
-	 *
-	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));

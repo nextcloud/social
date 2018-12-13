@@ -28,33 +28,26 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
 use JsonSerializable;
-use OCA\Social\Exceptions\InvalidResourceEntryException;
+use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**
- * Class Follow
+ * Class Block
  *
- * @package OCA\Social\Model\ActivityPub
+ * @package OCA\Social\Model\ActivityPub\Activity
  */
-class Follow extends ACore implements JsonSerializable {
+class Block extends ACore implements JsonSerializable {
 
 
-	const TYPE = 'Follow';
-
-
-	/** @var string */
-	private $followId = '';
-
-	/** @var bool */
-	private $accepted = false;
+	const TYPE = 'Block';
 
 
 	/**
-	 * Follow constructor.
+	 * Block constructor.
 	 *
 	 * @param ACore $parent
 	 */
@@ -66,61 +59,10 @@ class Follow extends ACore implements JsonSerializable {
 
 
 	/**
-	 * @return string
-	 */
-	public function getFollowId(): string {
-		return $this->followId;
-	}
-
-	/**
-	 * @param string $followId
-	 *
-	 * @return Follow
-	 */
-	public function setFollowId(string $followId): Follow {
-		$this->followId = $followId;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	public function isAccepted(): bool {
-		return $this->accepted;
-	}
-
-	/**
-	 * @param bool $accepted
-	 *
-	 * @return Follow
-	 */
-	public function setAccepted(bool $accepted): Follow {
-		$this->accepted = $accepted;
-
-		return $this;
-	}
-
-
-	/**
 	 * @param array $data
-	 *
-	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		parent::import($data);
-	}
-
-
-	/**
-	 * @param array $data
-	 */
-	public function importFromDatabase(array $data) {
-		parent::importFromDatabase($data);
-
-		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
-		$this->setFollowId($this->get('follow_id', $data, ''));
 	}
 
 
@@ -131,8 +73,6 @@ class Follow extends ACore implements JsonSerializable {
 		return array_merge(
 			parent::jsonSerialize(),
 			[
-				'follow_id' => $this->getFollowId(),
-				'accepted'  => $this->isAccepted()
 			]
 		);
 	}

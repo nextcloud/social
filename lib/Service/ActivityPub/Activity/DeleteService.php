@@ -28,31 +28,26 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Activity;
 
 
-use Exception;
-use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Service\ActivityService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
 
 class DeleteService implements ICoreService {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
-
 	/** @var ActivityService */
 	private $activityService;
 
-	/** @var NoteService */
-	private $noteService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -61,33 +56,22 @@ class DeleteService implements ICoreService {
 	/**
 	 * UndoService constructor.
 	 *
-	 * @param NotesRequest $notesRequest
 	 * @param ActivityService $activityService
-	 * @param NoteService $noteService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(
-		NotesRequest $notesRequest, ActivityService $activityService, NoteService $noteService,
-		MiscService $miscService
-	) {
-		$this->notesRequest = $notesRequest;
+	public function __construct(ActivityService $activityService, MiscService $miscService) {
 		$this->activityService = $activityService;
-		$this->noteService = $noteService;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
 	 * @param ACore $delete
+	 * @param ImportService $importService
 	 *
-	 * @throws UnknownItemException
 	 * @throws InvalidOriginException
 	 */
-	public function parse(ACore $delete) {
-
-		if (!$delete->isRoot()) {
-			throw new UnknownItemException();
-		}
+	public function processIncomingRequest(ACore $delete, ImportService $importService) {
 
 		if ($delete->gotObject()) {
 			$id = $delete->getObject()
@@ -101,26 +85,32 @@ class DeleteService implements ICoreService {
 		/** @var Delete $delete */
 		try {
 			$item = $this->activityService->getItem($id);
+			$service = $importService->getServiceForItem($item);
 
-			switch ($item->getType()) {
-
-				case 'Note':
-					$service = $this->noteService;
-					break;
-
-				default:
-					throw new UnknownItemException();
-			}
-
-			try {
-				$service->delete($item);
-			} catch (Exception $e) {
-				$this->miscService->log(
-					2, 'Cannot delete ' . $delete->getType() . ': ' . $e->getMessage()
-				);
-			}
+			// we could use ->activity($delete, $item) but the delete() is important enough to
+			// be here, and to use it.
+			$service->delete($item);
+		} catch (UnknownItemException $e) {
 		} catch (InvalidResourceException $e) {
 		}
+	}
+
+
+
+	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processResult(ACore $item, ImportService $importService) {
+	}
+
+
+
+	/**
+	 * @param ACore $activity
+	 * @param ACore $item
+	 */
+	public function activity(Acore $activity, ACore $item) {
 	}
 
 

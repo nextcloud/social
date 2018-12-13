@@ -32,7 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {

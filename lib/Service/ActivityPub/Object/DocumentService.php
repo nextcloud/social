@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Object;
 
 
 use Exception;
@@ -41,11 +41,13 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Document;
-use OCA\Social\Model\ActivityPub\Image;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Service\CacheService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -232,9 +234,26 @@ class DocumentService implements ICoreService {
 
 
 	/**
+	 * @param ACore $activity
 	 * @param ACore $item
 	 */
-	public function parse(ACore $item) {
+	public function activity(Acore $activity, ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processIncomingRequest(ACore $item, ImportService $importService) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processResult(ACore $item, ImportService $importService) {
 	}
 
 

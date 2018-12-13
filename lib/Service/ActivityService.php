@@ -53,11 +53,11 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
-use OCA\Social\Model\ActivityPub\Person;
-use OCA\Social\Model\ActivityPub\Tombstone;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
-use OCA\Social\Service\ActivityPub\PersonService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCP\IRequest;
 
 class ActivityService {
@@ -482,7 +482,7 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
-	 * @return
+	 * @return string
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws Request410Exception
@@ -492,7 +492,7 @@ class ActivityService {
 	 * @throws UrlCloudException
 	 * @throws InvalidOriginException
 	 */
-	private function checkSignature(IRequest $request) {
+	private function checkSignature(IRequest $request): string {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);

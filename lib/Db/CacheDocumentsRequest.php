@@ -33,7 +33,7 @@ namespace OCA\Social\Db;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Document;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {

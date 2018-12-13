@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 
 

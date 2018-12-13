@@ -28,26 +28,33 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**
- * Class Tombstone
+ * Class Follow
  *
- * @package OCA\Social\Model\ActivityPub\Activity
+ * @package OCA\Social\Model\ActivityPub
  */
-class Tombstone extends ACore implements JsonSerializable {
+class Follow extends ACore implements JsonSerializable {
 
 
-	const TYPE = 'Tombstone';
+	const TYPE = 'Follow';
 
+
+	/** @var string */
+	private $followId = '';
+
+	/** @var bool */
+	private $accepted = false;
 
 
 	/**
-	 * Undo constructor.
+	 * Follow constructor.
 	 *
 	 * @param ACore $parent
 	 */
@@ -55,6 +62,44 @@ class Tombstone extends ACore implements JsonSerializable {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getFollowId(): string {
+		return $this->followId;
+	}
+
+	/**
+	 * @param string $followId
+	 *
+	 * @return Follow
+	 */
+	public function setFollowId(string $followId): Follow {
+		$this->followId = $followId;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isAccepted(): bool {
+		return $this->accepted;
+	}
+
+	/**
+	 * @param bool $accepted
+	 *
+	 * @return Follow
+	 */
+	public function setAccepted(bool $accepted): Follow {
+		$this->accepted = $accepted;
+
+		return $this;
 	}
 
 
@@ -67,12 +112,25 @@ class Tombstone extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @param array $data
+	 */
+	public function importFromDatabase(array $data) {
+		parent::importFromDatabase($data);
+
+		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
+		$this->setFollowId($this->get('follow_id', $data, ''));
+	}
+
+
+	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
 		return array_merge(
 			parent::jsonSerialize(),
 			[
+				'follow_id' => $this->getFollowId(),
+				'accepted'  => $this->isAccepted()
 			]
 		);
 	}

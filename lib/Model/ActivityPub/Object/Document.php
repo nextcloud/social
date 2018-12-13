@@ -28,13 +28,14 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use DateTime;
 use JsonSerializable;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\ACore;
 
 
 /**

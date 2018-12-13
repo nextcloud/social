@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Actor;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
@@ -45,8 +45,11 @@ use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Activity\Update;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
 
@@ -257,18 +260,21 @@ class PersonService implements ICoreService {
 
 
 	/**
-	 * This method is called when saving the Follow object
-	 *
 	 * @param ACore $person
+	 * @param ImportService $importService
 	 */
-	public function parse(ACore $person) {
-		/** @var Person $person */
-		if ($person->isRoot() === false || $person->getId() === '') {
-			return;
-		}
-
-		$this->save($person);
+	public function processIncomingRequest(ACore $person, ImportService $importService) {
 	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processResult(ACore $item, ImportService $importService) {
+	}
+
+
 
 
 	/**
@@ -289,6 +295,18 @@ class PersonService implements ICoreService {
 		}
 
 		$this->cacheActorsRequest->save($person);
+	}
+
+
+	/**
+	 * @param ACore $activity
+	 * @param ACore $item
+	 */
+	public function activity(Acore $activity, ACore $item) {
+		/** @var Person $item */
+		if ($activity->getType() === Update::TYPE) {
+			$this->miscService->log('### UPDATE PERSON !' . json_encode($item));
+		}
 	}
 
 

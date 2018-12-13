@@ -33,8 +33,8 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
-use OCA\Social\Service\ActivityPub\DocumentService;
-use OCA\Social\Service\ActivityPub\PersonService;
+use OCA\Social\Service\ActivityPub\Object\DocumentService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;

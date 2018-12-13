@@ -28,63 +28,77 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Activity;
 
 
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Service\ImportService;
+use OCA\Social\Service\MiscService;
 
 
-/**
- * Interface ICoreService
- *
- * @package OCA\Social\Service
- */
-interface ICoreService {
+class UpdateService implements ICoreService {
+
+
+	/** @var MiscService */
+	private $miscService;
 
 
 	/**
-	 * Freshly imported item can be processed/parsed on incoming Request.
+	 * UpdateService constructor.
 	 *
+	 * @param MiscService $miscService
+	 */
+	public function __construct(MiscService $miscService) {
+		$this->miscService = $miscService;
+	}
+
+
+	/**
 	 * @param ACore $item
 	 * @param ImportService $importService
 	 */
-	public function processIncomingRequest(ACore $item, ImportService $importService);
+	public function processIncomingRequest(ACore $item, ImportService $importService) {
+		if (!$item->gotObject()) {
+			return;
+		}
+		$object = $item->getObject();
+
+		try {
+			$service = $importService->getServiceForItem($item->getObject());
+			$service->activity($item, $object);
+		} catch (UnknownItemException $e) {
+		}
+	}
 
 
 	/**
-	 * Freshly imported item can be processed/parsed on result of outgoing request.
-	 *
 	 * @param ACore $item
 	 * @param ImportService $importService
 	 */
-	public function processResult(ACore $item, ImportService $importService);
+	public function processResult(ACore $item, ImportService $importService) {
+	}
 
 
 	/**
-	 * When an activity is triggered by an 'Model\ActivityPub\Activity' model.
-	 *
+	 * @param ACore $item
+	 */
+	public function save(ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function delete(ACore $item) {
+	}
+
+	/**
 	 * @param ACore $activity
 	 * @param ACore $item
 	 */
-	public function activity(ACore $activity, ACore $item);
-
-
-	/**
-	 * Save the current item.
-	 *
-	 * @param ACore $item
-	 */
-	public function save(ACore $item);
-
-
-	/**
-	 * Delete the current item.
-	 *
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item);
-
-
+	public function activity(ACore $activity, ACore $item) {
+	}
 }
 

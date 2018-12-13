@@ -28,29 +28,35 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Activity;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
+use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
-use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityPub\ICoreService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
 
@@ -226,6 +232,14 @@ class FollowService implements ICoreService {
 
 
 	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processResult(ACore $item, ImportService $importService) {
+	}
+
+
+	/**
 	 * @param Follow $follow
 	 */
 	public function confirmFollowRequest(Follow $follow) {
@@ -257,54 +271,62 @@ class FollowService implements ICoreService {
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $follow
+	 * @param ImportService $importService
 	 *
-	 * @throws Exception
+	 * @throws InvalidResourceException
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
+	 * @throws Request410Exception
+	 * @throws MalformedArrayException
 	 */
-	public function parse(ACore $follow) {
-
+	public function processIncomingRequest(ACore $follow, ImportService $importService) {
 		/** @var Follow $follow */
-		if ($follow->isRoot()) {
-			$follow->checkOrigin($follow->getActorId());
+		$follow->checkOrigin($follow->getActorId());
 
-			try {
-				$knownFollow = $this->followsRequest->getByPersons(
-					$follow->getActorId(), $follow->getObjectId()
-				);
-				// in case of local follower.
-				// TODO - remove when following a local account does not need curl request anymore
-				if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
-					$this->confirmFollowRequest($follow);
-				}
-			} catch (FollowDoesNotExistException $e) {
-				$actor = $this->personService->getFromId($follow->getObjectId());
-				if ($actor->isLocal()) {
-					$follow->setFollowId($actor->getFollowers());
-					$this->followsRequest->save($follow);
-					$this->confirmFollowRequest($follow);
-				}
+		try {
+			$knownFollow = $this->followsRequest->getByPersons(
+				$follow->getActorId(), $follow->getObjectId()
+			);
+
+			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
+				$this->confirmFollowRequest($follow);
 			}
-
-		} else {
-			$parent = $follow->getParent();
-			if (!$parent->isRoot()) {
-				return;
+		} catch (FollowDoesNotExistException $e) {
+			$actor = $this->personService->getFromId($follow->getObjectId());
+			if ($actor->isLocal()) {
+				$follow->setFollowId($actor->getFollowers());
+				$this->followsRequest->save($follow);
+				$this->confirmFollowRequest($follow);
 			}
+		}
 
-			if ($parent->getType() === Undo::TYPE) {
-				$parent->checkOrigin($follow->getActorId());
-				$this->followsRequest->deleteByPersons($follow);
-			}
+//		} else {
+	}
 
-			if ($parent->getType() === Reject::TYPE) {
-				$parent->checkOrigin($follow->getObjectId());
-				$this->followsRequest->deleteByPersons($follow);
-			}
 
-			if ($parent->getType() === Accept::TYPE) {
-				$parent->checkOrigin($follow->getObjectId());
-				$this->followsRequest->accepted($follow);
-			}
+	/**
+	 * @param ACore $activity
+	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function activity(Acore $activity, ACore $item) {
+		/** @var Follow $item */
+		if ($activity->getType() === Undo::TYPE) {
+			$activity->checkOrigin($item->getActorId());
+			$this->followsRequest->deleteByPersons($item);
+		}
 
+		if ($activity->getType() === Reject::TYPE) {
+			$activity->checkOrigin($item->getObjectId());
+			$this->followsRequest->deleteByPersons($item);
+		}
+
+		if ($activity->getType() === Accept::TYPE) {
+			$activity->checkOrigin($item->getObjectId());
+			$this->followsRequest->accepted($item);
 		}
 	}
 

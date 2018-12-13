@@ -32,8 +32,8 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Exceptions\NoteNotFoundException;
-use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;

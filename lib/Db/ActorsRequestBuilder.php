@@ -32,7 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {

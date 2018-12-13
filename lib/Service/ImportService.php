@@ -35,25 +35,40 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
-use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
+use OCA\Social\Model\ActivityPub\Activity\Add;
+use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Activity\Like;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
-use OCA\Social\Model\ActivityPub\Tombstone;
-use OCA\Social\Model\ActivityPub\Document;
-use OCA\Social\Model\ActivityPub\Follow;
-use OCA\Social\Model\ActivityPub\Image;
-use OCA\Social\Model\ActivityPub\Note;
+use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
-use OCA\Social\Service\ActivityPub\DeleteService;
-use OCA\Social\Service\ActivityPub\FollowService;
-use OCA\Social\Service\ActivityPub\NoteService;
-use OCA\Social\Service\ActivityPub\UndoService;
+use OCA\Social\Model\ActivityPub\Activity\Update;
+use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Tombstone;
+use OCA\Social\Service\ActivityPub\Activity\AcceptService;
+use OCA\Social\Service\ActivityPub\Activity\AddService;
+use OCA\Social\Service\ActivityPub\Activity\BlockService;
+use OCA\Social\Service\ActivityPub\Activity\CreateService;
+use OCA\Social\Service\ActivityPub\Activity\DeleteService;
+use OCA\Social\Service\ActivityPub\Activity\FollowService;
+use OCA\Social\Service\ActivityPub\Activity\LikeService;
+use OCA\Social\Service\ActivityPub\Activity\RejectService;
+use OCA\Social\Service\ActivityPub\Activity\RemoveService;
+use OCA\Social\Service\ActivityPub\Activity\UndoService;
+use OCA\Social\Service\ActivityPub\Activity\UpdateService;
+use OCA\Social\Service\ActivityPub\ICoreService;
+use OCA\Social\Service\ActivityPub\Object\NoteService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 
 
 class ImportService {
@@ -61,18 +76,44 @@ class ImportService {
 
 	use TArrayTools;
 
+	/** @var AcceptService */
+	private $acceptService;
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var AddService */
+	private $addService;
 
-	/** @var UndoService */
-	private $undoService;
+	/** @var BlockService */
+	private $blockService;
+
+	/** @var CreateService */
+	private $createService;
+
+	/** @var DeleteService */
+	private $deleteService;
 
 	/** @var FollowService */
 	private $followService;
 
-	/** @var DeleteService */
-	private $deleteService;
+	/** @var LikeService */
+	private $likeService;
+
+	/** @var PersonService */
+	private $personService;
+
+	/** @var NoteService */
+	private $noteService;
+
+	/** @var RejectService */
+	private $rejectService;
+
+	/** @var RemoveService */
+	private $removeService;
+
+	/** @var UndoService */
+	private $undoService;
+
+	/** @var UpdateService */
+	private $updateService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -84,21 +125,43 @@ class ImportService {
 	/**
 	 * ImportService constructor.
 	 *
-	 * @param NoteService $noteService
-	 * @param UndoService $undoService
-	 * @param FollowService $followService
+	 * @param AcceptService $acceptService
+	 * @param AddService $addService
+	 * @param BlockService $blockService
+	 * @param CreateService $createService
 	 * @param DeleteService $deleteService
+	 * @param FollowService $followService
+	 * @param NoteService $noteService
+	 * @param LikeService $likeService
+	 * @param PersonService $personService
+	 * @param RejectService $rejectService
+	 * @param RemoveService $removeService
+	 * @param UndoService $undoService
+	 * @param UpdateService $updateService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, UndoService $undoService, FollowService $followService,
-		DeleteService $deleteService, ConfigService $configService, MiscService $miscService
+		AcceptService $acceptService, AddService $addService, BlockService $blockService,
+		CreateService $createService, DeleteService $deleteService, FollowService $followService,
+		NoteService $noteService, LikeService $likeService, PersonService $personService,
+		RejectService $rejectService, RemoveService $removeService,
+		UndoService $undoService, UpdateService $updateService,
+		ConfigService $configService, MiscService $miscService
 	) {
+		$this->acceptService = $acceptService;
+		$this->addService = $addService;
+		$this->blockService = $blockService;
+		$this->createService = $createService;
+		$this->deleteService = $deleteService;
+		$this->followService = $followService;
+		$this->likeService = $likeService;
+		$this->rejectService = $rejectService;
+		$this->removeService = $removeService;
+		$this->personService = $personService;
 		$this->noteService = $noteService;
 		$this->undoService = $undoService;
-		$this->followService = $followService;
-		$this->deleteService = $deleteService;
+		$this->updateService = $updateService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -142,6 +205,14 @@ class ImportService {
 				$item = new Accept($root);
 				break;
 
+			case Add::TYPE:
+				$item = new Add($root);
+				break;
+
+			case Block::TYPE:
+				$item = new Block($root);
+				break;
+
 			case Create::TYPE:
 				$item = new Create($root);
 				break;
@@ -158,12 +229,24 @@ class ImportService {
 				$item = new Image($root);
 				break;
 
+			case Like::TYPE:
+				$item = new Like($root);
+				break;
+
 			case Note::TYPE:
+				$item = new Note($root);
+				break;
+
+			case Person::TYPE:
 				$item = new Note($root);
 				break;
 
 			case Reject::TYPE:
 				$item = new Reject($root);
+				break;
+
+			case Remove::TYPE:
+				$item = new Remove($root);
 				break;
 
 			case Tombstone::TYPE:
@@ -172,6 +255,10 @@ class ImportService {
 
 			case Undo::TYPE:
 				$item = new Undo($root);
+				break;
+
+			case Update::TYPE:
+				$item = new Update($root);
 				break;
 
 			default:
@@ -206,33 +293,18 @@ class ImportService {
 	 */
 	public function parseIncomingRequest(ACore $activity) {
 
-		if ($activity->gotObject()) {
-			try {
-				$this->parseIncomingRequest($activity->getObject());
-			} catch (UnknownItemException $e) {
-			}
-		}
+		// not sure we need to recursive on activity/parsing.
+//		if ($activity->gotObject()) {
+//			try {
+//				$this->parseIncomingRequest($activity->getObject());
+//			} catch (UnknownItemException $e) {
+//			}
+//		}
 
-		switch ($activity->getType()) {
-
-			case Delete::TYPE:
-				$service = $this->deleteService;
-				break;
-
-			case Follow::TYPE:
-				$service = $this->followService;
-				break;
-
-			case Note::TYPE:
-				$service = $this->noteService;
-				break;
-
-			default:
-				throw new UnknownItemException();
-		}
+		$service = $this->getServiceForItem($activity);
 
 		try {
-			$service->parse($activity);
+			$service->processIncomingRequest($activity, $this);
 		} catch (Exception $e) {
 			$this->miscService->log(
 				'Cannot parse ' . $activity->getType() . ': ' . $e->getMessage()
@@ -244,13 +316,71 @@ class ImportService {
 	/**
 	 * @param ACore $activity
 	 *
-	 * @param string $id
-	 *
-	 * @throws InvalidResourceException
+	 * @return ICoreService
+	 * @throws UnknownItemException
 	 */
-	public function verifyOrigin(ACore $activity, string $id) {
-		throw new InvalidResourceException();
+	public function getServiceForItem(Acore $activity): ICoreService {
+		switch ($activity->getType()) {
+
+			case Accept::TYPE:
+				$service = $this->acceptService;
+				break;
+
+			case Add::TYPE:
+				$service = $this->addService;
+				break;
+
+			case Block::TYPE:
+				$service = $this->blockService;
+				break;
+
+			case Create::TYPE:
+				$service = $this->createService;
+				break;
+
+			case Delete::TYPE:
+				$service = $this->deleteService;
+				break;
+
+			case Follow::TYPE:
+				$service = $this->followService;
+				break;
+
+			case Like::TYPE:
+				$service = $this->likeService;
+				break;
+
+			case Note::TYPE:
+				$service = $this->noteService;
+				break;
+
+			case Person::TYPE:
+				$service = $this->personService;
+				break;
+
+			case Reject::TYPE:
+				$service = $this->rejectService;
+				break;
+
+			case Remove::TYPE:
+				$service = $this->removeService;
+				break;
+
+			case Undo::TYPE:
+				$service = $this->undoService;
+				break;
+
+			case Update::TYPE:
+				$service = $this->updateService;
+				break;
+
+			default:
+				throw new UnknownItemException();
+		}
+
+		return $service;
 	}
+
 
 }
 

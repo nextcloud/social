@@ -28,63 +28,54 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Activity;
 
 
+use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\ImportService;
 
 
 /**
- * Interface ICoreService
+ * Class Remove
  *
- * @package OCA\Social\Service
+ * @package OCA\Social\Model\ActivityPub\Activity
  */
-interface ICoreService {
+class Remove extends ACore implements JsonSerializable {
+
+
+	const TYPE = 'Remove';
 
 
 	/**
-	 * Freshly imported item can be processed/parsed on incoming Request.
+	 * Remove constructor.
 	 *
-	 * @param ACore $item
-	 * @param ImportService $importService
+	 * @param ACore $parent
 	 */
-	public function processIncomingRequest(ACore $item, ImportService $importService);
+	public function __construct($parent = null) {
+		parent::__construct($parent);
+
+		$this->setType(self::TYPE);
+	}
 
 
 	/**
-	 * Freshly imported item can be processed/parsed on result of outgoing request.
-	 *
-	 * @param ACore $item
-	 * @param ImportService $importService
+	 * @param array $data
 	 */
-	public function processResult(ACore $item, ImportService $importService);
+	public function import(array $data) {
+		parent::import($data);
+	}
 
 
 	/**
-	 * When an activity is triggered by an 'Model\ActivityPub\Activity' model.
-	 *
-	 * @param ACore $activity
-	 * @param ACore $item
+	 * @return array
 	 */
-	public function activity(ACore $activity, ACore $item);
-
-
-	/**
-	 * Save the current item.
-	 *
-	 * @param ACore $item
-	 */
-	public function save(ACore $item);
-
-
-	/**
-	 * Delete the current item.
-	 *
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item);
-
+	public function jsonSerialize(): array {
+		return array_merge(
+			parent::jsonSerialize(),
+			[
+			]
+		);
+	}
 
 }
 

@@ -33,7 +33,7 @@ namespace OCA\Social\Command;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Model\Post;
-use OCA\Social\Service\ActivityPub\NoteService;
+use OCA\Social\Service\ActivityPub\Object\NoteService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;

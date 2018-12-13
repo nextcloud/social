@@ -27,11 +27,12 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Model\ActivityPub;
+namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use DateTime;
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\ActivityService;
 
 class Note extends ACore implements JsonSerializable {

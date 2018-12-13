@@ -31,8 +31,6 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
-use OC\IntegrityCheck\Helpers\AppLocator;
-use OCA\Files\App;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\IConfig;

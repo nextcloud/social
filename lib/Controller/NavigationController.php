@@ -37,8 +37,8 @@ use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Service\ActivityPub\DocumentService;
-use OCA\Social\Service\ActivityPub\PersonService;
+use OCA\Social\Service\ActivityPub\Object\DocumentService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
@@ -227,7 +227,7 @@ class NavigationController extends Controller {
 
 		$setup = false;
 		try {
-			$address = $this->configService->getCloudAddress(true);
+			$this->configService->getCloudAddress(true);
 			$setup = true;
 		} catch (SocialAppConfigException $e) {
 		}

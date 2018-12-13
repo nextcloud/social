@@ -41,9 +41,9 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Person;
-use OCA\Social\Service\ActivityPub\DocumentService;
-use OCA\Social\Service\ActivityPub\PersonService;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\ActivityPub\Object\DocumentService;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCP\Accounts\IAccountManager;
 use OCP\IUserManager;
 

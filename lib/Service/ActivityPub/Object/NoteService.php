@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Object;
 
 
 use Exception;
@@ -41,13 +41,16 @@ use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
-use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\ActivityPub\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityPub\Actor\PersonService;
+use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
 
@@ -273,28 +276,18 @@ class NoteService implements ICoreService {
 
 
 	/**
-	 * This method is called when saving the Note object
-	 *
 	 * @param ACore $note
-	 *
-	 * @throws InvalidOriginException
+	 * @param ImportService $importService
 	 */
-	public function parse(ACore $note) {
+	public function processIncomingRequest(ACore $note, ImportService $importService) {
+	}
 
-		/** @var Note $note */
-		if ($note->isRoot()) {
-			return;
-		}
 
-		$parent = $note->getParent();
-		if (!$parent->isRoot()) {
-			return;
-		}
-
-		if ($parent->getType() === Create::TYPE) {
-			$parent->checkOrigin($note->getAttributedTo());
-			$this->save($note);
-		}
+	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processResult(ACore $item, ImportService $importService) {
 	}
 
 
@@ -308,6 +301,22 @@ class NoteService implements ICoreService {
 			$this->notesRequest->getNoteById($note->getId());
 		} catch (NoteNotFoundException $e) {
 			$this->notesRequest->save($note);
+		}
+	}
+
+
+	/**
+	 * @param ACore $activity
+	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function activity(Acore $activity, ACore $item) {
+		/** @var Note $item */
+
+		if ($activity->getType() === Create::TYPE) {
+			$activity->checkOrigin($item->getAttributedTo());
+			$this->save($item);
 		}
 	}
 
@@ -404,6 +413,7 @@ class NoteService implements ICoreService {
 	 */
 	public function getStreamInternalTimeline(int $since = 0, int $limit = 5): array {
 		// TODO - admin should be able to provide a list of 'friendly/internal' instance of ActivityPub
+		return [];
 	}
 
 

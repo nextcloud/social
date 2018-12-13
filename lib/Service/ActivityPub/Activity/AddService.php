@@ -28,15 +28,17 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub;
+namespace OCA\Social\Service\ActivityPub\Activity;
 
 
-use Exception;
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Service\ActivityPub\ICoreService;
+use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
 
-class UndoService implements ICoreService {
+class AddService implements ICoreService {
 
 
 	/** @var MiscService */
@@ -44,7 +46,7 @@ class UndoService implements ICoreService {
 
 
 	/**
-	 * UndoService constructor.
+	 * AddService constructor.
 	 *
 	 * @param MiscService $miscService
 	 */
@@ -54,12 +56,31 @@ class UndoService implements ICoreService {
 
 
 	/**
-	 * @param ACore $undo
-	 *
-	 * @throws Exception
+	 * @param ACore $item
+	 * @param ImportService $importService
 	 */
-	public function parse(ACore $undo) {
+	public function processIncomingRequest(ACore $item, ImportService $importService) {
+		if (!$item->gotObject()) {
+			return;
+		}
+		$object = $item->getObject();
+
+		try {
+			$service = $importService->getServiceForItem($item->getObject());
+			$service->activity($item, $object);
+		} catch (UnknownItemException $e) {
+		}
 	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param ImportService $importService
+	 */
+	public function processResult(ACore $item, ImportService $importService) {
+	}
+
+
 
 
 	/**
@@ -75,5 +96,11 @@ class UndoService implements ICoreService {
 	public function delete(ACore $item) {
 	}
 
+	/**
+	 * @param ACore $activity
+	 * @param ACore $item
+	 */
+	public function activity(ACore $activity, ACore $item) {
+	}
 }
 
