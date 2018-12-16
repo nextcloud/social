@@ -38,7 +38,7 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Service\ActivityPub\ICoreService;
+use OCA\Social\Interfaces\IActivityPubInterface;
 
 
 abstract class ACore extends Item implements JsonSerializable {
@@ -72,7 +72,7 @@ abstract class ACore extends Item implements JsonSerializable {
 	/** @var Document */
 	private $icon = null;
 
-	/** @var ICoreService */
+	/** @var IActivityPubInterface */
 	private $saveAs;
 
 	/**
@@ -168,20 +168,20 @@ abstract class ACore extends Item implements JsonSerializable {
 	}
 
 
-	/**
-	 * @param ICoreService $class
-	 */
-	public function saveAs(ICoreService $class) {
-		$this->saveAs = $class;
-	}
-
-	/**
-	 * @return ICoreService
-	 */
-	public function savingAs() {
-		return $this->saveAs;
-	}
-
+//	/**
+//	 * @param ICoreService $class
+//	 */
+//	public function saveAs(ICoreService $class) {
+//		$this->saveAs = $class;
+//	}
+//
+//	/**
+//	 * @return ICoreService
+//	 */
+//	public function savingAs() {
+//		return $this->saveAs;
+//	}
+//
 
 	/**
 	 * @param string $base

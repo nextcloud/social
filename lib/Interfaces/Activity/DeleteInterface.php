@@ -28,17 +28,17 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub\Activity;
+namespace OCA\Social\Interfaces\Activity;
 
 
+use OCA\Social\AP;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\ActivityPub\ICoreService;
-use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
-
-class RejectService implements ICoreService {
+class DeleteInterface implements IActivityPubInterface {
 
 
 	/** @var MiscService */
@@ -46,7 +46,7 @@ class RejectService implements ICoreService {
 
 
 	/**
-	 * RejectService constructor.
+	 * UndoService constructor.
 	 *
 	 * @param MiscService $miscService
 	 */
@@ -57,35 +57,76 @@ class RejectService implements ICoreService {
 
 	/**
 	 * @param ACore $item
-	 * @param ImportService $importService
+	 *
 	 */
-	public function processIncomingRequest(ACore $item, ImportService $importService) {
+	public function processIncomingRequest(ACore $item) {
 		if (!$item->gotObject()) {
 			return;
 		}
 		$object = $item->getObject();
 
 		try {
-			$service = $importService->getServiceForItem($item->getObject());
-			$service->activity($item, $object);
+			$service = AP::$activityPub->getInterfaceForItem($object);
+			$service->delete($object);
 		} catch (UnknownItemException $e) {
 		}
 	}
 
+//
+//	/**
+//	 * @param ACore $delete
+//	 *
+//	 * @throws InvalidOriginException
+//	 */
+//	public function processIncomingRequest(ACore $delete) {
+//
+//		if ($delete->gotObject()) {
+//			$id = $delete->getObject()
+//						 ->getId();
+//		} else {
+//			$id = $delete->getObjectId();
+//		}
+//
+//		$delete->checkOrigin($id);
+//
+//
+//		/** @var Delete $delete */
+//		try {
+//			$item = $this->activityService->getItem($id);
+//			$service = AP::$activityPub->getServiceForItem($item);
+//
+//			// we could use ->activity($delete, $item) but the delete() is important enough to
+//			// be here, and to use it.
+////			$service->delete($item);
+//		} catch (UnknownItemException $e) {
+//		} catch (InvalidResourceException $e) {
+//		}
+//	}
+
 
 	/**
 	 * @param ACore $item
-	 * @param ImportService $importService
 	 */
-	public function processResult(ACore $item, ImportService $importService) {
+	public function processResult(ACore $item) {
 	}
 
 
+	/**
+	 * @param string $id
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItemById(string $id): ACore {
+		throw new ItemNotFoundException();
+	}
+
 
 	/**
+	 * @param ACore $activity
 	 * @param ACore $item
 	 */
-	public function save(ACore $item) {
+	public function activity(Acore $activity, ACore $item) {
 	}
 
 
@@ -95,11 +136,13 @@ class RejectService implements ICoreService {
 	public function delete(ACore $item) {
 	}
 
+
 	/**
-	 * @param ACore $activity
 	 * @param ACore $item
 	 */
-	public function activity(ACore $activity, ACore $item) {
+	public function save(ACore $item) {
 	}
+
+
 }
 

@@ -28,46 +28,42 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub\Activity;
+namespace OCA\Social\Interfaces\Activity;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
-use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
-use OCA\Social\Model\ActivityPub\OrderedCollection;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Service\ActivityPub\ICoreService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
 use OCA\Social\Service\ActivityService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
 
-class FollowService implements ICoreService {
+class FollowInterface implements IActivityPubInterface {
 
 
 	/** @var FollowsRequest */
 	private $followsRequest;
 
-	/** @var PersonService */
-	private $personService;
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -79,26 +75,21 @@ class FollowService implements ICoreService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId = '';
-
-
 	/**
-	 * NoteService constructor.
+	 * NoteInterface constructor.
 	 *
 	 * @param FollowsRequest $followsRequest
-	 * @param PersonService $personService
+	 * @param CacheActorService $cacheActorService
 	 * @param ActivityService $activityService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		FollowsRequest $followsRequest, PersonService $personService,
-		ActivityService $activityService, ConfigService $configService,
-		MiscService $miscService
+		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
+		ActivityService $activityService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
-		$this->personService = $personService;
+		$this->cacheActorService = $cacheActorService;
 		$this->activityService = $activityService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -106,136 +97,9 @@ class FollowService implements ICoreService {
 
 
 	/**
-	 * @param string $viewerId
-	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->followsRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
-	}
-
-
-	/**
-	 * @param Person $actor
-	 * @param string $account
-	 *
-	 * @throws ActorDoesNotExistException
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws CacheActorDoesNotExistException
-	 * @throws InvalidResourceException
-	 * @throws UrlCloudException
-	 * @throws FollowSameAccountException
-	 */
-	public function followAccount(Person $actor, string $account) {
-		$remoteActor = $this->personService->getFromAccount($account);
-		if ($remoteActor->getId() === $actor->getId()) {
-			throw new FollowSameAccountException("Don't follow yourself, be your own lead");
-		}
-
-		$follow = new Follow();
-		$follow->setUrlCloud($this->configService->getCloudAddress());
-		$follow->generateUniqueId();
-		$follow->setActorId($actor->getId());
-		$follow->setObjectId($remoteActor->getId());
-		$follow->setFollowId($remoteActor->getFollowers());
-
-		try {
-			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
-		} catch (FollowDoesNotExistException $e) {
-			$this->followsRequest->save($follow);
-			// TODO - Remove this auto-accepted.
-			$this->followsRequest->accepted($follow);
-
-			$follow->addInstancePath(
-				new InstancePath(
-					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
-				)
-			);
-			$this->activityService->request($follow);
-		}
-	}
-
-
-	/**
-	 * @param Person $actor
-	 * @param string $account
-	 *
-	 * @throws CacheActorDoesNotExistException
-	 * @throws InvalidResourceException
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 */
-	public function unfollowAccount(Person $actor, string $account) {
-		$remoteActor = $this->personService->getFromAccount($account);
-
-		try {
-			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
-			$this->followsRequest->delete($follow);
-		} catch (FollowDoesNotExistException $e) {
-		}
-	}
-
-
-	/**
-	 * @param Person $actor
-	 *
-	 * @return Person[]
-	 */
-	public function getFollowers(Person $actor): array {
-		return $this->followsRequest->getFollowersByActorId($actor->getId());
-	}
-
-
-	/**
-	 * @param Person $actor
-	 *
-	 * @return OrderedCollection
-	 */
-	public function getFollowersCollection(Person $actor): OrderedCollection {
-		$collection = new OrderedCollection();
-		$collection->setId($actor->getFollowers());
-		$collection->setTotalItems(20);
-		$collection->setFirst('...');
-
-		return $collection;
-	}
-
-
-	/**
-	 * @param Person $actor
-	 *
-	 * @return Person[]
-	 */
-	public function getFollowing(Person $actor): array {
-		return $this->followsRequest->getFollowingByActorId($actor->getId());
-	}
-
-
-	/**
-	 * @param Person $actor
-	 *
-	 * @return OrderedCollection
-	 */
-	public function getFollowingCollection(Person $actor): OrderedCollection {
-		$collection = new OrderedCollection();
-//		$collection->setId($actor->getFollowers());
-//		$collection->setTotalItems(20);
-//		$collection->setFirst('...');
-
-		return $collection;
-	}
-
-
-	/**
 	 * @param ACore $item
-	 * @param ImportService $importService
 	 */
-	public function processResult(ACore $item, ImportService $importService) {
+	public function processResult(ACore $item) {
 	}
 
 
@@ -244,7 +108,7 @@ class FollowService implements ICoreService {
 	 */
 	public function confirmFollowRequest(Follow $follow) {
 		try {
-			$remoteActor = $this->personService->getFromId($follow->getActorId());
+			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
 			$accept = new Accept();
 			// TODO: improve the generation of the Id
@@ -271,17 +135,17 @@ class FollowService implements ICoreService {
 	 * This method is called when saving the Follow object
 	 *
 	 * @param ACore $follow
-	 * @param ImportService $importService
 	 *
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws Request410Exception
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws InvalidOriginException
-	 * @throws Request410Exception
-	 * @throws MalformedArrayException
+	 * @throws RedundancyLimitException
+	 * @throws UnknownItemException
 	 */
-	public function processIncomingRequest(ACore $follow, ImportService $importService) {
+	public function processIncomingRequest(ACore $follow) {
 		/** @var Follow $follow */
 		$follow->checkOrigin($follow->getActorId());
 
@@ -294,7 +158,7 @@ class FollowService implements ICoreService {
 				$this->confirmFollowRequest($follow);
 			}
 		} catch (FollowDoesNotExistException $e) {
-			$actor = $this->personService->getFromId($follow->getObjectId());
+			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
 			if ($actor->isLocal()) {
 				$follow->setFollowId($actor->getFollowers());
 				$this->followsRequest->save($follow);
@@ -302,7 +166,17 @@ class FollowService implements ICoreService {
 			}
 		}
 
-//		} else {
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItemById(string $id): ACore {
+		throw new ItemNotFoundException();
 	}
 
 

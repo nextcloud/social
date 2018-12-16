@@ -28,17 +28,18 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Service\ActivityPub\Activity;
+namespace OCA\Social\Interfaces\Activity;
 
 
+use OCA\Social\AP;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\ActivityPub\ICoreService;
-use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 
 
-class AcceptService implements ICoreService {
+class LikeInterface implements IActivityPubInterface {
 
 
 	/** @var MiscService */
@@ -46,7 +47,7 @@ class AcceptService implements ICoreService {
 
 
 	/**
-	 * AcceptService constructor.
+	 * LikeService constructor.
 	 *
 	 * @param MiscService $miscService
 	 */
@@ -57,16 +58,15 @@ class AcceptService implements ICoreService {
 
 	/**
 	 * @param ACore $item
-	 * @param ImportService $importService
 	 */
-	public function processIncomingRequest(ACore $item, ImportService $importService) {
+	public function processIncomingRequest(ACore $item) {
 		if (!$item->gotObject()) {
 			return;
 		}
 		$object = $item->getObject();
 
 		try {
-			$service = $importService->getServiceForItem($item->getObject());
+			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
 			$service->activity($item, $object);
 		} catch (UnknownItemException $e) {
 		}
@@ -75,11 +75,20 @@ class AcceptService implements ICoreService {
 
 	/**
 	 * @param ACore $item
-	 * @param ImportService $importService
 	 */
-	public function processResult(ACore $item, ImportService $importService) {
+	public function processResult(ACore $item) {
 	}
 
+
+	/**
+	 * @param string $id
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItemById(string $id): ACore {
+		throw new ItemNotFoundException();
+	}
 
 
 	/**

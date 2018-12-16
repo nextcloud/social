@@ -42,8 +42,8 @@ use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Service\ActivityPub\Object\DocumentService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
+use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCP\Accounts\IAccountManager;
 use OCP\IUserManager;
 
@@ -74,10 +74,13 @@ class ActorService {
 	/** @var NotesRequest */
 	private $notesRequest;
 
-	/** @var PersonService */
+	/** @var PersonInterface */
 	private $personService;
 
-	/** @var DocumentService */
+	/** @var SignatureService */
+	private $signatureService;
+
+	/** @var DocumentInterface */
 	private $documentService;
 
 	/** @var ConfigService */
@@ -95,15 +98,16 @@ class ActorService {
 	 * @param ActorsRequest $actorsRequest
 	 * @param FollowsRequest $followsRequest
 	 * @param NotesRequest $notesRequest
-	 * @param PersonService $personService
-	 * @param DocumentService $documentService
+	 * @param PersonInterface $personService
+	 * @param DocumentInterface $documentService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IUserManager $userManager, IAccountManager $accountManager, ActorsRequest $actorsRequest,
-		FollowsRequest $followsRequest, NotesRequest $notesRequest, PersonService $personService,
-		DocumentService $documentService, ConfigService $configService, MiscService $miscService
+		FollowsRequest $followsRequest, NotesRequest $notesRequest, PersonInterface $personService,
+		DocumentInterface $documentService, SignatureService $signatureService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->userManager = $userManager;
 		$this->accountManager = $accountManager;
@@ -112,6 +116,7 @@ class ActorService {
 		$this->notesRequest = $notesRequest;
 		$this->personService = $personService;
 		$this->documentService = $documentService;
+		$this->signatureService = $signatureService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -215,7 +220,7 @@ class ActorService {
 		$actor->setUserId($userId);
 		$actor->setPreferredUsername($username);
 
-		$this->generateKeys($actor);
+		$this->signatureService->generateKeys($actor);
 		$this->actorsRequest->create($actor);
 
 		// generate cache.
@@ -318,26 +323,6 @@ class ActorService {
 		$accepted = 'qwertyuiopasdfghjklzxcvbnm';
 
 		return;
-	}
-
-
-	/**
-	 * @param Person $actor
-	 */
-	private function generateKeys(Person &$actor) {
-		$res = openssl_pkey_new(
-			[
-				"digest_alg"       => "rsa",
-				"private_key_bits" => 2048,
-				"private_key_type" => OPENSSL_KEYTYPE_RSA,
-			]
-		);
-
-		openssl_pkey_export($res, $privateKey);
-		$publicKey = openssl_pkey_get_details($res)['key'];
-
-		$actor->setPublicKey($publicKey);
-		$actor->setPrivateKey($privateKey);
 	}
 
 
