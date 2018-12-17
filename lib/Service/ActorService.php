@@ -34,10 +34,6 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
-use OCA\Social\Exceptions\InvalidResourceEntryException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
@@ -215,30 +211,30 @@ class ActorService {
 //		return $this->cacheActorsRequest->getFromLocalAccount($account);
 //	}
 
-
-	/**
-	 * @param array $object
-	 *
-	 * @return Person
-	 * @throws InvalidResourceException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws InvalidResourceEntryException
-	 */
-	private function generateActorFromObject(array $object) {
-
-		$actor = new Person();
-		$actor->setUrlCloud($this->configService->getCloudAddress());
-		$actor->import($object);
-
-		if ($actor->getType() !== Person::TYPE) {
-			throw new InvalidResourceException();
-		}
-
-		$actor->setSource(json_encode($object, JSON_UNESCAPED_SLASHES));
-
-		return $actor;
-	}
+//
+//	/**
+//	 * @param array $object
+//	 *
+//	 * @return Person
+//	 * @throws InvalidResourceException
+//	 * @throws SocialAppConfigException
+//	 * @throws UrlCloudException
+//	 * @throws InvalidResourceEntryException
+//	 */
+//	private function generateActorFromObject(array $object) {
+//
+//		$actor = new Person();
+//		$actor->setUrlCloud($this->configService->getCloudAddress());
+//		$actor->import($object);
+//
+//		if ($actor->getType() !== Person::TYPE) {
+//			throw new InvalidResourceException();
+//		}
+//
+//		$actor->setSource(json_encode($object, JSON_UNESCAPED_SLASHES));
+//
+//		return $actor;
+//	}
 //
 //	/**
 //	 * @param string $search

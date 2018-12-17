@@ -30,7 +30,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -42,7 +41,6 @@ use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
-use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -191,7 +189,7 @@ class ActivityService {
 		}
 
 		$requests = [
-			 'Note'
+			'Note'
 		];
 
 		foreach ($requests as $request) {
