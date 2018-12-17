@@ -40,12 +40,17 @@ class Note extends ACore implements JsonSerializable {
 
 	const TYPE = 'Note';
 
+	const TYPE_PUBLIC = 'public';
+	const TYPE_UNLISTED = 'unlisted';
+	const TYPE_FOLLOWERS = 'followers';
+	const TYPE_DIRECT = 'direct';
+
 
 	/** @var string */
-	private $content;
+	private $content = '';
 
 	/** @var string */
-	private $attributedTo;
+	private $attributedTo = '';
 
 	/** @var string */
 	private $inReplyTo = '';

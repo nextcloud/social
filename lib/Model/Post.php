@@ -55,10 +55,10 @@ class Post implements JsonSerializable {
 	private $replyTo = '';
 
 	/** @var string */
-	private $content;
+	private $content = '';
 
 	/** @var string */
-	private $type;
+	private $type = '';
 
 
 	/**
