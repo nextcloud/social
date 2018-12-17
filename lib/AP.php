@@ -255,7 +255,7 @@ class AP {
 				return new Note();
 
 			case Person::TYPE:
-				return new Note();
+				return new Person();
 
 			case Reject::TYPE:
 				return new Reject();
