@@ -135,11 +135,15 @@ class CacheActorService {
 
 			/** @var Person $actor */
 			$actor = AP::$activityPub->getItemFromData($object);
+			if ($actor->getType() !== Person::TYPE) {
+				throw new InvalidResourceException();
+			}
+
 			if ($id !== $actor->getId()) {
 				throw new InvalidOriginException();
 			}
 
-			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
+			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $info));
 			try {
 				$this->save($actor);
 			} catch (Exception $e) {
@@ -187,9 +191,7 @@ class CacheActorService {
 				throw new CacheActorDoesNotExistException();
 			}
 
-			$object = $this->curlService->retrieveAccount($account);
-			/** @var Person $actor */
-			$actor = AP::$activityPub->getItemFromData($object);
+			$actor = $this->curlService->retrieveAccount($account);
 			$actor->setAccount($account);
 			try {
 				$this->save($actor);

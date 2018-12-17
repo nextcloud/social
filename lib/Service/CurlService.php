@@ -79,7 +79,7 @@ class CurlService {
 	/**
 	 * @param string $account
 	 *
-	 * @return mixed
+	 * @return Person
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws Request410Exception
@@ -89,7 +89,7 @@ class CurlService {
 	 * @throws UnknownItemException
 	 * @throws InvalidOriginException
 	 */
-	public function retrieveAccount(string $account) {
+	public function retrieveAccount(string $account): Person {
 		$account = $this->withoutBeginAt($account);
 
 		if (strstr(substr($account, 0, -3), '@') === false) {
@@ -112,28 +112,33 @@ class CurlService {
 			throw new RequestException();
 		}
 
-		$data = $this->retrieveObject($this->get('href', $link, ''));
-		$object = AP::$activityPub->getItemFromData($data);
+		$id = $this->get('href', $link, '');
+		$data = $this->retrieveObject($id);
 
-		if ($object->getType() === Person::TYPE) {
-			return $object;
+		/** @var Person $actor */
+		$actor = AP::$activityPub->getItemFromData($data);
+		if ($actor->getType() !== Person::TYPE) {
+			throw new UnknownItemException();
 		}
 
-		$object->checkOrigin($object->getId());
+		if ($actor->getId() !== $id) {
+			throw new InvalidOriginException();
+		}
 
-		throw new UnknownItemException();
+		return $actor;
 	}
 
 
 	/**
 	 * @param $id
 	 *
-	 * @return mixed
-	 * @throws RequestException
-	 * @throws Request410Exception
+	 * @return array
 	 * @throws MalformedArrayException
+	 * @throws Request410Exception
+	 * @throws RequestException
 	 */
-	public function retrieveObject($id) {
+	public function retrieveObject($id): array {
+
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host'], $url);
 		$request = new Request($url['path'], Request::TYPE_GET);
