@@ -30,20 +30,13 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use Exception;
-use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
@@ -131,47 +124,47 @@ class ActorService {
 	}
 
 
-	/**
-	 * @param string $id
-	 *
-	 * @param bool $refresh
-	 *
-	 * @return Person
-	 * @throws InvalidResourceException
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws Request410Exception
-	 * @throws MalformedArrayException
-	 * @throws InvalidResourceEntryException
-	 */
-	public function getFromId(string $id, bool $refresh = false): Person {
-
-		$posAnchor = strpos($id, '#');
-		if ($posAnchor !== false) {
-			$id = substr($id, 0, $posAnchor);
-		}
-
-		try {
-			if ($refresh) {
-				$this->cacheActorsRequest->deleteFromId($id);
-				throw new CacheActorDoesNotExistException();
-			}
-
-			$actor = $this->cacheActorsRequest->getFromId($id);
-		} catch (CacheActorDoesNotExistException $e) {
-			$object = $this->curlService->retrieveObject($id);
-			$actor = $this->generateActorFromObject($object);
-			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
-			try {
-				$this->save($actor);
-			} catch (Exception $e) {
-				throw new InvalidResourceException($e->getMessage());
-			}
-		}
-
-		return $actor;
-	}
+//	/**
+//	 * @param string $id
+//	 *
+//	 * @param bool $refresh
+//	 *
+//	 * @return Person
+//	 * @throws InvalidResourceException
+//	 * @throws RequestException
+//	 * @throws SocialAppConfigException
+//	 * @throws UrlCloudException
+//	 * @throws Request410Exception
+//	 * @throws MalformedArrayException
+//	 * @throws InvalidResourceEntryException
+//	 */
+//	public function getFromId(string $id, bool $refresh = false): Person {
+//
+//		$posAnchor = strpos($id, '#');
+//		if ($posAnchor !== false) {
+//			$id = substr($id, 0, $posAnchor);
+//		}
+//
+//		try {
+//			if ($refresh) {
+//				$this->cacheActorsRequest->deleteFromId($id);
+//				throw new CacheActorDoesNotExistException();
+//			}
+//
+//			$actor = $this->cacheActorsRequest->getFromId($id);
+//		} catch (CacheActorDoesNotExistException $e) {
+//			$object = $this->curlService->retrieveObject($id);
+//			$actor = $this->generateActorFromObject($object);
+//			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
+//			try {
+//				$this->save($actor);
+//			} catch (Exception $e) {
+//				throw new InvalidResourceException($e->getMessage());
+//			}
+//		}
+//
+//		return $actor;
+//	}
 
 
 //	/**
