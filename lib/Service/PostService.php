@@ -36,7 +36,6 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
-use OCA\Social\Service\ActivityPub\Object\NoteService;
 
 class PostService {
 
@@ -44,7 +43,7 @@ class PostService {
 	/** @var NoteService */
 	private $noteService;
 
-	/** @var ActorService */
+	/** @var AccountService */
 	private $actorService;
 
 	/** @var ActivityService */
@@ -58,12 +57,12 @@ class PostService {
 	 * PostService constructor.
 	 *
 	 * @param NoteService $noteService
-	 * @param ActorService $actorService
+	 * @param AccountService $actorService
 	 * @param ActivityService $activityService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, ActorService $actorService, ActivityService $activityService,
+		NoteService $noteService, AccountService $actorService, ActivityService $activityService,
 		MiscService $miscService
 	) {
 		$this->noteService = $noteService;

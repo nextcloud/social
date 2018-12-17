@@ -34,7 +34,7 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\Accounts\IAccountManager;
@@ -61,7 +61,7 @@ class AccountController extends Controller {
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var ActorService */
+	/** @var AccountService */
 	private $actorService;
 
 	/** @var MiscService */
@@ -77,14 +77,14 @@ class AccountController extends Controller {
 	 * @param IRequest $request
 	 * @param IUserManager $userManager
 	 * @param ConfigService $configService
-	 * @param ActorService $actorService
+	 * @param AccountService $actorService
 	 * @param MiscService $miscService
 	 * @param IAccountManager $accountManager
 	 * @param string $userId
 	 */
 	public function __construct(
 		IRequest $request, $userId, IUserManager $userManager, ConfigService $configService,
-		ActorService $actorService, MiscService $miscService,
+		AccountService $actorService, MiscService $miscService,
 		IAccountManager $accountManager
 	) {
 		parent::__construct(Application::APP_NAME, $request);
@@ -121,6 +121,9 @@ class AccountController extends Controller {
 
 
 	/**
+	 *
+	 * // TODO - is it still used ? maybe using info from LocalController !?
+	 *
 	 * @PublicPage
 	 * @NoCSRFRequired
 	 * @NoAdminRequired

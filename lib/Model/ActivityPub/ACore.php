@@ -38,10 +38,9 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Interfaces\IActivityPubInterface;
 
 
-abstract class ACore extends Item implements JsonSerializable {
+class ACore extends Item implements JsonSerializable {
 
 
 	use TArrayTools;
@@ -72,8 +71,6 @@ abstract class ACore extends Item implements JsonSerializable {
 	/** @var Document */
 	private $icon = null;
 
-	/** @var IActivityPubInterface */
-	private $saveAs;
 
 	/**
 	 * Core constructor.
@@ -167,21 +164,6 @@ abstract class ACore extends Item implements JsonSerializable {
 		return $this;
 	}
 
-
-//	/**
-//	 * @param ICoreService $class
-//	 */
-//	public function saveAs(ICoreService $class) {
-//		$this->saveAs = $class;
-//	}
-//
-//	/**
-//	 * @return ICoreService
-//	 */
-//	public function savingAs() {
-//		return $this->saveAs;
-//	}
-//
 
 	/**
 	 * @param string $base

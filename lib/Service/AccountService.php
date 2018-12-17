@@ -38,12 +38,9 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Interfaces\Object\DocumentInterface;
-use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCP\Accounts\IAccountManager;
 use OCP\IUserManager;
 
@@ -53,7 +50,7 @@ use OCP\IUserManager;
  *
  * @package OCA\Social\Service
  */
-class ActorService {
+class AccountService {
 
 
 	use TArrayTools;
@@ -74,13 +71,13 @@ class ActorService {
 	/** @var NotesRequest */
 	private $notesRequest;
 
-	/** @var PersonInterface */
-	private $personService;
+	/** @var ActorService */
+	private $actorService;
 
 	/** @var SignatureService */
 	private $signatureService;
 
-	/** @var DocumentInterface */
+	/** @var DocumentService */
 	private $documentService;
 
 	/** @var ConfigService */
@@ -98,15 +95,16 @@ class ActorService {
 	 * @param ActorsRequest $actorsRequest
 	 * @param FollowsRequest $followsRequest
 	 * @param NotesRequest $notesRequest
-	 * @param PersonInterface $personService
-	 * @param DocumentInterface $documentService
+	 * @param ActorService $actorService
+	 * @param DocumentService $documentService
+	 * @param SignatureService $signatureService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IUserManager $userManager, IAccountManager $accountManager, ActorsRequest $actorsRequest,
-		FollowsRequest $followsRequest, NotesRequest $notesRequest, PersonInterface $personService,
-		DocumentInterface $documentService, SignatureService $signatureService,
+		FollowsRequest $followsRequest, NotesRequest $notesRequest, ActorService $actorService,
+		DocumentService $documentService, SignatureService $signatureService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		$this->userManager = $userManager;
@@ -114,7 +112,7 @@ class ActorService {
 		$this->actorsRequest = $actorsRequest;
 		$this->followsRequest = $followsRequest;
 		$this->notesRequest = $notesRequest;
-		$this->personService = $personService;
+		$this->actorService = $actorService;
 		$this->documentService = $documentService;
 		$this->signatureService = $signatureService;
 		$this->configService = $configService;
@@ -129,7 +127,6 @@ class ActorService {
 	 * @throws ActorDoesNotExistException
 	 * @throws SocialAppConfigException
 	 */
-
 	public function getActor(string $username): Person {
 		$actor = $this->actorsRequest->getFromUsername($username);
 
@@ -143,7 +140,7 @@ class ActorService {
 	 * @throws ActorDoesNotExistException
 	 * @throws SocialAppConfigException
 	 */
-	public function getActorById(string $id): Person {
+	public function getFromId(string $id): Person {
 		$actor = $this->actorsRequest->getFromId($id);
 
 		return $actor;
@@ -229,35 +226,6 @@ class ActorService {
 
 
 	/**
-	 * @param Person $local
-	 * @param Person $actor
-	 *
-	 * @return array
-	 */
-	public function getLinksBetweenPersons(Person $local, Person $actor): array {
-
-		$links = [
-			'follower'  => false,
-			'following' => false
-		];
-
-		try {
-			$this->followsRequest->getByPersons($local->getId(), $actor->getId());
-			$links['following'] = true;
-		} catch (FollowDoesNotExistException $e) {
-		}
-
-		try {
-			$this->followsRequest->getByPersons($actor->getId(), $local->getId());
-			$links['follower'] = true;
-		} catch (FollowDoesNotExistException $e) {
-		}
-
-		return $links;
-	}
-
-
-	/**
 	 * @param string $username
 	 * @param bool $refresh
 	 *
@@ -284,8 +252,7 @@ class ActorService {
 			];
 			$actor->addDetailArray('count', $count);
 
-
-			$this->personService->cacheLocalActor($actor, $refresh);
+			$this->actorService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {
 		}
 	}

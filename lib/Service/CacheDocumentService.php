@@ -41,7 +41,7 @@ use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 
 
-class CacheService {
+class CacheDocumentService {
 
 
 	const ERROR_MAX_SIZE = 1;

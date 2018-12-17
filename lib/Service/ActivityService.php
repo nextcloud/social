@@ -33,23 +33,20 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use DateTime;
 use Exception;
-use OCA\Social\Db\ActorsRequest;
+use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
-use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
-use OCA\Social\Exceptions\SignatureException;
-use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
@@ -57,8 +54,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCP\IRequest;
 
 class ActivityService {
 
@@ -81,9 +76,6 @@ class ActivityService {
 	const DATE_DELAY = 30;
 
 
-	/** @var ActorsRequest */
-	private $actorsRequest;
-
 	/** @var NotesRequest */
 	private $notesRequest;
 
@@ -93,14 +85,8 @@ class ActivityService {
 	/** @var QueueService */
 	private $queueService;
 
-	/** @var ActorService */
-	private $actorService;
-
-	/** @var PersonService */
-	private $personService;
-
-	/** @var InstanceService */
-	private $instanceService;
+	/** @var AccountService */
+	private $accountService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -119,31 +105,24 @@ class ActivityService {
 	/**
 	 * ActivityService constructor.
 	 *
-	 * @param QueueService $queueService
-	 * @param ActorsRequest $actorsRequest
 	 * @param NotesRequest $notesRequest
 	 * @param FollowsRequest $followsRequest
+	 * @param QueueService $queueService
+	 * @param AccountService $accountService
 	 * @param CurlService $curlService
-	 * @param ActorService $actorService
-	 * @param PersonService $personService
-	 * @param InstanceService $instanceService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorsRequest $actorsRequest, NotesRequest $notesRequest, FollowsRequest $followsRequest,
-		QueueService $queueService, CurlService $curlService, ActorService $actorService,
-		PersonService $personService, InstanceService $instanceService,
-		ConfigService $configService, MiscService $miscService
+		NotesRequest $notesRequest, FollowsRequest $followsRequest, QueueService $queueService,
+		AccountService $accountService,
+		CurlService $curlService, ConfigService $configService, MiscService $miscService
 	) {
-		$this->actorsRequest = $actorsRequest;
 		$this->notesRequest = $notesRequest;
 		$this->followsRequest = $followsRequest;
 		$this->queueService = $queueService;
+		$this->accountService = $accountService;
 		$this->curlService = $curlService;
-		$this->actorService = $actorService;
-		$this->personService = $personService;
-		$this->instanceService = $instanceService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -212,14 +191,14 @@ class ActivityService {
 		}
 
 		$requests = [
-			$this->notesRequest
+			 'Note'
 		];
 
 		foreach ($requests as $request) {
 			try {
-				$toDelete = $request->getNoteById($id);
+				$interface = AP::$activityPub->getInterfaceFromType($request);
 
-				return $toDelete;
+				return $interface->getItemById($id);
 			} catch (Exception $e) {
 			}
 		}
@@ -307,7 +286,8 @@ class ActivityService {
 	}
 
 
-	/**
+	/** // ====> instanceService
+	 *
 	 * @param ACore $activity
 	 *
 	 * @return InstancePath[]
@@ -382,11 +362,11 @@ class ActivityService {
 		$date = gmdate(self::DATE_FORMAT);
 		$localActor = $this->getActorFromAuthor($queue->getAuthor());
 
+		// TODO:  move this to SignatureService ?
 		$localActorLink =
 			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
 		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $path->getAddress()
 					 . "\ndate: " . $date;
-
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
 
 		$signed = base64_encode($signed);
@@ -415,44 +395,6 @@ class ActivityService {
 
 
 	/**
-	 * @param IRequest $request
-	 *
-	 * @return string
-	 * @throws InvalidResourceException
-	 * @throws MalformedArrayException
-	 * @throws RequestException
-	 * @throws SignatureException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws SignatureIsGoneException
-	 * @throws InvalidOriginException
-	 */
-	public function checkRequest(IRequest $request): string {
-		// TODO : check host is our current host.
-
-//		$host = $request->getHeader('host');
-//		if ($host === '') {
-//			throw new SignatureException('host is not set');
-//		}
-
-		$dTime = new DateTime($request->getHeader('date'));
-		$dTime->format(self::DATE_FORMAT);
-
-		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
-			throw new SignatureException('object is too old');
-		}
-
-		try {
-			$origin = $this->checkSignature($request);
-		} catch (Request410Exception $e) {
-			throw new SignatureIsGoneException();
-		}
-
-		return $origin;
-	}
-
-
-	/**
 	 * @param ACore $activity
 	 *
 	 * @return string
@@ -471,144 +413,157 @@ class ActivityService {
 	 * @param string $author
 	 *
 	 * @return Person
-	 * @throws ActorDoesNotExistException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	private function getActorFromAuthor(string $author): Person {
-		return $this->actorService->getActorById($author);
+		return $this->accountService->getFromId($author);
 	}
 
 
-	/**
-	 * @param IRequest $request
-	 *
-	 * @return string
-	 * @throws InvalidResourceException
-	 * @throws MalformedArrayException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SignatureException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws InvalidOriginException
-	 */
-	private function checkSignature(IRequest $request): string {
-		$signatureHeader = $request->getHeader('Signature');
+//	/**
+//	 * @param IRequest $request
+//	 *
+//	 * @return string
+//	 * @throws InvalidResourceException
+//	 * @throws MalformedArrayException
+//	 * @throws Request410Exception
+//	 * @throws RequestException
+//	 * @throws SignatureException
+//	 * @throws SocialAppConfigException
+//	 * @throws UrlCloudException
+//	 * @throws InvalidOriginException
+//	 */
+//	private function checkSignature(IRequest $request): string {
+//		$signatureHeader = $request->getHeader('Signature');
+//
+//		$sign = $this->parseSignatureHeader($signatureHeader);
+//		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
+//
+//		$keyId = $sign['keyId'];
+//		$origin = $this->getKeyOrigin($keyId);
+//
+//		$headers = $sign['headers'];
+//		$signed = base64_decode($sign['signature']);
+//		$estimated = $this->generateEstimatedSignature($headers, $request);
+//
+//		$publicKey = $this->retrieveKey($keyId);
+//
+//		if ($publicKey === '' || openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
+//			throw new SignatureException('signature cannot be checked');
+//		}
+//
+//		return $origin;
+//	}
+//
 
-		$sign = $this->parseSignatureHeader($signatureHeader);
-		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
-
-		$keyId = $sign['keyId'];
-		$origin = $this->getKeyOrigin($keyId);
-
-		$headers = $sign['headers'];
-		$signed = base64_decode($sign['signature']);
-		$estimated = $this->generateEstimatedSignature($headers, $request);
-
-		$publicKey = $this->retrieveKey($keyId);
-
-		if ($publicKey === '' || openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
-			throw new SignatureException('signature cannot be checked');
-		}
-
-		return $origin;
-	}
-
-
-	/**
-	 * @param $id
-	 *
-	 * @return string
-	 * @throws InvalidOriginException
-	 */
-	private function getKeyOrigin($id) {
-		$host = parse_url($id, PHP_URL_HOST);
-		if (is_string($host) && ($host !== '')) {
-			return $host;
-		}
-
-		throw new InvalidOriginException();
-	}
-
-
-	/**
-	 * @param string $headers
-	 * @param IRequest $request
-	 *
-	 * @return string
-	 */
-	private function generateEstimatedSignature(string $headers, IRequest $request): string {
-		$keys = explode(' ', $headers);
-
-		$target = '';
-		try {
-			$target = strtolower($request->getMethod()) . " " . $request->getRequestUri();
-		} catch (Exception $e) {
-		}
-
-		$estimated = "(request-target): " . $target;
-
-		foreach ($keys as $key) {
-			if ($key === '(request-target)') {
-				continue;
-			}
-
-			$estimated .= "\n" . $key . ': ' . $request->getHeader($key);
-		}
-
-		return $estimated;
-	}
-
-
-	/**
-	 * @param $signatureHeader
-	 *
-	 * @return array
-	 */
-	private function parseSignatureHeader($signatureHeader) {
-		$sign = [];
-
-		$entries = explode(',', $signatureHeader);
-		foreach ($entries as $entry) {
-			list($k, $v) = explode('=', $entry, 2);
-			preg_match('/"([^"]+)"/', $v, $varr);
-			$v = trim($varr[0], '"');
-
-			$sign[$k] = $v;
-		}
-
-		return $sign;
-	}
+//	/**
+//	 * @param $id
+//	 *
+//	 * @return string
+//	 * @throws InvalidOriginException
+//	 */
+//	private function getKeyOrigin($id) {
+//		$host = parse_url($id, PHP_URL_HOST);
+//		if (is_string($host) && ($host !== '')) {
+//			return $host;
+//		}
+//
+//		throw new InvalidOriginException();
+//	}
+//
+//
+//	/**
+//	 * @param string $headers
+//	 * @param IRequest $request
+//	 *
+//	 * @return string
+//	 */
+//	private function generateEstimatedSignature(string $headers, IRequest $request): string {
+//		$keys = explode(' ', $headers);
+//
+//		$target = '';
+//		try {
+//			$target = strtolower($request->getMethod()) . " " . $request->getRequestUri();
+//		} catch (Exception $e) {
+//		}
+//
+//		$estimated = "(request-target): " . $target;
+//
+//		foreach ($keys as $key) {
+//			if ($key === '(request-target)') {
+//				continue;
+//			}
+//
+//			$estimated .= "\n" . $key . ': ' . $request->getHeader($key);
+//		}
+//
+//		return $estimated;
+//	}
+//
+//
+//	/**
+//	 * @param $signatureHeader
+//	 *
+//	 * @return array
+//	 */
+//	private function parseSignatureHeader($signatureHeader) {
+//		$sign = [];
+//
+//		$entries = explode(',', $signatureHeader);
+//		foreach ($entries as $entry) {
+//			list($k, $v) = explode('=', $entry, 2);
+//			preg_match('/"([^"]+)"/', $v, $varr);
+//			$v = trim($varr[0], '"');
+//
+//			$sign[$k] = $v;
+//		}
+//
+//		return $sign;
+//	}
 
 
-	/**
-	 * @param $keyId
-	 *
-	 * @return string
-	 * @throws InvalidResourceException
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws Request410Exception
-	 */
-	private function retrieveKey($keyId): string {
-		$actor = $this->personService->getFromId($keyId);
-
-		return $actor->getPublicKey();
-	}
+//	/**
+//	 * @param $keyId
+//	 *
+//	 * @return string
+//	 * @throws InvalidResourceException
+//	 * @throws RequestException
+//	 * @throws SocialAppConfigException
+//	 * @throws UrlCloudException
+//	 * @throws Request410Exception
+//	 */
+//	private function retrieveKey($keyId): string {
+//		$actor = $this->cacheActorService->getFromId($keyId);
+//
+//		return $actor->getPublicKey();
+//	}
 
 
 	/**
 	 * @param ACore $activity
 	 */
 	private function saveActivity(ACore $activity) {
-		$coreService = $activity->savingAs();
-		if ($coreService !== null) {
-			$coreService->save($activity);
-		}
+		// TODO: save activity in DB ?
 
 		if ($activity->gotObject()) {
-			$this->saveActivity($activity->getObject());
+			$this->saveObject($activity->getObject());
+		}
+	}
+
+
+	/**
+	 * @param ACore $activity
+	 */
+	private function saveObject(ACore $activity) {
+		try {
+			if ($activity->gotObject()) {
+				$this->saveObject($activity->getObject());
+			}
+
+			$service = AP::$activityPub->getInterfaceForItem($activity);
+			$service->save($activity);
+		} catch (UnknownItemException $e) {
 		}
 	}
 

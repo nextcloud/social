@@ -34,10 +34,10 @@ namespace OCA\Social\Cron;
 use Exception;
 use OC\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Service\ActivityPub\Object\DocumentService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\QueryException;
 
@@ -50,11 +50,11 @@ use OCP\AppFramework\QueryException;
 class Cache extends TimedJob {
 
 
-	/** @var ActorService */
-	private $actorService;
+	/** @var AccountService */
+	private $accountService;
 
-	/** @var PersonService */
-	private $personService;
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var DocumentService */
 	private $documentService;
@@ -83,8 +83,8 @@ class Cache extends TimedJob {
 		$app = new Application();
 		$c = $app->getContainer();
 
-		$this->actorService = $c->query(ActorService::class);
-		$this->personService = $c->query(PersonService::class);
+		$this->accountService = $c->query(AccountService::class);
+		$this->cacheActorService = $c->query(CacheActorService::class);
 		$this->documentService = $c->query(DocumentService::class);
 		$this->configService = $c->query(ConfigService::class);
 		$this->miscService = $c->query(MiscService::class);
@@ -95,12 +95,12 @@ class Cache extends TimedJob {
 
 	private function manageCache() {
 		try {
-			$this->actorService->manageCacheLocalActors();
+			$this->accountService->manageCacheLocalActors();
 		} catch (Exception $e) {
 		}
 
 		try {
-			$this->personService->manageCacheRemoteActors();
+			$this->cacheActorService->manageCacheRemoteActors();
 		} catch (Exception $e) {
 		}
 

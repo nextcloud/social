@@ -33,10 +33,10 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
-use OCA\Social\Service\ActivityPub\Object\DocumentService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -45,11 +45,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 class CacheRefresh extends Base {
 
 
-	/** @var ActorService */
+	/** @var AccountService */
 	private $actorService;
 
-	/** @var PersonService */
-	private $personService;
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var DocumentService */
 	private $documentService;
@@ -64,20 +64,20 @@ class CacheRefresh extends Base {
 	/**
 	 * CacheUpdate constructor.
 	 *
-	 * @param ActorService $actorService
-	 * @param PersonService $personService
+	 * @param AccountService $actorService
+	 * @param CacheActorService $cacheActorService
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActorService $actorService, PersonService $personService, DocumentService $documentService,
-		ConfigService $configService, MiscService $miscService
+		AccountService $actorService, CacheActorService $cacheActorService,
+		DocumentService $documentService, ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->actorService = $actorService;
-		$this->personService = $personService;
+		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -105,10 +105,10 @@ class CacheRefresh extends Base {
 		$result = $this->actorService->manageCacheLocalActors();
 		$output->writeLn($result . ' local accounts regenerated');
 
-		$result = $this->personService->missingCacheRemoteActors();
+		$result = $this->cacheActorService->missingCacheRemoteActors();
 		$output->writeLn($result . ' remote accounts created');
 
-		$result = $this->personService->manageCacheRemoteActors();
+		$result = $this->cacheActorService->manageCacheRemoteActors();
 		$output->writeLn($result . ' remote accounts updated');
 
 		$result = $this->documentService->manageCacheDocuments();

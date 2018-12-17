@@ -31,10 +31,13 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use OC\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\QueueService;
@@ -70,7 +73,10 @@ class Queue extends TimedJob {
 	/**
 	 * @param mixed $argument
 	 *
+	 * @throws MalformedArrayException
 	 * @throws QueryException
+	 * @throws RedundancyLimitException
+	 * @throws UnknownItemException
 	 */
 	protected function run($argument) {
 		$app = new Application();
@@ -84,6 +90,11 @@ class Queue extends TimedJob {
 	}
 
 
+	/**
+	 * @throws RedundancyLimitException
+	 * @throws UnknownItemException
+	 * @throws MalformedArrayException
+	 */
 	private function manageQueue() {
 		$requests = $this->queueService->getRequestStandby();
 		$this->activityService->manageInit();

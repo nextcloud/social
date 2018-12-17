@@ -38,13 +38,14 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
-use OCA\Social\Service\ActivityPub\Object\DocumentService;
-use OCA\Social\Service\ActivityPub\Activity\FollowService;
-use OCA\Social\Service\ActivityPub\Object\NoteService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -69,20 +70,20 @@ class LocalController extends Controller {
 	/** @var string */
 	private $userId;
 
-	/** @var PersonService */
-	private $personService;
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var FollowService */
 	private $followService;
-
-	/** @var ActorService */
-	private $actorService;
 
 	/** @var PostService */
 	private $postService;
 
 	/** @var NoteService */
 	private $noteService;
+
+	/** @var AccountService */
+	private $accountService;
 
 	/** @var DocumentService */
 	private $documentService;
@@ -100,30 +101,28 @@ class LocalController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param string $userId
-	 * @param PersonService $personService
+	 * @param AccountService $accountService
+	 * @param CacheActorService $cacheActorService
 	 * @param FollowService $followService
-	 * @param ActorService $actorService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
 	 * @param DocumentService $documentService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, $userId, PersonService $personService,
-		FollowService $followService, ActorService $actorService,
-		PostService $postService, NoteService $noteService,
-		DocumentService $documentService,
+		IRequest $request, $userId, AccountService $accountService,
+		CacheActorService $cacheActorService, FollowService $followService,
+		PostService $postService, NoteService $noteService, DocumentService $documentService,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
-
-		$this->actorService = $actorService;
-		$this->personService = $personService;
-		$this->followService = $followService;
-		$this->postService = $postService;
+		$this->cacheActorService = $cacheActorService;
+		$this->accountService = $accountService;
 		$this->noteService = $noteService;
+		$this->postService = $postService;
+		$this->followService = $followService;
 		$this->documentService = $documentService;
 		$this->miscService = $miscService;
 	}
@@ -146,7 +145,7 @@ class LocalController extends Controller {
 			$post->setReplyTo($this->get('replyTo', $data, ''));
 			$post->setTo($this->getArray('to', $data, []));
 			$post->addTo($this->get('to', $data, ''));
-			$post->setType($this->get('type', $data, NoteService::TYPE_PUBLIC));
+			$post->setType($this->get('type', $data, Note::TYPE_PUBLIC));
 
 			/** @var ACore $activity */
 			$token = $this->postService->createPost($post, $activity);
@@ -179,7 +178,7 @@ class LocalController extends Controller {
 	public function postDelete(string $id): DataResponse {
 		try {
 			$note = $this->noteService->getNoteById($id);
-			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
 			if ($note->getAttributedTo() !== $actor->getId()) {
 				throw new InvalidResourceException('user have no rights');
 			}
@@ -234,7 +233,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$account = $this->actorService->getActor($username);
+			$account = $this->cacheActorService->getFromLocalAccount($username);
 			$posts = $this->noteService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);
@@ -331,7 +330,7 @@ class LocalController extends Controller {
 	 */
 	public function actionFollow(string $account): DataResponse {
 		try {
-			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
 
 			return $this->success([]);
@@ -355,7 +354,7 @@ class LocalController extends Controller {
 	 */
 	public function actionUnfollow(string $account): DataResponse {
 		try {
-			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->unfollowAccount($actor, $account);
 
 			return $this->success([]);
@@ -377,8 +376,8 @@ class LocalController extends Controller {
 	 */
 	public function currentInfo(): DataResponse {
 		try {
-			$actor = $this->actorService->getActorFromUserId($this->userId);
-			$actor = $this->personService->getFromLocalAccount($actor->getPreferredUsername());
+			$local = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
 
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
@@ -398,7 +397,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$followers = $this->followService->getFollowers($actor);
 
 			return $this->success($followers);
@@ -419,7 +418,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->actorService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$followers = $this->followService->getFollowing($actor);
 
 			return $this->success($followers);
@@ -445,8 +444,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->actorService->getActor($username);
-			$actor = $this->personService->getFromLocalAccount($actor->getPreferredUsername());
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
@@ -468,7 +466,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->actorService->getActor($username);
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$followers = $this->followService->getFollowers($actor);
 
 			return $this->success($followers);
@@ -492,7 +490,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->actorService->getActor($username);
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$following = $this->followService->getFollowing($actor);
 
 			return $this->success($following);
@@ -518,7 +516,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->personService->getFromAccount($account);
+			$actor = $this->cacheActorService->getFromAccount($account);
 
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
@@ -542,7 +540,7 @@ class LocalController extends Controller {
 	public function globalActorInfo(string $id): DataResponse {
 		try {
 			$this->initViewer();
-			$actor = $this->personService->getFromId($id);
+			$actor = $this->cacheActorService->getFromId($id);
 
 			return $this->success(['actor' => $actor]);
 		} catch (Exception $e) {
@@ -561,7 +559,7 @@ class LocalController extends Controller {
 	 */
 	public function globalActorAvatar(string $id): Response {
 		try {
-			$actor = $this->personService->getFromId($id);
+			$actor = $this->cacheActorService->getFromId($id);
 			if ($actor->gotIcon()) {
 				$avatar = $actor->getIcon();
 				$document = $this->documentService->getFromCache($avatar->getId());
@@ -606,13 +604,13 @@ class LocalController extends Controller {
 		/* Look for an exactly matching account */
 		$match = null;
 		try {
-			$match = $this->personService->getFromAccount($search, false);
+			$match = $this->cacheActorService->getFromAccount($search, false);
 			$match->setCompleteDetails(true);
 		} catch (Exception $e) {
 		}
 
 		try {
-			$accounts = $this->personService->searchCachedAccounts($search);
+			$accounts = $this->cacheActorService->searchCachedAccounts($search);
 
 			return $this->success(['accounts' => $accounts, 'exact' => $match]);
 		} catch (Exception $e) {
@@ -658,11 +656,10 @@ class LocalController extends Controller {
 	 */
 	private function initViewer(bool $exception = false) {
 		try {
-			$this->viewer = $this->actorService->getActorFromUserId($this->userId, true);
+			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
 			$this->followService->setViewerId($this->viewer->getId());
-			$this->personService->setViewerId($this->viewer->getId());
-			$this->noteService->setViewerId($this->viewer->getId());
+			$this->cacheActorService->setViewerId($this->viewer->getId());
 		} catch (Exception $e) {
 			if ($exception) {
 				throw new AccountDoesNotExistException();

@@ -33,9 +33,8 @@ namespace OCA\Social\Command;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Model\Post;
-use OCA\Social\Service\ActivityPub\Object\NoteService;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
@@ -54,10 +53,10 @@ class NoteCreate extends Base {
 	/** @var ActivityService */
 	private $activityService;
 
-	/** @var ActorService */
+	/** @var AccountService */
 	private $actorService;
 
-	/** @var NoteService */
+	/** @var PostService */
 	private $postService;
 
 	/** @var CurlService */
@@ -71,14 +70,14 @@ class NoteCreate extends Base {
 	 * NoteCreate constructor.
 	 *
 	 * @param ActivityService $activityService
-	 * @param ActorService $actorService
+	 * @param AccountService $actorService
 	 * @param PostService $postService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityService $activityService, ActorService $actorService,
+		ActivityService $activityService, AccountService $actorService,
 		PostService $postService, CurlService $curlService,
 		ConfigService $configService, MiscService $miscService
 	) {

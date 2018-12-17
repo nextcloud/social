@@ -34,15 +34,13 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\UnknownItemException;
-use OCA\Social\Service\ActivityPub\Activity\FollowService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\SignatureService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -57,23 +55,17 @@ class ActivityPubController extends Controller {
 	/** @var SocialPubController */
 	private $socialPubController;
 
-	/** @var ActivityService */
-	private $activityService;
+	/** @var CacheActorService */
+	private $cacheActorService;
+
+	/** @var SignatureService */
+	private $signatureService;
 
 	/** @var ImportService */
 	private $importService;
 
 	/** @var FollowService */
 	private $followService;
-
-	/** @var ActorService */
-	private $actorService;
-
-	/** @var PersonService */
-	private $personService;
-
-	/** @var NotesRequest */
-	private $notesRequest;
 
 	/** @var MiscService */
 	private $miscService;
@@ -84,30 +76,24 @@ class ActivityPubController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param SocialPubController $socialPubController
-	 * @param ActivityService $activityService
+	 * @param CacheActorService $cacheActorService
+	 * @param SignatureService $signatureService
 	 * @param ImportService $importService
 	 * @param FollowService $followService
-	 * @param ActorService $actorService
-	 * @param PersonService $personService
-	 * @param NotesRequest $notesRequest
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController,
-		ActivityService $activityService, ImportService $importService,
-		FollowService $followService, ActorService $actorService, PersonService $personService,
-		NotesRequest $notesRequest, MiscService $miscService
+		CacheActorService $cacheActorService, SignatureService $signatureService,
+		ImportService $importService, FollowService $followService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->socialPubController = $socialPubController;
-
-		$this->activityService = $activityService;
+		$this->cacheActorService = $cacheActorService;
+		$this->signatureService = $signatureService;
 		$this->importService = $importService;
 		$this->followService = $followService;
-		$this->actorService = $actorService;
-		$this->personService = $personService;
-		$this->notesRequest = $notesRequest;
 		$this->miscService = $miscService;
 	}
 
@@ -133,7 +119,7 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
-			$actor = $this->personService->getFromLocalAccount($username);
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 //			$actor->setTopLevel(true);
 
@@ -177,10 +163,11 @@ class ActivityPubController extends Controller {
 			$body = file_get_contents('php://input');
 			$this->miscService->log('[<<] shared-inbox: ' . $body, 1);
 
-			$origin = $this->activityService->checkRequest($this->request);
+			$origin = $this->signatureService->checkRequest($this->request);
 
 			$activity = $this->importService->importFromJson($body);
 			$activity->setOrigin($origin);
+
 			try {
 				$this->importService->parseIncomingRequest($activity);
 			} catch (UnknownItemException $e) {
@@ -212,7 +199,7 @@ class ActivityPubController extends Controller {
 			$body = file_get_contents('php://input');
 			$this->miscService->log('[<<] inbox: ' . $body, 1);
 
-			$origin = $this->activityService->checkRequest($this->request);
+			$origin = $this->signatureService->checkRequest($this->request);
 
 			// TODO - check the recipient <-> username
 //			$actor = $this->actorService->getActor($username);
@@ -265,7 +252,7 @@ class ActivityPubController extends Controller {
 		}
 
 		try {
-			$actor = $this->actorService->getActor($username);
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$followers = $this->followService->getFollowersCollection($actor);
 
 //			$followers->setTopLevel(true);

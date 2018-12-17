@@ -30,10 +30,13 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TAsync;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
@@ -105,6 +108,9 @@ class QueueController extends Controller {
 					$this->activityService->manageRequest($request);
 				} catch (RequestException $e) {
 				} catch (SocialAppConfigException $e) {
+				} catch (RedundancyLimitException $e) {
+				} catch (UnknownItemException $e) {
+				} catch (MalformedArrayException $e) {
 				}
 			}
 		}

@@ -30,10 +30,13 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use Exception;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -65,6 +68,65 @@ class CurlService {
 	public function __construct(ConfigService $configService, MiscService $miscService) {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @param string $account
+	 *
+	 * @return mixed
+	 * @throws RequestException
+	 * @throws InvalidResourceException
+	 * @throws Request410Exception
+	 * @throws MalformedArrayException
+	 */
+	public function retrieveAccount(string $account) {
+		$account = $this->withoutBeginAt($account);
+
+		if (strstr(substr($account, 0, -3), '@') === false) {
+			throw new InvalidResourceException();
+		}
+		list($username, $host) = explode('@', $account);
+
+//		if ($username === null || $host === null) {
+//			throw new InvalidResourceException();
+//		}
+
+		$request = new Request('/.well-known/webfinger');
+		$request->addData('resource', 'acct:' . $account);
+		$request->setAddress($host);
+		$result = $this->request($request);
+
+		try {
+			$link = $this->extractArray('rel', 'self', $this->getArray('links', $result));
+		} catch (ArrayNotFoundException $e) {
+			throw new RequestException();
+		}
+
+		return $this->retrieveObject($this->get('href', $link, ''));
+	}
+
+
+	/**
+	 * @param $id
+	 *
+	 * @return mixed
+	 * @throws RequestException
+	 * @throws Request410Exception
+	 * @throws MalformedArrayException
+	 */
+	public function retrieveObject($id) {
+		$url = parse_url($id);
+		$this->mustContains(['path', 'host'], $url);
+		$request = new Request($url['path'], Request::TYPE_GET);
+		$request->setAddress($url['host']);
+
+		$result = $this->request($request);
+		if (is_array($result)) {
+			$result['_host'] = $url['host'];
+		}
+
+		return $result;
 	}
 
 

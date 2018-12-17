@@ -35,8 +35,9 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\NotFoundResponse;
@@ -57,11 +58,14 @@ class SocialPubController extends Controller {
 	/** @var IL10N */
 	private $l10n;
 
-	/** @var ActorService */
-	private $actorService;
+	/** @var AccountService */
+	private $accountService;
 
-	/** @var PersonService */
-	private $personService;
+	/** @var CacheActorService */
+	private $cacheActorService;
+
+	/** @var FollowService */
+	private $followService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -73,20 +77,22 @@ class SocialPubController extends Controller {
 	 * @param $userId
 	 * @param IRequest $request
 	 * @param IL10N $l10n
-	 * @param ActorService $actorService
-	 * @param PersonService $personService
+	 * @param AccountService $accountService
+	 * @param CacheActorService $cacheActorService
+	 * @param FollowService $followService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		$userId, IRequest $request, IL10N $l10n, ActorService $actorService,
-		PersonService $personService, MiscService $miscService
+		$userId, IRequest $request, IL10N $l10n, AccountService $accountService,
+		CacheActorService $cacheActorService, FollowService $followService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
 		$this->l10n = $l10n;
-		$this->actorService = $actorService;
-		$this->personService = $personService;
+		$this->accountService = $accountService;
+		$this->cacheActorService = $cacheActorService;
+		$this->followService = $followService;
 		$this->miscService = $miscService;
 	}
 
@@ -105,14 +111,14 @@ class SocialPubController extends Controller {
 	public function actor(string $username): Response {
 
 		try {
-			$actor = $this->personService->getFromLocalAccount($username);
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$actor->setCompleteDetails(true);
 
 			$logged = false;
 			$ownAccount = false;
 			if ($this->userId !== null) {
 				$logged = true;
-				$local = $this->actorService->getActorFromUserId($this->userId, true);
+				$local = $this->accountService->getActorFromUserId($this->userId, true);
 				if ($local->getId() === $actor->getId()) {
 					$ownAccount = true;
 				} else {
@@ -195,7 +201,7 @@ class SocialPubController extends Controller {
 	 * @param Person $local
 	 */
 	private function fillActorWithLinks(Person $actor, Person $local) {
-		$links = $this->actorService->getLinksBetweenPersons($local, $actor);
+		$links = $this->followService->getLinksBetweenPersons($local, $actor);
 		$actor->addDetailArray('link', $links);
 	}
 

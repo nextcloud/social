@@ -37,11 +37,11 @@ use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Service\ActivityPub\Object\DocumentService;
-use OCA\Social\Service\ActivityPub\Actor\PersonService;
-use OCA\Social\Service\ActorService;
+use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
@@ -69,8 +69,8 @@ class NavigationController extends Controller {
 	/** @var IURLGenerator */
 	private $urlGenerator;
 
-	/** @var ActorService */
-	private $actorService;
+	/** @var AccountService */
+	private $accountService;
 
 	private $documentService;
 
@@ -83,46 +83,40 @@ class NavigationController extends Controller {
 	/** @var IL10N */
 	private $l10n;
 
-	/** @var PersonService */
-	private $personService;
-
 	/** @var CheckService */
 	private $checkService;
 
 	/**
 	 * NavigationController constructor.
 	 *
+	 * @param IL10N $l10n
 	 * @param IRequest $request
 	 * @param string $userId
 	 * @param IConfig $config
 	 * @param IURLGenerator $urlGenerator
-	 * @param ActorService $actorService
+	 * @param AccountService $accountService
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
-	 * @param PersonService $personService
 	 * @param CheckService $checkService
 	 * @param MiscService $miscService
-	 * @param IL10N $l10n
 	 */
 	public function __construct(
-		IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
-		ActorService $actorService, DocumentService $documentService, ConfigService $configService,
-		PersonService $personService, CheckService $checkService,
-		MiscService $miscService, IL10N $l10n
+		IL10N $l10n, IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
+		AccountService $accountService, DocumentService $documentService,
+		ConfigService $configService, CheckService $checkService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
+		$this->l10n = $l10n;
 		$this->config = $config;
+
 		$this->urlGenerator = $urlGenerator;
 		$this->checkService = $checkService;
-
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->documentService = $documentService;
 		$this->configService = $configService;
-		$this->personService = $personService;
 		$this->miscService = $miscService;
-		$this->l10n = $l10n;
 	}
 
 
@@ -136,6 +130,7 @@ class NavigationController extends Controller {
 	 * @param string $path
 	 *
 	 * @return TemplateResponse
+	 * @throws UrlCloudException
 	 */
 	public function navigate(string $path = ''): TemplateResponse {
 		$data = [
@@ -143,7 +138,8 @@ class NavigationController extends Controller {
 				'public'   => false,
 				'firstrun' => false,
 				'setup'    => false,
-				'isAdmin'  => \OC::$server->getGroupManager()->isAdmin($this->userId),
+				'isAdmin'  => \OC::$server->getGroupManager()
+										  ->isAdmin($this->userId),
 				'cliUrl'   => $this->getCliUrl()
 			]
 		];
@@ -152,7 +148,7 @@ class NavigationController extends Controller {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
 			$cloudAddress = $this->setupCloudAddress();
-			if ($cloudAddress !== ''){
+			if ($cloudAddress !== '') {
 				$data['serverData']['cloudAddress'] = $cloudAddress;
 			} else {
 				$data['serverData']['setup'] = true;
@@ -177,7 +173,7 @@ class NavigationController extends Controller {
 		 * Create social user account if it doesn't exist yet
 		 */
 		try {
-			$this->actorService->createActor($this->userId, $this->userId);
+			$this->accountService->createActor($this->userId, $this->userId);
 			$data['serverData']['firstrun'] = true;
 		} catch (AccountAlreadyExistsException $e) {
 			// we do nothing
@@ -191,7 +187,9 @@ class NavigationController extends Controller {
 	}
 
 	private function setupCloudAddress(): string {
-		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+		$frontControllerActive =
+			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+			 || getenv('front_controller_active') === 'true');
 
 		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
 		if ($cloudAddress !== '') {
@@ -199,17 +197,22 @@ class NavigationController extends Controller {
 				$cloudAddress .= '/index.php';
 			}
 			$this->configService->setCloudAddress($cloudAddress);
+
 			return $cloudAddress;
 		}
+
 		return '';
 	}
 
 	private function getCliUrl() {
 		$url = rtrim($this->urlGenerator->getBaseUrl(), '/');
-		$frontControllerActive = ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true || getenv('front_controller_active') === 'true');
+		$frontControllerActive =
+			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+			 || getenv('front_controller_active') === 'true');
 		if (!$frontControllerActive) {
 			$url .= '/index.php';
 		}
+
 		return $url;
 	}
 
@@ -251,6 +254,7 @@ class NavigationController extends Controller {
 	 * @param string $path
 	 *
 	 * @return TemplateResponse
+	 * @throws UrlCloudException
 	 */
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();
@@ -266,6 +270,7 @@ class NavigationController extends Controller {
 	 * @param string $path
 	 *
 	 * @return TemplateResponse
+	 * @throws UrlCloudException
 	 */
 	public function account(string $path = ''): TemplateResponse {
 		return $this->navigate();
