@@ -36,6 +36,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
@@ -113,6 +114,7 @@ class CacheActorService {
 	 * @throws SocialAppConfigException
 	 * @throws RedundancyLimitException
 	 * @throws UnknownItemException
+	 * @throws InvalidOriginException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 
@@ -133,6 +135,10 @@ class CacheActorService {
 
 			/** @var Person $actor */
 			$actor = AP::$activityPub->getItemFromData($object);
+			if ($id !== $actor->getId()) {
+				throw new InvalidOriginException();
+			}
+
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 			try {
 				$this->save($actor);
@@ -170,6 +176,7 @@ class CacheActorService {
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws UnknownItemException
+	 * @throws InvalidOriginException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 

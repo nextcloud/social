@@ -36,10 +36,15 @@ use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use Exception;
+use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 
 class CurlService {
 
@@ -75,10 +80,14 @@ class CurlService {
 	 * @param string $account
 	 *
 	 * @return mixed
-	 * @throws RequestException
 	 * @throws InvalidResourceException
-	 * @throws Request410Exception
 	 * @throws MalformedArrayException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws RedundancyLimitException
+	 * @throws UnknownItemException
+	 * @throws InvalidOriginException
 	 */
 	public function retrieveAccount(string $account) {
 		$account = $this->withoutBeginAt($account);
@@ -103,7 +112,16 @@ class CurlService {
 			throw new RequestException();
 		}
 
-		return $this->retrieveObject($this->get('href', $link, ''));
+		$data = $this->retrieveObject($this->get('href', $link, ''));
+		$object = AP::$activityPub->getItemFromData($data);
+
+		if ($object->getType() === Person::TYPE) {
+			return $object;
+		}
+
+		$object->checkOrigin($object->getId());
+
+		throw new UnknownItemException();
 	}
 
 
