@@ -36,6 +36,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
@@ -71,6 +72,9 @@ class FollowService {
 	/** @var FollowsRequest */
 	private $followsRequest;
 
+	/** @var ActivityService */
+	private $activityService;
+
 	/** @var CacheActorService */
 	private $cacheActorService;
 
@@ -89,15 +93,18 @@ class FollowService {
 	 * FollowService constructor.
 	 *
 	 * @param FollowsRequest $followsRequest
+	 * @param ActivityService $activityService
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
+		FollowsRequest $followsRequest, ActivityService $activityService,
+		CacheActorService $cacheActorService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
+		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -133,6 +140,8 @@ class FollowService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 * @throws UnknownItemException
+	 * @throws InvalidOriginException
+	 * @throws \Exception
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
@@ -159,7 +168,7 @@ class FollowService {
 					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
 				)
 			);
-//			$this->activityService->request($follow);
+			$this->activityService->request($follow);
 		}
 	}
 
