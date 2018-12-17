@@ -30,8 +30,7 @@ namespace OCA\Social;
 
 
 use Exception;
-use OCA\Social\Service\ActorService;
-use OCP\AppFramework\QueryException;
+use OCA\Social\Service\CacheActorService;
 
 require_once(__DIR__ . '/../appinfo/autoload.php');
 
@@ -54,10 +53,9 @@ if ($type !== 'acct') {
 
 $username = substr($account, 0, strrpos($account, '@'));
 
-/** @var ActorService $actorService */
 try {
-	$actorService = \OC::$server->query(ActorService::class);
-	$actorService->getActor($username);
+	$cacheActorService = \OC::$server->query(CacheActorService::class);
+	$cacheActorService->getFromLocalAccount($username);
 } catch (Exception $e) {
 	http_response_code(404);
 	exit;
