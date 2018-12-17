@@ -29,8 +29,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
+
 require_once __DIR__ . '/autoload.php';
 
-//$app = new Application();
-//$app->registerNavigation();
 

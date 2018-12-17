@@ -208,6 +208,7 @@ class QueueService {
 		}
 	}
 
+
 	/**
 	 * @param RequestQueue $queue
 	 */
