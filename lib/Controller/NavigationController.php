@@ -148,9 +148,6 @@ class NavigationController extends Controller {
 			]
 		];
 
-		$checks = $this->checkService->checkDefault();
-		$data['serverData']['checks'] = $checks;
-
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
@@ -170,6 +167,11 @@ class NavigationController extends Controller {
 					}
 				}
 			}
+		}
+
+		if ($data['serverData']['isAdmin']) {
+			$checks = $this->checkService->checkDefault();
+			$data['serverData']['checks'] = $checks;
 		}
 
 		/*

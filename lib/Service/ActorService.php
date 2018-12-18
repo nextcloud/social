@@ -45,7 +45,6 @@ use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Service\ActivityPub\DocumentService;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCP\Accounts\IAccountManager;
-use OCP\Accounts\PropertyDoesNotExistException;
 use OCP\IUserManager;
 
 
@@ -264,6 +263,12 @@ class ActorService {
 		try {
 			$actor = $this->getActor($username);
 
+			try {
+				$this->updateCacheLocalActorName($actor);
+			} catch (NoUserException $e) {
+				return;
+			}
+
 			$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 			$actor->setIconId($iconId);
 
@@ -274,7 +279,6 @@ class ActorService {
 			];
 			$actor->addDetailArray('count', $count);
 
-			$this->updateCacheLocalActorName($actor);
 
 			$this->personService->cacheLocalActor($actor, $refresh);
 		} catch (ActorDoesNotExistException $e) {
@@ -284,17 +288,25 @@ class ActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @throws NoUserException
 	 */
 	private function updateCacheLocalActorName(Person &$actor) {
 		$user = $this->userManager->get($actor->getUserId());
-		$account = $this->accountManager->getAccount($user);
+		if ($user === null) {
+			throw new NoUserException();
+		}
 
 		try {
+			$account = $this->accountManager->getAccount($user);
 			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
 			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
 				$actor->setName($displayNameProperty->getValue());
 			}
-		} catch (PropertyDoesNotExistException $e) {
+		} catch (Exception $e) {
+			$this->miscService->log(
+				'Issue while trying to updateCacheLocalActorName: ' . $e->getMessage(), 1
+			);
 		}
 	}
 
@@ -335,7 +347,6 @@ class ActorService {
 	 */
 	public function manageCacheLocalActors(): int {
 		$update = $this->actorsRequest->getAll();
-
 		foreach ($update as $item) {
 			try {
 				$this->cacheLocalActorByUsername($item->getPreferredUsername(), true);
