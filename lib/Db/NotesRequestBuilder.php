@@ -230,11 +230,12 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $recipient
 	 * @param bool $asAuthor
+	 * @param array $type
 	 */
 	protected function limitToRecipient(
-		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
+		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false, array $type = []
 	) {
-		$qb->andWhere($this->exprLimitToRecipient($qb, $recipient, $asAuthor));
+		$qb->andWhere($this->exprLimitToRecipient($qb, $recipient, $asAuthor, $type));
 	}
 
 
@@ -242,11 +243,12 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $recipient
 	 * @param bool $asAuthor
+	 * @param array $type
 	 *
 	 * @return ICompositeExpression
 	 */
 	protected function exprLimitToRecipient(
-		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false
+		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false, array $type = []
 	): ICompositeExpression {
 
 		$expr = $qb->expr();
@@ -262,12 +264,39 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			);
 		}
 
-		$limit->add($expr->eq('to', $qb->createNamedParameter($recipient)));
-		$limit->add($this->exprValueWithinJsonFormat($qb, 'to_array', $recipient));
-		$limit->add($this->exprValueWithinJsonFormat($qb, 'cc', $recipient));
-		$limit->add($this->exprValueWithinJsonFormat($qb, 'bcc', $recipient));
+		if ($type === []) {
+			$type = ['to', 'cc', 'bcc'];
+		}
+
+		$this->addLimitToRecipient($qb, $limit, $type, $recipient);
 
 		return $limit;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param ICompositeExpression $limit
+	 * @param array $type
+	 * @param string $to
+	 */
+	private function addLimitToRecipient(
+		IQueryBuilder $qb, ICompositeExpression &$limit, array $type, string $to
+	) {
+
+		$expr = $qb->expr();
+		if (in_array('to', $type)) {
+			$limit->add($expr->eq('to', $qb->createNamedParameter($to)));
+			$limit->add($this->exprValueWithinJsonFormat($qb, 'to_array', $to));
+		}
+
+		if (in_array('cc', $type)) {
+			$limit->add($this->exprValueWithinJsonFormat($qb, 'cc', $to));
+		}
+
+		if (in_array('bcc', $type)) {
+			$limit->add($this->exprValueWithinJsonFormat($qb, 'bcc', $to));
+		}
 	}
 
 

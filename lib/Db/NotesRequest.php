@@ -266,7 +266,7 @@ class NotesRequest extends NotesRequestBuilder {
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		// TODO: to: = real public, cc: = unlisted !?
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC, true, ['to']);
 
 		$notes = [];
 		$cursor = $qb->execute();
