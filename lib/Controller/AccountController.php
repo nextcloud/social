@@ -123,8 +123,6 @@ class AccountController extends Controller {
 	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $username
 	 *

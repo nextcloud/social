@@ -83,12 +83,8 @@ class QueueController extends Controller {
 
 
 	/**
-	 * // TODO: Delete the NoCSRF check
-	 *
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $token
 	 */

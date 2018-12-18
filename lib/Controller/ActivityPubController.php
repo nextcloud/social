@@ -44,7 +44,6 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
