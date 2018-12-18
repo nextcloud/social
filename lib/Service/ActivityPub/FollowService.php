@@ -170,6 +170,18 @@ class FollowService implements ICoreService {
 		try {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
+
+			$undo = new Undo();
+			$follow->setParent($undo);
+			$undo->setObject($follow);
+			$undo->setActorId($actor->getId());
+
+			$undo->addInstancePath(
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
+			);
+			$this->activityService->request($undo);
 		} catch (FollowDoesNotExistException $e) {
 		}
 	}
