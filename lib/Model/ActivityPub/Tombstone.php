@@ -70,11 +70,7 @@ class Tombstone extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		return array_merge(
-			parent::jsonSerialize(),
-			[
-			]
-		);
+		return parent::jsonSerialize();
 	}
 
 }

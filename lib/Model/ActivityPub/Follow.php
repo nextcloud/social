@@ -128,10 +128,7 @@ class Follow extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		$result = array_merge(
-			parent::jsonSerialize(),
-			[]
-		);
+		$result = parent::jsonSerialize();
 
 		if ($this->isCompleteDetails()) {
 			array_merge(
