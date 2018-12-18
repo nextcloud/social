@@ -187,11 +187,11 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * Should returns:
-	 *  - Public/Unlisted/Followers-only post where current $actor is tagged,
-	 *  - Events:
-	 *    - people liking or re-posting your posts
-	 *    - someone wants to follow you
-	 *    - someone is following you
+	 *  * Public/Unlisted/Followers-only post where current $actor is tagged,
+	 *  - Events: (not yet)
+	 *    - people liking or re-posting your posts (not yet)
+	 *    - someone wants to follow you (not yet)
+	 *    - someone is following you (not yet)
 	 *
 	 * @param Person $actor
 	 * @param int $since
@@ -220,7 +220,7 @@ class NotesRequest extends NotesRequestBuilder {
 	/**
 	 * Should returns:
 	 *  * public message from actorId.
-	 *  - to followers-only if follower is logged.
+	 *  - to followers-only if follower is logged. (not yet (check ?))
 	 *
 	 * @param string $actorId
 	 * @param int $since
@@ -249,7 +249,7 @@ class NotesRequest extends NotesRequestBuilder {
 	/**
 	 * Should returns:
 	 *  * Private message.
-	 *  - group messages.
+	 *  - group messages. (not yet)
 	 *
 	 * @param Person $actor
 	 * @param int $since
@@ -280,7 +280,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * Should returns:
-	 *  - All local public/federated posts
+	 *  * All local public/federated posts
 	 *
 	 * @param int $since
 	 * @param int $limit
