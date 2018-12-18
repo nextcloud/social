@@ -85,8 +85,6 @@ class QueueController extends Controller {
 	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $token
 	 */

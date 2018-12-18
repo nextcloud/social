@@ -420,7 +420,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -443,7 +442,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -507,7 +505,6 @@ class LocalController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *

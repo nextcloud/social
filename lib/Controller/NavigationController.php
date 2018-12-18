@@ -216,8 +216,6 @@ class NavigationController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @return DataResponse
 	 */
@@ -293,8 +291,6 @@ class NavigationController extends Controller {
 	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
 	 *
