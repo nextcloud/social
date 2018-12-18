@@ -4,6 +4,71 @@ clone:
     depth: 1
 
 pipeline:
+  check-app-compatbility:
+    image: nextcloudci/php7.0:php7.0-17
+    environment:
+      - APP_NAME=social
+      - CORE_BRANCH=stable15
+      - DB=sqlite
+    commands:
+      # Pre-setup steps
+      - wget https://raw.githubusercontent.com/nextcloud/travis_ci/master/before_install.sh
+      - bash ./before_install.sh $APP_NAME $CORE_BRANCH $DB
+      - cd ../server
+      # Code checker
+      - ./occ app:check-code $APP_NAME -c strong-comparison
+      - ./occ app:check-code $APP_NAME -c deprecation
+    when:
+      matrix:
+        TESTS: check-app-compatbility
+  syntax-php7.0:
+    image: nextcloudci/php7.0:php7.0-17
+    environment:
+      - APP_NAME=social
+      - CORE_BRANCH=stable15
+      - DB=sqlite
+    commands:
+      - composer install
+      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
+    when:
+      matrix:
+        TESTS: syntax-php7.0
+  syntax-php7.1:
+    image: nextcloudci/php7.1:php7.1-15
+    environment:
+      - APP_NAME=social
+      - CORE_BRANCH=stable15
+      - DB=sqlite
+    commands:
+      - composer install
+      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
+    when:
+      matrix:
+        TESTS: syntax-php7.1
+  syntax-php7.2:
+    image: nextcloudci/php7.2:php7.2-9
+    environment:
+      - APP_NAME=social
+      - CORE_BRANCH=stable15
+      - DB=sqlite
+    commands:
+      - composer install
+      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
+    when:
+      matrix:
+        TESTS: syntax-php7.2
+  syntax-php7.3:
+    image: nextcloudci/php7.3:php7.3-2
+    environment:
+      - APP_NAME=social
+      - CORE_BRANCH=stable15
+      - DB=sqlite
+    commands:
+      - composer install
+      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
+    when:
+      matrix:
+        TESTS: syntax-php7.3
   eslint:
     image: nextcloudci/jsunit:jsunit-5
     commands:
@@ -12,7 +77,6 @@ pipeline:
     when:
       matrix:
         TESTS: eslint
-
   vue-build:
     image: nextcloudci/jsunit:jsunit-5
     commands:
@@ -24,6 +88,11 @@ pipeline:
 
 matrix:
   include:
+    - TESTS: check-app-compatbility
+    - TESTS: syntax-php7.0
+    - TESTS: syntax-php7.1
+    - TESTS: syntax-php7.2
+    - TESTS: syntax-php7.3
     - TESTS: eslint
     - TESTS: vue-build
 
