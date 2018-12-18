@@ -26,19 +26,12 @@
 	<namespace>Social</namespace>
 	<category>social</category>
 	<website>https://github.com/nextcloud/social</website>
-	<repository type="git">https://github.com/nextcloud/social.git</repository>
 	<bugs>https://github.com/nextcloud/social/issues</bugs>
+	<repository type="git">https://github.com/nextcloud/social.git</repository>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="15" max-version="16"/>
 	</dependencies>
-	<navigations>
-		<navigation>
-			<name>Social</name>
-			<route>social.Navigation.navigate</route>
-			<order>6</order>
-		</navigation>
-	</navigations>
 
 	<background-jobs>
 		<job>OCA\Social\Cron\Cache</job>
@@ -52,4 +45,11 @@
 		<command>OCA\Social\Command\QueueProcess</command>
 	</commands>
 
+	<navigations>
+		<navigation>
+			<name>Social</name>
+			<route>social.Navigation.navigate</route>
+			<order>6</order>
+		</navigation>
+	</navigations>
 </info>
