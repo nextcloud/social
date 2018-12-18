@@ -84,7 +84,7 @@ pipeline:
       - npm run build
     when:
       matrix:
-        TESTS:vue-build 
+        TESTS: vue-build
 
 matrix:
   include:
