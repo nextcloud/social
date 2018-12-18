@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 use DateTime;
 use JsonSerializable;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Service\ActivityService;
 
 class Note extends ACore implements JsonSerializable {
@@ -195,6 +196,8 @@ class Note extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		parent::import($data);

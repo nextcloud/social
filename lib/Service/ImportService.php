@@ -36,6 +36,7 @@ use Exception;
 use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -50,6 +51,7 @@ use OCA\Social\Model\ActivityPub\Follow;
 use OCA\Social\Model\ActivityPub\Image;
 use OCA\Social\Model\ActivityPub\Note;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Service\ActivityPub\DeleteService;
 use OCA\Social\Service\ActivityPub\FollowService;
 use OCA\Social\Service\ActivityPub\NoteService;
@@ -108,21 +110,22 @@ class ImportService {
 	 * @param string $json
 	 *
 	 * @return ACore
+	 * @throws ActivityPubFormatException
+	 * @throws InvalidResourceEntryException
+	 * @throws SocialAppConfigException
 	 * @throws UnknownItemException
 	 * @throws UrlCloudException
-	 * @throws SocialAppConfigException
-	 * @throws ActivityPubFormatException
 	 */
 	public function importFromJson(string $json) {
 		$data = json_decode($json, true);
 		if (!is_array($data)) {
 			throw new ActivityPubFormatException();
 		}
+
 		$activity = $this->importFromData($data, null);
 
 		return $activity;
 	}
-
 
 	/**
 	 * @param array $data

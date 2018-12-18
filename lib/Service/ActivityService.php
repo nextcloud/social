@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\Request410Exception;
@@ -56,6 +57,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Person;
 use OCA\Social\Model\ActivityPub\Tombstone;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityPub\PersonService;
 use OCP\IRequest;
@@ -71,9 +73,6 @@ class ActivityService {
 	const TIMEOUT_LIVE = 2;
 	const TIMEOUT_ASYNC = 5;
 	const TIMEOUT_SERVICE = 10;
-
-	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
-	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
 	const TO_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -160,6 +159,7 @@ class ActivityService {
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
 
 		$activity = new Create();
+		$item->setParent($activity);
 
 //		$this->activityStreamsService->initCore($activity);
 
@@ -174,6 +174,7 @@ class ActivityService {
 //		}
 
 		$activity->setActor($actor);
+		$this->signObject($actor, $activity);
 
 		return $this->request($activity);
 	}
@@ -453,6 +454,57 @@ class ActivityService {
 
 
 	/**
+	 * @param Person $actor
+	 * @param ACore $object
+	 */
+	public function signObject(Person $actor, ACore &$object) {
+		$signature = new LinkedDataSignature();
+		$signature->setPrivateKey($actor->getPrivateKey());
+		$signature->setType('RsaSignature2017');
+		$signature->setCreator($actor->getId() . '#main-key');
+		$signature->setCreated($object->getPublished());
+		$signature->setObject(json_decode(json_encode($object), true));
+
+		try {
+			$signature->sign();
+			$object->setSignature($signature);
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
+	}
+
+
+	/**
+	 * @param ACore $object
+	 *
+	 * @return bool
+	 * @throws InvalidResourceException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
+	 */
+	public function checkObject(ACore $object): bool {
+		try {
+			$actorId = $object->getActorId();
+
+			$signature = new LinkedDataSignature();
+			$signature->import(json_decode($object->getSource(), true));
+			$signature->setPublicKey($this->retrieveKey($actorId));
+
+			if ($signature->verify()) {
+				$object->setOrigin($this->getKeyOrigin($actorId));
+
+				return true;
+			}
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
+
+		return false;
+	}
+
+
+	/**
 	 * @param ACore $activity
 	 *
 	 * @return string
@@ -482,7 +534,7 @@ class ActivityService {
 	/**
 	 * @param IRequest $request
 	 *
-	 * @return
+	 * @return string
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws Request410Exception
@@ -492,7 +544,7 @@ class ActivityService {
 	 * @throws UrlCloudException
 	 * @throws InvalidOriginException
 	 */
-	private function checkSignature(IRequest $request) {
+	private function checkSignature(IRequest $request): string {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);
