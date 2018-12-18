@@ -34,7 +34,6 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
-use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -135,6 +134,20 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->countFollowsSelectSql();
 		$this->limitToActorId($qb, $actorId);
 		$this->limitToAccepted($qb, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function countFollows() {
+		$qb = $this->countFollowsSelectSql();
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();

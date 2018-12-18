@@ -151,6 +151,7 @@ class NavigationController extends Controller {
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
+			$this->checkService->checkInstallationStatus();
 			$cloudAddress = $this->setupCloudAddress();
 			if ($cloudAddress !== ''){
 				$data['serverData']['cloudAddress'] = $cloudAddress;

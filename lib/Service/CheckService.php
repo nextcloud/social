@@ -24,6 +24,9 @@
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Model\ActivityPub\Follow;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;
@@ -31,7 +34,17 @@ use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 
+
+/**
+ * Class CheckService
+ *
+ * @package OCA\Social\Service
+ */
 class CheckService {
+
+
+	use TStringTools;
+
 
 	private $cache;
 	private $config;
@@ -39,17 +52,38 @@ class CheckService {
 	private $request;
 	private $urlGenerator;
 
+	/** @var FollowsRequest */
+	private $followRequest;
+
 	const CACHE_PREFIX = 'social_check_';
 
 
-	public function __construct(ICache $cache, IConfig $config, IClientService $clientService, IRequest $request, IURLGenerator $urlGenerator) {
+	/**
+	 * CheckService constructor.
+	 *
+	 * @param ICache $cache
+	 * @param IConfig $config
+	 * @param IClientService $clientService
+	 * @param IRequest $request
+	 * @param IURLGenerator $urlGenerator
+	 * @param FollowsRequest $followRequest
+	 */
+	public function __construct(
+		ICache $cache, IConfig $config, IClientService $clientService, IRequest $request,
+		IURLGenerator $urlGenerator, FollowsRequest $followRequest
+	) {
 		$this->cache = $cache;
 		$this->config = $config;
 		$this->clientService = $clientService;
 		$this->request = $request;
 		$this->urlGenerator = $urlGenerator;
+		$this->followRequest = $followRequest;
 	}
 
+
+	/**
+	 * @return array
+	 */
 	public function checkDefault(): array {
 		$checks = [];
 		$checks['wellknown'] = $this->checkWellKnown();
@@ -60,13 +94,19 @@ class CheckService {
 				$success = false;
 			}
 		}
+
 		return [
 			'success' => $success,
-			'checks' => $checks
+			'checks'  => $checks
 		];
 	}
+
+
+	/**
+	 * @return bool
+	 */
 	public function checkWellKnown(): bool {
-		$state = (bool) ($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true');
+		$state = (bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true');
 		if ($state === true) {
 			return true;
 		}
@@ -77,7 +117,9 @@ class CheckService {
 			return true;
 		}
 
-		if ($this->requestWellKnown($this->request->getServerProtocol() . '://' . $this->request->getServerHost())) {
+		if ($this->requestWellKnown(
+			$this->request->getServerProtocol() . '://' . $this->request->getServerHost()
+		)) {
 			return true;
 		}
 
@@ -88,17 +130,50 @@ class CheckService {
 		return false;
 	}
 
-	private function requestWellKnown($base) {
+
+	/**
+	 *
+	 */
+	public function checkInstallationStatus() {
+		$this->checkStatusTableFollows();
+	}
+
+
+	public function checkStatusTableFollows() {
+		if ($this->followRequest->countFollows() > 0) {
+			return;
+		}
+
+		$follow = new Follow();
+		$follow->setId($this->uuid());
+		$follow->setType('Unknown');
+		$follow->setActorId($this->uuid());
+		$follow->setObjectId($this->uuid());
+		$follow->setFollowId($this->uuid());
+
+		$this->followRequest->save($follow);
+	}
+
+
+	/**
+	 * @param string $base
+	 *
+	 * @return bool
+	 */
+	private function requestWellKnown(string $base) {
 		try {
 			$url = $base . '/.well-known/webfinger';
-			$response = $this->clientService->newClient()->get($url);
+			$response = $this->clientService->newClient()
+											->get($url);
 			if ($response->getStatusCode() === Http::STATUS_OK) {
 				$this->cache->set(self::CACHE_PREFIX . 'wellknown', 'true', 3600);
+
 				return true;
 			}
 		} catch (\GuzzleHttp\Exception\ClientException $e) {
 		} catch (\Exception $e) {
 		}
+
 		return false;
 	}
 

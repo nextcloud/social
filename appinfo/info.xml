@@ -33,6 +33,12 @@
 		<nextcloud min-version="15" max-version="16"/>
 	</dependencies>
 
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Social\Migration\CheckInstallation</step>
+		</post-migration>
+	</repair-steps>
+
 	<background-jobs>
 		<job>OCA\Social\Cron\Cache</job>
 		<job>OCA\Social\Cron\Queue</job>
