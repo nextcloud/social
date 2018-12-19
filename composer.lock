@@ -1,10 +1,10 @@
 {
     "_readme": [
         "This file locks the dependencies of your project to a known state",
-        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "02220c2a6087d409a5e53060ee20c47e",
+    "content-hash": "2c21b8c338f3d2f929f349df19edbc0e",
     "packages": [
         {
             "name": "daita/my-small-php-tools",
@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "7a61e966ac2a01db6fd0096f77620a7db978af18"
+                "reference": "29754f18951856a22c0fd5fc388b6162ea98fe8a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/7a61e966ac2a01db6fd0096f77620a7db978af18",
-                "reference": "7a61e966ac2a01db6fd0096f77620a7db978af18",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/29754f18951856a22c0fd5fc388b6162ea98fe8a",
+                "reference": "29754f18951856a22c0fd5fc388b6162ea98fe8a",
                 "shasum": ""
             },
             "require": {
@@ -40,10 +40,105 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2018-12-04T10:09:31+00:00"
+            "time": "2018-12-18T00:38:01+00:00"
+        },
+        {
+            "name": "digitalbazaar/json-ld",
+            "version": "0.4.7",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/digitalbazaar/php-json-ld.git",
+                "reference": "dc1bd23f0ee2efd27ccf636d32d2738dabcee182"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/digitalbazaar/php-json-ld/zipball/dc1bd23f0ee2efd27ccf636d32d2738dabcee182",
+                "reference": "dc1bd23f0ee2efd27ccf636d32d2738dabcee182",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": ">=5.3.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "jsonld.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Digital Bazaar, Inc.",
+                    "email": "support@digitalbazaar.com"
+                }
+            ],
+            "description": "A JSON-LD Processor and API implementation in PHP.",
+            "homepage": "https://github.com/digitalbazaar/php-json-ld",
+            "keywords": [
+                "JSON-LD",
+                "Linked Data",
+                "RDF",
+                "Semantic Web",
+                "json",
+                "jsonld"
+            ],
+            "time": "2016-04-25T04:17:52+00:00"
         }
     ],
-    "packages-dev": [],
+    "packages-dev": [
+        {
+            "name": "jakub-onderka/php-parallel-lint",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/JakubOnderka/PHP-Parallel-Lint.git",
+                "reference": "04fbd3f5fb1c83f08724aa58a23db90bd9086ee8"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/JakubOnderka/PHP-Parallel-Lint/zipball/04fbd3f5fb1c83f08724aa58a23db90bd9086ee8",
+                "reference": "04fbd3f5fb1c83f08724aa58a23db90bd9086ee8",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.3.3"
+            },
+            "require-dev": {
+                "jakub-onderka/php-console-highlighter": "~0.3",
+                "nette/tester": "~1.3",
+                "squizlabs/php_codesniffer": "~2.7"
+            },
+            "suggest": {
+                "jakub-onderka/php-console-highlighter": "Highlight syntax in code snippet"
+            },
+            "bin": [
+                "parallel-lint"
+            ],
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "./"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-2-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Jakub Onderka",
+                    "email": "ahoj@jakubonderka.cz"
+                }
+            ],
+            "description": "This tool check syntax of PHP files about 20x faster than serial check.",
+            "homepage": "https://github.com/JakubOnderka/PHP-Parallel-Lint",
+            "time": "2018-02-24T15:31:20+00:00"
+        }
+    ],
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {

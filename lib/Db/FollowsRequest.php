@@ -144,6 +144,20 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
+	 * @return int
+	 */
+	public function countFollows() {
+		$qb = $this->countFollowsSelectSql();
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
 	 * @param string $followId
 	 *
 	 * @return Follow[]

@@ -37,6 +37,8 @@ use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\LinkedDataSignature;
+use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Model\ActivityPub\Object\Document;
 
 
@@ -70,6 +72,10 @@ class ACore extends Item implements JsonSerializable {
 
 	/** @var Document */
 	private $icon = null;
+
+
+	/** @var LinkedDataSignature */
+	private $signature = null;
 
 
 	/**
@@ -166,13 +172,44 @@ class ACore extends Item implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function gotSignature(): bool {
+		return ($this->signature !== null);
+	}
+
+	/**
+	 * @return LinkedDataSignature
+	 */
+	public function getSignature(): LinkedDataSignature {
+		return $this->signature;
+	}
+
+	/**
+	 * @param LinkedDataSignature $signature
+	 *
+	 * @return ACore
+	 */
+	public function setSignature(LinkedDataSignature $signature): Acore {
+		$this->signature = $signature;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param string $base
+	 * @param bool $root
 	 *
 	 * @throws UrlCloudException
 	 */
-	public function generateUniqueId(string $base = '') {
-		if ($this->getUrlCloud() === '') {
-			throw new UrlCloudException();
+	public function generateUniqueId(string $base = '', bool $root = true) {
+		$url = '';
+		if ($root) {
+			$url = $this->getUrlCloud();
+			if ($url === '') {
+				throw new UrlCloudException();
+			}
 		}
 
 		if ($base !== '') {
@@ -185,7 +222,7 @@ class ACore extends Item implements JsonSerializable {
 			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
 		);
 
-		$this->setId($this->getUrlCloud() . $base . '/' . $uuid);
+		$this->setId($url . $base . '/' . $uuid);
 	}
 
 
@@ -490,13 +527,21 @@ class ACore extends Item implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
+
+		if ($this->gotSignature()) {
+			$this->entries['signature'] = $this->getSignature();
+		}
+
 		if ($this->isRoot()) {
-			$this->addEntryArray(
-				'@context', [
-							  self::CONTEXT_ACTIVITYSTREAMS,
-							  self::CONTEXT_SECURITY
-						  ]
-			);
+			$context = [self::CONTEXT_ACTIVITYSTREAMS];
+
+			if ($this->gotObject()
+				&& $this->getObject()
+						->gotSignature()) {
+				array_push($context, self::CONTEXT_SECURITY);
+			}
+
+			$this->addEntryArray('@context', $context);
 		}
 
 		$this->addEntry('id', $this->getId());
@@ -523,7 +568,6 @@ class ACore extends Item implements JsonSerializable {
 		$this->addEntry('published', $this->getPublished());
 		$this->addEntryArray('tag', $this->getTags());
 
-//		$arr = $this->getEntries();
 		if ($this->gotObject()) {
 			$this->addEntryItem('object', $this->getObject());
 		} else {

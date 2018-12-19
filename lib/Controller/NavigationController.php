@@ -147,6 +147,7 @@ class NavigationController extends Controller {
 		try {
 			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
 		} catch (SocialAppConfigException $e) {
+			$this->checkService->checkInstallationStatus();
 			$cloudAddress = $this->setupCloudAddress();
 			if ($cloudAddress !== '') {
 				$data['serverData']['cloudAddress'] = $cloudAddress;
@@ -221,8 +222,6 @@ class NavigationController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @return DataResponse
 	 */
@@ -278,10 +277,6 @@ class NavigationController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
 	 *
@@ -302,13 +297,8 @@ class NavigationController extends Controller {
 
 
 	/**
-	 *
-	 * // TODO: Delete the NoCSRF check
-	 *
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
 	 *

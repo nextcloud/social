@@ -133,7 +133,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new NoteNotFoundException();
+			throw new NoteNotFoundException('Post not found');
 		}
 
 		return $this->parseNotesSelectSql($data);
@@ -188,8 +188,40 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * Should returns:
+	 *  * Public/Unlisted/Followers-only post where current $actor is tagged,
+	 *  - Events: (not yet)
+	 *    - people liking or re-posting your posts (not yet)
+	 *    - someone wants to follow you (not yet)
+	 *    - someone is following you (not yet)
+	 *
+	 * @param Person $actor
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return array
+	 */
+	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
+		$qb = $this->getNotesSelectSql();
+
+		$this->limitPaginate($qb, $since, $limit);
+		$this->limitToRecipient($qb, $actor->getId(), false);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+
+	/**
+	 * Should returns:
 	 *  * public message from actorId.
-	 *  - to followers-only if follower is logged.
+	 *  - to followers-only if follower is logged. (not yet (check ?))
 	 *
 	 * @param string $actorId
 	 * @param int $since
@@ -218,7 +250,7 @@ class NotesRequest extends NotesRequestBuilder {
 	/**
 	 * Should returns:
 	 *  * Private message.
-	 *  - group messages.
+	 *  - group messages. (not yet)
 	 *
 	 * @param Person $actor
 	 * @param int $since
@@ -249,7 +281,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * Should returns:
-	 *  - All local public/federated posts
+	 *  * All local public/federated posts
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -266,7 +298,7 @@ class NotesRequest extends NotesRequestBuilder {
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		// TODO: to: = real public, cc: = unlisted !?
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC, true, ['to']);
 
 		$notes = [];
 		$cursor = $qb->execute();

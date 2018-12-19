@@ -28,51 +28,53 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub\Object;
+namespace OCA\Social\Migration;
 
 
-use JsonSerializable;
-use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Service\CheckService;
+use OCP\Migration\IOutput;
+use OCP\Migration\IRepairStep;
 
 
 /**
- * Class Tombstone
+ * Class CheckInstallation
  *
- * @package OCA\Social\Model\ActivityPub\Activity
+ * @package OCA\Social\Migration
  */
-class Tombstone extends ACore implements JsonSerializable {
+class CheckInstallation implements IRepairStep {
 
 
-	const TYPE = 'Tombstone';
-
+	/** @var CheckService */
+	protected $checkService;
 
 
 	/**
-	 * Undo constructor.
+	 * CheckInstallation constructor.
 	 *
-	 * @param ACore $parent
+	 * @param CheckService $checkService
 	 */
-	public function __construct($parent = null) {
-		parent::__construct($parent);
-
-		$this->setType(self::TYPE);
+	public function __construct(CheckService $checkService) {
+		$this->checkService = $checkService;
 	}
 
 
 	/**
-	 * @param array $data
+	 * Returns the step's name
+	 *
+	 * @return string
+	 * @since 9.1.0
 	 */
-	public function import(array $data) {
-		parent::import($data);
+	public function getName() {
+		return 'Check the installation of the Social app.';
 	}
 
 
 	/**
-	 * @return array
+	 * @param IOutput $output
 	 */
-	public function jsonSerialize(): array {
-		return parent::jsonSerialize();
+	public function run(IOutput $output) {
+		$this->checkService->checkInstallationStatus();
 	}
+
 
 }
-

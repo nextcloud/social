@@ -35,6 +35,7 @@ use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\ActivityService;
 
+
 class Note extends ACore implements JsonSerializable {
 
 

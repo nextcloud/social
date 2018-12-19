@@ -30,14 +30,21 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\Request410Exception;
+use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
@@ -79,12 +86,9 @@ class NoteService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest,
-		ActivityService $activityService,
-		AccountService $accountService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService,
-		MiscService $miscService
+		NotesRequest $notesRequest, ActivityService $activityService,
+		AccountService $accountService, CacheActorService $cacheActorService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
 		$this->activityService = $activityService;
@@ -241,16 +245,29 @@ class NoteService {
 	/**
 	 * @param Note $note
 	 * @param string $replyTo
+	 *
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws NoteNotFoundException
+	 * @throws RedundancyLimitException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UnknownItemException
 	 */
 	public function replyTo(Note $note, string $replyTo) {
 		if ($replyTo === '') {
 			return;
 		}
 
+		$author = $this->getAuthorFromPostId($replyTo);
 		$note->setInReplyTo($replyTo);
 		// TODO - type can be NOT public !
 		$note->addInstancePath(
-			new InstancePath($replyTo, InstancePath::TYPE_PUBLIC, InstancePath::PRIORITY_HIGH)
+			new InstancePath(
+				$author->getSharedInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH
+			)
 		);
 	}
 
@@ -291,6 +308,18 @@ class NoteService {
 	 */
 	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamHome($actor, $since, $limit);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 */
+	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamNotifications($actor, $since, $limit);
 	}
 
 
@@ -351,6 +380,26 @@ class NoteService {
 		return $this->notesRequest->getStreamTimeline($since, $limit, false);
 	}
 
+
+	/**
+	 * @param $noteId
+	 *
+	 * @return Person
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws NoteNotFoundException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws InvalidOriginException
+	 * @throws RedundancyLimitException
+	 * @throws UnknownItemException
+	 */
+	public function getAuthorFromPostId($noteId) {
+		$note = $this->notesRequest->getNoteById($noteId);
+
+		return $this->cacheActorService->getFromId($note->getAttributedTo());
+	}
 
 }
 

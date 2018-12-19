@@ -54,14 +54,14 @@
 		"node": ">=10.0.0"
 	},
 	"devDependencies": {
-		"@babel/core": "^7.1.2",
+		"@babel/core": "^7.2.2",
 		"@babel/plugin-syntax-dynamic-import": "^7.2.0",
 		"@babel/preset-env": "^7.2.0",
 		"@vue/test-utils": "^1.0.0-beta.27",
 		"babel-eslint": "^10.0.1",
 		"babel-jest": "^23.6.0",
 		"babel-loader": "^8.0.4",
-		"css-loader": "^2.0.0",
+		"css-loader": "^2.0.1",
 		"eslint": "^4.19.1",
 		"eslint-config-standard": "^11.0.0",
 		"eslint-friendly-formatter": "^4.0.1",
@@ -72,7 +72,7 @@
 		"eslint-plugin-standard": "^3.1.0",
 		"eslint-plugin-vue": "^4.5.0",
 		"extract-text-webpack-plugin": "^3.0.2",
-		"file-loader": "^1.1.11",
+		"file-loader": "^2.0.0",
 		"jest": "^23.6.0",
 		"jest-serializer-vue": "^2.0.2",
 		"mini-css-extract-plugin": "^0.5.0",
@@ -81,13 +81,13 @@
 		"stylelint": "^8.4.0",
 		"stylelint-config-recommended-scss": "^3.2.0",
 		"stylelint-webpack-plugin": "^0.10.5",
-		"vue-jest": "^3.0.1",
+		"vue-jest": "^3.0.2",
 		"vue-loader": "^15.4.2",
 		"vue-style-loader": "^4.1.1",
 		"vue-template-compiler": "^2.5.21",
 		"webpack": "^4.27.1",
 		"webpack-cli": "^3.1.2",
-		"webpack-merge": "^4.1.2"
+		"webpack-merge": "^4.1.5"
 	},
 	"jest": {
 		"moduleFileExtensions": [

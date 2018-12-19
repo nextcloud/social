@@ -39,6 +39,7 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\Request410Exception;
@@ -51,6 +52,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
 
 class ActivityService {
@@ -64,9 +66,6 @@ class ActivityService {
 	const TIMEOUT_LIVE = 2;
 	const TIMEOUT_ASYNC = 5;
 	const TIMEOUT_SERVICE = 10;
-
-	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
-	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
 	const TO_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
@@ -137,6 +136,7 @@ class ActivityService {
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
 
 		$activity = new Create();
+		$item->setParent($activity);
 
 //		$this->activityStreamsService->initCore($activity);
 
@@ -151,6 +151,7 @@ class ActivityService {
 //		}
 
 		$activity->setActor($actor);
+		$this->signObject($actor, $activity);
 
 		return $this->request($activity);
 	}
@@ -393,6 +394,96 @@ class ActivityService {
 
 
 	/**
+	 * @param IRequest $request
+	 *
+	 * @return string
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws RequestException
+	 * @throws SignatureException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws SignatureIsGoneException
+	 * @throws InvalidOriginException
+	 */
+	public function checkRequest(IRequest $request): string {
+		// TODO : check host is our current host.
+
+//		$host = $request->getHeader('host');
+//		if ($host === '') {
+//			throw new SignatureException('host is not set');
+//		}
+
+		$dTime = new DateTime($request->getHeader('date'));
+		$dTime->format(self::DATE_FORMAT);
+
+		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
+			throw new SignatureException('object is too old');
+		}
+
+		try {
+			$origin = $this->checkSignature($request);
+		} catch (Request410Exception $e) {
+			throw new SignatureIsGoneException();
+		}
+
+		return $origin;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param ACore $object
+	 */
+	public function signObject(Person $actor, ACore &$object) {
+		$signature = new LinkedDataSignature();
+		$signature->setPrivateKey($actor->getPrivateKey());
+		$signature->setType('RsaSignature2017');
+		$signature->setCreator($actor->getId() . '#main-key');
+		$signature->setCreated($object->getPublished());
+		$signature->setObject(json_decode(json_encode($object), true));
+
+		try {
+			$signature->sign();
+			$object->setSignature($signature);
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
+	}
+
+
+	/**
+	 * @param ACore $object
+	 *
+	 * @return bool
+	 * @throws InvalidResourceException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
+	 */
+	public function checkObject(ACore $object): bool {
+		try {
+			$actorId = $object->getActorId();
+
+			$signature = new LinkedDataSignature();
+			$signature->import(json_decode($object->getSource(), true));
+			$signature->setPublicKey($this->retrieveKey($actorId));
+
+			if ($signature->verify()) {
+				$object->setOrigin($this->getKeyOrigin($actorId));
+
+				return true;
+			}
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
+
+		return false;
+	}
+
+
+	/**
+	 * $signature = new LinkedDataSignature();
 	 * @param ACore $activity
 	 *
 	 * @return string
