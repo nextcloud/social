@@ -84,7 +84,6 @@ class ImportService {
 		return AP::$activityPub->getItemFromData($data);
 	}
 
-
 	/**
 	 * @param ACore $activity
 	 *

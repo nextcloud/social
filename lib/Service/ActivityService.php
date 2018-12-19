@@ -39,6 +39,7 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\Request410Exception;
@@ -51,6 +52,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
 
 class ActivityService {
