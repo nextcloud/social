@@ -111,8 +111,8 @@ class FollowInterface implements IActivityPubInterface {
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
 			$accept = new Accept();
-			// TODO: improve the generation of the Id
-			$accept->setId($follow->getObjectId() . '#accepts/follows/' . rand(1000, 100000000));
+//			$accept->setUrlCloud($this->configService->getCloudAddress());
+			$accept->generateUniqueId('#accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
 

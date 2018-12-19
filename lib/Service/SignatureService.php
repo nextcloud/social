@@ -60,7 +60,6 @@ class SignatureService {
 	const ORIGIN_SIGNATURE = 2;
 
 
-	const DATE_FORMAT = 'D, d M Y H:i:s T';
 	const DATE_DELAY = 30;
 
 
@@ -132,7 +131,7 @@ class SignatureService {
 	 */
 	public function checkRequest(IRequest $request): string {
 		$dTime = new DateTime($request->getHeader('date'));
-		$dTime->format(self::DATE_FORMAT);
+		$dTime->format(ActivityService::DATE_FORMAT);
 
 		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
 			throw new SignatureException('object is too old');

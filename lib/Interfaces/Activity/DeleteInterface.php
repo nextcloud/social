@@ -58,50 +58,26 @@ class DeleteInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $item
 	 *
+	 * @throws \OCA\Social\Exceptions\InvalidOriginException
 	 */
 	public function processIncomingRequest(ACore $item) {
+		$item->checkOrigin($item->getId());
+
 		if (!$item->gotObject()) {
+//			// TODO - manage objectId (in case object is missing) -> find the right object and delete it
+//			if ($item->getObjectId() !== '') {
+//			}
+
 			return;
 		}
-		$object = $item->getObject();
 
+		$object = $item->getObject();
 		try {
-			$service = AP::$activityPub->getInterfaceForItem($object);
-			$service->delete($object);
+			$interface = AP::$activityPub->getInterfaceForItem($object);
+			$interface->delete($object);
 		} catch (UnknownItemException $e) {
 		}
 	}
-
-//
-//	/**
-//	 * @param ACore $delete
-//	 *
-//	 * @throws InvalidOriginException
-//	 */
-//	public function processIncomingRequest(ACore $delete) {
-//
-//		if ($delete->gotObject()) {
-//			$id = $delete->getObject()
-//						 ->getId();
-//		} else {
-//			$id = $delete->getObjectId();
-//		}
-//
-//		$delete->checkOrigin($id);
-//
-//
-//		/** @var Delete $delete */
-//		try {
-//			$item = $this->activityService->getItem($id);
-//			$service = AP::$activityPub->getServiceForItem($item);
-//
-//			// we could use ->activity($delete, $item) but the delete() is important enough to
-//			// be here, and to use it.
-////			$service->delete($item);
-//		} catch (UnknownItemException $e) {
-//		} catch (InvalidResourceException $e) {
-//		}
-//	}
 
 
 	/**

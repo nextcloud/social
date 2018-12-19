@@ -59,16 +59,11 @@ class ActivityService {
 	use TArrayTools;
 
 
-	const REQUEST_INBOX = 1;
-
 	const TIMEOUT_LIVE = 2;
 	const TIMEOUT_ASYNC = 5;
 	const TIMEOUT_SERVICE = 10;
 
-	const TO_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
-
 	const DATE_FORMAT = 'D, d M Y H:i:s T';
-	const DATE_DELAY = 30;
 
 
 	/** @var NotesRequest */
@@ -356,9 +351,6 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 */
 	public function generateRequestFromQueue(RequestQueue $queue): array {
-		//InstancePath $path, string $activity, string $author
-//		$queue->getInstance(), $queue->getActivity(), $queue->getAuthor()
-//			);
 		$path = $queue->getInstance();
 
 //		$document = json_encode($activity);
@@ -397,44 +389,6 @@ class ActivityService {
 	}
 
 
-//	/**
-//	 * @param IRequest $request
-//	 *
-//	 * @return string
-//	 * @throws InvalidResourceException
-//	 * @throws MalformedArrayException
-//	 * @throws RequestException
-//	 * @throws SignatureException
-//	 * @throws SocialAppConfigException
-//	 * @throws UrlCloudException
-//	 * @throws SignatureIsGoneException
-//	 * @throws InvalidOriginException
-//	 */
-//	public function checkRequest(IRequest $request): string {
-//		// TODO : check host is our current host.
-//
-////		$host = $request->getHeader('host');
-////		if ($host === '') {
-////			throw new SignatureException('host is not set');
-////		}
-//
-//		$dTime = new DateTime($request->getHeader('date'));
-//		$dTime->format(self::DATE_FORMAT);
-//
-//		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
-//			throw new SignatureException('object is too old');
-//		}
-//
-//		try {
-//			$origin = $this->signatureService->checkSignature($request);
-//		} catch (Request410Exception $e) {
-//			throw new SignatureIsGoneException();
-//		}
-//
-//		return $origin;
-//	}
-
-
 	/**
 	 * $signature = new LinkedDataSignature();
 	 *
@@ -462,125 +416,6 @@ class ActivityService {
 	private function getActorFromAuthor(string $author): Person {
 		return $this->accountService->getFromId($author);
 	}
-
-
-//	/**
-//	 * @param IRequest $request
-//	 *
-//	 * @return string
-//	 * @throws InvalidResourceException
-//	 * @throws MalformedArrayException
-//	 * @throws Request410Exception
-//	 * @throws RequestException
-//	 * @throws SignatureException
-//	 * @throws SocialAppConfigException
-//	 * @throws UrlCloudException
-//	 * @throws InvalidOriginException
-//	 */
-//	private function checkSignature(IRequest $request): string {
-//		$signatureHeader = $request->getHeader('Signature');
-//
-//		$sign = $this->parseSignatureHeader($signatureHeader);
-//		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
-//
-//		$keyId = $sign['keyId'];
-//		$origin = $this->getKeyOrigin($keyId);
-//
-//		$headers = $sign['headers'];
-//		$signed = base64_decode($sign['signature']);
-//		$estimated = $this->generateEstimatedSignature($headers, $request);
-//
-//		$publicKey = $this->retrieveKey($keyId);
-//
-//		if ($publicKey === '' || openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
-//			throw new SignatureException('signature cannot be checked');
-//		}
-//
-//		return $origin;
-//	}
-//
-
-//	/**
-//	 * @param $id
-//	 *
-//	 * @return string
-//	 * @throws InvalidOriginException
-//	 */
-//	private function getKeyOrigin($id) {
-//		$host = parse_url($id, PHP_URL_HOST);
-//		if (is_string($host) && ($host !== '')) {
-//			return $host;
-//		}
-//
-//		throw new InvalidOriginException();
-//	}
-//
-//
-//	/**
-//	 * @param string $headers
-//	 * @param IRequest $request
-//	 *
-//	 * @return string
-//	 */
-//	private function generateEstimatedSignature(string $headers, IRequest $request): string {
-//		$keys = explode(' ', $headers);
-//
-//		$target = '';
-//		try {
-//			$target = strtolower($request->getMethod()) . " " . $request->getRequestUri();
-//		} catch (Exception $e) {
-//		}
-//
-//		$estimated = "(request-target): " . $target;
-//
-//		foreach ($keys as $key) {
-//			if ($key === '(request-target)') {
-//				continue;
-//			}
-//
-//			$estimated .= "\n" . $key . ': ' . $request->getHeader($key);
-//		}
-//
-//		return $estimated;
-//	}
-//
-//
-//	/**
-//	 * @param $signatureHeader
-//	 *
-//	 * @return array
-//	 */
-//	private function parseSignatureHeader($signatureHeader) {
-//		$sign = [];
-//
-//		$entries = explode(',', $signatureHeader);
-//		foreach ($entries as $entry) {
-//			list($k, $v) = explode('=', $entry, 2);
-//			preg_match('/"([^"]+)"/', $v, $varr);
-//			$v = trim($varr[0], '"');
-//
-//			$sign[$k] = $v;
-//		}
-//
-//		return $sign;
-//	}
-
-
-//	/**
-//	 * @param $keyId
-//	 *
-//	 * @return string
-//	 * @throws InvalidResourceException
-//	 * @throws RequestException
-//	 * @throws SocialAppConfigException
-//	 * @throws UrlCloudException
-//	 * @throws Request410Exception
-//	 */
-//	private function retrieveKey($keyId): string {
-//		$actor = $this->cacheActorService->getFromId($keyId);
-//
-//		return $actor->getPublicKey();
-//	}
 
 
 	/**

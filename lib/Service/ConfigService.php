@@ -305,13 +305,5 @@ class ConfigService {
 		return $id;
 	}
 
-//	/**
-//	 * @return array
-//	 */
-//	public function getServiceTypes(): array {
-//		return $this->serviceTypes;
-//	}
-
 }
-
 

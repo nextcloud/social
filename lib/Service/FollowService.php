@@ -56,20 +56,6 @@ class FollowService {
 	use TArrayTools;
 
 
-	const REQUEST_INBOX = 1;
-
-	const TIMEOUT_LIVE = 2;
-	const TIMEOUT_ASYNC = 5;
-	const TIMEOUT_SERVICE = 10;
-
-	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
-	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
-
-	const TO_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
-
-	const DATE_FORMAT = 'D, d M Y H:i:s T';
-	const DATE_DELAY = 30;
-
 	/** @var FollowsRequest */
 	private $followsRequest;
 
@@ -111,8 +97,6 @@ class FollowService {
 		$this->miscService = $miscService;
 	}
 
-
-	//
 
 	/**
 	 * @param string $viewerId

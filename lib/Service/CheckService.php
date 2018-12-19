@@ -24,9 +24,10 @@
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Model\ActivityPub\Follow;
+use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;
@@ -43,6 +44,7 @@ use OCP\IURLGenerator;
 class CheckService {
 
 
+	use TArrayTools;
 	use TStringTools;
 
 
@@ -139,6 +141,9 @@ class CheckService {
 	}
 
 
+	/**
+	 * create a fake follow entry. Mandatory to have Home Stream working.
+	 */
 	public function checkStatusTableFollows() {
 		if ($this->followRequest->countFollows() > 0) {
 			return;

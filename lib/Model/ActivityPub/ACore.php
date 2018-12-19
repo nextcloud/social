@@ -49,6 +49,7 @@ class ACore extends Item implements JsonSerializable {
 	use TPathTools;
 
 
+	const CONTEXT_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 

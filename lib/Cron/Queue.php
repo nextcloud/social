@@ -91,9 +91,6 @@ class Queue extends TimedJob {
 
 
 	/**
-	 * @throws RedundancyLimitException
-	 * @throws UnknownItemException
-	 * @throws MalformedArrayException
 	 */
 	private function manageQueue() {
 		$requests = $this->queueService->getRequestStandby();

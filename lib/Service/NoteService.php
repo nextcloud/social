@@ -45,6 +45,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
@@ -159,7 +160,7 @@ class NoteService {
 						InstancePath::PRIORITY_LOW
 					)
 				);
-				$note->addCc(ActivityService::TO_PUBLIC);
+				$note->addCc(ACore::CONTEXT_PUBLIC);
 				break;
 
 			case Note::TYPE_FOLLOWERS:
@@ -176,7 +177,7 @@ class NoteService {
 				break;
 
 			default:
-				$note->setTo(ActivityService::TO_PUBLIC);
+				$note->setTo(ACore::CONTEXT_PUBLIC);
 				$note->addCc($actor->getFollowers());
 				$note->addInstancePath(
 					new InstancePath(

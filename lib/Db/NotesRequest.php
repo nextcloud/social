@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ActivityService;
@@ -234,7 +235,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -263,7 +264,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitPaginate($qb, $since, $limit);
 
 		$this->limitToRecipient($qb, $actor->getId(), true);
-		$this->filterToRecipient($qb, ActivityService::TO_PUBLIC);
+		$this->filterToRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterToRecipient($qb, $actor->getFollowers());
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
@@ -298,7 +299,7 @@ class NotesRequest extends NotesRequestBuilder {
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		// TODO: to: = real public, cc: = unlisted !?
-		$this->limitToRecipient($qb, ActivityService::TO_PUBLIC, true, ['to']);
+		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
 		$notes = [];
 		$cursor = $qb->execute();

@@ -85,42 +85,6 @@ class ImportService {
 	}
 
 
-//
-//	/**
-//	 * @param array $data
-//	 * @param ACore $root
-//	 *
-//	 * @return ACore
-//	 * @throws UnknownItemException
-//	 * @throws UrlCloudException
-//	 * @throws SocialAppConfigException
-//	 * @throws InvalidResourceEntryException
-//	 */
-//	private function importFromData(array $data, $root = null): ACore {
-//
-//		$item = AP::$activityPub->getItemFromData($data);
-//		$item->setParent($root);
-//
-//		$item->setUrlCloud($this->configService->getCloudAddress());
-//		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
-//
-//		try {
-//			$object = $this->importFromData($this->getArray('object', $data, []), $item);
-//			$item->setObject($object);
-//		} catch (UnknownItemException $e) {
-//		}
-//
-//		try {
-//			/** @var Document $icon */
-//			$icon = $this->importFromData($this->getArray('icon', $data, []), $item);
-//			$item->setIcon($icon);
-//		} catch (UnknownItemException $e) {
-//		}
-//
-//		return $item;
-//	}
-
-
 	/**
 	 * @param ACore $activity
 	 *
