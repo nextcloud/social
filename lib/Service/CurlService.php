@@ -92,14 +92,15 @@ class CurlService {
 	public function retrieveAccount(string $account): Person {
 		$account = $this->withoutBeginAt($account);
 
-		if (strstr(substr($account, 0, -3), '@') === false) {
+		// we consider an account is like an email
+		if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
 			throw new InvalidResourceException();
 		}
-		list($username, $host) = explode('@', $account);
 
-//		if ($username === null || $host === null) {
-//			throw new InvalidResourceException();
-//		}
+		list($username, $host) = explode('@', $account);
+		if ($username === null || $host === null) {
+			throw new InvalidResourceException();
+		}
 
 		$request = new Request('/.well-known/webfinger');
 		$request->addData('resource', 'acct:' . $account);
