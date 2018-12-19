@@ -103,6 +103,9 @@ class Item {
 	/** @var string */
 	private $origin = '';
 
+	/** @var int */
+	private $originSource = 0;
+
 
 	/**
 	 * @return string
@@ -433,12 +436,22 @@ class Item {
 	}
 
 	/**
+	 * @return int
+	 */
+	public function getOriginSource(): int {
+		return $this->originSource;
+	}
+
+	/**
 	 * @param string $origin
+	 *
+	 * @param int $source
 	 *
 	 * @return Item
 	 */
-	public function setOrigin(string $origin): Item {
+	public function setOrigin(string $origin, int $source): Item {
 		$this->origin = $origin;
+		$this->originSource = $source;
 
 		return $this;
 	}
@@ -510,7 +523,6 @@ class Item {
 
 		return $this;
 	}
-
 
 
 	/**

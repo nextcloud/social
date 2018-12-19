@@ -167,9 +167,9 @@ class ActivityPubController extends Controller {
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
-				$activity->setOrigin($origin);
+				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER);
 			}
-			
+
 			try {
 				$this->importService->parseIncomingRequest($activity);
 			} catch (UnknownItemException $e) {
@@ -208,7 +208,7 @@ class ActivityPubController extends Controller {
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
-				$activity->setOrigin($origin);
+				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER);
 			}
 
 			try {

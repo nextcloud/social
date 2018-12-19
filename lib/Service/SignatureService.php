@@ -56,6 +56,10 @@ class SignatureService {
 	use TArrayTools;
 
 
+	const ORIGIN_HEADER = 1;
+	const ORIGIN_SIGNATURE = 2;
+
+
 	const DATE_FORMAT = 'D, d M Y H:i:s T';
 	const DATE_DELAY = 30;
 
@@ -165,7 +169,7 @@ class SignatureService {
 			$signature->import(json_decode($object->getSource(), true));
 			$signature->setPublicKey($this->retrieveKey($actorId));
 			if ($signature->verify()) {
-				$object->setOrigin($this->getKeyOrigin($actorId));
+				$object->setOrigin($this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE);
 
 				return true;
 			}
@@ -294,6 +298,7 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws UnknownItemException
 	 * @throws RedundancyLimitException
+	 * @throws InvalidOriginException
 	 */
 	private function retrieveKey($keyId): string {
 		$actor = $this->cacheActorService->getFromId($keyId);
