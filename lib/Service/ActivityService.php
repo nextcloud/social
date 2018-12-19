@@ -39,7 +39,6 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\Request410Exception;
@@ -52,7 +51,6 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
 
 class ActivityService {
@@ -79,6 +77,9 @@ class ActivityService {
 	/** @var FollowsRequest */
 	private $followsRequest;
 
+	/** @var SignatureService */
+	private $signatureService;
+
 	/** @var QueueService */
 	private $queueService;
 
@@ -104,6 +105,7 @@ class ActivityService {
 	 *
 	 * @param NotesRequest $notesRequest
 	 * @param FollowsRequest $followsRequest
+	 * @param SignatureService $signatureService
 	 * @param QueueService $queueService
 	 * @param AccountService $accountService
 	 * @param CurlService $curlService
@@ -111,14 +113,16 @@ class ActivityService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, FollowsRequest $followsRequest, QueueService $queueService,
-		AccountService $accountService,
-		CurlService $curlService, ConfigService $configService, MiscService $miscService
+		NotesRequest $notesRequest, FollowsRequest $followsRequest,
+		SignatureService $signatureService, QueueService $queueService,
+		AccountService $accountService, CurlService $curlService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
 		$this->followsRequest = $followsRequest;
 		$this->queueService = $queueService;
 		$this->accountService = $accountService;
+		$this->signatureService = $signatureService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -151,7 +155,7 @@ class ActivityService {
 //		}
 
 		$activity->setActor($actor);
-		$this->signObject($actor, $activity);
+		$this->signatureService->signObject($actor, $activity);
 
 		return $this->request($activity);
 	}
@@ -393,97 +397,47 @@ class ActivityService {
 	}
 
 
-	/**
-	 * @param IRequest $request
-	 *
-	 * @return string
-	 * @throws InvalidResourceException
-	 * @throws MalformedArrayException
-	 * @throws RequestException
-	 * @throws SignatureException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws SignatureIsGoneException
-	 * @throws InvalidOriginException
-	 */
-	public function checkRequest(IRequest $request): string {
-		// TODO : check host is our current host.
-
-//		$host = $request->getHeader('host');
-//		if ($host === '') {
-//			throw new SignatureException('host is not set');
+//	/**
+//	 * @param IRequest $request
+//	 *
+//	 * @return string
+//	 * @throws InvalidResourceException
+//	 * @throws MalformedArrayException
+//	 * @throws RequestException
+//	 * @throws SignatureException
+//	 * @throws SocialAppConfigException
+//	 * @throws UrlCloudException
+//	 * @throws SignatureIsGoneException
+//	 * @throws InvalidOriginException
+//	 */
+//	public function checkRequest(IRequest $request): string {
+//		// TODO : check host is our current host.
+//
+////		$host = $request->getHeader('host');
+////		if ($host === '') {
+////			throw new SignatureException('host is not set');
+////		}
+//
+//		$dTime = new DateTime($request->getHeader('date'));
+//		$dTime->format(self::DATE_FORMAT);
+//
+//		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
+//			throw new SignatureException('object is too old');
 //		}
-
-		$dTime = new DateTime($request->getHeader('date'));
-		$dTime->format(self::DATE_FORMAT);
-
-		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
-			throw new SignatureException('object is too old');
-		}
-
-		try {
-			$origin = $this->checkSignature($request);
-		} catch (Request410Exception $e) {
-			throw new SignatureIsGoneException();
-		}
-
-		return $origin;
-	}
-
-
-	/**
-	 * @param Person $actor
-	 * @param ACore $object
-	 */
-	public function signObject(Person $actor, ACore &$object) {
-		$signature = new LinkedDataSignature();
-		$signature->setPrivateKey($actor->getPrivateKey());
-		$signature->setType('RsaSignature2017');
-		$signature->setCreator($actor->getId() . '#main-key');
-		$signature->setCreated($object->getPublished());
-		$signature->setObject(json_decode(json_encode($object), true));
-
-		try {
-			$signature->sign();
-			$object->setSignature($signature);
-		} catch (LinkedDataSignatureMissingException $e) {
-		}
-	}
-
-
-	/**
-	 * @param ACore $object
-	 *
-	 * @return bool
-	 * @throws InvalidResourceException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 * @throws InvalidOriginException
-	 */
-	public function checkObject(ACore $object): bool {
-		try {
-			$actorId = $object->getActorId();
-
-			$signature = new LinkedDataSignature();
-			$signature->import(json_decode($object->getSource(), true));
-			$signature->setPublicKey($this->retrieveKey($actorId));
-
-			if ($signature->verify()) {
-				$object->setOrigin($this->getKeyOrigin($actorId));
-
-				return true;
-			}
-		} catch (LinkedDataSignatureMissingException $e) {
-		}
-
-		return false;
-	}
+//
+//		try {
+//			$origin = $this->signatureService->checkSignature($request);
+//		} catch (Request410Exception $e) {
+//			throw new SignatureIsGoneException();
+//		}
+//
+//		return $origin;
+//	}
 
 
 	/**
 	 * $signature = new LinkedDataSignature();
+	 *
 	 * @param ACore $activity
 	 *
 	 * @return string

@@ -535,9 +535,7 @@ class ACore extends Item implements JsonSerializable {
 		if ($this->isRoot()) {
 			$context = [self::CONTEXT_ACTIVITYSTREAMS];
 
-			if ($this->gotObject()
-				&& $this->getObject()
-						->gotSignature()) {
+			if ($this->gotSignature()) {
 				array_push($context, self::CONTEXT_SECURITY);
 			}
 

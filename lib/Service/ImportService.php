@@ -39,20 +39,6 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Activity\Accept;
-use OCA\Social\Model\ActivityPub\Activity\Create;
-use OCA\Social\Model\ActivityPub\Activity\Delete;
-use OCA\Social\Model\ActivityPub\Activity\Reject;
-use OCA\Social\Model\ActivityPub\Tombstone;
-use OCA\Social\Model\ActivityPub\Document;
-use OCA\Social\Model\ActivityPub\Follow;
-use OCA\Social\Model\ActivityPub\Image;
-use OCA\Social\Model\ActivityPub\Note;
-use OCA\Social\Model\ActivityPub\Activity\Undo;
-use OCA\Social\Service\ActivityPub\DeleteService;
-use OCA\Social\Service\ActivityPub\FollowService;
-use OCA\Social\Service\ActivityPub\NoteService;
-use OCA\Social\Service\ActivityPub\UndoService;
 
 
 class ImportService {
@@ -85,13 +71,9 @@ class ImportService {
 	 *
 	 * @return ACore
 	 * @throws ActivityPubFormatException
-	 * @throws InvalidResourceEntryException
+	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 * @throws UnknownItemException
-	 * @throws SocialAppConfigException
-	 * @throws ActivityPubFormatException
-	 * @throws RedundancyLimitException
-	 * @throws UrlCloudException
 	 */
 	public function importFromJson(string $json): ACore {
 		$data = json_decode($json, true);
@@ -151,7 +133,8 @@ class ImportService {
 			$interface->processIncomingRequest($activity);
 		} catch (Exception $e) {
 			$this->miscService->log(
-				'Cannot parse ' . $activity->getType() . ': ' . $e->getMessage()
+				'Cannot parse ' . $activity->getType() . ': ' . get_class($e) . ' '
+				. $e->getMessage()
 			);
 		}
 	}

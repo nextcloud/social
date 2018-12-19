@@ -45,6 +45,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\InstancePath;
@@ -185,6 +186,7 @@ class FollowService {
 	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 * @throws UnknownItemException
+	 * @throws \Exception
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
@@ -192,6 +194,18 @@ class FollowService {
 		try {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
+
+			$undo = new Undo();
+			$follow->setParent($undo);
+			$undo->setObject($follow);
+			$undo->setActorId($actor->getId());
+
+			$undo->addInstancePath(
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
+			);
+			$this->activityService->request($undo);
 		} catch (FollowDoesNotExistException $e) {
 		}
 	}
@@ -274,7 +288,6 @@ class FollowService {
 
 		return $collection;
 	}
-
 
 }
 

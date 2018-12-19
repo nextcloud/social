@@ -34,21 +34,8 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Db\NotesRequest;
-use OCA\Social\Exceptions\ActivityPubFormatException;
-use OCA\Social\Exceptions\InvalidResourceEntryException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
-use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\ActivityPub\FollowService;
-use OCA\Social\Service\ActivityPub\PersonService;
-use OCA\Social\Service\ActivityService;
-use OCA\Social\Service\ActorService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
@@ -179,10 +166,10 @@ class ActivityPubController extends Controller {
 			$origin = $this->signatureService->checkRequest($this->request);
 
 			$activity = $this->importService->importFromJson($body);
-			if (!$this->activityService->checkObject($activity)) {
+			if (!$this->signatureService->checkObject($activity)) {
 				$activity->setOrigin($origin);
 			}
-
+			
 			try {
 				$this->importService->parseIncomingRequest($activity);
 			} catch (UnknownItemException $e) {
@@ -220,7 +207,7 @@ class ActivityPubController extends Controller {
 //			$actor = $this->actorService->getActor($username);
 
 			$activity = $this->importService->importFromJson($body);
-			if (!$this->activityService->checkObject($activity)) {
+			if (!$this->signatureService->checkObject($activity)) {
 				$activity->setOrigin($origin);
 			}
 

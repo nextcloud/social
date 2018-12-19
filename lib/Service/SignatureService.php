@@ -36,6 +36,7 @@ use DateTime;
 use Exception;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\Request410Exception;
 use OCA\Social\Exceptions\RequestException;
@@ -43,7 +44,10 @@ use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\LinkedDataSignature;
 use OCP\IRequest;
 
 class SignatureService {
@@ -72,7 +76,6 @@ class SignatureService {
 	/**
 	 * ActivityService constructor.
 	 *
-	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
@@ -138,6 +141,58 @@ class SignatureService {
 		}
 
 		return $origin;
+	}
+
+
+	/**
+	 * @param ACore $object
+	 *
+	 * @return bool
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws RedundancyLimitException
+	 * @throws Request410Exception
+	 * @throws RequestException
+	 * @throws SocialAppConfigException
+	 * @throws UnknownItemException
+	 */
+	public function checkObject(ACore $object): bool {
+		try {
+			$actorId = $object->getActorId();
+
+			$signature = new LinkedDataSignature();
+			$signature->import(json_decode($object->getSource(), true));
+			$signature->setPublicKey($this->retrieveKey($actorId));
+			if ($signature->verify()) {
+				$object->setOrigin($this->getKeyOrigin($actorId));
+
+				return true;
+			}
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
+
+		return false;
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param ACore $object
+	 */
+	public function signObject(Person $actor, ACore &$object) {
+		$signature = new LinkedDataSignature();
+		$signature->setPrivateKey($actor->getPrivateKey());
+		$signature->setType('RsaSignature2017');
+		$signature->setCreator($actor->getId() . '#main-key');
+		$signature->setCreated($object->getPublished());
+		$signature->setObject(json_decode(json_encode($object), true));
+
+		try {
+			$signature->sign();
+			$object->setSignature($signature);
+		} catch (LinkedDataSignatureMissingException $e) {
+		}
 	}
 
 

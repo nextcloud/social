@@ -143,7 +143,7 @@ class CacheActorService {
 				throw new InvalidOriginException();
 			}
 
-			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $info));
+			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 			try {
 				$this->save($actor);
 			} catch (Exception $e) {
