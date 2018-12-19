@@ -51,6 +51,9 @@ const getters = {
 	getAccount(state) {
 		return (uid) => state.accounts[uid]
 	},
+	accountLoaded(state) {
+		return (uid) => uid in state.accounts
+	},
 	getAccountFollowers(state) {
 		return (uid) => state.accountsFollowers[uid]
 	},
@@ -62,6 +65,8 @@ const actions = {
 	fetchAccountInfo(context, uid) {
 		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
 			context.commit('addAccount', { uid: uid, data: response.data.result.account })
+		}).catch((response) => {
+			context.commit('addAccount', { uid: uid, data: null })
 		})
 	},
 	fetchAccountFollowers(context, uid) {

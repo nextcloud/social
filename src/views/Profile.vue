@@ -21,73 +21,17 @@
   -->
 
 <template>
-	<div class="social__wrapper">
-		<profile-info :uid="uid" />
-		<router-view name="details" />
+	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
+		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
+		<router-view v-if="accountLoaded && accountInfo" name="details" />
+		<empty-content v-if="accountLoaded && !accountInfo" :item="emptyContentData" />
 	</div>
 </template>
 
 <style scoped>
 
-	.social__welcome h3 {
-		margin-top: 0;
-	}
-
-	.social__welcome .icon-close {
-		float:right;
-	}
-
-	.social__welcome .social-id {
-		font-weight: bold;
-	}
-
-	.social__timeline {
-		max-width: 600px;
-		margin: 15px auto;
-	}
-
-	.new-post {
-		display: flex;
-		padding: 10px;
-		background-color: var(--color-main-background);
-		position: sticky;
-		top: 47px;
-		z-index: 100;
-		margin-bottom: 10px;
-	}
-	.new-post-author {
-		padding: 5px;
-	}
-	.author .social-id {
-		opacity: .5;
-	}
-	.new-post-form {
-		flex-grow: 1;
-		position: relative;
-	}
-	.message {
-		width: 100%;
-	}
-	[contenteditable=true]:empty:before{
-		content: attr(placeholder);
-		display: block; /* For Firefox */
-		opacity: .5;
-	}
-	input[type=submit] {
-		width: 44px;
-		height: 44px;
-		margin: 0;
-		padding: 13px;
-		background-color: transparent;
-		border: none;
-		opacity: 0.3;
-		position: absolute;
-		bottom: 0;
-		right: 0;
-	}
-
-	#app-content {
-		position: relative;
+	.social__wrapper.icon-loading {
+		margin-top: 50vh;
 	}
 
 </style>
@@ -101,10 +45,12 @@ import {
 } from 'nextcloud-vue'
 import TimelineEntry from './../components/TimelineEntry'
 import ProfileInfo from './../components/ProfileInfo'
+import EmptyContent from '../components/EmptyContent'
 
 export default {
 	name: 'Profile',
 	components: {
+		EmptyContent,
 		PopoverMenu,
 		AppNavigation,
 		TimelineEntry,
@@ -130,6 +76,19 @@ export default {
 		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
+		},
+		accountInfo: function() {
+			return this.$store.getters.getAccount(this.uid)
+		},
+		accountLoaded() {
+			return this.$store.getters.accountLoaded(this.uid)
+		},
+		emptyContentData() {
+			return {
+				image: 'img/undraw/profile.svg',
+				title: t('social', 'User not found'),
+				description: t('social', 'Sorry, we could not find the account of {userId}', { userId: this.uid })
+			}
 		}
 	},
 	beforeMount() {

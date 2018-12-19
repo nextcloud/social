@@ -1,5 +1,5 @@
 <template>
-	<div v-if="!serverData.setup" class="app-social">
+	<div v-if="!serverData.setup" :class="{public: serverData.public}" class="app-social">
 		<div v-if="!serverData.public" id="app-navigation">
 			<app-navigation :menu="menu" />
 		</div>
@@ -55,7 +55,7 @@
 		padding: 15px;
 	}
 	@media (min-width: 1200px) {
-		#app-content .social__wrapper {
+		#app-social:not(.public) #app-content .social__wrapper {
 			margin: 15px calc(50% - 350px - 75px);
 			max-width: 600px;
 		}
