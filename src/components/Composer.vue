@@ -25,12 +25,12 @@
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
 				:size="32" />
-		</div>
-		<form class="new-post-form" @submit.prevent="createPost">
-			<div class="author currentUser">
-				<span class="post-author">{{ currentUser.displayName }}</span>
+			<div class="post-author">
+				<span class="post-author-name">{{ currentUser.displayName }}</span>
 				<span class="post-author-id">{{ socialId }}</span>
 			</div>
+		</div>
+		<form class="new-post-form" @submit.prevent="createPost">
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div v-contenteditable:post.dangerousHTML="canType" ref="composerInput" class="message"
@@ -75,10 +75,8 @@
 		</form>
 	</div>
 </template>
-<style scoped>
+<style scoped lang="scss">
 	.new-post {
-		display: flex;
-		flex-wrap: wrap;
 		padding: 10px;
 		background-color: var(--color-main-background);
 		position: sticky;
@@ -89,25 +87,33 @@
 
 	.new-post-author {
 		padding: 5px;
+		display: flex;
+		flex-wrap: wrap;
+		.post-author {
+			padding: 6px;
+
+			.post-author-name {
+				font-weight: bold;
+			}
+			.post-author-id {
+				opacity: .7;
+			}
+		}
 	}
 
 	.new-post-form {
 		flex-grow: 1;
 		position: relative;
+		top: -10px;
+		margin-left: 39px;
 	}
 
 	.message {
 		width: 100%;
 		padding-right: 44px;
 		min-height: 70px;
-	}
-
-	.post-author {
-		font-weight: bold;
-	}
-
-	.post-author-id {
-		opacity: .7;
+		min-width: 2px;
+		display: block;
 	}
 
 	[contenteditable=true]:empty:before{
@@ -162,7 +168,7 @@
 	.emoji-picker-wrapper {
 		position: absolute;
 		right: 0;
-		top: 22px;
+		top: 0;
 	}
 	.emoji-picker.popovermenu {
 		display: block;
