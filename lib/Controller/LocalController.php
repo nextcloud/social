@@ -238,6 +238,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 * @param int $since
@@ -424,6 +425,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -445,6 +447,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -467,6 +470,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -626,6 +630,15 @@ class LocalController extends Controller {
 	 * @throws AccountDoesNotExistException
 	 */
 	private function initViewer(bool $exception = false) {
+		// only initialize viewer data for logged in users
+		if ($this->userId === null) {
+			// TODO: properly set viewer
+			$this->followService->setViewerId('guest');
+			$this->personService->setViewerId('guest');
+			$this->noteService->setViewerId('guest');
+			return;
+		}
+
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
