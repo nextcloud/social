@@ -122,7 +122,7 @@ class CurlService {
 			throw new UnknownItemException();
 		}
 
-		if ($actor->getId() !== $id) {
+		if (strtolower($actor->getId()) !== strtolower($id)) {
 			throw new InvalidOriginException();
 		}
 
