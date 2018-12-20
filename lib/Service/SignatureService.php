@@ -269,13 +269,8 @@ class SignatureService {
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
-		$algorithm = 'sha256';
-		if ($this->get('algorithm', $sign, '') === 'rsa-sha256') {
-			$algorithm = 'sha256';
-		}
-
 		$publicKey = $this->retrieveKey($keyId);
-
+		$algorithm = $this->getAlgorithmFromSignature($sign);
 		if ($publicKey === ''
 			|| openssl_verify($estimated, $signed, $publicKey, $algorithm) !== 1) {
 			throw new SignatureException('signature cannot be checked');
@@ -371,4 +366,20 @@ class SignatureService {
 	}
 
 
+	/**
+	 * @param array $sign
+	 *
+	 * @return string
+	 */
+	private function getAlgorithmFromSignature(array $sign): string {
+		switch ($this->get('algorithm', $sign, '')) {
+			case 'rsa-sha512':
+				return 'sha512';
+
+			default:
+				return 'sha256';
+		}
+	}
+
 }
+
