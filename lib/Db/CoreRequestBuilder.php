@@ -776,5 +776,27 @@ class CoreRequestBuilder {
 		}
 	}
 
+
+	/**
+	 * this just empty all tables from the app.
+	 */
+	public function emptyAll() {
+		$tables = [
+			self::TABLE_REQUEST_QUEUE,
+			self::TABLE_SERVER_ACTORS,
+			self::TABLE_SERVER_NOTES,
+			self::TABLE_SERVER_FOLLOWS,
+			self::TABLE_CACHE_ACTORS,
+			self::TABLE_CACHE_DOCUMENTS
+		];
+
+		foreach ($tables as $table) {
+			$qb = $this->dbConnection->getQueryBuilder();
+			$qb->delete($table);
+
+			$qb->execute();
+		}
+	}
+
 }
 
