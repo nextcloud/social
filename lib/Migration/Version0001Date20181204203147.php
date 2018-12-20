@@ -318,7 +318,7 @@ class Version0001Date20181204203147 extends SimpleMigrationStep {
 			]);
 			$table->addColumn('author', 'string', [
 				'notnull' => true,
-				'length' => 1270,
+				'length' => 127,
 			]);
 			$table->addColumn('activity', 'string', [
 				'notnull' => true,

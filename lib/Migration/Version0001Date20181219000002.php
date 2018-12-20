@@ -37,16 +37,17 @@ use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Type;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCP\DB\ISchemaWrapper;
+use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0001Date20181211222142
+ * Class Version0001Date20181219000002
  *
  * @package OCA\Social\Migration
  */
-class Version0001Date20181211222142 extends SimpleMigrationStep {
+class Version0001Date20181219000002 extends SimpleMigrationStep {
 
 
 	/**
@@ -56,38 +57,27 @@ class Version0001Date20181211222142 extends SimpleMigrationStep {
 	 *
 	 * @return ISchemaWrapper
 	 * @throws SchemaException
-	 * @throws DBALException
 	 */
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options
 	): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_ACTORS);
-		$table->changeColumn(
-			'source', [
-						'notnull' => false,
-						'type'    => Type::getType(Type::TEXT)
-					]
+		$edits = array_merge(
+			Version0001Date20181219000001::$editToText,
+			Version0001Date20181219000001::$editToChar4000
 		);
+		foreach ($edits as $edit) {
+			list($tableName, $field) = $edit;
 
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
-		$table->changeColumn(
-			'source', [
-						'notnull' => false,
-						'type'    => Type::getType(Type::TEXT)
-					]
-		);
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_REQUEST_QUEUE);
-		$table->changeColumn(
-			'activity', [
-						  'notnull' => false,
-						  'type'    => Type::getType(Type::TEXT)
-					  ]
-		);
+			$table = $schema->getTable($tableName);
+			if ($table->hasColumn($field) && $table->hasColumn($field . '_copy')) {
+				$table->dropColumn($field);
+			}
+		}
 
 		return $schema;
 	}
+
 }
 
