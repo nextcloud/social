@@ -146,7 +146,8 @@ class SignatureService {
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
 		$signed = base64_encode($signed);
 
-		$header = 'keyId="' . $localActorLink . '",headers="(request-target) host date",signature="'
+		$header = 'keyId="' . $localActorLink
+				  . '",algorithm="rsa-sha256",headers="(request-target) host date",signature="'
 				  . $signed . '"';
 
 		$request->addHeader('Host: ' . $path->getAddress());
@@ -268,9 +269,15 @@ class SignatureService {
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
+		$algorithm = 'sha256';
+		if ($sign['algorithm'] === 'rsa-sha256') {
+			$algorithm = 'sha256';
+		}
+
 		$publicKey = $this->retrieveKey($keyId);
 
-		if ($publicKey === '' || openssl_verify($estimated, $signed, $publicKey, 'sha256') !== 1) {
+		if ($publicKey === ''
+			|| openssl_verify($estimated, $signed, $publicKey, $algorithm) !== 1) {
 			throw new SignatureException('signature cannot be checked');
 		}
 
