@@ -270,7 +270,7 @@ class SignatureService {
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
 		$algorithm = 'sha256';
-		if ($sign['algorithm'] === 'rsa-sha256') {
+		if ($this->get('algorithm', $sign, '') === 'rsa-sha256') {
 			$algorithm = 'sha256';
 		}
 
