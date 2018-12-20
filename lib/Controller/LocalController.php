@@ -251,6 +251,7 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$account = $this->cacheActorService->getFromLocalAccount($username);
+			$account->setCompleteDetails(true);
 			$posts = $this->noteService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);
@@ -436,7 +437,7 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
-
+			$actor->setCompleteDetails(true);
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
@@ -630,15 +631,9 @@ class LocalController extends Controller {
 	 * @throws AccountDoesNotExistException
 	 */
 	private function initViewer(bool $exception = false) {
-		// only initialize viewer data for logged in users
-		if ($this->userId === null) {
-			// TODO: properly set viewer
-			$this->followService->setViewerId('guest');
-			$this->personService->setViewerId('guest');
-			$this->noteService->setViewerId('guest');
+		if (!isset($this->userId)) {
 			return;
 		}
-
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
