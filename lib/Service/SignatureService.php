@@ -149,6 +149,7 @@ class SignatureService {
 		$header = 'keyId="' . $localActorLink . '",headers="(request-target) host date",signature="'
 				  . $signed . '"';
 
+		$request->addHeader('Host: ' . $path->getAddress());
 		$request->addHeader('Date: ' . $date);
 		$request->addHeader('Signature: ' . $header);
 	}

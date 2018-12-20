@@ -360,8 +360,6 @@ class ActivityService {
 
 		$request = new Request($path->getPath(), $requestType);
 		$request->setTimeout($queue->getTimeout());
-		$request->addHeader('Host: ' . $path->getAddress());
-
 		$request->setDataJson($queue->getActivity());
 		$request->setAddress($path->getAddress());
 
