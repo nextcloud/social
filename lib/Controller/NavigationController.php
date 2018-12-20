@@ -125,7 +125,6 @@ class NavigationController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $path
 	 *
@@ -248,7 +247,6 @@ class NavigationController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $path
 	 *
@@ -264,7 +262,6 @@ class NavigationController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $path
 	 *
@@ -278,7 +275,6 @@ class NavigationController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
 	 *

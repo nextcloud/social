@@ -132,7 +132,6 @@ class LocalController extends Controller {
 	 * Create a new post.
 	 *
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param array $data
 	 *
@@ -166,7 +165,6 @@ class LocalController extends Controller {
 	 * Delete your own post.
 	 *
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
 	 *
@@ -191,7 +189,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -215,7 +212,6 @@ class LocalController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -237,7 +233,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 * @PublicPage
 	 *
 	 * @param string $username
@@ -262,7 +257,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -285,7 +279,6 @@ class LocalController extends Controller {
 	 * Get timeline
 	 *
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -306,7 +299,6 @@ class LocalController extends Controller {
 	 * Get timeline
 	 *
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -326,7 +318,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $account
 	 *
@@ -346,7 +337,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $account
 	 *
@@ -366,7 +356,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @return DataResponse
 	 */
@@ -384,7 +373,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @return DataResponse
 	 */
@@ -404,7 +392,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @return DataResponse
 	 */
@@ -424,7 +411,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 * @PublicPage
 	 *
 	 * @param string $username
@@ -446,7 +432,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 * @PublicPage
 	 *
 	 * @param string $username
@@ -469,7 +454,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 * @PublicPage
 	 *
 	 * @param string $username
@@ -493,7 +477,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $account
 	 *
@@ -514,7 +497,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
 	 *
@@ -533,7 +515,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $id
 	 *
@@ -561,7 +542,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param string $search
 	 *
@@ -599,7 +579,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoSubAdminRequired
 	 *
 	 * @param array $documents
 	 *
