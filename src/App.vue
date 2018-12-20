@@ -1,5 +1,5 @@
 <template>
-	<div v-if="!serverData.setup" class="app-social">
+	<div v-if="!serverData.setup" id="app-social" :class="{public: serverData.public}">
 		<div v-if="!serverData.public" id="app-navigation">
 			<app-navigation :menu="menu" />
 		</div>
@@ -38,8 +38,21 @@
 </template>
 
 <style scoped>
-	.app-social {
+	#app-social {
 		width: 100%;
+	}
+
+	#app-content .social__wrapper {
+		padding: 15px;
+		max-width: 600px;
+		margin: auto;
+	}
+
+	@media (min-width: 1200px) {
+		#app-social:not(.public) #app-content .social__wrapper {
+			margin: 15px calc(50% - 350px - 75px);
+			max-width: 600px;
+		}
 	}
 
 	.setup {
@@ -49,16 +62,6 @@
 
 	.setup input[type=url] {
 		width: 300px;
-	}
-
-	#app-content .social__wrapper {
-		padding: 15px;
-	}
-	@media (min-width: 1200px) {
-		#app-content .social__wrapper {
-			margin: 15px calc(50% - 350px - 75px);
-			max-width: 600px;
-		}
 	}
 
 	#social-spacer a:hover,

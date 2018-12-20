@@ -31,16 +31,14 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
-use Exception;
+
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
-use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\NotFoundResponse;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -67,8 +65,8 @@ class SocialPubController extends Controller {
 	/** @var FollowService */
 	private $followService;
 
-	/** @var MiscService */
-	private $miscService;
+	/** @var NavigationController */
+	private $navigationController;
 
 
 	/**
@@ -77,23 +75,49 @@ class SocialPubController extends Controller {
 	 * @param $userId
 	 * @param IRequest $request
 	 * @param IL10N $l10n
-	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
-	 * @param FollowService $followService
-	 * @param MiscService $miscService
+	 * @param NavigationController $navigationController
 	 */
 	public function __construct(
-		$userId, IRequest $request, IL10N $l10n, AccountService $accountService,
-		CacheActorService $cacheActorService, FollowService $followService, MiscService $miscService
+		$userId,
+		IRequest $request,
+		IL10N $l10n,
+		CacheActorService $cacheActorService,
+		NavigationController $navigationController
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
 		$this->l10n = $l10n;
-		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
-		$this->followService = $followService;
-		$this->miscService = $miscService;
+		$this->navigationController = $navigationController;
+	}
+
+	private function renderPage($username): Response {
+		if ($this->userId) {
+			return $this->navigationController->navigate('');
+		}
+		$data = [
+			'serverData' => [
+				'public' => true,
+			],
+			'application' => 'Social'
+		];
+
+		$status = Http::STATUS_OK;
+		try {
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$displayName = $actor->getName() !== '' ? $actor->getName() : $actor->getPreferredUsername();
+			$data['application'] = $displayName . ' - ' . $data['application'];
+		} catch (CacheActorDoesNotExistException $e) {
+			$status = Http::STATUS_NOT_FOUND;
+		} catch (\Exception $e) {
+			return $this->fail($e);
+		}
+		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
+		$page->setStatus($status);
+		$page->setHeaderTitle($this->l10n->t('Social'));
+		return $page;
 	}
 
 
@@ -109,42 +133,7 @@ class SocialPubController extends Controller {
 	 * @return Response
 	 */
 	public function actor(string $username): Response {
-
-		try {
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
-			$actor->setCompleteDetails(true);
-
-			$logged = false;
-			$ownAccount = false;
-			if ($this->userId !== null) {
-				$logged = true;
-				$local = $this->accountService->getActorFromUserId($this->userId, true);
-				if ($local->getId() === $actor->getId()) {
-					$ownAccount = true;
-				} else {
-					$this->fillActorWithLinks($actor, $local);
-				}
-			}
-
-			$data = [
-				'serverData' => [
-					'public' => true,
-				],
-				'actor'      => $actor,
-				'logged'     => $logged,
-				'ownAccount' => $ownAccount
-			];
-
-
-			$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
-			$page->setHeaderTitle($this->l10n->t('Social') . ' ' . $username);
-
-			return $page;
-		} catch (CacheActorDoesNotExistException $e) {
-			return new NotFoundResponse();
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
+		return $this->renderPage($username);
 	}
 
 
@@ -159,8 +148,8 @@ class SocialPubController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 */
-	public function followers(string $username): TemplateResponse {
-		return new TemplateResponse(Application::APP_NAME, 'followers', [], 'blank');
+	public function followers(string $username): Response {
+		return $this->renderPage($username);
 	}
 
 
@@ -175,8 +164,8 @@ class SocialPubController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 */
-	public function following(string $username): TemplateResponse {
-		return new TemplateResponse(Application::APP_NAME, 'following', [], 'blank');
+	public function following(string $username): Response {
+		return $this->renderPage($username);
 	}
 
 
@@ -193,16 +182,6 @@ class SocialPubController extends Controller {
 	 */
 	public function displayPost(string $username, int $postId) {
 		return $this->success([$username, $postId]);
-	}
-
-
-	/**
-	 * @param Person $actor
-	 * @param Person $local
-	 */
-	private function fillActorWithLinks(Person $actor, Person $local) {
-		$links = $this->followService->getLinksBetweenPersons($local, $actor);
-		$actor->addDetailArray('link', $links);
 	}
 
 }

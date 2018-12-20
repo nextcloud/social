@@ -37,7 +37,7 @@
 				<!-- TODO check where the html is coming from to avoid security issues -->
 				<p v-html="item.summary" />
 			</div>
-			<template v-if="cloudId !== item.account">
+			<template v-if="!serverData.public && cloudId !== item.account">
 				<button v-if="item.details && item.details.following" :class="{'icon-loading-small': followLoading}"
 					@click="unfollow()"
 					@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">

@@ -27,7 +27,7 @@
 			<h2>{{ displayName }}</h2>
 			<p>{{ accountInfo.account }}</p>
 			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
-			<template v-if="cloudId !== accountInfo.account">
+			<template v-if="cloudId !== accountInfo.account && !serverData.public">
 				<button v-if="accountInfo.details && accountInfo.details.following" :class="{'icon-loading-small': followLoading}"
 					@click="unfollow()"
 					@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
@@ -36,7 +36,6 @@
 					@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
 			</template>
 		</div>
-
 		<ul v-if="accountInfo.details" class="user-profile--sections">
 			<li>
 				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ accountInfo.details.count.post }} {{ t('social', 'posts') }}</router-link>

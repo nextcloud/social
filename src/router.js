@@ -52,8 +52,7 @@ export default new Router({
 			name: 'timeline'
 		},
 		{
-			path: '/:index(index.php/)?apps/social/account/@:account',
-			alias: './timeline',
+			path: '/:index(index.php/)?apps/social/@:account',
 			components: {
 				default: Profile,
 				details: ProfileTimeline
@@ -83,12 +82,6 @@ export default new Router({
 					}
 				}
 			]
-		},
-		{
-			path: '/:index(index.php/)?apps/social/@:account',
-			component: Profile,
-			props: true,
-			name: 'public'
 		}
 	]
 })

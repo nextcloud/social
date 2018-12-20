@@ -238,6 +238,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 * @param int $since
@@ -424,6 +425,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -434,7 +436,7 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
-
+			$actor->setCompleteDetails(true);
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
@@ -445,6 +447,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -467,6 +470,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoSubAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -626,6 +630,9 @@ class LocalController extends Controller {
 	 * @throws AccountDoesNotExistException
 	 */
 	private function initViewer(bool $exception = false) {
+		if (!isset($this->userId)) {
+			return;
+		}
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 

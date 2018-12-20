@@ -43,19 +43,11 @@ return [
 			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
 			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
 		],
-		[
-			'name'         => 'Navigation#account', 'url' => '/account/{path}', 'verb' => 'GET',
-			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
-		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
 
-		//		['name' => 'Account#create', 'url' => '/local/account/{username}', 'verb' => 'POST'],
-		['name' => 'Account#info', 'url' => '/local/account/{username}', 'verb' => 'GET'],
-
-
 		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
-		['name' => 'ActivityPub#actorAlias', 'url' => '/@{username}', 'verb' => 'GET'],
+		['name' => 'ActivityPub#actorAlias', 'url' => '/@{username}/', 'verb' => 'GET'],
 		['name' => 'ActivityPub#inbox', 'url' => '/@{username}/inbox', 'verb' => 'POST'],
 		['name' => 'ActivityPub#sharedInbox', 'url' => '/inbox', 'verb' => 'POST'],
 		['name' => 'ActivityPub#outbox', 'url' => '/@{username}/outbox', 'verb' => 'POST'],
