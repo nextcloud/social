@@ -31,12 +31,9 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use OC\Core\Command\Base;
-use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -95,10 +92,6 @@ class QueueProcess extends Base {
 	/**
 	 * @param InputInterface $input
 	 * @param OutputInterface $output
-	 *
-	 * @throws RedundancyLimitException
-	 * @throws UnknownItemException
-	 * @throws MalformedArrayException
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 

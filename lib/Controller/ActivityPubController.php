@@ -35,7 +35,6 @@ use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SignatureIsGoneException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;

@@ -38,7 +38,6 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\LinkedDataSignature;
-use OCA\Social\Service\ActivityPub\ICoreService;
 use OCA\Social\Model\ActivityPub\Object\Document;
 
 
