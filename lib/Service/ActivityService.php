@@ -63,8 +63,6 @@ class ActivityService {
 	const TIMEOUT_ASYNC = 5;
 	const TIMEOUT_SERVICE = 10;
 
-	const DATE_FORMAT = 'D, d M Y H:i:s T';
-
 
 	/** @var NotesRequest */
 	private $notesRequest;
@@ -353,22 +351,6 @@ class ActivityService {
 	public function generateRequestFromQueue(RequestQueue $queue): array {
 		$path = $queue->getInstance();
 
-//		$document = json_encode($activity);
-		$date = gmdate(self::DATE_FORMAT);
-		$localActor = $this->getActorFromAuthor($queue->getAuthor());
-
-		// TODO:  move this to SignatureService ?
-		$localActorLink =
-			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
-		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $path->getAddress()
-					 . "\ndate: " . $date;
-		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
-
-		$signed = base64_encode($signed);
-		$header =
-			'keyId="' . $localActorLink . '",headers="(request-target) host date",signature="'
-			. $signed . '"';
-
 		$requestType = Request::TYPE_GET;
 		if ($path->getType() === InstancePath::TYPE_INBOX
 			|| $path->getType() === InstancePath::TYPE_GLOBAL
@@ -379,11 +361,11 @@ class ActivityService {
 		$request = new Request($path->getPath(), $requestType);
 		$request->setTimeout($queue->getTimeout());
 		$request->addHeader('Host: ' . $path->getAddress());
-		$request->addHeader('Date: ' . $date);
-		$request->addHeader('Signature: ' . $header);
 
 		$request->setDataJson($queue->getActivity());
 		$request->setAddress($path->getAddress());
+
+		$this->signatureService->signRequest($request, $queue);
 
 		return $this->curlService->request($request);
 	}
@@ -403,18 +385,6 @@ class ActivityService {
 		}
 
 		return $activity->getActorId();
-	}
-
-
-	/**
-	 * @param string $author
-	 *
-	 * @return Person
-	 * @throws SocialAppConfigException
-	 * @throws ActorDoesNotExistException
-	 */
-	private function getActorFromAuthor(string $author): Person {
-		return $this->accountService->getFromId($author);
 	}
 
 

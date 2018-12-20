@@ -34,6 +34,7 @@ use DateTime;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\ActivityService;
+use OCA\Social\Service\SignatureService;
 
 
 class Note extends ACore implements JsonSerializable {
@@ -195,7 +196,7 @@ class Note extends ACore implements JsonSerializable {
 	 */
 	public function convertPublished() {
 		$dTime = new DateTime($this->getPublished());
-		$dTime->format(ActivityService::DATE_FORMAT);
+		$dTime->format(SignatureService::DATE_FORMAT);
 		$this->setPublishedTime($dTime->getTimestamp());
 	}
 

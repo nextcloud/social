@@ -31,9 +31,12 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
@@ -47,6 +50,7 @@ use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
+use OCA\Social\Model\RequestQueue;
 use OCP\IRequest;
 
 class SignatureService {
@@ -59,11 +63,15 @@ class SignatureService {
 	const ORIGIN_SIGNATURE = 2;
 
 
+	const DATE_FORMAT = 'D, d M Y H:i:s T';
 	const DATE_DELAY = 30;
 
 
 	/** @var CacheActorService */
 	private $cacheActorService;
+
+	/** @var ActorsRequest */
+	private $actorsRequest;
 
 	/** @var CurlService */
 	private $curlService;
@@ -78,15 +86,18 @@ class SignatureService {
 	/**
 	 * ActivityService constructor.
 	 *
+	 * @param ActorsRequest $actorsRequest
 	 * @param CacheActorService $cacheActorService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheActorService $cacheActorService, CurlService $curlService,
+		ActorsRequest $actorsRequest, CacheActorService $cacheActorService,
+		CurlService $curlService,
 		ConfigService $configService, MiscService $miscService
 	) {
+		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
@@ -115,6 +126,35 @@ class SignatureService {
 
 
 	/**
+	 * @param Request $request
+	 * @param RequestQueue $queue
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 */
+	public function signRequest(Request $request, RequestQueue $queue) {
+		$date = gmdate(self::DATE_FORMAT);
+		$path = $queue->getInstance();
+
+		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
+
+		$localActorLink =
+			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
+		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $path->getAddress()
+					 . "\ndate: " . $date;
+
+		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
+		$signed = base64_encode($signed);
+
+		$header = 'keyId="' . $localActorLink . '",headers="(request-target) host date",signature="'
+				  . $signed . '"';
+
+		$request->addHeader('Date: ' . $date);
+		$request->addHeader('Signature: ' . $header);
+	}
+
+
+	/**
 	 * @param IRequest $request
 	 *
 	 * @return string
@@ -130,7 +170,7 @@ class SignatureService {
 	 */
 	public function checkRequest(IRequest $request): string {
 		$dTime = new DateTime($request->getHeader('date'));
-		$dTime->format(ActivityService::DATE_FORMAT);
+		$dTime->format(self::DATE_FORMAT);
 
 		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
 			throw new SignatureException('object is too old');
@@ -167,7 +207,9 @@ class SignatureService {
 			$signature->import(json_decode($object->getSource(), true));
 			$signature->setPublicKey($this->retrieveKey($actorId));
 			if ($signature->verify()) {
-				$object->setOrigin($this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE);
+				$object->setOrigin(
+					$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE
+				);
 
 				return true;
 			}
