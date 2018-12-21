@@ -207,8 +207,6 @@ class LocalController extends Controller {
 	}
 
 
-
-
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
@@ -228,7 +226,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 
 	/**
@@ -423,6 +420,7 @@ class LocalController extends Controller {
 
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$actor->setCompleteDetails(true);
+
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
@@ -514,6 +512,7 @@ class LocalController extends Controller {
 	}
 
 	/**
+	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param string $id
