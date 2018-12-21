@@ -13,10 +13,12 @@
 - [global] The app will now verify every signed ld-json object. This should fix forwarded Note not being displayed in the streams.
 - [global] Unfollowing a user will keep remote instance up-to-date.
 - [UI] Some strange behavior while typing message have been fixed.
-- [UI] Better display of the Public/Account page
+- [UI] Better display of the Public/Account page.
+- [UI] Better UX when using the searchbar to search for a remote account. 
 - [bugfix] Home Stream is working even when user is following no one.
-- [bugfix] fixing minor issues.
+- [bugfix] fixing quotes encoding.
 - [bugfix] the cache refresher will now avoid ghost account.
+- [bugfix] fixing minor issues.
 
 
 
