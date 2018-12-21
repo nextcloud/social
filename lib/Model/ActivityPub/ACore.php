@@ -468,7 +468,7 @@ class ACore extends Item implements JsonSerializable {
 
 			case self::AS_STRING:
 				$value = strip_tags($value);
-				$value = html_entity_decode($value, ENT_QUOTES);
+				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
 
 				return $value;
 
@@ -497,7 +497,7 @@ class ACore extends Item implements JsonSerializable {
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
 		$this->setUrl($this->validate(self::AS_URL, 'url', $data, ''));
-		$this->setSummary($this->validate(self::AS_STRING, 'summary', $data, ''));
+		$this->setSummary($this->get('summary', $data, ''));
 		$this->setToArray($this->validateArray(self::AS_ID, 'to', $data, []));
 		$this->setCcArray($this->validateArray(self::AS_ID, 'cc', $data, []));
 		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
@@ -510,15 +510,17 @@ class ACore extends Item implements JsonSerializable {
 	 * @param array $data
 	 */
 	public function importFromDatabase(array $data) {
-		$this->setId($this->get('id', $data, ''));
-		$this->setType($this->get('type', $data, ''));
-		$this->setUrl($this->get('url', $data, ''));
-		$this->setSummary($this->get('summary', $data, ''));
-		$this->setToArray($this->getArray('to', $data, []));
-		$this->setCcArray($this->getArray('cc', $data, []));
-		$this->setPublished($this->get('published', $data, ''));
-		$this->setActorId($this->get('actor_id', $data, ''));
-		$this->setObjectId($this->get('object_id', $data, ''));
+		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
+		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
+		$this->setUrl($this->validate(self::AS_URL, 'url', $data, ''));
+		$this->setSummary($this->validate(self::AS_STRING, 'summary', $data, ''));
+		$this->setTo($this->validate(self::AS_ID, 'to', $data, ''));
+		$this->setToArray($this->validateArray(self::AS_ID, 'to_array', $data, []));
+		$this->setCcArray($this->validateArray(self::AS_ID, 'cc', $data, []));
+		$this->setBccArray($this->validateArray(self::AS_ID, 'bcc', $data, []));
+		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
+		$this->setActorId($this->validate(self::AS_ID, 'actor_id', $data, ''));
+		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setSource($this->get('source', $data, ''));
 		$this->setLocal(($this->getInt('local', $data, 0) === 1));
 	}

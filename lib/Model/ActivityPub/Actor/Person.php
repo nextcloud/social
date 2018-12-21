@@ -443,7 +443,6 @@ class Person extends ACore implements JsonSerializable {
 	 * @param array $data
 	 *
 	 * @throws UrlCloudException
-	 * @throws InvalidResourceEntryException
 	 */
 	public function import(array $data) {
 		parent::import($data);
@@ -476,17 +475,17 @@ class Person extends ACore implements JsonSerializable {
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
-		$this->setPreferredUsername($this->get('preferred_username', $data, ''))
-			 ->setName($this->get('name', $data, ''))
-			 ->setAccount($this->get('account', $data, ''))
+		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
+			 ->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
+			 ->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
 			 ->setPublicKey($this->get('public_key', $data, ''))
 			 ->setPrivateKey($this->get('private_key', $data, ''))
-			 ->setInbox($this->get('inbox', $data, ''))
-			 ->setOutbox($this->get('outbox', $data, ''))
-			 ->setFollowers($this->get('followers', $data, ''))
-			 ->setFollowing($this->get('following', $data, ''))
-			 ->setSharedInbox($this->get('shared_inbox', $data, ''))
-			 ->setFeatured($this->get('featured', $data, ''))
+			 ->setInbox($this->validate(self::AS_URL, 'inbox', $data, ''))
+			 ->setOutbox($this->validate(self::AS_URL, 'outbox', $data, ''))
+			 ->setFollowers($this->validate(self::AS_URL, 'followers', $data, ''))
+			 ->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
+			 ->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
+			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
 			 ->setDetails($this->getArray('details', $data, []))
 			 ->setCreation($this->getInt('creation', $data, 0));
 	}
