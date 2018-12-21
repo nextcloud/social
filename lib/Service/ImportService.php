@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ActivityPubFormatException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnknownItemException;
@@ -88,10 +89,12 @@ class ImportService {
 	 * @param ACore $activity
 	 *
 	 * @throws UnknownItemException
+	 * @throws InvalidOriginException
 	 */
 	public function parseIncomingRequest(ACore $activity) {
-		$interface = AP::$activityPub->getInterfaceForItem($activity);
+		$activity->checkOrigin($activity->getId());
 
+		$interface = AP::$activityPub->getInterfaceForItem($activity);
 		try {
 			$interface->processIncomingRequest($activity);
 		} catch (Exception $e) {

@@ -38,6 +38,7 @@ use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
@@ -128,9 +129,18 @@ class NoteInterface implements IActivityPubInterface {
 		/** @var Note $item */
 
 		if ($activity->getType() === Create::TYPE) {
+			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getAttributedTo());
 			$this->save($item);
 		}
+
+		if ($activity->getType() === Update::TYPE) {
+			$activity->checkOrigin($item->getId());
+			$activity->checkOrigin($item->getAttributedTo());
+			// TODO - check time and update.
+//			$this->save($item);
+		}
+
 	}
 
 
