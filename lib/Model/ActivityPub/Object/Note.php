@@ -33,7 +33,6 @@ namespace OCA\Social\Model\ActivityPub\Object;
 use DateTime;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\SignatureService;
 
 
@@ -211,8 +210,24 @@ class Note extends ACore implements JsonSerializable {
 		$this->setAttributedTo($this->validate(ACore::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setConversation($this->validate(ACore::AS_ID, 'conversation', $data, ''));
-		$this->setContent($this->validate(ACore::AS_STRING, 'content', $data, ''));
+		$this->setContent($this->get('content', $data, ''));
 		$this->convertPublished();
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	public function importFromDatabase(array $data) {
+		parent::importFromDatabase($data);
+
+		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
+
+		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));;
+
+		$this->setPublishedTime($dTime->getTimestamp());
+		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
+		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 	}
 
 
@@ -225,10 +240,10 @@ class Note extends ACore implements JsonSerializable {
 		return array_merge(
 			parent::jsonSerialize(),
 			[
-				'content'      => $this->getContent(),
+				'content' => $this->getContent(),
 				'attributedTo' => $this->getUrlSocial() . $this->getAttributedTo(),
-				'inReplyTo'    => $this->getInReplyTo(),
-				'sensitive'    => $this->isSensitive(),
+				'inReplyTo' => $this->getInReplyTo(),
+				'sensitive' => $this->isSensitive(),
 				'conversation' => $this->getConversation()
 			]
 		);

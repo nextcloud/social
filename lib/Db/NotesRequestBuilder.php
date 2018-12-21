@@ -325,21 +325,8 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @return Note
 	 */
 	protected function parseNotesSelectSql($data): Note {
-		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
-
-		// TODO - use $note->importFromDatabase() ?
 		$note = new Note();
-		$note->setId($data['id'])
-			 ->setTo($data['to'])
-			 ->setToArray(json_decode($data['to_array'], true))
-			 ->setCcArray(json_decode($data['cc'], true))
-			 ->setBccArray(json_decode($data['bcc']))
-			 ->setLocal(($data['local'] === '1') ? true : false)
-			 ->setPublished($data['published']);
-		$note->setContent($data['content'])
-			 ->setPublishedTime($dTime->getTimestamp())
-			 ->setAttributedTo($data['attributed_to'])
-			 ->setInReplyTo($data['in_reply_to']);
+		$note->importFromDatabase($data);
 
 		$instances = json_decode($data['instances'], true);
 		if (is_array($instances)) {
