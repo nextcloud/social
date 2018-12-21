@@ -127,7 +127,7 @@ class PersonInterface implements IActivityPubInterface {
 	public function activity(Acore $activity, ACore $item) {
 		/** @var Person $item */
 		if ($activity->getType() === Update::TYPE) {
-//			$this->miscService->log('### UPDATE PERSON !' . json_encode($item));
+			// TODO - check time and update.
 		}
 	}
 

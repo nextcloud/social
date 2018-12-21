@@ -63,11 +63,12 @@ class UndoInterface implements IActivityPubInterface {
 		if (!$item->gotObject()) {
 			return;
 		}
+
 		$object = $item->getObject();
 
 		try {
-			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
-			$service->activity($item, $object);
+			$interface = AP::$activityPub->getInterfaceForItem($item->getObject());
+			$interface->activity($item, $object);
 		} catch (UnknownItemException $e) {
 		}
 	}

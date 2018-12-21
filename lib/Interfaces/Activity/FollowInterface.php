@@ -111,18 +111,17 @@ class FollowInterface implements IActivityPubInterface {
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
 			$accept = new Accept();
-//			$accept->setUrlCloud($this->configService->getCloudAddress());
+			$accept->setUrlCloud($this->configService->getCloudAddress());
 			$accept->generateUniqueId('#accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
+			$follow->setParent($accept);
 
 			$accept->addInstancePath(
 				new InstancePath(
 					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
 				)
 			);
-
-			$follow->setParent($accept);
 
 			$this->activityService->request($accept);
 			$this->followsRequest->accepted($follow);
@@ -159,6 +158,7 @@ class FollowInterface implements IActivityPubInterface {
 			}
 		} catch (FollowDoesNotExistException $e) {
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+
 			if ($actor->isLocal()) {
 				$follow->setFollowId($actor->getFollowers());
 				$this->followsRequest->save($follow);
@@ -189,13 +189,14 @@ class FollowInterface implements IActivityPubInterface {
 	public function activity(Acore $activity, ACore $item) {
 		/** @var Follow $item */
 		if ($activity->getType() === Undo::TYPE) {
+			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getActorId());
-			$this->followsRequest->deleteByPersons($item);
+			$this->followsRequest->delete($item);
 		}
 
 		if ($activity->getType() === Reject::TYPE) {
 			$activity->checkOrigin($item->getObjectId());
-			$this->followsRequest->deleteByPersons($item);
+			$this->followsRequest->delete($item);
 		}
 
 		if ($activity->getType() === Accept::TYPE) {
