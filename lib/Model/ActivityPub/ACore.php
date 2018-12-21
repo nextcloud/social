@@ -468,6 +468,7 @@ class ACore extends Item implements JsonSerializable {
 
 			case self::AS_STRING:
 				$value = strip_tags($value);
+				$value = html_entity_decode($value, ENT_QUOTES);
 
 				return $value;
 
