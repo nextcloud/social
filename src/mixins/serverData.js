@@ -24,6 +24,11 @@ export default {
 	computed: {
 		serverData: function() {
 			return this.$store.getters.getServerData
+		},
+		hostname() {
+			const url = document.createElement('a')
+			url.setAttribute('href', this.serverData.cloudAddress)
+			return url.hostname
 		}
 	}
 }

@@ -24,59 +24,143 @@ import axios from 'nextcloud-axios'
 import Vue from 'vue'
 
 const state = {
+	currentAccount: {},
 	accounts: {},
-	accountsFollowers: {},
-	accountsFollowing: {}
+	accountIdMap: {}
 }
+const addAccount = (state, { actorId, data }) => {
+	Vue.set(state.accounts, actorId, Object.assign({ followersList: [], followingList: [], details: { following: false, follower: false } }, state.accounts[actorId], data))
+	Vue.set(state.accountIdMap, data.account, data.id)
+}
+const _getActorIdForAccount = (account) => state.accountIdMap[account]
+
 const mutations = {
-	addAccount(state, { uid, data }) {
-		Vue.set(state.accounts, uid, data)
+	setCurrentAccount(state, account) {
+		state.currentAccount = account
 	},
-	addFollowers(state, { uid, data }) {
+	addAccount(state, { actorId, data }) {
+		addAccount(state, { actorId, data })
+	},
+	addFollowers(state, { account, data }) {
 		let users = []
 		for (var index in data) {
-			users.push(data[index].actor_info)
+			const actor = data[index].actor_info
+			users.push(actor.id)
+			addAccount(state, {
+				actorId: actor.id,
+				data: actor
+			})
 		}
-		Vue.set(state.accountsFollowers, uid, users)
+		Vue.set(state.accounts[_getActorIdForAccount(account)], 'followersList', users)
 	},
-	addFollowing(state, { uid, data }) {
+	addFollowing(state, { account, data }) {
 		let users = []
 		for (var index in data) {
-			users.push(data[index].actor_info)
+			const actor = data[index].actor_info
+			users.push(actor.id)
+			addAccount(state, {
+				actorId: actor.id,
+				data: actor
+			})
 		}
-		Vue.set(state.accountsFollowing, uid, users)
+		Vue.set(state.accounts[_getActorIdForAccount(account)], 'followingList', users)
+	},
+	followAccount(state, accountToFollow) {
+		Vue.set(state.accounts[_getActorIdForAccount(accountToFollow)].details, 'following', true)
+	},
+	unfollowAccount(state, accountToUnfollow) {
+		Vue.set(state.accounts[_getActorIdForAccount(accountToUnfollow)].details, 'following', false)
 	}
 }
+
 const getters = {
-	getAccount(state) {
-		return (uid) => state.accounts[uid]
+	getAccount(state, getters) {
+		return (account) => {
+			return state.accounts[_getActorIdForAccount(account)]
+		}
+	},
+	accountFollowing(state) {
+		return (account, isFollowing) => _getActorIdForAccount(isFollowing) in state.accounts[_getActorIdForAccount(account)]
 	},
 	accountLoaded(state) {
-		return (uid) => uid in state.accounts
+		return (account) => state.accounts[_getActorIdForAccount(account)]
 	},
 	getAccountFollowers(state) {
-		return (uid) => state.accountsFollowers[uid]
+		return (id) => state.accounts[_getActorIdForAccount(id)].followersList.map((actorId) => state.accounts[actorId])
 	},
 	getAccountFollowing(state) {
-		return (uid) => state.accountsFollowing[uid]
+		return (id) => state.accounts[_getActorIdForAccount(id)].followingList.map((actorId) => state.accounts[actorId])
+	},
+	getActorIdForAccount() {
+		return _getActorIdForAccount
+	},
+	isFollowingUser(state) {
+		return (followingAccount) => {
+			let account = state.accounts[_getActorIdForAccount(followingAccount)]
+			return account && account.details ? account.details.following : false
+		}
 	}
 }
+
 const actions = {
-	fetchAccountInfo(context, uid) {
+	fetchAccountInfo(context, account) {
+		return axios.get(OC.generateUrl(`apps/social/api/v1/global/account/info?account=${account}`)).then((response) => {
+			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
+		}).catch(() => {
+			OC.Notification.showTemporary(`Failed to load account details ${account}`)
+		})
+	},
+	fetchPublicAccountInfo(context, uid) {
 		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
-			context.commit('addAccount', { uid: uid, data: response.data.result.account })
-		}).catch((response) => {
-			context.commit('addAccount', { uid: uid, data: null })
+			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
+		}).catch(() => {
+			OC.Notification.showTemporary(`Failed to load account details ${uid}`)
 		})
 	},
-	fetchAccountFollowers(context, uid) {
+	fetchCurrentAccountInfo({ commit, dispatch }, account) {
+		commit('setCurrentAccount', account)
+		dispatch('fetchAccountInfo', account)
+	},
+	followAccount(context, { currentAccount, accountToFollow }) {
+		return axios.put(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow)).then((response) => {
+			if (response.data.status === -1) {
+				return Promise.reject(response)
+			}
+			context.commit('followAccount', accountToFollow)
+			return Promise.resolve(response)
+		}).catch((error) => {
+			OC.Notification.showTemporary(`Failed to follow user ${accountToFollow}`)
+			console.error(`Failed to follow user ${accountToFollow}`, error)
+		})
+
+	},
+	unfollowAccount(context, { currentAccount, accountToUnfollow }) {
+		return axios.delete(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow)).then((response) => {
+			if (response.data.status === -1) {
+				return Promise.reject(response)
+			}
+			context.commit('unfollowAccount', accountToUnfollow)
+			return Promise.resolve(response)
+		}).catch((error) => {
+			OC.Notification.showTemporary(`Failed to unfollow user ${accountToUnfollow}`)
+			console.error(`Failed to unfollow user ${accountToUnfollow}`, error.response.data)
+			return Promise.reject(error.response.data)
+		})
+	},
+	fetchAccountFollowers(context, account) {
+		// TODO: fetching followers/following information of remotes is currently not supported
+		const parts = account.split('@')
+		const uid = (parts.length === 2 ? parts[0] : account)
 		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/followers`)).then((response) => {
-			context.commit('addFollowers', { uid: uid, data: response.data.result })
+			context.commit('addFollowers', { account, data: response.data.result })
 		})
 	},
-	fetchAccountFollowing(context, uid) {
+	fetchAccountFollowing(context, account) {
+		// TODO: fetching followers/following information of remotes is currently not supported
+		const parts = account.split('@')
+		const uid = (parts.length === 2 ? parts[0] : account)
 		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/following`)).then((response) => {
-			context.commit('addFollowing', { uid: uid, data: response.data.result })
+			context.commit('addFollowing', { account, data: response.data.result })
 		})
 	}
 }

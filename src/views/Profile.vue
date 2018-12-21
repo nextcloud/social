@@ -23,7 +23,8 @@
 <template>
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
-		<router-view v-if="accountLoaded && accountInfo" name="details" />
+		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
+		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
 		<empty-content v-if="accountLoaded && !accountInfo" :item="emptyContentData" />
 	</div>
 </template>
@@ -46,6 +47,7 @@ import {
 import TimelineEntry from './../components/TimelineEntry'
 import ProfileInfo from './../components/ProfileInfo'
 import EmptyContent from '../components/EmptyContent'
+import serverData from '../mixins/serverData'
 
 export default {
 	name: 'Profile',
@@ -58,30 +60,27 @@ export default {
 		Avatar,
 		ProfileInfo
 	},
-	data: function() {
+	mixins: [
+		serverData
+	],
+	data() {
 		return {
 			state: [],
 			uid: null
 		}
 	},
 	computed: {
-		serverData: function() {
-			return this.$store.getters.getServerData
-		},
-		currentUser: function() {
-			return OC.getCurrentUser()
-		},
-		socialId: function() {
-			return '@' + OC.getCurrentUser().uid + '@' + OC.getHost()
+		profileAccount() {
+			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
 		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
 		},
 		accountInfo: function() {
-			return this.$store.getters.getAccount(this.uid)
+			return this.$store.getters.getAccount(this.profileAccount)
 		},
 		accountLoaded() {
-			return this.$store.getters.accountLoaded(this.uid)
+			return this.$store.getters.accountLoaded(this.profileAccount)
 		},
 		emptyContentData() {
 			return {
@@ -93,7 +92,11 @@ export default {
 	},
 	beforeMount() {
 		this.uid = this.$route.params.account
-		this.$store.dispatch('fetchAccountInfo', this.uid)
+		if (this.serverData.public) {
+			this.$store.dispatch('fetchPublicAccountInfo', this.uid)
+		} else {
+			this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+		}
 	},
 	methods: {
 	}

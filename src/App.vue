@@ -183,7 +183,9 @@ export default {
 
 		if (!this.serverData.public) {
 			this.search = new OCA.Search(this.search, this.resetSearch)
+			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
+
 	},
 	methods: {
 		hideInfo() {

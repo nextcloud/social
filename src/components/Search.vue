@@ -22,14 +22,14 @@
 
 <template>
 	<div class="social__wrapper">
-		<div v-if="results.length < 1" id="emptycontent" :class="{'icon-loading': loading}">
+		<div v-if="allResults.length < 1" id="emptycontent" :class="{'icon-loading': loading || remoteLoading}">
 			<div v-if="!loading" class="icon-search" />
 			<h2 v-if="!loading">{{ t('social', 'No accounts found') }}</h2>
 			<p v-if="!loading">No accounts found for {{ term }}</p>
 		</div>
-		<div v-if="match || results.length > 0">
+		<div v-if="allResults.length > 0">
 			<h3>{{ t('social', 'Searching for') }} {{ term }}</h3>
-			<UserEntry v-for="result in results" :key="result.id" :item="result" />
+			<UserEntry v-for="result in allResults" :key="result.id" :item="result" />
 		</div>
 	</div>
 </template>
@@ -65,12 +65,20 @@ export default {
 		return {
 			results: [],
 			loading: false,
+			remoteLoading: false,
 			match: null
+		}
+	},
+	computed: {
+		allResults() {
+			if (!this.match) {
+				return this.results
+			}
+			return [this.match, ...this.results.filter((item) => item.id !== this.match.id)]
 		}
 	},
 	watch: {
 		term(val) {
-			// TODO: debounce
 			this.search(val)
 		}
 	},
@@ -83,21 +91,26 @@ export default {
 				return
 			}
 			this.loading = true
-			const re = /@((\w+)(@[\w.]+)?)/g
-			if (val.match(re)) {
+			const re = /((\w+)(@[\w.]+)+)/g
+			if (val.match(re) && !this.remoteLoading) {
+				this.remoteLoading = true
 				this.remoteSearch(val).then((response) => {
 					this.match = response.data.result.account
-					this.accountSearch(val).then((response) => {
-						this.results = response.data.result.accounts
-						this.loading = false
-					})
-				}).catch((e) => { this.match = null })
-			} else {
-				this.accountSearch(val).then((response) => {
-					this.results = response.data.result.accounts
-					this.loading = false
+					this.$store.commit('addAccount', { actorId: this.match.id, data: this.match })
+					this.remoteLoading = false
+				}).catch((e) => {
+					this.remoteLoading = false
+					this.match = null
 				})
 			}
+			this.accountSearch(val).then((response) => {
+				this.results = response.data.result.accounts
+				this.loading = false
+				this.results.forEach((account) => {
+					this.$store.commit('addAccount', { actorId: account.id, data: account })
+				})
+			})
+
 		},
 		accountSearch(term) {
 			this.loading = true
