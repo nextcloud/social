@@ -79,6 +79,9 @@ export default {
 	},
 	methods: {
 		search(val) {
+			if (this.loading) {
+				return
+			}
 			this.loading = true
 			const re = /@((\w+)(@[\w.]+)?)/g
 			if (val.match(re)) {
