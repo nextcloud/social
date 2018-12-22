@@ -43,6 +43,8 @@
     "Posts from other people on this instance will show up here" : "Postagens de outras pessoas desta instância aparecerão aqui",
     "No global posts found" : "Nenhuma postagem global encontrada",
     "Posts from federated instances will show up here" : "Postagens de instâncias federadas aparecerão aqui",
+    "User not found" : "Usuário não encontrado",
+    "Sorry, we could not find the account of {userId}" : "Não foi possível encontrar a conta de {userId}",
     "Nextcloud becomes part of the federated social networks!" : "O Nextcloud torna-se parte de redes sociais federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Criamos automaticamente uma conta social para você. Seu ID social é o mesmo que seu ID da nuvem federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Como você é novo no Social, comece seguindo a conta oficial do Nextcloud para não perder nenhuma notícia",
