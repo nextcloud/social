@@ -64,6 +64,14 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @param Person $actor
 	 */
 	public function save(Person $actor) {
+
+		if ($actor->getCreation() > 0) {
+			$dTime = new DateTime();
+			$dTime->setTimestamp($actor->getCreation());
+		} else {
+			$dTime = new DateTime('now');
+		}
+
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
@@ -86,7 +94,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
 		   ->setValue(
 			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			   $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
 		   );
 
 		if ($actor->gotIcon()) {
@@ -108,16 +116,25 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @param Person $actor
 	 */
 	public function update(Person $actor) {
+
+		if ($actor->getCreation() > 0) {
+			$dTime = new DateTime();
+			$dTime->setTimestamp($actor->getCreation());
+		} else {
+			$dTime = new DateTime('now');
+		}
+
 		$qb = $this->getCacheActorsUpdateSql();
-		$qb->set('account', $qb->createNamedParameter($actor->getAccount()))
-		   ->set('following', $qb->createNamedParameter($actor->getFollowing()))
+		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
 		   ->set('followers', $qb->createNamedParameter($actor->getFollowers()))
 		   ->set('inbox', $qb->createNamedParameter($actor->getInbox()))
 		   ->set('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
 		   ->set('outbox', $qb->createNamedParameter($actor->getOutbox()))
 		   ->set('featured', $qb->createNamedParameter($actor->getFeatured()))
 		   ->set('url', $qb->createNamedParameter($actor->getUrl()))
-		   ->set('preferred_username', $qb->createNamedParameter($actor->getPreferredUsername()))
+		   ->set(
+			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+		   )
 		   ->set('name', $qb->createNamedParameter($actor->getName()))
 		   ->set('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
@@ -125,7 +142,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
 		   ->set(
 			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			   $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
 		   );
 
 		if ($actor->gotIcon()) {
@@ -134,10 +151,10 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		} else {
 			$iconId = $actor->getIconId();
 		}
+
 		$qb->set('icon_id', $qb->createNamedParameter($iconId));
 
 		$this->limitToIdString($qb, $actor->getId());
-
 		$qb->execute();
 	}
 

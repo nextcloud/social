@@ -106,6 +106,9 @@ class Item {
 	/** @var int */
 	private $originSource = 0;
 
+	/** @var int */
+	private $originCreationTime = 0;
+
 
 	/**
 	 * @return string
@@ -443,15 +446,26 @@ class Item {
 	}
 
 	/**
+	 * @return int
+	 */
+	public function getOriginCreationTime(): int {
+		return $this->originCreationTime;
+	}
+
+
+	/**
 	 * @param string $origin
 	 *
 	 * @param int $source
 	 *
+	 * @param int $creationTime
+	 *
 	 * @return Item
 	 */
-	public function setOrigin(string $origin, int $source): Item {
+	public function setOrigin(string $origin, int $source, int $creationTime): Item {
 		$this->origin = $origin;
 		$this->originSource = $source;
+		$this->originCreationTime = $creationTime;
 
 		return $this;
 	}
