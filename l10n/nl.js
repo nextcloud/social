@@ -45,6 +45,8 @@ OC.L10N.register(
     "Posts from other people on this instance will show up here" : "Berichten van anderen op deze server verschijnen hier",
     "No global posts found" : "Geen globale berichten gevonden",
     "Posts from federated instances will show up here" : "Berichten van gefedereerde servers worden hier getoond",
+    "User not found" : "Gebruiker niet gevonden",
+    "Sorry, we could not find the account of {userId}" : "Sorry, we konden het account van {userId} niet vinden",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud wordt onderdeel van de gefedereerde sociale netwerken!",
     "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "We maken automatisch een Social account voor jou. Je Social ID is hetzelfde als je gefedereerde cloud ID.",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Omdat je nieuw bent in Social, begin je door het officiële Nextcloud account te volgen, zodat je geen nieuws mist.",
