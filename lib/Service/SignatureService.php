@@ -285,6 +285,7 @@ class SignatureService {
 	 * @param IRequest $request
 	 *
 	 * @return string
+	 * @throws SocialAppConfigException
 	 */
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
@@ -305,8 +306,11 @@ class SignatureService {
 			$value = $request->getHeader($key);
 			if ($key === 'host') {
 				$value = $request->getInsecureServerHost();
+				if ($this->configService->getCloudAddress(true) !== $value) {
+					continue;
+				}
 			}
-			
+
 			$estimated .= "\n" . $key . ': ' . $value;
 		}
 
