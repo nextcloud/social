@@ -302,7 +302,12 @@ class SignatureService {
 				continue;
 			}
 
-			$estimated .= "\n" . $key . ': ' . $request->getHeader($key);
+			$value = $request->getHeader($key);
+			if ($key === 'host') {
+				$value = $request->getInsecureServerHost();
+			}
+			
+			$estimated .= "\n" . $key . ': ' . $value;
 		}
 
 		return $estimated;
