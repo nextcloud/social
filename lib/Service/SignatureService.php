@@ -305,10 +305,7 @@ class SignatureService {
 
 			$value = $request->getHeader($key);
 			if ($key === 'host') {
-				$value = $request->getInsecureServerHost();
-				if ($this->configService->getCloudAddress(true) !== $value) {
-					continue;
-				}
+				$value = $this->configService->getCloudAddress(true);
 			}
 
 			$estimated .= "\n" . $key . ': ' . $value;
