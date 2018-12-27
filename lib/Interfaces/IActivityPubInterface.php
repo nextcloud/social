@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces;
 
 
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 
 
@@ -61,7 +62,7 @@ interface IActivityPubInterface {
 	/**
 	 * @param string $id
 	 *
-	 * @throw ItemNotFoundException
+	 * @throws ItemNotFoundException
 	 * @return ACore
 	 */
 	public function getItemById(string $id): ACore;

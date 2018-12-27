@@ -33,6 +33,8 @@ namespace OCA\Social\Interfaces\Actor;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -107,7 +109,11 @@ class PersonInterface implements IActivityPubInterface {
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
+		try {
+			return $this->cacheActorsRequest->getFromId($id);
+		} catch (CacheActorDoesNotExistException $e) {
+			throw new ItemNotFoundException();
+		}
 	}
 
 
@@ -134,9 +140,16 @@ class PersonInterface implements IActivityPubInterface {
 
 	/**
 	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
 	 */
 	public function delete(ACore $item) {
+		$item->checkOrigin(($item->getId()));
+
+		/** @var Person $item */
+		$this->cacheActorsRequest->deleteFromId($item->getId());
 	}
+
 
 }
 
