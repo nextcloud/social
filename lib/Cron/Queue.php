@@ -33,7 +33,6 @@ namespace OCA\Social\Cron;
 
 use OC\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
@@ -94,7 +93,6 @@ class Queue extends TimedJob {
 			$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
 			try {
 				$this->activityService->manageRequest($request);
-			} catch (RequestException $e) {
 			} catch (SocialAppConfigException $e) {
 			}
 		}

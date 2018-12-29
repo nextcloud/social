@@ -173,5 +173,16 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->execute();
 	}
 
+
+	/**
+	 * @param string $id
+	 */
+	public function deleteById(string $id) {
+		$qb = $this->getCacheDocumentsDeleteSql();
+		$this->limitToIdString($qb, $id);
+
+		$qb->execute();
+	}
+
 }
 

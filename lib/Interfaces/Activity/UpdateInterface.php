@@ -33,7 +33,7 @@ namespace OCA\Social\Interfaces\Activity;
 
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\MiscService;
@@ -68,7 +68,7 @@ class UpdateInterface implements IActivityPubInterface {
 		try {
 			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
 			$service->activity($item, $object);
-		} catch (UnknownItemException $e) {
+		} catch (ItemUnknownException $e) {
 		}
 	}
 

@@ -30,11 +30,17 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
-use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -44,11 +50,14 @@ use OCP\Files\SimpleFS\ISimpleFile;
 class CacheDocumentService {
 
 
-	const ERROR_MAX_SIZE = 1;
+	use TArrayTools;
 
 
 	/** @var IAppData */
 	private $appData;
+
+	/** @var CurlService */
+	private $curlService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -61,13 +70,16 @@ class CacheDocumentService {
 	 * CacheService constructor.
 	 *
 	 * @param IAppData $appData
+	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IAppData $appData, ConfigService $configService, MiscService $miscService
+		IAppData $appData, CurlService $curlService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->appData = $appData;
+		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -79,10 +91,13 @@ class CacheDocumentService {
 	 * @param string $mime
 	 *
 	 * @return string
-	 * @throws CacheContentException
-	 * @throws NotPermittedException
-	 * @throws CacheContentSizeException
 	 * @throws CacheContentMimeTypeException
+	 * @throws MalformedArrayException
+	 * @throws NotPermittedException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
+	 * @throws RequestResultSizeException
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
@@ -171,29 +186,22 @@ class CacheDocumentService {
 	 * @param string $url
 	 *
 	 * @return string
-	 * @throws CacheContentException
-	 * @throws CacheContentSizeException
+	 * @throws MalformedArrayException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
+	 * @throws RequestResultSizeException
 	 */
 	public function retrieveContent(string $url) {
-		$maxSize =
-			$this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE) * 1024 * 1024;
+		$url = parse_url($url);
+		$this->mustContains(['path', 'host'], $url);
+		$request = new Request($url['path'], Request::TYPE_GET, true);
+		$request->setAddress($url['host']);
 
-		$fd = fopen($url, "r");
-		if ($fd === false) {
-			throw new CacheContentException();
-		}
-
-		$content = '';
-		while (!feof($fd)) {
-			$content .= fread($fd, 4096);
-			if (strlen($content) > $maxSize) {
-				throw new CacheContentSizeException();
-			}
-		}
-		fclose($fd);
+		$content = $this->curlService->request($request);
 
 		return $content;
 	}
 
-
 }
+

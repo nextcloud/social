@@ -32,7 +32,6 @@ namespace OCA\Social\Command;
 
 
 use OC\Core\Command\Base;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
@@ -113,7 +112,6 @@ class QueueProcess extends Base {
 			$output->write('.');
 			try {
 				$this->activityService->manageRequest($request);
-			} catch (RequestException $e) {
 			} catch (SocialAppConfigException $e) {
 			}
 		}

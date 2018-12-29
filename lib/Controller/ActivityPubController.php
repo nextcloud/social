@@ -35,7 +35,8 @@ use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SignatureIsGoneException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
@@ -112,6 +113,7 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws UrlCloudException
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
@@ -143,6 +145,7 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws UrlCloudException
 	 */
 	public function actorAlias(string $username): Response {
 		return $this->actor($username);
@@ -172,7 +175,7 @@ class ActivityPubController extends Controller {
 
 			try {
 				$this->importService->parseIncomingRequest($activity);
-			} catch (UnknownItemException $e) {
+			} catch (ItemUnknownException $e) {
 			}
 
 			return $this->success([]);
@@ -213,7 +216,7 @@ class ActivityPubController extends Controller {
 
 			try {
 				$this->importService->parseIncomingRequest($activity);
-			} catch (UnknownItemException $e) {
+			} catch (ItemUnknownException $e) {
 			}
 
 			return $this->success([]);
@@ -249,6 +252,7 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws UrlCloudException
 	 */
 	public function followers(string $username): Response {
 
@@ -278,6 +282,7 @@ class ActivityPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws UrlCloudException
 	 */
 	public function following(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {

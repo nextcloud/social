@@ -41,10 +41,12 @@ use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
@@ -207,7 +209,7 @@ class ActivityService {
 	 * @param ACore $activity
 	 *
 	 * @return string
-	 * @throws Exception
+	 * @throws SocialAppConfigException
 	 */
 	public function request(ACore $activity): string {
 		$this->saveActivity($activity);
@@ -221,7 +223,6 @@ class ActivityService {
 			$directRequest = $this->queueService->getPriorityRequest($token);
 			$directRequest->setTimeout(self::TIMEOUT_LIVE);
 			$this->manageRequest($directRequest);
-		} catch (RequestException $e) {
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
 			return '';
@@ -241,14 +242,13 @@ class ActivityService {
 	/**
 	 * @param RequestQueue $queue
 	 *
-	 * @throws RequestException
 	 * @throws SocialAppConfigException
 	 */
 	public function manageRequest(RequestQueue $queue) {
 		$host = $queue->getInstance()
 					  ->getAddress();
 		if (in_array($host, $this->failInstances)) {
-			throw new RequestException();
+			return;
 		}
 
 		try {
@@ -257,27 +257,40 @@ class ActivityService {
 			return;
 		}
 
+		$request = $this->generateRequestFromQueue($queue);
+
 		try {
-			$result = $this->generateRequestFromQueue($queue);
+			$this->signatureService->signRequest($request, $queue);
+			$this->curlService->request($request);
+			$this->queueService->endRequest($queue, true);
 		} catch (ActorDoesNotExistException $e) {
+			$this->miscService->log(
+				'Error while managing request: ' . json_encode($request) . ' ' . json_encode($e), 1
+			);
 			$this->queueService->deleteRequest($queue);
-
-			return;
-		} catch (Request410Exception $e) {
+		} catch (RequestContentException $e) {
+			$this->miscService->log(
+				'Error while managing request: ' . json_encode($request) . ' ' . json_encode($e), 1
+			);
 			$this->queueService->deleteRequest($queue);
-
-			return;
-		}
-
-		try {
-			$accepted = [200, 202];
-			if (in_array($this->getint('_code', $result, 500), $accepted)) {
-				$this->queueService->endRequest($queue, true);
-			} else {
-				$this->queueService->endRequest($queue, false);
-				$this->failInstances[] = $host;
-			}
-		} catch (QueueStatusException $e) {
+		} catch (RequestResultSizeException $e) {
+			$this->miscService->log(
+				'Error while managing request: ' . json_encode($request) . ' ' . json_encode($e), 1
+			);
+			$this->queueService->deleteRequest($queue);
+		} catch (RequestServerException $e) {
+			$this->miscService->log(
+				'Temporary error while managing request: ' . json_encode($request) . ' '
+				. json_encode($e), 1
+			);
+			$this->queueService->endRequest($queue, false);
+			$this->failInstances[] = $host;
+		} catch (RequestNetworkException $e) {
+			$this->miscService->log(
+				'Temporary error while managing request: ' . json_encode($e), 1
+			);
+			$this->queueService->endRequest($queue, false);
+			$this->failInstances[] = $host;
 		}
 	}
 
@@ -342,13 +355,9 @@ class ActivityService {
 	/**
 	 * @param RequestQueue $queue
 	 *
-	 * @return Request[]
-	 * @throws ActorDoesNotExistException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
+	 * @return Request
 	 */
-	public function generateRequestFromQueue(RequestQueue $queue): array {
+	private function generateRequestFromQueue(RequestQueue $queue): Request {
 		$path = $queue->getInstance();
 
 		$requestType = Request::TYPE_GET;
@@ -363,9 +372,7 @@ class ActivityService {
 		$request->setDataJson($queue->getActivity());
 		$request->setAddress($path->getAddress());
 
-		$this->signatureService->signRequest($request, $queue);
-
-		return $this->curlService->request($request);
+		return $request;
 	}
 
 
@@ -409,7 +416,7 @@ class ActivityService {
 
 			$service = AP::$activityPub->getInterfaceForItem($activity);
 			$service->save($activity);
-		} catch (UnknownItemException $e) {
+		} catch (ItemUnknownException $e) {
 		}
 	}
 

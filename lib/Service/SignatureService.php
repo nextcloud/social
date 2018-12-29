@@ -41,12 +41,14 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
@@ -164,11 +166,13 @@ class SignatureService {
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
-	 * @throws RequestException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 * @throws SignatureException
 	 * @throws SignatureIsGoneException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function checkRequest(IRequest $request): string {
 		$dTime = new DateTime($request->getHeader('date'));
@@ -180,7 +184,7 @@ class SignatureService {
 
 		try {
 			$origin = $this->checkRequestSignature($request);
-		} catch (Request410Exception $e) {
+		} catch (RequestContentException $e) {
 			throw new SignatureIsGoneException();
 		}
 
@@ -196,10 +200,12 @@ class SignatureService {
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function checkObject(ACore $object): bool {
 		try {
@@ -250,11 +256,13 @@ class SignatureService {
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
 	 * @throws SignatureException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
+	 * @throws RequestContentException
+	 * @throws RequestResultSizeException
 	 */
 	private function checkRequestSignature(IRequest $request): string {
 		$signatureHeader = $request->getHeader('Signature');
@@ -334,14 +342,16 @@ class SignatureService {
 	 * @param $keyId
 	 *
 	 * @return string
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
 	 * @throws RedundancyLimitException
-	 * @throws InvalidOriginException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
 	 */
 	private function retrieveKey($keyId): string {
 		$actor = $this->cacheActorService->getFromId($keyId);

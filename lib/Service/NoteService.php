@@ -37,14 +37,16 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -252,10 +254,12 @@ class NoteService {
 	 * @throws MalformedArrayException
 	 * @throws NoteNotFoundException
 	 * @throws RedundancyLimitException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function replyTo(Note $note, string $replyTo) {
 		if ($replyTo === '') {
@@ -386,15 +390,17 @@ class NoteService {
 	 * @param $noteId
 	 *
 	 * @return Person
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws NoteNotFoundException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
-	 * @throws InvalidOriginException
 	 * @throws RedundancyLimitException
-	 * @throws UnknownItemException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 */
 	public function getAuthorFromPostId($noteId) {
 		$note = $this->notesRequest->getNoteById($noteId);
