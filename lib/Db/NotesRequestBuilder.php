@@ -32,11 +32,17 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
+use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -354,25 +360,27 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
+	 * @throws ItemUnknownException
+	 * @throws RedundancyLimitException
+	 * @throws SocialAppConfigException
 	 * @return Stream
 	 */
-	protected function parseNotesSelectSql($data): Stream {
-		$note = new Note();
-		$note->importFromDatabase($data);
+	protected function parseNotesSelectSql($data): ACore {
+		$item = AP::$activityPub->getItemFromData($data);
 
-		$instances = json_decode($data['instances'], true);
+		$instances = json_decode($this->get('instances', $data, '[]'), true);
 		if (is_array($instances)) {
 			foreach ($instances as $instance) {
 				$instancePath = new InstancePath();
 				$instancePath->import($instance);
-				$note->addInstancePath($instancePath);
+				$item->addInstancePath($instancePath);
 			}
 		}
 
 		try {
 			$actor = $this->parseCacheActorsLeftJoin($data);
-			$note->setCompleteDetails(true);
-			$note->setActor($actor);
+			$item->setCompleteDetails(true);
+			$item->setActor($actor);
 		} catch (InvalidResourceException $e) {
 		}
 
@@ -382,7 +390,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		} catch (InvalidResourceException $e) {
 		}
 
-		return $note;
+		return $item;
 	}
 
 }

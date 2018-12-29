@@ -143,6 +143,17 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * Limit the request to the Type
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $type
+	 */
+	protected function limitToType(IQueryBuilder &$qb, string $type) {
+		$this->limitToDBField($qb, 'id', $type, false);
+	}
+
+
+	/**
 	 * Limit the request to the UserId
 	 *
 	 * @param IQueryBuilder $qb
