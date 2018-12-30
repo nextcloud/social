@@ -1,0 +1,26 @@
+OC.L10N.register(
+    "social",
+    {
+    "Social" : "Közösségi",
+    "Open documentation" : "Dokumentáció megnyitása",
+    "Finish setup" : "Beállítások befejezése",
+    "Home" : "Kezdőlap",
+    "Direct messages" : "Közvetlen üzenetek",
+    "Profile" : "Profil",
+    "Local timeline" : "Helyi idővonal",
+    "Global timeline" : "Globális idővonal",
+    "Direct" : "Közvetlen",
+    "Unlisted" : "Titkos",
+    "Followers" : "Követők",
+    "Public" : "Nyilvános",
+    "Following" : "További",
+    "Follow" : "Követ",
+    "posts" : "Küldések",
+    "following" : "további",
+    "No accounts found" : "Nincsenek ilyen felhasználói fiókok",
+    "Searching for" : "Keress",
+    "No posts found" : "Nem található hozzászólás",
+    "No direct messages found" : "Nem található közvetlen üzenet",
+    "Follow Nextcloud on mastodon.xyz" : "Kövesd a Nextcloudot a mastodon.xyz-on"
+},
+"nplurals=2; plural=(n != 1);");
