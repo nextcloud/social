@@ -124,6 +124,24 @@ class ActorService {
 	 * @param Person $actor
 	 */
 	public function save(Person $actor) {
+		$this->cacheDocumentIfNeeded($actor);
+		$this->cacheActorsRequest->save($actor);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	public function update(Person $actor) {
+		$this->cacheDocumentIfNeeded($actor);
+		$this->cacheActorsRequest->update($actor);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	private function cacheDocumentIfNeeded(Person $actor) {
 		if ($actor->gotIcon()) {
 			try {
 				$icon = $this->cacheDocumentsRequest->getBySource(
@@ -135,8 +153,6 @@ class ActorService {
 				$this->cacheDocumentsRequest->save($actor->getIcon());
 			}
 		}
-
-		$this->cacheActorsRequest->save($actor);
 	}
 
 }

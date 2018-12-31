@@ -110,7 +110,9 @@ class PersonInterface implements IActivityPubInterface {
 	 */
 	public function getItemById(string $id): ACore {
 		try {
-			return $this->cacheActorsRequest->getFromId($id);
+			$actor = $this->cacheActorsRequest->getFromId($id);
+
+			return $actor;
 		} catch (CacheActorDoesNotExistException $e) {
 			throw new ItemNotFoundException();
 		}
@@ -122,7 +124,12 @@ class PersonInterface implements IActivityPubInterface {
 	 */
 	public function save(ACore $person) {
 		/** @var Person $person */
-		$this->actorService->save($person);
+		try {
+			$this->getItemById($person->getId());
+			$this->actorService->update($person);
+		} catch (ItemNotFoundException $e) {
+			$this->actorService->save($person);
+		}
 	}
 
 

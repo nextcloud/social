@@ -103,6 +103,45 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	/**
+	 * insert cache about an Actor in database.
+	 *
+	 * @param Person $actor
+	 */
+	public function update(Person $actor) {
+		$qb = $this->getCacheActorsUpdateSql();
+		$qb->set('account', $qb->createNamedParameter($actor->getAccount()))
+		   ->set('following', $qb->createNamedParameter($actor->getFollowing()))
+		   ->set('followers', $qb->createNamedParameter($actor->getFollowers()))
+		   ->set('inbox', $qb->createNamedParameter($actor->getInbox()))
+		   ->set('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
+		   ->set('outbox', $qb->createNamedParameter($actor->getOutbox()))
+		   ->set('featured', $qb->createNamedParameter($actor->getFeatured()))
+		   ->set('url', $qb->createNamedParameter($actor->getUrl()))
+		   ->set('preferred_username', $qb->createNamedParameter($actor->getPreferredUsername()))
+		   ->set('name', $qb->createNamedParameter($actor->getName()))
+		   ->set('summary', $qb->createNamedParameter($actor->getSummary()))
+		   ->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+		   ->set('source', $qb->createNamedParameter($actor->getSource()))
+		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
+		   ->set(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
+
+		if ($actor->gotIcon()) {
+			$iconId = $actor->getIcon()
+							->getId();
+		} else {
+			$iconId = $actor->getIconId();
+		}
+
+		$qb->set('icon_id', $qb->createNamedParameter($iconId));
+
+		$qb->execute();
+	}
+
+
+	/**
 	 * get Cached version of an Actor, based on the UriId
 	 *
 	 * @param string $id
