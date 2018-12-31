@@ -316,26 +316,33 @@ class ActivityPubController extends Controller {
 	 * @return bool
 	 */
 	private function checkSourceActivityStreams(): bool {
+		$accepted = [
+			'application/ld+json',
+			'application/activity+json'
+		];
 
-		// uncomment this line to display the result that would be return to an ActivityPub service (TEST)
-		// return true;
+		$accepts = explode(',', $this->request->getHeader('Accept'));
+		$accepts = array_map([$this, 'trimHeader'], $accepts);
 
-		// TODO - cleaner to being able to parse:
-		//  - 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-		//  - 'application/activity+json, application/ld+json'
-		$accept = explode(',', $this->request->getHeader('Accept'));
-		$accept = array_map('trim', $accept);
-
-		if (in_array('application/ld+json', $accept)) {
-			return true;
-		}
-
-		if ($this->request->getHeader('Accept')
-			=== 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"') {
-			return true;
+		foreach ($accepts as $accept) {
+			if (in_array($accept, $accepted)) {
+				return true;
+			}
 		}
 
 		return false;
+	}
+
+
+	private function trimHeader(string $header) {
+		$header = trim($header);
+
+		$pos = strpos($header, ';');
+		if ($pos === false) {
+			return $header;
+		}
+
+		return substr($header, 0, $pos);
 	}
 }
 
