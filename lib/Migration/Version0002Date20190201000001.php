@@ -76,20 +76,20 @@ class Version0002Date20190201000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		if (!$schema->hasTable(CoreRequestBuilder::TABLE_SERVER_TAGS)) {
-			$table = $schema->createTable(CoreRequestBuilder::TABLE_SERVER_TAGS);
-			$table->addColumn('tag', 'string', ['notnull' => false, 'length' => 63]);
+		if (!$schema->hasTable(CoreRequestBuilder::TABLE_SERVER_HASHTAGS)) {
+			$table = $schema->createTable(CoreRequestBuilder::TABLE_SERVER_HASHTAGS);
+			$table->addColumn('hashtag', 'string', ['notnull' => false, 'length' => 63]);
 			$table->addColumn(
 				'trend', 'string', ['notnull' => false, 'length' => 500]
 			);
-			$table->setPrimaryKey(['tag']);
+			$table->setPrimaryKey(['hashtag']);
 		}
 
 
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
-		if (!$table->hasColumn('tags')) {
+		if (!$table->hasColumn('hashtags')) {
 			$table->addColumn(
-				'tags', Type::STRING, ['notnull' => false, 'default' => '[]', 'length' => 1000]
+				'hashtags', Type::STRING, ['notnull' => false, 'default' => '[]', 'length' => 1000]
 			);
 		}
 
