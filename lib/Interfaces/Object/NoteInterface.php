@@ -101,7 +101,11 @@ class NoteInterface implements IActivityPubInterface {
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
+		try {
+			return $this->notesRequest->getNoteById($id);
+		} catch (NoteNotFoundException $e) {
+			throw new ItemNotFoundException();
+		}
 	}
 
 
@@ -134,20 +138,18 @@ class NoteInterface implements IActivityPubInterface {
 			$this->save($item);
 		}
 
-		if ($activity->getType() === Update::TYPE) {
-			$activity->checkOrigin($item->getId());
-			$activity->checkOrigin($item->getAttributedTo());
-			// TODO - check time and update.
-//			$this->save($item);
-		}
 
 	}
 
 
 	/**
 	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
 	 */
 	public function delete(ACore $item) {
+		$item->checkOrigin(($item->getId()));
+
 		/** @var Note $item */
 		$this->notesRequest->deleteNoteById($item->getId());
 	}

@@ -32,6 +32,7 @@ namespace OCA\Social\Interfaces\Activity;
 
 
 use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\UnknownItemException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -58,15 +59,29 @@ class DeleteInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $item
 	 *
-	 * @throws \OCA\Social\Exceptions\InvalidOriginException
+	 * @throws InvalidOriginException
 	 */
 	public function processIncomingRequest(ACore $item) {
 		$item->checkOrigin($item->getId());
 
 		if (!$item->gotObject()) {
-//			// TODO - manage objectId (in case object is missing) -> find the right object and delete it
-//			if ($item->getObjectId() !== '') {
-//			}
+
+			if ($item->getObjectId() !== '') {
+				$item->checkOrigin($item->getObjectId());
+
+				$types = ['Note', 'Person'];
+				foreach ($types as $type) {
+					try {
+						$interface = AP::$activityPub->getInterfaceForItem($type);
+						$object = $interface->getItemById($item->getObjectId());
+						$interface->delete($object);
+
+						return;
+					} catch (UnknownItemException $e) {
+					} catch (ItemNotFoundException $e) {
+					}
+				}
+			}
 
 			return;
 		}
