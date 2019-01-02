@@ -24,37 +24,49 @@
 	<div class="new-post" data-id="">
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
-				:size="32" />
+				:size="32"
+			/>
 			<div class="post-author">
-				<span class="post-author-name">{{ currentUser.displayName }}</span>
-				<span class="post-author-id">{{ socialId }}</span>
+				<span class="post-author-name">
+					{{ currentUser.displayName }}
+				</span>
+				<span class="post-author-id">
+					{{ socialId }}
+				</span>
 			</div>
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
-				<div v-contenteditable:post.dangerousHTML="canType" ref="composerInput" class="message"
-					placeholder="What would you like to share?" @keyup.enter="keyup" />
+				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType" class="message"
+					placeholder="What would you like to share?" @keyup.enter="keyup"
+				/>
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
-				@emoji="insert">
-				<a v-tooltip="'Insert emoji'" slot="emoji-invoker" slot-scope="{ events }"
+				@emoji="insert"
+			>
+				<a slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
 					class="emoji-invoker" tabindex="0" v-on="events"
-					@keyup.enter="events.click" @keyup.space="events.click" />
-				<div slot="emoji-picker" slot-scope="{ emojis, insert, display }" class="emoji-picker popovermenu">
+					@keyup.enter="events.click" @keyup.space="events.click"
+				/>
+				<!-- eslint-disable-next-line vue/no-template-shadow -->
+				<div slot="emoji-picker" slot-scope="{ emojis, insert }" class="emoji-picker popovermenu">
 					<div>
 						<div>
-							<input v-focus-on-create v-model="search" type="text"
-								@keyup.enter="insert(emojis)">
+							<input v-model="search" v-focus-on-create type="text"
+								@keyup.enter="insert(emojis)"
+							>
 						</div>
 						<div>
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
 								<h5>{{ category }}</h5>
 								<div>
+									<!-- eslint-disable vue/no-v-html -->
 									<span v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" :title="emojiName"
 										tabindex="0"
 										class="emoji" @click="insert(emoji)" @keyup.enter="insert(emoji)"
-										@keyup.space="insert(emoji)" v-html="$twemoji.parse(emoji)" />
+										@keyup.space="insert(emoji)" v-html="$twemoji.parse(emoji)"
+									/>
 								</div>
 							</div>
 						</div>
@@ -64,11 +76,12 @@
 
 			<div class="options">
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
-					type="submit" title="" data-original-title="Post">
+					type="submit" title="" data-original-title="Post"
+				>
 				<div v-click-outside="hidePopoverMenu">
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">
-						<PopoverMenu :menu="visibilityPopover" />
+						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
 			</div>

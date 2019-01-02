@@ -24,10 +24,15 @@
 	<div v-if="!serverData.public && cloudId !== account && actorInfo">
 		<button v-if="isCurrentUserFollowing" :class="{'icon-loading-small': followLoading}"
 			@click="unfollow()"
-			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
-		<span><span class="icon-checkmark" />{{ followingText }}</span></button>
+			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')"
+		>
+			<span><span class="icon-checkmark" />{{ followingText }}</span>
+		</button>
 		<button v-else :class="{'icon-loading-small': followLoading}" class="primary"
-			@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
+			@click="follow"
+		>
+			<span>{{ t('social', 'Follow') }}</span>
+		</button>
 	</div>
 </template>
 

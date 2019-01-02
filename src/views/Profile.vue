@@ -38,13 +38,6 @@
 </style>
 
 <script>
-import {
-	PopoverMenu,
-	AppNavigation,
-	Multiselect,
-	Avatar
-} from 'nextcloud-vue'
-import TimelineEntry from './../components/TimelineEntry'
 import ProfileInfo from './../components/ProfileInfo'
 import EmptyContent from '../components/EmptyContent'
 import serverData from '../mixins/serverData'
@@ -53,11 +46,6 @@ export default {
 	name: 'Profile',
 	components: {
 		EmptyContent,
-		PopoverMenu,
-		AppNavigation,
-		TimelineEntry,
-		Multiselect,
-		Avatar,
 		ProfileInfo
 	},
 	mixins: [
