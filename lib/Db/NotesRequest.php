@@ -37,6 +37,7 @@ use Exception;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -99,6 +100,40 @@ class NotesRequest extends NotesRequestBuilder {
 			$qb->execute();
 		} catch (UniqueConstraintViolationException $e) {
 		}
+	}
+
+
+	/**
+	 * Insert a new Note in the database.
+	 *
+	 * @param SocialAppNotification $notification
+	 */
+	public function saveNotification(SocialAppNotification $notification) {
+		$qb = $this->getNotesInsertSql();
+		$qb->setValue('id', $qb->createNamedParameter($notification->getId()))
+		   ->setValue('type', $qb->createNamedParameter($notification->getType()))
+		   ->setValue('to', $qb->createNamedParameter($notification->getTo()))
+		   ->setValue('to_array', $qb->createNamedParameter(''))
+		   ->setValue('cc', $qb->createNamedParameter(''))
+		   ->setValue('bcc', $qb->createNamedParameter(''))
+		   ->setValue('content', $qb->createNamedParameter(''))
+		   ->setValue('summary', $qb->createNamedParameter($notification->getSummary()))
+		   ->setValue('published', $qb->createNamedParameter($notification->getPublished()))
+		   ->setValue(
+			   'published_time',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   )
+		   ->setValue('attributed_to', $qb->createNamedParameter($notification->getAttributedTo()))
+		   ->setValue('in_reply_to', $qb->createNamedParameter(''))
+		   ->setValue('source', $qb->createNamedParameter($notification->getSource()))
+		   ->setValue('instances', $qb->createNamedParameter(''))
+		   ->setValue('local', $qb->createNamedParameter(($notification->isLocal()) ? '1' : '0'))
+		   ->setValue(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
+
+		$qb->execute();
 	}
 
 

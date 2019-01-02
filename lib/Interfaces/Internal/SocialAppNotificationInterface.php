@@ -102,16 +102,16 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $note
+	 * @param ACore $notification
 	 */
-	public function save(ACore $note) {
-		/** @var SocialAppNotification $note */
-//
-//		try {
-//			$this->notesRequest->getNoteById($note->getId());
-//		} catch (NoteNotFoundException $e) {
-//			$this->notesRequest->save($note);
-//		}
+	public function save(ACore $notification) {
+		/** @var SocialAppNotification $notification */
+		if ($notification->getId() === '') {
+			return;
+		}
+
+		$this->miscService->log('Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1);
+		$this->notesRequest->saveNotification($notification);
 	}
 
 
