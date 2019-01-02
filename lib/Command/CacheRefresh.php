@@ -102,6 +102,9 @@ class CacheRefresh extends Base {
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 
+		$result = $this->actorService->blindKeyRotation();
+		$output->writeLn($result . ' key pairs refreshed');
+
 		$result = $this->actorService->manageCacheLocalActors();
 		$output->writeLn($result . ' local accounts regenerated');
 

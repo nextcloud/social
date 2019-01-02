@@ -30,11 +30,13 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use DateTime;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 class ActorsRequest extends ActorsRequestBuilder {
@@ -77,7 +79,11 @@ class ActorsRequest extends ActorsRequestBuilder {
 			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 		   )
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+		   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
+		   ->setValue(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
 
 		$qb->execute();
 
@@ -85,9 +91,29 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 
+	/**
+	 * @param Person $actor
+	 */
 	public function update(Person $actor) {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()));
+		$this->limitToIdString($qb, $actor->getId());
+
+		$qb->execute();
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	public function refreshKeys(Person $actor) {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+		   ->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
+		   ->set(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
 		$this->limitToIdString($qb, $actor->getId());
 
 		$qb->execute();

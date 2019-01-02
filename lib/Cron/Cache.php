@@ -95,6 +95,11 @@ class Cache extends TimedJob {
 
 	private function manageCache() {
 		try {
+			$this->accountService->blindKeyRotation();
+		} catch (Exception $e) {
+		}
+
+		try {
 			$this->accountService->manageCacheLocalActors();
 		} catch (Exception $e) {
 		}
