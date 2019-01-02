@@ -134,8 +134,9 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		} else {
 			$iconId = $actor->getIconId();
 		}
-
 		$qb->set('icon_id', $qb->createNamedParameter($iconId));
+
+		$this->limitToIdString($qb, $actor->getId());
 
 		$qb->execute();
 	}
