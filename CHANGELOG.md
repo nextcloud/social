@@ -11,7 +11,6 @@
 - [request] Manage Update/Person and use signature date as creation on Person creation/update
 - [request] check the status of queued request before forking process
 - [request] fixing Accept header for Diaspora
-- [UX] Integration of internal notification object in the stream.
 
 
 ### 0.1.1
