@@ -129,6 +129,9 @@ export default {
 			return this.$store.getters.getServerData.firstrun && !this.infoHidden
 		},
 		isFollowingNextcloudAccount() {
+			if (!this.$store.getters.accountLoaded(this.nextcloudAccount)) {
+				return true
+			}
 			return this.$store.getters.isFollowingUser(this.nextcloudAccount)
 		}
 	},
