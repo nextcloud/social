@@ -59,6 +59,7 @@ class ACore extends Item implements JsonSerializable {
 	const AS_USERNAME = 5;
 	const AS_ACCOUNT = 6;
 	const AS_STRING = 7;
+	const AS_TAGS = 10;
 
 
 	/** @var null Item */
@@ -449,7 +450,11 @@ class ACore extends Item implements JsonSerializable {
 		$result = [];
 		foreach ($values as $value) {
 			try {
-				$result[] = $this->validateEntryString($as, $value);
+				if (is_array($value)) {
+					$result[] = $this->validateEntryArray($as, $value);
+				} else {
+					$result[] = $this->validateEntryString($as, $value);
+				}
 			} catch (InvalidResourceEntryException $e) {
 			}
 		}
@@ -461,13 +466,14 @@ class ACore extends Item implements JsonSerializable {
 	/**
 	 * // TODO - better checks
 	 *
-	 * @param $as
-	 * @param $value
+	 * @param int $as
+	 * @param string $value
+	 * @param bool $exception
 	 *
 	 * @return string
 	 * @throws InvalidResourceEntryException
 	 */
-	public function validateEntryString(int $as, string $value): string {
+	public function validateEntryString(int $as, string $value, bool $exception = true): string {
 		switch ($as) {
 			case self::AS_ID:
 				if (parse_url($value) !== false) {
@@ -502,12 +508,41 @@ class ACore extends Item implements JsonSerializable {
 				$value = strip_tags($value);
 
 				return $value;
-
-			default:
-				break;
 		}
 
-		throw new InvalidResourceEntryException($as . ' ' . $value);
+		if ($exception) {
+			throw new InvalidResourceEntryException($as . ' ' . $value);
+		} else {
+			return '';
+		}
+	}
+
+
+	/**
+	 * @param int $as
+	 * @param array $values
+	 *
+	 * @return array
+	 * @throws InvalidResourceEntryException
+	 */
+	public function validateEntryArray(int $as, array $values): array {
+		switch ($as) {
+			case self::AS_TAGS:
+
+				return [
+					'type' => $this->validateEntryString(
+						self::AS_TYPE, $this->get('type', $values, ''), false
+					),
+					'href' => $this->validateEntryString(
+						self::AS_URL, $this->get('href', $values, ''), false
+					),
+					'name' => $this->validateEntryString(
+						self::AS_STRING, $this->get('name', $values, ''), false
+					)
+				];
+		}
+
+		throw new InvalidResourceEntryException($as . ' ' . json_encode($values));
 	}
 
 
@@ -524,6 +559,7 @@ class ACore extends Item implements JsonSerializable {
 		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
 		$this->setActorId($this->validate(self::AS_ID, 'actor', $data, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
+		$this->setTags($this->validateArray(self::AS_TAGS, 'tags', $data, []));
 	}
 
 
