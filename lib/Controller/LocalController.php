@@ -147,6 +147,7 @@ class LocalController extends Controller {
 			$post->setTo($this->getArray('to', $data, []));
 			$post->addTo($this->get('to', $data, ''));
 			$post->setType($this->get('type', $data, Note::TYPE_PUBLIC));
+			$post->setHashtags($this->getArray('hashtags', $data, []));
 
 			/** @var ACore $activity */
 			$token = $this->postService->createPost($post, $activity);

@@ -212,7 +212,8 @@ class NoteService {
 		$note->addTag(
 			[
 				'type' => 'Mention',
-				'href' => $actor->getId()
+				'href' => $actor->getId(),
+				'name' => '@' . $account
 			]
 		);
 
@@ -222,16 +223,43 @@ class NoteService {
 
 	/**
 	 * @param Note $note
+	 * @param string $hashtag
+	 */
+	public function addHashtag(Note $note, string $hashtag) {
+		try {
+			$note->addTag(
+				[
+					'type' => 'Hashtag',
+					'href' => $this->configService->getCloudAddress() . '/tag/' . strtolower(
+							$hashtag
+						),
+					'name' => '#' . $hashtag
+				]
+			);
+		} catch (SocialAppConfigException $e) {
+		}
+	}
+
+
+	/**
+	 * @param Note $note
 	 * @param string $type
 	 * @param array $accounts
 	 */
 	public function addRecipients(Note $note, string $type, array $accounts) {
-		if ($accounts === []) {
-			return;
-		}
-
 		foreach ($accounts as $account) {
 			$this->addRecipient($note, $type, $account);
+		}
+	}
+
+
+	/**
+	 * @param Note $note
+	 * @param array $hashtags
+	 */
+	public function addHashtags(Note $note, array $hashtags) {
+		foreach ($hashtags as $hashtag) {
+			$this->addHashtag($note, $hashtag);
 		}
 	}
 
