@@ -227,7 +227,10 @@ class ActivityService {
 			return '';
 		}
 
-		$this->curlService->asyncWithToken($token);
+		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		if (sizeof($requests) > 0) {
+			$this->curlService->asyncWithToken($token);
+		}
 
 		return $token;
 	}
