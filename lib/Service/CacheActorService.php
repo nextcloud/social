@@ -39,10 +39,13 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
@@ -107,14 +110,16 @@ class CacheActorService {
 	 * @param bool $refresh
 	 *
 	 * @return Person
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
 	 * @throws RedundancyLimitException
-	 * @throws UnknownItemException
-	 * @throws InvalidOriginException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 
@@ -173,14 +178,17 @@ class CacheActorService {
 	 *
 	 * @return Person
 	 * @throws CacheActorDoesNotExistException
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RequestContentException
+	 * @throws RetrieveAccountFormatException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
-	 * @throws InvalidOriginException
+	 * @throws ItemUnknownException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 
@@ -258,7 +266,7 @@ class CacheActorService {
 		try {
 			$interface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
 			$interface->save($actor);
-		} catch (UnknownItemException $e) {
+		} catch (ItemUnknownException $e) {
 		}
 	}
 }

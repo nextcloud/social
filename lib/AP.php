@@ -34,7 +34,7 @@ namespace OCA\Social;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
@@ -174,7 +174,7 @@ class AP {
 	 * @return ACore
 	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function getItemFromData(array $data, $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
@@ -189,14 +189,14 @@ class AP {
 		try {
 			$object = $this->getItemFromData($this->getArray('object', $data, []), $item, $level);
 			$item->setObject($object);
-		} catch (UnknownItemException $e) {
+		} catch (ItemUnknownException $e) {
 		}
 
 		try {
 			/** @var Document $icon */
 			$icon = $this->getItemFromData($this->getArray('icon', $data, []), $item, $level);
 			$item->setIcon($icon);
-		} catch (UnknownItemException $e) {
+		} catch (ItemUnknownException $e) {
 		}
 
 		return $item;
@@ -208,7 +208,7 @@ class AP {
 	 *
 	 * @return ACore
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function getSimpleItemFromData(array $data): Acore {
 		$item = $this->getItemFromType($this->get('type', $data, ''));
@@ -223,7 +223,7 @@ class AP {
 	 * @param string $type
 	 *
 	 * @return ACore
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function getItemFromType(string $type) {
 		switch ($type) {
@@ -273,7 +273,7 @@ class AP {
 				return new Update();
 
 			default:
-				throw new UnknownItemException();
+				throw new ItemUnknownException();
 		}
 	}
 
@@ -282,7 +282,7 @@ class AP {
 	 * @param ACore $activity
 	 *
 	 * @return IActivityPubInterface
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function getInterfaceForItem(Acore $activity): IActivityPubInterface {
 		return $this->getInterfaceFromType($activity->getType());
@@ -293,7 +293,7 @@ class AP {
 	 * @param string $type
 	 *
 	 * @return IActivityPubInterface
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function getInterfaceFromType(string $type): IActivityPubInterface {
 		switch ($type) {
@@ -350,7 +350,7 @@ class AP {
 				break;
 
 			default:
-				throw new UnknownItemException();
+				throw new ItemUnknownException();
 		}
 
 		return $service;

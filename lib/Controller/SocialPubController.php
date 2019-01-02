@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
@@ -117,6 +118,7 @@ class SocialPubController extends Controller {
 		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
 		$page->setStatus($status);
 		$page->setHeaderTitle($this->l10n->t('Social'));
+
 		return $page;
 	}
 
@@ -131,6 +133,7 @@ class SocialPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return Response
+	 * @throws UrlCloudException
 	 */
 	public function actor(string $username): Response {
 		return $this->renderPage($username);
@@ -147,6 +150,7 @@ class SocialPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return TemplateResponse
+	 * @throws UrlCloudException
 	 */
 	public function followers(string $username): Response {
 		return $this->renderPage($username);
@@ -163,6 +167,7 @@ class SocialPubController extends Controller {
 	 * @param string $username
 	 *
 	 * @return TemplateResponse
+	 * @throws UrlCloudException
 	 */
 	public function following(string $username): Response {
 		return $this->renderPage($username);

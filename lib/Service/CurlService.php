@@ -40,10 +40,13 @@ use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 class CurlService {
@@ -64,6 +67,13 @@ class CurlService {
 	private $miscService;
 
 
+	/** @var int */
+	private $maxDownloadSize = 0;
+
+	/** @var bool */
+	private $maxDownloadSizeReached = false;
+
+
 	/**
 	 * CurlService constructor.
 	 *
@@ -80,14 +90,17 @@ class CurlService {
 	 * @param string $account
 	 *
 	 * @return Person
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
-	 * @throws Request410Exception
-	 * @throws RequestException
-	 * @throws SocialAppConfigException
 	 * @throws RedundancyLimitException
-	 * @throws UnknownItemException
-	 * @throws InvalidOriginException
+	 * @throws RequestContentException
+	 * @throws RetrieveAccountFormatException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
 	 */
 	public function retrieveAccount(string $account): Person {
 		$account = $this->withoutBeginAt($account);
@@ -110,7 +123,7 @@ class CurlService {
 		try {
 			$link = $this->extractArray('rel', 'self', $this->getArray('links', $result));
 		} catch (ArrayNotFoundException $e) {
-			throw new RequestException();
+			throw new RetrieveAccountFormatException();
 		}
 
 		$id = $this->get('href', $link, '');
@@ -119,7 +132,7 @@ class CurlService {
 		/** @var Person $actor */
 		$actor = AP::$activityPub->getItemFromData($data);
 		if ($actor->getType() !== Person::TYPE) {
-			throw new UnknownItemException();
+			throw new ItemUnknownException();
 		}
 
 		if (strtolower($actor->getId()) !== strtolower($id)) {
@@ -135,8 +148,10 @@ class CurlService {
 	 *
 	 * @return array
 	 * @throws MalformedArrayException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestServerException
+	 * @throws RequestResultSizeException
 	 */
 	public function retrieveObject($id): array {
 
@@ -147,7 +162,7 @@ class CurlService {
 
 		$result = $this->request($request);
 		if (is_array($result)) {
-			$result['_host'] = $url['host'];
+			$result['_host'] = $request->getAddress();
 		}
 
 		return $result;
@@ -157,12 +172,15 @@ class CurlService {
 	/**
 	 * @param Request $request
 	 *
-	 * @return array
-	 * @throws RequestException
-	 * @throws Request410Exception
+	 * @return mixed
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 */
-	public function request(Request $request): array {
+	public function request(Request $request) {
 
+		$this->maxDownloadSizeReached = false;
 		$curl = $this->initRequest($request);
 
 		$this->initRequestPost($curl, $request);
@@ -170,33 +188,23 @@ class CurlService {
 		$this->initRequestDelete($curl, $request);
 
 		$result = curl_exec($curl);
-		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 
-		$this->parseRequestResultCode301($code);
-//		$this->parseRequestResultCode401($code);
-		$this->parseRequestResultCode404($code, $request);
-		$this->parseRequestResultCode410($code);
-//		$this->parseRequestResultCode503($code);
-//		$this->parseRequestResultCode500($code);
-//		$this->parseRequestResult($result);
+		if ($this->maxDownloadSizeReached === true) {
+			throw new RequestResultSizeException();
+		}
+		$this->parseRequestResult($curl, $request);
 
-		$ret = json_decode((string)$result, true);
-//		if ($ret === null) {
-//			throw new RequestException('500 Internal server error - could not parse JSON response');
-//		}
-		if (!is_array($ret)) {
-			$ret = ['_result' => $result];
+		if ($request->isBinary()) {
+			$this->miscService->log('[>>] request (binary): ' . json_encode($request), 1);
+
+			return $result;
 		}
 
-		$ret['_address'] = $request->getAddress();
-		$ret['_path'] = $request->getUrl();
-		$ret['_code'] = $code;
-
 		$this->miscService->log(
-			'[>>] request: ' . json_encode($request) . ' - result: ' . json_encode($ret), 1
+			'[>>] request: ' . json_encode($request) . ' - result: ' . $result, 1
 		);
 
-		return $ret;
+		return json_decode((string)$result, true);
 	}
 
 
@@ -229,6 +237,10 @@ class CurlService {
 		try {
 			$this->request($request);
 		} catch (Exception $e) {
+			$this->miscService->log(
+				'Cannot initiate AsyncWithToken ' . json_encode($token) . ' ' . json_encode($e), 1
+			);
+
 		}
 	}
 
@@ -250,7 +262,33 @@ class CurlService {
 		curl_setopt($curl, CURLOPT_TIMEOUT, $request->getTimeout());
 
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+
+		$this->maxDownloadSize =
+			$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * (1024 * 1024);
+		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
+		curl_setopt($curl, CURLOPT_NOPROGRESS, false);
+		curl_setopt(
+		/**
+		 * @param $downloadSize
+		 * @param int $downloaded
+		 * @param $uploadSize
+		 * @param int $uploaded
+		 *
+		 * @return int
+		 */
+			$curl, CURLOPT_PROGRESSFUNCTION,
+			function($downloadSize, int $downloaded, $uploadSize, int $uploaded) {
+				if ($downloaded > $this->maxDownloadSize) {
+					$this->maxDownloadSizeReached = true;
+
+					return 1;
+				}
+
+				return 0;
+			}
+		);
 
 		return $curl;
 	}
@@ -316,40 +354,85 @@ class CurlService {
 
 
 	/**
-	 * @param int $code
-	 *
-	 * @throws RequestException
-	 */
-	private function parseRequestResultCode301($code) {
-		if ($code === 301) {
-			throw new RequestException('301 Moved Permanently');
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 *
+	 * @param resource $curl
 	 * @param Request $request
 	 *
-	 * @throws Request410Exception
+	 * @throws RequestContentException
+	 * @throws RequestServerException
+	 * @throws RequestNetworkException
 	 */
-	private function parseRequestResultCode404(int $code, Request $request) {
-		if ($code === 404) {
-			throw new Request410Exception('404 Not Found - ' . json_encode($request));
+	private function parseRequestResult($curl, Request &$request) {
+		$this->parseRequestResultCurl($curl, $request);
+
+		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+		$request->setResultCode($code);
+
+		$this->parseRequestResultCode301($code, $request);
+		$this->parseRequestResultCode4xx($code, $request);
+		$this->parseRequestResultCode5xx($code, $request);
+	}
+
+
+	/**
+	 * @param resource $curl
+	 * @param Request $request
+	 *
+	 * @throws RequestNetworkException
+	 */
+	private function parseRequestResultCurl($curl, Request $request) {
+		$errno = curl_errno($curl);
+		if ($errno > 0) {
+			throw new RequestNetworkException(
+				$errno . ' - ' . curl_error($curl) . ' - ' . json_encode(
+					$request, JSON_UNESCAPED_SLASHES
+				)
+			);
 		}
 	}
 
 	/**
 	 * @param int $code
+	 * @param Request $request
 	 *
-	 * @throws Request410Exception
+	 * @throws RequestContentException
 	 */
-	private function parseRequestResultCode410(int $code) {
-		if ($code === 410) {
-			throw new Request410Exception();
+	private function parseRequestResultCode301($code, Request $request) {
+		if ($code === 301) {
+			throw new RequestContentException(
+				'301 - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
+			);
 		}
 	}
 
 
+	/**
+	 * @param int $code
+	 * @param Request $request
+	 *
+	 * @throws RequestContentException
+	 */
+	private function parseRequestResultCode4xx(int $code, Request $request) {
+		if ($code === 404 || $code === 410) {
+			throw new RequestContentException(
+				$code . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
+			);
+		}
+	}
+
+
+	/**
+	 * @param int $code
+	 * @param Request $request
+	 *
+	 * @throws RequestServerException
+	 */
+	private function parseRequestResultCode5xx(int $code, Request $request) {
+		if ($code === 500) {
+			throw new RequestServerException(
+				$code . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
+			);
+		}
+	}
+
 }
+

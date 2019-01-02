@@ -38,7 +38,7 @@ use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 
 
@@ -74,7 +74,7 @@ class ImportService {
 	 * @throws ActivityPubFormatException
 	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 */
 	public function importFromJson(string $json): ACore {
 		$data = json_decode($json, true);
@@ -85,10 +85,11 @@ class ImportService {
 		return AP::$activityPub->getItemFromData($data);
 	}
 
+
 	/**
 	 * @param ACore $activity
 	 *
-	 * @throws UnknownItemException
+	 * @throws ItemUnknownException
 	 * @throws InvalidOriginException
 	 */
 	public function parseIncomingRequest(ACore $activity) {

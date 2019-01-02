@@ -32,7 +32,6 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use Exception;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
@@ -81,7 +80,6 @@ class QueueService {
 	 * @param string $author
 	 *
 	 * @return string
-	 * @throws Exception
 	 */
 	public function generateRequestQueue(array $instancePaths, ACore $item, string $author
 	): string {
@@ -197,14 +195,15 @@ class QueueService {
 	/**
 	 * @param RequestQueue $queue
 	 * @param bool $success
-	 *
-	 * @throws QueueStatusException
 	 */
 	public function endRequest(RequestQueue $queue, bool $success) {
-		if ($success === true) {
-			$this->requestQueueRequest->setAsSuccess($queue);
-		} else {
-			$this->requestQueueRequest->setAsFailure($queue);
+		try {
+			if ($success === true) {
+				$this->requestQueueRequest->setAsSuccess($queue);
+			} else {
+				$this->requestQueueRequest->setAsFailure($queue);
+			}
+		} catch (QueueStatusException $e) {
 		}
 	}
 

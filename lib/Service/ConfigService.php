@@ -64,7 +64,7 @@ class ConfigService {
 	public $defaults = [
 		self::SOCIAL_ADDRESS  => '',
 		self::SOCIAL_SERVICE  => 1,
-		self::SOCIAL_MAX_SIZE => 25
+		self::SOCIAL_MAX_SIZE => 10
 	];
 
 	/** @var string */

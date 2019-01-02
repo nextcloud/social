@@ -32,7 +32,6 @@ namespace OCA\Social\Db;
 
 
 use DateTime;
-use Exception;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\RequestQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -50,8 +49,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * create a new Queue in the database.
 	 *
 	 * @param RequestQueue[] $queues
-	 *
-	 * @throws Exception
 	 */
 	public function multiple(array $queues) {
 		foreach ($queues as $queue) {
@@ -64,8 +61,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * create a new Queue in the database.
 	 *
 	 * @param RequestQueue $queue
-	 *
-	 * @throws Exception
 	 */
 	public function create(RequestQueue $queue) {
 		$qb = $this->getQueueInsertSql();

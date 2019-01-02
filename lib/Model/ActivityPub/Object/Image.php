@@ -32,7 +32,6 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use JsonSerializable;
-use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 

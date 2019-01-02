@@ -31,13 +31,17 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
-use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -53,6 +57,7 @@ class DocumentService {
 
 	const ERROR_SIZE = 1;
 	const ERROR_MIMETYPE = 2;
+	const ERROR_PERMISSION = 3;
 
 
 	/** @var IURLGenerator */
@@ -106,7 +111,7 @@ class DocumentService {
 	 *
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
-	 * @throws NotPermittedException
+	 * @throws MalformedArrayException
 	 */
 	public function cacheRemoteDocument(string $id, bool $public = false) {
 		$document = $this->cacheDocumentsRequest->getById($id, $public);
@@ -133,13 +138,30 @@ class DocumentService {
 
 			return $document;
 		} catch (CacheContentMimeTypeException $e) {
+			$this->miscService->log(
+				'Not allowed mime type ' . json_encode($document) . ' ' . json_encode($e), 1
+			);
 			$document->setMimeType($mime);
 			$document->setError(self::ERROR_MIMETYPE);
 			$this->cacheDocumentsRequest->endCaching($document);
-		} catch (CacheContentSizeException $e) {
+		} catch (NotPermittedException $e) {
+			$this->miscService->log(
+				'Cannot save cache file ' . json_encode($document) . ' ' . json_encode($e), 1
+			);
+			$document->setError(self::ERROR_PERMISSION);
+			$this->cacheDocumentsRequest->endCaching($document);
+		} catch (RequestResultSizeException $e) {
+			$this->miscService->log(
+				'Downloaded file is too big ' . json_encode($document) . ' ' . json_encode($e), 1
+			);
 			$document->setError(self::ERROR_SIZE);
 			$this->cacheDocumentsRequest->endCaching($document);
-		} catch (CacheContentException $e) {
+		} catch (RequestContentException $e) {
+			$this->cacheDocumentsRequest->deleteById($id);
+		} catch (RequestNetworkException $e) {
+			$this->cacheDocumentsRequest->endCaching($document);
+		} catch (RequestServerException $e) {
+			$this->cacheDocumentsRequest->endCaching($document);
 		}
 
 		throw new CacheDocumentDoesNotExistException();
@@ -154,7 +176,7 @@ class DocumentService {
 	 * @return ISimpleFile
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
-	 * @throws NotPermittedException
+	 * @throws MalformedArrayException
 	 */
 	public function getFromCache(string $id, bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);

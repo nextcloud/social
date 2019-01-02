@@ -39,10 +39,13 @@ use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\Request410Exception;
-use OCA\Social\Exceptions\RequestException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnknownItemException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -117,16 +120,18 @@ class FollowService {
 	 *
 	 * @throws CacheActorDoesNotExistException
 	 * @throws FollowSameAccountException
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RetrieveAccountFormatException
 	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
 	 * @throws UrlCloudException
-	 * @throws UnknownItemException
-	 * @throws InvalidOriginException
-	 * @throws \Exception
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
@@ -163,14 +168,17 @@ class FollowService {
 	 * @param string $account
 	 *
 	 * @throws CacheActorDoesNotExistException
+	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
-	 * @throws Request410Exception
-	 * @throws RequestException
+	 * @throws RequestContentException
+	 * @throws RetrieveAccountFormatException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws UnknownItemException
-	 * @throws \Exception
+	 * @throws ItemUnknownException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
