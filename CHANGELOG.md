@@ -1,8 +1,22 @@
 # Changelog
 
+## 0.1.2
+
+- [global] Fix Host Header on proxy setup
+- [global] Delete object by objectId, not just by its Type+Id
+- [global] Remove the ending slash from Id on webfinger
+- [global] rewrite the exception handling during upstream request
+- [global] Blind key rotation
+- [request] Manage Update/Person and use signature date as creation on Person creation/update
+- [request] check the status of queued request before forking process
+- [request] fixing Accept header for Diaspora
+- [UI] Improve account data handling
+- [UI] Fix follow button on profile pages
+- [UI] Add profile page for remote users
+- [UI] Fix feedback on following the Nextcloud mastodon account
 
 
-### 0.1.1
+## 0.1.1
 
 - [setup] the app is now displaying an issue with the setup of the httpd only if there is issue.
 - [setup] fixing 'not-big-enough' fields in database.
@@ -22,6 +36,6 @@
 
 
 
-### 0.1.0
+## 0.1.0
 
 - first alpha release
