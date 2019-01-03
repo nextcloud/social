@@ -180,6 +180,7 @@ class FollowService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws UrlCloudException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
@@ -188,8 +189,9 @@ class FollowService {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
 
-			$undo = new Undo();
+			$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);
+			$undo->generateUniqueId('#undo/follows');
 			$undo->setObject($follow);
 			$undo->setActorId($actor->getId());
 
