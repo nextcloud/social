@@ -217,12 +217,12 @@ class SignatureService {
 			$signature = new LinkedDataSignature();
 			$signature->import(json_decode($object->getSource(), true));
 			$signature->setPublicKey($this->retrieveKey($actorId));
-			if (!$signature->verify()) {
-				$signature->setPublicKey($this->retrieveKey($actorId, true));
-			}
 
 			if (!$signature->verify()) {
-				return false;
+				$signature->setPublicKey($this->retrieveKey($actorId, true));
+				if (!$signature->verify()) {
+					return false;
+				}
 			}
 
 			$dTime = new DateTime($signature->getCreated());
