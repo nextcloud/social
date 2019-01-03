@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
@@ -139,8 +140,8 @@ class FollowService {
 			throw new FollowSameAccountException("Don't follow yourself, be your own lead");
 		}
 
-		$follow = new Follow();
-		$follow->setUrlCloud($this->configService->getCloudAddress());
+		/** @var Follow $follow */
+		$follow = AP::$activityPub->getItemFromType(Follow::TYPE);
 		$follow->generateUniqueId();
 		$follow->setActorId($actor->getId());
 		$follow->setObjectId($remoteActor->getId());
@@ -179,6 +180,7 @@ class FollowService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws UrlCloudException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
@@ -187,8 +189,9 @@ class FollowService {
 			$follow = $this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 			$this->followsRequest->delete($follow);
 
-			$undo = new Undo();
+			$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);
+			$undo->generateUniqueId('#undo/follows');
 			$undo->setObject($follow);
 			$undo->setActorId($actor->getId());
 

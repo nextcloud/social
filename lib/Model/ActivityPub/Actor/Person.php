@@ -33,6 +33,9 @@ namespace OCA\Social\Model\ActivityPub\Actor;
 
 use DateTime;
 use JsonSerializable;
+use OCA\Social\AP;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
@@ -442,6 +445,8 @@ class Person extends ACore implements JsonSerializable {
 	/**
 	 * @param array $data
 	 *
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 */
 	public function import(array $data) {
@@ -459,8 +464,8 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
 			 ->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
 
-		$icon = new Image($this);
-		$icon->setUrlCloud($this->getUrlCloud());
+		/** @var Image $icon */
+		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
 		$icon->import($this->getArray('icon', $data, []));
 
 		if ($icon->getType() === Image::TYPE) {

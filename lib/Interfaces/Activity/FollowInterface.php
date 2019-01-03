@@ -33,6 +33,7 @@ namespace OCA\Social\Interfaces\Activity;
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -112,8 +113,7 @@ class FollowInterface implements IActivityPubInterface {
 		try {
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
-			$accept = new Accept();
-			$accept->setUrlCloud($this->configService->getCloudAddress());
+			$accept = AP::$activityPub->getItemFromType(Accept::TYPE);
 			$accept->generateUniqueId('#accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);

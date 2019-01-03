@@ -33,11 +33,13 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
 use OCA\Social\Exceptions\RequestResultSizeException;
@@ -216,6 +218,7 @@ class DocumentService {
 	 * @return string
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
 	 */
 	public function cacheLocalAvatarByUsername(Person $actor): string {
 		$url = $this->urlGenerator->linkToRouteAbsolute(
@@ -226,10 +229,10 @@ class DocumentService {
 			(int)$this->configService->getUserValue('version', $actor->getUserId(), 'avatar');
 		$versionCached = $actor->getAvatarVersion();
 		if ($versionCurrent > $versionCached) {
-			$icon = new Image();
-			$icon->setUrl($url);
-			$icon->setUrlcloud($this->configService->getCloudAddress());
+			/** @var Image $icon */
+			$icon = AP::$activityPub->getItemFromType(Image::TYPE);
 			$icon->generateUniqueId('/documents/avatar');
+			$icon->setUrl($url);
 			$icon->setMediaType('');
 			$icon->setLocalCopy('avatar');
 
