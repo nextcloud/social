@@ -268,29 +268,33 @@ class ActivityService {
 			$this->queueService->endRequest($queue, true);
 		} catch (ActorDoesNotExistException $e) {
 			$this->miscService->log(
-				'Error while managing request: ' . json_encode($request) . ' ' . json_encode($e), 1
+				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
 			);
 			$this->queueService->deleteRequest($queue);
 		} catch (RequestContentException $e) {
 			$this->miscService->log(
-				'Error while managing request: ' . json_encode($request) . ' ' . json_encode($e), 1
+				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
 			);
 			$this->queueService->deleteRequest($queue);
 		} catch (RequestResultSizeException $e) {
 			$this->miscService->log(
-				'Error while managing request: ' . json_encode($request) . ' ' . json_encode($e), 1
+				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
 			);
 			$this->queueService->deleteRequest($queue);
 		} catch (RequestServerException $e) {
 			$this->miscService->log(
-				'Temporary error while managing request: ' . json_encode($request) . ' '
-				. json_encode($e), 1
+				'Temporary error while managing request: RequestServerException - ' . json_encode(
+					$request
+				) . ' - '
+				. $e->getMessage(), 1
 			);
 			$this->queueService->endRequest($queue, false);
 			$this->failInstances[] = $host;
 		} catch (RequestNetworkException $e) {
 			$this->miscService->log(
-				'Temporary error while managing request: ' . json_encode($e), 1
+				'Temporary error while managing request: RequestNetworkException - ' . json_encode(
+					$request
+				) . ' - ' . $e->getMessage(), 1
 			);
 			$this->queueService->endRequest($queue, false);
 			$this->failInstances[] = $host;
