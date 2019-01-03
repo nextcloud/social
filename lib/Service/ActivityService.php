@@ -61,9 +61,9 @@ class ActivityService {
 	use TArrayTools;
 
 
-	const TIMEOUT_LIVE = 2;
-	const TIMEOUT_ASYNC = 5;
-	const TIMEOUT_SERVICE = 10;
+	const TIMEOUT_LIVE = 3;
+	const TIMEOUT_ASYNC = 10;
+	const TIMEOUT_SERVICE = 30;
 
 
 	/** @var NotesRequest */
