@@ -32,9 +32,9 @@ namespace OCA\Social;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
@@ -212,7 +212,6 @@ class AP {
 	 */
 	public function getSimpleItemFromData(array $data): Acore {
 		$item = $this->getItemFromType($this->get('type', $data, ''));
-		$item->setUrlCloud($this->configService->getCloudAddress());
 		$item->import($data);
 		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
 
@@ -224,57 +223,78 @@ class AP {
 	 *
 	 * @return ACore
 	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
-	public function getItemFromType(string $type) {
+	public function getItemFromType(string $type): ACore {
+
 		switch ($type) {
 			case Accept::TYPE:
-				return new Accept();
+				$item = new Accept();
+				break;
 
 			case Add::TYPE:
-				return new Add();
+				$item = new Add();
+				break;
 
 			case Block::TYPE:
-				return new Block();
+				$item = new Block();
+				break;
 
 			case Create::TYPE:
-				return new Create();
+				$item = new Create();
+				break;
 
 			case Delete::TYPE:
-				return new Delete();
+				$item = new Delete();
+				break;
 
 			case Follow::TYPE:
-				return new Follow();
+				$item = new Follow();
+				break;
 
 			case Image::TYPE:
-				return new Image();
+				$item = new Image();
+				break;
 
 			case Like::TYPE:
-				return new Like();
+				$item = new Like();
+				break;
 
 			case Note::TYPE:
-				return new Note();
+				$item = new Note();
+				break;
 
 			case Person::TYPE:
-				return new Person();
+				$item = new Person();
+				break;
 
 			case Reject::TYPE:
-				return new Reject();
+				$item = new Reject();
+				break;
 
 			case Remove::TYPE:
-				return new Remove();
+				$item = new Remove();
+				break;
 
 			case Tombstone::TYPE:
-				return new Tombstone();
+				$item = new Tombstone();
+				break;
 
 			case Undo::TYPE:
-				return new Undo();
+				$item = new Undo();
+				break;
 
 			case Update::TYPE:
-				return new Update();
+				$item = new Update();
+				break;
 
 			default:
 				throw new ItemUnknownException();
 		}
+
+		$item->setUrlCloud($this->configService->getCloudAddress());
+
+		return $item;
 	}
 
 
