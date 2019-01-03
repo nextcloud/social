@@ -33,9 +33,7 @@ export default {
 			return '@' + this.cloudId
 		},
 		cloudId() {
-			const url = document.createElement('a')
-			url.setAttribute('href', this.serverData.cloudAddress)
-			return this.currentUser.uid + '@' + url.hostname
+			return this.currentUser.uid + '@' + this.hostname
 		}
 	}
 }

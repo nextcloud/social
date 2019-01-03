@@ -21,49 +21,29 @@
   -->
 
 <template>
-	<div v-if="item" class="user-entry">
-		<div class="entry-content">
-			<div class="user-avatar">
-				<avatar v-if="item.local" :size="32" :user="item.preferredUsername"
-					:disable-tooltip="true" />
-				<avatar v-else :url="avatarUrl" />
-			</div>
-			<div class="user-details">
-				<router-link v-if="!serverData.public" :to="{ name: 'profile', params: { account: item.local ? item.preferredUsername : item.account }}">
-					<span class="post-author">{{ item.name }}</span>
-					<span class="user-description">{{ item.account }}</span>
-				</router-link>
-				<a v-else :href="item.id" target="_blank"
-					rel="noreferrer">
-					<span class="post-author">{{ item.name }}</span>
-					<span class="user-description">{{ item.account }}</span>
-				</a>
-				<!-- TODO check where the html is coming from to avoid security issues -->
-				<p v-html="item.summary" />
-			</div>
-			<follow-button :account="item.account" />
-		</div>
+	<div v-if="!serverData.public && cloudId !== account && actorInfo">
+		<button v-if="isCurrentUserFollowing" :class="{'icon-loading-small': followLoading}"
+			@click="unfollow()"
+			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
+		<span><span class="icon-checkmark" />{{ followingText }}</span></button>
+		<button v-else :class="{'icon-loading-small': followLoading}" class="primary"
+			@click="follow"><span>{{ t('social', 'Follow') }}</span></button>
 	</div>
 </template>
 
 <script>
-import { Avatar } from 'nextcloud-vue'
-import follow from '../mixins/follow'
 import currentUser from '../mixins/currentUserMixin'
-import FollowButton from './FollowButton'
 
 export default {
-	name: 'UserEntry',
-	components: {
-		FollowButton,
-		Avatar
-	},
+	name: 'FollowButton',
 	mixins: [
-		follow,
 		currentUser
 	],
 	props: {
-		item: { type: Object, default: () => {} }
+		account: {
+			type: String,
+			default: ''
+		}
 	},
 	data: function() {
 		return {
@@ -71,14 +51,22 @@ export default {
 		}
 	},
 	computed: {
-		id() {
-			if (this.item.actor_info) {
-				return this.item.actor_info.id
-			}
-			return this.item.id
+		actorInfo() {
+			return this.$store.getters.getAccount(this.account)
 		},
-		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.id)
+		followLoading() {
+			return false
+		},
+		isCurrentUserFollowing() {
+			return this.$store.getters.isFollowingUser(this.account)
+		}
+	},
+	methods: {
+		follow() {
+			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account })
+		},
+		unfollow() {
+			this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
 		}
 	}
 }

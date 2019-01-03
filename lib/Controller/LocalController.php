@@ -514,6 +514,7 @@ class LocalController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $id
 	 *

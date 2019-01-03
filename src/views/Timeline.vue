@@ -8,7 +8,7 @@
 					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:') }}
 					<span class="social-id">{{ socialId }}</span>
 				</p>
-				<div ng-show="followingNextcloud" class="follow-nextcloud">
+				<div v-show="!isFollowingNextcloudAccount" class="follow-nextcloud">
 					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
 					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')" type="button" class="primary"
 						@click="followNextcloud">
@@ -115,14 +115,11 @@ export default {
 	data: function() {
 		return {
 			infoHidden: false,
-			followingNextcloud: false,
-			item: {
-				account: 'nextcloud@mastodon.xyz'
-			}
+			nextcloudAccount: 'nextcloud@mastodon.xyz'
 		}
 	},
 	computed: {
-		type: function() {
+		type() {
 			if (this.$route.params.type) {
 				return this.$route.params.type
 			}
@@ -130,19 +127,26 @@ export default {
 		},
 		showInfo() {
 			return this.$store.getters.getServerData.firstrun && !this.infoHidden
+		},
+		isFollowingNextcloudAccount() {
+			if (!this.$store.getters.accountLoaded(this.nextcloudAccount)) {
+				return true
+			}
+			return this.$store.getters.isFollowingUser(this.nextcloudAccount)
 		}
 	},
 	beforeMount: function() {
 		this.$store.dispatch('changeTimelineType', this.type)
+		if (this.showInfo) {
+			this.$store.dispatch('fetchAccountInfo', this.nextcloudAccount)
+		}
 	},
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
 		},
 		followNextcloud() {
-			this.follow().then(() => {
-				this.followingNextcloud = true
-			})
+			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
 		}
 	}
 }
