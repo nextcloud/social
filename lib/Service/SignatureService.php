@@ -214,13 +214,19 @@ class SignatureService {
 			$signature = new LinkedDataSignature();
 			$signature->import(json_decode($object->getSource(), true));
 			$signature->setPublicKey($this->retrieveKey($actorId));
-			if ($signature->verify()) {
-				$object->setOrigin(
-					$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE
-				);
-
-				return true;
+			if (!$signature->verify()) {
+				$signature->setPublicKey($this->retrieveKey($actorId, true));
 			}
+
+			if (!$signature->verify()) {
+				return false;
+			}
+
+			$object->setOrigin(
+				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE
+			);
+
+			return true;
 		} catch (LinkedDataSignatureMissingException $e) {
 		}
 
@@ -345,7 +351,9 @@ class SignatureService {
 
 
 	/**
-	 * @param $keyId
+	 * @param string $keyId
+	 *
+	 * @param bool $refresh
 	 *
 	 * @return string
 	 * @throws InvalidOriginException
@@ -359,8 +367,8 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 */
-	private function retrieveKey($keyId): string {
-		$actor = $this->cacheActorService->getFromId($keyId);
+	private function retrieveKey(string $keyId, bool $refresh = false): string {
+		$actor = $this->cacheActorService->getFromId($keyId, $refresh);
 
 		return $actor->getPublicKey();
 	}

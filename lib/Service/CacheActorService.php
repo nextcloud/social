@@ -130,7 +130,6 @@ class CacheActorService {
 
 		try {
 			if ($refresh) {
-				$this->cacheActorsRequest->deleteFromId($id);
 				throw new CacheActorDoesNotExistException();
 			}
 

@@ -53,6 +53,9 @@ use OCP\IUserManager;
 class AccountService {
 
 
+	const KEY_PAIR_LIFESPAN = 7;
+
+
 	use TArrayTools;
 
 
@@ -307,6 +310,28 @@ class AccountService {
 		}
 
 		return sizeof($update);
+	}
+
+
+	/**
+	 * @throws Exception
+	 * @return int
+	 */
+	public function blindKeyRotation(): int {
+		$update = $this->actorsRequest->getAll();
+		$count = 0;
+		foreach ($update as $actor) {
+			try {
+				if ($actor->getCreation() < (time() - (self::KEY_PAIR_LIFESPAN * 3600 * 24))) {
+					$this->signatureService->generateKeys($actor);
+					$this->actorsRequest->refreshKeys($actor);
+					$count++;
+				}
+			} catch (Exception $e) {
+			}
+		}
+
+		return $count;
 	}
 
 
