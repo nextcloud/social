@@ -10,14 +10,10 @@
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
-					<router-link v-if="item.actor_info && item.local" :to="{ name: 'profile', params: { account: item.actor_info.preferredUsername }}">
-						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
+					<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
+						<span class="post-author">{{ userDisplayName(item.actor_info) }}</span>
 						<span class="post-author-id">{{ item.actor_info.account }}</span>
 					</router-link>
-					<a v-else-if="item.actor_info" :href="item.actor_info.url">
-						<span class="post-author">{{ item.actor_info.preferredUsername }}</span>
-						<span class="post-author-id">{{ item.actor_info.account }}</span>
-					</a>
 					<a v-else :href="item.attributedTo">
 						<span class="post-author-id">{{ item.attributedTo }}</span>
 					</a>
@@ -68,6 +64,11 @@ export default {
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		}
+	},
+	methods: {
+		userDisplayName(actorInfo) {
+			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		}
 	}
 }
