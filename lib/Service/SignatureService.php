@@ -226,7 +226,6 @@ class SignatureService {
 			}
 
 			$dTime = new DateTime($signature->getCreated());
-			$dTime->format(self::DATE_FORMAT);
 			$time = $dTime->getTimestamp();
 
 			$object->setOrigin(
