@@ -161,6 +161,8 @@ class SignatureService {
 	/**
 	 * @param IRequest $request
 	 *
+	 * @param int $time
+	 *
 	 * @return string
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
@@ -174,11 +176,12 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 */
-	public function checkRequest(IRequest $request): string {
+	public function checkRequest(IRequest $request, int &$time = 0): string {
 		$dTime = new DateTime($request->getHeader('date'));
 		$dTime->format(self::DATE_FORMAT);
+		$time = $dTime->getTimestamp();
 
-		if ($dTime->getTimestamp() < (time() - self::DATE_DELAY)) {
+		if ($time < (time() - self::DATE_DELAY)) {
 			throw new SignatureException('object is too old');
 		}
 
@@ -222,8 +225,11 @@ class SignatureService {
 				return false;
 			}
 
+			$dTime = new DateTime($signature->getCreated());
+			$time = $dTime->getTimestamp();
+
 			$object->setOrigin(
-				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE
+				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time
 			);
 
 			return true;
