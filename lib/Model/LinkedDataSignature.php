@@ -57,6 +57,9 @@ class LinkedDataSignature implements JsonSerializable {
 	private $created = '';
 
 	/** @var string */
+	private $nonce = '';
+
+	/** @var string */
 	private $signatureValue = '';
 
 	/** @var string */
@@ -110,6 +113,26 @@ class LinkedDataSignature implements JsonSerializable {
 
 		return $this;
 	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getNonce(): string {
+		return $this->nonce;
+	}
+
+	/**
+	 * @param string $nonce
+	 *
+	 * @return LinkedDataSignature
+	 */
+	public function setNonce(string $nonce): LinkedDataSignature {
+		$this->nonce = $nonce;
+
+		return $this;
+	}
+
 
 	/**
 	 * @return string
@@ -293,6 +316,7 @@ class LinkedDataSignature implements JsonSerializable {
 
 		$this->setType($this->get('type', $signature, ''));
 		$this->setCreator($this->get('creator', $signature, ''));
+		$this->setNonce($this->get('nonce', $signature, ''));
 		$this->setCreated($this->get('created', $signature, ''));
 		$this->setSignatureValue($this->get('signatureValue', $signature, ''));
 
