@@ -87,7 +87,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   )
 		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
-			->setValue('hashtags', $qb->createNamedParameter(json_encode($note->getHashtags())))
+		   ->setValue('hashtags', $qb->createNamedParameter(json_encode($note->getHashtags())))
 		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
 		   ->setValue(
 			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
@@ -295,6 +295,39 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		// TODO: to: = real public, cc: = unlisted !?
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+
+	/**
+	 * Should returns:
+	 *  - All public post related to a tag (not yet)
+	 *  - direct message related to a tag (not yet)
+	 *  - message to followers related to a tag (not yet)
+	 *
+	 * @param string $hashtag
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return array
+	 */
+	public function getStreamTag(string $hashtag, int $since = 0, int $limit = 5): array {
+		$qb = $this->getNotesSelectSql();
+
+//		// TODO: LIMIT TO NOTE RELATED TO THE VIEWER+PUBLIC
+
+		$this->limitPaginate($qb, $since, $limit);
+		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '#' . $hashtag));
+
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
 		$cursor = $qb->execute();

@@ -295,6 +295,30 @@ class LocalController extends Controller {
 		}
 	}
 
+
+	/**
+	 * Get timeline
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
+		try {
+			$posts = $this->noteService->getStreamLocalTag($hashtag, $since, $limit);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+
 	/**
 	 * Get timeline
 	 *

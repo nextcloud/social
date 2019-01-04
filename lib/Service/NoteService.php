@@ -384,6 +384,18 @@ class NoteService {
 
 
 	/**
+	 * @param string $hashtag
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 */
+	public function getStreamLocalTag(string $hashtag, int $since = 0, int $limit = 5): array {
+		return $this->notesRequest->getStreamTag($hashtag, $since, $limit);
+	}
+
+
+	/**
 	 * @param int $since
 	 * @param int $limit
 	 *
