@@ -33,7 +33,6 @@ namespace OCA\Social\Model\ActivityPub\Object;
 use DateTime;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\SignatureService;
 
 
 class Note extends ACore implements JsonSerializable {
@@ -195,7 +194,6 @@ class Note extends ACore implements JsonSerializable {
 	 */
 	public function convertPublished() {
 		$dTime = new DateTime($this->getPublished());
-		$dTime->format(SignatureService::DATE_FORMAT);
 		$this->setPublishedTime($dTime->getTimestamp());
 	}
 

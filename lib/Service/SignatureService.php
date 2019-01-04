@@ -65,7 +65,9 @@ class SignatureService {
 	const ORIGIN_SIGNATURE = 2;
 
 
-	const DATE_FORMAT = 'D, d M Y H:i:s T';
+	const DATE_HEADER = 'D, d M Y H:i:s T';
+	const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
+
 	const DATE_DELAY = 30;
 
 
@@ -135,7 +137,7 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 */
 	public function signRequest(Request $request, RequestQueue $queue) {
-		$date = gmdate(self::DATE_FORMAT);
+		$date = gmdate(self::DATE_HEADER);
 		$path = $queue->getInstance();
 
 		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
@@ -178,7 +180,6 @@ class SignatureService {
 	 */
 	public function checkRequest(IRequest $request, int &$time = 0): string {
 		$dTime = new DateTime($request->getHeader('date'));
-		$dTime->format(self::DATE_FORMAT);
 		$time = $dTime->getTimestamp();
 
 		if ($time < (time() - self::DATE_DELAY)) {
@@ -217,12 +218,12 @@ class SignatureService {
 			$signature = new LinkedDataSignature();
 			$signature->import(json_decode($object->getSource(), true));
 			$signature->setPublicKey($this->retrieveKey($actorId));
-			if (!$signature->verify()) {
-				$signature->setPublicKey($this->retrieveKey($actorId, true));
-			}
 
 			if (!$signature->verify()) {
-				return false;
+				$signature->setPublicKey($this->retrieveKey($actorId, true));
+				if (!$signature->verify()) {
+					return false;
+				}
 			}
 
 			$dTime = new DateTime($signature->getCreated());
@@ -249,7 +250,7 @@ class SignatureService {
 		$signature->setPrivateKey($actor->getPrivateKey());
 		$signature->setType('RsaSignature2017');
 		$signature->setCreator($actor->getId() . '#main-key');
-		$signature->setCreated($object->getPublished());
+		$signature->setCreated($date = gmdate(self::DATE_OBJECT));
 		$signature->setObject(json_decode(json_encode($object), true));
 
 		try {
