@@ -98,6 +98,7 @@ appstore: dev-setup lint build-js-production composer
 	--exclude=/.tx \
 	--exclude=/tests \
 	--exclude=/.git \
+	--exclude=/vendor/friendica/json-ld/.git \
 	--exclude=/.github \
 	--exclude=/.babelrc.js \
 	--exclude=/.drone.yml \
