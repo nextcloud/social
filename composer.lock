@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "2c21b8c338f3d2f929f349df19edbc0e",
+    "content-hash": "1fa362334ed7efc57377a715b00b640d",
     "packages": [
         {
             "name": "daita/my-small-php-tools",
@@ -43,22 +43,16 @@
             "time": "2018-12-27T11:14:55+00:00"
         },
         {
-            "name": "digitalbazaar/json-ld",
-            "version": "0.4.7",
+            "name": "friendica/json-ld",
+            "version": "1.1.1",
             "source": {
                 "type": "git",
-                "url": "https://github.com/digitalbazaar/php-json-ld.git",
-                "reference": "dc1bd23f0ee2efd27ccf636d32d2738dabcee182"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/digitalbazaar/php-json-ld/zipball/dc1bd23f0ee2efd27ccf636d32d2738dabcee182",
-                "reference": "dc1bd23f0ee2efd27ccf636d32d2738dabcee182",
-                "shasum": ""
+                "url": "https://git.friendi.ca/friendica/php-json-ld",
+                "reference": "ca3916d10d2ad9073b3b1eae383978dbe828e1e1"
             },
             "require": {
                 "ext-json": "*",
-                "php": ">=5.3.0"
+                "php": ">=5.4.0"
             },
             "type": "library",
             "autoload": {
@@ -66,27 +60,31 @@
                     "jsonld.php"
                 ]
             },
-            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "BSD-3-Clause"
             ],
             "authors": [
                 {
                     "name": "Digital Bazaar, Inc.",
-                    "email": "support@digitalbazaar.com"
+                    "email": "support@digitalbazaar.com",
+                    "homepage": "http://digitalbazaar.com/"
+                },
+                {
+                    "name": "Friendica Team",
+                    "homepage": "https://friendi.ca/"
                 }
             ],
             "description": "A JSON-LD Processor and API implementation in PHP.",
-            "homepage": "https://github.com/digitalbazaar/php-json-ld",
+            "homepage": "https://git.friendi.ca/friendica/php-json-ld",
             "keywords": [
+                "JSON",
                 "JSON-LD",
                 "Linked Data",
                 "RDF",
                 "Semantic Web",
-                "json",
                 "jsonld"
             ],
-            "time": "2016-04-25T04:17:52+00:00"
+            "time": "2018-10-08T20:41:00+00:00"
         }
     ],
     "packages-dev": [

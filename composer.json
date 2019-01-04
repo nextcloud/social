@@ -11,9 +11,15 @@
   ],
   "require": {
     "daita/my-small-php-tools": "dev-master",
-    "digitalbazaar/json-ld": "0.4.7"
+    "friendica/json-ld": "^1.0"
   },
   "require-dev": {
     "jakub-onderka/php-parallel-lint": "^1.0"
-  }
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://git.friendi.ca/friendica/php-json-ld"
+    }
+  ]
 }
