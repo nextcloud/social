@@ -559,7 +559,7 @@ class ACore extends Item implements JsonSerializable {
 		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
 		$this->setActorId($this->validate(self::AS_ID, 'actor', $data, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
-		$this->setTags($this->validateArray(self::AS_TAGS, 'tags', $data, []));
+		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $data, []));
 	}
 
 

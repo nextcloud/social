@@ -49,6 +49,9 @@ class Note extends ACore implements JsonSerializable {
 	/** @var string */
 	private $content = '';
 
+	/** @var array */
+	private $hashtags = [];
+
 	/** @var string */
 	private $attributedTo = '';
 
@@ -91,6 +94,25 @@ class Note extends ACore implements JsonSerializable {
 	 */
 	public function setContent(string $content): Note {
 		$this->content = $content;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function getHashtags(): array {
+		return $this->hashtags;
+	}
+
+	/**
+	 * @param array $hashtags
+	 *
+	 * @return Note
+	 */
+	public function setHashtags(array $hashtags): Note {
+		$this->hashtags = $hashtags;
 
 		return $this;
 	}
@@ -199,6 +221,20 @@ class Note extends ACore implements JsonSerializable {
 
 
 	/**
+	 *
+	 */
+	public function fillHashtags() {
+		$tags = $this->getTags('Hashtag');
+		$hashtags = [];
+		foreach ($tags as $tag) {
+			$hashtags[] = $tag['name'];
+		}
+
+		$this->setHashtags($hashtags);
+	}
+
+
+	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
@@ -210,6 +246,8 @@ class Note extends ACore implements JsonSerializable {
 		$this->setConversation($this->validate(ACore::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
 		$this->convertPublished();
+
+		$this->fillHashtags();
 	}
 
 
@@ -226,6 +264,7 @@ class Note extends ACore implements JsonSerializable {
 		$this->setPublishedTime($dTime->getTimestamp());
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
+		$this->setHashtags($this->getArray('hashtags', $data, []));
 	}
 
 
@@ -235,16 +274,22 @@ class Note extends ACore implements JsonSerializable {
 	public function jsonSerialize(): array {
 		$this->addEntryInt('publishedTime', $this->getPublishedTime());
 
-		return array_merge(
+		$result = array_merge(
 			parent::jsonSerialize(),
 			[
-				'content' => $this->getContent(),
+				'content'      => $this->getContent(),
 				'attributedTo' => $this->getUrlSocial() . $this->getAttributedTo(),
-				'inReplyTo' => $this->getInReplyTo(),
-				'sensitive' => $this->isSensitive(),
+				'inReplyTo'    => $this->getInReplyTo(),
+				'sensitive'    => $this->isSensitive(),
 				'conversation' => $this->getConversation()
 			]
 		);
+
+		if ($this->isCompleteDetails()) {
+			$result['hashtags'] = $this->getHashtags();
+		}
+
+		return $result;
 	}
 
 }

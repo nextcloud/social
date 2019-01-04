@@ -87,6 +87,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   )
 		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
+			->setValue('hashtags', $qb->createNamedParameter(json_encode($note->getHashtags())))
 		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
 		   ->setValue(
 			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
