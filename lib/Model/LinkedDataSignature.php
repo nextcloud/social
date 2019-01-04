@@ -260,19 +260,23 @@ class LinkedDataSignature implements JsonSerializable {
 
 		$header = [
 			'@context' => 'https://w3id.org/identity/v1',
+			'nonce'    => $this->getNonce(),
 			'creator'  => $this->getCreator(),
 			'created'  => $this->getCreated()
 		];
 
-		$hash = $this->hashedCanonicalize($header) . $this->hashedCanonicalize($this->getObject());
-		$signed = base64_decode($this->getSignatureValue());
+		$hashHeader = $this->hashedCanonicalize($header, true);
+		$hashObject = $this->hashedCanonicalize($this->getObject());
 
 		$algo = OPENSSL_ALGO_SHA256;
 		if ($this->getType() === 'RsaSignature2017') {
 			$algo = OPENSSL_ALGO_SHA256;
 		}
 
-		if (openssl_verify($hash, $signed, $this->getPublicKey(), $algo) === 1) {
+		if (openssl_verify(
+				$hashHeader . $hashObject, base64_decode($this->getSignatureValue()),
+				$this->getPublicKey(), $algo
+			) === 1) {
 			return true;
 		}
 
@@ -282,10 +286,21 @@ class LinkedDataSignature implements JsonSerializable {
 	/**
 	 * @param array $data
 	 *
+	 * @param bool $removeEmptyValue
+	 *
 	 * @return string
 	 */
-	private function hashedCanonicalize(array $data): string {
-		$object = json_decode(json_encode($data), false);
+	private function hashedCanonicalize(array $data, bool $removeEmptyValue = false): string {
+		if ($removeEmptyValue) {
+			$data = array_filter(
+				$data,
+				function($v) {
+					return ($v !== '');
+				}
+			);
+		}
+
+		$object = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 		$res = jsonld_normalize(
 			$object,
 			[
