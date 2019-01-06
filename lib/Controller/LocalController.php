@@ -47,6 +47,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\SearchService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -82,6 +83,9 @@ class LocalController extends Controller {
 	/** @var NoteService */
 	private $noteService;
 
+	/** @var SearchService */
+	private $searchService;
+
 	/** @var AccountService */
 	private $accountService;
 
@@ -106,14 +110,15 @@ class LocalController extends Controller {
 	 * @param FollowService $followService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
+	 * @param SearchService $searchService
 	 * @param DocumentService $documentService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IRequest $request, $userId, AccountService $accountService,
 		CacheActorService $cacheActorService, FollowService $followService,
-		PostService $postService, NoteService $noteService, DocumentService $documentService,
-		MiscService $miscService
+		PostService $postService, NoteService $noteService, SearchService $searchService,
+		DocumentService $documentService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -121,6 +126,7 @@ class LocalController extends Controller {
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->noteService = $noteService;
+		$this->searchService = $searchService;
 		$this->postService = $postService;
 		$this->followService = $followService;
 		$this->documentService = $documentService;
@@ -211,7 +217,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param int $since
@@ -316,7 +321,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 
 	/**
@@ -603,6 +607,30 @@ class LocalController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+	}
+
+
+	/**     // TODO - remove this tag
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 *
+	 * @param string $search
+	 *
+	 * @return DataResponse
+	 * @throws Exception
+	 */
+	public function search(string $search): DataResponse {
+		$search = trim($search);
+		$this->initViewer();
+
+		$result = [
+			'accounts' => $this->searchService->searchAccounts($search),
+			'hashtags' => $this->searchService->searchHashtags($search),
+			'content'  => $this->searchService->searchStreamContent($search)
+		];
+
+		return $this->success($result);
 	}
 
 

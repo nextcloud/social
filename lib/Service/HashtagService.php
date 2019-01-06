@@ -124,6 +124,27 @@ class HashtagService {
 
 
 	/**
+	 * @param string $hashtag
+	 *
+	 * @return array
+	 * @throws HashtagDoesNotExistException
+	 */
+	public function getHashtag(string $hashtag): array {
+		return $this->hashtagsRequest->getHashtag($hashtag);
+	}
+
+
+	/**
+	 * @param string $hashtag
+	 *
+	 * @return array
+	 */
+	public function searchHashtags(string $hashtag): array {
+		return $this->hashtagsRequest->searchHashtags($hashtag);
+	}
+
+
+	/**
 	 * @param int $timestamp
 	 *
 	 * @return array

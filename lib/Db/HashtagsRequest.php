@@ -34,6 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -84,6 +85,49 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	 */
 	public function getAll(): array {
 		$qb = $this->getHashtagsSelectSql();
+
+		$hashtags = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$hashtags[] = $this->parseHashtagsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $hashtags;
+	}
+
+
+	/**
+	 * @param string $hashtag
+	 *
+	 * @return array
+	 * @throws HashtagDoesNotExistException
+	 */
+	public function getHashtag(string $hashtag): array {
+		$qb = $this->getHashtagsSelectSql();
+
+		$this->limitToHashtag($qb, $hashtag);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new HashtagDoesNotExistException();
+		}
+
+		return $this->parseHashtagsSelectSql($data);
+	}
+
+
+	/**
+	 * @param string $hashtag
+	 *
+	 * @return array
+	 */
+	public function searchHashtags(string $hashtag): array {
+		$qb = $this->getHashtagsSelectSql();
+		$this->searchInHashtag($qb, $hashtag);
 
 		$hashtags = [];
 		$cursor = $qb->execute();

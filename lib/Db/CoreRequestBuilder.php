@@ -198,7 +198,19 @@ class CoreRequestBuilder {
 	 * @param string $hashtag
 	 */
 	protected function limitToHashtag(IQueryBuilder &$qb, string $hashtag) {
-		$this->limitToDBField($qb, 'hashtag', $hashtag);
+		$this->limitToDBField($qb, 'hashtag', $hashtag, false);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $hashtag
+	 */
+	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag) {
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField($qb, 'hashtag', '%' . $dbConn->escapeLikeParameter($hashtag) . '%');
 	}
 
 
