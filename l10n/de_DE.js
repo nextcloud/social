@@ -30,7 +30,7 @@ OC.L10N.register(
     "Public" : "Öffentlich",
     "Post to public timelines" : "Für öffentliche Zeitachsen posten",
     "Unfollow" : "Entfolgen",
-    "Following" : "Folgen",
+    "Following" : "Folge ich",
     "Follow" : "Folgen",
     "posts" : "Posts",
     "following" : "Folgen",
