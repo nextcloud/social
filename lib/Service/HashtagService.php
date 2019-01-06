@@ -130,6 +130,10 @@ class HashtagService {
 	 * @throws HashtagDoesNotExistException
 	 */
 	public function getHashtag(string $hashtag): array {
+		if (substr($hashtag, 0, 1) !== '#') {
+			$hashtag = '#' . $hashtag;
+		}
+
 		return $this->hashtagsRequest->getHashtag($hashtag);
 	}
 
