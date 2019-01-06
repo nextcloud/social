@@ -195,6 +195,17 @@ class CoreRequestBuilder {
 	 * Limit the request to the ActorId
 	 *
 	 * @param IQueryBuilder $qb
+	 * @param string $hashtag
+	 */
+	protected function limitToHashtag(IQueryBuilder &$qb, string $hashtag) {
+		$this->limitToDBField($qb, 'hashtag', $hashtag);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
 	 * @param string $actorId
 	 * @param string $alias
 	 */
@@ -481,6 +492,27 @@ class CoreRequestBuilder {
 			$orX->add($expr->isNull($field));
 		}
 		$qb->andWhere($orX);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param int $timestamp
+	 * @param string $field
+	 */
+	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
+		$dTime = new \DateTime();
+		$dTime->setTimestamp($timestamp);
+
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$orX = $expr->orX();
+		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
+
+		$qb->andWhere($orX);
+
 	}
 
 

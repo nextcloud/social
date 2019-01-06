@@ -341,6 +341,26 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
+	 * @param int $since
+	 *
+	 * @return Note[]
+	 */
+	public function getNotesSince(int $since): array {
+		$qb = $this->getNotesSelectSql();
+		$this->limitToSince($qb, $since, 'published_time');
+
+		$notes = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$notes[] = $this->parseNotesSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $notes;
+	}
+
+
+	/**
 	 * @param string $id
 	 */
 	public function deleteNoteById(string $id) {
