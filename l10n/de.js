@@ -33,7 +33,7 @@ OC.L10N.register(
     "Following" : "Folge ich",
     "Follow" : "Folgen",
     "posts" : "Posts",
-    "following" : "Folgen",
+    "following" : "Folge ich",
     "followers" : "Followers",
     "No accounts found" : "Keine Konten gefunden",
     "Searching for" : "Suchen nach",
