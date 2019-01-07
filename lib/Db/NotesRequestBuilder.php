@@ -80,11 +80,12 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select(
-			'sn.id', 'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
-			'sn.summary', 'sn.hashtags', 'sn.published', 'sn.published_time', 'sn.attributed_to',
-			'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances', 'sn.creation'
-		)
+		$qb->selectDistinct('sn.id')
+		   ->addSelect(
+			   'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
+			   'sn.summary', 'sn.hashtags', 'sn.published', 'sn.published_time', 'sn.attributed_to',
+			   'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances', 'sn.creation'
+		   )
 		   ->from(self::TABLE_SERVER_NOTES, 'sn');
 
 		$this->defaultSelectAlias = 'sn';
@@ -131,6 +132,19 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			return;
 		}
 
+		$on = $this->exprJoinFollowing($qb, $actor);
+
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param Person $actor
+	 *
+	 * @return ICompositeExpression
+	 */
+	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor) {
 		$expr = $qb->expr();
 		$func = $qb->func();
 		$pf = $this->defaultSelectAlias . '.';
@@ -152,7 +166,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
 		$on->add($crossFollows);
 
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+		return $on;
 	}
 
 

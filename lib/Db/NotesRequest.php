@@ -313,20 +313,25 @@ class NotesRequest extends NotesRequestBuilder {
 	 *  - direct message related to a tag (not yet)
 	 *  - message to followers related to a tag (not yet)
 	 *
+	 * @param Person $actor
 	 * @param string $hashtag
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return array
 	 */
-	public function getStreamTag(string $hashtag, int $since = 0, int $limit = 5): array {
+	public function getStreamTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
+	): array {
 		$qb = $this->getNotesSelectSql();
 
-//		// TODO: LIMIT TO NOTE RELATED TO THE VIEWER+PUBLIC
+		$on = $this->exprJoinFollowing($qb, $actor);
+		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
+		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
 
-		$this->limitPaginate($qb, $since, $limit);
 		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '#' . $hashtag));
 
+		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		$notes = [];
