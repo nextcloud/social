@@ -63,7 +63,7 @@ class OStatusController extends Controller {
 
 	/**
 	 * @NoCSRFRequired
-	 * @PublicPage
+	 * @NoAdminRequired
 	 *
 	 * @param string $uri
 	 *
