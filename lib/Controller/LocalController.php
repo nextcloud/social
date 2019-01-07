@@ -304,7 +304,6 @@ class LocalController extends Controller {
 	/**
 	 * Get timeline
 	 *
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param string $hashtag
