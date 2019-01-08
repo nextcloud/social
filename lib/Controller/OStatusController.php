@@ -30,22 +30,15 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Exceptions\InvalidOriginException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
-use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
@@ -56,10 +49,17 @@ class OStatusController extends Controller {
 
 
 	use TNCDataResponse;
+	use TArrayTools;
 
 
 	/** @var CacheActorService */
 	private $cacheActorService;
+
+	/** @var AccountService */
+	private $accountService;
+
+	/** @var CurlService */
+	private $curlService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -70,14 +70,19 @@ class OStatusController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param CacheActorService $cacheActorService
+	 * @param AccountService $accountService
+	 * @param CurlService $curlService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, CacheActorService $cacheActorService, MiscService $miscService
+		IRequest $request, CacheActorService $cacheActorService, AccountService $accountService,
+		CurlService $curlService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->cacheActorService = $cacheActorService;
+		$this->accountService = $accountService;
+		$this->curlService = $curlService;
 		$this->miscService = $miscService;
 	}
 
@@ -96,6 +101,40 @@ class OStatusController extends Controller {
 			$actor = $this->cacheActorService->getFromAccount($uri);
 
 			return $this->success([$actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 *
+	 * @param string $local
+	 * @param string $account
+	 *
+	 * @return Response
+	 */
+	public function getLink(string $local, string $account): Response {
+
+		try {
+			$following = $this->accountService->getActor($local);
+			$result = $this->curlService->webfingerAccount($account);
+
+			try {
+				$link = $this->extractArray(
+					'rel', 'http://ostatus.org/schema/1.0/subscribe',
+					$this->getArray('links', $result)
+				);
+			} catch (ArrayNotFoundException $e) {
+				throw new RetrieveAccountFormatException();
+			}
+
+			$template = $this->get('template', $link, '');
+			$url = str_replace('{uri}', $following->getAccount(), $template);
+
+			return $this->success(['url' => $url]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

@@ -55,6 +55,7 @@ return [
 		['name' => 'ActivityPub#following', 'url' => '/@{username}/following', 'verb' => 'GET'],
 
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/{uri}', 'verb' => 'GET'],
+		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
 		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET'],
 
