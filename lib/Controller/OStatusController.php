@@ -30,8 +30,22 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
@@ -44,6 +58,9 @@ class OStatusController extends Controller {
 	use TNCDataResponse;
 
 
+	/** @var CacheActorService */
+	private $cacheActorService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -52,11 +69,15 @@ class OStatusController extends Controller {
 	 * OStatusController constructor.
 	 *
 	 * @param IRequest $request
+	 * @param CacheActorService $cacheActorService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(IRequest $request, MiscService $miscService) {
+	public function __construct(
+		IRequest $request, CacheActorService $cacheActorService, MiscService $miscService
+	) {
 		parent::__construct(Application::APP_NAME, $request);
 
+		$this->cacheActorService = $cacheActorService;
 		$this->miscService = $miscService;
 	}
 
@@ -70,7 +91,14 @@ class OStatusController extends Controller {
 	 * @return Response
 	 */
 	public function subscribe(string $uri): Response {
-		return $this->success([$uri]);
+
+		try {
+			$actor = $this->cacheActorService->getFromAccount($uri);
+
+			return $this->success([$actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
 	}
 
 }
