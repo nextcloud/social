@@ -22,10 +22,14 @@
 
 <template>
 	<div class="social__timeline">
-		<timeline-entry v-for="entry in timeline" :item="entry" :key="entry.id" />
+		<timeline-entry v-for="entry in timeline" :key="entry.id" :item="entry" />
 		<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
-			<div slot="spinner"><div class="icon-loading" /></div>
-			<div slot="no-more"><div class="list-end" /></div>
+			<div slot="spinner">
+				<div class="icon-loading" />
+			</div>
+			<div slot="no-more">
+				<div class="list-end" />
+			</div>
 			<div slot="no-results">
 				<empty-content :item="emptyContentData" />
 			</div>
@@ -34,25 +38,15 @@
 </template>
 
 <script>
-import {
-	PopoverMenu,
-	AppNavigation,
-	Multiselect
-} from 'nextcloud-vue'
 import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './../components/TimelineEntry'
-import Composer from './../components/Composer'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import EmptyContent from './../components/EmptyContent'
 
 export default {
 	name: 'Timeline',
 	components: {
-		PopoverMenu,
-		AppNavigation,
 		TimelineEntry,
-		Multiselect,
-		Composer,
 		InfiniteLoading,
 		EmptyContent
 	},

@@ -3,24 +3,32 @@
 		<div class="entry-content">
 			<div v-if="item.actor_info" class="post-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
-					:display-name="item.actor_info.account" :disable-tooltip="true"
-				/>
+					:display-name="item.actor_info.account" :disable-tooltip="true" />
 				<avatar v-else :size="32" :url="avatarUrl"
 					:disable-tooltip="true" />
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
 					<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-						<span class="post-author">{{ userDisplayName(item.actor_info) }}</span>
-						<span class="post-author-id">{{ item.actor_info.account }}</span>
+						<span class="post-author">
+							{{ userDisplayName(item.actor_info) }}
+						</span>
+						<span class="post-author-id">
+							{{ item.actor_info.account }}
+						</span>
 					</router-link>
 					<a v-else :href="item.attributedTo">
-						<span class="post-author-id">{{ item.attributedTo }}</span>
+						<span class="post-author-id">
+							{{ item.attributedTo }}
+						</span>
 					</a>
 				</div>
+				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="post-message" v-html="formatedMessage" />
 			</div>
-			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">{{ relativeTimestamp }}</div>
+			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
+				{{ relativeTimestamp }}
+			</div>
 		</div>
 	</div>
 </template>

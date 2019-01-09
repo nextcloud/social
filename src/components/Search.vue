@@ -24,12 +24,16 @@
 	<div class="social__wrapper">
 		<div v-if="allResults.length < 1" id="emptycontent" :class="{'icon-loading': loading || remoteLoading}">
 			<div v-if="!loading" class="icon-search" />
-			<h2 v-if="!loading">{{ t('social', 'No accounts found') }}</h2>
-			<p v-if="!loading">No accounts found for {{ term }}</p>
+			<h2 v-if="!loading">
+				{{ t('social', 'No accounts found') }}
+			</h2>
+			<p v-if="!loading">
+				No accounts found for {{ term }}
+			</p>
 		</div>
 		<div v-if="allResults.length > 0">
 			<h3>{{ t('social', 'Searching for') }} {{ term }}</h3>
-			<UserEntry v-for="result in allResults" :key="result.id" :item="result" />
+			<user-entry v-for="result in allResults" :key="result.id" :item="result" />
 		</div>
 	</div>
 </template>

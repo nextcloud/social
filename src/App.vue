@@ -5,11 +5,17 @@
 		</div>
 		<div id="app-content">
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
-				<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
-				<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
-					rel="noreferrer noopener">{{ t('social', 'Open documentation') }} ↗</a></p>
+				<h3 v-if="!serverData.checks.checks.wellknown">
+					{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
+				</h3>
+				<p v-if="!serverData.checks.checks.wellknown">
+					{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+						rel="noreferrer noopener">
+						{{ t('social', 'Open documentation') }} ↗
+					</a>
+				</p>
 			</div>
-			<Search v-if="searchTerm !== ''" :term="searchTerm" />
+			<search v-if="searchTerm !== ''" :term="searchTerm" />
 			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
 		</div>
 	</div>
@@ -19,15 +25,23 @@
 			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
 				<p>
-					<label class="hidden">{{ t('social', 'ActivityPub URL base') }}</label>
-					<input :placeholder="serverData.cliUrl" v-model="cloudAddress" type="url"
+					<label class="hidden">
+						{{ t('social', 'ActivityPub URL base') }}
+					</label>
+					<input v-model="cloudAddress" :placeholder="serverData.cliUrl" type="url"
 						required>
 					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
 				</p>
 				<template v-if="!serverData.checks.success">
-					<h3 v-if="!serverData.checks.checks.wellknown">{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}</h3>
-					<p v-if="!serverData.checks.checks.wellknown">{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
-						rel="noreferrer noopener">{{ t('social', 'Open documentation') }} ↗</a></p>
+					<h3 v-if="!serverData.checks.checks.wellknown">
+						{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
+					</h3>
+					<p v-if="!serverData.checks.checks.wellknown">
+						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+							rel="noreferrer noopener">
+							{{ t('social', 'Open documentation') }} ↗
+						</a>
+					</p>
 				</template>
 			</form>
 		</template>
@@ -76,26 +90,16 @@
 
 <script>
 import {
-	PopoverMenu,
-	AppNavigation,
-	Multiselect,
-	Avatar
+	AppNavigation
 } from 'nextcloud-vue'
 import axios from 'nextcloud-axios'
-import TimelineEntry from './components/TimelineEntry'
-import ProfileInfo from './components/ProfileInfo'
 import Search from './components/Search'
 import currentuserMixin from './mixins/currentUserMixin'
 
 export default {
 	name: 'App',
 	components: {
-		PopoverMenu,
 		AppNavigation,
-		TimelineEntry,
-		Multiselect,
-		Avatar,
-		ProfileInfo,
 		Search
 	},
 	mixins: [currentuserMixin],

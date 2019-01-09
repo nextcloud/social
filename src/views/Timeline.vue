@@ -2,11 +2,17 @@
 	<div class="social__wrapper">
 		<transition name="slide-fade">
 			<div v-if="showInfo" class="social__welcome">
-				<a class="close icon-close" href="#" @click="hideInfo()"><span class="hidden-visually">Close</span></a>
+				<a class="close icon-close" href="#" @click="hideInfo()">
+					<span class="hidden-visually">
+						Close
+					</span>
+				</a>
 				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
 				<p>
 					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:') }}
-					<span class="social-id">{{ socialId }}</span>
+					<span class="social-id">
+						{{ socialId }}
+					</span>
 				</p>
 				<div v-show="!isFollowingNextcloudAccount" class="follow-nextcloud">
 					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
@@ -83,29 +89,15 @@
 </style>
 
 <script>
-import {
-	PopoverMenu,
-	AppNavigation,
-	Multiselect
-} from 'nextcloud-vue'
-import InfiniteLoading from 'vue-infinite-loading'
-import TimelineEntry from './../components/TimelineEntry'
 import Composer from './../components/Composer'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import follow from './../mixins/follow'
-import EmptyContent from './../components/EmptyContent'
 import TimelineList from './../components/TimelineList'
 
 export default {
 	name: 'Timeline',
 	components: {
-		PopoverMenu,
-		AppNavigation,
-		TimelineEntry,
-		Multiselect,
 		Composer,
-		InfiniteLoading,
-		EmptyContent,
 		TimelineList
 	},
 	mixins: [

@@ -22,7 +22,7 @@
 
 <template>
 	<div class="social__followers">
-		<user-entry v-for="user in users" :item="user" :key="user.id" />
+		<user-entry v-for="user in users" :key="user.id" :item="user" />
 	</div>
 </template>
 

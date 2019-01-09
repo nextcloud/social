@@ -30,15 +30,23 @@
 			</div>
 			<div class="user-details">
 				<router-link v-if="!serverData.public" :to="{ name: 'profile', params: { account: item.local ? item.preferredUsername : item.account }}">
-					<span class="post-author">{{ item.name }}</span>
-					<span class="user-description">{{ item.account }}</span>
+					<span class="post-author">
+						{{ item.name }}
+					</span>
+					<span class="user-description">
+						{{ item.account }}
+					</span>
 				</router-link>
 				<a v-else :href="item.id" target="_blank"
 					rel="noreferrer">
-					<span class="post-author">{{ item.name }}</span>
-					<span class="user-description">{{ item.account }}</span>
+					<span class="post-author">
+						{{ item.name }}
+					</span>
+					<span class="user-description">
+						{{ item.account }}
+					</span>
 				</a>
-				<!-- TODO check where the html is coming from to avoid security issues -->
+				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-html="item.summary" />
 			</div>
 			<follow-button :account="item.account" />

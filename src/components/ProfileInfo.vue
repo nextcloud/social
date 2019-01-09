@@ -29,19 +29,29 @@
 				:size="128" />
 			<h2>{{ displayName }}</h2>
 			<p>{{ accountInfo.account }}</p>
-			<p v-if="accountInfo.website">Website: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a></p>
+			<p v-if="accountInfo.website">
+				Website: <a :href="accountInfo.website.value">
+					{{ accountInfo.website.value }}
+				</a>
+			</p>
 			<follow-button :account="accountInfo.account" />
 		</div>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile--sections">
 			<li>
-				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">{{ getCount('post') }} {{ t('social', 'posts') }}</router-link>
+				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
+					{{ getCount('post') }} {{ t('social', 'posts') }}
+				</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">{{ getCount('following') }}  {{ t('social', 'following') }}</router-link>
+				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">
+					{{ getCount('following') }}  {{ t('social', 'following') }}
+				</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">{{ getCount('followers') }}  {{ t('social', 'followers') }}</router-link>
+				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">
+					{{ getCount('followers') }}  {{ t('social', 'followers') }}
+				</router-link>
 			</li>
 		</ul>
 	</div>
