@@ -31,6 +31,7 @@ namespace OCA\Social;
 
 use Exception;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
 
 require_once(__DIR__ . '/../appinfo/autoload.php');
 
@@ -51,10 +52,16 @@ if ($type !== 'acct') {
 }
 
 
-$username = substr($account, 0, strrpos($account, '@'));
+list($username, $instance) = explode('@', $account);
 
 try {
 	$cacheActorService = \OC::$server->query(CacheActorService::class);
+	$configService = \OC::$server->query(ConfigService::class);
+
+	if ($configService->getCloudAddress(true) !== $instance) {
+		throw new Exception();
+	}
+
 	$cacheActorService->getFromLocalAccount($username);
 } catch (Exception $e) {
 	http_response_code(404);
