@@ -25,8 +25,7 @@
 		<div class="entry-content">
 			<div class="user-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.preferredUsername"
-					:disable-tooltip="true"
-				/>
+					:disable-tooltip="true" />
 				<avatar v-else :url="avatarUrl" />
 			</div>
 			<div class="user-details">
@@ -39,8 +38,7 @@
 					</span>
 				</router-link>
 				<a v-else :href="item.id" target="_blank"
-					rel="noreferrer"
-				>
+					rel="noreferrer">
 					<span class="post-author">
 						{{ item.name }}
 					</span>

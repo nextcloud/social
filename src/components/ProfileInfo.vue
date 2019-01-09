@@ -24,11 +24,9 @@
 	<div v-if="account && accountInfo" class="user-profile">
 		<div class="user-profile--info">
 			<avatar v-if="accountInfo.local" :user="uid" :disable-tooltip="true"
-				:size="128"
-			/>
+				:size="128" />
 			<avatar v-else :url="avatarUrl" :disable-tooltip="true"
-				:size="128"
-			/>
+				:size="128" />
 			<h2>{{ displayName }}</h2>
 			<p>{{ accountInfo.account }}</p>
 			<p v-if="accountInfo.website">

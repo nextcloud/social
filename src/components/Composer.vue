@@ -24,8 +24,7 @@
 	<div class="new-post" data-id="">
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
-				:size="32"
-			/>
+				:size="32" />
 			<div class="post-author">
 				<span class="post-author-name">
 					{{ currentUser.displayName }}
@@ -39,23 +38,19 @@
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType" class="message"
-					placeholder="What would you like to share?" @keyup.enter="keyup"
-				/>
+					placeholder="What would you like to share?" @keyup.enter="keyup" />
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
-				@emoji="insert"
-			>
+				@emoji="insert">
 				<a slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
 					class="emoji-invoker" tabindex="0" v-on="events"
-					@keyup.enter="events.click" @keyup.space="events.click"
-				/>
+					@keyup.enter="events.click" @keyup.space="events.click" />
 				<!-- eslint-disable-next-line vue/no-template-shadow -->
 				<div slot="emoji-picker" slot-scope="{ emojis, insert }" class="emoji-picker popovermenu">
 					<div>
 						<div>
 							<input v-model="search" v-focus-on-create type="text"
-								@keyup.enter="insert(emojis)"
-							>
+								@keyup.enter="insert(emojis)">
 						</div>
 						<div>
 							<div v-for="(emojiGroup, category) in emojis" :key="category">
@@ -65,8 +60,7 @@
 									<span v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" :title="emojiName"
 										tabindex="0"
 										class="emoji" @click="insert(emoji)" @keyup.enter="insert(emoji)"
-										@keyup.space="insert(emoji)" v-html="$twemoji.parse(emoji)"
-									/>
+										@keyup.space="insert(emoji)" v-html="$twemoji.parse(emoji)" />
 								</div>
 							</div>
 						</div>
@@ -76,8 +70,7 @@
 
 			<div class="options">
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
-					type="submit" title="" data-original-title="Post"
-				>
+					type="submit" title="" data-original-title="Post">
 				<div v-click-outside="hidePopoverMenu">
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">

@@ -10,8 +10,7 @@
 				</h3>
 				<p v-if="!serverData.checks.checks.wellknown">
 					{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
-						rel="noreferrer noopener"
-					>
+						rel="noreferrer noopener">
 						{{ t('social', 'Open documentation') }} ↗
 					</a>
 				</p>
@@ -30,8 +29,7 @@
 						{{ t('social', 'ActivityPub URL base') }}
 					</label>
 					<input v-model="cloudAddress" :placeholder="serverData.cliUrl" type="url"
-						required
-					>
+						required>
 					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
 				</p>
 				<template v-if="!serverData.checks.success">
@@ -40,8 +38,7 @@
 					</h3>
 					<p v-if="!serverData.checks.checks.wellknown">
 						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
-							rel="noreferrer noopener"
-						>
+							rel="noreferrer noopener">
 							{{ t('social', 'Open documentation') }} ↗
 						</a>
 					</p>

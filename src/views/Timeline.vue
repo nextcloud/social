@@ -17,8 +17,7 @@
 				<div v-show="!isFollowingNextcloudAccount" class="follow-nextcloud">
 					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
 					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')" type="button" class="primary"
-						@click="followNextcloud"
-					>
+						@click="followNextcloud">
 				</div>
 			</div>
 		</transition>

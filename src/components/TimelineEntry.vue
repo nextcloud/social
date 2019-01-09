@@ -3,11 +3,9 @@
 		<div class="entry-content">
 			<div v-if="item.actor_info" class="post-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
-					:display-name="item.actor_info.account" :disable-tooltip="true"
-				/>
+					:display-name="item.actor_info.account" :disable-tooltip="true" />
 				<avatar v-else :size="32" :url="avatarUrl"
-					:disable-tooltip="true"
-				/>
+					:disable-tooltip="true" />
 			</div>
 			<div class="post-content">
 				<div class="post-author-wrapper">
