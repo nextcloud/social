@@ -97,4 +97,4 @@ matrix:
     - TESTS: vue-build
 
 
-branches: [ master, stable* ]
+branches: [ master, stable*, alpha1 ]
