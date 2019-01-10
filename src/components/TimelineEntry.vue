@@ -26,8 +26,16 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="post-message" v-html="formatedMessage" />
 			</div>
-			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
-				{{ relativeTimestamp }}
+			<div>
+				<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
+					{{ relativeTimestamp }}
+				</div>
+				<div v-click-outside="hidePopoverMenu" class="post-actions">
+					<a class="icon-more" @click.prevent="togglePopoverMenu" />
+					<div :class="{open: menuOpened}" class="popovermenu menu-center">
+						<popover-menu :menu="popoverMenu" />
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -39,6 +47,7 @@ import * as linkify from 'linkifyjs'
 import pluginTag from 'linkifyjs/plugins/hashtag'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
+import popoverMenu from './../mixins/popoverMenu'
 
 pluginTag(linkify)
 pluginMention(linkify)
@@ -48,15 +57,32 @@ export default {
 	components: {
 		Avatar
 	},
+	mixins: [popoverMenu],
 	props: {
 		item: { type: Object, default: () => {} }
 	},
 	data() {
 		return {
-
 		}
 	},
 	computed: {
+		popoverMenu() {
+			var actions = [
+				{
+					action: () => { this.$root.$emit('composer-reply', this.item) },
+					icon: 'icon-comment',
+					text: t('social', 'Reply to post')
+				}
+			]
+			actions.push(
+				{
+					action: () => { },
+					icon: 'icon-delete',
+					text: t('social', 'Delete post')
+				}
+			)
+			return actions
+		},
 		relativeTimestamp() {
 			return OC.Util.relativeModifiedDate(this.item.published)
 		},
@@ -90,7 +116,7 @@ export default {
 	}
 }
 </script>
-<style scoped>
+<style scoped lang="scss">
 	.timeline-entry {
 		padding: 10px;
 		margin-bottom: 10px;
@@ -123,6 +149,19 @@ export default {
 		width: 120px;
 		text-align: right;
 		flex-shrink: 0;
+	}
+
+	.post-actions {
+		position: relative;
+		width: 44px;
+		height: 44px;
+		float: right;
+
+		.icon-more {
+			display: inline-block;
+			width: 44px;
+			height: 44px;
+		}
 	}
 
 	span {
