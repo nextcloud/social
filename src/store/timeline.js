@@ -66,12 +66,16 @@ const actions = {
 		context.commit('setAccount', account)
 	},
 	post(context, post) {
-		return axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
-			// eslint-disable-next-line no-console
-			console.log('Post created with token ' + response.data.result.token)
-		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to create a post')
-			console.error('Failed to create a post', error)
+		return new Promise((resolve, reject) => {
+			axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
+				// eslint-disable-next-line no-console
+				console.log('Post created with token ' + response.data.result.token)
+				resolve(response)
+			}).catch((error) => {
+				OC.Notification.showTemporary('Failed to create a post')
+				console.error('Failed to create a post', error.response)
+				reject(error)
+			})
 		})
 	},
 	refreshTimeline(context) {
