@@ -75,12 +75,19 @@ export default {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here')
+				},
+				tags: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No posts found for this tag')
 				}
 			}
 		}
 	},
 	computed: {
 		emptyContentData() {
+			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
+				return this.emptyContent[this.$route.name]
+			}
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
 			}
