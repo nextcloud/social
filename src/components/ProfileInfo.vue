@@ -28,7 +28,7 @@
 			<avatar v-else :url="avatarUrl" :disable-tooltip="true"
 				:size="128" />
 			<h2>{{ displayName }}</h2>
-			<p>{{ accountInfo.account }}</p>
+			<p>@{{ accountInfo.account }}</p>
 			<p v-if="accountInfo.website">
 				Website: <a :href="accountInfo.website.value">
 					{{ accountInfo.website.value }}
