@@ -227,7 +227,11 @@ class Note extends ACore implements JsonSerializable {
 		$tags = $this->getTags('Hashtag');
 		$hashtags = [];
 		foreach ($tags as $tag) {
-			$hashtags[] = $tag['name'];
+			$hashtag = $tag['name'];
+			if (substr($hashtag, 0, 1) === '#') {
+				$hashtag = substr($hashtag, 1);
+			}
+			$hashtags[] = $hashtag;
 		}
 
 		$this->setHashtags($hashtags);
