@@ -37,6 +37,9 @@ const mutations = {
 			Vue.set(state.timeline, data[item].id, data[item])
 		}
 	},
+	removePost(state, post) {
+		Vue.delete(state.timeline, post.id)
+	},
 	resetTimeline(state) {
 		state.timeline = {}
 		state.since = Math.floor(Date.now() / 1000) + 1
@@ -81,6 +84,16 @@ const actions = {
 				console.error('Failed to create a post', error.response)
 				reject(error)
 			})
+		})
+	},
+	postDelete(context, post) {
+		return axios.delete(OC.generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
+			context.commit('removePost', post)
+			// eslint-disable-next-line no-console
+			console.log('Post deleted with token ' + response.data.result.token)
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to delete the post')
+			console.error('Failed to delete the post', error)
 		})
 	},
 	refreshTimeline(context) {

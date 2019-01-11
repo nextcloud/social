@@ -32,7 +32,7 @@
 				</div>
 				<div v-click-outside="hidePopoverMenu" class="post-actions">
 					<a class="icon-more" @click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu menu-center">
+					<div :class="{open: menuOpened}" class="popovermenu">
 						<popover-menu :menu="popoverMenu" />
 					</div>
 				</div>
@@ -48,6 +48,7 @@ import pluginTag from 'linkifyjs/plugins/hashtag'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
+import currentUser from './../mixins/currentUserMixin'
 
 pluginTag(linkify)
 pluginMention(linkify)
@@ -57,7 +58,7 @@ export default {
 	components: {
 		Avatar
 	},
-	mixins: [popoverMenu],
+	mixins: [popoverMenu, currentUser],
 	props: {
 		item: { type: Object, default: () => {} }
 	},
@@ -74,13 +75,18 @@ export default {
 					text: t('social', 'Reply to post')
 				}
 			]
-			actions.push(
-				{
-					action: () => { },
-					icon: 'icon-delete',
-					text: t('social', 'Delete post')
-				}
-			)
+			if (this.item.actor_info.account === this.cloudId) {
+				actions.push(
+					{
+						action: () => {
+							this.$store.dispatch('postDelete', this.item)
+							this.hidePopoverMenu()
+						},
+						icon: 'icon-delete',
+						text: t('social', 'Delete post')
+					}
+				)
+			}
 			return actions
 		},
 		relativeTimestamp() {
