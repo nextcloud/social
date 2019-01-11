@@ -329,7 +329,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
 		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
 
-		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '#' . $hashtag));
+		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');

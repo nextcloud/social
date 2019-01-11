@@ -258,6 +258,7 @@ class NoteService {
 	 * @param array $hashtags
 	 */
 	public function addHashtags(Note $note, array $hashtags) {
+		$note->setHashtags($hashtags);
 		foreach ($hashtags as $hashtag) {
 			$this->addHashtag($note, $hashtag);
 		}
