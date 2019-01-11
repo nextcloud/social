@@ -14,7 +14,7 @@
 							{{ userDisplayName(item.actor_info) }}
 						</span>
 						<span class="post-author-id">
-							{{ item.actor_info.account }}
+							@{{ item.actor_info.account }}
 						</span>
 					</router-link>
 					<a v-else :href="item.attributedTo">
