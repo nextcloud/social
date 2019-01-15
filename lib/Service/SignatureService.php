@@ -68,7 +68,7 @@ class SignatureService {
 	const DATE_HEADER = 'D, d M Y H:i:s T';
 	const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
-	const DATE_DELAY = 30;
+	const DATE_DELAY = 300;
 
 
 	/** @var CacheActorService */
