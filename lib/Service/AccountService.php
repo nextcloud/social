@@ -38,6 +38,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -245,8 +246,11 @@ class AccountService {
 				return;
 			}
 
-			$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
-			$actor->setIconId($iconId);
+			try {
+				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
+				$actor->setIconId($iconId);
+			} catch (ItemUnknownException $e) {
+			}
 
 			$count = [
 				'followers' => $this->followsRequest->countFollowers($actor->getId()),
