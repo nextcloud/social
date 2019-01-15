@@ -122,8 +122,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
-
-//			$actor->setTopLevel(true);
+			$actor->setDisplayW3ContextSecurity(true);
 
 			return $this->directSuccess($actor);
 		} catch (Exception $e) {
