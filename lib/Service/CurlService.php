@@ -41,6 +41,7 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\RequestNetworkException;
 use OCA\Social\Exceptions\RequestResultSizeException;
@@ -101,6 +102,7 @@ class CurlService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function retrieveAccount(string $account): Person {
 		$account = $this->withoutBeginAt($account);
@@ -152,6 +154,7 @@ class CurlService {
 	 * @throws RequestNetworkException
 	 * @throws RequestServerException
 	 * @throws RequestResultSizeException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function retrieveObject($id): array {
 
@@ -177,6 +180,7 @@ class CurlService {
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function request(Request $request) {
 
@@ -204,7 +208,12 @@ class CurlService {
 			'[>>] request: ' . json_encode($request) . ' - result: ' . $result, 1
 		);
 
-		return json_decode((string)$result, true);
+		$result = json_decode((string)$result, true);
+		if (is_array($result)) {
+			return $result;
+		}
+
+		throw new RequestResultNotJsonException();
 	}
 
 

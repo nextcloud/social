@@ -43,6 +43,7 @@ use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SignatureException;
@@ -177,6 +178,7 @@ class SignatureService {
 	 * @throws SignatureIsGoneException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function checkRequest(IRequest $request, int &$time = 0): string {
 		$dTime = new DateTime($request->getHeader('date'));
@@ -210,6 +212,7 @@ class SignatureService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function checkObject(ACore $object): bool {
 		try {
@@ -276,6 +279,7 @@ class SignatureService {
 	 * @throws ItemUnknownException
 	 * @throws RequestContentException
 	 * @throws RequestResultSizeException
+	 * @throws RequestResultNotJsonException
 	 */
 	private function checkRequestSignature(IRequest $request): string {
 		$signatureHeader = $request->getHeader('Signature');
@@ -365,6 +369,7 @@ class SignatureService {
 	 * @return string
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
@@ -372,7 +377,7 @@ class SignatureService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	private function retrieveKey(string $keyId, bool $refresh = false): string {
 		$actor = $this->cacheActorService->getFromId($keyId, $refresh);
