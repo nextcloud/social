@@ -139,7 +139,9 @@ class LocalController extends Controller {
 	 */
 	public function postCreate(array $data): DataResponse {
 		try {
-			$post = new Post($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			$post = new Post($actor);
 			$post->setContent($this->get('content', $data, ''));
 			$post->setReplyTo($this->get('replyTo', $data, ''));
 			$post->setTo($this->getArray('to', $data, []));
@@ -148,6 +150,8 @@ class LocalController extends Controller {
 
 			/** @var ACore $activity */
 			$token = $this->postService->createPost($post, $activity);
+
+			$this->accountService->cacheLocalActorDetailCount($actor);
 
 			return $this->success(
 				[
@@ -324,6 +328,7 @@ class LocalController extends Controller {
 		try {
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
+			$this->accountService->cacheLocalActorDetailCount($actor);
 
 			return $this->success([]);
 		} catch (Exception $e) {
@@ -343,6 +348,7 @@ class LocalController extends Controller {
 		try {
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->unfollowAccount($actor, $account);
+			$this->accountService->cacheLocalActorDetailCount($actor);
 
 			return $this->success([]);
 		} catch (Exception $e) {
