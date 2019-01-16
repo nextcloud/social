@@ -54,7 +54,7 @@ class NoteCreate extends Base {
 	private $activityService;
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var PostService */
 	private $postService;
@@ -70,21 +70,21 @@ class NoteCreate extends Base {
 	 * NoteCreate constructor.
 	 *
 	 * @param ActivityService $activityService
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param PostService $postService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityService $activityService, AccountService $actorService,
+		ActivityService $activityService, AccountService $accountService,
 		PostService $postService, CurlService $curlService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->activityService = $activityService;
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->postService = $postService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
