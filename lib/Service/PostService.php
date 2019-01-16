@@ -38,7 +38,6 @@ use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -52,7 +51,7 @@ class PostService {
 	private $noteService;
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -65,16 +64,16 @@ class PostService {
 	 * PostService constructor.
 	 *
 	 * @param NoteService $noteService
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, AccountService $actorService, ActivityService $activityService,
+		NoteService $noteService, AccountService $accountService, ActivityService $activityService,
 		MiscService $miscService
 	) {
 		$this->noteService = $noteService;
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
 	}
@@ -93,7 +92,6 @@ class PostService {
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
-	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws MalformedArrayException
@@ -107,7 +105,10 @@ class PostService {
 		$this->noteService->replyTo($note, $post->getReplyTo());
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 
-		return $this->activityService->createActivity($post->getActor(), $note, $activity);
+		$result = $this->activityService->createActivity($post->getActor(), $note, $activity);
+		$this->accountService->cacheLocalActorDetailCount($post->getActor());
+
+		return $result;
 	}
 
 

@@ -151,8 +151,6 @@ class LocalController extends Controller {
 			/** @var ACore $activity */
 			$token = $this->postService->createPost($post, $activity);
 
-			$this->accountService->cacheLocalActorDetailCount($actor);
-
 			return $this->success(
 				[
 					'post'  => $activity->getObject(),
