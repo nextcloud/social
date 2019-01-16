@@ -1,0 +1,74 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "vcard": "http://www.w3.org/2006/vcard/ns#",
+      "dfrn": "http://purl.org/macgirvin/dfrn/1.0/",
+      "diaspora": "https://diasporafoundation.org/ns/",
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag"
+    }
+  ],
+  "id": "https://squeet.me/objects/962c3e10-545c-3887-87f2-ac8261867719#Create",
+  "type": "Create",
+  "actor": "https://squeet.me/profile/cult",
+  "published": "2019-01-11T12:09:44Z",
+  "instrument": {
+    "type": "Service",
+    "name": "Friendica 'The Tazmans Flax-lily' 2019.01-rc-1292; https://squeet.me"
+  },
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public",
+    "https://test.artificial-owl.com/apps/social/@cult"
+  ],
+  "cc": [
+    "https://squeet.me/followers/cult"
+  ],
+  "object": {
+    "id": "https://squeet.me/objects/962c3e10-545c-3887-87f2-ac8261867719",
+    "type": "Article",
+    "summary": null,
+    "inReplyTo": null,
+    "diaspora:guid": "962c3e10-545c-3887-87f2-ac8261867719",
+    "published": "2019-01-11T12:09:44Z",
+    "url": "https://squeet.me/display/962c3e10-545c-3887-87f2-ac8261867719",
+    "attributedTo": "https://squeet.me/profile/cult",
+    "sensitive": false,
+    "context": "https://squeet.me/objects/962c3e10-545c-3887-87f2-ac8261867719#context",
+    "name": "testing 2",
+    "content": "@<span class=\"vcard\"><a href=\"https://test.artificial-owl.com/apps/social/@cult\" class=\"url\" title=\"cult\"><span class=\"fn nickname mention\">cult</span></a></span> #<a href=\"https://squeet.me/search?tag=test\" class=\"tag\" title=\"test\">test</a> ouila",
+    "source": {
+      "content": "@[url=https://test.artificial-owl.com/apps/social/@cult]cult[/url] #[url=https://squeet.me/search?tag=test]test[/url] ouila",
+      "mediaType": "text/bbcode"
+    },
+    "attachment": [],
+    "tag": [
+      {
+        "type": "Hashtag",
+        "href": "",
+        "name": "#test"
+      },
+      {
+        "type": "Mention",
+        "href": "https://test.artificial-owl.com/apps/social/@cult",
+        "name": "@cult@test.artificial-owl.com"
+      }
+    ],
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public",
+      "https://test.artificial-owl.com/apps/social/@cult"
+    ],
+    "cc": [
+      "https://squeet.me/followers/cult"
+    ]
+  },
+  "signature": {
+    "type": "RsaSignature2017",
+    "nonce": "33dd0f8268d032ef3f0ca39f917304f8e71025e7290c49a094412c46d4ab4b09",
+    "creator": "https://squeet.me/profile/cult#main-key",
+    "created": "2019-01-11T12:15:14Z",
+    "signatureValue": "AdGwxg9snx60MTr13yS524BS2K4C24knn4raSORP5/45bCctZpW+nK9PlVqXELNukNujYyj4/NxHkEZ3rex5tOAPXUSpd86Nz4oziAdZQplhLKaIlQPstUt3Zav1I+MWSb1tDYNdx6H5Ib+3hv/onwV3WdECyN3KCbHZxMYdYfoYjbuGeYgdcRL0eXP/3v+/DcqcY4gKTuY68NHySpWfV1QkNrQCQB5GVDjpKo/K+OToxeO1J0AMk4YCjsIKbAmlO5uQaWTq2vzwKmadl6Q3h1gycerEqNd/11QDHgIsv44rV2Npo8sgQCadfsE2R4Z+W99SjHX+dPCTkYg7N+8JAIcUTx8O61+gKE82loUHOA6N39s+ziqUBuboYAS1brs9UiPkJT3LNe/2Szx5txKy1sc9NBz5wHcS1LoXzOt+XEI9G6Wp8p+zRZKtWkeL4dR7rwm3OXb0Y1t3tYaMaxuYbG9tVlLNf4N3j/nBI5XFRx9hIDp3ZM5aLlK1ZoyxPyQrJzx5txx9QeU/w2uTiSkM34N38BUC/lZn7d7YphI5LUKhqcgFAt1K+pFm0gwuOn1umf+uvQKaZhSkTKatYkj2xCbO8ToLaYBeDVE40TqUqC2ITHFzjkqPKK6q1as4wPIc/974gflIB/TMiwkKZGTC5sS7tA9FOU2+r6mfHxV/oNc="
+  }
+}

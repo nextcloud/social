@@ -32,6 +32,7 @@ namespace OCA\Social\Model;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
 /**
@@ -45,8 +46,8 @@ class Post implements JsonSerializable {
 	use TArrayTools;
 
 
-	/** @var string */
-	private $userId = '';
+	/** @var Person */
+	private $actor;
 
 	/** @var array */
 	private $to = [];
@@ -64,17 +65,17 @@ class Post implements JsonSerializable {
 	/**
 	 * Post constructor.
 	 *
-	 * @param string $userId
+	 * @param Person $actor
 	 */
-	public function __construct(string $userId = '') {
-		$this->userId = $userId;
+	public function __construct(Person $actor) {
+		$this->actor = $actor;
 	}
 
 	/**
-	 * @return string
+	 * @return Person
 	 */
-	public function getUserId(): string {
-		return $this->userId;
+	public function getActor(): Person {
+		return $this->actor;
 	}
 
 
@@ -167,7 +168,7 @@ class Post implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'userId'  => $this->getUserId(),
+			'actor'   => $this->getActor(),
 			'to'      => $this->getTo(),
 			'replyTo' => $this->getReplyTo(),
 			'content' => $this->getContent(),

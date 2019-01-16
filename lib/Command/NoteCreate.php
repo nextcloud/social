@@ -128,7 +128,8 @@ class NoteCreate extends Base {
 		$replyTo = $input->getOption('replyTo');
 		$type = $input->getOption('type');
 
-		$post = new Post($userId);
+		$actor = $this->accountService->getActorFromUserId($userId);
+		$post = new Post($actor);
 		$post->setContent($content);
 		$post->setType(($type === null) ? '' : $type);
 		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);

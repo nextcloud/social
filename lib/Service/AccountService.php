@@ -38,6 +38,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -194,6 +195,7 @@ class AccountService {
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
 	 */
 	public function createActor(string $userId, string $username) {
 
@@ -224,18 +226,18 @@ class AccountService {
 		$this->actorsRequest->create($actor);
 
 		// generate cache.
-		$this->cacheLocalActorByUsername($username, true);
+		$this->cacheLocalActorByUsername($username);
 	}
 
 
 	/**
 	 * @param string $username
-	 * @param bool $refresh
 	 *
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
 	 */
-	public function cacheLocalActorByUsername(string $username, bool $refresh = false) {
+	public function cacheLocalActorByUsername(string $username) {
 		try {
 			$actor = $this->getActor($username);
 
@@ -248,16 +250,36 @@ class AccountService {
 			$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 			$actor->setIconId($iconId);
 
-			$count = [
-				'followers' => $this->followsRequest->countFollowers($actor->getId()),
-				'following' => $this->followsRequest->countFollowing($actor->getId()),
-				'post'      => $this->notesRequest->countNotesFromActorId($actor->getId())
-			];
-			$actor->addDetailArray('count', $count);
-
-			$this->actorService->cacheLocalActor($actor, $refresh);
+			$this->addLocalActorDetailCount($actor);
+			$this->actorService->cacheLocalActor($actor);
 		} catch (ActorDoesNotExistException $e) {
 		}
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	public function cacheLocalActorDetailCount(Person $actor) {
+		if (!$actor->isLocal()) {
+			return;
+		}
+
+		$this->addLocalActorDetailCount($actor);
+		$this->actorService->cacheLocalActor($actor);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 */
+	public function addLocalActorDetailCount(Person &$actor) {
+		$count = [
+			'followers' => $this->followsRequest->countFollowers($actor->getId()),
+			'following' => $this->followsRequest->countFollowing($actor->getId()),
+			'post'      => $this->notesRequest->countNotesFromActorId($actor->getId())
+		];
+		$actor->addDetailArray('count', $count);
 	}
 
 
@@ -304,7 +326,7 @@ class AccountService {
 		$update = $this->actorsRequest->getAll();
 		foreach ($update as $item) {
 			try {
-				$this->cacheLocalActorByUsername($item->getPreferredUsername(), true);
+				$this->cacheLocalActorByUsername($item->getPreferredUsername());
 			} catch (Exception $e) {
 			}
 		}
