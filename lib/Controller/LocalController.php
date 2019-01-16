@@ -397,9 +397,9 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$followers = $this->followService->getFollowing($actor);
+			$following = $this->followService->getFollowing($actor);
 
-			return $this->success($followers);
+			return $this->success($following);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

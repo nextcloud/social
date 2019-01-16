@@ -46,7 +46,7 @@ class CacheRefresh extends Base {
 
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var CacheActorService */
 	private $cacheActorService;
@@ -64,19 +64,19 @@ class CacheRefresh extends Base {
 	/**
 	 * CacheUpdate constructor.
 	 *
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
 	 * @param DocumentService $documentService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $actorService, CacheActorService $cacheActorService,
+		AccountService $accountService, CacheActorService $cacheActorService,
 		DocumentService $documentService, ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
 		$this->configService = $configService;
@@ -102,10 +102,10 @@ class CacheRefresh extends Base {
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 
-		$result = $this->actorService->blindKeyRotation();
+		$result = $this->accountService->blindKeyRotation();
 		$output->writeLn($result . ' key pairs refreshed');
 
-		$result = $this->actorService->manageCacheLocalActors();
+		$result = $this->accountService->manageCacheLocalActors();
 		$output->writeLn($result . ' local accounts regenerated');
 
 		$result = $this->cacheActorService->missingCacheRemoteActors();
