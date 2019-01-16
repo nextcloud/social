@@ -17,8 +17,16 @@ Some requirements in this alpha stage are that your Nextcloud:
 - **🕸 Open standards:** We use the established [ActivityPub](https://en.wikipedia.org/wiki/ActivityPub) standard!
 - **🎨 Nice illustrations:** Made by [Katerina Limpitsouni of unDraw](https://undraw.co).
 
+
+## Emojis
+
+Please follow [this guide](https://docs.nextcloud.com/server/stable/admin_manual/configuration_database/mysql_4byte_support.html) to enable the Emojis in the Social app.
+
+
 ## Reset app
+
 If you want to reset all Social app data e.g. to change the domain used for Social, you can use `occ social:reset` (For how to use occ commands see documentation: [using the occ command](https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/occ_command.html)).
+
 
 ## Development setup
 
