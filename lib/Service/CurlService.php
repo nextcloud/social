@@ -238,9 +238,9 @@ class CurlService {
 			$this->request($request);
 		} catch (Exception $e) {
 			$this->miscService->log(
-				'Cannot initiate AsyncWithToken ' . json_encode($token) . ' ' . json_encode($e), 1
+				'Cannot initiate AsyncWithToken ' . json_encode($token) . ' (' . get_class($e)
+				. ' - ' . json_encode($e) . ')', 1
 			);
-
 		}
 	}
 
