@@ -220,9 +220,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromLocalAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		if (strrpos($account, '@')) {
-			$account = substr($account, 0, strrpos($account, '@'));
-		}
 		$this->limitToPreferredUsername($qb, $account);
 		$this->limitToLocal($qb, true);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
