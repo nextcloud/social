@@ -166,6 +166,9 @@ class CacheActorService {
 	 * @throws CacheActorDoesNotExistException
 	 */
 	public function getFromLocalAccount(string $account): Person {
+		if (strrpos($account, '@')) {
+			$account = substr($account, 0, strrpos($account, '@'));
+		}
 		return $this->cacheActorsRequest->getFromLocalAccount($account);
 	}
 
