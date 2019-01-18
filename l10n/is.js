@@ -1,0 +1,28 @@
+OC.L10N.register(
+    "social",
+    {
+    "Open documentation" : "Opna hjálparskjöl",
+    "Finish setup" : "Ljúka uppsetningu",
+    "Home" : "Heim",
+    "Direct messages" : "Bein skilaboð",
+    "Direct" : "Beint",
+    "Unlisted" : "Óskráð",
+    "Do not post to public timelines" : "Ekki senda á opinberar tímalínur",
+    "Followers" : "Fylgjendur",
+    "Post to followers only" : "Senda einungis á fylgjendur",
+    "Public" : "Opinbert",
+    "Post to public timelines" : "Senda á opinberar tímalínur",
+    "Unfollow" : "Hætta að fylgja",
+    "Following" : "Fylgir",
+    "Follow" : "Fylgja",
+    "posts" : "færslur",
+    "following" : "fylgir",
+    "followers" : "fylgjendur",
+    "No accounts found" : "Engir aðgangsreikningar fundust",
+    "Searching for" : "Leita að",
+    "No posts found" : "Engar færslur fundust",
+    "No direct messages found" : "Engin bein skilaboð fundust",
+    "User not found" : "Notandi fannst ekki",
+    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz"
+},
+"nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);");
