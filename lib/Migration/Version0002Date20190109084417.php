@@ -85,6 +85,7 @@ class Version0002Date20190109084417 extends SimpleMigrationStep {
 		if (!$table->hasColumn('parent_id')) {
 			$table->addColumn('parent_id', Type::STRING, ['notnull' => false, 'length' => 255]);
 		}
+		$table->setPrimaryKey(['id']);
 
 		return $schema;
 	}
