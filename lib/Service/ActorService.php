@@ -143,12 +143,10 @@ class ActorService {
 	 */
 	private function cacheDocumentIfNeeded(Person $actor) {
 		if ($actor->gotIcon()) {
+			$icon = $actor->getIcon();
 			try {
-				$icon = $this->cacheDocumentsRequest->getBySource(
-					$actor->getIcon()
-						  ->getUrl()
-				);
-				$actor->setIcon($icon);
+				$cache = $this->cacheDocumentsRequest->getByUrl($icon->getUrl());
+				$actor->setIcon($cache);
 			} catch (CacheDocumentDoesNotExistException $e) {
 				$this->cacheDocumentsRequest->save($actor->getIcon());
 			}
