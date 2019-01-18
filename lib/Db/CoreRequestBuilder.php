@@ -63,7 +63,7 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
-	
+
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -343,6 +343,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToLocal(IQueryBuilder &$qb, bool $local) {
 		$this->limitToDBField($qb, 'local', ($local) ? '1' : '0');
+	}
+
+
+	/**
+	 * Limit the request to the parent_id
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $parentId
+	 */
+	protected function limitToParentId(IQueryBuilder &$qb, string $parentId) {
+		$this->limitToDBField($qb, 'parent_id', $parentId);
 	}
 
 

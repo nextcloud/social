@@ -33,6 +33,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use DateTime;
 use JsonSerializable;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 
@@ -218,6 +219,7 @@ class Document extends ACore implements JsonSerializable {
 	 * @param array $data
 	 *
 	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
 	 */
 	public function import(array $data) {
 		parent::import($data);
@@ -226,6 +228,8 @@ class Document extends ACore implements JsonSerializable {
 
 		if ($this->getId() === '') {
 			$this->generateUniqueId('/documents/g');
+		} else {
+			$this->checkOrigin($this->getId());
 		}
 	}
 
