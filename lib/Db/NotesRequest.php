@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use DateTime;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -87,6 +88,11 @@ class NotesRequest extends NotesRequestBuilder {
 		   )
 		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
+		   ->setValue(
+			   'attachments', $qb->createNamedParameter(
+			   json_encode($note->getAttachments(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
 		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
 		   ->setValue(
 			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
@@ -105,7 +111,10 @@ class NotesRequest extends NotesRequestBuilder {
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
-		$qb->execute();
+		try {
+			$qb->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
 	}
 
 

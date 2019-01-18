@@ -100,6 +100,13 @@ class DocumentInterface implements IActivityPubInterface {
 	 */
 	public function save(ACore $item) {
 		/** @var Document $item */
+		if ($item->getParent()) {
+			$item->setParentId(
+				$item->getParent()
+					 ->getId()
+			);
+		}
+
 		$this->cacheDocumentsRequest->save($item);
 	}
 
