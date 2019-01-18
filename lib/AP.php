@@ -48,6 +48,8 @@ use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
@@ -99,8 +101,14 @@ class AP {
 	/** @var DeleteInterface */
 	public $deleteInterface;
 
+	/** @var DocumentInterface */
+	public $documentInterface;
+
 	/** @var FollowInterface */
 	public $followInterface;
+
+	/** @var ImageInterface */
+	public $imageInterface;
 
 	/** @var LikeInterface */
 	public $likeInterface;
@@ -149,7 +157,9 @@ class AP {
 			$ap->blockInterface = \OC::$server->query(BlockInterface::class);
 			$ap->createInterface = \OC::$server->query(CreateInterface::class);
 			$ap->deleteInterface = \OC::$server->query(DeleteInterface::class);
+			$ap->documentInterface = \OC::$server->query(DocumentInterface::class);
 			$ap->followInterface = \OC::$server->query(FollowInterface::class);
+			$ap->imageInterface = \OC::$server->query(ImageInterface::class);
 			$ap->likeInterface = \OC::$server->query(LikeInterface::class);
 			$ap->rejectInterface = \OC::$server->query(RejectInterface::class);
 			$ap->removeInterface = \OC::$server->query(RemoveInterface::class);
@@ -193,6 +203,7 @@ class AP {
 		}
 
 		try {
+			// TODO: move to Model/Person if 'icon' is specific to Person object ?
 			/** @var Document $icon */
 			$icon = $this->getItemFromData($this->getArray('icon', $data, []), $item, $level);
 			$item->setIcon($icon);
@@ -246,6 +257,10 @@ class AP {
 
 			case Delete::TYPE:
 				$item = new Delete();
+				break;
+
+			case Document::TYPE:
+				$item = new Document();
 				break;
 
 			case Follow::TYPE:
@@ -318,62 +333,70 @@ class AP {
 	public function getInterfaceFromType(string $type): IActivityPubInterface {
 		switch ($type) {
 			case Accept::TYPE:
-				$service = $this->acceptInterface;
+				$interface = $this->acceptInterface;
 				break;
 
 			case Add::TYPE:
-				$service = $this->addInterface;
+				$interface = $this->addInterface;
 				break;
 
 			case Block::TYPE:
-				$service = $this->blockInterface;
+				$interface = $this->blockInterface;
 				break;
 
 			case Create::TYPE:
-				$service = $this->createInterface;
+				$interface = $this->createInterface;
 				break;
 
 			case Delete::TYPE:
-				$service = $this->deleteInterface;
+				$interface = $this->deleteInterface;
+				break;
+
+			case Document::TYPE:
+				$interface = $this->documentInterface;
 				break;
 
 			case Follow::TYPE:
-				$service = $this->followInterface;
+				$interface = $this->followInterface;
+				break;
+
+			case Image::TYPE:
+				$interface = $this->imageInterface;
 				break;
 
 			case Like::TYPE:
-				$service = $this->likeInterface;
+				$interface = $this->likeInterface;
 				break;
 
 			case Note::TYPE:
-				$service = $this->noteInterface;
+				$interface = $this->noteInterface;
 				break;
 
 			case Person::TYPE:
-				$service = $this->personInterface;
+				$interface = $this->personInterface;
 				break;
 
 			case Reject::TYPE:
-				$service = $this->rejectInterface;
+				$interface = $this->rejectInterface;
 				break;
 
 			case Remove::TYPE:
-				$service = $this->removeInterface;
+				$interface = $this->removeInterface;
 				break;
 
 			case Undo::TYPE:
-				$service = $this->undoInterface;
+				$interface = $this->undoInterface;
 				break;
 
 			case Update::TYPE:
-				$service = $this->updateInterface;
+				$interface = $this->updateInterface;
 				break;
 
 			default:
 				throw new ItemUnknownException();
 		}
 
-		return $service;
+		return $interface;
 	}
 
 }
