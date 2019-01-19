@@ -73,6 +73,8 @@ class ACore extends Item implements JsonSerializable {
 	/** @var Document */
 	private $icon = null;
 
+	/** @var bool */
+	private $displayW3ContextSecurity = false;
 
 	/** @var LinkedDataSignature */
 	private $signature = null;
@@ -166,6 +168,25 @@ class ACore extends Item implements JsonSerializable {
 	public function setIcon(Document &$icon): ACore {
 		$icon->setParent($this);
 		$this->icon = $icon;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isDisplayW3ContextSecurity(): bool {
+		return $this->displayW3ContextSecurity;
+	}
+
+	/**
+	 * @param bool $display
+	 *
+	 * @return ACore
+	 */
+	public function setDisplayW3ContextSecurity(bool $display): ACore {
+		$this->displayW3ContextSecurity = $display;
 
 		return $this;
 	}
@@ -538,7 +559,7 @@ class ACore extends Item implements JsonSerializable {
 		if ($this->isRoot()) {
 			$context = [self::CONTEXT_ACTIVITYSTREAMS];
 
-			if ($this->gotSignature()) {
+			if ($this->gotSignature() || $this->isDisplayW3ContextSecurity()) {
 				array_push($context, self::CONTEXT_SECURITY);
 			}
 
