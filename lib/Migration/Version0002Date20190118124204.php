@@ -32,6 +32,7 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
+use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Schema\SchemaException;
 use OCP\DB\ISchemaWrapper;
 use OCP\Migration\IOutput;
@@ -39,11 +40,11 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0001Date20181219000002
+ * Class Version0001Date20181219000004
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20191809094202 extends SimpleMigrationStep {
+class Version0002Date20190118124204 extends SimpleMigrationStep {
 
 
 	/**
@@ -53,18 +54,19 @@ class Version0002Date20191809094202 extends SimpleMigrationStep {
 	 *
 	 * @return ISchemaWrapper
 	 * @throws SchemaException
+	 * @throws DBALException
 	 */
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options
 	): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		foreach (Version0002Date20191809094201::$editToChar255 as $edit) {
+		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
 			if ($table->hasColumn($field) && $table->hasColumn($field . '_copy')) {
-				$table->dropColumn($field);
+				$table->dropColumn($field . '_copy');
 			}
 		}
 

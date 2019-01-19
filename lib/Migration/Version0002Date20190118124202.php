@@ -32,33 +32,18 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Schema\SchemaException;
-use Doctrine\DBAL\Types\Type;
 use OCP\DB\ISchemaWrapper;
-use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0001Date20181219000003
+ * Class Version0001Date20181219000002
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20191809094203 extends SimpleMigrationStep {
-
-
-	/** @var IDBConnection */
-	private $connection;
-
-
-	/**
-	 * @param IDBConnection $connection
-	 */
-	public function __construct(IDBConnection $connection) {
-		$this->connection = $connection;
-	}
+class Version0002Date20190118124202 extends SimpleMigrationStep {
 
 
 	/**
@@ -68,44 +53,22 @@ class Version0002Date20191809094203 extends SimpleMigrationStep {
 	 *
 	 * @return ISchemaWrapper
 	 * @throws SchemaException
-	 * @throws DBALException
 	 */
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options
 	): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		// -> VARCHAR(4000)
-		foreach (Version0002Date20191809094201::$editToChar255 as $edit) {
+		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
-			if ($table->hasColumn($field)) {
-				continue;
+			if ($table->hasColumn($field) && $table->hasColumn($field . '_copy')) {
+				$table->dropColumn($field);
 			}
-
-			$table->addColumn($field, Type::STRING, ['notnull' => false, 'length' => 255]);
 		}
 
 		return $schema;
-	}
-
-
-	/**
-	 * @param IOutput $output
-	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
-	 * @param array $options
-	 */
-	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
-
-		foreach (Version0002Date20191809094201::$editToChar255 as $edit) {
-			list($table, $field) = $edit;
-
-			$qb = $this->connection->getQueryBuilder();
-			$qb->update($table)
-			   ->set($field, $field . '_copy')
-			   ->execute();
-		}
 	}
 
 }

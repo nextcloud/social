@@ -35,7 +35,6 @@ use Closure;
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Type;
-use OCA\Social\Db\CoreRequestBuilder;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -43,11 +42,11 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0002Date20190108103942
+ * Class Version0001Date20181219000003
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190109084417 extends SimpleMigrationStep {
+class Version0002Date20190118124203 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -76,16 +75,17 @@ class Version0002Date20190109084417 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
-		if (!$table->hasColumn('attachments')) {
-			$table->addColumn('attachments', Type::TEXT, ['notnull' => false]);
-		}
+		// -> VARCHAR(4000)
+		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
+			list($tableName, $field) = $edit;
 
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS);
-		if (!$table->hasColumn('parent_id')) {
-			$table->addColumn('parent_id', Type::STRING, ['notnull' => false, 'length' => 255]);
+			$table = $schema->getTable($tableName);
+			if ($table->hasColumn($field)) {
+				continue;
+			}
+
+			$table->addColumn($field, Type::STRING, ['notnull' => false, 'length' => 255]);
 		}
-		$table->setPrimaryKey(['id']);
 
 		return $schema;
 	}
@@ -97,6 +97,15 @@ class Version0002Date20190109084417 extends SimpleMigrationStep {
 	 * @param array $options
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
+
+		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
+			list($table, $field) = $edit;
+
+			$qb = $this->connection->getQueryBuilder();
+			$qb->update($table)
+			   ->set($field, $field . '_copy')
+			   ->execute();
+		}
 	}
 
 }

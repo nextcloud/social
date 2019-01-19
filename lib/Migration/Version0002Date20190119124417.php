@@ -34,17 +34,32 @@ namespace OCA\Social\Migration;
 use Closure;
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Schema\SchemaException;
+use Doctrine\DBAL\Types\Type;
+use OCA\Social\Db\CoreRequestBuilder;
 use OCP\DB\ISchemaWrapper;
+use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0001Date20181219000004
+ * Class Version0002Date20190108103942
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20191809094204 extends SimpleMigrationStep {
+class Version0002Date20190119124417 extends SimpleMigrationStep {
+
+
+	/** @var IDBConnection */
+	private $connection;
+
+
+	/**
+	 * @param IDBConnection $connection
+	 */
+	public function __construct(IDBConnection $connection) {
+		$this->connection = $connection;
+	}
 
 
 	/**
@@ -61,16 +76,34 @@ class Version0002Date20191809094204 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		foreach (Version0002Date20191809094201::$editToChar255 as $edit) {
-			list($tableName, $field) = $edit;
-
-			$table = $schema->getTable($tableName);
-			if ($table->hasColumn($field) && $table->hasColumn($field . '_copy')) {
-				$table->dropColumn($field . '_copy');
-			}
+		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
+		if (!$table->hasColumn('attachments')) {
+			$table->addColumn('attachments', Type::TEXT, ['notnull' => false]);
 		}
+		$table->setPrimaryKey(['id']);
+
+		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS);
+		if (!$table->hasColumn('parent_id')) {
+			$table->addColumn('parent_id', Type::STRING, ['notnull' => false, 'length' => 255]);
+		}
+		$table->setPrimaryKey(['id']);
+
+		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_ACTORS);
+		$table->setPrimaryKey(['id']);
+
+		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_FOLLOWS);
+		$table->setPrimaryKey(['id']);
 
 		return $schema;
+	}
+
+
+	/**
+	 * @param IOutput $output
+	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
+	 * @param array $options
+	 */
+	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 	}
 
 }

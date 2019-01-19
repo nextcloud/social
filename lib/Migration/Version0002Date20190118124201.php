@@ -47,7 +47,7 @@ use OCP\Migration\SimpleMigrationStep;
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20191809094201 extends SimpleMigrationStep {
+class Version0002Date20190118124201 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
