@@ -31,7 +31,11 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use DateTime;
+use Exception;
 use JsonSerializable;
+use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 
 
@@ -51,6 +55,9 @@ class Note extends ACore implements JsonSerializable {
 
 	/** @var string */
 	private $attributedTo = '';
+
+	/** @var array */
+	private $attachments = [];
 
 	/** @var string */
 	private $inReplyTo = '';
@@ -134,6 +141,25 @@ class Note extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return array
+	 */
+	public function getAttachments(): array {
+		return $this->attachments;
+	}
+
+	/**
+	 * @param array $attachments
+	 *
+	 * @return Note
+	 */
+	public function setAttachments(array $attachments): Note {
+		$this->attachments = $attachments;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return bool
 	 */
 	public function isSensitive(): bool {
@@ -210,6 +236,44 @@ class Note extends ACore implements JsonSerializable {
 		$this->setConversation($this->validate(ACore::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
 		$this->convertPublished();
+
+		$this->importAttachments($this->getArray('attachment', $data, []));
+	}
+
+
+	public function importAttachments(array $list) {
+		foreach ($list as $item) {
+			try {
+				$attachment = AP::$activityPub->getItemFromData($item, $this);
+			} catch (Exception $e) {
+				continue;
+			}
+
+			if ($attachment->getType() !== Document::TYPE
+				&& $attachment->getType() !== Image::TYPE) {
+				continue;
+			}
+
+			try {
+				$attachment->setUrl(
+					$this->validateEntryString(ACore::AS_URL, $attachment->getUrl())
+				);
+			} catch (InvalidResourceEntryException $e) {
+				continue;
+			}
+
+			if ($attachment->getUrl() === '') {
+				continue;
+			}
+
+			try {
+				$interface = AP::$activityPub->getInterfaceFromType($attachment->getType());
+			} catch (ItemUnknownException $e) {
+				continue;
+			}
+
+			$interface->save($attachment);
+		}
 	}
 
 
@@ -224,6 +288,7 @@ class Note extends ACore implements JsonSerializable {
 		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));;
 
 		$this->setPublishedTime($dTime->getTimestamp());
+		$this->setAttachments($this->getArray('attachments', $data, []));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 	}
@@ -238,10 +303,10 @@ class Note extends ACore implements JsonSerializable {
 		return array_merge(
 			parent::jsonSerialize(),
 			[
-				'content' => $this->getContent(),
+				'content'      => $this->getContent(),
 				'attributedTo' => $this->getUrlSocial() . $this->getAttributedTo(),
-				'inReplyTo' => $this->getInReplyTo(),
-				'sensitive' => $this->isSensitive(),
+				'inReplyTo'    => $this->getInReplyTo(),
+				'sensitive'    => $this->isSensitive(),
 				'conversation' => $this->getConversation()
 			]
 		);

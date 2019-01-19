@@ -202,14 +202,6 @@ class AP {
 		} catch (ItemUnknownException $e) {
 		}
 
-		try {
-			// TODO: move to Model/Person if 'icon' is specific to Person object ?
-			/** @var Document $icon */
-			$icon = $this->getItemFromData($this->getArray('icon', $data, []), $item, $level);
-			$item->setIcon($icon);
-		} catch (ItemUnknownException $e) {
-		}
-
 		return $item;
 	}
 

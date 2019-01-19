@@ -31,9 +31,11 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
@@ -148,7 +150,11 @@ class ActorService {
 				$cache = $this->cacheDocumentsRequest->getByUrl($icon->getUrl());
 				$actor->setIcon($cache);
 			} catch (CacheDocumentDoesNotExistException $e) {
-				$this->cacheDocumentsRequest->save($actor->getIcon());
+				try {
+					$interface = AP::$activityPub->getInterfaceFromType($icon->getType());
+					$interface->save($icon);
+				} catch (ItemUnknownException $e) {
+				}
 			}
 		}
 	}
