@@ -242,6 +242,7 @@ class Note extends ACore implements JsonSerializable {
 
 
 	public function importAttachments(array $list) {
+		$new = [];
 		foreach ($list as $item) {
 			try {
 				$attachment = AP::$activityPub->getItemFromData($item, $this);
@@ -273,7 +274,10 @@ class Note extends ACore implements JsonSerializable {
 			}
 
 			$interface->save($attachment);
+			$new[] = $attachment;
 		}
+
+		$this->setAttachments($new);
 	}
 
 
@@ -300,7 +304,7 @@ class Note extends ACore implements JsonSerializable {
 	public function jsonSerialize(): array {
 		$this->addEntryInt('publishedTime', $this->getPublishedTime());
 
-		return array_merge(
+		$result = array_merge(
 			parent::jsonSerialize(),
 			[
 				'content'      => $this->getContent(),
@@ -310,6 +314,12 @@ class Note extends ACore implements JsonSerializable {
 				'conversation' => $this->getConversation()
 			]
 		);
+
+		if ($this->isCompleteDetails()) {
+			$result['attachment'] = $this->getAttachments();
+		}
+
+		return $result;
 	}
 
 }
