@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -114,6 +115,7 @@ class DocumentService {
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function cacheRemoteDocument(string $id, bool $public = false) {
 		$document = $this->cacheDocumentsRequest->getById($id, $public);

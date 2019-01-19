@@ -41,6 +41,7 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\RequestNetworkException;
 use OCA\Social\Exceptions\RequestResultSizeException;
@@ -133,6 +134,7 @@ class FollowService {
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
@@ -181,6 +183,7 @@ class FollowService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws UrlCloudException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);

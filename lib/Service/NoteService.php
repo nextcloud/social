@@ -43,6 +43,7 @@ use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -260,6 +261,7 @@ class NoteService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function replyTo(Note $note, string $replyTo) {
 		if ($replyTo === '') {
@@ -401,6 +403,7 @@ class NoteService {
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function getAuthorFromPostId($noteId) {
 		$note = $this->notesRequest->getNoteById($noteId);

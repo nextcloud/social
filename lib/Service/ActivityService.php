@@ -43,6 +43,7 @@ use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -265,6 +266,8 @@ class ActivityService {
 		try {
 			$this->signatureService->signRequest($request, $queue);
 			$this->curlService->request($request);
+			$this->queueService->endRequest($queue, true);
+		} catch (RequestResultNotJsonException $e) {
 			$this->queueService->endRequest($queue, true);
 		} catch (ActorDoesNotExistException $e) {
 			$this->miscService->log(

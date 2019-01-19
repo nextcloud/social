@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -147,6 +148,7 @@ class FollowInterface implements IActivityPubInterface {
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function processIncomingRequest(ACore $follow) {
 		/** @var Follow $follow */

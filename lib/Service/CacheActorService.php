@@ -40,6 +40,7 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\RequestNetworkException;
 use OCA\Social\Exceptions\RequestResultSizeException;
@@ -120,6 +121,7 @@ class CacheActorService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 
@@ -191,6 +193,7 @@ class CacheActorService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 

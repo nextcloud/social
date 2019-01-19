@@ -94,6 +94,12 @@ class SocialPubController extends Controller {
 		$this->navigationController = $navigationController;
 	}
 
+	/**
+	 * @param $username
+	 *
+	 * @return Response
+	 * @throws UrlCloudException
+	 */
 	private function renderPage($username): Response {
 		if ($this->userId) {
 			return $this->navigationController->navigate('');

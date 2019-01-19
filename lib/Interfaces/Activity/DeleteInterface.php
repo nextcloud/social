@@ -77,8 +77,8 @@ class DeleteInterface implements IActivityPubInterface {
 						$interface->delete($object);
 
 						return;
-					} catch (UnknownItemException $e) {
 					} catch (ItemNotFoundException $e) {
+					} catch (ItemUnknownException $e) {
 					}
 				}
 			}

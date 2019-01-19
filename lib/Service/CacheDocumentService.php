@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCP\Files\IAppData;
@@ -98,6 +99,7 @@ class CacheDocumentService {
 	 * @throws RequestNetworkException
 	 * @throws RequestServerException
 	 * @throws RequestResultSizeException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
@@ -191,6 +193,7 @@ class CacheDocumentService {
 	 * @throws RequestNetworkException
 	 * @throws RequestServerException
 	 * @throws RequestResultSizeException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function retrieveContent(string $url) {
 		$url = parse_url($url);
