@@ -1,5 +1,16 @@
 # Changelog
 
+
+## 0.1.3
+
+- [global] fixing an issue displaying timeline when opening details for a local account.
+- [global] provide more details in logs on async failure.
+- [federated] adding security @context on returned Actor.
+- [federated] signature can be 5min old (instead of 30s) to avoid issue on badly configured instance of Nextcloud.
+- [federated] webfinger will also check the host of the account.
+- [UI] do not clear post field on fail post creation. 
+
+
 ## 0.1.2
 
 - [global] Fix Host Header on proxy setup
