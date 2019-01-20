@@ -32,10 +32,7 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
-use OC\User\NoUserException;
 use OCA\Social\Db\NotesRequest;
-use OCA\Social\Exceptions\AccountAlreadyExistsException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -47,7 +44,6 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -117,22 +113,16 @@ class NoteService {
 
 
 	/**
-	 * @param string $userId
+	 * @param Person $actor
 	 * @param string $content
 	 *
 	 * @param string $type
 	 *
 	 * @return Note
-	 * @throws ActorDoesNotExistException
-	 * @throws NoUserException
 	 * @throws SocialAppConfigException
-	 * @throws AccountAlreadyExistsException
-	 * @throws UrlCloudException
 	 */
-	public function generateNote(string $userId, string $content, string $type) {
+	public function generateNote(Person $actor, string $content, string $type) {
 		$note = new Note();
-		$actor = $this->accountService->getActorFromUserId($userId);
-
 		$note->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
 		$note->setPublished(date("c"));
 		$note->setAttributedTo(

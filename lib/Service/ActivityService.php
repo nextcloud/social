@@ -131,7 +131,7 @@ class ActivityService {
 	 * @param ACore $activity
 	 *
 	 * @return string
-	 * @throws Exception
+	 * @throws SocialAppConfigException
 	 */
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
 

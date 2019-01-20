@@ -54,6 +54,7 @@ use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -68,6 +69,9 @@ class FollowInterface implements IActivityPubInterface {
 
 	/** @var CacheActorService */
 	private $cacheActorService;
+
+	/** @var AccountService */
+	private $accountService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -84,16 +88,19 @@ class FollowInterface implements IActivityPubInterface {
 	 *
 	 * @param FollowsRequest $followsRequest
 	 * @param CacheActorService $cacheActorService
+	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
-		ActivityService $activityService, ConfigService $configService, MiscService $miscService
+		AccountService $accountService, ActivityService $activityService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->cacheActorService = $cacheActorService;
+		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -128,8 +135,12 @@ class FollowInterface implements IActivityPubInterface {
 
 			$this->activityService->request($accept);
 			$this->followsRequest->accepted($follow);
+
+			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+			$this->accountService->cacheLocalActorDetailCount($actor);
 		} catch (Exception $e) {
 		}
+
 	}
 
 
@@ -155,9 +166,8 @@ class FollowInterface implements IActivityPubInterface {
 		$follow->checkOrigin($follow->getActorId());
 
 		try {
-			$knownFollow = $this->followsRequest->getByPersons(
-				$follow->getActorId(), $follow->getObjectId()
-			);
+			$knownFollow =
+				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
 
 			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
 				$this->confirmFollowRequest($follow);
