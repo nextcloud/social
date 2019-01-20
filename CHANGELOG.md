@@ -5,6 +5,7 @@
 
 - [global] fixing an issue displaying timeline when opening details for a local account.
 - [global] provide more details in logs on async failure.
+- [global] Cache refreshing on some events (new post, new follow)
 - [federated] adding security @context on returned Actor.
 - [federated] signature can be 5min old (instead of 30s) to avoid issue on badly configured instance of Nextcloud.
 - [federated] webfinger will also check the host of the account.
