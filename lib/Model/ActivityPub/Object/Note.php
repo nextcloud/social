@@ -35,7 +35,7 @@ use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 
 
-class Note extends ACore implements JsonSerializable {
+class Note extends Stream implements JsonSerializable {
 
 
 	const TYPE = 'Note';
