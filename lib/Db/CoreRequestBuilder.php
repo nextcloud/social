@@ -37,7 +37,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ConfigService;
@@ -63,7 +63,7 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
-	
+
 	/** @var IDBConnection */
 	protected $dbConnection;
 
