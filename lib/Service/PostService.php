@@ -30,9 +30,16 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use Exception;
-use OC\User\NoUserException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Post;
@@ -44,7 +51,7 @@ class PostService {
 	private $noteService;
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -57,16 +64,16 @@ class PostService {
 	 * PostService constructor.
 	 *
 	 * @param NoteService $noteService
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, AccountService $actorService, ActivityService $activityService,
+		NoteService $noteService, AccountService $accountService, ActivityService $activityService,
 		MiscService $miscService
 	) {
 		$this->noteService = $noteService;
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
 	}
@@ -77,23 +84,31 @@ class PostService {
 	 * @param ACore $activity
 	 *
 	 * @return string
-	 * @throws ActorDoesNotExistException
-	 * @throws NoUserException
 	 * @throws SocialAppConfigException
-	 * @throws Exception
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
+	 * @throws NoteNotFoundException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws MalformedArrayException
 	 */
 	public function createPost(Post $post, ACore &$activity = null): string {
 		$note =
 			$this->noteService->generateNote(
-				$post->getUserId(), htmlentities($post->getContent(), ENT_QUOTES), $post->getType()
+				$post->getActor(), htmlentities($post->getContent(), ENT_QUOTES), $post->getType()
 			);
-		
+
 		$this->noteService->replyTo($note, $post->getReplyTo());
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 
-		$actor = $this->actorService->getActorFromUserId($post->getUserId());
+		$result = $this->activityService->createActivity($post->getActor(), $note, $activity);
+		$this->accountService->cacheLocalActorDetailCount($post->getActor());
 
-		return $this->activityService->createActivity($actor, $note, $activity);
+		return $result;
 	}
 
 
