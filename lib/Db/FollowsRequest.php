@@ -34,7 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
