@@ -11,7 +11,7 @@ Some requirements in this alpha stage are that your Nextcloud:
 
 ![](img/screenshot.png)
 
-- **🙋 Find your friends:** No matter if they use Nextcloud, [🐘 Mastodon](https://joinmastodon.org), [🇫 Friendica](https://friendi.ca), and soon [✱ Diaspora](https://joindiaspora.com), [👹 MediaGoblin](https://www.mediagoblin.org) and more – you can follow them!
+- **🙋 Find your friends:** No matter if they use [☁ Nextcloud Social](https://github.com/nextcloud/social#nextcloud-social), [🐘 Mastodon](https://joinmastodon.org), [🇫 Friendica](https://friendi.ca), [📺 PeerTube](https://joinpeertube.org), [🅿️ Pleroma](https://pleroma.social) or [📷 PixelFed](https://pixelfed.org) – you can follow them!
 - **📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.
 - **👐 Own your posts:** Everything you post stays on your Nextcloud!
 - **🕸 Open standards:** We use the established [ActivityPub](https://en.wikipedia.org/wiki/ActivityPub) standard!
