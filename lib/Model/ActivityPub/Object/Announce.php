@@ -33,6 +33,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Stream;
 
 
 /**
@@ -40,12 +41,10 @@ use OCA\Social\Model\ActivityPub\ACore;
  *
  * @package OCA\Social\Model\ActivityPub\Object
  */
-class Announce extends ACore implements JsonSerializable {
+class Announce extends Stream implements JsonSerializable {
 
 
 	const TYPE = 'Announce';
-
-
 
 
 	/**

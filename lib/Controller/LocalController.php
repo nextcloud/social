@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -146,7 +147,7 @@ class LocalController extends Controller {
 			$post->setReplyTo($this->get('replyTo', $data, ''));
 			$post->setTo($this->getArray('to', $data, []));
 			$post->addTo($this->get('to', $data, ''));
-			$post->setType($this->get('type', $data, Note::TYPE_PUBLIC));
+			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
 
 			/** @var ACore $activity */
 			$token = $this->postService->createPost($post, $activity);
