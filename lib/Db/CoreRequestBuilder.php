@@ -148,6 +148,17 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * Limit the request to the ActivityId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $activityId
+	 */
+	protected function limitToActivityId(IQueryBuilder &$qb, string $activityId) {
+		$this->limitToDBField($qb, 'activity_id', $activityId, false);
+	}
+
+
+	/**
 	 * Limit the request to the Preferred Username
 	 *
 	 * @param IQueryBuilder $qb
