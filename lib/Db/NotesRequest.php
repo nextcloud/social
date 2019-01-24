@@ -158,6 +158,32 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
+	 * @param string $id
+	 *
+	 * @return Note
+	 * @throws NoteNotFoundException
+	 */
+	public function getNoteByActivityId(string $id): Note {
+		if ($id === '') {
+			throw new NoteNotFoundException();
+		};
+
+		$qb = $this->getNotesSelectSql();
+		$this->limitToActivityId($qb, $id);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new NoteNotFoundException('Post not found');
+		}
+
+		return $this->parseNotesSelectSql($data);
+	}
+
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int

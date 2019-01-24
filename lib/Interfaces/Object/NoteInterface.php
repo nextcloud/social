@@ -134,10 +134,9 @@ class NoteInterface implements IActivityPubInterface {
 		if ($activity->getType() === Create::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getAttributedTo());
+			$item->setActivityId($activity->getId());
 			$this->save($item);
 		}
-
-
 	}
 
 
