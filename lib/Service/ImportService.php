@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ActivityPubFormatException;
@@ -46,6 +47,7 @@ class ImportService {
 
 
 	use TArrayTools;
+	use TStringTools;
 
 
 	/** @var ConfigService */
@@ -94,6 +96,7 @@ class ImportService {
 	 */
 	public function parseIncomingRequest(ACore $activity) {
 		$activity->checkOrigin($activity->getId());
+		$activity->setRequestToken($this->uuid());
 
 		$interface = AP::$activityPub->getInterfaceForItem($activity);
 		try {

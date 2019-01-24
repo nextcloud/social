@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
+use daita\MySmallPhpTools\Traits\TStringTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -45,6 +46,7 @@ class ACore extends Item implements JsonSerializable {
 
 
 	use TArrayTools;
+	use TStringTools;
 	use TPathTools;
 
 
@@ -63,6 +65,9 @@ class ACore extends Item implements JsonSerializable {
 
 	/** @var null Item */
 	private $parent = null;
+
+	/** @var string */
+	private $requestToken = '';
 
 	/** @var array */
 	private $entries = [];
@@ -89,6 +94,30 @@ class ACore extends Item implements JsonSerializable {
 		if ($parent instanceof ACore) {
 			$this->setParent($parent);
 		}
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getRequestToken(): string {
+		if ($this->isRoot()) {
+			return $this->requestToken;
+		} else {
+			return $this->getRoot()
+						->getRequestToken();
+		}
+	}
+
+	/**
+	 * @param string $token
+	 *
+	 * @return ACore
+	 */
+	public function setRequestToken(string $token): ACore {
+		$this->requestToken = $token;
+
+		return $this;
 	}
 
 
@@ -237,12 +266,7 @@ class ACore extends Item implements JsonSerializable {
 			$base = $this->withoutEndSlash($this->withBeginSlash($base));
 		}
 
-		$uuid = sprintf(
-			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-		);
-
+		$uuid = $this->uuid();
 		$this->setId($url . $base . '/' . $uuid);
 	}
 
