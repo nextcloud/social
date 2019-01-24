@@ -34,7 +34,7 @@ use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\QueueService;
+use OCA\Social\Service\RequestQueueService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -46,8 +46,8 @@ class QueueStatus extends Base {
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var QueueService */
-	private $queueService;
+	/** @var RequestQueueService */
+	private $requestQueueService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -56,16 +56,16 @@ class QueueStatus extends Base {
 	/**
 	 * NoteCreate constructor.
 	 *
-	 * @param QueueService $queueService
+	 * @param RequestQueueService $requestQueueService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		QueueService $queueService, ConfigService $configService, MiscService $miscService
+		RequestQueueService $requestQueueService, ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
-		$this->queueService = $queueService;
+		$this->requestQueueService = $requestQueueService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -98,7 +98,7 @@ class QueueStatus extends Base {
 			throw new Exception('As of today, --token is mandatory');
 		}
 
-		$requests = $this->queueService->getRequestFromToken($token);
+		$requests = $this->requestQueueService->getRequestFromToken($token);
 
 		foreach ($requests as $request) {
 			$output->writeLn(json_encode($request));

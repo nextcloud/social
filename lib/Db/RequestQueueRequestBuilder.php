@@ -45,7 +45,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getQueueInsertSql(): IQueryBuilder {
+	protected function getRequestQueueInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->insert(self::TABLE_REQUEST_QUEUE);
 
@@ -58,7 +58,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getQueueUpdateSql(): IQueryBuilder {
+	protected function getRequestQueueUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->update(self::TABLE_REQUEST_QUEUE);
 
@@ -71,7 +71,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getQueueSelectSql(): IQueryBuilder {
+	protected function getRequestQueueSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
@@ -92,7 +92,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getQueueDeleteSql(): IQueryBuilder {
+	protected function getRequestQueueDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_REQUEST_QUEUE);
 
@@ -105,7 +105,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return RequestQueue
 	 */
-	protected function parseQueueSelectSql($data): RequestQueue {
+	protected function parseRequestQueueSelectSql($data): RequestQueue {
 		$queue = new RequestQueue();
 		$queue->importFromDatabase($data);
 
