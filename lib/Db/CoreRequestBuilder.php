@@ -63,6 +63,8 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
+	const TABLE_QUEUE_STREAM = 'social_queue_stream';
+
 
 	/** @var IDBConnection */
 	protected $dbConnection;

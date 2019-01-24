@@ -36,7 +36,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\QueueService;
+use OCA\Social\Service\RequestQueueService;
 use OCP\AppFramework\QueryException;
 
 
@@ -51,7 +51,7 @@ class Queue extends TimedJob {
 	/** @var ActivityService */
 	private $activityService;
 
-	/** @var QueueService */
+	/** @var RequestQueueService */
 	private $queueService;
 
 	/** @var MiscService */
@@ -75,7 +75,7 @@ class Queue extends TimedJob {
 		$app = new Application();
 		$c = $app->getContainer();
 
-		$this->queueService = $c->query(QueueService::class);
+		$this->queueService = $c->query(RequestQueueService::class);
 		$this->activityService = $c->query(ActivityService::class);
 		$this->miscService = $c->query(MiscService::class);
 

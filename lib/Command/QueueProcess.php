@@ -36,7 +36,8 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\QueueService;
+use OCA\Social\Service\RequestQueueService;
+use OCA\Social\Service\StreamQueueService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -47,8 +48,11 @@ class QueueProcess extends Base {
 	/** @var ActivityService */
 	private $activityService;
 
-	/** @var QueueService */
-	private $queueService;
+	/** @var StreamQueueService */
+	private $streamQueueService;
+
+	/** @var RequestQueueService */
+	private $requestQueueService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -61,18 +65,21 @@ class QueueProcess extends Base {
 	 * NoteCreate constructor.
 	 *
 	 * @param ActivityService $activityService
-	 * @param QueueService $queueService
+	 * @param RequestQueueService $requestQueueService
+	 * @param StreamQueueService $streamQueueService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityService $activityService, QueueService $queueService, ConfigService $configService,
+		ActivityService $activityService, RequestQueueService $requestQueueService,
+		StreamQueueService $streamQueueService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->activityService = $activityService;
-		$this->queueService = $queueService;
+		$this->requestQueueService = $requestQueueService;
+		$this->streamQueueService = $streamQueueService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -94,14 +101,24 @@ class QueueProcess extends Base {
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 
-		$requests = $this->queueService->getRequestStandby($total = 0);
+		$output->writeLn('processing requests queue');
+		$this->processRequestQueue($output);
 
-		$output->writeLn('found a total of ' . $total . ' requests in the queue');
+		$output->writeLn('processing stream queue');
+		$this->processStreamQueue($output);
+	}
+
+
+	private function processRequestQueue(OutputInterface $output) {
+		$total = 0;
+		$requests = $this->requestQueueService->getRequestStandby($total);
+
+		$output->writeLn('- found a total of ' . $total . ' requests in the queue');
 		if ($total === 0) {
 			return;
 		}
 
-		$output->writeLn(sizeof($requests) . ' are processable at this time');
+		$output->writeLn('- ' . sizeof($requests) . ' are processable at this time');
 		if (sizeof($requests) === 0) {
 			return;
 		}
@@ -119,5 +136,27 @@ class QueueProcess extends Base {
 		$output->writeLn('done');
 	}
 
-}
 
+	private function processStreamQueue(OutputInterface $output) {
+		$total = 0;
+		$items = $this->streamQueueService->getRequestStandby($total);
+
+		$output->writeLn('- found a total of ' . $total . ' not cached object in the queue');
+		if ($total === 0) {
+			return;
+		}
+
+		$output->writeLn('- ' . sizeof($items) . ' are processable at this time');
+		if (sizeof($items) === 0) {
+			return;
+		}
+
+		foreach ($items as $item) {
+			$output->write('.');
+			$this->streamQueueService->manageStreamQueue($item);
+		}
+
+		$output->writeLn('done');
+	}
+
+}

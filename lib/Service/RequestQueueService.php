@@ -41,7 +41,7 @@ use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 
 
-class QueueService {
+class RequestQueueService {
 
 
 	use TArrayTools;
@@ -58,7 +58,7 @@ class QueueService {
 
 
 	/**
-	 * QueueService constructor.
+	 * RequestQueueService constructor.
 	 *
 	 * @param RequestQueueRequest $requestQueueRequest
 	 * @param ConfigService $configService
