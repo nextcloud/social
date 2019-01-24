@@ -31,15 +31,32 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Object;
 
 
+use OCA\Social\Db\NotesRequest;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\StreamQueueService;
 
 
+/**
+ * Class AnnounceInterface
+ *
+ * @package OCA\Social\Interfaces\Object
+ */
 class AnnounceInterface implements IActivityPubInterface {
 
+
+	/** @var NotesRequest */
+	private $notesRequest;
+
+	/** @var StreamQueueService */
+	private $streamQueueService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -48,9 +65,15 @@ class AnnounceInterface implements IActivityPubInterface {
 	/**
 	 * AnnounceInterface constructor.
 	 *
+	 * @param NotesRequest $notesRequest
+	 * @param StreamQueueService $streamQueueService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(MiscService $miscService) {
+	public function __construct(
+		NotesRequest $notesRequest, StreamQueueService $streamQueueService, MiscService $miscService
+	) {
+		$this->notesRequest = $notesRequest;
+		$this->streamQueueService = $streamQueueService;
 		$this->miscService = $miscService;
 	}
 
@@ -60,25 +83,32 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function activity(Acore $activity, ACore $item) {
+		/** Stream $item */
+		// TODO: Manage Undo Activity
+		$this->miscService->log('activity: ' . json_encode($activity));
 	}
 
 
 	/**
 	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
 	 */
 	public function processIncomingRequest(ACore $item) {
-//		if (!$item->gotObject()) {
-//			return;
-//		}
-		$object = $item->getObjectId();
-		$this->miscService->log('___' . json_encode($object));
-//
-//		try {
-//			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
-//			$service->activity($item, $object);
-//		} catch (ItemUnknownException $e) {
-//		}
-//
+		/** @var Stream $item */
+		$item->checkOrigin($item->getId());
+
+		try {
+			$this->notesRequest->getNoteById($item->getId());
+		} catch (NoteNotFoundException $e) {
+			$objectId = $item->getObjectId();
+			$item->addCacheItem($objectId);
+			$this->notesRequest->save($item);
+
+			$this->streamQueueService->generateStreamQueue(
+				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
+			);
+		}
 	}
 
 
