@@ -64,6 +64,8 @@ class Announce extends Stream implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
+
+		$this->setAttributedTo($this->getActorId());
 	}
 
 
