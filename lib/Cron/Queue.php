@@ -37,6 +37,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\RequestQueueService;
+use OCA\Social\Service\StreamQueueService;
 use OCP\AppFramework\QueryException;
 
 
@@ -52,7 +53,10 @@ class Queue extends TimedJob {
 	private $activityService;
 
 	/** @var RequestQueueService */
-	private $queueService;
+	private $requestQueueService;
+
+	/** @var StreamQueueService */
+	private $streamQueueService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -75,18 +79,20 @@ class Queue extends TimedJob {
 		$app = new Application();
 		$c = $app->getContainer();
 
-		$this->queueService = $c->query(RequestQueueService::class);
+		$this->requestQueueService = $c->query(RequestQueueService::class);
+		$this->streamQueueService = $c->query(StreamQueueService::class);
 		$this->activityService = $c->query(ActivityService::class);
 		$this->miscService = $c->query(MiscService::class);
 
-		$this->manageQueue();
+		$this->manageRequestQueue();
+		$this->manageStreamQueue();
 	}
 
 
 	/**
 	 */
-	private function manageQueue() {
-		$requests = $this->queueService->getRequestStandby();
+	private function manageRequestQueue() {
+		$requests = $this->requestQueueService->getRequestStandby();
 		$this->activityService->manageInit();
 
 		foreach ($requests as $request) {
@@ -98,6 +104,16 @@ class Queue extends TimedJob {
 		}
 
 	}
+
+
+	private function manageStreamQueue() {
+		$items = $this->streamQueueService->getRequestStandby($total);
+
+		foreach ($items as $item) {
+			$this->streamQueueService->manageStreamQueue($item);
+		}
+	}
+
 
 }
 
