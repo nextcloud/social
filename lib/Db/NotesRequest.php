@@ -101,6 +101,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue('object_id', $qb->createNamedParameter($note->getObjectId()))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
 		   ->setValue(
 			   'instances', $qb->createNamedParameter(
