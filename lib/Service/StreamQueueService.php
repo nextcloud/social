@@ -148,7 +148,7 @@ class StreamQueueService {
 	public function manageStreamQueue(StreamQueue $queue) {
 
 		try {
-//			$this->initRequest($queue);
+			$this->initCache($queue);
 		} catch (QueueStatusException $e) {
 			return;
 		}
@@ -184,7 +184,11 @@ class StreamQueueService {
 		}
 
 		try {
-			$this->manageStreamCache($stream);
+			if ($this->manageStreamCache($stream)) {
+				$this->endCache($queue, true);
+			} else {
+				$this->endCache($queue, false);
+			}
 		} catch (SocialAppConfigException $e) {
 		}
 	}
@@ -193,9 +197,10 @@ class StreamQueueService {
 	/**
 	 * @param Stream $stream
 	 *
+	 * @return bool
 	 * @throws SocialAppConfigException
 	 */
-	private function manageStreamCache(Stream $stream) {
+	private function manageStreamCache(Stream $stream): bool {
 		$cache = $stream->getCache();
 
 		foreach ($cache->getItems() as $item) {
@@ -205,26 +210,55 @@ class StreamQueueService {
 			try {
 				$this->cacheItem($item);
 				$item->setStatus(StreamQueue::STATUS_SUCCESS);
-				$this->miscService->log('cached item: ' . json_encode($item));
 				$cache->updateItem($item);
 			} catch (NoteNotFoundException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
 					. $e->getMessage(), 1
 				);
-//				$cache->removeItem($item->getUrl());
+				$cache->removeItem($item->getUrl());
 			} catch (InvalidOriginException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
 					. $e->getMessage(), 1
 				);
-//				$cache->removeItem($item->getUrl());
+				$cache->removeItem($item->getUrl());
 			} catch (RequestContentException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
 					. $e->getMessage(), 1
 				);
-//				$cache->removeItem($item->getUrl());
+				$cache->removeItem($item->getUrl());
+			} catch (MalformedArrayException $e) {
+				$this->miscService->log(
+					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+					. $e->getMessage(), 1
+				);
+				$cache->removeItem($item->getUrl());
+			} catch (RedundancyLimitException $e) {
+				$this->miscService->log(
+					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+					. $e->getMessage(), 1
+				);
+				$cache->removeItem($item->getUrl());
+			} catch (InvalidResourceException $e) {
+				$this->miscService->log(
+					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+					. $e->getMessage(), 1
+				);
+				$cache->removeItem($item->getUrl());
+			} catch (RequestResultSizeException $e) {
+				$this->miscService->log(
+					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+					. $e->getMessage(), 1
+				);
+				$cache->removeItem($item->getUrl());
+			} catch (ItemUnknownException $e) {
+				$this->miscService->log(
+					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+					. $e->getMessage(), 1
+				);
+				$cache->removeItem($item->getUrl());
 			} catch (RequestNetworkException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
@@ -237,46 +271,16 @@ class StreamQueueService {
 					. $e->getMessage(), 1
 				);
 				$item->incrementError();
-			} catch (RequestResultSizeException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-//				$cache->removeItem($item->getUrl());
 			} catch (RequestServerException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
 					. $e->getMessage(), 1
 				);
 				$item->incrementError();
-			} catch (MalformedArrayException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-//				$cache->removeItem($item->getUrl());
-			} catch (ItemUnknownException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-//				$cache->removeItem($item->getUrl());
-			} catch (RedundancyLimitException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-//				$cache->removeItem($item->getUrl());
-			} catch (InvalidResourceException $e) {
-				$this->miscService->log(
-					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
-					. $e->getMessage(), 1
-				);
-//				$cache->removeItem($item->getUrl());
 			}
 		}
 
-//		$this->updateCache($stream, $cache);
+		return $this->updateCache($stream, $cache);
 	}
 
 
@@ -327,9 +331,20 @@ class StreamQueueService {
 	/**
 	 * @param Stream $stream
 	 * @param Cache $cache
+	 *
+	 * @return bool
 	 */
-	private function updateCache(Stream $stream, Cache $cache) {
+	private function updateCache(Stream $stream, Cache $cache): bool {
 		$this->notesRequest->updateCache($stream, $cache);
+
+		$done = true;
+		foreach ($cache->getItems() as $item) {
+			if ($item->getStatus() !== StreamQueue::STATUS_SUCCESS) {
+				$done = false;
+			}
+		}
+
+		return $done;
 	}
 
 
@@ -363,14 +378,6 @@ class StreamQueueService {
 	 * @param StreamQueue $queue
 	 */
 	private function deleteCache(StreamQueue $queue) {
-//		try {
-//			$stream = $this->notesRequest->getNoteById($queue->getStreamId());
-//			$cache = $stream->getCache();
-
-//			$cache->removeItem($queue->get)
-//		} catch (NoteNotFoundException $e) {
-//		}
-
 		$this->streamQueueRequest->delete($queue);
 	}
 

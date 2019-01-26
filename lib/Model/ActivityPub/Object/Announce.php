@@ -83,13 +83,6 @@ class Announce extends Stream implements JsonSerializable {
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
-		if ($this->isCompleteDetails()) {
-			array_merge(
-				$result,
-				[]
-			);
-		}
-
 		return $result;
 	}
 
