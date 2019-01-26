@@ -58,7 +58,6 @@ class ActivityPubController extends Controller {
 	use TAsync;
 
 
-
 	/** @var SocialPubController */
 	private $socialPubController;
 
@@ -236,7 +235,11 @@ class ActivityPubController extends Controller {
 			} catch (ItemUnknownException $e) {
 			}
 
-			return $this->success([]);
+			$this->async();
+			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
+
+			// or it will feed the logs.
+			exit();
 		} catch (SignatureIsGoneException $e) {
 			return $this->fail($e, [], Http::STATUS_GONE);
 		} catch (Exception $e) {
