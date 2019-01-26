@@ -261,6 +261,7 @@ class Stream extends ACore implements JsonSerializable {
 		$this->setInReplyTo($this->validate(self::AS_ID, 'inReplyTo', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
+		$this->setObjectId($this->get('object', $data, ''));
 		$this->setConversation($this->validate(self::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
 		$this->convertPublished();
@@ -276,8 +277,9 @@ class Stream extends ACore implements JsonSerializable {
 		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
 
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
-		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));;
+		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));
 		$this->setPublishedTime($dTime->getTimestamp());
+		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 
@@ -305,7 +307,7 @@ class Stream extends ACore implements JsonSerializable {
 		);
 
 		if ($this->isCompleteDetails()) {
-			array_merge(
+			$result = array_merge(
 				$result,
 				[
 					'cache' => $this->getCache()

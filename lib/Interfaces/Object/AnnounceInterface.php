@@ -98,17 +98,7 @@ class AnnounceInterface implements IActivityPubInterface {
 		/** @var Stream $item */
 		$item->checkOrigin($item->getId());
 
-		try {
-			$this->notesRequest->getNoteById($item->getId());
-		} catch (NoteNotFoundException $e) {
-			$objectId = $item->getObjectId();
-			$item->addCacheItem($objectId);
-			$this->notesRequest->save($item);
-
-			$this->streamQueueService->generateStreamQueue(
-				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
-			);
-		}
+		$this->save($item);
 	}
 
 
@@ -134,7 +124,17 @@ class AnnounceInterface implements IActivityPubInterface {
 	 */
 	public function save(ACore $item) {
 		/** @var Announce $item */
-//		$this->cacheDocumentsRequest->save($item);
+		try {
+			$this->notesRequest->getNoteById($item->getId());
+		} catch (NoteNotFoundException $e) {
+			$objectId = $item->getObjectId();
+			$item->addCacheItem($objectId);
+			$this->notesRequest->save($item);
+
+			$this->streamQueueService->generateStreamQueue(
+				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
+			);
+		}
 	}
 
 
@@ -142,7 +142,6 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
-//		$this->cacheDocumentsRequest->delete($item);
 	}
 
 
