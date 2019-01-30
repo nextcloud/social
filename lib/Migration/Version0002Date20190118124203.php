@@ -76,7 +76,7 @@ class Version0002Date20190118124203 extends SimpleMigrationStep {
 		$schema = $schemaClosure();
 
 		// -> VARCHAR(4000)
-		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
+		foreach (Version0002Date20190118124201::$editToChar2000 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
@@ -84,7 +84,7 @@ class Version0002Date20190118124203 extends SimpleMigrationStep {
 				continue;
 			}
 
-			$table->addColumn($field, Type::STRING, ['notnull' => false, 'length' => 255]);
+			$table->addColumn($field, Type::STRING, ['notnull' => false, 'length' => 2000]);
 		}
 
 		return $schema;
@@ -98,7 +98,7 @@ class Version0002Date20190118124203 extends SimpleMigrationStep {
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 
-		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
+		foreach (Version0002Date20190118124201::$editToChar2000 as $edit) {
 			list($table, $field) = $edit;
 
 			$qb = $this->connection->getQueryBuilder();

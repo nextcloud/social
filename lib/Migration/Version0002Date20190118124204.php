@@ -61,7 +61,7 @@ class Version0002Date20190118124204 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		foreach (Version0002Date20190118124201::$editToChar255 as $edit) {
+		foreach (Version0002Date20190118124201::$editToChar2000 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);

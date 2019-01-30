@@ -55,7 +55,7 @@ class Version0002Date20190118124201 extends SimpleMigrationStep {
 
 
 	/** @var array */
-	public static $editToChar255 = [
+	public static $editToChar2000 = [
 		[CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'id'],
 		[CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'url'],
 		[CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'local_copy'],
@@ -109,7 +109,7 @@ class Version0002Date20190118124201 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		foreach (self::$editToChar255 as $edit) {
+		foreach (self::$editToChar2000 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
@@ -129,7 +129,7 @@ class Version0002Date20190118124201 extends SimpleMigrationStep {
 	 * @param array $options
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
-		foreach (self::$editToChar255 as $edit) {
+		foreach (self::$editToChar2000 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$qb = $this->connection->getQueryBuilder();
