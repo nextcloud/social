@@ -274,6 +274,8 @@ class CurlService {
 		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 
+		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+
 		$this->maxDownloadSize =
 			$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * (1024 * 1024);
 		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
@@ -398,6 +400,7 @@ class CurlService {
 			);
 		}
 	}
+
 
 	/**
 	 * @param int $code
