@@ -128,6 +128,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	public function searchHashtags(string $hashtag): array {
 		$qb = $this->getHashtagsSelectSql();
 		$this->searchInHashtag($qb, $hashtag);
+		$this->limitResults($qb, 25);
 
 		$hashtags = [];
 		$cursor = $qb->execute();

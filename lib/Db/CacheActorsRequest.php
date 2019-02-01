@@ -250,6 +250,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->searchInAccount($qb, $search);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 		$this->leftJoinDetails($qb);
+		$this->limitResults($qb, 25);
 
 		$accounts = [];
 		$cursor = $qb->execute();

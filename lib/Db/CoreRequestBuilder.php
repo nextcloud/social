@@ -190,6 +190,16 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'token', $token);
 	}
 
+	/**
+	 * Limit the results to a given number
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $limit
+	 */
+	protected function limitResults(IQueryBuilder $qb, int $limit) {
+		$qb->setMaxResults($limit);
+	}
+
 
 	/**
 	 * Limit the request to the ActorId
