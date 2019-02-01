@@ -242,6 +242,7 @@ class ConfigService {
 		return $this->config->getSystemValue($key, '');
 	}
 
+
 	/**
 	 * @param string $cloudAddress
 	 */
@@ -277,13 +278,17 @@ class ConfigService {
 
 
 	/**
-	 * // TODO - check the Apps folder
+	 * @param string $path
 	 *
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function getUrlSocial(): string {
-		return $this->getCloudAddress() . '/apps/social/';
+	public function getUrlSocial(string $path = ''): string {
+		if ($path === '') {
+			$path = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+		}
+
+		return 'https://' . $this->getCloudAddress(true) . $path;
 	}
 
 
