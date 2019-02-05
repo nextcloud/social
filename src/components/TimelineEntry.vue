@@ -71,7 +71,7 @@ export default {
 			var actions = [
 				{
 					action: () => { this.$root.$emit('composer-reply', this.item) },
-					icon: 'icon-comment',
+					icon: 'icon-reply',
 					text: t('social', 'Reply to post')
 				}
 			]
@@ -183,6 +183,10 @@ export default {
 
 	.post-timestamp {
 		opacity: .7;
+	}
+
+	.icon-reply {
+		background-image: url(../../img/reply.svg);
 	}
 </style>
 <style>
