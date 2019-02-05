@@ -492,19 +492,31 @@ export default {
 				var em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
+			let content = element.innerText.trim()
 			let to = []
-			const re = /@(([\w-_.]+)(@[\w-.]+)?)/g
+			let hashtags = []
+			const mentionRegex = /@(([\w-_.]+)(@[\w-.]+)?)/g
 			let match = null
 			do {
-				match = re.exec(element.innerText)
+				match = mentionRegex.exec(content)
 				if (match) {
 					to.push(match[1])
 				}
 			} while (match)
-			let content = element.innerText.trim()
+
+			const hashtagRegex = /#([\w-_.]+)/g
+			match = null
+			do {
+				match = hashtagRegex.exec(content)
+				if (match) {
+					hashtags.push(match[1])
+				}
+			} while (match)
+
 			return {
 				content: content,
 				to: to,
+				hashtags: hashtags,
 				type: this.type
 			}
 		},

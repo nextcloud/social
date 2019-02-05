@@ -61,6 +61,9 @@ class Post implements JsonSerializable {
 	/** @var string */
 	private $type = '';
 
+	/** @var array */
+	private $hashtags = [];
+
 
 	/**
 	 * Post constructor.
@@ -143,6 +146,25 @@ class Post implements JsonSerializable {
 	 */
 	public function setType(string $type): Post {
 		$this->type = $type;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function getHashtags(): array {
+		return $this->hashtags;
+	}
+
+	/**
+	 * @param array $hashtags
+	 *
+	 * @return Post
+	 */
+	public function setHashtags(array $hashtags): Post {
+		$this->hashtags = $hashtags;
 
 		return $this;
 	}

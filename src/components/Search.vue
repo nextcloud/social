@@ -22,23 +22,34 @@
 
 <template>
 	<div class="social__wrapper">
-		<div v-if="allResults.length < 1" id="emptycontent" :class="{'icon-loading': loading || remoteLoading}">
+		<div v-if="allResults.length < 1 && hashtags.length < 1" id="emptycontent" :class="{'icon-loading': loading || remoteLoading}">
 			<div v-if="!loading" class="icon-search" />
 			<h2 v-if="!loading">
-				{{ t('social', 'No accounts found') }}
+				{{ t('social', 'No results found') }}
 			</h2>
 			<p v-if="!loading">
-				No accounts found for {{ term }}
+				{{ t('social', 'There were no results for your search:') }} {{ term }}
 			</p>
 		</div>
-		<div v-if="allResults.length > 0">
+		<div v-else>
 			<h3>{{ t('social', 'Searching for') }} {{ term }}</h3>
 			<user-entry v-for="result in allResults" :key="result.id" :item="result" />
+			<div v-if="hashtags.length > 0">
+				<li v-for="tag in hashtags" :key="tag.hashtag" class="tag">
+					<router-link :to="{ name: 'tags', params: {tag: tag.hashtag } }">
+						<span>#{{ tag.hashtag }}</span>
+						<trend
+							:data="trendData(tag.trend)"
+							:gradient="['#17adff', '#0082c9']" :smooth="true" :width="150"
+							:height="44" stroke-width="2" />
+					</router-link>
+				</li>
+			</div>
 		</div>
 	</div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 	.user-entry {
 		padding: 0;
 	}
@@ -47,17 +58,35 @@
 		margin-top: -3px;
 		margin-left: 47px;
 	}
+	.tag {
+		list-style-type: none;
+		margin: 0;
+		padding: 0;
+		border-bottom: 1px solid var(--color-background-dark);
+
+		a {
+			display: flex;
+			span {
+				display: inline-block;
+				padding: 12px;
+				font-weight: 300;
+				flex-grow: 1;
+			}
+		}
+	}
 </style>
 
 <script>
 
 import UserEntry from './UserEntry'
 import axios from 'nextcloud-axios'
+import Trend from 'vuetrend'
 
 export default {
 	name: 'Search',
 	components: {
-		UserEntry
+		UserEntry,
+		Trend
 	},
 	props: {
 		term: {
@@ -67,18 +96,19 @@ export default {
 	},
 	data() {
 		return {
-			results: [],
+			results: {},
 			loading: false,
 			remoteLoading: false,
-			match: null
+			match: null,
+			hashtags: []
 		}
 	},
 	computed: {
 		allResults() {
-			if (!this.match) {
-				return this.results
+			if (this.results.accounts) {
+				return this.results.accounts.result
 			}
-			return [this.match, ...this.results.filter((item) => item.id !== this.match.id)]
+			return []
 		}
 	},
 	watch: {
@@ -90,35 +120,38 @@ export default {
 		this.search(this.term)
 	},
 	methods: {
+		trendData(trend) {
+			const data = [
+				Math.max(0, trend['10d'] - trend['3d']),
+				Math.max(0, trend['3d'] - trend['1d']),
+				Math.max(0, trend['1d'] - trend['12h']),
+				Math.max(0, trend['12h'] - trend['1h']),
+				Math.max(0, trend['1h'])
+			]
+			return data
+		},
 		search(val) {
 			if (this.loading) {
 				return
 			}
 			this.loading = true
-			const re = /((\w+)(@[\w.]+)+)/g
-			if (val.match(re) && !this.remoteLoading) {
-				this.remoteLoading = true
-				this.remoteSearch(val).then((response) => {
-					this.match = response.data.result.account
-					this.$store.commit('addAccount', { actorId: this.match.id, data: this.match })
-					this.remoteLoading = false
-				}).catch((e) => {
-					this.remoteLoading = false
-					this.match = null
-				})
-			}
-			this.accountSearch(val).then((response) => {
-				this.results = response.data.result.accounts
+			this.searchQuery(val).then((response) => {
+				this.results = response.data.result
 				this.loading = false
-				this.results.forEach((account) => {
+
+				this.results.accounts.result.forEach((account) => {
 					this.$store.commit('addAccount', { actorId: account.id, data: account })
 				})
+				this.hashtags = this.results.hashtags.result
 			})
-
 		},
 		accountSearch(term) {
 			this.loading = true
 			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + term))
+		},
+		searchQuery(term) {
+			this.loading = true
+			return axios.get(OC.generateUrl('apps/social/api/v1/search?search=' + term))
 		},
 		remoteSearch(term) {
 			return axios.get(OC.generateUrl('apps/social/api/v1/global/account/info?account=' + term))

@@ -37,6 +37,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -54,6 +55,9 @@ class CacheRefresh extends Base {
 	/** @var DocumentService */
 	private $documentService;
 
+	/** @var HashtagService */
+	private $hashtagService;
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -67,18 +71,21 @@ class CacheRefresh extends Base {
 	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
 	 * @param DocumentService $documentService
+	 * @param HashtagService $hashtagService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $accountService, CacheActorService $cacheActorService,
-		DocumentService $documentService, ConfigService $configService, MiscService $miscService
+		AccountService $actorService, CacheActorService $cacheActorService,
+		DocumentService $documentService, HashtagService $hashtagService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
+		$this->hashtagService = $hashtagService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -116,6 +123,9 @@ class CacheRefresh extends Base {
 
 		$result = $this->documentService->manageCacheDocuments();
 		$output->writeLn($result . ' documents cached');
+
+		$result = $this->hashtagService->manageHashtags();
+		$output->writeLn($result . ' hashtags updated');
 	}
 
 
