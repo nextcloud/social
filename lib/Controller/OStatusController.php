@@ -42,7 +42,10 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
+use OCP\IUserManager;
+use OCP\IUserSession;
 
 
 class OStatusController extends Controller {
@@ -64,6 +67,9 @@ class OStatusController extends Controller {
 	/** @var MiscService */
 	private $miscService;
 
+	/** @var IUserManager */
+	private $userSession;
+
 
 	/**
 	 * OStatusController constructor.
@@ -76,7 +82,7 @@ class OStatusController extends Controller {
 	 */
 	public function __construct(
 		IRequest $request, CacheActorService $cacheActorService, AccountService $accountService,
-		CurlService $curlService, MiscService $miscService
+		CurlService $curlService, MiscService $miscService, IUserSession $userSession
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -84,6 +90,7 @@ class OStatusController extends Controller {
 		$this->accountService = $accountService;
 		$this->curlService = $curlService;
 		$this->miscService = $miscService;
+		$this->userSession = $userSession;
 	}
 
 
@@ -131,10 +138,24 @@ class OStatusController extends Controller {
 				throw new RetrieveAccountFormatException();
 			}
 
+			$user = $this->userSession->getUser();
+			if ($user === null) {
+				return $this->fail('Failed to retrieve current user');
+			}
+
 			$template = $this->get('template', $link, '');
 			$url = str_replace('{uri}', $following->getAccount(), $template);
 
-			return $this->success(['url' => $url]);
+			return new TemplateResponse('social', 'ostatus', [
+				'serverData' => [
+					'url' => $url,
+					'account' => $account,
+					'currentUser' => [
+						'uid' => $user->getUID(),
+						'displayName' => $user->getDisplayName(),
+					]
+				]
+			], 'guest');
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
