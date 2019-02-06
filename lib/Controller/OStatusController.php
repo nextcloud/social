@@ -107,7 +107,20 @@ class OStatusController extends Controller {
 		try {
 			$actor = $this->cacheActorService->getFromAccount($uri);
 
-			return $this->success([$actor]);
+			$user = $this->userSession->getUser();
+			if ($user === null) {
+				return $this->fail('Failed to retrieve current user');
+			}
+
+			return new TemplateResponse('social', 'ostatus', [
+				'serverData' => [
+					'account' => $actor->getAccount(),
+					'currentUser' => [
+						'uid' => $user->getUID(),
+						'displayName' => $user->getDisplayName(),
+					]
+				]
+			], 'guest');
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -117,6 +130,30 @@ class OStatusController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
+	 * @PublicPage
+	 *
+	 * @param string $local
+	 * @return Response
+	 */
+	public function followRemote(string $local): Response {
+		try {
+			$following = $this->accountService->getActor($local);
+
+			return new TemplateResponse('social', 'ostatus', [
+				'serverData' => [
+					'local' => $local,
+					'account' => $following->getAccount()
+				]
+			], 'guest');
+		} catch (\Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $local
 	 * @param string $account
@@ -138,24 +175,10 @@ class OStatusController extends Controller {
 				throw new RetrieveAccountFormatException();
 			}
 
-			$user = $this->userSession->getUser();
-			if ($user === null) {
-				return $this->fail('Failed to retrieve current user');
-			}
-
 			$template = $this->get('template', $link, '');
 			$url = str_replace('{uri}', $following->getAccount(), $template);
 
-			return new TemplateResponse('social', 'ostatus', [
-				'serverData' => [
-					'url' => $url,
-					'account' => $account,
-					'currentUser' => [
-						'uid' => $user->getUID(),
-						'displayName' => $user->getDisplayName(),
-					]
-				]
-			], 'guest');
+			return $this->success(['url' => $url]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
