@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "berichten",
     "following" : "volgend",
     "followers" : "volgers",
-    "No accounts found" : "Geen accounts gevonden",
     "Searching for" : "Zoeken naar",
     "No posts found" : "Geen berichten gevonden",
     "Posts from people you follow will show up here" : "Berichten van mensen die je volgt, worden hier getoond",

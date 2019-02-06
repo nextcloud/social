@@ -17,7 +17,6 @@ OC.L10N.register(
     "Follow" : "Követ",
     "posts" : "Küldések",
     "following" : "további",
-    "No accounts found" : "Nincsenek ilyen felhasználói fiókok",
     "Searching for" : "Keress",
     "No posts found" : "Nem található hozzászólás",
     "No direct messages found" : "Nem található közvetlen üzenet",

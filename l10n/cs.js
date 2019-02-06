@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "příspěvky",
     "following" : "následují",
     "followers" : "odběratelé",
-    "No accounts found" : "Nenalezeny žádné účty",
     "Searching for" : "Hledání",
     "No posts found" : "Nenalezeny žádné příspěvky",
     "Posts from people you follow will show up here" : "Příspěvky od lidí, které odebíráte, se zobrazí zde",

@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "ileti",
     "following" : "takip edilenler",
     "followers" : "takip edenler",
-    "No accounts found" : "Herhangi bir hesap bulunamadı",
     "Searching for" : "Şu ifade aranıyor",
     "No posts found" : "Herhangi bir ileti bulunamadı",
     "Posts from people you follow will show up here" : "Takip ettiğiniz kişilerin iletileri burada görüntülenir",

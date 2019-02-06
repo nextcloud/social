@@ -31,7 +31,6 @@ OC.L10N.register(
     "posts" : "julkaisut",
     "following" : "seuraa",
     "followers" : "seuraajat",
-    "No accounts found" : "Tilejä ei löytynyt",
     "Searching for" : "Haetaan",
     "No posts found" : "Julkaisuja ei löytynyt",
     "Posts from people you follow will show up here" : "Seuraamiesi käyttäjien julkaisut näkyvät täällä",

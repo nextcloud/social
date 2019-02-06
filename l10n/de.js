@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "Posts",
     "following" : "Folge ich",
     "followers" : "Followers",
-    "No accounts found" : "Keine Konten gefunden",
     "Searching for" : "Suchen nach",
     "No posts found" : "Keine Posts gefunden",
     "Posts from people you follow will show up here" : "Posts von Personen denen Du folgst werden hier angezeigt",

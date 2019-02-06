@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "mensaxes",
     "following" : "seguindo",
     "followers" : "seguidoras",
-    "No accounts found" : "Non se atoparon contas",
     "Searching for" : "Buscando",
     "No posts found" : "Non se atoparon mensaxes",
     "Posts from people you follow will show up here" : "As publicacións da xente que vostede segue amosaranse aquí",

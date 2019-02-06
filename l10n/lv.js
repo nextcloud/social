@@ -27,7 +27,6 @@ OC.L10N.register(
     "posts" : "ieraksts",
     "following" : "seko",
     "followers" : "sekotāji",
-    "No accounts found" : "Konti nav atrasti",
     "Searching for" : "Meklēt",
     "No posts found" : "Atrasta jauns ieraksts",
     "No direct messages found" : "Tiešie ziņojumi nav atrasti",

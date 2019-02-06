@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "commenti",
     "following" : "segui già",
     "followers" : "seguaci",
-    "No accounts found" : "Nessun account trovato",
     "Searching for" : "Ricerca",
     "No posts found" : "Nessun commento trovato",
     "Posts from people you follow will show up here" : "Commenti da persone che segui saranno mostrati qui",

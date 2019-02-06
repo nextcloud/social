@@ -29,7 +29,6 @@ OC.L10N.register(
     "posts" : "Публикации",
     "following" : "последователи",
     "followers" : "Последователи",
-    "No accounts found" : "Не е открит профил",
     "Searching for" : "Търсене за",
     "No posts found" : "Не са открити публикации",
     "Posts from people you follow will show up here" : "Публикации от хора, които следваш ще откриеш тук",

@@ -34,7 +34,6 @@ OC.L10N.register(
     "posts" : "messages",
     "following" : "suivi",
     "followers" : "abonnés",
-    "No accounts found" : "Aucun compte trouvé",
     "Searching for" : "Recherche de",
     "No posts found" : "Aucun message trouvé",
     "Posts from people you follow will show up here" : "Les messages des personnes que vous suivez apparaitront ici",

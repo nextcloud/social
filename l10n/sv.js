@@ -33,7 +33,6 @@ OC.L10N.register(
     "posts" : "Inlägg",
     "following" : "följer",
     "followers" : "följare",
-    "No accounts found" : "Inga konton hittades",
     "Searching for" : "Sök efter",
     "No posts found" : "Inga inlägg hittades",
     "Posts from people you follow will show up here" : "Inlägg från personer du följer visas här",
