@@ -7,7 +7,8 @@ module.exports = {
 	output: {
 		path: path.resolve(__dirname, './js'),
 		publicPath: '/js/',
-		filename: 'social.js'
+		filename: 'social.js',
+		chunkFilename: '[name].[chunkhash].js'
 	},
 	module: {
 		rules: [
