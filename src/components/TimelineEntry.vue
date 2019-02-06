@@ -25,16 +25,19 @@
 				</div>
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="post-message" v-html="formatedMessage" />
+				<div v-click-outside="hidePopoverMenu" class="post-actions">
+					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
+					<div v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
+						<a class="icon-more" @click.prevent="togglePopoverMenu" />
+						<div :class="{open: menuOpened}" class="popovermenu">
+							<popover-menu :menu="popoverMenu" />
+						</div>
+					</div>
+				</div>
 			</div>
 			<div>
 				<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
 					{{ relativeTimestamp }}
-				</div>
-				<div v-click-outside="hidePopoverMenu" class="post-actions">
-					<a class="icon-more" @click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu">
-						<popover-menu :menu="popoverMenu" />
-					</div>
 				</div>
 			</div>
 		</div>
@@ -69,11 +72,6 @@ export default {
 	computed: {
 		popoverMenu() {
 			var actions = [
-				{
-					action: () => { this.$root.$emit('composer-reply', this.item) },
-					icon: 'icon-reply',
-					text: t('social', 'Reply to post')
-				}
 			]
 			if (this.item.actor_info.account === this.cloudId) {
 				actions.push(
@@ -118,6 +116,9 @@ export default {
 	methods: {
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
+		},
+		reply() {
+			this.$root.$emit('composer-reply', this.item)
 		}
 	}
 }
@@ -126,10 +127,6 @@ export default {
 	.timeline-entry {
 		padding: 10px;
 		margin-bottom: 10px;
-	}
-
-	.social__welcome h3 {
-		margin-top: 0;
 	}
 
 	.post-author {
@@ -158,15 +155,24 @@ export default {
 	}
 
 	.post-actions {
-		position: relative;
-		width: 44px;
+		margin-left: -13px;
 		height: 44px;
-		float: right;
 
+		.post-actions-more {
+			position: relative;
+			width: 44px;
+			height: 34px;
+			display: inline-block;
+		}
+		.icon-reply,
 		.icon-more {
 			display: inline-block;
 			width: 44px;
-			height: 44px;
+			height: 34px;
+			opacity: .5;
+			&:hover, &:focus {
+				opacity: 1;
+			}
 		}
 	}
 
@@ -183,10 +189,6 @@ export default {
 
 	.post-timestamp {
 		opacity: .7;
-	}
-
-	.icon-reply {
-		background-image: url(../../img/reply.svg);
 	}
 </style>
 <style>

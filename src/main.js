@@ -29,6 +29,8 @@ import router from './router'
 import vuetwemoji from 'vue-twemoji'
 import contenteditableDirective from 'vue-contenteditable-directive'
 import ClickOutside from 'vue-click-outside'
+import VTooltip from 'v-tooltip'
+
 sync(store, router)
 
 // CSP config for webpack dynamic chunk loading
@@ -46,6 +48,7 @@ Vue.prototype.OC = OC
 Vue.prototype.OCA = OCA
 
 Vue.directive('ClickOutside', ClickOutside)
+Vue.use(VTooltip)
 Vue.use(contenteditableDirective)
 Vue.use(vuetwemoji, {
 	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/
