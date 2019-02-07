@@ -12,7 +12,7 @@ cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=alpha1
 codecov_token_dir=$(HOME)/.nextcloud/codecov_token
-version+=0.1.3
+version+=0.1.4
 
 
 

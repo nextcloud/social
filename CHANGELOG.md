@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.1.4
+
+- [federated] the app now accept redirection on outgoing request.
+- [global] the app is now compatible with custom apps folder.
+- [UI] cache issue on some setup should also be fixed.
+
+
 ## 0.1.3
 
 - [global] fixing an issue displaying timeline when opening details for a local account.
