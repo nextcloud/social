@@ -354,9 +354,21 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			$note->setCompleteDetails(true);
 			$note->setActor($actor);
 		} catch (InvalidResourceException $e) {
+			$this->deleteNoteById($note->getId());
 		}
 
 		return $note;
+	}
+
+
+	/**
+	 * @param string $id
+	 */
+	public function deleteNoteById(string $id) {
+		$qb = $this->getNotesDeleteSql();
+		$this->limitToIdString($qb, $id);
+
+		$qb->execute();
 	}
 
 }

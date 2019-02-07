@@ -364,16 +364,5 @@ class NotesRequest extends NotesRequestBuilder {
 		return $notes;
 	}
 
-
-	/**
-	 * @param string $id
-	 */
-	public function deleteNoteById(string $id) {
-		$qb = $this->getNotesDeleteSql();
-		$this->limitToIdString($qb, $id);
-
-		$qb->execute();
-	}
-
 }
 
