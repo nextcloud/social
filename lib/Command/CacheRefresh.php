@@ -76,7 +76,7 @@ class CacheRefresh extends Base {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $actorService, CacheActorService $cacheActorService,
+		AccountService $accountService, CacheActorService $cacheActorService,
 		DocumentService $documentService, HashtagService $hashtagService,
 		ConfigService $configService, MiscService $miscService
 	) {
