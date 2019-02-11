@@ -72,11 +72,13 @@ class DeleteInterface implements IActivityPubInterface {
 				$types = ['Note', 'Person'];
 				foreach ($types as $type) {
 					try {
+						$item->checkOrigin($item->getObjectId());
 						$interface = AP::$activityPub->getInterfaceForItem($type);
 						$object = $interface->getItemById($item->getObjectId());
 						$interface->delete($object);
 
 						return;
+					} catch (InvalidOriginException $e) {
 					} catch (ItemNotFoundException $e) {
 					} catch (ItemUnknownException $e) {
 					}
@@ -88,8 +90,10 @@ class DeleteInterface implements IActivityPubInterface {
 
 		$object = $item->getObject();
 		try {
+			$item->checkOrigin($object->getId());
 			$interface = AP::$activityPub->getInterfaceForItem($object);
 			$interface->delete($object);
+		} catch (InvalidOriginException $e) {
 		} catch (ItemUnknownException $e) {
 		}
 	}

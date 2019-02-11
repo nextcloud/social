@@ -375,5 +375,16 @@ class NotesRequest extends NotesRequestBuilder {
 		$qb->execute();
 	}
 
+
+	/**
+	 * @param string $actorId
+	 */
+	public function deleteByAuthor(string $actorId) {
+		$qb = $this->getNotesDeleteSql();
+		$this->limitToAttributedTo($qb, $actorId);
+
+		$qb->execute();
+	}
+
 }
 
