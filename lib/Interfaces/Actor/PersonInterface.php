@@ -171,6 +171,5 @@ class PersonInterface implements IActivityPubInterface {
 		$this->cacheActorsRequest->deleteFromId($item->getId());
 	}
 
-
 }
 
