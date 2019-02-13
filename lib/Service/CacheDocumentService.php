@@ -33,6 +33,7 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
@@ -52,6 +53,7 @@ class CacheDocumentService {
 
 
 	use TArrayTools;
+	use TStringTools;
 
 
 	/** @var IAppData */
@@ -103,11 +105,7 @@ class CacheDocumentService {
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
-		$filename = sprintf(
-			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-		);
+		$filename = $this->uuid();
 
 		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
 		$path = chunk_split(substr($filename, 0, 8), 2, '/');

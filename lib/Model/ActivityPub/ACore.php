@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
+use daita\MySmallPhpTools\Traits\TStringTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -45,6 +46,7 @@ class ACore extends Item implements JsonSerializable {
 
 
 	use TArrayTools;
+	use TStringTools;
 	use TPathTools;
 
 
@@ -238,11 +240,7 @@ class ACore extends Item implements JsonSerializable {
 			$base = $this->withoutEndSlash($this->withBeginSlash($base));
 		}
 
-		$uuid = sprintf(
-			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-		);
+		$uuid = $this->uuid();
 
 		$this->setId($url . $base . '/' . $uuid);
 	}
