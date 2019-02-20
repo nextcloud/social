@@ -59,8 +59,8 @@ lint-fix:
 # Cleaning
 clean:
 	rm -rf $(build_dir)
-	rm -f js/social.js
-	rm -f js/social.js.map
+	rm -fr js/
+	mkdir js/
 
 clean-dev:
 	rm -rf node_modules
