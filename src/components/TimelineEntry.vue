@@ -29,7 +29,7 @@
 					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 					<div v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 						<a class="icon-more" @click.prevent="togglePopoverMenu" />
-						<div :class="{open: menuOpened}" class="popovermenu">
+						<div :class="{open: menuOpened}" class="popovermenu menu-center">
 							<popover-menu :menu="popoverMenu" />
 						</div>
 					</div>
