@@ -33,11 +33,13 @@ namespace OCA\Social\Interfaces\Actor;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ActorService;
@@ -59,6 +61,9 @@ class PersonInterface implements IActivityPubInterface {
 	/** @var CacheActorsRequest */
 	private $cacheActorsRequest;
 
+	/** @var NotesRequest */
+	private $notesRequest;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -73,15 +78,17 @@ class PersonInterface implements IActivityPubInterface {
 	 * UndoService constructor.
 	 *
 	 * @param CacheActorsRequest $cacheActorsRequest
+	 * @param NotesRequest $notesRequest
 	 * @param ActorService $actorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheActorsRequest $cacheActorsRequest, ActorService $actorService,
-		ConfigService $configService, MiscService $miscService
+		CacheActorsRequest $cacheActorsRequest, NotesRequest $notesRequest,
+		ActorService $actorService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
+		$this->notesRequest = $notesRequest;
 		$this->actorService = $actorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -141,34 +148,39 @@ class PersonInterface implements IActivityPubInterface {
 	 */
 	public function activity(Acore $activity, ACore $item) {
 		/** @var Person $item */
+		$activity->checkOrigin($item->getId());
 
 		if ($activity->getType() === Update::TYPE) {
-			$activity->checkOrigin($item->getId());
-			$item->setCreation($activity->getOriginCreationTime());
-
-			try {
-				$current = $this->cacheActorsRequest->getFromId($item->getId());
-				if ($current->getCreation() < $activity->getOriginCreationTime()) {
-					$this->cacheActorsRequest->update($item);
-				}
-			} catch (CacheActorDoesNotExistException $e) {
-				$this->cacheActorsRequest->save($item);
-			}
-
+			$this->updateActor($item, $activity);
 		}
 	}
 
 
 	/**
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
 	 */
 	public function delete(ACore $item) {
-		$item->checkOrigin(($item->getId()));
-
 		/** @var Person $item */
 		$this->cacheActorsRequest->deleteFromId($item->getId());
+		$this->notesRequest->deleteByAuthor($item->getId());
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param ACore $activity
+	 */
+	private function updateActor(Person $actor, ACore $activity) {
+		$actor->setCreation($activity->getOriginCreationTime());
+
+		try {
+			$current = $this->cacheActorsRequest->getFromId($actor->getId());
+			if ($current->getCreation() < $activity->getOriginCreationTime()) {
+				$this->cacheActorsRequest->update($actor);
+			}
+		} catch (CacheActorDoesNotExistException $e) {
+			$this->cacheActorsRequest->save($actor);
+		}
 	}
 
 }
