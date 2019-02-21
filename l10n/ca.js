@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "missatges",
     "following" : "seguint",
     "followers" : "seguidors",
-    "No accounts found" : "Cap compte trobat",
     "Searching for" : "Buscant",
     "No posts found" : "No s'han trobat missatges",
     "Posts from people you follow will show up here" : "Missatges de persones que segueix es mostraràn aquí",

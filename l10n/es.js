@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "entradas",
     "following" : "siguiendo",
     "followers" : "seguidores",
-    "No accounts found" : "No se sigue a ninguna cuenta",
     "Searching for" : "Buscando",
     "No posts found" : "No se han encontrado entradas",
     "Posts from people you follow will show up here" : "Las entradas de gente a la que sigues aparecerán aquí",

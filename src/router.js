@@ -49,7 +49,13 @@ export default new Router({
 				default: Timeline
 			},
 			props: true,
-			name: 'timeline'
+			name: 'timeline',
+			children: [
+				{
+					path: 'tags/:tag',
+					name: 'tags'
+				}
+			]
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account',

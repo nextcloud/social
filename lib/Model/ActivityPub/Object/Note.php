@@ -41,6 +41,10 @@ class Note extends Stream implements JsonSerializable {
 	const TYPE = 'Note';
 
 
+	/** @var array */
+	private $hashtags = [];
+
+
 	/**
 	 * Note constructor.
 	 *
@@ -50,6 +54,42 @@ class Note extends Stream implements JsonSerializable {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function getHashtags(): array {
+		return $this->hashtags;
+	}
+
+	/**
+	 * @param array $hashtags
+	 *
+	 * @return Note
+	 */
+	public function setHashtags(array $hashtags): Note {
+		$this->hashtags = $hashtags;
+
+		return $this;
+	}
+
+	/**
+	 *
+	 */
+	public function fillHashtags() {
+		$tags = $this->getTags('Hashtag');
+		$hashtags = [];
+		foreach ($tags as $tag) {
+			$hashtag = $tag['name'];
+			if (substr($hashtag, 0, 1) === '#') {
+				$hashtag = substr($hashtag, 1);
+			}
+			$hashtags[] = $hashtag;
+		}
+
+		$this->setHashtags($hashtags);
 	}
 
 
@@ -66,6 +106,8 @@ class Note extends Stream implements JsonSerializable {
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
+
+    $this->setHashtags($this->getArray('hashtags', $data, []));
 	}
 
 
@@ -73,7 +115,13 @@ class Note extends Stream implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		return parent::jsonSerialize();
+		$result = parent::jsonSerialize();
+
+    if ($this->isCompleteDetails()) {
+			$result['hashtags'] = $this->getHashtags();
+		}
+
+		return $result;
 	}
 
 }

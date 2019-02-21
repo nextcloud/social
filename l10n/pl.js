@@ -27,7 +27,6 @@ OC.L10N.register(
     "posts" : "wpisy",
     "following" : "śledzeni",
     "followers" : "śledzący",
-    "No accounts found" : "Nie znaleziono kont",
     "Searching for" : "Wyszukiwanie",
     "No posts found" : "Nie znaleziono wpisów",
     "Posts from people you follow will show up here" : "Tutaj będą pojawiać się wpisy osób które obserwujesz",

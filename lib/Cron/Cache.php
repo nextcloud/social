@@ -38,6 +38,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\QueryException;
 
@@ -58,6 +59,9 @@ class Cache extends TimedJob {
 
 	/** @var DocumentService */
 	private $documentService;
+
+	/** @var HashtagService */
+	private $hashtagService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -86,6 +90,7 @@ class Cache extends TimedJob {
 		$this->accountService = $c->query(AccountService::class);
 		$this->cacheActorService = $c->query(CacheActorService::class);
 		$this->documentService = $c->query(DocumentService::class);
+		$this->hashtagService = $c->query(HashtagService::class);
 		$this->configService = $c->query(ConfigService::class);
 		$this->miscService = $c->query(MiscService::class);
 
@@ -111,6 +116,11 @@ class Cache extends TimedJob {
 
 		try {
 			$this->documentService->manageCacheDocuments();
+		} catch (Exception $e) {
+		}
+
+		try {
+			$this->hashtagService->manageHashtags();
 		} catch (Exception $e) {
 		}
 	}

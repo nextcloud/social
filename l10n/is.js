@@ -34,7 +34,6 @@ OC.L10N.register(
     "posts" : "færslur",
     "following" : "fylgir",
     "followers" : "fylgjendur",
-    "No accounts found" : "Engir aðgangsreikningar fundust",
     "Searching for" : "Leita að",
     "No posts found" : "Engar færslur fundust",
     "Posts from people you follow will show up here" : "Færslur frá fólki sem þú fylgir munu birtast hér",

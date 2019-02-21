@@ -35,7 +35,13 @@
 
 <script>
 import { Avatar } from 'nextcloud-vue'
+import * as linkify from 'linkifyjs'
+import pluginTag from 'linkifyjs/plugins/hashtag'
+import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
+
+pluginTag(linkify)
+pluginMention(linkify)
 
 export default {
 	name: 'TimelineEntry',
@@ -62,8 +68,11 @@ export default {
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 			message = message.linkify({
 				formatHref: {
-					email: function(href) {
-						return OC.generateUrl('/apps/social/@' + (href.indexOf('mailto:') === 0 ? href.substring(7) : href))
+					hashtag: function(href) {
+						return OC.generateUrl('/apps/social/timeline/tags/' + href.substring(1))
+					},
+					mention: function(href) {
+						return OC.generateUrl('/apps/social/@' + href.substring(1))
 					}
 				}
 			})

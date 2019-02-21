@@ -22,6 +22,9 @@
 			</div>
 		</transition>
 		<composer />
+		<h2 v-if="type === 'tags'">
+			#{{ this.$route.params.tag }}
+		</h2>
 		<timeline-list />
 	</div>
 </template>
@@ -111,7 +114,16 @@ export default {
 		}
 	},
 	computed: {
+		params() {
+			if (this.$route.name === 'tags') {
+				return { tag: this.$route.params.tag }
+			}
+			return {}
+		},
 		type() {
+			if (this.$route.name === 'tags') {
+				return 'tags'
+			}
 			if (this.$route.params.type) {
 				return this.$route.params.type
 			}
@@ -128,7 +140,7 @@ export default {
 		}
 	},
 	beforeMount: function() {
-		this.$store.dispatch('changeTimelineType', this.type)
+		this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
 		if (this.showInfo) {
 			this.$store.dispatch('fetchAccountInfo', this.nextcloudAccount)
 		}

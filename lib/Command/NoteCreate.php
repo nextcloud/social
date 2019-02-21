@@ -108,6 +108,10 @@ class NoteCreate extends Base {
 				 'type', 'y', InputOption::VALUE_OPTIONAL,
 				 'type: public (default), followers, unlisted, direct'
 			 )
+			 ->addOption(
+				 'hashtag', 'g', InputOption::VALUE_OPTIONAL,
+				 'hashtag, without the leading #'
+			 )
 			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')
 			 ->setDescription('Create a new note');
@@ -125,6 +129,7 @@ class NoteCreate extends Base {
 		$userId = $input->getArgument('userid');
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
+		$hashtag = $input->getOption('hashtag');
 		$replyTo = $input->getOption('replyTo');
 		$type = $input->getOption('type');
 
@@ -134,6 +139,7 @@ class NoteCreate extends Base {
 		$post->setType(($type === null) ? '' : $type);
 		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
 		$post->addTo(($to === null) ? '' : $to);
+		$post->setHashtags(($hashtag === null) ? [] : [$hashtag]);
 
 		$token = $this->postService->createPost($post, $activity);
 

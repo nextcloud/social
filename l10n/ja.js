@@ -35,7 +35,6 @@ OC.L10N.register(
     "posts" : "投稿",
     "following" : "フォロー中",
     "followers" : "フォロワー",
-    "No accounts found" : "アカウントが見つかりません",
     "Searching for" : "を探す",
     "No posts found" : "投稿が見つかりません",
     "Posts from people you follow will show up here" : "あなたがフォローしている人の投稿がここに表示されます",

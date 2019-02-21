@@ -83,6 +83,11 @@ $finger = [
 			'rel' => 'self',
 			'type' => 'application/activity+json',
 			'href' => $href
+		],
+		[
+			'rel'      => 'http://ostatus.org/schema/1.0/subscribe',
+			'template' => urldecode(
+				$href = $urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe', ['uri' => '{uri}']))
 		]
 	]
 ];

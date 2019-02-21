@@ -30,11 +30,15 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 
 
 class Item {
+
+
+	use TArrayTools;
 
 
 	/** @var string */
@@ -502,10 +506,23 @@ class Item {
 	}
 
 	/**
+	 * @param string $type
+	 *
 	 * @return array
 	 */
-	public function getTags(): array {
-		return $this->tags;
+	public function getTags(string $type = ''): array {
+		if ($type === '') {
+			return $this->tags;
+		}
+
+		$result = [];
+		foreach ($this->tags as $tag) {
+			if ($this->get('type', $tag, '') === $type) {
+				$result[] = $tag;
+			}
+		}
+
+		return $result;
 	}
 
 	/**

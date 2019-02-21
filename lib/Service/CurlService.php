@@ -90,21 +90,15 @@ class CurlService {
 	/**
 	 * @param string $account
 	 *
-	 * @return Person
-	 * @throws InvalidOriginException
+	 * @return array
 	 * @throws InvalidResourceException
-	 * @throws MalformedArrayException
-	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
-	 * @throws RetrieveAccountFormatException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
-	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
 	 */
-	public function retrieveAccount(string $account): Person {
+	public function webfingerAccount(string $account): array {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
@@ -121,6 +115,29 @@ class CurlService {
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
 		$result = $this->request($request);
+
+		return $result;
+	}
+
+
+	/**
+	 * @param string $account
+	 *
+	 * @return Person
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RetrieveAccountFormatException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
+	 */
+	public function retrieveAccount(string $account): Person {
+		$result = $this->webfingerAccount($account);
 
 		try {
 			$link = $this->extractArray('rel', 'self', $this->getArray('links', $result));

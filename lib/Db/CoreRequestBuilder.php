@@ -58,13 +58,13 @@ class CoreRequestBuilder {
 
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
+	const TABLE_SERVER_HASHTAGS = 'social_server_hashtags';
 	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
 
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
 	const TABLE_QUEUE_STREAM = 'social_queue_stream';
-
 
 	/** @var IDBConnection */
 	protected $dbConnection;
@@ -200,6 +200,39 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToToken(IQueryBuilder &$qb, string $token) {
 		$this->limitToDBField($qb, 'token', $token);
+	}
+
+	/**
+	 * Limit the results to a given number
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $limit
+	 */
+	protected function limitResults(IQueryBuilder $qb, int $limit) {
+		$qb->setMaxResults($limit);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $hashtag
+	 */
+	protected function limitToHashtag(IQueryBuilder &$qb, string $hashtag) {
+		$this->limitToDBField($qb, 'hashtag', $hashtag, false);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $hashtag
+	 */
+	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag) {
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField($qb, 'hashtag', '%' . $dbConn->escapeLikeParameter($hashtag) . '%');
 	}
 
 
@@ -493,6 +526,27 @@ class CoreRequestBuilder {
 			$orX->add($expr->isNull($field));
 		}
 		$qb->andWhere($orX);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param int $timestamp
+	 * @param string $field
+	 */
+	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
+		$dTime = new \DateTime();
+		$dTime->setTimestamp($timestamp);
+
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$orX = $expr->orX();
+		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
+
+		$qb->andWhere($orX);
+
 	}
 
 

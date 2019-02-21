@@ -104,6 +104,7 @@ class PostService {
 
 		$this->noteService->replyTo($note, $post->getReplyTo());
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
+		$this->noteService->addHashtags($note, $post->getHashtags());
 
 		$result = $this->activityService->createActivity($post->getActor(), $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($post->getActor());
