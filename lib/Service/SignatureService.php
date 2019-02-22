@@ -256,7 +256,7 @@ class SignatureService {
 		try {
 			$signature->sign();
 			$object->setSignature($signature);
-		} catch (LinkedDataSignatureMissingException $e) {
+		} catch (Exception $e) {
 		}
 	}
 
