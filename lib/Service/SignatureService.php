@@ -35,6 +35,8 @@ use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
+use JsonLdException;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -54,7 +56,12 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
+use OCP\Files\IAppData;
+use OCP\Files\NotFoundException;
+use OCP\Files\NotPermittedException;
+use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IRequest;
+use stdClass;
 
 class SignatureService {
 
@@ -416,6 +423,64 @@ class SignatureService {
 				return 'sha256';
 		}
 	}
+
+
+	/**
+	 * @param string $url
+	 *
+	 * @return stdClass
+	 * @throws JsonLdException
+	 * @throws NotPermittedException
+	 */
+	public static function documentLoader($url): stdClass {
+		$recursion = 0;
+		$x = debug_backtrace();
+		if ($x) {
+			foreach ($x as $n) {
+				if ($n['function'] === __FUNCTION__) {
+					$recursion++;
+				}
+			}
+		}
+
+		if ($recursion > 5) {
+			exit();
+		}
+
+		$folder = self::getContextCacheFolder();
+		$filename = parse_url($url, PHP_URL_HOST) . parse_url($url, PHP_URL_PATH);
+		$filename = str_replace('/', '.', $filename) . '.json';
+
+		try {
+			$cache = $folder->getFile($filename);
+			$data = json_decode($cache->getContent());
+		} catch (NotFoundException $e) {
+			$cache = $folder->newFile($filename);
+			$data = jsonld_default_document_loader($url);
+			$cache->putContent(json_encode($data));
+		}
+
+		return $data;
+	}
+
+
+	/**
+	 * @return ISimpleFolder
+	 * @throws NotPermittedException
+	 */
+	private static function getContextCacheFolder(): ISimpleFolder {
+		$path = 'context';
+
+		$appData = \OC::$server->getAppDataDir(Application::APP_NAME);
+		try {
+			$folder = $appData->getFolder($path);
+		} catch (NotFoundException $e) {
+			$folder = $appData->newFolder($path);
+		}
+
+		return $folder;
+	}
+
 
 }
 
