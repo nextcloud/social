@@ -201,15 +201,14 @@ class LocalController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 *
-	 * @param array $data
+	 * @param string $postId
 	 *
 	 * @return DataResponse
 	 */
-	public function boostPost(array $data): DataResponse {
+	public function postBoost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			$postId = $this->get('postId', $data, '');
 			$token = $this->noteService->createBoost($this->viewer, $postId, $announce);
 
 			return $this->success(
