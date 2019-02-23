@@ -25,9 +25,20 @@
 				</div>
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="post-message" v-html="formatedMessage" />
+				<div v-click-outside="hidePopoverMenu" class="post-actions">
+					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
+					<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
+						<a class="icon-more" @click.prevent="togglePopoverMenu" />
+						<div :class="{open: menuOpened}" class="popovermenu menu-center">
+							<popover-menu :menu="popoverMenu" />
+						</div>
+					</div>
+				</div>
 			</div>
-			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
-				{{ relativeTimestamp }}
+			<div>
+				<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
+					{{ relativeTimestamp }}
+				</div>
 			</div>
 		</div>
 	</div>
@@ -39,6 +50,8 @@ import * as linkify from 'linkifyjs'
 import pluginTag from 'linkifyjs/plugins/hashtag'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
+import popoverMenu from './../mixins/popoverMenu'
+import currentUser from './../mixins/currentUserMixin'
 
 pluginTag(linkify)
 pluginMention(linkify)
@@ -48,15 +61,32 @@ export default {
 	components: {
 		Avatar
 	},
+	mixins: [popoverMenu, currentUser],
 	props: {
 		item: { type: Object, default: () => {} }
 	},
 	data() {
 		return {
-
 		}
 	},
 	computed: {
+		popoverMenu() {
+			var actions = [
+			]
+			if (this.item.actor_info.account === this.cloudId) {
+				actions.push(
+					{
+						action: () => {
+							this.$store.dispatch('postDelete', this.item)
+							this.hidePopoverMenu()
+						},
+						icon: 'icon-delete',
+						text: t('social', 'Delete post')
+					}
+				)
+			}
+			return actions
+		},
 		relativeTimestamp() {
 			return OC.Util.relativeModifiedDate(this.item.published)
 		},
@@ -86,18 +116,17 @@ export default {
 	methods: {
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
+		},
+		reply() {
+			this.$root.$emit('composer-reply', this.item)
 		}
 	}
 }
 </script>
-<style scoped>
+<style scoped lang="scss">
 	.timeline-entry {
 		padding: 10px;
 		margin-bottom: 10px;
-	}
-
-	.social__welcome h3 {
-		margin-top: 0;
 	}
 
 	.post-author {
@@ -123,6 +152,28 @@ export default {
 		width: 120px;
 		text-align: right;
 		flex-shrink: 0;
+	}
+
+	.post-actions {
+		margin-left: -13px;
+		height: 44px;
+
+		.post-actions-more {
+			position: relative;
+			width: 44px;
+			height: 34px;
+			display: inline-block;
+		}
+		.icon-reply,
+		.icon-more {
+			display: inline-block;
+			width: 44px;
+			height: 34px;
+			opacity: .5;
+			&:hover, &:focus {
+				opacity: 1;
+			}
+		}
 	}
 
 	span {

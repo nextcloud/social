@@ -22,7 +22,9 @@
 
 <template>
 	<div class="social__timeline">
-		<timeline-entry v-for="entry in timeline" :key="entry.id" :item="entry" />
+		<transition-group name="list" tag="div">
+			<timeline-entry v-for="entry in timeline" :key="entry.id" :item="entry" />
+		</transition-group>
 		<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
 			<div slot="spinner">
 				<div class="icon-loading" />
@@ -36,6 +38,22 @@
 		</infinite-loading>
 	</div>
 </template>
+
+<style scoped>
+	.list-item {
+	}
+	.list-enter-active, .list-leave-active {
+		transition: all .5s;
+	}
+	.list-enter {
+		opacity: 0;
+		transform: translateY(-30px);
+	}
+	.list-leave-to {
+		opacity: 0;
+		transform: translateX(-100px);
+	}
+</style>
 
 <script>
 import InfiniteLoading from 'vue-infinite-loading'

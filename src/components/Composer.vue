@@ -34,11 +34,22 @@
 				</span>
 			</div>
 		</div>
+		<div v-if="replyTo" class="reply-to">
+			<p>
+				<span>In reply to</span>
+				<actor-avatar :actor="replyTo.actor_info" :size="16" />
+				<strong>{{ replyTo.actor_info.account }}</strong>
+				<a class="icon-close" @click="replyTo=null" />
+			</p>
+			<div class="reply-to-preview">
+				{{ replyTo.content }}
+			</div>
+		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
-				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType" class="message"
-					placeholder="What would you like to share?" @keyup.enter="keyup" />
+				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
+					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup" />
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
 				@emoji="insert">
@@ -104,6 +115,25 @@
 			.post-author-id {
 				opacity: .7;
 			}
+		}
+	}
+
+	.reply-to {
+		background-image: url(../../img/reply.svg);
+		background-position: 5px 5px;
+		background-repeat: no-repeat;
+		margin-left: 39px;
+		margin-bottom: 20px;
+		overflow: hidden;
+		background-color: #fafafa;
+		border-radius: 3px;
+		padding: 5px;
+		padding-left: 30px;
+		.icon-close {
+			display: inline-block;
+			float: right;
+			opacity: .7;
+			padding: 3px;
 		}
 	}
 
@@ -309,12 +339,14 @@ import { VTooltip } from 'v-tooltip'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
+import ActorAvatar from './ActorAvatar'
 
 export default {
 	name: 'Composer',
 	components: {
 		PopoverMenu,
 		Avatar,
+		ActorAvatar,
 		EmojiPicker,
 		VueTribute
 	},
@@ -330,9 +362,11 @@ export default {
 	data() {
 		return {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
+			loading: false,
 			post: '',
 			canType: true,
 			search: '',
+			replyTo: null,
 			tributeOptions: {
 				lookup: function(item) {
 					return item.key + item.value
@@ -463,6 +497,11 @@ export default {
 			]
 		}
 	},
+	mounted() {
+		this.$root.$on('composer-reply', (data) => {
+			this.replyTo = data
+		})
+	},
 	methods: {
 		insert(emoji) {
 			if (typeof emoji === 'object') {
@@ -513,12 +552,16 @@ export default {
 				}
 			} while (match)
 
-			return {
+			let data = {
 				content: content,
 				to: to,
 				hashtags: hashtags,
 				type: this.type
 			}
+			if (this.replyTo) {
+				data.replyTo = this.replyTo.id
+			}
+			return data
 		},
 		keyup(event) {
 			if (event.shiftKey) {
@@ -526,7 +569,10 @@ export default {
 			}
 		},
 		createPost(event) {
+			this.loading = true
 			this.$store.dispatch('post', this.getPostData()).then((response) => {
+				this.loading = false
+				this.replyTo = null
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
 				this.$store.dispatch('refreshTimeline')
