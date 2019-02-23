@@ -79,8 +79,8 @@ class CoreRequestBuilder {
 	/** @var string */
 	protected $defaultSelectAlias;
 
-	/** @var string */
-	private $viewerId = '';
+	/** @var Person */
+	protected $viewer = null;
 
 
 	/**
@@ -100,17 +100,10 @@ class CoreRequestBuilder {
 
 
 	/**
-	 * @return string
+	 * @param Person $viewer
 	 */
-	public function getViewerId(): string {
-		return $this->viewerId;
-	}
-
-	/**
-	 * @param string $viewerId
-	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
+	public function setViewer(Person $viewer) {
+		$this->viewer = $viewer;
 	}
 
 
@@ -722,8 +715,7 @@ class CoreRequestBuilder {
 			return;
 		}
 
-		$viewerId = $this->getViewerId();
-		if ($viewerId === '') {
+		if ($this->viewer === null) {
 			return;
 		}
 
@@ -744,7 +736,7 @@ class CoreRequestBuilder {
 			$andX->add(
 				$expr->eq(
 					$func->lower($prefix . '_f.actor_id'),
-					$func->lower($qb->createNamedParameter($viewerId))
+					$func->lower($qb->createNamedParameter($this->viewer->getId()))
 				)
 			);
 		} else {
@@ -756,7 +748,7 @@ class CoreRequestBuilder {
 			$andX->add(
 				$expr->eq(
 					$func->lower($prefix . '_f.object_id'),
-					$func->lower($qb->createNamedParameter($viewerId))
+					$func->lower($qb->createNamedParameter($this->viewer->getId()))
 				)
 			);
 		}
@@ -820,24 +812,25 @@ class CoreRequestBuilder {
 	 * @param array $data
 	 */
 	protected function assignDetails(Person $actor, array $data) {
-		if ($this->getViewerId() !== '') {
-
-			try {
-				$this->parseFollowLeftJoin($data, 'as_follower');
-				$actor->addDetailBool('following', true);
-			} catch (InvalidResourceException $e) {
-				$actor->addDetailBool('following', false);
-			}
-
-			try {
-				$this->parseFollowLeftJoin($data, 'as_followed');
-				$actor->addDetailBool('followed', true);
-			} catch (InvalidResourceException $e) {
-				$actor->addDetailBool('followed', false);
-			}
-
-			$actor->setCompleteDetails(true);
+		if ($this->viewer === null) {
+			return;
 		}
+
+		try {
+			$this->parseFollowLeftJoin($data, 'as_follower');
+			$actor->addDetailBool('following', true);
+		} catch (InvalidResourceException $e) {
+			$actor->addDetailBool('following', false);
+		}
+
+		try {
+			$this->parseFollowLeftJoin($data, 'as_followed');
+			$actor->addDetailBool('followed', true);
+		} catch (InvalidResourceException $e) {
+			$actor->addDetailBool('followed', false);
+		}
+
+		$actor->setCompleteDetails(true);
 	}
 
 

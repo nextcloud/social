@@ -107,7 +107,7 @@ class Note extends Stream implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
-    $this->setHashtags($this->getArray('hashtags', $data, []));
+		$this->setHashtags($this->getArray('hashtags', $data, []));
 	}
 
 
@@ -117,9 +117,11 @@ class Note extends Stream implements JsonSerializable {
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
-    if ($this->isCompleteDetails()) {
+		if ($this->isCompleteDetails()) {
 			$result['hashtags'] = $this->getHashtags();
 		}
+
+		$this->cleanArray($result);
 
 		return $result;
 	}

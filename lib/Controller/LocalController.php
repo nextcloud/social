@@ -38,7 +38,6 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
@@ -198,6 +197,35 @@ class LocalController extends Controller {
 
 
 	/**
+	 * Create a new boost.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param array $data
+	 *
+	 * @return DataResponse
+	 */
+	public function boostPost(array $data): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$postId = $this->get('postId', $data, '');
+			$token = $this->noteService->createBoost($this->viewer, $postId, $announce);
+
+			return $this->success(
+				[
+					'boost' => $announce,
+					'token' => $token
+				]
+			);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param int $since
@@ -669,13 +697,19 @@ class LocalController extends Controller {
 	 */
 	private function initViewer(bool $exception = false) {
 		if (!isset($this->userId)) {
+			if ($exception) {
+				throw new AccountDoesNotExistException('userId not defined');
+			}
+
 			return;
 		}
+
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
-			$this->followService->setViewerId($this->viewer->getId());
-			$this->cacheActorService->setViewerId($this->viewer->getId());
+			$this->noteService->setViewer($this->viewer);
+			$this->followService->setViewer($this->viewer);
+			$this->cacheActorService->setViewer($this->viewer);
 		} catch (Exception $e) {
 			if ($exception) {
 				throw new AccountDoesNotExistException();

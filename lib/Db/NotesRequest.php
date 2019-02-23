@@ -60,60 +60,17 @@ class NotesRequest extends NotesRequestBuilder {
 
 
 	/**
-	 * Insert a new Note in the database.
-	 *
-	 * @param Stream $note
+	 * @param Stream $stream
 	 */
-	public function save(Stream $note) {
-		$dTime = new DateTime();
-		$dTime->setTimestamp($note->getPublishedTime());
+	public function save(Stream $stream) {
+		$qb = $this->saveStream($stream);
 
-		$cache = '[]';
-		if ($note->gotCache()) {
-			$cache = json_encode($note->getCache(), JSON_UNESCAPED_SLASHES);
+		if ($stream->getType() === Note::TYPE) {
+			/** @var Note $stream */
+			$qb->setValue(
+				'hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags()))
+			);
 		}
-
-		$qb = $this->getNotesInsertSql();
-		$qb->setValue('id', $qb->createNamedParameter($note->getId()))
-		   ->setValue('type', $qb->createNamedParameter($note->getType()))
-		   ->setValue('to', $qb->createNamedParameter($note->getTo()))
-		   ->setValue(
-			   'to_array', $qb->createNamedParameter(
-			   json_encode($note->getToArray(), JSON_UNESCAPED_SLASHES)
-		   )
-		   )
-		   ->setValue(
-			   'cc', $qb->createNamedParameter(
-			   json_encode($note->getCcArray(), JSON_UNESCAPED_SLASHES)
-		   )
-		   )
-		   ->setValue(
-			   'bcc', $qb->createNamedParameter(
-			   json_encode($note->getBccArray()), JSON_UNESCAPED_SLASHES
-		   )
-		   )
-		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
-		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
-		   ->setValue('hashtags', $qb->createNamedParameter(json_encode($note->getHashtags())))
-		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
-		   ->setValue(
-			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
-		   )
-		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
-		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
-		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
-		   ->setValue('object_id', $qb->createNamedParameter($note->getObjectId()))
-		   ->setValue('cache', $qb->createNamedParameter($cache))
-		   ->setValue(
-			   'instances', $qb->createNamedParameter(
-			   json_encode($note->getInstancePaths(), JSON_UNESCAPED_SLASHES)
-		   )
-		   )
-		   ->setValue('local', $qb->createNamedParameter(($note->isLocal()) ? '1' : '0'))
-		   ->setValue(
-			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
 
 		$qb->execute();
 	}
@@ -135,17 +92,22 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * @param string $id
+	 * @param bool $asViewer
 	 *
 	 * @return Note
 	 * @throws NoteNotFoundException
 	 */
-	public function getNoteById(string $id): Note {
+	public function getNoteById(string $id, bool $asViewer = false): Note {
 		if ($id === '') {
 			throw new NoteNotFoundException();
 		};
 
 		$qb = $this->getNotesSelectSql();
 		$this->limitToIdString($qb, $id);
+
+		if ($asViewer) {
+			$this->limitToViewer($qb);
+		}
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -433,6 +395,67 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitToAttributedTo($qb, $actorId);
 
 		$qb->execute();
+	}
+
+
+	/**
+	 * Insert a new Note in the database.
+	 *
+	 * @param Stream $note
+	 *
+	 * @return IQueryBuilder
+	 */
+	public function saveStream(Stream $note): IQueryBuilder {
+		$dTime = new DateTime();
+		$dTime->setTimestamp($note->getPublishedTime());
+
+		$cache = '[]';
+		if ($note->gotCache()) {
+			$cache = json_encode($note->getCache(), JSON_UNESCAPED_SLASHES);
+		}
+
+		$qb = $this->getNotesInsertSql();
+		$qb->setValue('id', $qb->createNamedParameter($note->getId()))
+		   ->setValue('type', $qb->createNamedParameter($note->getType()))
+		   ->setValue('to', $qb->createNamedParameter($note->getTo()))
+		   ->setValue(
+			   'to_array', $qb->createNamedParameter(
+			   json_encode($note->getToArray(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
+		   ->setValue(
+			   'cc', $qb->createNamedParameter(
+			   json_encode($note->getCcArray(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
+		   ->setValue(
+			   'bcc', $qb->createNamedParameter(
+			   json_encode($note->getBccArray()), JSON_UNESCAPED_SLASHES
+		   )
+		   )
+		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
+		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
+		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
+		   ->setValue(
+			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
+		   )
+		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
+		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
+		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
+		   ->setValue('object_id', $qb->createNamedParameter($note->getObjectId()))
+		   ->setValue('cache', $qb->createNamedParameter($cache))
+		   ->setValue(
+			   'instances', $qb->createNamedParameter(
+			   json_encode($note->getInstancePaths(), JSON_UNESCAPED_SLASHES)
+		   )
+		   )
+		   ->setValue('local', $qb->createNamedParameter(($note->isLocal()) ? '1' : '0'))
+		   ->setValue(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
+
+		return $qb;
 	}
 
 }

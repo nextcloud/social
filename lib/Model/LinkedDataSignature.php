@@ -293,12 +293,7 @@ class LinkedDataSignature implements JsonSerializable {
 	 */
 	private function hashedCanonicalize(array $data, bool $removeEmptyValue = false): string {
 		if ($removeEmptyValue) {
-			$data = array_filter(
-				$data,
-				function($v) {
-					return ($v !== '');
-				}
-			);
+			$this->cleanArray($data);
 		}
 
 		$object = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));

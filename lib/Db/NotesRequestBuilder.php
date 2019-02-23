@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
@@ -83,10 +84,10 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$qb->selectDistinct('sn.id')
 		   ->addSelect(
 			   'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
-			'sn.summary', 'sn.published', 'sn.published_time', 'sn.cache', 'sn.object_id',
-			'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
-			'sn.creation'
-		)
+			   'sn.summary', 'sn.published', 'sn.published_time', 'sn.cache', 'sn.object_id',
+			   'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
+			   'sn.creation'
+		   )
 		   ->from(self::TABLE_SERVER_NOTES, 'sn');
 
 		$this->defaultSelectAlias = 'sn';
@@ -126,6 +127,19 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 */
+	protected function limitToViewer(IQueryBuilder $qb) {
+		$actor = $this->viewer;
+
+		$on = $this->exprJoinFollowing($qb, $actor, false);
+		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
+		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param Person $actor
 	 */
 	protected function joinFollowing(IQueryBuilder $qb, Person $actor) {
@@ -143,15 +157,19 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param Person $actor
 	 *
+	 * @param bool $followers
+	 *
 	 * @return ICompositeExpression
 	 */
-	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor) {
+	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor, bool $followers = true) {
 		$expr = $qb->expr();
 		$func = $qb->func();
 		$pf = $this->defaultSelectAlias . '.';
 
 		$on = $expr->orX();
-		$on->add($this->exprLimitToRecipient($qb, $actor->getFollowers(), false));
+		if ($followers) {
+			$on->add($this->exprLimitToRecipient($qb, $actor->getFollowers(), false));
+		}
 
 		// list of possible recipient as a follower (to, to_array, cc, ...)
 		$recipientFields = $expr->orX();

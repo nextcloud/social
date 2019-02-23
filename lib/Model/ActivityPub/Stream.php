@@ -293,13 +293,13 @@ class Stream extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		$this->addEntryInt('publishedTime', $this->getPublishedTime());
-
 		$result = array_merge(
 			parent::jsonSerialize(),
 			[
 				'content'      => $this->getContent(),
-				'attributedTo' => $this->getUrlSocial() . $this->getAttributedTo(),
+				'attributedTo' => ($this->getAttributedTo() !== '') ? $this->getUrlSocial()
+																	  . $this->getAttributedTo(
+					) : '',
 				'inReplyTo'    => $this->getInReplyTo(),
 				'sensitive'    => $this->isSensitive(),
 				'conversation' => $this->getConversation()
@@ -310,10 +310,13 @@ class Stream extends ACore implements JsonSerializable {
 			$result = array_merge(
 				$result,
 				[
-					'cache' => $this->getCache()
+					'cache'         => ($this->gotCache()) ? $this->getCache() : '',
+					'publishedTime' => $this->getPublishedTime()
 				]
 			);
 		}
+
+		$this->cleanArray($result);
 
 		return $result;
 	}

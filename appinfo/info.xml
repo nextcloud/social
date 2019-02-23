@@ -47,6 +47,7 @@
 	<commands>
 		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\NoteCreate</command>
+		<command>OCA\Social\Command\NoteBoost</command>
 		<command>OCA\Social\Command\Reset</command>
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>

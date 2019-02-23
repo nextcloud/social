@@ -77,8 +77,8 @@ class FollowService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId = '';
+	/** @var Person */
+	private $viewer = null;
 
 
 	/**
@@ -104,15 +104,11 @@ class FollowService {
 
 
 	/**
-	 * @param string $viewerId
+	 * @param Person $viewer
 	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->followsRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
+	public function setViewer(Person $viewer) {
+		$this->viewer = $viewer;
+		$this->followsRequest->setViewer($viewer);
 	}
 
 

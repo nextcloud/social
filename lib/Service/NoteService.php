@@ -46,7 +46,9 @@ use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 
 class NoteService {
@@ -61,6 +63,9 @@ class NoteService {
 	/** @var AccountService */
 	private $accountService;
 
+	/** @var SignatureService */
+	private $signatureService;
+
 	/** @var CacheActorService */
 	private $cacheActorService;
 
@@ -71,8 +76,8 @@ class NoteService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId = '';
+	/** @var Person */
+	private $viewer = null;
 
 
 	/**
@@ -81,18 +86,20 @@ class NoteService {
 	 * @param NotesRequest $notesRequest
 	 * @param ActivityService $activityService
 	 * @param AccountService $accountService
+	 * @param SignatureService $signatureService
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		NotesRequest $notesRequest, ActivityService $activityService,
-		AccountService $accountService, CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		AccountService $accountService, SignatureService $signatureService,
+		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
 		$this->activityService = $activityService;
 		$this->accountService = $accountService;
+		$this->signatureService = $signatureService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -100,65 +107,84 @@ class NoteService {
 
 
 	/**
-	 * @param string $viewerId
+	 * @param Person $viewer
 	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->notesRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
+	public function setViewer(Person $viewer) {
+		$this->viewer = $viewer;
+		$this->notesRequest->setViewer($viewer);
 	}
 
 
 	/**
 	 * @param Person $actor
-	 * @param string $content
+	 * @param string $postId
+	 * @param ACore|null $announce
 	 *
-	 * @param string $type
-	 *
-	 * @return Note
+	 * @return string
+	 * @throws NoteNotFoundException
 	 * @throws SocialAppConfigException
 	 */
-	public function generateNote(Person $actor, string $content, string $type) {
-		$note = new Note();
-		$note->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
-		$note->setPublished(date("c"));
-		$note->setAttributedTo(
-			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
-		);
+	public function createBoost(Person $actor, string $postId, ACore &$announce = null): string {
 
-		$this->setRecipient($note, $actor, $type);
-		$note->setContent($content);
-		$note->convertPublished();
-		$note->setLocal(true);
+		$announce = new Announce();
+		$this->assignStream($announce, $actor, Stream::TYPE_PUBLIC);
 
-		return $note;
+		$announce->setActor($actor);
+		$note = $this->getNoteById($postId, true);
+
+		$announce->addCc($note->getAttributedTo());
+		if ($note->isLocal()) {
+			$announce->setObject($note);
+		} else {
+			$announce->setObjectId($note->getId());
+		}
+
+		$this->signatureService->signObject($actor, $announce);
+		$this->notesRequest->save($announce);
+		$token = $this->activityService->request($announce);
+
+		return $token;
 	}
 
 
 	/**
-	 * @param Note $note
+	 * @param Stream $stream
+	 * @param Person $actor
+	 * @param string $type
+	 *
+	 * @throws SocialAppConfigException
+	 */
+	public function assignStream(Stream &$stream, Person $actor, string $type) {
+		$stream->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
+		$stream->setPublished(date("c"));
+
+		$this->setRecipient($stream, $actor, $type);
+		$stream->convertPublished();
+		$stream->setLocal(true);
+	}
+
+
+	/**
+	 * @param Stream $stream
 	 * @param Person $actor
 	 * @param string $type
 	 */
-	private function setRecipient(Note $note, Person $actor, string $type) {
+	private function setRecipient(Stream $stream, Person $actor, string $type) {
 		switch ($type) {
 			case Note::TYPE_UNLISTED:
-				$note->setTo($actor->getFollowers());
-				$note->addInstancePath(
+				$stream->setTo($actor->getFollowers());
+				$stream->addInstancePath(
 					new InstancePath(
 						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
-				$note->addCc(ACore::CONTEXT_PUBLIC);
+				$stream->addCc(ACore::CONTEXT_PUBLIC);
 				break;
 
 			case Note::TYPE_FOLLOWERS:
-				$note->setTo($actor->getFollowers());
-				$note->addInstancePath(
+				$stream->setTo($actor->getFollowers());
+				$stream->addInstancePath(
 					new InstancePath(
 						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
@@ -170,9 +196,9 @@ class NoteService {
 				break;
 
 			default:
-				$note->setTo(ACore::CONTEXT_PUBLIC);
-				$note->addCc($actor->getFollowers());
-				$note->addInstancePath(
+				$stream->setTo(ACore::CONTEXT_PUBLIC);
+				$stream->addCc($actor->getFollowers());
+				$stream->addInstancePath(
 					new InstancePath(
 						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
@@ -184,11 +210,11 @@ class NoteService {
 
 
 	/**
-	 * @param Note $note
+	 * @param Stream $stream
 	 * @param string $type
 	 * @param string $account
 	 */
-	public function addRecipient(Note $note, string $type, string $account) {
+	public function addRecipient(Stream $stream, string $type, string $account) {
 		if ($account === '') {
 			return;
 		}
@@ -204,12 +230,12 @@ class NoteService {
 		);
 		if ($type === Note::TYPE_DIRECT) {
 			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
-			$note->addToArray($actor->getId());
+			$stream->addToArray($actor->getId());
 		} else {
-			$note->addCc($actor->getId());
+			$stream->addCc($actor->getId());
 		}
 
-		$note->addTag(
+		$stream->addTag(
 			[
 				'type' => 'Mention',
 				'href' => $actor->getId(),
@@ -217,7 +243,7 @@ class NoteService {
 			]
 		);
 
-		$note->addInstancePath($instancePath);
+		$stream->addInstancePath($instancePath);
 	}
 
 
@@ -242,13 +268,13 @@ class NoteService {
 
 
 	/**
-	 * @param Note $note
+	 * @param Stream $stream
 	 * @param string $type
 	 * @param array $accounts
 	 */
-	public function addRecipients(Note $note, string $type, array $accounts) {
+	public function addRecipients(Stream $stream, string $type, array $accounts) {
 		foreach ($accounts as $account) {
-			$this->addRecipient($note, $type, $account);
+			$this->addRecipient($stream, $type, $account);
 		}
 	}
 
@@ -316,12 +342,13 @@ class NoteService {
 
 	/**
 	 * @param string $id
+	 * @param bool $asViewer
 	 *
 	 * @return Note
 	 * @throws NoteNotFoundException
 	 */
-	public function getNoteById(string $id): Note {
-		return $this->notesRequest->getNoteById($id);
+	public function getNoteById(string $id, bool $asViewer = false): Note {
+		return $this->notesRequest->getNoteById($id, $asViewer);
 	}
 
 
@@ -392,7 +419,8 @@ class NoteService {
 	 *
 	 * @return Note[]
 	 */
-	public function getStreamLocalTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5): array {
+	public function getStreamLocalTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
+	): array {
 		return $this->notesRequest->getStreamTag($actor, $hashtag, $since, $limit);
 	}
 
@@ -409,7 +437,8 @@ class NoteService {
 	}
 
 
-	/**
+	/**m
+	 *
 	 * @param int $since
 	 * @param int $limit
 	 *
@@ -442,6 +471,7 @@ class NoteService {
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());
 	}
+
 
 }
 

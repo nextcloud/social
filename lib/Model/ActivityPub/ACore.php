@@ -669,7 +669,10 @@ class ACore extends Item implements JsonSerializable {
 			$this->addEntryBool('local', $this->isLocal());
 		}
 
-		return $this->getEntries();
+		$result = $this->getEntries();
+		$this->cleanArray($result);
+
+		return $result;
 	}
 
 }

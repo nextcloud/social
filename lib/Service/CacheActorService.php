@@ -69,8 +69,8 @@ class CacheActorService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId;
+	/** @var Person */
+	private $viewer = null;
 
 
 	/**
@@ -93,15 +93,11 @@ class CacheActorService {
 
 
 	/**
-	 * @param string $viewerId
+	 * @param Person $viewer
 	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->cacheActorsRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
+	public function setViewer(Person $viewer) {
+		$this->viewer = $viewer;
+		$this->cacheActorsRequest->setViewer($viewer);
 	}
 
 
@@ -171,6 +167,7 @@ class CacheActorService {
 		if (strrpos($account, '@')) {
 			$account = substr($account, 0, strrpos($account, '@'));
 		}
+
 		return $this->cacheActorsRequest->getFromLocalAccount($account);
 	}
 
