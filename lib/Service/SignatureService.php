@@ -41,6 +41,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
@@ -50,14 +51,13 @@ use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
-use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
+use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IRequest;
 use stdClass;
@@ -424,8 +424,8 @@ class SignatureService {
 	 * @param string $url
 	 *
 	 * @return stdClass
-	 * @throws JsonLdException
 	 * @throws NotPermittedException
+	 * @throws JsonLdException
 	 */
 	public static function documentLoader($url): stdClass {
 		$recursion = 0;
@@ -448,11 +448,11 @@ class SignatureService {
 
 		try {
 			$cache = $folder->getFile($filename);
+			self::updateContextCacheDocument($cache, $url);
+
 			$data = json_decode($cache->getContent());
 		} catch (NotFoundException $e) {
-			$cache = $folder->newFile($filename);
-			$data = jsonld_default_document_loader($url);
-			$cache->putContent(json_encode($data));
+			$data = self::generateContextCacheDocument($folder, $filename, $url);
 		}
 
 		return $data;
@@ -476,6 +476,56 @@ class SignatureService {
 		return $folder;
 	}
 
+
+	/**
+	 * @param ISimpleFolder $folder
+	 * @param string $filename
+	 *
+	 * @param string $url
+	 *
+	 * @return stdClass
+	 * @throws JsonLdException
+	 * @throws NotPermittedException
+	 */
+	private static function generateContextCacheDocument(
+		ISimpleFolder $folder, string $filename, string $url
+	): stdClass {
+
+		try {
+			$data = jsonld_default_document_loader($url);
+			$content = json_encode($data);
+		} catch (JsonLdException $e) {
+			$context = file_get_contents(__DIR__ . '/../../context/' . $filename);
+			if (is_bool($context)) {
+				throw $e;
+			}
+
+			$content = $context;
+			$data = json_decode($context);
+		}
+
+		$cache = $folder->newFile($filename);
+		$cache->putContent($content);
+
+		return $data;
+	}
+
+
+	/**
+	 * @param ISimpleFile $cache
+	 * @param string $url
+	 *
+	 * @throws NotPermittedException
+	 */
+	private static function updateContextCacheDocument(ISimpleFile $cache, string $url) {
+		if ($cache->getMTime() < (time() - 98765)) {
+			try {
+				$data = jsonld_default_document_loader($url);
+				$cache->putContent(json_encode($data));
+			} catch (JsonLdException $e) {
+			}
+		}
+	}
 
 }
 
