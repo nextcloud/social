@@ -38,6 +38,8 @@ OC.L10N.register(
     "No results found" : "Aucun résultat trouvé",
     "There were no results for your search:" : "Aucun résultat n'a été trouvé pour votre recherche :",
     "Searching for" : "Recherche de",
+    "Reply" : "Répondre",
+    "More actions" : "Plus d'actions",
     "No posts found" : "Aucun message trouvé",
     "Posts from people you follow will show up here" : "Les messages des personnes que vous suivez apparaitront ici",
     "No direct messages found" : "Aucun message direct",
