@@ -98,8 +98,7 @@
 	}
 </style>
 <script>
-
-import { Avatar } from 'nextcloud-vue'
+import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import serverData from '../mixins/serverData'
 import currentUser from '../mixins/currentUserMixin'
 import follow from '../mixins/follow'

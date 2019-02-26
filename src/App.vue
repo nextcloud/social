@@ -91,9 +91,7 @@
 </style>
 
 <script>
-import {
-	AppNavigationItem
-} from 'nextcloud-vue'
+import AppNavigationItem from 'nextcloud-vue/dist/Components/AppNavigationItem'
 import axios from 'nextcloud-axios'
 import Search from './components/Search'
 import currentuserMixin from './mixins/currentUserMixin'
