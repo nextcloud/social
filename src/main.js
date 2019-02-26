@@ -29,7 +29,7 @@ import router from './router'
 import vuetwemoji from 'vue-twemoji'
 import contenteditableDirective from 'vue-contenteditable-directive'
 import ClickOutside from 'vue-click-outside'
-import VTooltip from 'v-tooltip'
+import VTooltip from 'nextcloud-vue/dist/Directives/Tooltip'
 
 sync(store, router)
 

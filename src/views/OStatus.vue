@@ -60,7 +60,7 @@
 </style>
 
 <script>
-import { Avatar } from 'nextcloud-vue'
+import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import axios from 'nextcloud-axios'
 import currentuserMixin from './../mixins/currentUserMixin'
 

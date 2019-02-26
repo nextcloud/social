@@ -331,11 +331,10 @@
 </style>
 <script>
 
-import { Avatar, PopoverMenu } from 'nextcloud-vue'
-import ClickOutside from 'vue-click-outside'
+import Avatar from 'nextcloud-vue/dist/Components/Avatar'
+import PopoverMenu from 'nextcloud-vue/dist/Components/PopoverMenu'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
-import { VTooltip } from 'v-tooltip'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
@@ -351,8 +350,6 @@ export default {
 		VueTribute
 	},
 	directives: {
-		tooltip: VTooltip,
-		ClickOutside: ClickOutside,
 		FocusOnCreate: FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
