@@ -55,6 +55,7 @@ OC.L10N.register(
     "Close" : "Fermer",
     "You are going to follow:" : "Vous allez suivre :",
     "Continue" : "Continuer",
+    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Cette étape est nécessaire car l'utilisateur n'est probablement pas inscrit sur le même serveur que vous. Nous vous redirigerons vers votre propre serveur pour suivre ce compte",
     "User not found" : "Utilisateur non trouvé",
     "Sorry, we could not find the account of {userId}" : "Désolé, impossible de trouver le compte {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud fait maintenant partie des réseaux sociaux fédérés !",
