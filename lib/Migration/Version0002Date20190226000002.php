@@ -61,7 +61,7 @@ class Version0002Date20190226000002 extends SimpleMigrationStep {
 
 		$edits = array_merge(
 			Version0002Date20190226000001::$editToText,
-			Version0002Date20190226000001::$editToChar2000
+			Version0002Date20190226000001::$editToChar1000
 		);
 		foreach ($edits as $edit) {
 			list($tableName, $field) = $edit;

@@ -55,7 +55,7 @@ class Version0002Date20190226000001 extends SimpleMigrationStep {
 
 
 	/** @var array */
-	public static $editToChar2000 = [
+	public static $editToChar1000 = [
 		[CoreRequestBuilder::TABLE_CACHE_ACTORS, 'id'],
 		[CoreRequestBuilder::TABLE_CACHE_ACTORS, 'following'],
 		[CoreRequestBuilder::TABLE_CACHE_ACTORS, 'followers'],
@@ -118,7 +118,7 @@ class Version0002Date20190226000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		foreach (array_merge(self::$editToText, self::$editToChar2000) as $edit) {
+		foreach (array_merge(self::$editToText, self::$editToChar1000) as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
@@ -140,7 +140,7 @@ class Version0002Date20190226000001 extends SimpleMigrationStep {
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 
-		foreach (array_merge(self::$editToText, self::$editToChar2000) as $edit) {
+		foreach (array_merge(self::$editToText, self::$editToChar1000) as $edit) {
 			list($tableName, $field) = $edit;
 
 			$qb = $this->connection->getQueryBuilder();

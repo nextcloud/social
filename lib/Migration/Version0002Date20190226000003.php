@@ -88,7 +88,7 @@ class Version0002Date20190226000003 extends SimpleMigrationStep {
 		}
 
 		// -> VARCHAR(4000)
-		foreach (Version0002Date20190226000001::$editToChar2000 as $edit) {
+		foreach (Version0002Date20190226000001::$editToChar1000 as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
@@ -96,7 +96,7 @@ class Version0002Date20190226000003 extends SimpleMigrationStep {
 				continue;
 			}
 
-			$table->addColumn($field, Type::STRING, ['notnull' => false, 'length' => 2000]);
+			$table->addColumn($field, Type::STRING, ['notnull' => false, 'length' => 1000]);
 		}
 
 		return $schema;
@@ -112,7 +112,7 @@ class Version0002Date20190226000003 extends SimpleMigrationStep {
 
 		$edits = array_merge(
 			Version0002Date20190226000001::$editToText,
-			Version0002Date20190226000001::$editToChar2000
+			Version0002Date20190226000001::$editToChar1000
 		);
 		foreach ($edits as $edit) {
 			list($table, $field) = $edit;
