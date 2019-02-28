@@ -187,7 +187,7 @@
 	}
 
 	.emoji-invoker {
-		background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OCIgaGVpZ2h0PSI2OCI+PHBhdGggZD0iTTM0IDBDMTUuMyAwIDAgMTUuMyAwIDM0czE1LjMgMzQgMzQgMzQgMzQtMTUuMyAzNC0zNFM1Mi43IDAgMzQgMHptMCA2NEMxNy41IDY0IDQgNTAuNSA0IDM0UzE3LjUgNCAzNCA0czMwIDEzLjUgMzAgMzAtMTMuNSAzMC0zMCAzMHoiLz48cGF0aCBkPSJNNDQuNiA0NC42Yy01LjggNS44LTE1LjQgNS44LTIxLjIgMC0uOC0uOC0yLS44LTIuOCAwLS44LjgtLjggMiAwIDIuOEMyNC4zIDUxLjEgMjkuMSA1MyAzNCA1M3M5LjctMS45IDEzLjQtNS42Yy44LS44LjgtMiAwLTIuOC0uOC0uOC0yLS44LTIuOCAweiIvPjxjaXJjbGUgcj0iNSIgY3k9IjI2IiBjeD0iMjQiLz48Y2lyY2xlIHI9IjUiIGN5PSIyNiIgY3g9IjQ0Ii8+PC9zdmc+);
+		background-image: var(--icon-social-emoji-000);
 		background-position: center center;
 		background-repeat: no-repeat;
 		width: 38px;
