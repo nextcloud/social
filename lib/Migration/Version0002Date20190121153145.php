@@ -83,12 +83,12 @@ class Version0002Date20190121153145 extends SimpleMigrationStep {
 
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
 		if (!$table->hasColumn('activity_id')) {
-			$table->addColumn('activity_id', Type::STRING, ['notnull' => false, 'length' => 2000]);
+			$table->addColumn('activity_id', Type::STRING, ['notnull' => false, 'length' => 1000]);
 		}
 
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_NOTES);
 		if (!$table->hasColumn('object_id')) {
-			$table->addColumn('object_id', Type::STRING, ['notnull' => false, 'length' => 2000]);
+			$table->addColumn('object_id', Type::STRING, ['notnull' => false, 'length' => 1000]);
 		}
 
 		if (!$schema->hasTable(CoreRequestBuilder::TABLE_QUEUE_STREAM)) {
