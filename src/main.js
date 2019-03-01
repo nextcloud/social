@@ -48,7 +48,7 @@ Vue.prototype.OC = OC
 Vue.prototype.OCA = OCA
 
 Vue.directive('ClickOutside', ClickOutside)
-Vue.use(VTooltip)
+Vue.directive('Tooltip', VTooltip)
 Vue.use(contenteditableDirective)
 Vue.use(vuetwemoji, {
 	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/
