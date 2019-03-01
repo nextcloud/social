@@ -53,9 +53,9 @@
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
 				@emoji="insert">
-				<a slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
-					class="emoji-invoker" tabindex="0" v-on="events"
-					@keyup.enter="events.click" @keyup.space="events.click" />
+				<div slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
+					class="emoji-invoker" tabindex="0" @keyup.enter="events.click"
+					@keyup.space="events.click" @click.stop="events.click" />
 				<!-- eslint-disable-next-line vue/no-template-shadow -->
 				<div slot="emoji-picker" slot-scope="{ emojis, insert }" class="emoji-picker popovermenu">
 					<div>
