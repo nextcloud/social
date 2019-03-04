@@ -106,7 +106,9 @@ class PostService {
 	 */
 	public function createPost(Post $post, ACore &$activity = null): string {
 		$note = new Note();
-		$this->noteService->assignStream($note, $post->getActor(), $post->getType());
+		$actor = $post->getActor();
+		$this->noteService->assignStream($note, $actor, $post->getType());
+
 		$note->setAttributedTo(
 			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
 		);
@@ -117,8 +119,8 @@ class PostService {
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->noteService->addHashtags($note, $post->getHashtags());
 
-		$result = $this->activityService->createActivity($post->getActor(), $note, $activity);
-		$this->accountService->cacheLocalActorDetailCount($post->getActor());
+		$result = $this->activityService->createActivity($actor, $note, $activity);
+		$this->accountService->cacheLocalActorDetailCount($actor);
 
 		return $result;
 	}
