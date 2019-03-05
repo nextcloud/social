@@ -43,25 +43,15 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0002Date20190305091901
+ * Class Version0002Date20190305091902
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190305091901 extends SimpleMigrationStep {
+class Version0002Date20190305091902 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
 	private $connection;
-
-
-	/** @var array */
-	public static $setAsKeys = [
-		[CoreRequestBuilder::TABLE_CACHE_ACTORS, 'id'],
-		[CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'id'],
-		[CoreRequestBuilder::TABLE_SERVER_ACTORS, 'id'],
-		[CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'id'],
-		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'id']
-	];
 
 
 	/**
@@ -86,15 +76,13 @@ class Version0002Date20190305091901 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		foreach (self::$setAsKeys as $edit) {
+		foreach (Version0002Date20190305091901::$setAsKeys as $edit) {
 			list($tableName, $field) = $edit;
 
 			$table = $schema->getTable($tableName);
 
-			$prim = self::getPrimField($field);
-			if (!$table->hasColumn($prim)) {
-				$table->addColumn($prim, Type::STRING, ['notnull' => false, 'length' => 255]);
-			}
+			$prim = Version0002Date20190305091901::getPrimField($field);
+			$table->setPrimaryKey([$prim]);
 		}
 
 		return $schema;
@@ -107,45 +95,6 @@ class Version0002Date20190305091901 extends SimpleMigrationStep {
 	 * @param array $options
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
-
-		foreach (self::$setAsKeys as $edit) {
-			list($tableName, $field) = $edit;
-
-			$prim = self::getPrimField($field);
-			$qb = $this->connection->getQueryBuilder();
-
-			/** @noinspection PhpMethodParametersCountMismatchInspection */
-			$qb->select('t.' . $field)
-			   ->from($tableName, 't');
-
-			$cursor = $qb->execute();
-			while ($data = $cursor->fetch()) {
-				$id = $data[$field];
-				$hash = hash('sha512', $id);
-				$update = $this->connection->getQueryBuilder();
-				$update->update($tableName);
-				$update->set($prim, $update->createNamedParameter($hash));
-				$update->where(
-					$qb->expr()
-					   ->eq($field, $update->createNamedParameter($id))
-				);
-				$update->execute();
-
-				$update->execute();
-			}
-			$cursor->closeCursor();
-
-		}
-	}
-
-
-	/**
-	 * @param string $field
-	 *
-	 * @return string
-	 */
-	public static function getPrimField(string $field): string {
-		return $field . '_prim';
 	}
 
 }

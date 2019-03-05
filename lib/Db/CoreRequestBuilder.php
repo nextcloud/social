@@ -113,7 +113,6 @@ class CoreRequestBuilder {
 	 */
 	public function generatePrimaryKey(IQueryBuilder $qb, string $id) {
 		$qb->setValue('id_prim', $qb->createNamedParameter(hash('sha512', $id)));
-		$this->miscService->log('__' . hash('sha512', 'toto'));
 	}
 
 
