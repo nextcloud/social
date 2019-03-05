@@ -37,39 +37,20 @@ use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Stream;
 
 
-class Note extends ACore implements JsonSerializable {
+class Note extends Stream implements JsonSerializable {
 
 
 	const TYPE = 'Note';
 
-	const TYPE_PUBLIC = 'public';
-	const TYPE_UNLISTED = 'unlisted';
-	const TYPE_FOLLOWERS = 'followers';
-	const TYPE_DIRECT = 'direct';
-
-
-	/** @var string */
-	private $content = '';
-
-	/** @var string */
-	private $attributedTo = '';
 
 	/** @var array */
 	private $attachments = [];
-
-	/** @var string */
-	private $inReplyTo = '';
-
-	/** @var bool */
-	private $sensitive = false;
-
-	/** @var string */
-	private $conversation = '';
-
-	/** @var int */
-	private $publishedTime = 0;
+  
+	/** @var array */
+	private $hashtags = [];
 
 
 	/**
@@ -81,62 +62,6 @@ class Note extends ACore implements JsonSerializable {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getContent(): string {
-		return $this->content;
-	}
-
-	/**
-	 * @param string $content
-	 *
-	 * @return Note
-	 */
-	public function setContent(string $content): Note {
-		$this->content = $content;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getAttributedTo(): string {
-		return $this->attributedTo;
-	}
-
-	/**
-	 * @param string $attributedTo
-	 *
-	 * @return Note
-	 */
-	public function setAttributedTo(string $attributedTo): Note {
-		$this->attributedTo = $attributedTo;
-
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getInReplyTo(): string {
-		return $this->inReplyTo;
-	}
-
-	/**
-	 * @param string $inReplyTo
-	 *
-	 * @return Note
-	 */
-	public function setInReplyTo(string $inReplyTo): Note {
-		$this->inReplyTo = $inReplyTo;
-
-		return $this;
 	}
 
 
@@ -160,57 +85,19 @@ class Note extends ACore implements JsonSerializable {
 
 
 	/**
-	 * @return bool
+	 * @return array
 	 */
-	public function isSensitive(): bool {
-		return $this->sensitive;
+	public function getHashtags(): array {
+		return $this->hashtags;
 	}
 
 	/**
-	 * @param bool $sensitive
+	 * @param array $hashtags
 	 *
 	 * @return Note
 	 */
-	public function setSensitive(bool $sensitive): Note {
-		$this->sensitive = $sensitive;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getConversation(): string {
-		return $this->conversation;
-	}
-
-	/**
-	 * @param string $conversation
-	 *
-	 * @return Note
-	 */
-	public function setConversation(string $conversation): Note {
-		$this->conversation = $conversation;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return int
-	 */
-	public function getPublishedTime(): int {
-		return $this->publishedTime;
-	}
-
-	/**
-	 * @param int $time
-	 *
-	 * @return Note
-	 */
-	public function setPublishedTime(int $time): Note {
-		$this->publishedTime = $time;
+	public function setHashtags(array $hashtags): Note {
+		$this->hashtags = $hashtags;
 
 		return $this;
 	}
@@ -218,9 +105,18 @@ class Note extends ACore implements JsonSerializable {
 	/**
 	 *
 	 */
-	public function convertPublished() {
-		$dTime = new DateTime($this->getPublished());
-		$this->setPublishedTime($dTime->getTimestamp());
+	public function fillHashtags() {
+		$tags = $this->getTags('Hashtag');
+		$hashtags = [];
+		foreach ($tags as $tag) {
+			$hashtag = $tag['name'];
+			if (substr($hashtag, 0, 1) === '#') {
+				$hashtag = substr($hashtag, 1);
+			}
+			$hashtags[] = $hashtag;
+		}
+
+		$this->setHashtags($hashtags);
 	}
 
 
@@ -229,13 +125,6 @@ class Note extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-
-		$this->setInReplyTo($this->validate(ACore::AS_ID, 'inReplyTo', $data, ''));
-		$this->setAttributedTo($this->validate(ACore::AS_ID, 'attributedTo', $data, ''));
-		$this->setSensitive($this->getBool('sensitive', $data, false));
-		$this->setConversation($this->validate(ACore::AS_ID, 'conversation', $data, ''));
-		$this->setContent($this->get('content', $data, ''));
-		$this->convertPublished();
 
 		$this->importAttachments($this->getArray('attachment', $data, []));
 	}
@@ -287,14 +176,8 @@ class Note extends ACore implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
-		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
-
-		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));;
-
-		$this->setPublishedTime($dTime->getTimestamp());
 		$this->setAttachments($this->getArray('attachments', $data, []));
-		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
-		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
+		$this->setHashtags($this->getArray('hashtags', $data, []));
 	}
 
 
@@ -302,22 +185,14 @@ class Note extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		$this->addEntryInt('publishedTime', $this->getPublishedTime());
-
-		$result = array_merge(
-			parent::jsonSerialize(),
-			[
-				'content'      => $this->getContent(),
-				'attributedTo' => $this->getUrlSocial() . $this->getAttributedTo(),
-				'inReplyTo'    => $this->getInReplyTo(),
-				'sensitive'    => $this->isSensitive(),
-				'conversation' => $this->getConversation()
-			]
-		);
+		$result = parent::jsonSerialize();
 
 		if ($this->isCompleteDetails()) {
+			$result['hashtags'] = $this->getHashtags();
 			$result['attachment'] = $this->getAttachments();
 		}
+
+		$this->cleanArray($result);
 
 		return $result;
 	}

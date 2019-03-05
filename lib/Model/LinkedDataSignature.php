@@ -32,9 +32,12 @@ namespace OCA\Social\Model;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use JsonLdException;
 use JsonSerializable;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Service\SignatureService;
+use stdClass;
 
 
 /**
@@ -78,6 +81,7 @@ class LinkedDataSignature implements JsonSerializable {
 	public function __construct() {
 	}
 
+
 	/**
 	 * @return string
 	 */
@@ -95,6 +99,7 @@ class LinkedDataSignature implements JsonSerializable {
 
 		return $this;
 	}
+
 
 	/**
 	 * @return string
@@ -293,20 +298,16 @@ class LinkedDataSignature implements JsonSerializable {
 	 */
 	private function hashedCanonicalize(array $data, bool $removeEmptyValue = false): string {
 		if ($removeEmptyValue) {
-			$data = array_filter(
-				$data,
-				function($v) {
-					return ($v !== '');
-				}
-			);
+			$this->cleanArray($data);
 		}
 
 		$object = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 		$res = jsonld_normalize(
 			$object,
 			[
-				'algorithm' => 'URDNA2015',
-				'format'    => 'application/nquads'
+				'algorithm'      => 'URDNA2015',
+				'format'         => 'application/nquads',
+				'documentLoader' => [SignatureService::class, 'documentLoader']
 			]
 		);
 

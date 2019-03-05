@@ -38,10 +38,10 @@ return [
 	'routes' => [
 		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
 		['name' => 'Navigation#test', 'url' => '/test', 'verb' => 'GET'],
-
 		[
 			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
-			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
+			'requirements' => ['path' => '.+'],
+			'defaults' => ['path' => '']
 		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
@@ -54,17 +54,24 @@ return [
 		['name' => 'ActivityPub#followers', 'url' => '/@{username}/followers', 'verb' => 'GET'],
 		['name' => 'ActivityPub#following', 'url' => '/@{username}/following', 'verb' => 'GET'],
 
+		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/{uri}', 'verb' => 'GET'],
+		['name' => 'OStatus#followRemote', 'url' => '/api/v1/ostatus/followRemote/{local}', 'verb' => 'GET'],
+		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
+
 		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET'],
 
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
 		['name' => 'Local#streamNotifications', 'url' => '/api/v1/stream/notifications', 'verb' => 'GET'],
 		['name' => 'Local#streamTimeline', 'url' => '/api/v1/stream/timeline', 'verb' => 'GET'],
+		['name' => 'Local#streamTag', 'url' => '/api/v1/stream/tag/{hashtag}/', 'verb' => 'GET'],
 		['name' => 'Local#streamFederated', 'url' => '/api/v1/stream/federated', 'verb' => 'GET'],
 		['name' => 'Local#streamDirect', 'url' => '/api/v1/stream/direct', 'verb' => 'GET'],
 		['name' => 'Local#streamAccount', 'url' => '/api/v1/account/{username}/stream', 'verb' => 'GET'],
 
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
+
+		['name' => 'Local#postBoost', 'url' => '/api/v1/post/boost', 'verb' => 'POST'],
 
 		['name' => 'Local#actionFollow', 'url' => '/api/v1/current/follow', 'verb' => 'PUT'],
 		['name' => 'Local#actionUnfollow', 'url' => '/api/v1/current/follow', 'verb' => 'DELETE'],
@@ -84,12 +91,10 @@ return [
 
 //		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
-		['name' => 'Queue#asyncWithToken', 'url' => CurlService::ASYNC_TOKEN, 'verb' => 'POST'],
+    ['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
 
-		[
-			'name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress',
-			'verb' => 'POST'
-		],
+		['name' => 'Queue#asyncForRequest', 'url' => CurlService::ASYNC_REQUEST_TOKEN, 'verb' => 'POST'],
 
+		['name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress', 'verb' => 'POST']
 	]
 ];

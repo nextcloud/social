@@ -68,8 +68,9 @@ try {
 	exit;
 }
 
-$href =
-	$urlGenerator->linkToRouteAbsolute('social.ActivityPub.actorAlias', ['username' => $username]);
+$href = $configService->getUrlSocial(
+	$urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $username])
+);
 
 if (substr($href, -1) === '/') {
 	$href = substr($href, 0, -1);
@@ -79,9 +80,14 @@ $finger = [
 	'subject' => $subject,
 	'links'   => [
 		[
-			'rel'  => 'self',
+			'rel' => 'self',
 			'type' => 'application/activity+json',
 			'href' => $href
+		],
+		[
+			'rel'      => 'http://ostatus.org/schema/1.0/subscribe',
+			'template' => urldecode(
+				$href = $urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe', ['uri' => '{uri}']))
 		]
 	]
 ];

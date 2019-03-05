@@ -37,7 +37,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ConfigService;
@@ -58,12 +58,15 @@ class CoreRequestBuilder {
 
 	const TABLE_SERVER_ACTORS = 'social_server_actors';
 	const TABLE_SERVER_NOTES = 'social_server_notes';
+	const TABLE_SERVER_HASHTAGS = 'social_server_hashtags';
 	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
 
 	const TABLE_CACHE_ACTORS = 'social_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
+	const TABLE_QUEUE_STREAM = 'social_queue_stream';
 
+  
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -77,8 +80,8 @@ class CoreRequestBuilder {
 	/** @var string */
 	protected $defaultSelectAlias;
 
-	/** @var string */
-	private $viewerId = '';
+	/** @var Person */
+	protected $viewer = null;
 
 
 	/**
@@ -98,17 +101,10 @@ class CoreRequestBuilder {
 
 
 	/**
-	 * @return string
+	 * @param Person $viewer
 	 */
-	public function getViewerId(): string {
-		return $this->viewerId;
-	}
-
-	/**
-	 * @param string $viewerId
-	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
+	public function setViewer(Person $viewer) {
+		$this->viewer = $viewer;
 	}
 
 
@@ -142,6 +138,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToUserId(IQueryBuilder &$qb, string $userId) {
 		$this->limitToDBField($qb, 'user_id', $userId, false);
+	}
+
+
+	/**
+	 * Limit the request to the ActivityId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $activityId
+	 */
+	protected function limitToActivityId(IQueryBuilder &$qb, string $activityId) {
+		$this->limitToDBField($qb, 'activity_id', $activityId, false);
 	}
 
 
@@ -187,6 +194,39 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToToken(IQueryBuilder &$qb, string $token) {
 		$this->limitToDBField($qb, 'token', $token);
+	}
+
+	/**
+	 * Limit the results to a given number
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param int $limit
+	 */
+	protected function limitResults(IQueryBuilder $qb, int $limit) {
+		$qb->setMaxResults($limit);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $hashtag
+	 */
+	protected function limitToHashtag(IQueryBuilder &$qb, string $hashtag) {
+		$this->limitToDBField($qb, 'hashtag', $hashtag, false);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $hashtag
+	 */
+	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag) {
+		$dbConn = $this->dbConnection;
+		$this->searchInDBField($qb, 'hashtag', '%' . $dbConn->escapeLikeParameter($hashtag) . '%');
 	}
 
 
@@ -496,6 +536,27 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param int $timestamp
+	 * @param string $field
+	 */
+	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
+		$dTime = new \DateTime();
+		$dTime->setTimestamp($timestamp);
+
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$field = $pf . $field;
+
+		$orX = $expr->orX();
+		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
+
+		$qb->andWhere($orX);
+
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param array $values
 	 */
@@ -666,8 +727,7 @@ class CoreRequestBuilder {
 			return;
 		}
 
-		$viewerId = $this->getViewerId();
-		if ($viewerId === '') {
+		if ($this->viewer === null) {
 			return;
 		}
 
@@ -688,7 +748,7 @@ class CoreRequestBuilder {
 			$andX->add(
 				$expr->eq(
 					$func->lower($prefix . '_f.actor_id'),
-					$func->lower($qb->createNamedParameter($viewerId))
+					$func->lower($qb->createNamedParameter($this->viewer->getId()))
 				)
 			);
 		} else {
@@ -700,7 +760,7 @@ class CoreRequestBuilder {
 			$andX->add(
 				$expr->eq(
 					$func->lower($prefix . '_f.object_id'),
-					$func->lower($qb->createNamedParameter($viewerId))
+					$func->lower($qb->createNamedParameter($this->viewer->getId()))
 				)
 			);
 		}
@@ -764,24 +824,25 @@ class CoreRequestBuilder {
 	 * @param array $data
 	 */
 	protected function assignDetails(Person $actor, array $data) {
-		if ($this->getViewerId() !== '') {
-
-			try {
-				$this->parseFollowLeftJoin($data, 'as_follower');
-				$actor->addDetailBool('following', true);
-			} catch (InvalidResourceException $e) {
-				$actor->addDetailBool('following', false);
-			}
-
-			try {
-				$this->parseFollowLeftJoin($data, 'as_followed');
-				$actor->addDetailBool('followed', true);
-			} catch (InvalidResourceException $e) {
-				$actor->addDetailBool('followed', false);
-			}
-
-			$actor->setCompleteDetails(true);
+		if ($this->viewer === null) {
+			return;
 		}
+
+		try {
+			$this->parseFollowLeftJoin($data, 'as_follower');
+			$actor->addDetailBool('following', true);
+		} catch (InvalidResourceException $e) {
+			$actor->addDetailBool('following', false);
+		}
+
+		try {
+			$this->parseFollowLeftJoin($data, 'as_followed');
+			$actor->addDetailBool('followed', true);
+		} catch (InvalidResourceException $e) {
+			$actor->addDetailBool('followed', false);
+		}
+
+		$actor->setCompleteDetails(true);
 	}
 
 

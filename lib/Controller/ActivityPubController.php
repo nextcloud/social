@@ -31,6 +31,8 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use daita\MySmallPhpTools\Traits\TAsync;
+use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
@@ -42,6 +44,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\StreamQueueService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -51,6 +54,8 @@ class ActivityPubController extends Controller {
 
 
 	use TNCDataResponse;
+	use TStringTools;
+	use TAsync;
 
 
 	/** @var SocialPubController */
@@ -61,6 +66,9 @@ class ActivityPubController extends Controller {
 
 	/** @var SignatureService */
 	private $signatureService;
+
+	/** @var StreamQueueService */
+	private $streamQueueService;
 
 	/** @var ImportService */
 	private $importService;
@@ -79,6 +87,7 @@ class ActivityPubController extends Controller {
 	 * @param SocialPubController $socialPubController
 	 * @param CacheActorService $cacheActorService
 	 * @param SignatureService $signatureService
+	 * @param StreamQueueService $streamQueueService
 	 * @param ImportService $importService
 	 * @param FollowService $followService
 	 * @param MiscService $miscService
@@ -86,13 +95,15 @@ class ActivityPubController extends Controller {
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController,
 		CacheActorService $cacheActorService, SignatureService $signatureService,
-		ImportService $importService, FollowService $followService, MiscService $miscService
+		StreamQueueService $streamQueueService, ImportService $importService,
+		FollowService $followService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->socialPubController = $socialPubController;
 		$this->cacheActorService = $cacheActorService;
 		$this->signatureService = $signatureService;
+		$this->streamQueueService = $streamQueueService;
 		$this->importService = $importService;
 		$this->followService = $followService;
 		$this->miscService = $miscService;
@@ -178,7 +189,11 @@ class ActivityPubController extends Controller {
 			} catch (ItemUnknownException $e) {
 			}
 
-			return $this->success([]);
+			$this->async();
+			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
+
+			// or it will feed the logs.
+			exit();
 		} catch (SignatureIsGoneException $e) {
 			return $this->fail($e, [], Http::STATUS_GONE, false);
 		} catch (Exception $e) {
@@ -220,7 +235,11 @@ class ActivityPubController extends Controller {
 			} catch (ItemUnknownException $e) {
 			}
 
-			return $this->success([]);
+			$this->async();
+			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
+
+			// or it will feed the logs.
+			exit();
 		} catch (SignatureIsGoneException $e) {
 			return $this->fail($e, [], Http::STATUS_GONE);
 		} catch (Exception $e) {

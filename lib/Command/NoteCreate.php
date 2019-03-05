@@ -47,6 +47,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class NoteCreate extends Base {
 
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -54,7 +55,7 @@ class NoteCreate extends Base {
 	private $activityService;
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var PostService */
 	private $postService;
@@ -70,21 +71,21 @@ class NoteCreate extends Base {
 	 * NoteCreate constructor.
 	 *
 	 * @param ActivityService $activityService
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param PostService $postService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ActivityService $activityService, AccountService $actorService,
+		ActivityService $activityService, AccountService $accountService,
 		PostService $postService, CurlService $curlService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->activityService = $activityService;
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->postService = $postService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
@@ -108,6 +109,10 @@ class NoteCreate extends Base {
 				 'type', 'y', InputOption::VALUE_OPTIONAL,
 				 'type: public (default), followers, unlisted, direct'
 			 )
+			 ->addOption(
+				 'hashtag', 'g', InputOption::VALUE_OPTIONAL,
+				 'hashtag, without the leading #'
+			 )
 			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')
 			 ->setDescription('Create a new note');
@@ -125,14 +130,17 @@ class NoteCreate extends Base {
 		$userId = $input->getArgument('userid');
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
+		$hashtag = $input->getOption('hashtag');
 		$replyTo = $input->getOption('replyTo');
 		$type = $input->getOption('type');
 
-		$post = new Post($userId);
+		$actor = $this->accountService->getActorFromUserId($userId);
+		$post = new Post($actor);
 		$post->setContent($content);
 		$post->setType(($type === null) ? '' : $type);
 		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
 		$post->addTo(($to === null) ? '' : $to);
+		$post->setHashtags(($hashtag === null) ? [] : [$hashtag]);
 
 		$token = $this->postService->createPost($post, $activity);
 

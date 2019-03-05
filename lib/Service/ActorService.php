@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -66,10 +67,6 @@ class ActorService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId = '';
-
-
 	/**
 	 * ActorService constructor.
 	 *
@@ -94,31 +91,18 @@ class ActorService {
 
 
 	/**
-	 * @param string $viewerId
-	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->cacheActorsRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
-	}
-
-
-	/**
 	 * @param Person $actor
-	 * @param bool $refresh
 	 */
-	public function cacheLocalActor(Person $actor, bool $refresh = false) {
-		if ($refresh) {
-			$this->cacheActorsRequest->deleteFromId($actor->getId());
-		}
-
+	public function cacheLocalActor(Person $actor) {
 		$actor->setLocal(true);
 		$actor->setSource(json_encode($actor, JSON_UNESCAPED_SLASHES));
 
-		$this->save($actor);
+		try {
+			$this->cacheActorsRequest->getFromId($actor->getId());
+			$this->update($actor);
+		} catch (CacheActorDoesNotExistException $e) {
+			$this->save($actor);
+		}
 	}
 
 
@@ -133,10 +117,13 @@ class ActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @return int
 	 */
-	public function update(Person $actor) {
+	public function update(Person $actor): int {
 		$this->cacheDocumentIfNeeded($actor);
-		$this->cacheActorsRequest->update($actor);
+
+		return $this->cacheActorsRequest->update($actor);
 	}
 
 

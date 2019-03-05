@@ -57,7 +57,7 @@ class CurlService {
 	use TPathTools;
 
 
-	const ASYNC_TOKEN = '/async/token/{token}';
+	const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
 	const USER_AGENT = 'Nextcloud Social';
 
 
@@ -90,21 +90,15 @@ class CurlService {
 	/**
 	 * @param string $account
 	 *
-	 * @return Person
-	 * @throws InvalidOriginException
+	 * @return array
 	 * @throws InvalidResourceException
-	 * @throws MalformedArrayException
-	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
-	 * @throws RetrieveAccountFormatException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
-	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
 	 */
-	public function retrieveAccount(string $account): Person {
+	public function webfingerAccount(string $account): array {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
@@ -121,6 +115,29 @@ class CurlService {
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
 		$result = $this->request($request);
+
+		return $result;
+	}
+
+
+	/**
+	 * @param string $account
+	 *
+	 * @return Person
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RetrieveAccountFormatException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
+	 */
+	public function retrieveAccount(string $account): Person {
+		$result = $this->webfingerAccount($account);
 
 		try {
 			$link = $this->extractArray('rel', 'self', $this->getArray('links', $result));
@@ -237,7 +254,7 @@ class CurlService {
 		$parse = parse_url($address);
 		$host = $this->get('host', $parse, '');
 		$path = $this->withEndSlash($this->get('path', $parse, '')) . $this->withoutBeginSlash(
-				self::ASYNC_TOKEN
+				self::ASYNC_REQUEST_TOKEN
 			);
 		$path = str_replace('{token}', $token, $path);
 
@@ -273,6 +290,8 @@ class CurlService {
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+
+		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
 
 		$this->maxDownloadSize =
 			$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * (1024 * 1024);
@@ -398,6 +417,7 @@ class CurlService {
 			);
 		}
 	}
+
 
 	/**
 	 * @param int $code

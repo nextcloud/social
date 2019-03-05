@@ -1,12 +1,17 @@
 const path = require('path');
-const { VueLoaderPlugin } = require('vue-loader');
+const VueLoaderPlugin = require('vue-loader/lib/plugin');
+
 
 module.exports = {
-	entry: path.join(__dirname, 'src', 'main.js'),
+	entry: {
+		social: path.join(__dirname, 'src', 'main.js'),
+		ostatus: path.join(__dirname, 'src', 'ostatus.js'),
+	},
 	output: {
 		path: path.resolve(__dirname, './js'),
 		publicPath: '/js/',
-		filename: 'social.js'
+		filename: '[name].js',
+		chunkFilename: '[name].[chunkhash].js'
 	},
 	module: {
 		rules: [

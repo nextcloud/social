@@ -32,6 +32,7 @@ namespace OCA\Social\Model;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use daita\MySmallPhpTools\Traits\TStringTools;
 use DateTime;
 use JsonSerializable;
 
@@ -45,6 +46,7 @@ class RequestQueue implements JsonSerializable {
 
 
 	use TArrayTools;
+	use TStringTools;
 
 
 	const STATUS_STANDBY = 0;
@@ -138,6 +140,16 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * @return RequestQueue
+	 */
+	public function resetToken(): RequestQueue {
+		$uuid = $this->uuid();
+		$this->setToken($uuid);
+
+		return $this;
+	}
+
 
 	/**
 	 * @return string
@@ -157,21 +169,6 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
-
-	/**
-	 * @return RequestQueue
-	 */
-	public function resetToken(): RequestQueue {
-		$uuid = sprintf(
-			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x', mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-			mt_rand(0, 0xffff), mt_rand(0, 0xfff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-		);
-
-		$this->setToken($uuid);
-
-		return $this;
-	}
 
 	/**
 	 * @return string

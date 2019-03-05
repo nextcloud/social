@@ -1,7 +1,9 @@
 <template>
 	<div v-if="!serverData.setup" id="app-social" :class="{public: serverData.public}">
 		<div v-if="!serverData.public" id="app-navigation">
-			<app-navigation :menu="menu" />
+			<ul>
+				<app-navigation-item v-for="item in menu.items" :key="item.key" :item="item" />
+			</ul>
 		</div>
 		<div id="app-content">
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
@@ -89,9 +91,7 @@
 </style>
 
 <script>
-import {
-	AppNavigation
-} from 'nextcloud-vue'
+import AppNavigationItem from 'nextcloud-vue/dist/Components/AppNavigationItem'
 import axios from 'nextcloud-axios'
 import Search from './components/Search'
 import currentuserMixin from './mixins/currentUserMixin'
@@ -99,7 +99,7 @@ import currentuserMixin from './mixins/currentUserMixin'
 export default {
 	name: 'App',
 	components: {
-		AppNavigation,
+		AppNavigationItem,
 		Search
 	},
 	mixins: [currentuserMixin],

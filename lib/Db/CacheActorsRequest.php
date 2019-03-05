@@ -114,8 +114,10 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * insert cache about an Actor in database.
 	 *
 	 * @param Person $actor
+	 *
+	 * @return int
 	 */
-	public function update(Person $actor) {
+	public function update(Person $actor): int {
 
 		if ($actor->getCreation() > 0) {
 			$dTime = new DateTime();
@@ -155,7 +157,8 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->set('icon_id', $qb->createNamedParameter($iconId));
 
 		$this->limitToIdString($qb, $actor->getId());
-		$qb->execute();
+
+		return $qb->execute();
 	}
 
 
@@ -247,6 +250,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->searchInAccount($qb, $search);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 		$this->leftJoinDetails($qb);
+		$this->limitResults($qb, 25);
 
 		$accounts = [];
 		$cursor = $qb->execute();

@@ -35,6 +35,9 @@
 				</a>
 			</p>
 			<follow-button :account="accountInfo.account" />
+			<button v-if="serverData.public" class="primary" @click="followRemote">
+				{{ t('social', 'Follow') }}
+			</button>
 		</div>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile--sections">
@@ -95,8 +98,7 @@
 	}
 </style>
 <script>
-
-import { Avatar } from 'nextcloud-vue'
+import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import serverData from '../mixins/serverData'
 import currentUser from '../mixins/currentUserMixin'
 import follow from '../mixins/follow'
@@ -145,7 +147,9 @@ export default {
 		}
 	},
 	methods: {
-
+		followRemote() {
+			window.open(OC.generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.uid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
+		}
 	}
 }
 

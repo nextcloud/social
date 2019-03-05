@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Interfaces\Activity;
+namespace OCA\Social\Interfaces\Object;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
@@ -46,20 +47,25 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 
 
+/**
+ * Class FollowInterface
+ *
+ * @package OCA\Social\Interfaces\Object
+ */
 class FollowInterface implements IActivityPubInterface {
 
 
@@ -68,6 +74,9 @@ class FollowInterface implements IActivityPubInterface {
 
 	/** @var CacheActorService */
 	private $cacheActorService;
+
+	/** @var AccountService */
+	private $accountService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -84,16 +93,19 @@ class FollowInterface implements IActivityPubInterface {
 	 *
 	 * @param FollowsRequest $followsRequest
 	 * @param CacheActorService $cacheActorService
+	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
-		ActivityService $activityService, ConfigService $configService, MiscService $miscService
+		AccountService $accountService, ActivityService $activityService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->cacheActorService = $cacheActorService;
+		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -128,8 +140,12 @@ class FollowInterface implements IActivityPubInterface {
 
 			$this->activityService->request($accept);
 			$this->followsRequest->accepted($follow);
+
+			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+			$this->accountService->cacheLocalActorDetailCount($actor);
 		} catch (Exception $e) {
 		}
+
 	}
 
 
@@ -155,9 +171,8 @@ class FollowInterface implements IActivityPubInterface {
 		$follow->checkOrigin($follow->getActorId());
 
 		try {
-			$knownFollow = $this->followsRequest->getByPersons(
-				$follow->getActorId(), $follow->getObjectId()
-			);
+			$knownFollow =
+				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
 
 			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
 				$this->confirmFollowRequest($follow);

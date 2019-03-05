@@ -63,7 +63,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @param RequestQueue $queue
 	 */
 	public function create(RequestQueue $queue) {
-		$qb = $this->getQueueInsertSql();
+		$qb = $this->getRequestQueueInsertSql();
 		$qb->setValue('token', $qb->createNamedParameter($queue->getToken()))
 		   ->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
 		   ->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
@@ -85,14 +85,14 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @return RequestQueue[]
 	 */
 	public function getStandby(): array {
-		$qb = $this->getQueueSelectSql();
+		$qb = $this->getRequestQueueSelectSql();
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
 		$qb->orderBy('id', 'asc');
 
 		$requests = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$requests[] = $this->parseQueueSelectSql($data);
+			$requests[] = $this->parseRequestQueueSelectSql($data);
 		}
 		$cursor->closeCursor();
 
@@ -109,7 +109,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @return RequestQueue[]
 	 */
 	public function getFromToken(string $token, int $status = -1): array {
-		$qb = $this->getQueueSelectSql();
+		$qb = $this->getRequestQueueSelectSql();
 		$this->limitToToken($qb, $token);
 
 		if ($status > -1) {
@@ -121,7 +121,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$requests = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$requests[] = $this->parseQueueSelectSql($data);
+			$requests[] = $this->parseRequestQueueSelectSql($data);
 		}
 		$cursor->closeCursor();
 
@@ -135,7 +135,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @throws QueueStatusException
 	 */
 	public function setAsRunning(RequestQueue &$queue) {
-		$qb = $this->getQueueUpdateSql();
+		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_RUNNING))
 		   ->set(
 			   'last',
@@ -160,7 +160,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @throws QueueStatusException
 	 */
 	public function setAsSuccess(RequestQueue &$queue) {
-		$qb = $this->getQueueUpdateSql();
+		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_SUCCESS));
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
@@ -176,12 +176,12 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 
 	/**
-	 * @param RequestQueue $queue >ll
+	 * @param RequestQueue $queue
 	 *
 	 * @throws QueueStatusException
 	 */
 	public function setAsFailure(RequestQueue &$queue) {
-		$qb = $this->getQueueUpdateSql();
+		$qb = $this->getRequestQueueUpdateSql();
 		$func = $qb->func();
 		$expr = $qb->expr();
 
@@ -201,7 +201,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 
 	public function delete(RequestQueue $queue) {
-		$qb = $this->getQueueDeleteSql();
+		$qb = $this->getRequestQueueDeleteSql();
 		$this->limitToId($qb, $queue->getId());
 
 		$qb->execute();

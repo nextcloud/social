@@ -28,6 +28,8 @@ import store from './store'
 import router from './router'
 import vuetwemoji from 'vue-twemoji'
 import contenteditableDirective from 'vue-contenteditable-directive'
+import ClickOutside from 'vue-click-outside'
+import VTooltip from 'nextcloud-vue/dist/Directives/Tooltip'
 
 sync(store, router)
 
@@ -45,6 +47,8 @@ Vue.prototype.n = n
 Vue.prototype.OC = OC
 Vue.prototype.OCA = OCA
 
+Vue.directive('ClickOutside', ClickOutside)
+Vue.directive('Tooltip', VTooltip)
 Vue.use(contenteditableDirective)
 Vue.use(vuetwemoji, {
 	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/

@@ -34,17 +34,28 @@
 				</span>
 			</div>
 		</div>
+		<div v-if="replyTo" class="reply-to">
+			<p>
+				<span>In reply to</span>
+				<actor-avatar :actor="replyTo.actor_info" :size="16" />
+				<strong>{{ replyTo.actor_info.account }}</strong>
+				<a class="icon-close" @click="replyTo=null" />
+			</p>
+			<div class="reply-to-preview">
+				{{ replyTo.content }}
+			</div>
+		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
-				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType" class="message"
-					placeholder="What would you like to share?" @keyup.enter="keyup" />
+				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
+					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup" />
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
 				@emoji="insert">
-				<a slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
-					class="emoji-invoker" tabindex="0" v-on="events"
-					@keyup.enter="events.click" @keyup.space="events.click" />
+				<div slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
+					class="emoji-invoker" tabindex="0" @keyup.enter="events.click"
+					@keyup.space="events.click" @click.stop="events.click" />
 				<!-- eslint-disable-next-line vue/no-template-shadow -->
 				<div slot="emoji-picker" slot-scope="{ emojis, insert }" class="emoji-picker popovermenu">
 					<div>
@@ -107,6 +118,25 @@
 		}
 	}
 
+	.reply-to {
+		background-image: url(../../img/reply.svg);
+		background-position: 5px 5px;
+		background-repeat: no-repeat;
+		margin-left: 39px;
+		margin-bottom: 20px;
+		overflow: hidden;
+		background-color: #fafafa;
+		border-radius: 3px;
+		padding: 5px;
+		padding-left: 30px;
+		.icon-close {
+			display: inline-block;
+			float: right;
+			opacity: .7;
+			padding: 3px;
+		}
+	}
+
 	.new-post-form {
 		flex-grow: 1;
 		position: relative;
@@ -157,7 +187,7 @@
 	}
 
 	.emoji-invoker {
-		background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OCIgaGVpZ2h0PSI2OCI+PHBhdGggZD0iTTM0IDBDMTUuMyAwIDAgMTUuMyAwIDM0czE1LjMgMzQgMzQgMzQgMzQtMTUuMyAzNC0zNFM1Mi43IDAgMzQgMHptMCA2NEMxNy41IDY0IDQgNTAuNSA0IDM0UzE3LjUgNCAzNCA0czMwIDEzLjUgMzAgMzAtMTMuNSAzMC0zMCAzMHoiLz48cGF0aCBkPSJNNDQuNiA0NC42Yy01LjggNS44LTE1LjQgNS44LTIxLjIgMC0uOC0uOC0yLS44LTIuOCAwLS44LjgtLjggMiAwIDIuOEMyNC4zIDUxLjEgMjkuMSA1MyAzNCA1M3M5LjctMS45IDEzLjQtNS42Yy44LS44LjgtMiAwLTIuOC0uOC0uOC0yLS44LTIuOCAweiIvPjxjaXJjbGUgcj0iNSIgY3k9IjI2IiBjeD0iMjQiLz48Y2lyY2xlIHI9IjUiIGN5PSIyNiIgY3g9IjQ0Ii8+PC9zdmc+);
+		background-image: var(--icon-social-emoji-000);
 		background-position: center center;
 		background-repeat: no-repeat;
 		width: 38px;
@@ -301,26 +331,25 @@
 </style>
 <script>
 
-import { Avatar, PopoverMenu } from 'nextcloud-vue'
-import ClickOutside from 'vue-click-outside'
+import Avatar from 'nextcloud-vue/dist/Components/Avatar'
+import PopoverMenu from 'nextcloud-vue/dist/Components/PopoverMenu'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
-import { VTooltip } from 'v-tooltip'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
+import ActorAvatar from './ActorAvatar'
 
 export default {
 	name: 'Composer',
 	components: {
 		PopoverMenu,
 		Avatar,
+		ActorAvatar,
 		EmojiPicker,
 		VueTribute
 	},
 	directives: {
-		tooltip: VTooltip,
-		ClickOutside: ClickOutside,
 		FocusOnCreate: FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
@@ -330,9 +359,11 @@ export default {
 	data() {
 		return {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
+			loading: false,
 			post: '',
 			canType: true,
 			search: '',
+			replyTo: null,
 			tributeOptions: {
 				lookup: function(item) {
 					return item.key + item.value
@@ -463,6 +494,11 @@ export default {
 			]
 		}
 	},
+	mounted() {
+		this.$root.$on('composer-reply', (data) => {
+			this.replyTo = data
+		})
+	},
 	methods: {
 		insert(emoji) {
 			if (typeof emoji === 'object') {
@@ -492,21 +528,37 @@ export default {
 				var em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
+			let content = element.innerText.trim()
 			let to = []
-			const re = /@(([\w-_.]+)(@[\w-.]+)?)/g
+			let hashtags = []
+			const mentionRegex = /@(([\w-_.]+)(@[\w-.]+)?)/g
 			let match = null
 			do {
-				match = re.exec(element.innerText)
+				match = mentionRegex.exec(content)
 				if (match) {
 					to.push(match[1])
 				}
 			} while (match)
-			let content = element.innerText.trim()
-			return {
+
+			const hashtagRegex = /#([\w-_.]+)/g
+			match = null
+			do {
+				match = hashtagRegex.exec(content)
+				if (match) {
+					hashtags.push(match[1])
+				}
+			} while (match)
+
+			let data = {
 				content: content,
 				to: to,
+				hashtags: hashtags,
 				type: this.type
 			}
+			if (this.replyTo) {
+				data.replyTo = this.replyTo.id
+			}
+			return data
 		},
 		keyup(event) {
 			if (event.shiftKey) {
@@ -514,7 +566,10 @@ export default {
 			}
 		},
 		createPost(event) {
+			this.loading = true
 			this.$store.dispatch('post', this.getPostData()).then((response) => {
+				this.loading = false
+				this.replyTo = null
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
 				this.$store.dispatch('refreshTimeline')

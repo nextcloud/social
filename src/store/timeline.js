@@ -27,6 +27,7 @@ const state = {
 	timeline: {},
 	since: Math.floor(Date.now() / 1000) + 1,
 	type: 'home',
+	params: {},
 	account: ''
 }
 const mutations = {
@@ -36,12 +37,18 @@ const mutations = {
 			Vue.set(state.timeline, data[item].id, data[item])
 		}
 	},
+	removePost(state, post) {
+		Vue.delete(state.timeline, post.id)
+	},
 	resetTimeline(state) {
 		state.timeline = {}
 		state.since = Math.floor(Date.now() / 1000) + 1
 	},
 	setTimelineType(state, type) {
 		state.type = type
+	},
+	setTimelineParams(state, params) {
+		state.params = params
 	},
 	setAccount(state, account) {
 		state.account = account
@@ -55,9 +62,10 @@ const getters = {
 	}
 }
 const actions = {
-	changeTimelineType(context, type) {
+	changeTimelineType(context, { type, params }) {
 		context.commit('resetTimeline')
 		context.commit('setTimelineType', type)
+		context.commit('setTimelineParams', params)
 		context.commit('setAccount', '')
 	},
 	changeTimelineTypeAccount(context, account) {
@@ -78,6 +86,16 @@ const actions = {
 			})
 		})
 	},
+	postDelete(context, post) {
+		return axios.delete(OC.generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
+			context.commit('removePost', post)
+			// eslint-disable-next-line no-console
+			console.log('Post deleted with token ' + response.data.result.token)
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to delete the post')
+			console.error('Failed to delete the post', error)
+		})
+	},
 	refreshTimeline(context) {
 		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},
@@ -88,6 +106,8 @@ const actions = {
 		let url
 		if (state.type === 'account') {
 			url = OC.generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
+		} else if (state.type === 'tags') {
+			url = OC.generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
 		} else {
 			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
 		}

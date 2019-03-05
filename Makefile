@@ -12,7 +12,7 @@ cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
 codecov_token_dir=$(HOME)/.nextcloud/codecov_token
-version+=0.1.2
+version+=0.2.0-dev01
 
 
 
@@ -59,8 +59,8 @@ lint-fix:
 # Cleaning
 clean:
 	rm -rf $(build_dir)
-	rm -f js/social.js
-	rm -f js/social.js.map
+	rm -fr js/
+	mkdir js/
 
 clean-dev:
 	rm -rf node_modules

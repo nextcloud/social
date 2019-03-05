@@ -27,7 +27,7 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;

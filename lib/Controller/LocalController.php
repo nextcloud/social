@@ -38,7 +38,7 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -47,6 +47,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\SearchService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -82,6 +83,9 @@ class LocalController extends Controller {
 	/** @var NoteService */
 	private $noteService;
 
+	/** @var SearchService */
+	private $searchService;
+
 	/** @var AccountService */
 	private $accountService;
 
@@ -106,14 +110,15 @@ class LocalController extends Controller {
 	 * @param FollowService $followService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
+	 * @param SearchService $searchService
 	 * @param DocumentService $documentService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IRequest $request, $userId, AccountService $accountService,
 		CacheActorService $cacheActorService, FollowService $followService,
-		PostService $postService, NoteService $noteService, DocumentService $documentService,
-		MiscService $miscService
+		PostService $postService, NoteService $noteService, SearchService $searchService,
+		DocumentService $documentService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -121,6 +126,7 @@ class LocalController extends Controller {
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->noteService = $noteService;
+		$this->searchService = $searchService;
 		$this->postService = $postService;
 		$this->followService = $followService;
 		$this->documentService = $documentService;
@@ -139,12 +145,15 @@ class LocalController extends Controller {
 	 */
 	public function postCreate(array $data): DataResponse {
 		try {
-			$post = new Post($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			$post = new Post($actor);
 			$post->setContent($this->get('content', $data, ''));
 			$post->setReplyTo($this->get('replyTo', $data, ''));
 			$post->setTo($this->getArray('to', $data, []));
 			$post->addTo($this->get('to', $data, ''));
-			$post->setType($this->get('type', $data, Note::TYPE_PUBLIC));
+			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
+			$post->setHashtags($this->getArray('hashtags', $data, []));
 
 			/** @var ACore $activity */
 			$token = $this->postService->createPost($post, $activity);
@@ -188,6 +197,34 @@ class LocalController extends Controller {
 
 
 	/**
+	 * Create a new boost.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $postId
+	 *
+	 * @return DataResponse
+	 */
+	public function postBoost(string $postId): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$token = $this->noteService->createBoost($this->viewer, $postId, $announce);
+
+			return $this->success(
+				[
+					'boost' => $announce,
+					'token' => $token
+				]
+			);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param int $since
@@ -208,7 +245,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param int $since
@@ -292,6 +328,30 @@ class LocalController extends Controller {
 		}
 	}
 
+
+	/**
+	 * Get timeline
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $hashtag
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
+		try {
+			$this->initViewer(true);
+			$posts = $this->noteService->getStreamLocalTag($this->viewer, $hashtag, $since, $limit);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
 	/**
 	 * Get timeline
 	 *
@@ -324,6 +384,7 @@ class LocalController extends Controller {
 		try {
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
+			$this->accountService->cacheLocalActorDetailCount($actor);
 
 			return $this->success([]);
 		} catch (Exception $e) {
@@ -343,6 +404,7 @@ class LocalController extends Controller {
 		try {
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->unfollowAccount($actor, $account);
+			$this->accountService->cacheLocalActorDetailCount($actor);
 
 			return $this->success([]);
 		} catch (Exception $e) {
@@ -397,9 +459,9 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$followers = $this->followService->getFollowing($actor);
+			$following = $this->followService->getFollowing($actor);
 
-			return $this->success($followers);
+			return $this->success($following);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -577,6 +639,30 @@ class LocalController extends Controller {
 	}
 
 
+	/**     // TODO - remove this tag
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 *
+	 * @param string $search
+	 *
+	 * @return DataResponse
+	 * @throws Exception
+	 */
+	public function search(string $search): DataResponse {
+		$search = trim($search);
+		$this->initViewer();
+
+		$result = [
+			'accounts' => $this->searchService->searchAccounts($search),
+			'hashtags' => $this->searchService->searchHashtags($search),
+			'content'  => $this->searchService->searchStreamContent($search)
+		];
+
+		return $this->success($result);
+	}
+
+
 	/**
 	 * @NoAdminRequired
 	 *
@@ -610,13 +696,19 @@ class LocalController extends Controller {
 	 */
 	private function initViewer(bool $exception = false) {
 		if (!isset($this->userId)) {
+			if ($exception) {
+				throw new AccountDoesNotExistException('userId not defined');
+			}
+
 			return;
 		}
+
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
-			$this->followService->setViewerId($this->viewer->getId());
-			$this->cacheActorService->setViewerId($this->viewer->getId());
+			$this->noteService->setViewer($this->viewer);
+			$this->followService->setViewer($this->viewer);
+			$this->cacheActorService->setViewer($this->viewer);
 		} catch (Exception $e) {
 			if ($exception) {
 				throw new AccountDoesNotExistException();

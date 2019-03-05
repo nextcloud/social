@@ -76,8 +76,8 @@ class ActivityService {
 	/** @var SignatureService */
 	private $signatureService;
 
-	/** @var QueueService */
-	private $queueService;
+	/** @var RequestQueueService */
+	private $requestQueueService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -102,7 +102,7 @@ class ActivityService {
 	 * @param NotesRequest $notesRequest
 	 * @param FollowsRequest $followsRequest
 	 * @param SignatureService $signatureService
-	 * @param QueueService $queueService
+	 * @param RequestQueueService $requestQueueService
 	 * @param AccountService $accountService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
@@ -110,13 +110,13 @@ class ActivityService {
 	 */
 	public function __construct(
 		NotesRequest $notesRequest, FollowsRequest $followsRequest,
-		SignatureService $signatureService, QueueService $queueService,
+		SignatureService $signatureService, RequestQueueService $requestQueueService,
 		AccountService $accountService, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
 		$this->followsRequest = $followsRequest;
-		$this->queueService = $queueService;
+		$this->requestQueueService = $requestQueueService;
 		$this->accountService = $accountService;
 		$this->signatureService = $signatureService;
 		$this->curlService = $curlService;
@@ -131,7 +131,7 @@ class ActivityService {
 	 * @param ACore $activity
 	 *
 	 * @return string
-	 * @throws Exception
+	 * @throws SocialAppConfigException
 	 */
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
 
@@ -217,11 +217,11 @@ class ActivityService {
 
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
-		$token = $this->queueService->generateRequestQueue($instancePaths, $activity, $author);
+		$token = $this->requestQueueService->generateRequestQueue($instancePaths, $activity, $author);
 		$this->manageInit();
 
 		try {
-			$directRequest = $this->queueService->getPriorityRequest($token);
+			$directRequest = $this->requestQueueService->getPriorityRequest($token);
 			$directRequest->setTimeout(self::TIMEOUT_LIVE);
 			$this->manageRequest($directRequest);
 		} catch (NoHighPriorityRequestException $e) {
@@ -229,7 +229,7 @@ class ActivityService {
 			return '';
 		}
 
-		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		if (sizeof($requests) > 0) {
 			$this->curlService->asyncWithToken($token);
 		}
@@ -256,7 +256,7 @@ class ActivityService {
 		}
 
 		try {
-			$this->queueService->initRequest($queue);
+			$this->requestQueueService->initRequest($queue);
 		} catch (QueueStatusException $e) {
 			return;
 		}
@@ -266,24 +266,24 @@ class ActivityService {
 		try {
 			$this->signatureService->signRequest($request, $queue);
 			$this->curlService->request($request);
-			$this->queueService->endRequest($queue, true);
+			$this->requestQueueService->endRequest($queue, true);
 		} catch (RequestResultNotJsonException $e) {
-			$this->queueService->endRequest($queue, true);
+			$this->requestQueueService->endRequest($queue, true);
 		} catch (ActorDoesNotExistException $e) {
 			$this->miscService->log(
 				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
 			);
-			$this->queueService->deleteRequest($queue);
+			$this->requestQueueService->deleteRequest($queue);
 		} catch (RequestContentException $e) {
 			$this->miscService->log(
 				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
 			);
-			$this->queueService->deleteRequest($queue);
+			$this->requestQueueService->deleteRequest($queue);
 		} catch (RequestResultSizeException $e) {
 			$this->miscService->log(
 				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
 			);
-			$this->queueService->deleteRequest($queue);
+			$this->requestQueueService->deleteRequest($queue);
 		} catch (RequestServerException $e) {
 			$this->miscService->log(
 				'Temporary error while managing request: RequestServerException - ' . json_encode(
@@ -291,7 +291,7 @@ class ActivityService {
 				) . ' - '
 				. $e->getMessage(), 1
 			);
-			$this->queueService->endRequest($queue, false);
+			$this->requestQueueService->endRequest($queue, false);
 			$this->failInstances[] = $host;
 		} catch (RequestNetworkException $e) {
 			$this->miscService->log(
@@ -299,7 +299,7 @@ class ActivityService {
 					$request
 				) . ' - ' . $e->getMessage(), 1
 			);
-			$this->queueService->endRequest($queue, false);
+			$this->requestQueueService->endRequest($queue, false);
 			$this->failInstances[] = $host;
 		}
 	}

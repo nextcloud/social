@@ -30,11 +30,20 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use Exception;
-use OC\User\NoUserException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
 
 class PostService {
@@ -44,10 +53,13 @@ class PostService {
 	private $noteService;
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var ActivityService */
 	private $activityService;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -57,17 +69,19 @@ class PostService {
 	 * PostService constructor.
 	 *
 	 * @param NoteService $noteService
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, AccountService $actorService, ActivityService $activityService,
-		MiscService $miscService
+		NoteService $noteService, AccountService $accountService, ActivityService $activityService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->noteService = $noteService;
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->activityService = $activityService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -77,23 +91,38 @@ class PostService {
 	 * @param ACore $activity
 	 *
 	 * @return string
-	 * @throws ActorDoesNotExistException
-	 * @throws NoUserException
 	 * @throws SocialAppConfigException
-	 * @throws Exception
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
+	 * @throws NoteNotFoundException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws MalformedArrayException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function createPost(Post $post, ACore &$activity = null): string {
-		$note =
-			$this->noteService->generateNote(
-				$post->getUserId(), htmlentities($post->getContent(), ENT_QUOTES), $post->getType()
-			);
-		
+		$note = new Note();
+		$actor = $post->getActor();
+		$this->noteService->assignStream($note, $actor, $post->getType());
+
+		$note->setAttributedTo(
+			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
+		);
+
+		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
+
 		$this->noteService->replyTo($note, $post->getReplyTo());
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
+		$this->noteService->addHashtags($note, $post->getHashtags());
 
-		$actor = $this->actorService->getActorFromUserId($post->getUserId());
+		$result = $this->activityService->createActivity($actor, $note, $activity);
+		$this->accountService->cacheLocalActorDetailCount($actor);
 
-		return $this->activityService->createActivity($actor, $note, $activity);
+		return $result;
 	}
 
 

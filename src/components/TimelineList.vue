@@ -22,7 +22,9 @@
 
 <template>
 	<div class="social__timeline">
-		<timeline-entry v-for="entry in timeline" :key="entry.id" :item="entry" />
+		<transition-group name="list" tag="div">
+			<timeline-entry v-for="entry in timeline" :key="entry.id" :item="entry" />
+		</transition-group>
 		<infinite-loading ref="infiniteLoading" @infinite="infiniteHandler">
 			<div slot="spinner">
 				<div class="icon-loading" />
@@ -36,6 +38,22 @@
 		</infinite-loading>
 	</div>
 </template>
+
+<style scoped>
+	.list-item {
+	}
+	.list-enter-active, .list-leave-active {
+		transition: all .5s;
+	}
+	.list-enter {
+		opacity: 0;
+		transform: translateY(-30px);
+	}
+	.list-leave-to {
+		opacity: 0;
+		transform: translateX(-100px);
+	}
+</style>
 
 <script>
 import InfiniteLoading from 'vue-infinite-loading'
@@ -75,12 +93,19 @@ export default {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here')
+				},
+				tags: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No posts found for this tag')
 				}
 			}
 		}
 	},
 	computed: {
 		emptyContentData() {
+			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
+				return this.emptyContent[this.$route.name]
+			}
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
 			}

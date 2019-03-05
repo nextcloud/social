@@ -40,7 +40,7 @@ use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
-use OCA\Social\Interfaces\Activity\FollowInterface;
+use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Activity\LikeInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
@@ -50,6 +50,7 @@ use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
+use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
@@ -57,13 +58,14 @@ use OCA\Social\Model\ActivityPub\Activity\Add;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Like;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -91,6 +93,9 @@ class AP {
 
 	/** @var AddInterface */
 	public $addInterface;
+
+	/** @var AnnounceInterface */
+	public $announceInterface;
 
 	/** @var BlockInterface */
 	public $blockInterface;
@@ -154,6 +159,7 @@ class AP {
 		try {
 			$ap->acceptInterface = \OC::$server->query(AcceptInterface::class);
 			$ap->addInterface = \OC::$server->query(AddInterface::class);
+			$ap->announceInterface = \OC::$server->query(AnnounceInterface::class);
 			$ap->blockInterface = \OC::$server->query(BlockInterface::class);
 			$ap->createInterface = \OC::$server->query(CreateInterface::class);
 			$ap->deleteInterface = \OC::$server->query(DeleteInterface::class);
@@ -196,13 +202,35 @@ class AP {
 			$item->setParent($parent);
 		}
 
-		try {
-			$object = $this->getItemFromData($this->getArray('object', $data, []), $item, $level);
-			$item->setObject($object);
-		} catch (ItemUnknownException $e) {
-		}
+		$this->getObjectFromData($data, $item, $level);
 
 		return $item;
+	}
+
+
+	/**
+	 * @param array $data
+	 * @param ACore $item
+	 * @param int $level
+	 *
+	 * @throws RedundancyLimitException
+	 * @throws SocialAppConfigException
+	 */
+	public function getObjectFromData(array $data, ACore &$item, int $level) {
+		try {
+			$objectData = $this->getArray('object', $data, []);
+			if (empty($objectData)) {
+				$objectId = $this->get('object', $data, '');
+				if ($objectId !== '') {
+					// TODO: validate AS_URL
+					$item->setObjectId($objectId);
+				}
+			} else {
+				$object = $this->getItemFromData($objectData, $item, $level);
+				$item->setObject($object);
+			}
+		} catch (ItemUnknownException $e) {
+		}
 	}
 
 
@@ -237,6 +265,10 @@ class AP {
 
 			case Add::TYPE:
 				$item = new Add();
+				break;
+
+			case Announce::TYPE:
+				$item = new Announce();
 				break;
 
 			case Block::TYPE:
@@ -330,6 +362,10 @@ class AP {
 
 			case Add::TYPE:
 				$interface = $this->addInterface;
+				break;
+
+			case Announce::TYPE:
+				$service = $this->announceInterface;
 				break;
 
 			case Block::TYPE:

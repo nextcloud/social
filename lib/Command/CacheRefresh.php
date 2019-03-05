@@ -37,6 +37,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -46,13 +47,16 @@ class CacheRefresh extends Base {
 
 
 	/** @var AccountService */
-	private $actorService;
+	private $accountService;
 
 	/** @var CacheActorService */
 	private $cacheActorService;
 
 	/** @var DocumentService */
 	private $documentService;
+
+	/** @var HashtagService */
+	private $hashtagService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -64,21 +68,24 @@ class CacheRefresh extends Base {
 	/**
 	 * CacheUpdate constructor.
 	 *
-	 * @param AccountService $actorService
+	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
 	 * @param DocumentService $documentService
+	 * @param HashtagService $hashtagService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $actorService, CacheActorService $cacheActorService,
-		DocumentService $documentService, ConfigService $configService, MiscService $miscService
+		AccountService $accountService, CacheActorService $cacheActorService,
+		DocumentService $documentService, HashtagService $hashtagService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
-		$this->actorService = $actorService;
+		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
+		$this->hashtagService = $hashtagService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -102,10 +109,10 @@ class CacheRefresh extends Base {
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 
-		$result = $this->actorService->blindKeyRotation();
+		$result = $this->accountService->blindKeyRotation();
 		$output->writeLn($result . ' key pairs refreshed');
 
-		$result = $this->actorService->manageCacheLocalActors();
+		$result = $this->accountService->manageCacheLocalActors();
 		$output->writeLn($result . ' local accounts regenerated');
 
 		$result = $this->cacheActorService->missingCacheRemoteActors();
@@ -116,6 +123,9 @@ class CacheRefresh extends Base {
 
 		$result = $this->documentService->manageCacheDocuments();
 		$output->writeLn($result . ' documents cached');
+
+		$result = $this->hashtagService->manageHashtags();
+		$output->writeLn($result . ' hashtags updated');
 	}
 
 
