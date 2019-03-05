@@ -32,22 +32,23 @@ namespace OCA\Social\Model;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TStringTools;
 use DateTime;
 use JsonSerializable;
 
 
 /**
- * Class RequestQueue
+ * Class StreamQueue
  *
  * @package OCA\Social\Model
  */
-class RequestQueue implements JsonSerializable {
+class StreamQueue implements JsonSerializable {
 
 
 	use TArrayTools;
-	use TStringTools;
 
+
+	const TYPE_CACHE = 'Cache';
+	const TYPE_VERIFY = 'Signature';
 
 	const STATUS_STANDBY = 0;
 	const STATUS_RUNNING = 1;
@@ -61,16 +62,10 @@ class RequestQueue implements JsonSerializable {
 	private $token = '';
 
 	/** @var string */
-	private $author = '';
+	private $streamId = '';
 
 	/** @var string */
-	private $activity = '';
-
-	/** @var InstancePath */
-	private $instance;
-
-	/** @var int */
-	private $priority = 0;
+	private $type = '';
 
 	/** @var int */
 	private $status = 0;
@@ -81,25 +76,18 @@ class RequestQueue implements JsonSerializable {
 	/** @var int */
 	private $last = 0;
 
-	/** @var int */
-	private $timeout = 5;
-
 
 	/**
-	 * RequestQueue constructor.
+	 * StreamQueue constructor.
 	 *
-	 * @param string $activity
-	 * @param InstancePath $instance
-	 * @param string $author
+	 * @param string $token
+	 * @param string $type
+	 * @param string $streamId
 	 */
-	public function __construct(string $activity = '', $instance = null, string $author = '') {
-		$this->setActivity($activity);
-		if ($instance instanceof InstancePath) {
-			$this->setInstance($instance);
-		}
-
-		$this->setAuthor($author);
-		$this->resetToken();
+	public function __construct(string $token = '', string $type = '', string $streamId = '') {
+		$this->token = $token;
+		$this->type = $type;
+		$this->streamId = $streamId;
 	}
 
 
@@ -113,9 +101,9 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @param int $id
 	 *
-	 * @return RequestQueue
+	 * @return StreamQueue
 	 */
-	public function setId(int $id): RequestQueue {
+	public function setId(int $id): StreamQueue {
 		$this->id = $id;
 
 		return $this;
@@ -132,20 +120,29 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @param string $token
 	 *
-	 * @return RequestQueue
+	 * @return StreamQueue
 	 */
-	public function setToken(string $token): RequestQueue {
+	public function setToken(string $token): StreamQueue {
 		$this->token = $token;
 
 		return $this;
 	}
 
+
 	/**
-	 * @return RequestQueue
+	 * @return string
 	 */
-	public function resetToken(): RequestQueue {
-		$uuid = $this->uuid();
-		$this->setToken($uuid);
+	public function getStreamId(): string {
+		return $this->streamId;
+	}
+
+	/**
+	 * @param string $streamId
+	 *
+	 * @return StreamQueue
+	 */
+	public function setStreamId(string $streamId): StreamQueue {
+		$this->streamId = $streamId;
 
 		return $this;
 	}
@@ -154,75 +151,17 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @return string
 	 */
-	public function getAuthor(): string {
-		return $this->author;
+	public function getType(): string {
+		return $this->type;
 	}
 
 	/**
-	 * @param string $author
+	 * @param string $type
 	 *
-	 * @return RequestQueue
+	 * @return StreamQueue
 	 */
-	public function setAuthor(string $author): RequestQueue {
-		$this->author = $author;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getActivity(): string {
-		return $this->activity;
-	}
-
-	/**
-	 * @param string $activity
-	 *
-	 * @return RequestQueue
-	 */
-	public function setActivity(string $activity): RequestQueue {
-		$this->activity = $activity;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return InstancePath
-	 */
-	public function getInstance(): InstancePath {
-		return $this->instance;
-	}
-
-	/**
-	 * @param InstancePath $instance
-	 *
-	 * @return RequestQueue
-	 */
-	public function setInstance(InstancePath $instance): RequestQueue {
-		$this->setPriority($instance->getPriority());
-		$this->instance = $instance;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return int
-	 */
-	public function getPriority(): int {
-		return $this->priority;
-	}
-
-	/**
-	 * @param int $priority
-	 *
-	 * @return RequestQueue
-	 */
-	public function setPriority(int $priority): RequestQueue {
-		$this->priority = $priority;
+	public function setType(string $type): StreamQueue {
+		$this->type = $type;
 
 		return $this;
 	}
@@ -238,9 +177,9 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @param int $status
 	 *
-	 * @return RequestQueue
+	 * @return StreamQueue
 	 */
-	public function setStatus(int $status): RequestQueue {
+	public function setStatus(int $status): StreamQueue {
 		$this->status = $status;
 
 		return $this;
@@ -257,9 +196,9 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @param int $tries
 	 *
-	 * @return RequestQueue
+	 * @return StreamQueue
 	 */
-	public function setTries(int $tries): RequestQueue {
+	public function setTries(int $tries): StreamQueue {
 		$this->tries = $tries;
 
 		return $this;
@@ -276,9 +215,9 @@ class RequestQueue implements JsonSerializable {
 	/**
 	 * @param int $last
 	 *
-	 * @return RequestQueue
+	 * @return StreamQueue
 	 */
-	public function setLast(int $last): RequestQueue {
+	public function setLast(int $last): StreamQueue {
 		$this->last = $last;
 
 		return $this;
@@ -286,36 +225,13 @@ class RequestQueue implements JsonSerializable {
 
 
 	/**
-	 * @param int $timeout
-	 *
-	 * @return RequestQueue
-	 */
-	public function setTimeout(int $timeout): RequestQueue {
-		$this->timeout = $timeout;
-
-		return $this;
-	}
-
-	/**
-	 * @return int
-	 */
-	public function getTimeout(): int {
-		return $this->timeout;
-	}
-
-	/**
 	 * @param array $data
 	 */
 	public function importFromDatabase(array $data) {
-		$instance = new InstancePath();
-		$instance->import(json_decode($this->get('instance', $data, '{}'), true));
-
 		$this->setId($this->getInt('id', $data, 0));
 		$this->setToken($this->get('token', $data, ''));
-		$this->setAuthor($this->get('author', $data, ''));
-		$this->setInstance($instance);
-		$this->setPriority($this->getInt('priority', $data, 0));
-		$this->setActivity($this->get('activity', $data, ''));
+		$this->setStreamId($this->get('stream_id', $data, ''));
+		$this->setType($this->get('type', $data, ''));
 		$this->setStatus($this->getInt('status', $data, 0));
 		$this->setTries($this->getInt('tries', $data, 0));
 
@@ -328,6 +244,7 @@ class RequestQueue implements JsonSerializable {
 		}
 	}
 
+
 	/**
 	 * @return array
 	 */
@@ -335,9 +252,8 @@ class RequestQueue implements JsonSerializable {
 		return [
 			'id'       => $this->getId(),
 			'token'    => $this->getToken(),
-			'author'   => $this->getAuthor(),
-			'instance' => $this->getInstance(),
-			'priority' => $this->getPriority(),
+			'streamId' => $this->getStreamId(),
+			'type'     => $this->getType(),
 			'status'   => $this->getStatus(),
 			'tries'    => $this->getTries(),
 			'last'     => $this->getLast()

@@ -38,7 +38,7 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -152,7 +152,7 @@ class LocalController extends Controller {
 			$post->setReplyTo($this->get('replyTo', $data, ''));
 			$post->setTo($this->getArray('to', $data, []));
 			$post->addTo($this->get('to', $data, ''));
-			$post->setType($this->get('type', $data, Note::TYPE_PUBLIC));
+			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
 			$post->setHashtags($this->getArray('hashtags', $data, []));
 
 			/** @var ACore $activity */
@@ -197,6 +197,34 @@ class LocalController extends Controller {
 
 
 	/**
+	 * Create a new boost.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $postId
+	 *
+	 * @return DataResponse
+	 */
+	public function postBoost(string $postId): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$token = $this->noteService->createBoost($this->viewer, $postId, $announce);
+
+			return $this->success(
+				[
+					'boost' => $announce,
+					'token' => $token
+				]
+			);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param int $since
@@ -668,13 +696,19 @@ class LocalController extends Controller {
 	 */
 	private function initViewer(bool $exception = false) {
 		if (!isset($this->userId)) {
+			if ($exception) {
+				throw new AccountDoesNotExistException('userId not defined');
+			}
+
 			return;
 		}
+
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
-			$this->followService->setViewerId($this->viewer->getId());
-			$this->cacheActorService->setViewerId($this->viewer->getId());
+			$this->noteService->setViewer($this->viewer);
+			$this->followService->setViewer($this->viewer);
+			$this->cacheActorService->setViewer($this->viewer);
 		} catch (Exception $e) {
 			if ($exception) {
 				throw new AccountDoesNotExistException();

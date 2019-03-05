@@ -57,7 +57,7 @@ class CurlService {
 	use TPathTools;
 
 
-	const ASYNC_TOKEN = '/async/token/{token}';
+	const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
 	const USER_AGENT = 'Nextcloud Social';
 
 
@@ -254,7 +254,7 @@ class CurlService {
 		$parse = parse_url($address);
 		$host = $this->get('host', $parse, '');
 		$path = $this->withEndSlash($this->get('path', $parse, '')) . $this->withoutBeginSlash(
-				self::ASYNC_TOKEN
+				self::ASYNC_REQUEST_TOKEN
 			);
 		$path = str_replace('{token}', $token, $path);
 

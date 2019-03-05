@@ -38,10 +38,10 @@ return [
 	'routes' => [
 		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
 		['name' => 'Navigation#test', 'url' => '/test', 'verb' => 'GET'],
-
 		[
 			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
-			'requirements' => ['path' => '.+'], 'defaults' => ['path' => '']
+			'requirements' => ['path' => '.+'],
+			'defaults' => ['path' => '']
 		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
@@ -71,6 +71,8 @@ return [
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
 
+		['name' => 'Local#postBoost', 'url' => '/api/v1/post/boost', 'verb' => 'POST'],
+
 		['name' => 'Local#actionFollow', 'url' => '/api/v1/current/follow', 'verb' => 'PUT'],
 		['name' => 'Local#actionUnfollow', 'url' => '/api/v1/current/follow', 'verb' => 'DELETE'],
 
@@ -91,12 +93,8 @@ return [
 
 		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
-		['name' => 'Queue#asyncWithToken', 'url' => CurlService::ASYNC_TOKEN, 'verb' => 'POST'],
+		['name' => 'Queue#asyncForRequest', 'url' => CurlService::ASYNC_REQUEST_TOKEN, 'verb' => 'POST'],
 
-		[
-			'name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress',
-			'verb' => 'POST'
-		],
-
+		['name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress', 'verb' => 'POST']
 	]
 ];

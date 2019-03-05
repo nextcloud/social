@@ -67,6 +67,9 @@ class ACore extends Item implements JsonSerializable {
 	/** @var null Item */
 	private $parent = null;
 
+	/** @var string */
+	private $requestToken = '';
+
 	/** @var array */
 	private $entries = [];
 
@@ -92,6 +95,30 @@ class ACore extends Item implements JsonSerializable {
 		if ($parent instanceof ACore) {
 			$this->setParent($parent);
 		}
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getRequestToken(): string {
+		if ($this->isRoot()) {
+			return $this->requestToken;
+		} else {
+			return $this->getRoot()
+						->getRequestToken();
+		}
+	}
+
+	/**
+	 * @param string $token
+	 *
+	 * @return ACore
+	 */
+	public function setRequestToken(string $token): ACore {
+		$this->requestToken = $token;
+
+		return $this;
 	}
 
 
@@ -241,7 +268,6 @@ class ACore extends Item implements JsonSerializable {
 		}
 
 		$uuid = $this->uuid();
-
 		$this->setId($url . $base . '/' . $uuid);
 	}
 
@@ -643,7 +669,10 @@ class ACore extends Item implements JsonSerializable {
 			$this->addEntryBool('local', $this->isLocal());
 		}
 
-		return $this->getEntries();
+		$result = $this->getEntries();
+		$this->cleanArray($result);
+
+		return $result;
 	}
 
 }

@@ -38,10 +38,12 @@ use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
 
 class PostService {
@@ -56,6 +58,9 @@ class PostService {
 	/** @var ActivityService */
 	private $activityService;
 
+	/** @var ConfigService */
+	private $configService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -66,15 +71,17 @@ class PostService {
 	 * @param NoteService $noteService
 	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		NoteService $noteService, AccountService $accountService, ActivityService $activityService,
-		MiscService $miscService
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->noteService = $noteService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -95,19 +102,25 @@ class PostService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws MalformedArrayException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function createPost(Post $post, ACore &$activity = null): string {
-		$note =
-			$this->noteService->generateNote(
-				$post->getActor(), htmlentities($post->getContent(), ENT_QUOTES), $post->getType()
-			);
+		$note = new Note();
+		$actor = $post->getActor();
+		$this->noteService->assignStream($note, $actor, $post->getType());
+
+		$note->setAttributedTo(
+			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
+		);
+
+		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
 
 		$this->noteService->replyTo($note, $post->getReplyTo());
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->noteService->addHashtags($note, $post->getHashtags());
 
-		$result = $this->activityService->createActivity($post->getActor(), $note, $activity);
-		$this->accountService->cacheLocalActorDetailCount($post->getActor());
+		$result = $this->activityService->createActivity($actor, $note, $activity);
+		$this->accountService->cacheLocalActorDetailCount($actor);
 
 		return $result;
 	}

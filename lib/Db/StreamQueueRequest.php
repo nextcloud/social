@@ -33,46 +33,28 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Exceptions\QueueStatusException;
-use OCA\Social\Model\RequestQueue;
+use OCA\Social\Model\StreamQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
- * Class RequestQueueRequest
+ * Class StreamQueueRequest
  *
  * @package OCA\Social\Db
  */
-class RequestQueueRequest extends RequestQueueRequestBuilder {
+class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 
 	/**
 	 * create a new Queue in the database.
 	 *
-	 * @param RequestQueue[] $queues
+	 * @param StreamQueue $queue
 	 */
-	public function multiple(array $queues) {
-		foreach ($queues as $queue) {
-			$this->create($queue);
-		}
-	}
-
-
-	/**
-	 * create a new Queue in the database.
-	 *
-	 * @param RequestQueue $queue
-	 */
-	public function create(RequestQueue $queue) {
-		$qb = $this->getRequestQueueInsertSql();
+	public function create(StreamQueue $queue) {
+		$qb = $this->getStreamQueueInsertSql();
 		$qb->setValue('token', $qb->createNamedParameter($queue->getToken()))
-		   ->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
-		   ->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
-		   ->setValue(
-			   'instance', $qb->createNamedParameter(
-			   json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
-		   )
-		   )
-		   ->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
+		   ->setValue('stream_id', $qb->createNamedParameter($queue->getStreamId()))
+		   ->setValue('type', $qb->createNamedParameter($queue->getType()))
 		   ->setValue('status', $qb->createNamedParameter($queue->getStatus()))
 		   ->setValue('tries', $qb->createNamedParameter($queue->getTries()));
 		$qb->execute();
@@ -82,17 +64,17 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	/**
 	 * return Queue from database based on the status=0
 	 *
-	 * @return RequestQueue[]
+	 * @return StreamQueue[]
 	 */
 	public function getStandby(): array {
-		$qb = $this->getRequestQueueSelectSql();
-		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
+		$qb = $this->getStreamQueueSelectSql();
+		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
 		$qb->orderBy('id', 'asc');
 
 		$requests = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$requests[] = $this->parseRequestQueueSelectSql($data);
+			$requests[] = $this->parseStreamQueueSelectSql($data);
 		}
 		$cursor->closeCursor();
 
@@ -104,45 +86,38 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * return Queue from database based on the token
 	 *
 	 * @param string $token
-	 * @param int $status
 	 *
-	 * @return RequestQueue[]
+	 * @return StreamQueue[]
 	 */
-	public function getFromToken(string $token, int $status = -1): array {
-		$qb = $this->getRequestQueueSelectSql();
+	public function getFromToken(string $token): array {
+		$qb = $this->getStreamQueueSelectSql();
 		$this->limitToToken($qb, $token);
 
-		if ($status > -1) {
-			$this->limitToStatus($qb, $status);
-		}
-
-		$qb->orderBy('priority', 'desc');
-
-		$requests = [];
+		$queue = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$requests[] = $this->parseRequestQueueSelectSql($data);
+			$queue[] = $this->parseStreamQueueSelectSql($data);
 		}
 		$cursor->closeCursor();
 
-		return $requests;
+		return $queue;
 	}
 
 
 	/**
-	 * @param RequestQueue $queue
+	 * @param StreamQueue $queue
 	 *
 	 * @throws QueueStatusException
 	 */
-	public function setAsRunning(RequestQueue &$queue) {
-		$qb = $this->getRequestQueueUpdateSql();
-		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_RUNNING))
+	public function setAsRunning(StreamQueue &$queue) {
+		$qb = $this->getStreamQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_RUNNING))
 		   ->set(
 			   'last',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
+		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
 
 		$count = $qb->execute();
 
@@ -150,20 +125,20 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			throw new QueueStatusException();
 		}
 
-		$queue->setStatus(RequestQueue::STATUS_RUNNING);
+		$queue->setStatus(StreamQueue::STATUS_RUNNING);
 	}
 
 
 	/**
-	 * @param RequestQueue $queue
+	 * @param StreamQueue $queue
 	 *
 	 * @throws QueueStatusException
 	 */
-	public function setAsSuccess(RequestQueue &$queue) {
-		$qb = $this->getRequestQueueUpdateSql();
-		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_SUCCESS));
+	public function setAsSuccess(StreamQueue &$queue) {
+		$qb = $this->getStreamQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_SUCCESS));
 		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
 
 		$count = $qb->execute();
 
@@ -171,24 +146,24 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			throw new QueueStatusException();
 		}
 
-		$queue->setStatus(RequestQueue::STATUS_SUCCESS);
+		$queue->setStatus(StreamQueue::STATUS_SUCCESS);
 	}
 
 
 	/**
-	 * @param RequestQueue $queue
+	 * @param StreamQueue $queue
 	 *
 	 * @throws QueueStatusException
 	 */
-	public function setAsFailure(RequestQueue &$queue) {
-		$qb = $this->getRequestQueueUpdateSql();
+	public function setAsFailure(StreamQueue &$queue) {
+		$qb = $this->getStreamQueueUpdateSql();
 		$func = $qb->func();
 		$expr = $qb->expr();
 
-		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY))
+		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_STANDBY))
 		   ->set('tries', $func->add('tries', $expr->literal(1)));
 		$this->limitToId($qb, $queue->getId());
-		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
 
 		$count = $qb->execute();
 
@@ -196,12 +171,15 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			throw new QueueStatusException();
 		}
 
-		$queue->setStatus(RequestQueue::STATUS_SUCCESS);
+		$queue->setStatus(StreamQueue::STATUS_SUCCESS);
 	}
 
 
-	public function delete(RequestQueue $queue) {
-		$qb = $this->getRequestQueueDeleteSql();
+	/**
+	 * @param StreamQueue $queue
+	 */
+	public function delete(StreamQueue $queue) {
+		$qb = $this->getStreamQueueDeleteSql();
 		$this->limitToId($qb, $queue->getId());
 
 		$qb->execute();

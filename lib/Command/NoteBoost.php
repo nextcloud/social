@@ -32,12 +32,16 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -45,7 +49,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 
-class NoteCreate extends Base {
+class NoteBoost extends Base {
 
 
 	/** @var ConfigService */
@@ -53,6 +57,9 @@ class NoteCreate extends Base {
 
 	/** @var ActivityService */
 	private $activityService;
+
+	/** @var NoteService */
+	private $noteService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -72,6 +79,7 @@ class NoteCreate extends Base {
 	 *
 	 * @param ActivityService $activityService
 	 * @param AccountService $accountService
+	 * @param NoteService $noteService
 	 * @param PostService $postService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
@@ -79,12 +87,13 @@ class NoteCreate extends Base {
 	 */
 	public function __construct(
 		ActivityService $activityService, AccountService $accountService,
-		PostService $postService, CurlService $curlService,
+		NoteService $noteService, PostService $postService, CurlService $curlService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->activityService = $activityService;
+		$this->noteService = $noteService;
 		$this->accountService = $accountService;
 		$this->postService = $postService;
 		$this->curlService = $curlService;
@@ -98,24 +107,10 @@ class NoteCreate extends Base {
 	 */
 	protected function configure() {
 		parent::configure();
-		$this->setName('social:note:create')
-			 ->addOption(
-				 'replyTo', 'r', InputOption::VALUE_OPTIONAL, 'in reply to an existing thread'
-			 )
-			 ->addOption(
-				 'to', 't', InputOption::VALUE_OPTIONAL, 'mentioning people'
-			 )
-			 ->addOption(
-				 'type', 'y', InputOption::VALUE_OPTIONAL,
-				 'type: public (default), followers, unlisted, direct'
-			 )
-			 ->addOption(
-				 'hashtag', 'g', InputOption::VALUE_OPTIONAL,
-				 'hashtag, without the leading #'
-			 )
+		$this->setName('social:note:boost')
 			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
-			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')
-			 ->setDescription('Create a new note');
+			 ->addArgument('note', InputArgument::REQUIRED, 'Note to boost')
+			 ->setDescription('Boost a note');
 	}
 
 
@@ -126,23 +121,12 @@ class NoteCreate extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$userId = $input->getArgument('userid');
-		$content = $input->getArgument('content');
-		$to = $input->getOption('to');
-		$hashtag = $input->getOption('hashtag');
-		$replyTo = $input->getOption('replyTo');
-		$type = $input->getOption('type');
+		$noteId = $input->getArgument('note');
 
 		$actor = $this->accountService->getActorFromUserId($userId);
-		$post = new Post($actor);
-		$post->setContent($content);
-		$post->setType(($type === null) ? '' : $type);
-		$post->setReplyTo(($replyTo === null) ? '' : $replyTo);
-		$post->addTo(($to === null) ? '' : $to);
-		$post->setHashtags(($hashtag === null) ? [] : [$hashtag]);
-
-		$token = $this->postService->createPost($post, $activity);
+		$this->noteService->setViewer($actor);
+		$token = $this->noteService->createBoost($actor, $noteId, $activity);
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";

@@ -37,52 +37,68 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Activity\Create;
-use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\CurlService;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\StreamQueueService;
 
 
-class NoteInterface implements IActivityPubInterface {
+/**
+ * Class AnnounceInterface
+ *
+ * @package OCA\Social\Interfaces\Object
+ */
+class AnnounceInterface implements IActivityPubInterface {
 
 
 	/** @var NotesRequest */
 	private $notesRequest;
 
-	/** @var CurlService */
-	private $curlService;
-
-	/** @var ConfigService */
-	private $configService;
+	/** @var StreamQueueService */
+	private $streamQueueService;
 
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * NoteInterface constructor.
+	 * AnnounceInterface constructor.
 	 *
 	 * @param NotesRequest $notesRequest
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
+	 * @param StreamQueueService $streamQueueService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, CurlService $curlService, ConfigService $configService,
-		MiscService $miscService
+		NotesRequest $notesRequest, StreamQueueService $streamQueueService, MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
-		$this->curlService = $curlService;
-		$this->configService = $configService;
+		$this->streamQueueService = $streamQueueService;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param ACore $note
+	 * @param ACore $activity
+	 * @param ACore $item
 	 */
-	public function processIncomingRequest(ACore $note) {
+	public function activity(Acore $activity, ACore $item) {
+		/** Stream $item */
+		// TODO: Manage Undo Activity
+		$this->miscService->log('activity: ' . json_encode($activity));
+	}
+
+
+	/**
+	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function processIncomingRequest(ACore $item) {
+		/** @var Stream $item */
+		$item->checkOrigin($item->getId());
+
+		$this->save($item);
 	}
 
 
@@ -100,56 +116,32 @@ class NoteInterface implements IActivityPubInterface {
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
-		try {
-			return $this->notesRequest->getNoteById($id);
-		} catch (NoteNotFoundException $e) {
-			throw new ItemNotFoundException();
-		}
+		throw new ItemNotFoundException();
 	}
 
-
 	/**
-	 * @param ACore $note
-	 */
-	public function save(ACore $note) {
-		/** @var Note $note */
-
-		try {
-			$this->notesRequest->getNoteById($note->getId());
-		} catch (NoteNotFoundException $e) {
-			$this->notesRequest->save($note);
-		}
-	}
-
-
-	/**
-	 * @param ACore $activity
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
 	 */
-	public function activity(Acore $activity, ACore $item) {
-		/** @var Note $item */
+	public function save(ACore $item) {
+		/** @var Announce $item */
+		try {
+			$this->notesRequest->getNoteById($item->getId());
+		} catch (NoteNotFoundException $e) {
+			$objectId = $item->getObjectId();
+			$item->addCacheItem($objectId);
+			$this->notesRequest->save($item);
 
-		if ($activity->getType() === Create::TYPE) {
-			$activity->checkOrigin($item->getId());
-			$activity->checkOrigin($item->getAttributedTo());
-			$item->setActivityId($activity->getId());
-			$this->save($item);
+			$this->streamQueueService->generateStreamQueue(
+				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
+			);
 		}
 	}
 
 
 	/**
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
 	 */
 	public function delete(ACore $item) {
-		$item->checkOrigin(($item->getId()));
-
-		/** @var Note $item */
-		$this->notesRequest->deleteNoteById($item->getId());
 	}
 
 

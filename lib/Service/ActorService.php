@@ -65,10 +65,6 @@ class ActorService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId = '';
-
-
 	/**
 	 * ActorService constructor.
 	 *
@@ -89,19 +85,6 @@ class ActorService {
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
-	}
-
-
-	/**
-	 * @param string $viewerId
-	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->cacheActorsRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
 	}
 
 

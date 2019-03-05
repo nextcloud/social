@@ -71,6 +71,7 @@ class SignatureService {
 
 	const ORIGIN_HEADER = 1;
 	const ORIGIN_SIGNATURE = 2;
+	const ORIGIN_REQUEST = 3;
 
 
 	const DATE_HEADER = 'D, d M Y H:i:s T';

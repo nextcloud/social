@@ -27,22 +27,15 @@ declare(strict_types=1);
  *
  */
 
-
 namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\RequestQueue;
+use OCA\Social\Model\StreamQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-
-/**
- * Class FollowsRequestBuilder
- *
- * @package OCA\Social\Db
- */
-class FollowsRequestBuilder extends CoreRequestBuilder {
+class StreamQueueRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -53,9 +46,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getFollowsInsertSql(): IQueryBuilder {
+	protected function getStreamQueueInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_SERVER_FOLLOWS);
+		$qb->insert(self::TABLE_QUEUE_STREAM);
 
 		return $qb;
 	}
@@ -66,9 +59,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getFollowsUpdateSql(): IQueryBuilder {
+	protected function getStreamQueueUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_SERVER_FOLLOWS);
+		$qb->update(self::TABLE_QUEUE_STREAM);
 
 		return $qb;
 	}
@@ -79,32 +72,16 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getFollowsSelectSql(): IQueryBuilder {
+	protected function getStreamQueueSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.accepted', 'f.creation'
+			'qs.id', 'qs.token', 'qs.stream_id', 'qs.type', 'qs.status', 'qs.tries', 'qs.last'
 		)
-		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
+		   ->from(self::TABLE_QUEUE_STREAM, 'qs');
 
-		$this->defaultSelectAlias = 'f';
-
-		return $qb;
-	}
-
-
-	/**
-	 * Base of the Sql Select request for Shares
-	 *
-	 * @return IQueryBuilder
-	 */
-	protected function countFollowsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
-
-		$this->defaultSelectAlias = 'f';
+		$this->defaultSelectAlias = 'qs';
 
 		return $qb;
 	}
@@ -115,9 +92,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getFollowsDeleteSql(): IQueryBuilder {
+	protected function getStreamQueueDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_SERVER_FOLLOWS);
+		$qb->delete(self::TABLE_QUEUE_STREAM);
 
 		return $qb;
 	}
@@ -126,23 +103,13 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Follow
+	 * @return StreamQueue
 	 */
-	protected function parseFollowsSelectSql($data): Follow {
-		$follow = new Follow();
-		$follow->importFromDatabase($data);
+	protected function parseStreamQueueSelectSql($data): StreamQueue {
+		$queue = new StreamQueue();
+		$queue->importFromDatabase($data);
 
-		try {
-			$actor = $this->parseCacheActorsLeftJoin($data);
-			$actor->setCompleteDetails(true);
-			$this->assignDetails($actor, $data);
-
-			$follow->setCompleteDetails(true);
-			$follow->setActor($actor);
-		} catch (InvalidResourceException $e) {
-		}
-
-		return $follow;
+		return $queue;
 	}
 
 }

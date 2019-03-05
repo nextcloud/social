@@ -49,7 +49,7 @@ use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
@@ -77,8 +77,8 @@ class FollowService {
 	private $miscService;
 
 
-	/** @var string */
-	private $viewerId = '';
+	/** @var Person */
+	private $viewer = null;
 
 
 	/**
@@ -104,15 +104,11 @@ class FollowService {
 
 
 	/**
-	 * @param string $viewerId
+	 * @param Person $viewer
 	 */
-	public function setViewerId(string $viewerId) {
-		$this->viewerId = $viewerId;
-		$this->followsRequest->setViewerId($viewerId);
-	}
-
-	public function getViewerId(): string {
-		return $this->viewerId;
+	public function setViewer(Person $viewer) {
+		$this->viewer = $viewer;
+		$this->followsRequest->setViewer($viewer);
 	}
 
 

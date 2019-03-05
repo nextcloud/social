@@ -28,29 +28,23 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub\Activity;
+namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Stream;
 
 
 /**
  * Class Follow
  *
- * @package OCA\Social\Model\ActivityPub
+ * @package OCA\Social\Model\ActivityPub\Object
  */
-class Follow extends ACore implements JsonSerializable {
+class Announce extends Stream implements JsonSerializable {
 
 
-	const TYPE = 'Follow';
-
-
-	/** @var string */
-	private $followId = '';
-
-	/** @var bool */
-	private $accepted = false;
+	const TYPE = 'Announce';
 
 
 	/**
@@ -62,44 +56,6 @@ class Follow extends ACore implements JsonSerializable {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
-	}
-
-
-	/**
-	 * @return string
-	 */
-	public function getFollowId(): string {
-		return $this->followId;
-	}
-
-	/**
-	 * @param string $followId
-	 *
-	 * @return Follow
-	 */
-	public function setFollowId(string $followId): Follow {
-		$this->followId = $followId;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return bool
-	 */
-	public function isAccepted(): bool {
-		return $this->accepted;
-	}
-
-	/**
-	 * @param bool $accepted
-	 *
-	 * @return Follow
-	 */
-	public function setAccepted(bool $accepted): Follow {
-		$this->accepted = $accepted;
-
-		return $this;
 	}
 
 
@@ -116,9 +72,6 @@ class Follow extends ACore implements JsonSerializable {
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
-
-		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
-		$this->setFollowId($this->get('follow_id', $data, ''));
 	}
 
 
@@ -127,16 +80,6 @@ class Follow extends ACore implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
-
-		if ($this->isCompleteDetails()) {
-			array_merge(
-				$result,
-				[
-					'follow_id' => $this->getFollowId(),
-					'accepted'  => $this->isAccepted()
-				]
-			);
-		}
 
 		return $result;
 	}

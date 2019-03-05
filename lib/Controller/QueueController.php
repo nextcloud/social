@@ -36,7 +36,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\QueueService;
+use OCA\Social\Service\RequestQueueService;
 use OCP\AppFramework\Controller;
 use OCP\IRequest;
 
@@ -51,8 +51,8 @@ class QueueController extends Controller {
 
 	use TAsync;
 
-	/** @var QueueService */
-	private $queueService;
+	/** @var RequestQueueService */
+	private $requestQueueService;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -65,17 +65,17 @@ class QueueController extends Controller {
 	 * QueueController constructor.
 	 *
 	 * @param IRequest $request
-	 * @param QueueService $queueService
+	 * @param RequestQueueService $requestQueueService
 	 * @param ActivityService $activityService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, QueueService $queueService, ActivityService $activityService,
+		IRequest $request, RequestQueueService $requestQueueService, ActivityService $activityService,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
-		$this->queueService = $queueService;
+		$this->requestQueueService = $requestQueueService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
 	}
@@ -87,8 +87,8 @@ class QueueController extends Controller {
 	 *
 	 * @param string $token
 	 */
-	public function asyncWithToken(string $token) {
-		$requests = $this->queueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+	public function asyncForRequest(string $token) {
+		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 
 		if (!empty($requests)) {
 			$this->async();

@@ -27,26 +27,34 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Stream;
 
 
-class Note extends Stream implements JsonSerializable {
+/**
+ * Class Follow
+ *
+ * @package OCA\Social\Model\ActivityPub\Object
+ */
+class Follow extends ACore implements JsonSerializable {
 
 
-	const TYPE = 'Note';
+	const TYPE = 'Follow';
 
 
-	/** @var array */
-	private $hashtags = [];
+	/** @var string */
+	private $followId = '';
+
+	/** @var bool */
+	private $accepted = false;
 
 
 	/**
-	 * Note constructor.
+	 * Follow constructor.
 	 *
 	 * @param ACore $parent
 	 */
@@ -58,38 +66,40 @@ class Note extends Stream implements JsonSerializable {
 
 
 	/**
-	 * @return array
+	 * @return string
 	 */
-	public function getHashtags(): array {
-		return $this->hashtags;
+	public function getFollowId(): string {
+		return $this->followId;
 	}
 
 	/**
-	 * @param array $hashtags
+	 * @param string $followId
 	 *
-	 * @return Note
+	 * @return Follow
 	 */
-	public function setHashtags(array $hashtags): Note {
-		$this->hashtags = $hashtags;
+	public function setFollowId(string $followId): Follow {
+		$this->followId = $followId;
 
 		return $this;
 	}
 
-	/**
-	 *
-	 */
-	public function fillHashtags() {
-		$tags = $this->getTags('Hashtag');
-		$hashtags = [];
-		foreach ($tags as $tag) {
-			$hashtag = $tag['name'];
-			if (substr($hashtag, 0, 1) === '#') {
-				$hashtag = substr($hashtag, 1);
-			}
-			$hashtags[] = $hashtag;
-		}
 
-		$this->setHashtags($hashtags);
+	/**
+	 * @return bool
+	 */
+	public function isAccepted(): bool {
+		return $this->accepted;
+	}
+
+	/**
+	 * @param bool $accepted
+	 *
+	 * @return Follow
+	 */
+	public function setAccepted(bool $accepted): Follow {
+		$this->accepted = $accepted;
+
+		return $this;
 	}
 
 
@@ -107,7 +117,8 @@ class Note extends Stream implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
-		$this->setHashtags($this->getArray('hashtags', $data, []));
+		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
+		$this->setFollowId($this->get('follow_id', $data, ''));
 	}
 
 
@@ -118,10 +129,14 @@ class Note extends Stream implements JsonSerializable {
 		$result = parent::jsonSerialize();
 
 		if ($this->isCompleteDetails()) {
-			$result['hashtags'] = $this->getHashtags();
+			array_merge(
+				$result,
+				[
+					'follow_id' => $this->getFollowId(),
+					'accepted'  => $this->isAccepted()
+				]
+			);
 		}
-
-		$this->cleanArray($result);
 
 		return $result;
 	}
