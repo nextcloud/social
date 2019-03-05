@@ -32,8 +32,6 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Activity\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 

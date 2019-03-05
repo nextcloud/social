@@ -365,7 +365,7 @@ class AP {
 				break;
 
 			case Announce::TYPE:
-				$service = $this->announceInterface;
+				$interface = $this->announceInterface;
 				break;
 
 			case Block::TYPE:

@@ -181,6 +181,7 @@ class DocumentService {
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function getFromCache(string $id, bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);

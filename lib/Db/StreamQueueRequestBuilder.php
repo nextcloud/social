@@ -31,7 +31,6 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Model\RequestQueue;
 use OCA\Social\Model\StreamQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 

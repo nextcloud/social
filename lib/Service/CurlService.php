@@ -135,6 +135,7 @@ class CurlService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function retrieveAccount(string $account): Person {
 		$result = $this->webfingerAccount($account);

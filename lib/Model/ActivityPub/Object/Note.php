@@ -30,7 +30,6 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Object;
 
 
-use DateTime;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
@@ -48,7 +47,7 @@ class Note extends Stream implements JsonSerializable {
 
 	/** @var array */
 	private $attachments = [];
-  
+
 	/** @var array */
 	private $hashtags = [];
 

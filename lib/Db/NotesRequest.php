@@ -73,7 +73,7 @@ class NotesRequest extends NotesRequestBuilder {
 			)
          ->setValue(
 			   'attachments', $qb->createNamedParameter(
-			   json_encode($note->getAttachments(), JSON_UNESCAPED_SLASHES)
+			   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
 		   )
 		   );
 		}

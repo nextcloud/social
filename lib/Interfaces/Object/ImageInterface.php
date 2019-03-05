@@ -35,7 +35,6 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\MiscService;
 
 
