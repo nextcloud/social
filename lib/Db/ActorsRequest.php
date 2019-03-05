@@ -85,6 +85,8 @@ class ActorsRequest extends ActorsRequestBuilder {
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
+		$this->generatePrimaryKey($qb, $id);
+
 		$qb->execute();
 
 		return $id;

@@ -61,6 +61,9 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			   'creation',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
+
+		$this->generatePrimaryKey($qb, $document->getId());
+
 		$qb->execute();
 	}
 
