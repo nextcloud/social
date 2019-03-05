@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 
+
 /**
  * Nextcloud - Social Support
  *
@@ -80,19 +81,11 @@ class Version0002Date20190119124417 extends SimpleMigrationStep {
 		if (!$table->hasColumn('attachments')) {
 			$table->addColumn('attachments', Type::TEXT, ['notnull' => false]);
 		}
-		$table->setPrimaryKey(['id']);
 
 		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS);
 		if (!$table->hasColumn('parent_id')) {
-			$table->addColumn('parent_id', Type::STRING, ['notnull' => false, 'length' => 255]);
+			$table->addColumn('parent_id', Type::STRING, ['notnull' => false, 'length' => 1000]);
 		}
-		$table->setPrimaryKey(['id']);
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_ACTORS);
-		$table->setPrimaryKey(['id']);
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_SERVER_FOLLOWS);
-		$table->setPrimaryKey(['id']);
 
 		return $schema;
 	}
