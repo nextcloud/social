@@ -108,8 +108,6 @@ services:
       - MYSQL_PASSWORD=owncloud
       - MYSQL_DATABASE=oc_autotest
     command: [ "--innodb_large_prefix=true", "--innodb_file_format=barracuda", "--innodb_file_per_table=true" ]
-    tmpfs:
-      - /var/lib/mysql
     when:
       matrix:
         DB: mysql
@@ -120,8 +118,6 @@ services:
       # This is required as nextcloud will create a separte user since the oc_autotest user can create roles
       - POSTGRES_DB=oc_autotest_dummy
       - POSTGRES_PASSWORD=owncloud
-    tmpfs:
-      - /var/lib/postgresql/data
     when:
       matrix:
         DB: postgres
