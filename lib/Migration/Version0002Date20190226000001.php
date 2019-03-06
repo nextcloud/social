@@ -79,6 +79,9 @@ class Version0002Date20190226000001 extends SimpleMigrationStep {
 		[CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'object_id'],
 		[CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'follow_id'],
 
+		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'to_array'],
+		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'cc'],
+		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'bcc'],
 		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'id'],
 		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'to'],
 		[CoreRequestBuilder::TABLE_SERVER_NOTES, 'attributed_to'],
@@ -137,11 +140,21 @@ class Version0002Date20190226000001 extends SimpleMigrationStep {
 	 * @param IOutput $output
 	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
 	 * @param array $options
+	 *
+	 * @throws SchemaException
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 
+		/** @var ISchemaWrapper $schema */
+		$schema = $schemaClosure();
+
 		foreach (array_merge(self::$editToText, self::$editToChar1000) as $edit) {
 			list($tableName, $field) = $edit;
+
+			$table = $schema->getTable($tableName);
+			if (!$table->hasColumn($field)) {
+				continue;
+			}
 
 			$qb = $this->connection->getQueryBuilder();
 			$qb->update($tableName)
