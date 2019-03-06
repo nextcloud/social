@@ -23,7 +23,7 @@ OC.L10N.register(
     "Post to recipients" : "受取人へ投稿",
     "Post unlisted" : "限定公開で投稿",
     "Direct" : "ダイレクト",
-    "Post to mentioned users only" : "メンションしたユーザにだけ投稿する",
+    "Post to mentioned users only" : "メンションしたユーザーにだけ投稿する",
     "Unlisted" : "限定公開",
     "Do not post to public timelines" : "公開タイムラインへ投稿しない",
     "Followers" : "フォロワー",
@@ -45,12 +45,13 @@ OC.L10N.register(
     "Posts from other people on this instance will show up here" : "このインスタンスの他の人からの投稿がここに表示されます",
     "No global posts found" : "グローバルの投稿が見つかりません",
     "Posts from federated instances will show up here" : "連携したインスタンスからの投稿がここに表示されます",
+    "You are following this account" : "このアカウントをフォローしています",
     "Close" : "閉じる",
     "User not found" : "ユーザーが見つかりません",
     "Sorry, we could not find the account of {userId}" : "残念ながら、アカウント {userId} は見つかりませんでした",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudはソーシャルネットワーク連携の一部になります！",
     "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "自動的にソーシャルアカウントを作成します。ソーシャルIDは、クラウド連携IDと同じです:",
-    "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Socialは初めてですか？最新ニュスを見逃さないように公式Nextcloudアカウントをフォローしましょう。",
+    "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Socialは初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする"
 },
 "nplurals=1; plural=0;");
