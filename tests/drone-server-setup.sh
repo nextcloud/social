@@ -50,6 +50,15 @@ if [[ "$DB" == "postgres" ]] ; then
     DB="pgsql"
 fi
 
+if [ "$DB" == "oracle" ] ; then
+  export DATABASEHOST="oracle:1521"
+
+  if [ ! -f before_install_oracle.sh ]; then
+    wget https://raw.githubusercontent.com/nextcloud/travis_ci/master/before_install_oracle.sh
+  fi
+  bash ./before_install_oracle.sh
+fi
+
 # TODO: oracle
 export DATABASEHOST="$DATABASEHOST"
 

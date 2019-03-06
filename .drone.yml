@@ -121,6 +121,13 @@ services:
     when:
       matrix:
         DB: postgres
+  oracle:
+    image: deepdiver/docker-oracle-xe-11g:2.0
+    environment:
+      - ORACLE_DISABLE_ASYNCH_IO=true
+    when:
+      matrix:
+        DB: oracle
 
 matrix:
   include:
