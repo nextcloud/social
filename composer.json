@@ -14,7 +14,8 @@
     "friendica/json-ld": "^1.0"
   },
   "require-dev": {
-    "jakub-onderka/php-parallel-lint": "^1.0"
+    "jakub-onderka/php-parallel-lint": "^1.0",
+    "phpunit/phpunit": "^6.0"
   },
   "repositories": [
     {
