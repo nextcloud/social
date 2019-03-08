@@ -69,6 +69,20 @@ pipeline:
     when:
       matrix:
         TESTS: syntax-php7.3
+  php7.1:
+    image: nextcloudci/php7.1:php7.1-16
+    environment:
+      - APP_NAME=social
+      - CORE_BRANCH=stable15
+    commands:
+      - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH ${DB}
+      - cd ../server/apps/$APP_NAME
+      - composer install
+      - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
+    when:
+      matrix:
+        TESTS: php7.1
+
   eslint:
     image: node:lts-alpine
     commands:
@@ -85,6 +99,28 @@ pipeline:
     when:
       matrix:
         TESTS: vue-build
+services:
+  mysql:
+    image: mysql:5.7.22
+    environment:
+      - MYSQL_ROOT_PASSWORD=owncloud
+      - MYSQL_USER=oc_autotest
+      - MYSQL_PASSWORD=owncloud
+      - MYSQL_DATABASE=oc_autotest
+    command: [ "--innodb_large_prefix=true", "--innodb_file_format=barracuda", "--innodb_file_per_table=true" ]
+    when:
+      matrix:
+        DB: mysql
+  postgres:
+    image: postgres:10
+    environment:
+      - POSTGRES_USER=oc_autotest
+      # This is required as nextcloud will create a separte user since the oc_autotest user can create roles
+      - POSTGRES_DB=oc_autotest_dummy
+      - POSTGRES_PASSWORD=owncloud
+    when:
+      matrix:
+        DB: postgres
 
 matrix:
   include:
@@ -93,6 +129,13 @@ matrix:
     - TESTS: syntax-php7.1
     - TESTS: syntax-php7.2
     - TESTS: syntax-php7.3
+    - TESTS: php7.1
+      DB: sqlite
+    - TESTS: php7.1
+      DB: mysql
+    # Removed temporary until we migrated notes to a new table 
+    # - TESTS: php7.1
+    #   DB: postgres
     - TESTS: eslint
     - TESTS: vue-build
 

@@ -9,12 +9,18 @@
       "email": "maxence@artificial-owl.com"
     }
   ],
+  "config": {
+    "platform": {
+      "php": "7.0.0"
+    }
+  },
   "require": {
     "daita/my-small-php-tools": "dev-master",
     "friendica/json-ld": "^1.0"
   },
   "require-dev": {
-    "jakub-onderka/php-parallel-lint": "^1.0"
+    "jakub-onderka/php-parallel-lint": "^1.0",
+    "phpunit/phpunit": "^6.4"
   },
   "repositories": [
     {
