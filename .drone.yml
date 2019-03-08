@@ -133,8 +133,9 @@ matrix:
       DB: sqlite
     - TESTS: php7.1
       DB: mysql
-    - TESTS: php7.1
-      DB: postgres
+    # Removed temporary until we migrated notes to a new table 
+    # - TESTS: php7.1
+    #   DB: postgres
     - TESTS: eslint
     - TESTS: vue-build
 
