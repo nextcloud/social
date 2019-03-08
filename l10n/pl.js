@@ -36,6 +36,7 @@ OC.L10N.register(
     "Posts from other people on this instance will show up here" : "Tutaj będą pojawiać się wpisy innych użytkowników tej instancji",
     "No global posts found" : "Nie znaleziono globalnych wpisów",
     "Posts from federated instances will show up here" : "Tutaj będą pojawiać się wpisy ze sfederowanych instancji ",
+    "No posts found for this tag" : "Nie znaleziono postów dla tej etykiety",
     "User not found" : "Nie znaleziono użytkownika",
     "Sorry, we could not find the account of {userId}" : "Nie udało się odnaleźć konta {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud staje się częścią sfederowanych sieci społecznościowych!",

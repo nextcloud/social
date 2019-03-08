@@ -40,6 +40,7 @@ OC.L10N.register(
     "Searching for" : "Recherche de",
     "Reply" : "Répondre",
     "More actions" : "Plus d'actions",
+    "Delete post" : "Supprimer le message",
     "No posts found" : "Aucun message trouvé",
     "Posts from people you follow will show up here" : "Les messages des personnes que vous suivez apparaitront ici",
     "No direct messages found" : "Aucun message direct",
