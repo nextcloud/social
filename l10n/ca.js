@@ -44,6 +44,7 @@ OC.L10N.register(
     "Posts from other people on this instance will show up here" : "Missatges d’altres persones en aquesta instància es mostraràn aquí",
     "No global posts found" : "No s'han trobat missatges globals",
     "Posts from federated instances will show up here" : "Missatges d’instàncies federades apareixeràn aquí",
+    "Close" : "Tanca",
     "User not found" : "Usuari no trobat",
     "Sorry, we could not find the account of {userId}" : "Ho sentim, no hem pogut trobar el compte de {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud es fa part de les xarxes socials federats!",
