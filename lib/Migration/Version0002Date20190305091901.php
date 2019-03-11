@@ -130,8 +130,6 @@ class Version0002Date20190305091901 extends SimpleMigrationStep {
 					   ->eq($field, $update->createNamedParameter($id))
 				);
 				$update->execute();
-
-				$update->execute();
 			}
 			$cursor->closeCursor();
 
