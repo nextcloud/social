@@ -455,6 +455,8 @@ class NotesRequest extends NotesRequestBuilder {
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
+		$this->generatePrimaryKey($qb, $note->getId());
+
 		return $qb;
 	}
 

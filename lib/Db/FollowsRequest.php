@@ -66,6 +66,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
+		$this->generatePrimaryKey($qb, $follow->getId());
+
 		$qb->execute();
 	}
 

@@ -108,6 +108,15 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $id
+	 */
+	public function generatePrimaryKey(IQueryBuilder $qb, string $id) {
+		$qb->setValue('id_prim', $qb->createNamedParameter(hash('sha512', $id)));
+	}
+
+
+	/**
 	 * Limit the request to the Id
 	 *
 	 * @param IQueryBuilder $qb
