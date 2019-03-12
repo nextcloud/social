@@ -98,7 +98,7 @@ const actions = {
 	},
 	postBoost(context, post) {
 		return new Promise((resolve, reject) => {
-			axios.post(OC.generateUrl(`apps/social/api/v1/boost?postId=${post.id}`)).then((response) => {
+			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 				// eslint-disable-next-line no-console
 				console.log('Post boosted with token ' + response.data.result.token)
 				resolve(response)
