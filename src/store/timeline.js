@@ -96,6 +96,19 @@ const actions = {
 			console.error('Failed to delete the post', error)
 		})
 	},
+	postBoost(context, post) {
+		return new Promise((resolve, reject) => {
+			axios.post(OC.generateUrl(`apps/social/api/v1/boost?postId=${post.id}`)).then((response) => {
+				// eslint-disable-next-line no-console
+				console.log('Post boosted with token ' + response.data.result.token)
+				resolve(response)
+			}).catch((error) => {
+				OC.Notification.showTemporary('Failed to create a boost post')
+				console.error('Failed to create a boost post', error.response)
+				reject(error)
+			})
+		})
+	},
 	refreshTimeline(context) {
 		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},

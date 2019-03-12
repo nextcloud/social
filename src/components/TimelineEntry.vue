@@ -26,6 +26,7 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="post-message" v-html="formatedMessage" />
 				<div v-click-outside="hidePopoverMenu" class="post-actions">
+					<a v-if="this.item.actor_info.account !== this.cloudId" v-tooltip.bottom="t('social', 'Boost')" class="icon-boost" @click.prevent="boost" />
 					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 					<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 						<a class="icon-more" @click.prevent="togglePopoverMenu" />
@@ -119,6 +120,9 @@ export default {
 		},
 		reply() {
 			this.$root.$emit('composer-reply', this.item)
+		},
+		boost() {
+			this.$store.dispatch('postBoost', this.item)
 		}
 	}
 }
@@ -165,6 +169,7 @@ export default {
 			display: inline-block;
 		}
 		.icon-reply,
+		.icon-boost,
 		.icon-more {
 			display: inline-block;
 			width: 44px;
