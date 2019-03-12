@@ -26,7 +26,8 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div class="post-message" v-html="formatedMessage" />
 				<div v-click-outside="hidePopoverMenu" class="post-actions">
-					<a v-if="this.item.actor_info.account !== this.cloudId" v-tooltip.bottom="t('social', 'Boost')" class="icon-boost" @click.prevent="boost" />
+					<a v-if="this.item.actor_info.account !== this.cloudId" v-tooltip.bottom="t('social', 'Boost')" class="icon-boost"
+						@click.prevent="boost" />
 					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 					<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 						<a class="icon-more" @click.prevent="togglePopoverMenu" />
