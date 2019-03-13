@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Object;
 
 
+use Exception;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -61,14 +62,21 @@ class Announce extends Stream implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	public function import(array $data) {
 		parent::import($data);
+
+		// Might be better to create 'actor_id' field in the 'server_streams' table.
+		$this->setAttributedTo($this->getActorId());
 	}
 
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
@@ -80,6 +88,7 @@ class Announce extends Stream implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
+		$result['actor'] = $this->getAttributedTo();
 
 		return $result;
 	}
