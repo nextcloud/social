@@ -464,11 +464,11 @@ export default {
 		visibilityPopover() {
 			return [
 				{
-					action: () => { this.switchType('direct') },
-					icon: this.visibilityIconClass('direct'),
-					active: this.activeState('direct'),
-					text: t('social', 'Direct'),
-					longtext: t('social', 'Post to mentioned users only')
+					action: () => { this.switchType('public') },
+					icon: this.visibilityIconClass('public'),
+					active: this.activeState('public'),
+					text: t('social', 'Public'),
+					longtext: t('social', 'Post to public timelines')
 				},
 				{
 					action: () => { this.switchType('unlisted') },
@@ -485,11 +485,11 @@ export default {
 					longtext: t('social', 'Post to followers only')
 				},
 				{
-					action: () => { this.switchType('public') },
-					icon: this.visibilityIconClass('public'),
-					active: this.activeState('public'),
-					text: t('social', 'Public'),
-					longtext: t('social', 'Post to public timelines')
+					action: () => { this.switchType('direct') },
+					icon: this.visibilityIconClass('direct'),
+					active: this.activeState('direct'),
+					text: t('social', 'Direct'),
+					longtext: t('social', 'Post to mentioned users only')
 				}
 			]
 		}
