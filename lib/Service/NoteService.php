@@ -66,6 +66,9 @@ class NoteService {
 	/** @var SignatureService */
 	private $signatureService;
 
+	/** @var StreamQueueService */
+	private $streamQueueService;
+
 	/** @var CacheActorService */
 	private $cacheActorService;
 
@@ -87,6 +90,7 @@ class NoteService {
 	 * @param ActivityService $activityService
 	 * @param AccountService $accountService
 	 * @param SignatureService $signatureService
+	 * @param StreamQueueService $streamQueueService
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
@@ -94,12 +98,14 @@ class NoteService {
 	public function __construct(
 		NotesRequest $notesRequest, ActivityService $activityService,
 		AccountService $accountService, SignatureService $signatureService,
-		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService
+		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->notesRequest = $notesRequest;
 		$this->activityService = $activityService;
 		$this->accountService = $accountService;
 		$this->signatureService = $signatureService;
+		$this->streamQueueService = $streamQueueService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -123,25 +129,31 @@ class NoteService {
 	 * @return string
 	 * @throws NoteNotFoundException
 	 * @throws SocialAppConfigException
+	 * @throws Exception
 	 */
 	public function createBoost(Person $actor, string $postId, ACore &$announce = null): string {
 
 		$announce = new Announce();
 		$this->assignStream($announce, $actor, Stream::TYPE_PUBLIC);
-
 		$announce->setActor($actor);
+
 		$note = $this->getNoteById($postId, true);
+		if ($note->getType() !== Note::TYPE) {
+			throw new NoteNotFoundException('Stream is not a Note');
+		}
 
 		$announce->addCc($note->getAttributedTo());
 		if ($note->isLocal()) {
 			$announce->setObject($note);
 		} else {
 			$announce->setObjectId($note->getId());
+			$announce->addCacheItem($note->getId());
 		}
 
 		$this->signatureService->signObject($actor, $announce);
-		$this->notesRequest->save($announce);
 		$token = $this->activityService->request($announce);
+
+		$this->streamQueueService->cacheStreamByToken($token);
 
 		return $token;
 	}
