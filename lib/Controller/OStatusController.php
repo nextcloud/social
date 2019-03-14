@@ -109,7 +109,7 @@ class OStatusController extends Controller {
 
 			$user = $this->userSession->getUser();
 			if ($user === null) {
-				return $this->fail('Failed to retrieve current user');
+				throw new Exception('Failed to retrieve current user');
 			}
 
 			return new TemplateResponse('social', 'ostatus', [

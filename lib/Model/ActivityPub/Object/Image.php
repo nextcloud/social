@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use JsonSerializable;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 
@@ -63,6 +64,7 @@ class Image extends Document implements JsonSerializable {
 	 * @param array $data
 	 *
 	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
 	 */
 	public function import(array $data) {
 		parent::import($data);

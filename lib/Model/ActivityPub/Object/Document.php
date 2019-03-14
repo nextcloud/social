@@ -33,6 +33,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use DateTime;
 use JsonSerializable;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 
@@ -66,6 +67,8 @@ class Document extends ACore implements JsonSerializable {
 	/** @var int */
 	private $error = 0;
 
+	/** @var string */
+	private $parentId = '';
 
 	/**
 	 * Document constructor.
@@ -156,6 +159,25 @@ class Document extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return string
+	 */
+	public function getParentId(): string {
+		return $this->parentId;
+	}
+
+	/**
+	 * @param string $parentId
+	 *
+	 * @return Document
+	 */
+	public function setParentId(string $parentId): Document {
+		$this->parentId = $parentId;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return int
 	 */
 	public function getError(): int {
@@ -197,6 +219,7 @@ class Document extends ACore implements JsonSerializable {
 	 * @param array $data
 	 *
 	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
 	 */
 	public function import(array $data) {
 		parent::import($data);
@@ -205,6 +228,8 @@ class Document extends ACore implements JsonSerializable {
 
 		if ($this->getId() === '') {
 			$this->generateUniqueId('/documents/g');
+		} else {
+			$this->checkOrigin($this->getId());
 		}
 	}
 
@@ -220,6 +245,7 @@ class Document extends ACore implements JsonSerializable {
 		$this->setLocalCopy($this->get('local_copy', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));
+		$this->setParentId($this->get('parent_id', $data, ''));
 
 		if ($this->get('caching', $data, '') === '') {
 			$this->setCaching(0);
@@ -233,7 +259,7 @@ class Document extends ACore implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-		return array_merge(
+		$result = array_merge(
 			parent::jsonSerialize(),
 			[
 				'mediaType' => $this->getMediaType(),
@@ -241,6 +267,12 @@ class Document extends ACore implements JsonSerializable {
 				'localCopy' => $this->getLocalCopy()
 			]
 		);
+
+		if ($this->isCompleteDetails()) {
+			$result['parentId'] = $this->getParentId();
+		}
+
+		return $result;
 	}
 
 }

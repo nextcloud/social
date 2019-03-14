@@ -56,6 +56,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('mime_type', $qb->createNamedParameter($document->getMimeType()))
 		   ->setValue('error', $qb->createNamedParameter($document->getError()))
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+		   ->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
 		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'))
 		   ->setValue(
 			   'creation',
@@ -64,6 +65,29 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$this->generatePrimaryKey($qb, $document->getId());
 
+		$qb->execute();
+	}
+
+
+	/**
+	 * insert cache about an Actor in database.
+	 *
+	 * @param Document $document
+	 */
+	public function update(Document $document) {
+		$qb = $this->getCacheDocumentsInsertSql();
+		$qb->set('type', $qb->createNamedParameter($document->getType()))
+		   ->set('url', $qb->createNamedParameter($document->getUrl()))
+		   ->set('media_type', $qb->createNamedParameter($document->getMediaType()))
+		   ->set('mime_type', $qb->createNamedParameter($document->getMimeType()))
+		   ->set('error', $qb->createNamedParameter($document->getError()))
+		   ->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+		   ->set('parent_id', $qb->createNamedParameter($document->getParentId()))
+		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'))
+		   ->set(
+			   'creation',
+			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   );
 		$qb->execute();
 	}
 
@@ -101,7 +125,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
 	 */
-	public function getBySource(string $url) {
+	public function getByUrl(string $url) {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToUrl($qb, $url);
 
@@ -146,6 +170,24 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 
 	/**
+	 * @param Document $item
+	 *
+	 * @return bool
+	 */
+	public function isDuplicate(Document $item): bool {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$this->limitToUrl($qb, $item->getUrl());
+		$this->limitToParentId($qb, $item->getParentId());
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($data !== false);
+	}
+
+
+	/**
 	 * @return Document[]
 	 * @throws Exception
 	 */
@@ -186,6 +228,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->execute();
 	}
+
 
 }
 

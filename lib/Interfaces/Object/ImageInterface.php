@@ -32,22 +32,13 @@ namespace OCA\Social\Interfaces\Object;
 
 
 use OCA\Social\Db\CacheDocumentsRequest;
-use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\MiscService;
 
 
-class DocumentInterface implements IActivityPubInterface {
-
-
-	/** @var CacheDocumentsRequest */
-	protected $cacheDocumentsRequest;
-
-	/** @var MiscService */
-	protected $miscService;
+class ImageInterface extends DocumentInterface implements IActivityPubInterface {
 
 
 	/**
@@ -59,8 +50,7 @@ class DocumentInterface implements IActivityPubInterface {
 	public function __construct(
 		CacheDocumentsRequest $cacheDocumentsRequest, MiscService $miscService
 	) {
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->miscService = $miscService;
+		parent::__construct($cacheDocumentsRequest, $miscService);
 	}
 
 
@@ -69,6 +59,7 @@ class DocumentInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function activity(Acore $activity, ACore $item) {
+		parent::activity($activity, $item);
 	}
 
 
@@ -76,6 +67,7 @@ class DocumentInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function processIncomingRequest(ACore $item) {
+		parent::processIncomingRequest($item);
 	}
 
 
@@ -83,6 +75,7 @@ class DocumentInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function processResult(ACore $item) {
+		parent::processResult($item);
 	}
 
 
@@ -93,29 +86,14 @@ class DocumentInterface implements IActivityPubInterface {
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
+		return parent::getItemById($id);
 	}
 
 	/**
 	 * @param ACore $item
 	 */
 	public function save(ACore $item) {
-		/** @var Document $item */
-		if ($item->getParent()) {
-			$item->setParentId(
-				$item->getParent()
-					 ->getId()
-			);
-		}
-
-		try {
-			$this->cacheDocumentsRequest->getById($item->getId());
-			$this->cacheDocumentsRequest->update($item);
-		} catch (CacheDocumentDoesNotExistException $e) {
-			if (!$this->cacheDocumentsRequest->isDuplicate($item)) {
-				$this->cacheDocumentsRequest->save($item);
-			}
-		}
+		parent::save($item);
 	}
 
 
@@ -123,7 +101,7 @@ class DocumentInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
-//		$this->cacheDocumentsRequest->delete($item);
+		parent::delete($item);
 	}
 
 

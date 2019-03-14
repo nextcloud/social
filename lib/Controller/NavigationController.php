@@ -36,6 +36,7 @@ use Exception;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\AccountService;
@@ -130,6 +131,7 @@ class NavigationController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
 	 */
 	public function navigate(string $path = ''): TemplateResponse {
 		$data = [

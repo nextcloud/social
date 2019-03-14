@@ -32,10 +32,6 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Announce;
-use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\ConfigService;
@@ -45,7 +41,6 @@ use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 

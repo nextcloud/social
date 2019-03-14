@@ -66,6 +66,7 @@ class CoreRequestBuilder {
 
 	const TABLE_QUEUE_STREAM = 'social_queue_stream';
 
+  
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -391,6 +392,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToLocal(IQueryBuilder &$qb, bool $local) {
 		$this->limitToDBField($qb, 'local', ($local) ? '1' : '0');
+	}
+
+
+	/**
+	 * Limit the request to the parent_id
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $parentId
+	 */
+	protected function limitToParentId(IQueryBuilder &$qb, string $parentId) {
+		$this->limitToDBField($qb, 'parent_id', $parentId);
 	}
 
 

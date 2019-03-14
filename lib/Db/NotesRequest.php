@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -69,7 +70,12 @@ class NotesRequest extends NotesRequestBuilder {
 			/** @var Note $stream */
 			$qb->setValue(
 				'hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags()))
-			);
+			)
+         ->setValue(
+			   'attachments', $qb->createNamedParameter(
+			   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+		   )
+		   );
 		}
 
 		$qb->execute();
@@ -86,7 +92,10 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$this->limitToIdString($qb, $stream->getId());
 
-		$qb->execute();
+		try {
+			$qb->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
 	}
 
 

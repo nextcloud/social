@@ -181,6 +181,7 @@ class DocumentService {
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
+	 * @throws RequestResultNotJsonException
 	 */
 	public function getFromCache(string $id, bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);
@@ -238,14 +239,14 @@ class DocumentService {
 			$icon->setMediaType('');
 			$icon->setLocalCopy('avatar');
 
-			$this->cacheDocumentsRequest->deleteByUrl($icon->getUrl());
-			$this->cacheDocumentsRequest->save($icon);
+			$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+			$interface->save($icon);
 
 			$actor->setAvatarVersion($versionCurrent);
 			$this->actorRequest->update($actor);
 		} else {
 			try {
-				$icon = $this->cacheDocumentsRequest->getBySource($url);
+				$icon = $this->cacheDocumentsRequest->getByUrl($url);
 			} catch (CacheDocumentDoesNotExistException $e) {
 				return '';
 			}

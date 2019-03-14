@@ -89,9 +89,9 @@ return [
 		['name' => 'Local#globalActorAvatar', 'url' => '/api/v1/global/actor/avatar', 'verb' => 'GET'],
 		['name' => 'Local#globalAccountsSearch', 'url' => '/api/v1/global/accounts/search', 'verb' => 'GET'],
 
-		['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
+//		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
-		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
+    ['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
 
 		['name' => 'Queue#asyncForRequest', 'url' => CurlService::ASYNC_REQUEST_TOKEN, 'verb' => 'POST'],
 

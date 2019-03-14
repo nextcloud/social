@@ -84,7 +84,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$qb->selectDistinct('sn.id')
 		   ->addSelect(
 			   'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
-			   'sn.summary', 'sn.published', 'sn.published_time', 'sn.cache', 'sn.object_id',
+			   'sn.summary', 'sn.attachments', 'sn.published', 'sn.published_time', 'sn.cache', 'sn.object_id',
 			   'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
 			   'sn.creation'
 		   )
