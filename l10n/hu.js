@@ -18,8 +18,12 @@ OC.L10N.register(
     "posts" : "Küldések",
     "following" : "további",
     "Searching for" : "Keress",
+    "Reply" : "Válasz",
+    "More actions" : "További lehetőségek",
+    "Delete post" : "Üzenet törlése",
     "No posts found" : "Nem található hozzászólás",
     "No direct messages found" : "Nem található közvetlen üzenet",
+    "Continue" : "Folytat",
     "Follow Nextcloud on mastodon.xyz" : "Kövesd a Nextcloudot a mastodon.xyz-on"
 },
 "nplurals=2; plural=(n != 1);");
