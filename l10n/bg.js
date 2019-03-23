@@ -30,6 +30,7 @@ OC.L10N.register(
     "following" : "последователи",
     "followers" : "Последователи",
     "Searching for" : "Търсене за",
+    "More actions" : "Още действия",
     "No posts found" : "Не са открити публикации",
     "Posts from people you follow will show up here" : "Публикации от хора, които следваш ще откриеш тук",
     "No direct messages found" : "Не са открите директни съобщения",
