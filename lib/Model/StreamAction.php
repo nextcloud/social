@@ -63,8 +63,13 @@ class StreamAction implements JsonSerializable {
 
 	/**
 	 * StreamAction constructor.
+	 *
+	 * @param string $actorId
+	 * @param string $streamId
 	 */
-	public function __construct() {
+	public function __construct(string $actorId = '', string $streamId = '') {
+		$this->actorId = $actorId;
+		$this->streamId = $streamId;
 	}
 
 
@@ -143,6 +148,14 @@ class StreamAction implements JsonSerializable {
 
 	/**
 	 * @param string $key
+	 * @param bool $value
+	 */
+	public function updateValueBool(string $key, bool $value) {
+		$this->values[$key] = $value;
+	}
+
+	/**
+	 * @param string $key
 	 *
 	 * @return bool
 	 */
@@ -165,6 +178,15 @@ class StreamAction implements JsonSerializable {
 	 * @return int
 	 */
 	public function getValueInt(string $key): int {
+		return $this->values[$key];
+	}
+
+	/**
+	 * @param string $key
+	 *
+	 * @return bool
+	 */
+	public function getValueBool(string $key): bool {
 		return $this->values[$key];
 	}
 

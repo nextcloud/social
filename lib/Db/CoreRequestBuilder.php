@@ -171,7 +171,7 @@ class CoreRequestBuilder {
 	 * @param string $streamId
 	 */
 	protected function limitToStreamId(IQueryBuilder &$qb, string $streamId) {
-		$this->limitToDBField($qb, 'user_id', $streamId, false);
+		$this->limitToDBField($qb, 'stream_id', $streamId, false);
 	}
 
 

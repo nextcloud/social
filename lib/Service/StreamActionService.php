@@ -45,12 +45,14 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\StreamAction;
 
 
 /**
@@ -88,7 +90,9 @@ class StreamActionService {
 	 * @param string $value
 	 */
 	public function setAction(string $actorId, string $streamId, string $key, string $value) {
-
+		$action = $this->loadAction($actorId, $streamId);
+		$action->updateValue($key, $value);
+		$this->saveAction($action);
 	}
 
 
@@ -99,7 +103,9 @@ class StreamActionService {
 	 * @param int $value
 	 */
 	public function setActionInt(string $actorId, string $streamId, string $key, int $value) {
-
+		$action = $this->loadAction($actorId, $streamId);
+		$action->updateValueInt($key, $value);
+		$this->saveAction($action);
 	}
 
 
@@ -110,8 +116,36 @@ class StreamActionService {
 	 * @param bool $value
 	 */
 	public function setActionBool(string $actorId, string $streamId, string $key, bool $value) {
-
+		$action = $this->loadAction($actorId, $streamId);
+		$action->updateValueBool($key, $value);
+		$this->saveAction($action);
 	}
 
+
+	/**
+	 * @param string $actorId
+	 * @param string $streamId
+	 *
+	 * @return StreamAction
+	 */
+	private function loadAction(string $actorId, string $streamId): StreamAction {
+		try {
+			$action = $this->streamActionsRequest->getAction($actorId, $streamId);
+		} catch (StreamActionDoesNotExistException $e) {
+			$action = new StreamAction($actorId, $streamId);
+		}
+
+		return $action;
+	}
+
+
+	/**
+	 * @param StreamAction $action
+	 */
+	private function saveAction(StreamAction $action) {
+		if ($this->streamActionsRequest->update($action) === 0) {
+			$this->streamActionsRequest->create($action);
+		}
+	}
 }
 

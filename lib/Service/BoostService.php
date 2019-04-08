@@ -133,7 +133,7 @@ class BoostService {
 
 		$this->notesRequest->save($announce);
 
-		$this->streamActionService->setActionBool($actor->getActorId(), $postId, 'boosted', true);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', true);
 		$this->signatureService->signObject($actor, $announce);
 		$token = $this->activityService->request($announce);
 
@@ -182,7 +182,7 @@ class BoostService {
 		$undo->setCcArray($announce->getCcArray());
 
 		$this->notesRequest->deleteNoteById($announce->getId());
-		$this->streamActionService->setActionBool($actor->getActorId(), $postId, 'boosted', false);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
 		$this->signatureService->signObject($actor, $undo);
 		$token = $this->activityService->request($undo);
 

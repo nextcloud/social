@@ -66,8 +66,10 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	 * create a new Queue in the database.
 	 *
 	 * @param StreamAction $action
+	 *
+	 * @return int
 	 */
-	public function update(StreamAction $action) {
+	public function update(StreamAction $action): int {
 		$qb = $this->getStreamActionUpdateSql();
 
 		$values = json_encode($action->getValues(), JSON_UNESCAPED_SLASHES);
@@ -76,7 +78,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$this->limitToActorId($qb, $action->getActorId());
 		$this->limitToStreamId($qb, $action->getStreamId());
 
-		$qb->execute();
+		return $qb->execute();
 	}
 
 
@@ -88,7 +90,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	 * @throws StreamActionDoesNotExistException
 	 */
 	public function getAction(string $actorId, string $streamId): StreamAction {
-		$qb = $this->getStreamActionDeleteSql();
+		$qb = $this->getStreamActionSelectSql();
 		$this->limitToActorId($qb, $actorId);
 		$this->limitToStreamId($qb, $streamId);
 
