@@ -134,11 +134,11 @@ class NoteBoost extends Base {
 
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->noteService->setViewer($actor);
-
-		if ($input->getOption('unboost') === null) {
+		$token = '';
+		if (!$input->getOption('unboost')) {
 			$activity = $this->boostService->create($actor, $noteId, $token);
 		} else {
-			$activity= $this->boostService->delete($actor, $noteId, $token );
+			$activity= $this->boostService->delete($actor, $noteId, $token);
 		}
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

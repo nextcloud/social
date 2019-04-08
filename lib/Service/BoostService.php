@@ -105,6 +105,7 @@ class BoostService {
 	 * @return ACore
 	 * @throws NoteNotFoundException
 	 * @throws SocialAppConfigException
+	 * @throws Exception
 	 */
 	public function create(Person $actor, string $postId, string &$token = ''): ACore {
 
@@ -123,10 +124,10 @@ class BoostService {
 		}
 
 		$announce->addCc($note->getAttributedTo());
+		$announce->setObjectId($note->getId());
 		if ($note->isLocal()) {
 			$announce->setObject($note);
 		} else {
-			$announce->setObjectId($note->getId());
 			$announce->addCacheItem($note->getId());
 		}
 
@@ -159,13 +160,13 @@ class BoostService {
 	/**
 	 * @param Person $actor
 	 * @param string $postId
-	 * @param ACore $undo
+	 * @param string $token
 	 *
-	 * @return string
-	 * @throws SocialAppConfigException
+	 * @return ACore
 	 * @throws NoteNotFoundException
+	 * @throws SocialAppConfigException
 	 */
-	public function delete(Person $actor, string $postId, ACore &$undo = null): string {
+	public function delete(Person $actor, string $postId, string &$token = ''): ACore {
 		$undo = new Undo();
 		$this->noteService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);
@@ -176,6 +177,7 @@ class BoostService {
 		}
 
 		$announce = $this->notesRequest->getNoteByObjectId($actor, Announce::TYPE, $postId);
+
 		$undo->setObject($announce);
 		$undo->setCcArray($announce->getCcArray());
 
@@ -184,9 +186,8 @@ class BoostService {
 		$this->signatureService->signObject($actor, $undo);
 		$token = $this->activityService->request($undo);
 
-		return $token;
+		return $undo;
 	}
-
 
 }
 
