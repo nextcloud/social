@@ -88,26 +88,26 @@ class PostService {
 
 	/**
 	 * @param Post $post
-	 * @param ACore $activity
+	 * @param string $token
 	 *
-	 * @return string
-	 * @throws SocialAppConfigException
+	 * @return ACore
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws ItemUnknownException
+	 * @throws MalformedArrayException
 	 * @throws NoteNotFoundException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
-	 * @throws MalformedArrayException
-	 * @throws RequestResultNotJsonException
+	 * @throws SocialAppConfigException
 	 */
-	public function createPost(Post $post, ACore &$activity = null): string {
+	public function createPost(Post $post, string &$token = ''): ACore {
 		$note = new Note();
 		$actor = $post->getActor();
-		$this->noteService->assignStream($note, $actor, $post->getType());
+		$this->noteService->assignItem($note, $actor, $post->getType());
 
 		$note->setAttributedTo(
 			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
@@ -119,10 +119,10 @@ class PostService {
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->noteService->addHashtags($note, $post->getHashtags());
 
-		$result = $this->activityService->createActivity($actor, $note, $activity);
+		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
 
-		return $result;
+		return $activity;
 	}
 
 

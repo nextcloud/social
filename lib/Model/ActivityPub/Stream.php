@@ -33,7 +33,9 @@ namespace OCA\Social\Model\ActivityPub;
 use daita\MySmallPhpTools\Model\Cache;
 use daita\MySmallPhpTools\Model\CacheItem;
 use DateTime;
+use Exception;
 use JsonSerializable;
+use OCA\Social\Model\StreamAction;
 
 
 class Stream extends ACore implements JsonSerializable {
@@ -68,6 +70,9 @@ class Stream extends ACore implements JsonSerializable {
 
 	/** @var int */
 	private $publishedTime = 0;
+
+	/** @var StreamAction */
+	private $action = null;
 
 
 	public function __construct($parent = null) {
@@ -208,6 +213,7 @@ class Stream extends ACore implements JsonSerializable {
 
 	/**
 	 *
+	 * @throws Exception
 	 */
 	public function convertPublished() {
 		$dTime = new DateTime($this->getPublished());
@@ -255,6 +261,37 @@ class Stream extends ACore implements JsonSerializable {
 	}
 
 
+	/**
+	 * @return StreamAction
+	 */
+	public function getAction(): StreamAction {
+		return $this->action;
+	}
+
+	/**
+	 * @param StreamAction $action
+	 *
+	 * @return Stream
+	 */
+	public function setAction(StreamAction $action): Stream {
+		$this->action = $action;
+
+		return $this;
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function hasAction(): bool {
+		return ($this->action !== null);
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @throws Exception
+	 */
 	public function import(array $data) {
 		parent::import($data);
 
@@ -270,6 +307,8 @@ class Stream extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
@@ -310,6 +349,7 @@ class Stream extends ACore implements JsonSerializable {
 			$result = array_merge(
 				$result,
 				[
+					'action'        => ($this->hasAction()) ? $this->getAction() : [],
 					'cache'         => ($this->gotCache()) ? $this->getCache() : '',
 					'publishedTime' => $this->getPublishedTime()
 				]

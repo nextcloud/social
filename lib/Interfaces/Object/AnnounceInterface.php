@@ -31,12 +31,14 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Object;
 
 
+use Exception;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
@@ -81,11 +83,16 @@ class AnnounceInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $activity
 	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
 	 */
 	public function activity(Acore $activity, ACore $item) {
-		/** Stream $item */
-		// TODO: Manage Undo Activity
-		$this->miscService->log('activity: ' . json_encode($activity));
+		$item->checkOrigin($activity->getId());
+
+		if ($activity->getType() === Undo::TYPE) {
+			$item->checkOrigin($item->getId());
+			$this->delete($item);
+		}
 	}
 
 
@@ -93,6 +100,7 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 *
 	 * @throws InvalidOriginException
+	 * @throws Exception
 	 */
 	public function processIncomingRequest(ACore $item) {
 		/** @var Stream $item */
@@ -119,8 +127,11 @@ class AnnounceInterface implements IActivityPubInterface {
 		throw new ItemNotFoundException();
 	}
 
+
 	/**
 	 * @param ACore $item
+	 *
+	 * @throws Exception
 	 */
 	public function save(ACore $item) {
 		/** @var Announce $item */
@@ -142,8 +153,14 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
+		try {
+			$stream = $this->notesRequest->getNoteById($item->getId());
+			if ($stream->getType() === Announce::TYPE) {
+				$this->notesRequest->deleteNoteById($item->getId());
+			}
+		} catch (NoteNotFoundException $e) {
+		}
 	}
-
 
 }
 

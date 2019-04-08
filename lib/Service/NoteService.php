@@ -46,7 +46,6 @@ use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
@@ -122,66 +121,42 @@ class NoteService {
 
 
 	/**
-	 * @param Person $actor
-	 * @param string $postId
-	 * @param ACore|null $announce
-	 *
-	 * @return string
-	 * @throws NoteNotFoundException
-	 * @throws SocialAppConfigException
-	 * @throws Exception
-	 */
-	public function createBoost(Person $actor, string $postId, ACore &$announce = null): string {
-
-		$announce = new Announce();
-		$this->assignStream($announce, $actor, Stream::TYPE_PUBLIC);
-		$announce->setActor($actor);
-
-		$note = $this->getNoteById($postId, true);
-		if ($note->getType() !== Note::TYPE) {
-			throw new NoteNotFoundException('Stream is not a Note');
-		}
-
-		$announce->addCc($note->getAttributedTo());
-		if ($note->isLocal()) {
-			$announce->setObject($note);
-		} else {
-			$announce->setObjectId($note->getId());
-			$announce->addCacheItem($note->getId());
-		}
-
-		$this->signatureService->signObject($actor, $announce);
-		$token = $this->activityService->request($announce);
-
-		$this->streamQueueService->cacheStreamByToken($token);
-
-		return $token;
-	}
-
-
-	/**
-	 * @param Stream $stream
+	 * @param ACore $stream
 	 * @param Person $actor
 	 * @param string $type
 	 *
 	 * @throws SocialAppConfigException
+	 * @throws Exception
 	 */
-	public function assignStream(Stream &$stream, Person $actor, string $type) {
+	public function assignItem(Acore &$stream, Person $actor, string $type) {
 		$stream->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
 		$stream->setPublished(date("c"));
 
 		$this->setRecipient($stream, $actor, $type);
-		$stream->convertPublished();
 		$stream->setLocal(true);
+
+		if ($stream instanceof Stream) {
+			$this->assignStream($stream);
+		}
 	}
 
 
 	/**
 	 * @param Stream $stream
+	 *
+	 * @throws Exception
+	 */
+	public function assignStream(Stream &$stream) {
+		$stream->convertPublished();
+	}
+
+
+	/**
+	 * @param ACore $stream
 	 * @param Person $actor
 	 * @param string $type
 	 */
-	private function setRecipient(Stream $stream, Person $actor, string $type) {
+	private function setRecipient(ACore $stream, Person $actor, string $type) {
 		switch ($type) {
 			case Note::TYPE_UNLISTED:
 				$stream->setTo($actor->getFollowers());
@@ -370,6 +345,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamHome($actor, $since, $limit);
@@ -382,6 +358,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamNotifications($actor, $since, $limit);
@@ -394,6 +371,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamAccount($actorId, $since, $limit);
@@ -406,6 +384,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamDirect($actor, $since, $limit);
@@ -417,6 +396,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamTimeline($since, $limit, true);
@@ -430,6 +410,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamLocalTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
 	): array {
@@ -455,6 +436,7 @@ class NoteService {
 	 * @param int $limit
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
 		return $this->notesRequest->getStreamTimeline($since, $limit, false);

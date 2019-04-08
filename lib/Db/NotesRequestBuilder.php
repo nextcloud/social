@@ -36,6 +36,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -353,9 +354,9 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Note
+	 * @return Stream
 	 */
-	protected function parseNotesSelectSql($data): Note {
+	protected function parseNotesSelectSql($data): Stream {
 		$note = new Note();
 		$note->importFromDatabase($data);
 
@@ -372,6 +373,12 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			$actor = $this->parseCacheActorsLeftJoin($data);
 			$note->setCompleteDetails(true);
 			$note->setActor($actor);
+		} catch (InvalidResourceException $e) {
+		}
+
+		try {
+			$action = $this->parseStreamActionsLeftJoin($data);
+			$note->setAction($action);
 		} catch (InvalidResourceException $e) {
 		}
 
