@@ -30,7 +30,9 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -47,6 +49,9 @@ use OCA\Social\Model\ActivityPub\Stream;
  * @package OCA\Social\Service
  */
 class BoostService {
+
+
+	use TStringTools;
 
 
 	/** @var NotesRequest */
@@ -125,19 +130,17 @@ class BoostService {
 
 		$announce->addCc($note->getAttributedTo());
 		$announce->setObjectId($note->getId());
-		if ($note->isLocal()) {
-			$announce->setObject($note);
-		} else {
-			$announce->addCacheItem($note->getId());
-		}
+		$announce->setRequestToken($this->uuid());
 
-		$this->notesRequest->save($announce);
+		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
+		$interface->save($announce);
 
 		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', true);
 		$this->signatureService->signObject($actor, $announce);
+
 		$token = $this->activityService->request($announce);
 
-		$this->streamQueueService->cacheStreamByToken($token);
+		$this->streamQueueService->cacheStreamByToken($announce->getRequestToken());
 
 		return $announce;
 	}
@@ -184,6 +187,7 @@ class BoostService {
 		$this->notesRequest->deleteNoteById($announce->getId());
 		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
 		$this->signatureService->signObject($actor, $undo);
+
 		$token = $this->activityService->request($undo);
 
 		return $undo;
