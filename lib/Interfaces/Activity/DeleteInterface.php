@@ -73,7 +73,7 @@ class DeleteInterface implements IActivityPubInterface {
 				foreach ($types as $type) {
 					try {
 						$item->checkOrigin($item->getObjectId());
-						$interface = AP::$activityPub->getInterfaceForItem($type);
+						$interface = AP::$activityPub->getInterfaceFromType($type);
 						$object = $interface->getItemById($item->getObjectId());
 						$interface->delete($object);
 
