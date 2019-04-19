@@ -117,7 +117,7 @@ class NoteBoost extends Base {
 		$this->setName('social:note:boost')
 			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('note', InputArgument::REQUIRED, 'Note to boost')
-			 ->addOption('unboost', '',InputOption::VALUE_NONE, 'Unboost')
+			 ->addOption('unboost', '', InputOption::VALUE_NONE, 'Unboost')
 			 ->setDescription('Boost a note');
 	}
 
@@ -138,7 +138,7 @@ class NoteBoost extends Base {
 		if (!$input->getOption('unboost')) {
 			$activity = $this->boostService->create($actor, $noteId, $token);
 		} else {
-			$activity= $this->boostService->delete($actor, $noteId, $token);
+			$activity = $this->boostService->delete($actor, $noteId, $token);
 		}
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
