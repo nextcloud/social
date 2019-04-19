@@ -1,19 +1,5 @@
 <template>
 	<div class="timeline-entry">
-		<div v-if="item.type === 'Announce'" class="boost">
-			<span class="icon-container"><span class="icon-boost"></span></span>
-			<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-				<span v-tooltip.bottom="item.actor_info.account" class="post-author">
-					{{ userDisplayName(item.actor_info) }}
-				</span>
-			</router-link>
-			<a v-else :href="item.attributedTo">
-				<span class="post-author-id">
-					{{ item.attributedTo }}
-				</span>
-			</a>
-			{{ boosted }}
-		</div>
 		<div class="entry-content">
 			<div v-if="item.actor_info" class="post-avatar">
 				<avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
@@ -125,9 +111,6 @@ export default {
 			message = this.$twemoji.parse(message)
 			return message
 		},
-		boosted() {
-			return t('social', 'boosted')
-		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
 		}
@@ -174,17 +157,6 @@ export default {
 		width: 120px;
 		text-align: right;
 		flex-shrink: 0;
-	}
-
-	.boost {
-		.icon-container {
-			width: 44px;
-			display: inline-block;
-		}
-		.icon-boost {
-			display: inline-block;
-			float: right;
-		}
 	}
 
 	.post-actions {
