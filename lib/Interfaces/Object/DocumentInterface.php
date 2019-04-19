@@ -101,7 +101,7 @@ class DocumentInterface implements IActivityPubInterface {
 	 */
 	public function save(ACore $item) {
 		/** @var Document $item */
-		if ($item->getParent()) {
+		if (!$item->isRoot()) {
 			$item->setParentId(
 				$item->getParent()
 					 ->getId()
