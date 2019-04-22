@@ -263,6 +263,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -293,6 +294,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -357,6 +359,8 @@ class NotesRequest extends NotesRequestBuilder {
 			$this->limitToLocal($qb, true);
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
+
 		// TODO: to: = real public, cc: = unlisted !?
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
@@ -398,6 +402,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -419,6 +424,7 @@ class NotesRequest extends NotesRequestBuilder {
 	public function getNotesSince(int $since): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToSince($qb, $since, 'published_time');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();

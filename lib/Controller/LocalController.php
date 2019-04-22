@@ -325,7 +325,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -334,7 +333,7 @@ class LocalController extends Controller {
 	 */
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 		try {
-			$this->initViewer();
+			$this->initViewer(true);
 			$posts = $this->noteService->getStreamDirect($this->viewer, $since, $limit);
 
 			return $this->success($posts);
@@ -348,6 +347,7 @@ class LocalController extends Controller {
 	 * Get timeline
 	 *
 	 * @NoAdminRequired
+	 * @NoCSRFRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -356,6 +356,7 @@ class LocalController extends Controller {
 	 */
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
 		try {
+			$this->initViewer(true);
 			$posts = $this->noteService->getStreamLocalTimeline($since, $limit);
 
 			return $this->success($posts);
