@@ -401,6 +401,7 @@ class LocalController extends Controller {
 	 */
 	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
 		try {
+			$this->initViewer(true);
 			$posts = $this->noteService->getStreamGlobalTimeline($since, $limit);
 
 			return $this->success($posts);
