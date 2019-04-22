@@ -123,7 +123,12 @@ export default {
 			this.$root.$emit('composer-reply', this.item)
 		},
 		boost() {
-			this.$store.dispatch('postBoost', this.item)
+			if (this.item.action.values.boosted) {
+				this.$store.dispatch('postUnBoost', this.item)
+			} else {
+				this.$store.dispatch('postBoost', this.item)
+			}
+
 		}
 	}
 }

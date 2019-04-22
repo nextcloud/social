@@ -109,6 +109,16 @@ const actions = {
 			})
 		})
 	},
+	postUnBoost(context, post) {
+		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
+			context.commit('removeBoost', post)
+			// eslint-disable-next-line no-console
+			console.log('Boost deleted with token ' + response.data.result.token)
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to delete the boost')
+			console.error('Failed to delete the boost', error)
+		})
+	},
 	refreshTimeline(context) {
 		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},
