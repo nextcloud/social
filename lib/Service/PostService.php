@@ -104,7 +104,7 @@ class PostService {
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
 	 */
-	public function createPost(Post $post, string &$token = ''): ACore {
+	public function createPost(Post $post, &$token = ''): ACore {
 		$note = new Note();
 		$actor = $post->getActor();
 		$this->noteService->assignItem($note, $actor, $post->getType());

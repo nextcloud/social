@@ -135,7 +135,7 @@ class NoteBoost extends Base {
 
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->noteService->setViewer($actor);
-		$token = '';
+
 		if (!$input->getOption('unboost')) {
 			$activity = $this->boostService->create($actor, $noteId, $token);
 		} else {

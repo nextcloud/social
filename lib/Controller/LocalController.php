@@ -161,7 +161,6 @@ class LocalController extends Controller {
 			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
 			$post->setHashtags($this->getArray('hashtags', $data, []));
 
-			$token = '';
 			$activity = $this->postService->createPost($post, $token);
 
 			return $this->success(
@@ -214,8 +213,6 @@ class LocalController extends Controller {
 	public function postBoost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
-
-			$token = '';
 			$announce = $this->boostService->create($this->viewer, $postId, $token);
 
 			return $this->success(
@@ -242,8 +239,6 @@ class LocalController extends Controller {
 	public function postUnboost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
-
-			$token = '';
 			$announce = $this->boostService->delete($this->viewer, $postId, $token);
 
 			return $this->success(

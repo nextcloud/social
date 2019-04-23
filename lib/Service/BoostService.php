@@ -112,7 +112,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function create(Person $actor, string $postId, string &$token = ''): ACore {
+	public function create(Person $actor, string $postId, &$token = ''): ACore {
 
 		try {
 			return $this->get($actor, $postId);
@@ -169,7 +169,7 @@ class BoostService {
 	 * @throws NoteNotFoundException
 	 * @throws SocialAppConfigException
 	 */
-	public function delete(Person $actor, string $postId, string &$token = ''): ACore {
+	public function delete(Person $actor, string $postId, &$token = ''): ACore {
 		$undo = new Undo();
 		$this->noteService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);

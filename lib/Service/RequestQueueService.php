@@ -100,6 +100,10 @@ class RequestQueueService {
 
 		$this->requestQueueRequest->multiple($requests);
 
+		if ($token === '') {
+			$token = '<request token not needed>';
+		}
+
 		return $token;
 	}
 
