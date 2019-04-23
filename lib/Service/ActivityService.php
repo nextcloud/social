@@ -241,8 +241,6 @@ class ActivityService {
 			$this->curlService->asyncWithToken($token);
 		}
 
-		echo '??? ' . $token;
-
 		return $token;
 	}
 
