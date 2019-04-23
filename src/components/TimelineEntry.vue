@@ -199,6 +199,10 @@ export default {
 				opacity: 1;
 			}
 		}
+		.icon-boosted {
+			border-radius: var(--border-radius-pill);
+			background-color: #0082c9;
+		}
 	}
 
 	span {
