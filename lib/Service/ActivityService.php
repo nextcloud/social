@@ -39,6 +39,7 @@ use OCA\Social\Db\NotesRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\RequestContentException;
@@ -47,7 +48,6 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
@@ -217,7 +217,13 @@ class ActivityService {
 
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
-		$token = $this->requestQueueService->generateRequestQueue($instancePaths, $activity, $author);
+		$token =
+			$this->requestQueueService->generateRequestQueue($instancePaths, $activity, $author);
+
+		if ($token === '') {
+			return '<request token not needed>';
+		}
+
 		$this->manageInit();
 
 		try {
@@ -226,13 +232,16 @@ class ActivityService {
 			$this->manageRequest($directRequest);
 		} catch (NoHighPriorityRequestException $e) {
 		} catch (EmptyQueueException $e) {
-			return '';
+			return $token;
 		}
 
-		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		$requests =
+			$this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		if (sizeof($requests) > 0) {
 			$this->curlService->asyncWithToken($token);
 		}
+
+		echo '??? ' . $token;
 
 		return $token;
 	}
