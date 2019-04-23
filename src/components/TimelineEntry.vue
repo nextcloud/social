@@ -28,7 +28,7 @@
 				<div v-click-outside="hidePopoverMenu" class="post-actions">
 					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 					<a v-if="this.item.actor_info.account !== this.cloudId" v-tooltip.bottom="t('social', 'Boost')"
-						:class="(item.action.values.boosted === true) ? 'icon-boosted' : 'icon-boost'"
+					  :class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
 						@click.prevent="boost" />
 					<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 						<a class="icon-more" @click.prevent="togglePopoverMenu" />
@@ -114,6 +114,17 @@ export default {
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		},
+		isBoosted() {
+			if (typeof this.item.action === 'undefined') {
+				return false;
+			} else {
+				if (typeof this.item.action.values.boosted === false) {
+					return false;
+				} else {
+					return true;
+				}
+			}
 		}
 	},
 	methods: {
@@ -124,12 +135,13 @@ export default {
 			this.$root.$emit('composer-reply', this.item)
 		},
 		boost() {
-			if (this.item.action.values.boosted) {
-				this.$store.dispatch('postUnBoost', this.item)
-			} else {
+			if (typeof this.item.action === 'undefined') {
 				this.$store.dispatch('postBoost', this.item)
+			} else if (!this.item.action.values.boosted) {
+				this.$store.dispatch('postBoost', this.item)
+			} else {
+				this.$store.dispatch('postUnBoost', this.item)
 			}
-
 		}
 	}
 }
