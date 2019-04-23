@@ -99,6 +99,7 @@ const actions = {
 	postBoost(context, post) {
 		return new Promise((resolve, reject) => {
 			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
+				post.action.values.boosted = true
 				// eslint-disable-next-line no-console
 				console.log('Post boosted with token ' + response.data.result.token)
 				resolve(response)
@@ -112,6 +113,7 @@ const actions = {
 	postUnBoost(context, post) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 			context.commit('removeBoost', post)
+			post.action.values.boosted = false
 			// eslint-disable-next-line no-console
 			console.log('Boost deleted with token ' + response.data.result.token)
 		}).catch((error) => {
