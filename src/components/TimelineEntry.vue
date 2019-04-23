@@ -119,7 +119,7 @@ export default {
 			if (typeof this.item.action === 'undefined') {
 				return false;
 			} else {
-				if (typeof this.item.action.values.boosted === false) {
+				if (this.item.action.values.boosted === false) {
 					return false;
 				} else {
 					return true;
