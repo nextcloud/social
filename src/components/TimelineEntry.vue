@@ -118,13 +118,9 @@ export default {
 		isBoosted() {
 			if (typeof this.item.action === 'undefined') {
 				return false;
-			} else {
-				if (this.item.action.values.boosted === false) {
-					return false;
-				} else {
-					return true;
-				}
 			}
+
+			return !!this.item.action.values.boosted;
 		}
 	},
 	methods: {
@@ -135,12 +131,10 @@ export default {
 			this.$root.$emit('composer-reply', this.item)
 		},
 		boost() {
-			if (typeof this.item.action === 'undefined') {
-				this.$store.dispatch('postBoost', this.item)
-			} else if (!this.item.action.values.boosted) {
-				this.$store.dispatch('postBoost', this.item)
-			} else {
+			if (this.isBoosted) {
 				this.$store.dispatch('postUnBoost', this.item)
+			} else {
+				this.$store.dispatch('postBoost', this.item)
 			}
 		}
 	}

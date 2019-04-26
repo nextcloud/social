@@ -112,7 +112,6 @@ const actions = {
 	},
 	postUnBoost(context, post) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-			context.commit('removeBoost', post)
 			post.action.values.boosted = false
 			// eslint-disable-next-line no-console
 			console.log('Boost deleted with token ' + response.data.result.token)
