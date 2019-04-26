@@ -3,5 +3,5 @@
 
 @include icon-black-white('boost', 'social', 1);
 .icon-boosted {
-  @include icon-color('boost', 'social', $color-white, 1);
+  @include icon-color('boost', 'social', '#0082c9', 1);
 }
