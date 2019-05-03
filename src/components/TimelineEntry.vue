@@ -27,8 +27,8 @@
 				<div class="post-message" v-html="formatedMessage" />
 				<div v-click-outside="hidePopoverMenu" class="post-actions">
 					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
-					<a v-if="this.item.actor_info.account !== this.cloudId" v-tooltip.bottom="t('social', 'Boost')"
-					  :class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
+					<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
+						:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
 						@click.prevent="boost" />
 					<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 						<a class="icon-more" @click.prevent="togglePopoverMenu" />
@@ -117,10 +117,9 @@ export default {
 		},
 		isBoosted() {
 			if (typeof this.item.action === 'undefined') {
-				return false;
+				return false
 			}
-
-			return !!this.item.action.values.boosted;
+			return !!this.item.action.values.boosted
 		}
 	},
 	methods: {
