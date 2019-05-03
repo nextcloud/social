@@ -189,15 +189,15 @@ class NavigationController extends Controller {
 	}
 
 	private function setupCloudAddress(): string {
-		$frontControllerActive =
-			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
-			 || getenv('front_controller_active') === 'true');
+//		$frontControllerActive =
+//			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+//			 || getenv('front_controller_active') === 'true');
 
 		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
 		if ($cloudAddress !== '') {
-			if (!$frontControllerActive) {
-				$cloudAddress .= '/index.php';
-			}
+//			if (!$frontControllerActive) {
+//				$cloudAddress .= '/index.php';
+//			}
 			$this->configService->setCloudAddress($cloudAddress);
 
 			return $cloudAddress;

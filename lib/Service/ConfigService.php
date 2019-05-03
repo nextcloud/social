@@ -262,6 +262,12 @@ class ConfigService {
 			throw new SocialAppConfigException();
 		}
 
+		// fixing address for alpha2
+		if (substr($address, -10) === '/index.php') {
+			$address = substr($address, 0, -10);
+			$this->setCloudAddress($address);
+		}
+
 		if ($host === true) {
 			$parsed = parse_url($address);
 			$result = $this->get('host', $parsed, '');
@@ -288,7 +294,8 @@ class ConfigService {
 			$path = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
 		}
 
-		return 'https://' . $this->getCloudAddress(true) . $path;
+		return $this->getCloudAddress() . $path;
+//		return 'https://' . $this->getCloudAddress(true) . $path;
 	}
 
 

@@ -30,10 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
+
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
+use OCA\Social\Service\BoostService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
@@ -41,9 +43,15 @@ use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 
+/**
+ * Class NoteBoost
+ *
+ * @package OCA\Social\Command
+ */
 class NoteBoost extends Base {
 
 
@@ -59,6 +67,9 @@ class NoteBoost extends Base {
 	/** @var AccountService */
 	private $accountService;
 
+	/** @var BoostService */
+	private $boostService;
+
 	/** @var PostService */
 	private $postService;
 
@@ -70,11 +81,12 @@ class NoteBoost extends Base {
 
 
 	/**
-	 * NoteCreate constructor.
+	 * NoteBoost constructor.
 	 *
 	 * @param ActivityService $activityService
 	 * @param AccountService $accountService
 	 * @param NoteService $noteService
+	 * @param BoostService $boostService
 	 * @param PostService $postService
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
@@ -82,13 +94,14 @@ class NoteBoost extends Base {
 	 */
 	public function __construct(
 		ActivityService $activityService, AccountService $accountService,
-		NoteService $noteService, PostService $postService, CurlService $curlService,
-		ConfigService $configService, MiscService $miscService
+		NoteService $noteService, BoostService $boostService, PostService $postService,
+		CurlService $curlService, ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->activityService = $activityService;
 		$this->noteService = $noteService;
+		$this->boostService = $boostService;
 		$this->accountService = $accountService;
 		$this->postService = $postService;
 		$this->curlService = $curlService;
@@ -105,6 +118,7 @@ class NoteBoost extends Base {
 		$this->setName('social:note:boost')
 			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('note', InputArgument::REQUIRED, 'Note to boost')
+			 ->addOption('unboost', '', InputOption::VALUE_NONE, 'Unboost')
 			 ->setDescription('Boost a note');
 	}
 
@@ -121,7 +135,12 @@ class NoteBoost extends Base {
 
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->noteService->setViewer($actor);
-		$token = $this->noteService->createBoost($actor, $noteId, $activity);
+
+		if (!$input->getOption('unboost')) {
+			$activity = $this->boostService->create($actor, $noteId, $token);
+		} else {
+			$activity = $this->boostService->delete($actor, $noteId, $token);
+		}
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";

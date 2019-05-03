@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
+use Exception;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -53,6 +54,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * Insert a new Note in the database.
 	 *
 	 * @param Follow $follow
+	 *
+	 * @throws Exception
 	 */
 	public function save(Follow $follow) {
 		$qb = $this->getFollowsInsertSql();

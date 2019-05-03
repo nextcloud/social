@@ -1,2 +1,7 @@
 @include icon-black-white('reply', 'social', 1);
 @include icon-black-white('emoji', 'social', 1);
+
+@include icon-black-white('boost', 'social', 1);
+.icon-boosted {
+  @include icon-color('boost', 'social', '#0082c9', 1);
+}

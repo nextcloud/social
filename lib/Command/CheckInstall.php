@@ -28,70 +28,61 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub\Object;
+namespace OCA\Social\Command;
 
 
 use Exception;
-use JsonSerializable;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Stream;
+use OC\Core\Command\Base;
+use OCA\Social\Service\CheckService;
+use OCA\Social\Service\MiscService;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 
-/**
- * Class Follow
- *
- * @package OCA\Social\Model\ActivityPub\Object
- */
-class Announce extends Stream implements JsonSerializable {
+class CheckInstall extends Base {
 
 
-	const TYPE = 'Announce';
+	/** @var CheckService */
+	private $checkService;
+
+	/** @var MiscService */
+	private $miscService;
 
 
 	/**
-	 * Follow constructor.
+	 * CacheUpdate constructor.
 	 *
-	 * @param ACore $parent
+	 * @param CheckService $checkService
+	 * @param MiscService $miscService
 	 */
-	public function __construct($parent = null) {
-		parent::__construct($parent);
+	public function __construct(CheckService $checkService, MiscService $miscService) {
+		parent::__construct();
 
-		$this->setType(self::TYPE);
+		$this->checkService = $checkService;
+		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param array $data
+	 *
+	 */
+	protected function configure() {
+		parent::configure();
+		$this->setName('social:check:install')
+			 ->setDescription('Check the integrity of the installation');
+	}
+
+
+	/**
+	 * @param InputInterface $input
+	 * @param OutputInterface $output
 	 *
 	 * @throws Exception
 	 */
-	public function import(array $data) {
-		parent::import($data);
-
-		// Might be better to create 'actor_id' field in the 'server_streams' table.
-		$this->setAttributedTo($this->getActorId());
+	protected function execute(InputInterface $input, OutputInterface $output) {
+		$this->checkService->checkInstallationStatus();
 	}
 
-
-	/**
-	 * @param array $data
-	 *
-	 * @throws Exception
-	 */
-	public function importFromDatabase(array $data) {
-		parent::importFromDatabase($data);
-	}
-
-
-	/**
-	 * @return array
-	 */
-	public function jsonSerialize(): array {
-		$result = parent::jsonSerialize();
-		$result['actor'] = $this->getAttributedTo();
-
-		return $result;
-	}
 
 }
 

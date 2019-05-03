@@ -36,10 +36,11 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
-use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -65,6 +66,8 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
 
 	const TABLE_QUEUE_STREAM = 'social_queue_stream';
+	const TABLE_STREAM_ACTIONS = 'social_stream_actions';
+
 
   
 	/** @var IDBConnection */
@@ -158,6 +161,28 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToActivityId(IQueryBuilder &$qb, string $activityId) {
 		$this->limitToDBField($qb, 'activity_id', $activityId, false);
+	}
+
+
+	/**
+	 * Limit the request to the StreamId
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $streamId
+	 */
+	protected function limitToStreamId(IQueryBuilder &$qb, string $streamId) {
+		$this->limitToDBField($qb, 'stream_id', $streamId, false);
+	}
+
+
+	/**
+	 * Limit the request to the Type
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $type
+	 */
+	protected function limitToType(IQueryBuilder &$qb, string $type) {
+		$this->limitToDBField($qb, 'type', $type);
 	}
 
 
@@ -410,6 +435,8 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param int $since
 	 * @param int $limit
+	 *
+	 * @throws Exception
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
 		if ($since > 0) {
@@ -547,6 +574,8 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param int $timestamp
 	 * @param string $field
+	 *
+	 * @throws Exception
 	 */
 	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
 		$dTime = new \DateTime();
@@ -668,6 +697,65 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 */
+	protected function leftJoinStreamAction(IQueryBuilder &$qb) {
+		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$func = $qb->func();
+
+		$pf = $this->defaultSelectAlias;
+
+		$qb->selectAlias('sa.id', 'streamaction_id')
+		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
+		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
+		   ->selectAlias('sa.values', 'streamaction_values');
+
+		$andX = $expr->andX();
+		$andX->add($expr->eq($func->lower($pf . '.id'), $func->lower('sa.stream_id')));
+		$andX->add(
+			$expr->eq(
+				$func->lower('sa.actor_id'),
+				$qb->createNamedParameter(strtolower($this->viewer->getId()))
+			)
+		);
+
+		$qb->leftJoin(
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
+			$andX
+		);
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return StreamAction
+	 * @throws InvalidResourceException
+	 */
+	protected function parseStreamActionsLeftJoin(array $data): StreamAction {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 13) === 'streamaction_') {
+				$new[substr($k, 13)] = $v;
+			}
+		}
+
+		$action = new StreamAction();
+		$action->importFromDatabase($new);
+
+		if ($action->getId() === 0) {
+			throw new InvalidResourceException();
+		}
+
+		return $action;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param string $fieldDocumentId
 	 */
 	protected function leftJoinCacheDocuments(IQueryBuilder &$qb, string $fieldDocumentId) {
@@ -704,12 +792,12 @@ class CoreRequestBuilder {
 	 */
 	protected function parseCacheDocumentsLeftJoin(array $data): Document {
 		$new = [];
-
 		foreach ($data as $k => $v) {
 			if (substr($k, 0, 14) === 'cachedocument_') {
 				$new[substr($k, 14)] = $v;
 			}
 		}
+
 		$document = new Document();
 		$document->importFromDatabase($new);
 

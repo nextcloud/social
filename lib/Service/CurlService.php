@@ -103,7 +103,7 @@ class CurlService {
 
 		// we consider an account is like an email
 		if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
-			throw new InvalidResourceException();
+			throw new InvalidResourceException('account format is not valid');
 		}
 
 		list($username, $host) = explode('@', $account);

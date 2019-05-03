@@ -41,6 +41,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
@@ -77,6 +78,9 @@ class LocalController extends Controller {
 	/** @var FollowService */
 	private $followService;
 
+	/** @var BoostService */
+	private $boostService;
+
 	/** @var PostService */
 	private $postService;
 
@@ -111,6 +115,7 @@ class LocalController extends Controller {
 	 * @param PostService $postService
 	 * @param NoteService $noteService
 	 * @param SearchService $searchService
+	 * @param BoostService $boostService
 	 * @param DocumentService $documentService
 	 * @param MiscService $miscService
 	 */
@@ -118,7 +123,7 @@ class LocalController extends Controller {
 		IRequest $request, $userId, AccountService $accountService,
 		CacheActorService $cacheActorService, FollowService $followService,
 		PostService $postService, NoteService $noteService, SearchService $searchService,
-		DocumentService $documentService, MiscService $miscService
+		BoostService $boostService, DocumentService $documentService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -129,6 +134,7 @@ class LocalController extends Controller {
 		$this->searchService = $searchService;
 		$this->postService = $postService;
 		$this->followService = $followService;
+		$this->boostService = $boostService;
 		$this->documentService = $documentService;
 		$this->miscService = $miscService;
 	}
@@ -155,8 +161,7 @@ class LocalController extends Controller {
 			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
 			$post->setHashtags($this->getArray('hashtags', $data, []));
 
-			/** @var ACore $activity */
-			$token = $this->postService->createPost($post, $activity);
+			$activity = $this->postService->createPost($post, $token);
 
 			return $this->success(
 				[
@@ -208,8 +213,33 @@ class LocalController extends Controller {
 	public function postBoost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$announce = $this->boostService->create($this->viewer, $postId, $token);
 
-			$token = $this->noteService->createBoost($this->viewer, $postId, $announce);
+			return $this->success(
+				[
+					'boost' => $announce,
+					'token' => $token
+				]
+			);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * Delete a boost.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $postId
+	 *
+	 * @return DataResponse
+	 */
+	public function postUnboost(string $postId): DataResponse {
+		try {
+			$this->initViewer(true);
+			$announce = $this->boostService->delete($this->viewer, $postId, $token);
 
 			return $this->success(
 				[
@@ -290,7 +320,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -299,7 +328,7 @@ class LocalController extends Controller {
 	 */
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 		try {
-			$this->initViewer();
+			$this->initViewer(true);
 			$posts = $this->noteService->getStreamDirect($this->viewer, $since, $limit);
 
 			return $this->success($posts);
@@ -313,6 +342,7 @@ class LocalController extends Controller {
 	 * Get timeline
 	 *
 	 * @NoAdminRequired
+	 * @NoCSRFRequired
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -321,6 +351,7 @@ class LocalController extends Controller {
 	 */
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
 		try {
+			$this->initViewer(true);
 			$posts = $this->noteService->getStreamLocalTimeline($since, $limit);
 
 			return $this->success($posts);
@@ -365,6 +396,7 @@ class LocalController extends Controller {
 	 */
 	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
 		try {
+			$this->initViewer(true);
 			$posts = $this->noteService->getStreamGlobalTimeline($since, $limit);
 
 			return $this->success($posts);

@@ -27,6 +27,9 @@
 				<div class="post-message" v-html="formatedMessage" />
 				<div v-click-outside="hidePopoverMenu" class="post-actions">
 					<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
+					<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
+						:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
+						@click.prevent="boost" />
 					<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 						<a class="icon-more" @click.prevent="togglePopoverMenu" />
 						<div :class="{open: menuOpened}" class="popovermenu menu-center">
@@ -111,6 +114,12 @@ export default {
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		},
+		isBoosted() {
+			if (typeof this.item.action === 'undefined') {
+				return false
+			}
+			return !!this.item.action.values.boosted
 		}
 	},
 	methods: {
@@ -119,6 +128,13 @@ export default {
 		},
 		reply() {
 			this.$root.$emit('composer-reply', this.item)
+		},
+		boost() {
+			if (this.isBoosted) {
+				this.$store.dispatch('postUnBoost', this.item)
+			} else {
+				this.$store.dispatch('postBoost', this.item)
+			}
 		}
 	}
 }
@@ -165,6 +181,8 @@ export default {
 			display: inline-block;
 		}
 		.icon-reply,
+		.icon-boost,
+		.icon-boosted,
 		.icon-more {
 			display: inline-block;
 			width: 44px;
@@ -173,6 +191,9 @@ export default {
 			&:hover, &:focus {
 				opacity: 1;
 			}
+		}
+		.icon-boosted {
+			opacity: 1;
 		}
 	}
 

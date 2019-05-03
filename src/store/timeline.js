@@ -2,6 +2,7 @@
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
  * @author Julius Härtl <jus@bitgrid.net>
+ * @author Jonas Sulzer <jonas@violoncello.ch>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -94,6 +95,30 @@ const actions = {
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to delete the post')
 			console.error('Failed to delete the post', error)
+		})
+	},
+	postBoost(context, post) {
+		return new Promise((resolve, reject) => {
+			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
+				post.action.values.boosted = true
+				// eslint-disable-next-line no-console
+				console.log('Post boosted with token ' + response.data.result.token)
+				resolve(response)
+			}).catch((error) => {
+				OC.Notification.showTemporary('Failed to create a boost post')
+				console.error('Failed to create a boost post', error.response)
+				reject(error)
+			})
+		})
+	},
+	postUnBoost(context, post) {
+		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
+			post.action.values.boosted = false
+			// eslint-disable-next-line no-console
+			console.log('Boost deleted with token ' + response.data.result.token)
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to delete the boost')
+			console.error('Failed to delete the boost', error)
 		})
 	},
 	refreshTimeline(context) {

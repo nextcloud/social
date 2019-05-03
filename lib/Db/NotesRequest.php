@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Exception;
 use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -62,6 +63,8 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * @param Stream $stream
+	 *
+	 * @throws Exception
 	 */
 	public function save(Stream $stream) {
 		$qb = $this->saveStream($stream);
@@ -103,10 +106,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param string $id
 	 * @param bool $asViewer
 	 *
-	 * @return Note
+	 * @return Stream
 	 * @throws NoteNotFoundException
 	 */
-	public function getNoteById(string $id, bool $asViewer = false): Note {
+	public function getNoteById(string $id, bool $asViewer = false): Stream {
 		if ($id === '') {
 			throw new NoteNotFoundException();
 		};
@@ -116,6 +119,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		if ($asViewer) {
 			$this->limitToViewer($qb);
+			$this->leftJoinStreamAction($qb);
 		}
 
 		$cursor = $qb->execute();
@@ -133,10 +137,10 @@ class NotesRequest extends NotesRequestBuilder {
 	/**
 	 * @param string $id
 	 *
-	 * @return Note
+	 * @return Stream
 	 * @throws NoteNotFoundException
 	 */
-	public function getNoteByActivityId(string $id): Note {
+	public function getNoteByActivityId(string $id): Stream {
 		if ($id === '') {
 			throw new NoteNotFoundException();
 		};
@@ -150,6 +154,40 @@ class NotesRequest extends NotesRequestBuilder {
 
 		if ($data === false) {
 			throw new NoteNotFoundException('Post not found');
+		}
+
+		return $this->parseNotesSelectSql($data);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param string $type
+	 *
+	 * @param string $objectId
+	 *
+	 * @return Stream
+	 * @throws NoteNotFoundException
+	 */
+	public function getNoteByObjectId(Person $actor, string $type, string $objectId): Stream {
+		if ($objectId === '') {
+			throw new NoteNotFoundException('missing objectId');
+		};
+
+		$qb = $this->getNotesSelectSql();
+		$this->limitToObjectId($qb, $objectId);
+		$this->limitToType($qb, $type);
+		$this->limitToAttributedTo($qb, $actor->getId());
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new NoteNotFoundException(
+				'StreamByObjectId not found - ' . $actor->getId() . ' - ' . $type . ' - '
+				. $objectId
+			);
 		}
 
 		return $this->parseNotesSelectSql($data);
@@ -182,7 +220,8 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @return array
+	 * @return Stream[]
+	 * @throws Exception
 	 */
 	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
@@ -190,6 +229,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->joinFollowing($qb, $actor);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -215,6 +255,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
@@ -222,6 +263,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -244,6 +286,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
@@ -251,6 +294,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -273,6 +317,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
@@ -304,6 +349,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param bool $localOnly
 	 *
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getStreamTimeline(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
@@ -313,6 +359,8 @@ class NotesRequest extends NotesRequestBuilder {
 			$this->limitToLocal($qb, true);
 		}
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
+
 		// TODO: to: = real public, cc: = unlisted !?
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
@@ -339,6 +387,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getStreamTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
 	): array {
@@ -353,6 +402,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -369,10 +419,12 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param int $since
 	 *
 	 * @return Note[]
+	 * @throws Exception
 	 */
 	public function getNotesSince(int $since): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitToSince($qb, $since, 'published_time');
+		$this->leftJoinStreamAction($qb);
 
 		$notes = [];
 		$cursor = $qb->execute();
@@ -413,6 +465,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param Stream $note
 	 *
 	 * @return IQueryBuilder
+	 * @throws Exception
 	 */
 	public function saveStream(Stream $note): IQueryBuilder {
 		$dTime = new DateTime();
@@ -421,6 +474,12 @@ class NotesRequest extends NotesRequestBuilder {
 		$cache = '[]';
 		if ($note->gotCache()) {
 			$cache = json_encode($note->getCache(), JSON_UNESCAPED_SLASHES);
+		}
+
+		$attributedTo = $note->getAttributedTo();
+		if ($attributedTo === '' && $note->isLocal()) {
+			$attributedTo = $note->getActor()
+								 ->getId();
 		}
 
 		$qb = $this->getNotesInsertSql();
@@ -448,7 +507,7 @@ class NotesRequest extends NotesRequestBuilder {
 		   ->setValue(
 			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
 		   )
-		   ->setValue('attributed_to', $qb->createNamedParameter($note->getAttributedTo()))
+		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
 		   ->setValue('object_id', $qb->createNamedParameter($note->getObjectId()))
