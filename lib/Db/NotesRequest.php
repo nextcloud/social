@@ -155,7 +155,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$qb = $this->getNotesSelectSql();
 		$this->limitToIdString($qb, $id);
-//		$this->limitToType($qb, Note::TYPE);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		if ($asViewer) {
 			$this->limitToViewer($qb);
