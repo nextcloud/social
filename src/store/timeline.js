@@ -53,6 +53,12 @@ const mutations = {
 	},
 	setAccount(state, account) {
 		state.account = account
+	},
+	boostPost(state, post) {
+		Vue.set(state.timeline[post.id].action.values, 'boosted', true)
+	},
+	unboostPost(state, post) {
+		Vue.set(state.timeline[post.id].action.values, 'boosted', false)
 	}
 }
 const getters = {
@@ -100,7 +106,7 @@ const actions = {
 	postBoost(context, post) {
 		return new Promise((resolve, reject) => {
 			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-				post.action.values.boosted = true
+				context.commit('boostPost', post)
 				// eslint-disable-next-line no-console
 				console.log('Post boosted with token ' + response.data.result.token)
 				resolve(response)
@@ -113,7 +119,7 @@ const actions = {
 	},
 	postUnBoost(context, post) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-			post.action.values.boosted = false
+			context.commit('unboostPost', post)
 			// eslint-disable-next-line no-console
 			console.log('Boost deleted with token ' + response.data.result.token)
 		}).catch((error) => {
