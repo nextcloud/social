@@ -98,6 +98,9 @@ export default {
 		},
 		formatedMessage() {
 			let message = this.item.content
+			if (typeof message === 'undefined') {
+				return ''
+			}
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 			message = message.linkify({
 				formatHref: {
