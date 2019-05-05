@@ -80,7 +80,7 @@
 		"raw-loader": "^2.0.0",
 		"sass-loader": "^7.1.0",
 		"stylelint": "^8.4.0",
-		"stylelint-config-recommended-scss": "^3.2.0",
+		"stylelint-config-recommended-scss": "^3.3.0",
 		"stylelint-webpack-plugin": "^0.10.5",
 		"vue-jest": "^3.0.4",
 		"vue-loader": "^15.7.0",
