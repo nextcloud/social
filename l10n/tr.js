@@ -39,6 +39,7 @@ OC.L10N.register(
     "There were no results for your search:" : "Aramanızdan bir sonuç alınamadı:",
     "Searching for" : "Şu ifade aranıyor",
     "Reply" : "Yanıtla",
+    "Boost" : "Yükselt",
     "More actions" : "Diğer işlemler",
     "Delete post" : "İletiyi sil",
     "No posts found" : "Herhangi bir ileti bulunamadı",

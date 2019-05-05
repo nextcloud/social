@@ -39,6 +39,7 @@ OC.L10N.register(
     "There were no results for your search:" : "Não houve resultados para sua pesquisa:",
     "Searching for" : "Procurando por",
     "Reply" : "Responder",
+    "Boost" : "Impulsionar",
     "More actions" : "Mais ações",
     "Delete post" : "Excluir mensagem",
     "No posts found" : "Nenhuma postagem encontrada",
