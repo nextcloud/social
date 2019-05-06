@@ -33,6 +33,7 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OCA\ShareByMail\Activity;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\NotesRequest;
@@ -52,6 +53,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
@@ -153,6 +155,10 @@ class ActivityService {
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
 
+		// TODO: utiliser AP::$activityPub->getInterfaceFromType(Activity::TYPE)->save($item);
+
+		$this->saveActivity($activity);
+
 		return $this->request($activity);
 	}
 
@@ -213,7 +219,7 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 */
 	public function request(ACore $activity): string {
-		$this->saveActivity($activity);
+//		$this->saveActivity($activity);
 
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
