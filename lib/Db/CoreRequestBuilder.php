@@ -69,7 +69,6 @@ class CoreRequestBuilder {
 	const TABLE_STREAM_ACTIONS = 'social_stream_actions';
 
 
-
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -139,17 +138,6 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
 		$this->limitToDBField($qb, 'id', $id, false);
-	}
-
-
-	/**
-	 * Limit the request to the Type
-	 *
-	 * @param IQueryBuilder $qb
-	 * @param string $type
-	 */
-	protected function limitToType(IQueryBuilder &$qb, string $type) {
-		$this->limitToDBField($qb, 'id', $type, false);
 	}
 
 
@@ -800,6 +788,7 @@ class CoreRequestBuilder {
 	 *
 	 * @return Document
 	 * @throws InvalidResourceException
+	 * @throws Exception
 	 */
 	protected function parseCacheDocumentsLeftJoin(array $data): Document {
 		$new = [];

@@ -32,6 +32,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
+use Exception;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -361,9 +362,11 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @param array $data
 	 *
 	 * @return Stream
+	 * @throws Exception
 	 */
 	protected function parseNotesSelectSql($data): Stream {
 		$item = new Stream();
+		$item->importFromDatabase($data);
 
 		$instances = json_decode($this->get('instances', $data, '[]'), true);
 		if (is_array($instances)) {
