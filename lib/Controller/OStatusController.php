@@ -79,6 +79,7 @@ class OStatusController extends Controller {
 	 * @param AccountService $accountService
 	 * @param CurlService $curlService
 	 * @param MiscService $miscService
+	 * @param IUserSession $userSession
 	 */
 	public function __construct(
 		IRequest $request, CacheActorService $cacheActorService, AccountService $accountService,
@@ -145,7 +146,7 @@ class OStatusController extends Controller {
 					'account' => $following->getAccount()
 				]
 			], 'guest');
-		} catch (\Exception $e) {
+		} catch (Exception $e) {
 			return $this->fail($e);
 		}
 	}

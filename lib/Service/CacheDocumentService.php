@@ -102,6 +102,7 @@ class CacheDocumentService {
 	 * @throws RequestServerException
 	 * @throws RequestResultSizeException
 	 * @throws RequestResultNotJsonException
+	 * @throws NotFoundException
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 

@@ -34,7 +34,10 @@ use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
@@ -107,6 +110,8 @@ class NotesRequest extends NotesRequestBuilder {
 	 * Insert a new Note in the database.
 	 *
 	 * @param SocialAppNotification $notification
+	 *
+	 * @throws Exception
 	 */
 	public function saveNotification(SocialAppNotification $notification) {
 		$qb = $this->getNotesInsertSql();
@@ -181,7 +186,10 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param string $id
 	 *
 	 * @return Stream
+	 * @throws ItemUnknownException
 	 * @throws NoteNotFoundException
+	 * @throws RedundancyLimitException
+	 * @throws SocialAppConfigException
 	 */
 	public function getNoteByActivityId(string $id): Stream {
 		if ($id === '') {
@@ -211,6 +219,9 @@ class NotesRequest extends NotesRequestBuilder {
 	 *
 	 * @return Stream
 	 * @throws NoteNotFoundException
+	 * @throws ItemUnknownException
+	 * @throws RedundancyLimitException
+	 * @throws SocialAppConfigException
 	 */
 	public function getNoteByObjectId(Person $actor, string $type, string $objectId): Stream {
 		if ($objectId === '') {

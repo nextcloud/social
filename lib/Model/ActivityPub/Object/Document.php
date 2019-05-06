@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use DateTime;
+use Exception;
 use JsonSerializable;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -236,6 +237,8 @@ class Document extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);

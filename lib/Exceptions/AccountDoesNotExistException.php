@@ -2,7 +2,9 @@
 
 namespace OCA\Social\Exceptions;
 
-class AccountDoesNotExistException extends \Exception {
+use Exception;
+
+class AccountDoesNotExistException extends Exception {
 
 }
 

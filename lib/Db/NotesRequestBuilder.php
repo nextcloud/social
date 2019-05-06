@@ -32,21 +32,20 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
-use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
+
+/**
+ * Class NotesRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
 class NotesRequestBuilder extends CoreRequestBuilder {
 
 
@@ -91,7 +90,8 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$qb->selectDistinct('sn.id')
 		   ->addSelect(
 			   'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
-			   'sn.summary', 'sn.attachments', 'sn.published', 'sn.published_time', 'sn.cache', 'sn.object_id',
+			   'sn.summary', 'sn.attachments', 'sn.published', 'sn.published_time', 'sn.cache',
+			   'sn.object_id',
 			   'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
 			   'sn.creation'
 		   )
@@ -360,13 +360,10 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @throws ItemUnknownException
-	 * @throws RedundancyLimitException
-	 * @throws SocialAppConfigException
 	 * @return Stream
 	 */
-	protected function parseNotesSelectSql($data): ACore {
-		$item = AP::$activityPub->getItemFromData($data);
+	protected function parseNotesSelectSql($data): Stream {
+		$item = new Stream();
 
 		$instances = json_decode($this->get('instances', $data, '[]'), true);
 		if (is_array($instances)) {
@@ -386,7 +383,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 		try {
 			$action = $this->parseStreamActionsLeftJoin($data);
-			$note->setAction($action);
+			$item->setAction($action);
 		} catch (InvalidResourceException $e) {
 		}
 

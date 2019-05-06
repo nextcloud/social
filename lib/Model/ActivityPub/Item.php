@@ -178,25 +178,6 @@ class Item {
 
 
 	/**
-	 * @return string
-	 */
-	public function getAttributedTo(): string {
-		return $this->attributedTo;
-	}
-
-	/**
-	 * @param string $attributedTo
-	 *
-	 * @return Item
-	 */
-	public function setAttributedTo(string $attributedTo): Item {
-		$this->attributedTo = $attributedTo;
-
-		return $this;
-	}
-
-
-	/**
 	 * @param InstancePath $instancePath
 	 *
 	 * @return Item

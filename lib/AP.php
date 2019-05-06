@@ -412,7 +412,7 @@ class AP {
 				break;
 
 			case SocialAppNotification::TYPE:
-				$service = $this->notificationInterface;
+				$interface = $this->notificationInterface;
 				break;
 
 			case Person::TYPE:

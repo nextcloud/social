@@ -34,7 +34,9 @@ use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\NotesRequest;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -152,6 +154,9 @@ class BoostService {
 	 *
 	 * @return Stream
 	 * @throws NoteNotFoundException
+	 * @throws SocialAppConfigException
+	 * @throws ItemUnknownException
+	 * @throws RedundancyLimitException
 	 */
 	public function get(Person $actor, string $postId): Stream {
 		$stream = $this->notesRequest->getNoteByObjectId($actor, Announce::TYPE, $postId);
@@ -166,7 +171,9 @@ class BoostService {
 	 * @param string $token
 	 *
 	 * @return ACore
+	 * @throws ItemUnknownException
 	 * @throws NoteNotFoundException
+	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 */
 	public function delete(Person $actor, string $postId, &$token = ''): ACore {

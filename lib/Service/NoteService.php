@@ -331,10 +331,10 @@ class NoteService {
 	 * @param string $id
 	 * @param bool $asViewer
 	 *
-	 * @return Note
+	 * @return Stream
 	 * @throws NoteNotFoundException
 	 */
-	public function getNoteById(string $id, bool $asViewer = false): Note {
+	public function getNoteById(string $id, bool $asViewer = false): Stream {
 		return $this->notesRequest->getNoteById($id, $asViewer);
 	}
 
