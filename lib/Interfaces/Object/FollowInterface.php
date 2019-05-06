@@ -48,10 +48,12 @@ use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
@@ -130,7 +132,7 @@ class FollowInterface implements IActivityPubInterface {
 			$accept->generateUniqueId('#accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
-			$follow->setParent($accept);
+//			$follow->setParent($accept);
 
 			$accept->addInstancePath(
 				new InstancePath(
@@ -143,7 +145,13 @@ class FollowInterface implements IActivityPubInterface {
 
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
 			$this->accountService->cacheLocalActorDetailCount($actor);
+
+			$this->generateNotification($follow);
 		} catch (Exception $e) {
+			$this->miscService->log(
+				'exception while confirmFollowRequest: ' . get_class($e) . ' - ' . $e->getMessage(),
+				2
+			);
 		}
 
 	}
@@ -165,6 +173,7 @@ class FollowInterface implements IActivityPubInterface {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws RequestResultNotJsonException
+	 * @throws Exception
 	 */
 	public function processIncomingRequest(ACore $follow) {
 		/** @var Follow $follow */
@@ -238,6 +247,26 @@ class FollowInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
+	}
+
+
+	/**
+	 * @param Follow $follow
+	 *
+	 * @throws ItemUnknownException
+	 */
+	private function generateNotification(Follow $follow) {
+		/** @var SocialAppNotificationInterface $notificationInterface */
+		$notificationInterface =
+			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+
+		$notification = new SocialAppNotification();
+		$notification->setId($follow->getId() . '/notification')
+					 ->setSummary('{actor} is following you')
+					 ->setTo($follow->getObjectId())
+					 ->setLocal(true)
+					 ->setAttributedTo($follow->getActorId());
+		$notificationInterface->save($notification);
 	}
 
 }

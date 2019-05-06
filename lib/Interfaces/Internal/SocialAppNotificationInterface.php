@@ -28,23 +28,20 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Interfaces\Object;
+namespace OCA\Social\Interfaces\Internal;
 
 
 use OCA\Social\Db\NotesRequest;
-use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\NoteNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Activity\Create;
-use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 
 
-class NoteInterface implements IActivityPubInterface {
+class SocialAppNotificationInterface implements IActivityPubInterface {
 
 
 	/** @var NotesRequest */
@@ -100,58 +97,37 @@ class NoteInterface implements IActivityPubInterface {
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
-		try {
-			return $this->notesRequest->getNoteById($id);
-		} catch (NoteNotFoundException $e) {
-			throw new ItemNotFoundException();
-		}
+		throw new ItemNotFoundException();
 	}
 
 
 	/**
-	 * @param ACore $note
+	 * @param ACore $notification
 	 */
-	public function save(ACore $note) {
-		/** @var Note $note */
-
-		try {
-			$this->notesRequest->getNoteById($note->getId());
-		} catch (NoteNotFoundException $e) {
-			$this->notesRequest->save($note);
+	public function save(ACore $notification) {
+		/** @var SocialAppNotification $notification */
+		if ($notification->getId() === '') {
+			return;
 		}
+
+		$this->miscService->log('Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1);
+		$this->notesRequest->save($notification);
 	}
 
 
 	/**
 	 * @param ACore $activity
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
 	 */
 	public function activity(Acore $activity, ACore $item) {
-		/** @var Note $item */
-
-		if ($activity->getType() === Create::TYPE) {
-			$activity->checkOrigin($item->getId());
-			$activity->checkOrigin($item->getAttributedTo());
-			$item->setActivityId($activity->getId());
-			$this->save($item);
-		}
 	}
 
 
 	/**
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
 	 */
 	public function delete(ACore $item) {
-		$item->checkOrigin(($item->getId()));
-
-		/** @var Note $item */
-		$this->notesRequest->deleteNoteById($item->getId(), Note::TYPE);
 	}
-
 
 }
 

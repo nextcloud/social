@@ -26,6 +26,8 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
+use Exception;
+use GuzzleHttp\Exception\ClientException;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\AppFramework\Http;
@@ -175,8 +177,8 @@ class CheckService {
 
 				return true;
 			}
-		} catch (\GuzzleHttp\Exception\ClientException $e) {
-		} catch (\Exception $e) {
+		} catch (ClientException $e) {
+		} catch (Exception $e) {
 		}
 
 		return false;

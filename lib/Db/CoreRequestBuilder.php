@@ -69,7 +69,6 @@ class CoreRequestBuilder {
 	const TABLE_STREAM_ACTIONS = 'social_stream_actions';
 
 
-  
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -440,7 +439,7 @@ class CoreRequestBuilder {
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
 		if ($since > 0) {
-			$dTime = new \DateTime();
+			$dTime = new DateTime();
 			$dTime->setTimestamp($since);
 			$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
 		}
@@ -578,7 +577,7 @@ class CoreRequestBuilder {
 	 * @throws Exception
 	 */
 	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
-		$dTime = new \DateTime();
+		$dTime = new DateTime();
 		$dTime->setTimestamp($timestamp);
 
 		$expr = $qb->expr();
@@ -789,6 +788,7 @@ class CoreRequestBuilder {
 	 *
 	 * @return Document
 	 * @throws InvalidResourceException
+	 * @throws Exception
 	 */
 	protected function parseCacheDocumentsLeftJoin(array $data): Document {
 		$new = [];

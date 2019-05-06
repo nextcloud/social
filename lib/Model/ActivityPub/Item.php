@@ -60,6 +60,9 @@ class Item {
 	private $url = '';
 
 	/** @var string */
+	private $attributedTo = '';
+
+	/** @var string */
 	private $summary = '';
 
 	/** @var InstancePath[] */

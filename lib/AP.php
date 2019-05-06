@@ -32,6 +32,7 @@ namespace OCA\Social;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OC;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -48,6 +49,7 @@ use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
@@ -69,6 +71,7 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\QueryException;
@@ -136,6 +139,9 @@ class AP {
 	/** @var UpdateInterface */
 	public $updateInterface;
 
+	/** @var SocialAppNotificationInterface */
+	public $notificationInterface;
+
 	/** @var ConfigService */
 	public $configService;
 
@@ -157,27 +163,30 @@ class AP {
 	public static function init() {
 		$ap = new AP();
 		try {
-			$ap->acceptInterface = \OC::$server->query(AcceptInterface::class);
-			$ap->addInterface = \OC::$server->query(AddInterface::class);
-			$ap->announceInterface = \OC::$server->query(AnnounceInterface::class);
-			$ap->blockInterface = \OC::$server->query(BlockInterface::class);
-			$ap->createInterface = \OC::$server->query(CreateInterface::class);
-			$ap->deleteInterface = \OC::$server->query(DeleteInterface::class);
-			$ap->documentInterface = \OC::$server->query(DocumentInterface::class);
-			$ap->followInterface = \OC::$server->query(FollowInterface::class);
-			$ap->imageInterface = \OC::$server->query(ImageInterface::class);
-			$ap->likeInterface = \OC::$server->query(LikeInterface::class);
-			$ap->rejectInterface = \OC::$server->query(RejectInterface::class);
-			$ap->removeInterface = \OC::$server->query(RemoveInterface::class);
-			$ap->personInterface = \OC::$server->query(PersonInterface::class);
-			$ap->noteInterface = \OC::$server->query(NoteInterface::class);
-			$ap->undoInterface = \OC::$server->query(UndoInterface::class);
-			$ap->updateInterface = \OC::$server->query(UpdateInterface::class);
+			$ap->acceptInterface = OC::$server->query(AcceptInterface::class);
+			$ap->addInterface = OC::$server->query(AddInterface::class);
+			$ap->announceInterface = OC::$server->query(AnnounceInterface::class);
+			$ap->blockInterface = OC::$server->query(BlockInterface::class);
+			$ap->createInterface = OC::$server->query(CreateInterface::class);
+			$ap->deleteInterface = OC::$server->query(DeleteInterface::class);
+			$ap->documentInterface = OC::$server->query(DocumentInterface::class);
+			$ap->followInterface = OC::$server->query(FollowInterface::class);
+			$ap->imageInterface = OC::$server->query(ImageInterface::class);
+			$ap->likeInterface = OC::$server->query(LikeInterface::class);
+			$ap->noteInterface = OC::$server->query(NoteInterface::class);
+			$ap->notificationInterface = OC::$server->query(SocialAppNotificationInterface::class);
+			$ap->personInterface = OC::$server->query(PersonInterface::class);
+			$ap->rejectInterface = OC::$server->query(RejectInterface::class);
+			$ap->removeInterface = OC::$server->query(RemoveInterface::class);
+			$ap->undoInterface = OC::$server->query(UndoInterface::class);
+			$ap->updateInterface = OC::$server->query(UpdateInterface::class);
 
-			$ap->configService = \OC::$server->query(ConfigService::class);
+			$ap->configService = OC::$server->query(ConfigService::class);
 
 			AP::$activityPub = $ap;
 		} catch (QueryException $e) {
+			OC::$server->getLogger()
+					   ->logException($e);
 		}
 	}
 
@@ -303,6 +312,9 @@ class AP {
 				$item = new Note();
 				break;
 
+			case SocialAppNotification::TYPE:
+				return new SocialAppNotification();
+
 			case Person::TYPE:
 				$item = new Person();
 				break;
@@ -398,6 +410,10 @@ class AP {
 
 			case Note::TYPE:
 				$interface = $this->noteInterface;
+				break;
+
+			case SocialAppNotification::TYPE:
+				$interface = $this->notificationInterface;
 				break;
 
 			case Person::TYPE:

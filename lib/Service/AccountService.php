@@ -236,7 +236,6 @@ class AccountService {
 	 *
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
-	 * @throws ItemUnknownException
 	 */
 	public function cacheLocalActorByUsername(string $username) {
 		try {
@@ -313,9 +312,9 @@ class AccountService {
 
 
 	/**
-	 * @param $username
+	 * @param string $username
 	 */
-	private function checkActorUsername($username) {
+	private function checkActorUsername(string $username) {
 		$accepted = 'qwertyuiopasdfghjklzxcvbnm';
 
 		return;

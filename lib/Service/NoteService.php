@@ -312,18 +312,19 @@ class NoteService {
 
 
 	/**
-	 * @param Note $note
+	 * @param Stream $item
+	 * @param string $type
 	 *
 	 * @throws Exception
 	 */
-	public function deleteLocalNote(Note $note) {
-		if (!$note->isLocal()) {
+	public function deleteLocalItem(Stream $item, string $type = '') {
+		if (!$item->isLocal()) {
 			return;
 		}
 
-		$note->setActorId($note->getAttributedTo());
-		$this->activityService->deleteActivity($note);
-		$this->notesRequest->deleteNoteById($note->getId());
+		$item->setActorId($item->getAttributedTo());
+		$this->activityService->deleteActivity($item);
+		$this->notesRequest->deleteNoteById($item->getId(), $type);
 	}
 
 
@@ -331,10 +332,10 @@ class NoteService {
 	 * @param string $id
 	 * @param bool $asViewer
 	 *
-	 * @return Note
+	 * @return Stream
 	 * @throws NoteNotFoundException
 	 */
-	public function getNoteById(string $id, bool $asViewer = false): Note {
+	public function getNoteById(string $id, bool $asViewer = false): Stream {
 		return $this->notesRequest->getNoteById($id, $asViewer);
 	}
 

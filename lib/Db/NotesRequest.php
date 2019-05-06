@@ -74,15 +74,54 @@ class NotesRequest extends NotesRequestBuilder {
 			$qb->setValue(
 				'hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags()))
 			)
-         ->setValue(
-			   'attachments', $qb->createNamedParameter(
-			   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
-		   )
-		   );
+			   ->setValue(
+				   'attachments', $qb->createNamedParameter(
+				   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+			   )
+			   );
 		}
 
 		$qb->execute();
 	}
+
+
+
+//
+//
+//	/**
+//	 * Insert a new Note in the database.
+//	 *
+//	 * @param SocialAppNotification $notification
+//	 *
+//	 * @throws Exception
+//	 */
+//	public function saveNotification(SocialAppNotification $notification) {
+//		$qb = $this->getNotesInsertSql();
+//		$qb->setValue('id', $qb->createNamedParameter($notification->getId()))
+//		   ->setValue('type', $qb->createNamedParameter($notification->getType()))
+//		   ->setValue('to', $qb->createNamedParameter($notification->getTo()))
+//		   ->setValue('to_array', $qb->createNamedParameter(''))
+//		   ->setValue('cc', $qb->createNamedParameter(''))
+//		   ->setValue('bcc', $qb->createNamedParameter(''))
+//		   ->setValue('content', $qb->createNamedParameter(''))
+//		   ->setValue('summary', $qb->createNamedParameter($notification->getSummary()))
+//		   ->setValue('published', $qb->createNamedParameter($notification->getPublished()))
+//		   ->setValue(
+//			   'published_time',
+//			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+//		   )
+//		   ->setValue('attributed_to', $qb->createNamedParameter($notification->getAttributedTo()))
+//		   ->setValue('in_reply_to', $qb->createNamedParameter(''))
+//		   ->setValue('source', $qb->createNamedParameter($notification->getSource()))
+//		   ->setValue('instances', $qb->createNamedParameter(''))
+//		   ->setValue('local', $qb->createNamedParameter(($notification->isLocal()) ? '1' : '0'))
+//		   ->setValue(
+//			   'creation',
+//			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+//		   );
+//
+//		$qb->execute();
+//	}
 
 
 	/**
@@ -116,6 +155,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$qb = $this->getNotesSelectSql();
 		$this->limitToIdString($qb, $id);
+//		$this->limitToType($qb, Note::TYPE);
 
 		if ($asViewer) {
 			$this->limitToViewer($qb);
@@ -130,7 +170,14 @@ class NotesRequest extends NotesRequestBuilder {
 			throw new NoteNotFoundException('Post not found');
 		}
 
-		return $this->parseNotesSelectSql($data);
+		try {
+			/** @var Note $note */
+			$note = $this->parseNotesSelectSql($data);
+		} catch (Exception $e) {
+			throw new NoteNotFoundException('Malformed Post');
+		}
+
+		return $note;
 	}
 
 
@@ -139,6 +186,7 @@ class NotesRequest extends NotesRequestBuilder {
 	 *
 	 * @return Stream
 	 * @throws NoteNotFoundException
+	 * @throws Exception
 	 */
 	public function getNoteByActivityId(string $id): Stream {
 		if ($id === '') {
@@ -202,6 +250,7 @@ class NotesRequest extends NotesRequestBuilder {
 	public function countNotesFromActorId(string $actorId): int {
 		$qb = $this->countNotesSelectSql();
 		$this->limitToAttributedTo($qb, $actorId);
+		$this->limitToType($qb, Note::TYPE);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -227,6 +276,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$qb = $this->getNotesSelectSql();
 
 		$this->joinFollowing($qb, $actor);
+//		$this->limitToType($qb, Note::TYPE);
 		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
@@ -234,7 +284,10 @@ class NotesRequest extends NotesRequestBuilder {
 		$notes = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$notes[] = $this->parseNotesSelectSql($data);
+			try {
+				$notes[] = $this->parseNotesSelectSql($data);
+			} catch (Exception $e) {
+			}
 		}
 		$cursor->closeCursor();
 
@@ -268,7 +321,10 @@ class NotesRequest extends NotesRequestBuilder {
 		$notes = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$notes[] = $this->parseNotesSelectSql($data);
+			try {
+				$notes[] = $this->parseNotesSelectSql($data);
+			} catch (Exception $e) {
+			}
 		}
 		$cursor->closeCursor();
 
@@ -291,6 +347,8 @@ class NotesRequest extends NotesRequestBuilder {
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
+//		$this->limitToType($qb, Note::TYPE);
+
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
@@ -299,7 +357,10 @@ class NotesRequest extends NotesRequestBuilder {
 		$notes = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$notes[] = $this->parseNotesSelectSql($data);
+			try {
+				$notes[] = $this->parseNotesSelectSql($data);
+			} catch (Exception $e) {
+			}
 		}
 		$cursor->closeCursor();
 
@@ -323,6 +384,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$qb = $this->getNotesSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
+//		$this->limitToType($qb, Note::TYPE);
 		$this->limitToRecipient($qb, $actor->getId(), true);
 		$this->filterToRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterToRecipient($qb, $actor->getFollowers());
@@ -332,7 +394,10 @@ class NotesRequest extends NotesRequestBuilder {
 		$notes = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$notes[] = $this->parseNotesSelectSql($data);
+			try {
+				$notes[] = $this->parseNotesSelectSql($data);
+			} catch (Exception $e) {
+			}
 		}
 		$cursor->closeCursor();
 
@@ -355,9 +420,12 @@ class NotesRequest extends NotesRequestBuilder {
 	): array {
 		$qb = $this->getNotesSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
+//		$this->limitToType($qb, Note::TYPE);
+
 		if ($localOnly) {
 			$this->limitToLocal($qb, true);
 		}
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
@@ -367,7 +435,10 @@ class NotesRequest extends NotesRequestBuilder {
 		$notes = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$notes[] = $this->parseNotesSelectSql($data);
+			try {
+				$notes[] = $this->parseNotesSelectSql($data);
+			} catch (Exception $e) {
+			}
 		}
 		$cursor->closeCursor();
 
@@ -439,10 +510,15 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * @param string $id
+	 * @param string $type
 	 */
-	public function deleteNoteById(string $id) {
+	public function deleteNoteById(string $id, string $type = '') {
 		$qb = $this->getNotesDeleteSql();
+
 		$this->limitToIdString($qb, $id);
+		if ($type !== '') {
+			$this->limitToType($qb, $type);
+		}
 
 		$qb->execute();
 	}
@@ -465,11 +541,14 @@ class NotesRequest extends NotesRequestBuilder {
 	 * @param Stream $note
 	 *
 	 * @return IQueryBuilder
-	 * @throws Exception
 	 */
 	public function saveStream(Stream $note): IQueryBuilder {
-		$dTime = new DateTime();
-		$dTime->setTimestamp($note->getPublishedTime());
+
+		try {
+			$dTime = new DateTime();
+			$dTime->setTimestamp($note->getPublishedTime());
+		} catch (Exception $e) {
+		}
 
 		$cache = '[]';
 		if ($note->gotCache()) {
@@ -504,9 +583,6 @@ class NotesRequest extends NotesRequestBuilder {
 		   ->setValue('content', $qb->createNamedParameter($note->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($note->getSummary()))
 		   ->setValue('published', $qb->createNamedParameter($note->getPublished()))
-		   ->setValue(
-			   'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
-		   )
 		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($note->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($note->getSource()))
@@ -517,11 +593,20 @@ class NotesRequest extends NotesRequestBuilder {
 			   json_encode($note->getInstancePaths(), JSON_UNESCAPED_SLASHES)
 		   )
 		   )
-		   ->setValue('local', $qb->createNamedParameter(($note->isLocal()) ? '1' : '0'))
-		   ->setValue(
-			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+		   ->setValue('local', $qb->createNamedParameter(($note->isLocal()) ? '1' : '0'));
+
+		try {
+			$dTime = new DateTime();
+			$dTime->setTimestamp($note->getPublishedTime());
+			$qb->setValue(
+				'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
+			)
+			   ->setValue(
+				   'creation',
+				   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			   );
+		} catch (Exception $e) {
+		}
 
 		$this->generatePrimaryKey($qb, $note->getId());
 

@@ -30,28 +30,8 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
-use Exception;
-use OCA\Social\Db\NotesRequest;
 use OCA\Social\Db\StreamActionsRequest;
-use OCA\Social\Exceptions\InvalidOriginException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\NoteNotFoundException;
-use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Announce;
-use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 
 

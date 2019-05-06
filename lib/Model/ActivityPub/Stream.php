@@ -307,17 +307,18 @@ class Stream extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
-	 *
-	 * @throws Exception
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
-		$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
+		try {
+			$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
+			$this->setPublishedTime($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
 
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
 		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));
-		$this->setPublishedTime($dTime->getTimestamp());
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));

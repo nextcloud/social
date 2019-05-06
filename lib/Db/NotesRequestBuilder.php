@@ -35,12 +35,17 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
+
+/**
+ * Class NotesRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
 class NotesRequestBuilder extends CoreRequestBuilder {
 
 
@@ -85,7 +90,8 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$qb->selectDistinct('sn.id')
 		   ->addSelect(
 			   'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
-			   'sn.summary', 'sn.attachments', 'sn.published', 'sn.published_time', 'sn.cache', 'sn.object_id',
+			   'sn.summary', 'sn.attachments', 'sn.published', 'sn.published_time', 'sn.cache',
+			   'sn.object_id',
 			   'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
 			   'sn.creation'
 		   )
@@ -357,32 +363,32 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 * @return Stream
 	 */
 	protected function parseNotesSelectSql($data): Stream {
-		$note = new Note();
-		$note->importFromDatabase($data);
+		$item = new Stream();
+		$item->importFromDatabase($data);
 
-		$instances = json_decode($data['instances'], true);
+		$instances = json_decode($this->get('instances', $data, '[]'), true);
 		if (is_array($instances)) {
 			foreach ($instances as $instance) {
 				$instancePath = new InstancePath();
 				$instancePath->import($instance);
-				$note->addInstancePath($instancePath);
+				$item->addInstancePath($instancePath);
 			}
 		}
 
 		try {
 			$actor = $this->parseCacheActorsLeftJoin($data);
-			$note->setCompleteDetails(true);
-			$note->setActor($actor);
+			$item->setCompleteDetails(true);
+			$item->setActor($actor);
 		} catch (InvalidResourceException $e) {
 		}
 
 		try {
 			$action = $this->parseStreamActionsLeftJoin($data);
-			$note->setAction($action);
+			$item->setAction($action);
 		} catch (InvalidResourceException $e) {
 		}
 
-		return $note;
+		return $item;
 	}
 
 }
