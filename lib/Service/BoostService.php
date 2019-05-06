@@ -171,9 +171,7 @@ class BoostService {
 	 * @param string $token
 	 *
 	 * @return ACore
-	 * @throws ItemUnknownException
 	 * @throws NoteNotFoundException
-	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 */
 	public function delete(Person $actor, string $postId, &$token = ''): ACore {
@@ -191,7 +189,7 @@ class BoostService {
 		$undo->setObject($announce);
 		$undo->setCcArray($announce->getCcArray());
 
-		$this->notesRequest->deleteNoteById($announce->getId());
+		$this->notesRequest->deleteNoteById($announce->getId(), Announce::TYPE);
 		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
 		$this->signatureService->signObject($actor, $undo);
 

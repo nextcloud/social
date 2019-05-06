@@ -155,7 +155,7 @@ class NotesRequest extends NotesRequestBuilder {
 
 		$qb = $this->getNotesSelectSql();
 		$this->limitToIdString($qb, $id);
-		$this->limitToType($qb, Note::TYPE);
+//		$this->limitToType($qb, Note::TYPE);
 
 		if ($asViewer) {
 			$this->limitToViewer($qb);
@@ -510,11 +510,15 @@ class NotesRequest extends NotesRequestBuilder {
 
 	/**
 	 * @param string $id
+	 * @param string $type
 	 */
-	public function deleteNoteById(string $id) {
+	public function deleteNoteById(string $id, string $type = '') {
 		$qb = $this->getNotesDeleteSql();
-		$this->limitToType($qb, Note::TYPE);
+
 		$this->limitToIdString($qb, $id);
+		if ($type !== '') {
+			$this->limitToType($qb, $type);
+		}
 
 		$qb->execute();
 	}

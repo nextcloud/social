@@ -154,10 +154,10 @@ class AnnounceInterface implements IActivityPubInterface {
 	 */
 	public function delete(ACore $item) {
 		try {
-			$stream = $this->notesRequest->getNoteById($item->getId());
-			if ($stream->getType() === Announce::TYPE) {
-				$this->notesRequest->deleteNoteById($item->getId());
-			}
+//			$stream = $this->notesRequest->getNoteById($item->getId());
+//			if ($stream->getType() === Announce::TYPE) {
+			$this->notesRequest->deleteNoteById($item->getId(), Announce::TYPE);
+//			}
 		} catch (NoteNotFoundException $e) {
 		}
 	}

@@ -149,7 +149,7 @@ class NoteInterface implements IActivityPubInterface {
 		$item->checkOrigin(($item->getId()));
 
 		/** @var Note $item */
-		$this->notesRequest->deleteNoteById($item->getId());
+		$this->notesRequest->deleteNoteById($item->getId(), Note::TYPE);
 	}
 
 

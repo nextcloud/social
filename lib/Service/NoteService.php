@@ -313,17 +313,18 @@ class NoteService {
 
 	/**
 	 * @param Stream $item
+	 * @param string $type
 	 *
 	 * @throws Exception
 	 */
-	public function deleteLocalItem(Stream $item) {
+	public function deleteLocalItem(Stream $item, string $type = '') {
 		if (!$item->isLocal()) {
 			return;
 		}
 
 		$item->setActorId($item->getAttributedTo());
 		$this->activityService->deleteActivity($item);
-		$this->notesRequest->deleteNoteById($item->getId());
+		$this->notesRequest->deleteNoteById($item->getId(), $type);
 	}
 
 

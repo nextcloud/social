@@ -37,6 +37,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
@@ -191,7 +192,7 @@ class LocalController extends Controller {
 				throw new InvalidResourceException('user have no rights');
 			}
 
-			$this->noteService->deleteLocalItem($note);
+			$this->noteService->deleteLocalItem($note, Note::TYPE);
 
 			return $this->success();
 		} catch (Exception $e) {
