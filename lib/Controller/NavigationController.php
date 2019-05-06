@@ -33,6 +33,7 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OC;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -139,7 +140,7 @@ class NavigationController extends Controller {
 				'public'   => false,
 				'firstrun' => false,
 				'setup'    => false,
-				'isAdmin'  => \OC::$server->getGroupManager()
+				'isAdmin'  => OC::$server->getGroupManager()
 										  ->isAdmin($this->userId),
 				'cliUrl'   => $this->getCliUrl()
 			]

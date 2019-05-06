@@ -30,6 +30,7 @@ namespace OCA\Social;
 
 
 use Exception;
+use OC;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 
@@ -43,7 +44,7 @@ if (!array_key_exists('resource', $_GET)) {
 
 $subject = $_GET['resource'];
 
-$urlGenerator = \OC::$server->getURLGenerator();
+$urlGenerator = OC::$server->getURLGenerator();
 
 list($type, $account) = explode(':', $subject, 2);
 if ($type !== 'acct') {
@@ -55,8 +56,8 @@ if ($type !== 'acct') {
 list($username, $instance) = explode('@', $account);
 
 try {
-	$cacheActorService = \OC::$server->query(CacheActorService::class);
-	$configService = \OC::$server->query(ConfigService::class);
+	$cacheActorService = OC::$server->query(CacheActorService::class);
+	$configService = OC::$server->query(ConfigService::class);
 
 	if ($configService->getCloudAddress(true) !== $instance) {
 		throw new Exception();

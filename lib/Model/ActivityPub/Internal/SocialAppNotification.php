@@ -30,11 +30,12 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Internal;
 
 
+use Exception;
 use JsonSerializable;
-use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Stream;
 
 
-class SocialAppNotification extends ACore implements JsonSerializable {
+class SocialAppNotification extends Stream implements JsonSerializable {
 
 
 	const TYPE = 'SocialAppNotification';
@@ -54,6 +55,8 @@ class SocialAppNotification extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	public function import(array $data) {
 		parent::import($data);
@@ -62,6 +65,8 @@ class SocialAppNotification extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);

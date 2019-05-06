@@ -2,7 +2,9 @@
 
 namespace OCA\Social\Exceptions;
 
-class ActivityCantBeVerifiedException extends \Exception {
+use Exception;
+
+class ActivityCantBeVerifiedException extends Exception {
 
 }
 

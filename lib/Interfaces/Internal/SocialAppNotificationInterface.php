@@ -111,7 +111,7 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 		}
 
 		$this->miscService->log('Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1);
-		$this->notesRequest->saveNotification($notification);
+		$this->notesRequest->save($notification);
 	}
 
 

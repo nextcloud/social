@@ -312,18 +312,18 @@ class NoteService {
 
 
 	/**
-	 * @param Note $note
+	 * @param Stream $item
 	 *
 	 * @throws Exception
 	 */
-	public function deleteLocalNote(Note $note) {
-		if (!$note->isLocal()) {
+	public function deleteLocalItem(Stream $item) {
+		if (!$item->isLocal()) {
 			return;
 		}
 
-		$note->setActorId($note->getAttributedTo());
-		$this->activityService->deleteActivity($note);
-		$this->notesRequest->deleteNoteById($note->getId());
+		$item->setActorId($item->getAttributedTo());
+		$this->activityService->deleteActivity($item);
+		$this->notesRequest->deleteNoteById($item->getId());
 	}
 
 

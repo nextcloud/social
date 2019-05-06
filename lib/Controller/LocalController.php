@@ -191,7 +191,7 @@ class LocalController extends Controller {
 				throw new InvalidResourceException('user have no rights');
 			}
 
-			$this->noteService->deleteLocalNote($note);
+			$this->noteService->deleteLocalItem($note);
 
 			return $this->success();
 		} catch (Exception $e) {
