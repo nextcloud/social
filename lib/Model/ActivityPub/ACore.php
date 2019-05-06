@@ -577,7 +577,6 @@ class ACore extends Item implements JsonSerializable {
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
 		$this->setUrl($this->validate(self::AS_URL, 'url', $data, ''));
-		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSummary($this->get('summary', $data, ''));
 		$this->setToArray($this->validateArray(self::AS_ID, 'to', $data, []));
 		$this->setCcArray($this->validateArray(self::AS_ID, 'cc', $data, []));

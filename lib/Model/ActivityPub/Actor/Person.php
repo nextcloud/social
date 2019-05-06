@@ -34,6 +34,7 @@ namespace OCA\Social\Model\ActivityPub\Actor;
 use DateTime;
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -448,6 +449,7 @@ class Person extends ACore implements JsonSerializable {
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws InvalidOriginException
 	 */
 	public function import(array $data) {
 		parent::import($data);
