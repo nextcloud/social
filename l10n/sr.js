@@ -39,6 +39,7 @@ OC.L10N.register(
     "There were no results for your search:" : "Нема резултата за претрагу:",
     "Searching for" : "Тражим",
     "Reply" : "Одговори",
+    "Boost" : "Подржи",
     "More actions" : "Још радњи",
     "Delete post" : "Обриши објаву",
     "No posts found" : "Нема објава",
