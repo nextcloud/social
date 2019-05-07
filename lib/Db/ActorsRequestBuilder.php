@@ -48,7 +48,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getActorsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_SERVER_ACTORS);
+		$qb->insert(self::TABLE_ACTORS);
 
 		return $qb;
 	}
@@ -61,7 +61,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getActorsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_SERVER_ACTORS);
+		$qb->update(self::TABLE_ACTORS);
 
 		return $qb;
 	}
@@ -80,7 +80,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 			'sa.id', 'sa.user_id', 'sa.preferred_username', 'sa.name', 'sa.summary',
 			'sa.public_key', 'sa.avatar_version', 'sa.private_key', 'sa.creation'
 		)
-		   ->from(self::TABLE_SERVER_ACTORS, 'sa');
+		   ->from(self::TABLE_ACTORS, 'sa');
 
 		$this->defaultSelectAlias = 'sa';
 
@@ -95,7 +95,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getActorsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_SERVER_ACTORS);
+		$qb->delete(self::TABLE_ACTORS);
 
 		return $qb;
 	}

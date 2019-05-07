@@ -55,7 +55,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getFollowsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_SERVER_FOLLOWS);
+		$qb->insert(self::TABLE_FOLLOWS);
 
 		return $qb;
 	}
@@ -68,7 +68,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getFollowsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_SERVER_FOLLOWS);
+		$qb->update(self::TABLE_FOLLOWS);
 
 		return $qb;
 	}
@@ -86,7 +86,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.accepted', 'f.creation'
 		)
-		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
+		   ->from(self::TABLE_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
 
@@ -102,7 +102,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	protected function countFollowsSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_SERVER_FOLLOWS, 'f');
+		   ->from(self::TABLE_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
 
@@ -117,7 +117,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getFollowsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_SERVER_FOLLOWS);
+		$qb->delete(self::TABLE_FOLLOWS);
 
 		return $qb;
 	}
