@@ -59,7 +59,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getNotesInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_SERVER_NOTES);
+		$qb->insert(self::TABLE_STREAMS);
 
 		return $qb;
 	}
@@ -72,7 +72,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getNotesUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_SERVER_NOTES);
+		$qb->update(self::TABLE_STREAMS);
 
 		return $qb;
 	}
@@ -95,7 +95,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 			   'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
 			   'sn.creation'
 		   )
-		   ->from(self::TABLE_SERVER_NOTES, 'sn');
+		   ->from(self::TABLE_STREAMS, 'sn');
 
 		$this->defaultSelectAlias = 'sn';
 
@@ -111,7 +111,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	protected function countNotesSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_SERVER_NOTES, 'sn');
+		   ->from(self::TABLE_STREAMS, 'sn');
 
 		$this->defaultSelectAlias = 'sn';
 
@@ -126,7 +126,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getNotesDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_SERVER_NOTES);
+		$qb->delete(self::TABLE_STREAMS);
 
 		return $qb;
 	}
@@ -141,7 +141,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		$on = $this->exprJoinFollowing($qb, $actor, false);
 		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
 	}
 
 
@@ -156,7 +156,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 
 		$on = $this->exprJoinFollowing($qb, $actor);
 
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
 	}
 
 

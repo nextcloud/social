@@ -53,7 +53,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getHashtagsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_SERVER_HASHTAGS);
+		$qb->insert(self::TABLE_HASHTAGS);
 
 		return $qb;
 	}
@@ -66,7 +66,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getHashtagsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_SERVER_HASHTAGS);
+		$qb->update(self::TABLE_HASHTAGS);
 
 		return $qb;
 	}
@@ -82,7 +82,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('h.hashtag', 'h.trend')
-		   ->from(self::TABLE_SERVER_HASHTAGS, 'h');
+		   ->from(self::TABLE_HASHTAGS, 'h');
 
 		$this->defaultSelectAlias = 'h';
 
@@ -97,7 +97,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getHashtagsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_SERVER_HASHTAGS);
+		$qb->delete(self::TABLE_HASHTAGS);
 
 		return $qb;
 	}

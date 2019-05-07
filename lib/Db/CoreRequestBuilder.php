@@ -55,18 +55,31 @@ use OCP\IDBConnection;
 class CoreRequestBuilder {
 
 
-	const TABLE_REQUEST_QUEUE = 'social_request_queue';
+//	const TABLE_REQUEST_QUEUE = 'social_request_queue';
+//
+//	const TABLE_SERVER_ACTORS = 'social_server_actors';
+//	const TABLE_SERVER_NOTES = 'social_server_notes';
+//	const TABLE_SERVER_HASHTAGS = 'social_server_hashtags';
+//	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
+//
+//	const TABLE_CACHE_ACTORS = 'social_cache_actors';
+//	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
+//
+//	const TABLE_QUEUE_STREAM = 'social_queue_stream';
+//	const TABLE_STREAM_ACTIONS = 'social_stream_actions';
 
-	const TABLE_SERVER_ACTORS = 'social_server_actors';
-	const TABLE_SERVER_NOTES = 'social_server_notes';
-	const TABLE_SERVER_HASHTAGS = 'social_server_hashtags';
-	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
+	const TABLE_REQUEST_QUEUE = 'social_a2_request_queue';
 
-	const TABLE_CACHE_ACTORS = 'social_cache_actors';
-	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
+	const TABLE_ACTORS = 'social_a2_actors';
+	const TABLE_STREAMS = 'social_a2_stream';
+	const TABLE_HASHTAGS = 'social_a2_hashtags';
+	const TABLE_FOLLOWS = 'social_a2_follows';
 
-	const TABLE_QUEUE_STREAM = 'social_queue_stream';
-	const TABLE_STREAM_ACTIONS = 'social_stream_actions';
+	const TABLE_CACHE_ACTORS = 'social_a2_cache_actors';
+	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_documts';
+
+	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
+	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
 
 
 	/** @var IDBConnection */
@@ -869,7 +882,7 @@ class CoreRequestBuilder {
 		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
 		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 		   ->leftJoin(
-			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, $prefix . '_f',
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
 			   $andX
 		   );
 	}
@@ -949,9 +962,9 @@ class CoreRequestBuilder {
 	public function emptyAll() {
 		$tables = [
 			self::TABLE_REQUEST_QUEUE,
-			self::TABLE_SERVER_ACTORS,
-			self::TABLE_SERVER_NOTES,
-			self::TABLE_SERVER_FOLLOWS,
+			self::TABLE_ACTORS,
+			self::TABLE_STREAMS,
+			self::TABLE_FOLLOWS,
 			self::TABLE_CACHE_ACTORS,
 			self::TABLE_CACHE_DOCUMENTS
 		];
