@@ -1189,8 +1189,15 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		$insert->insert($table);
 
 		foreach ($fields as $field) {
+			$value = $this->get($field, $data, '');
+			if ($field === 'id_prim'
+				&& $value === ''
+				&& $this->get('id', $data, '') !== '') {
+				$value = hash('sha512', $this->get('id', $data, ''));
+			}
+
 			$insert->setValue(
-				$field, $insert->createNamedParameter($this->get($field, $data, ''))
+				$field, $insert->createNamedParameter($value)
 			);
 		}
 
