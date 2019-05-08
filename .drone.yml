@@ -8,6 +8,7 @@ steps:
       CORE_BRANCH: stable15
       DB: sqlite
     commands:
+      - composer install
       - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
       - cd ../server
       - ./occ app:check-code $APP_NAME -c strong-comparison
