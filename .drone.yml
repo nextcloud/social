@@ -8,7 +8,7 @@ steps:
       CORE_BRANCH: stable15
       DB: sqlite
     commands:
-      - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH ${DB}
+      - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
       - cd ../server
       - ./occ app:check-code $APP_NAME -c strong-comparison
       - ./occ app:check-code $APP_NAME -c deprecation
@@ -52,17 +52,17 @@ trigger:
 kind: pipeline
 name: php7.1-sqlite
 steps:
-  - name: php7.1
-    image: nextcloudci/php7.1:php7.1-16
-    environment:
-      APP_NAME: social
-      CORE_BRANCH: stable15
-      DB: sqlite
-    commands:
-      - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH ${DB}
-      - cd ../server/apps/$APP_NAME
-      - composer install
-      - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
+- name: php7.1
+  image: nextcloudci/php7.1:php7.1-16
+  environment:
+    APP_NAME: social
+    CORE_BRANCH: stable15
+    DB: sqlite
+  commands:
+    - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
+    - cd ../server/apps/$APP_NAME
+    - composer install
+    - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
 trigger:
   branch:
     - master
@@ -80,7 +80,7 @@ steps:
     CORE_BRANCH: stable15
     DB: mysql
   commands:
-    - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH ${DB}
+    - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
     - cd ../server/apps/$APP_NAME
     - composer install
     - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
