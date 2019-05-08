@@ -102,6 +102,34 @@ trigger:
     - push
 ---
 kind: pipeline
+name: php7.1-postgres
+steps:
+- name: php7.1
+  image: nextcloudci/php7.1:php7.1-16
+  environment:
+    APP_NAME: social
+    CORE_BRANCH: stable15
+    DB: postgres
+  commands:
+    - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
+    - cd ../server/apps/$APP_NAME
+    - composer install
+    - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
+services:
+- name: postgres
+  image: postgres:10
+  environment:
+    POSTGRES_USER: oc_autotest
+    POSTGRES_DB: oc_autotest_dummy
+    POSTGRES_PASSWORD: owncloud
+trigger:
+  branch:
+    - master
+  event:
+    - pull_request
+    - push
+---
+kind: pipeline
 name: frontend
 steps:
 - name: eslint
