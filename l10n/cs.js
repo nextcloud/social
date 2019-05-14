@@ -39,6 +39,7 @@ OC.L10N.register(
     "There were no results for your search:" : "Pro vaše hledání nejsou žádné výsledky:",
     "Searching for" : "Hledání",
     "Reply" : "Odpovědět",
+    "Boost" : "Zrychlit",
     "More actions" : "Další akce",
     "Delete post" : "Smazat příspěvek",
     "No posts found" : "Nenalezeny žádné příspěvky",
