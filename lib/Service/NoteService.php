@@ -32,11 +32,11 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
@@ -53,8 +53,8 @@ use OCA\Social\Model\InstancePath;
 class NoteService {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var ActivityService */
 	private $activityService;
@@ -85,7 +85,7 @@ class NoteService {
 	/**
 	 * NoteService constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param ActivityService $activityService
 	 * @param AccountService $accountService
 	 * @param SignatureService $signatureService
@@ -95,12 +95,12 @@ class NoteService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, ActivityService $activityService,
+		StreamRequest $streamRequest, ActivityService $activityService,
 		AccountService $accountService, SignatureService $signatureService,
 		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
 		ConfigService $configService, MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
 		$this->accountService = $accountService;
 		$this->signatureService = $signatureService;
@@ -116,7 +116,7 @@ class NoteService {
 	 */
 	public function setViewer(Person $viewer) {
 		$this->viewer = $viewer;
-		$this->notesRequest->setViewer($viewer);
+		$this->streamRequest->setViewer($viewer);
 	}
 
 
@@ -285,7 +285,7 @@ class NoteService {
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -324,7 +324,7 @@ class NoteService {
 
 		$item->setActorId($item->getAttributedTo());
 		$this->activityService->deleteActivity($item);
-		$this->notesRequest->deleteNoteById($item->getId(), $type);
+		$this->streamRequest->deleteStreamById($item->getId(), $type);
 	}
 
 
@@ -333,10 +333,10 @@ class NoteService {
 	 * @param bool $asViewer
 	 *
 	 * @return Stream
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 */
 	public function getNoteById(string $id, bool $asViewer = false): Stream {
-		return $this->notesRequest->getNoteById($id, $asViewer);
+		return $this->streamRequest->getStreamById($id, $asViewer);
 	}
 
 
@@ -349,7 +349,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamHome($actor, $since, $limit);
+		return $this->streamRequest->getStreamHome($actor, $since, $limit);
 	}
 
 
@@ -362,7 +362,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamNotifications($actor, $since, $limit);
+		return $this->streamRequest->getStreamNotifications($actor, $since, $limit);
 	}
 
 
@@ -375,7 +375,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamAccount($actorId, $since, $limit);
+		return $this->streamRequest->getStreamAccount($actorId, $since, $limit);
 	}
 
 
@@ -388,7 +388,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamDirect($actor, $since, $limit);
+		return $this->streamRequest->getStreamDirect($actor, $since, $limit);
 	}
 
 
@@ -400,7 +400,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamTimeline($since, $limit, true);
+		return $this->streamRequest->getStreamTimeline($since, $limit, true);
 	}
 
 
@@ -415,7 +415,7 @@ class NoteService {
 	 */
 	public function getStreamLocalTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
 	): array {
-		return $this->notesRequest->getStreamTag($actor, $hashtag, $since, $limit);
+		return $this->streamRequest->getStreamTag($actor, $hashtag, $since, $limit);
 	}
 
 
@@ -440,7 +440,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->notesRequest->getStreamTimeline($since, $limit, false);
+		return $this->streamRequest->getStreamTimeline($since, $limit, false);
 	}
 
 
@@ -451,7 +451,7 @@ class NoteService {
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
@@ -462,7 +462,7 @@ class NoteService {
 	 * @throws RequestResultNotJsonException
 	 */
 	public function getAuthorFromPostId($noteId) {
-		$note = $this->notesRequest->getNoteById($noteId);
+		$note = $this->streamRequest->getStreamById($noteId);
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());
 	}

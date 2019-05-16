@@ -31,7 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Internal;
 
 
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -44,8 +44,8 @@ use OCA\Social\Service\MiscService;
 class SocialAppNotificationInterface implements IActivityPubInterface {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var CurlService */
 	private $curlService;
@@ -60,16 +60,16 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 	/**
 	 * NoteInterface constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, CurlService $curlService, ConfigService $configService,
+		StreamRequest $streamRequest, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -111,7 +111,7 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 		}
 
 		$this->miscService->log('Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1);
-		$this->notesRequest->save($notification);
+		$this->streamRequest->save($notification);
 	}
 
 

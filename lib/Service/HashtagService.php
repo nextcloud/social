@@ -33,8 +33,11 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\HashtagsRequest;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 
 
 class HashtagService {
@@ -53,8 +56,8 @@ class HashtagService {
 	/** @var HashtagsRequest */
 	private $hashtagsRequest;
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var ConfigService */
 	private $configService;
@@ -67,16 +70,17 @@ class HashtagService {
 	 * ImportService constructor.
 	 *
 	 * @param HashtagsRequest $hashtagsRequest
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		HashtagsRequest $hashtagsRequest, NotesRequest $notesRequest, ConfigService $configService,
+		HashtagsRequest $hashtagsRequest, StreamRequest $streamRequest,
+		ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->hashtagsRequest = $hashtagsRequest;
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -92,8 +96,10 @@ class HashtagService {
 	 * ]
 	 */
 
+
 	/**
-	 *
+	 * @return int
+	 * @throws DateTimeException
 	 */
 	public function manageHashtags(): int {
 		$current = $this->hashtagsRequest->getAll();
@@ -151,14 +157,15 @@ class HashtagService {
 	/**
 	 * @param int $timestamp
 	 *
-	 * @return array
+	 * @return Stream[]
+	 * @throws DateTimeException
 	 */
 	private function getTrendSince(int $timestamp): array {
 		$result = [];
 
-		$notes = $this->notesRequest->getNotesSince($timestamp);
+		$notes = $this->streamRequest->getNoteSince($timestamp);
 		foreach ($notes as $note) {
-
+			/** @var Note $note */
 			foreach ($note->getHashtags() as $hashtag) {
 				if (array_key_exists($hashtag, $result)) {
 					$result[$hashtag]++;

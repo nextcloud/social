@@ -33,9 +33,9 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -56,8 +56,8 @@ class BoostService {
 	use TStringTools;
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var NoteService */
 	private $noteService;
@@ -81,7 +81,7 @@ class BoostService {
 	/**
 	 * BoostService constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param NoteService $noteService
 	 * @param SignatureService $signatureService
 	 * @param ActivityService $activityService
@@ -90,11 +90,11 @@ class BoostService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, NoteService $noteService, SignatureService $signatureService,
+		StreamRequest $streamRequest, NoteService $noteService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
 		StreamQueueService $streamQueueService, MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->noteService = $noteService;
 		$this->signatureService = $signatureService;
 		$this->activityService = $activityService;
@@ -110,7 +110,7 @@ class BoostService {
 	 * @param string $token
 	 *
 	 * @return ACore
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
@@ -118,7 +118,7 @@ class BoostService {
 
 		try {
 			return $this->get($actor, $postId);
-		} catch (NoteNotFoundException $e) {
+		} catch (StreamNotFoundException $e) {
 		}
 
 		$announce = new Announce();
@@ -127,7 +127,7 @@ class BoostService {
 
 		$note = $this->noteService->getNoteById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
-			throw new NoteNotFoundException('Stream is not a Note');
+			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
 		$announce->addCc($note->getAttributedTo());
@@ -153,13 +153,13 @@ class BoostService {
 	 * @param string $postId
 	 *
 	 * @return Stream
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RedundancyLimitException
 	 */
 	public function get(Person $actor, string $postId): Stream {
-		$stream = $this->notesRequest->getNoteByObjectId($actor, Announce::TYPE, $postId);
+		$stream = $this->streamRequest->getStreamByObjectId($actor, Announce::TYPE, $postId);
 
 		return $stream;
 	}
@@ -171,7 +171,7 @@ class BoostService {
 	 * @param string $token
 	 *
 	 * @return ACore
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws SocialAppConfigException
 	 */
 	public function delete(Person $actor, string $postId, &$token = ''): ACore {
@@ -181,15 +181,15 @@ class BoostService {
 
 		$note = $this->noteService->getNoteById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
-			throw new NoteNotFoundException('Stream is not a Note');
+			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-		$announce = $this->notesRequest->getNoteByObjectId($actor, Announce::TYPE, $postId);
+		$announce = $this->streamRequest->getStreamByObjectId($actor, Announce::TYPE, $postId);
 
 		$undo->setObject($announce);
 		$undo->setCcArray($announce->getCcArray());
 
-		$this->notesRequest->deleteNoteById($announce->getId(), Announce::TYPE);
+		$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
 		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
 		$this->signatureService->signObject($actor, $undo);
 

@@ -33,10 +33,9 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
-use OCA\ShareByMail\Activity;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -53,11 +52,16 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 
+
+/**
+ * Class ActivityService
+ *
+ * @package OCA\Social\Service
+ */
 class ActivityService {
 
 
@@ -69,8 +73,8 @@ class ActivityService {
 	const TIMEOUT_SERVICE = 30;
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var FollowsRequest */
 	private $followsRequest;
@@ -101,7 +105,7 @@ class ActivityService {
 	/**
 	 * ActivityService constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param FollowsRequest $followsRequest
 	 * @param SignatureService $signatureService
 	 * @param RequestQueueService $requestQueueService
@@ -111,12 +115,12 @@ class ActivityService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, FollowsRequest $followsRequest,
+		StreamRequest $streamRequest, FollowsRequest $followsRequest,
 		SignatureService $signatureService, RequestQueueService $requestQueueService,
 		AccountService $accountService, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->followsRequest = $followsRequest;
 		$this->requestQueueService = $requestQueueService;
 		$this->accountService = $accountService;

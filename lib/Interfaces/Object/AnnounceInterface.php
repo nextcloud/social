@@ -32,10 +32,10 @@ namespace OCA\Social\Interfaces\Object;
 
 
 use Exception;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -54,8 +54,8 @@ use OCA\Social\Service\StreamQueueService;
 class AnnounceInterface implements IActivityPubInterface {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var StreamQueueService */
 	private $streamQueueService;
@@ -67,14 +67,15 @@ class AnnounceInterface implements IActivityPubInterface {
 	/**
 	 * AnnounceInterface constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param StreamQueueService $streamQueueService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, StreamQueueService $streamQueueService, MiscService $miscService
+		StreamRequest $streamRequest, StreamQueueService $streamQueueService,
+		MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->streamQueueService = $streamQueueService;
 		$this->miscService = $miscService;
 	}
@@ -136,11 +137,11 @@ class AnnounceInterface implements IActivityPubInterface {
 	public function save(ACore $item) {
 		/** @var Announce $item */
 		try {
-			$this->notesRequest->getNoteById($item->getId());
-		} catch (NoteNotFoundException $e) {
+			$this->streamRequest->getStreamById($item->getId());
+		} catch (StreamNotFoundException $e) {
 			$objectId = $item->getObjectId();
 			$item->addCacheItem($objectId);
-			$this->notesRequest->save($item);
+			$this->streamRequest->save($item);
 
 			$this->streamQueueService->generateStreamQueue(
 				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
@@ -153,13 +154,7 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
-		try {
-//			$stream = $this->notesRequest->getNoteById($item->getId());
-//			if ($stream->getType() === Announce::TYPE) {
-			$this->notesRequest->deleteNoteById($item->getId(), Announce::TYPE);
-//			}
-		} catch (NoteNotFoundException $e) {
-		}
+		$this->streamRequest->deleteStreamById($item->getId(), Announce::TYPE);
 	}
 
 }
