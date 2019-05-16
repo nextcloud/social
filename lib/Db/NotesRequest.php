@@ -467,7 +467,7 @@ class NotesRequest extends NotesRequestBuilder {
 		$on = $this->exprJoinFollowing($qb, $actor);
 		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_SERVER_FOLLOWS, 'f', $on);
+		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
 
 		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
 

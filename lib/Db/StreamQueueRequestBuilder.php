@@ -47,7 +47,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamQueueInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_QUEUE_STREAM);
+		$qb->insert(self::TABLE_STREAM_QUEUE);
 
 		return $qb;
 	}
@@ -60,7 +60,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamQueueUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_QUEUE_STREAM);
+		$qb->update(self::TABLE_STREAM_QUEUE);
 
 		return $qb;
 	}
@@ -78,7 +78,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'qs.id', 'qs.token', 'qs.stream_id', 'qs.type', 'qs.status', 'qs.tries', 'qs.last'
 		)
-		   ->from(self::TABLE_QUEUE_STREAM, 'qs');
+		   ->from(self::TABLE_STREAM_QUEUE, 'qs');
 
 		$this->defaultSelectAlias = 'qs';
 
@@ -93,7 +93,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamQueueDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_QUEUE_STREAM);
+		$qb->delete(self::TABLE_STREAM_QUEUE);
 
 		return $qb;
 	}

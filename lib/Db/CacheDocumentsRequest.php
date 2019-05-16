@@ -75,7 +75,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * @param Document $document
 	 */
 	public function update(Document $document) {
-		$qb = $this->getCacheDocumentsInsertSql();
+		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->set('type', $qb->createNamedParameter($document->getType()))
 		   ->set('url', $qb->createNamedParameter($document->getUrl()))
 		   ->set('media_type', $qb->createNamedParameter($document->getMediaType()))
@@ -88,6 +88,8 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			   'creation',
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
+
+		$this->limitToIdString($qb, $document->getId());
 		$qb->execute();
 	}
 
