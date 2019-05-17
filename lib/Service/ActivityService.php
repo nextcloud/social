@@ -398,6 +398,7 @@ class ActivityService {
 		$request->setTimeout($queue->getTimeout());
 		$request->setDataJson($queue->getActivity());
 		$request->setAddress($path->getAddress());
+		$request->setProtocol($path->getProtocol());
 
 		return $request;
 	}

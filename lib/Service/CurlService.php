@@ -114,6 +114,7 @@ class CurlService {
 		$request = new Request('/.well-known/webfinger');
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
+
 		$result = $this->request($request);
 
 		return $result;
@@ -177,9 +178,10 @@ class CurlService {
 	public function retrieveObject($id): array {
 
 		$url = parse_url($id);
-		$this->mustContains(['path', 'host'], $url);
+		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new Request($url['path'], Request::TYPE_GET);
 		$request->setAddress($url['host']);
+		$request->setProtocol($url['scheme']);
 
 		$result = $this->request($request);
 		if (is_array($result)) {
@@ -261,6 +263,8 @@ class CurlService {
 
 		$request = new Request($path, Request::TYPE_POST);
 		$request->setAddress($host);
+		$request->setProtocol($this->get('scheme', $parse, 'https'));
+
 		try {
 			$this->request($request);
 		} catch (Exception $e) {
@@ -329,7 +333,7 @@ class CurlService {
 	 * @return resource
 	 */
 	private function generateCurlRequest(Request $request) {
-		$url = 'https://' . $request->getAddress() . $request->getParsedUrl();
+		$url = $request->getProtocol() . '://' . $request->getAddress() . $request->getParsedUrl();
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
 		} else {

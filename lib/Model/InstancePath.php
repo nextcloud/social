@@ -137,6 +137,13 @@ class InstancePath implements JsonSerializable {
 	}
 
 
+	public function getProtocol(): string {
+		$info = parse_url($this->getUri());
+
+		return $this->get('scheme', $info, '');
+	}
+
+
 	/**
 	 * @return string
 	 */
