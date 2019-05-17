@@ -31,10 +31,10 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Object;
 
 
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
@@ -47,8 +47,8 @@ use OCA\Social\Service\MiscService;
 class NoteInterface implements IActivityPubInterface {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var CurlService */
 	private $curlService;
@@ -63,16 +63,16 @@ class NoteInterface implements IActivityPubInterface {
 	/**
 	 * NoteInterface constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, CurlService $curlService, ConfigService $configService,
+		StreamRequest $streamRequest, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -101,8 +101,8 @@ class NoteInterface implements IActivityPubInterface {
 	 */
 	public function getItemById(string $id): ACore {
 		try {
-			return $this->notesRequest->getNoteById($id);
-		} catch (NoteNotFoundException $e) {
+			return $this->streamRequest->getStreamById($id);
+		} catch (StreamNotFoundException $e) {
 			throw new ItemNotFoundException();
 		}
 	}
@@ -115,9 +115,9 @@ class NoteInterface implements IActivityPubInterface {
 		/** @var Note $note */
 
 		try {
-			$this->notesRequest->getNoteById($note->getId());
-		} catch (NoteNotFoundException $e) {
-			$this->notesRequest->save($note);
+			$this->streamRequest->getStreamById($note->getId());
+		} catch (StreamNotFoundException $e) {
+			$this->streamRequest->save($note);
 		}
 	}
 
@@ -149,7 +149,7 @@ class NoteInterface implements IActivityPubInterface {
 		$item->checkOrigin(($item->getId()));
 
 		/** @var Note $item */
-		$this->notesRequest->deleteNoteById($item->getId(), Note::TYPE);
+		$this->streamRequest->deleteStreamById($item->getId(), Note::TYPE);
 	}
 
 

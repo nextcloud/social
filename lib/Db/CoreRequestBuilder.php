@@ -35,6 +35,7 @@ use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
+use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -587,10 +588,15 @@ class CoreRequestBuilder {
 	 * @param int $timestamp
 	 * @param string $field
 	 *
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	protected function limitToSince(IQueryBuilder $qb, int $timestamp, string $field) {
-		$dTime = new DateTime();
+		try {
+			$dTime = new DateTime();
+		} catch (Exception $e) {
+			throw new DateTimeException();
+		}
+
 		$dTime->setTimestamp($timestamp);
 
 		$expr = $qb->expr();

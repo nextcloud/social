@@ -35,7 +35,7 @@ use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -72,8 +72,8 @@ class AccountService {
 	/** @var FollowsRequest */
 	private $followsRequest;
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var ActorService */
 	private $actorService;
@@ -98,7 +98,7 @@ class AccountService {
 	 * @param IAccountManager $accountManager
 	 * @param ActorsRequest $actorsRequest
 	 * @param FollowsRequest $followsRequest
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param ActorService $actorService
 	 * @param DocumentService $documentService
 	 * @param SignatureService $signatureService
@@ -107,7 +107,7 @@ class AccountService {
 	 */
 	public function __construct(
 		IUserManager $userManager, IAccountManager $accountManager, ActorsRequest $actorsRequest,
-		FollowsRequest $followsRequest, NotesRequest $notesRequest, ActorService $actorService,
+		FollowsRequest $followsRequest, StreamRequest $streamRequest, ActorService $actorService,
 		DocumentService $documentService, SignatureService $signatureService,
 		ConfigService $configService, MiscService $miscService
 	) {
@@ -115,7 +115,7 @@ class AccountService {
 		$this->accountManager = $accountManager;
 		$this->actorsRequest = $actorsRequest;
 		$this->followsRequest = $followsRequest;
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->actorService = $actorService;
 		$this->documentService = $documentService;
 		$this->signatureService = $signatureService;
@@ -280,7 +280,7 @@ class AccountService {
 		$count = [
 			'followers' => $this->followsRequest->countFollowers($actor->getId()),
 			'following' => $this->followsRequest->countFollowing($actor->getId()),
-			'post'      => $this->notesRequest->countNotesFromActorId($actor->getId())
+			'post'      => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
 		$actor->addDetailArray('count', $count);
 	}

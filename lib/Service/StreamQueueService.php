@@ -34,12 +34,12 @@ use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Cache;
 use daita\MySmallPhpTools\Model\CacheItem;
 use OCA\Social\AP;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Db\StreamQueueRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
@@ -61,8 +61,8 @@ use OCA\Social\Model\StreamQueue;
 class StreamQueueService {
 
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var StreamQueueRequest */
 	private $streamQueueRequest;
@@ -79,17 +79,17 @@ class StreamQueueService {
 	/**
 	 * StreamQueueService constructor.
 	 *
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param StreamQueueRequest $streamQueueRequest
 	 * @param ImportService $importService
 	 * @param CurlService $curlService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NotesRequest $notesRequest, StreamQueueRequest $streamQueueRequest,
+		StreamRequest $streamRequest, StreamQueueRequest $streamQueueRequest,
 		ImportService $importService, CurlService $curlService, MiscService $miscService
 	) {
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->streamQueueRequest = $streamQueueRequest;
 		$this->importService = $importService;
 		$this->curlService = $curlService;
@@ -170,8 +170,8 @@ class StreamQueueService {
 	 */
 	private function manageStreamQueueCache(StreamQueue $queue) {
 		try {
-			$stream = $this->notesRequest->getNoteById($queue->getStreamId());
-		} catch (NoteNotFoundException $e) {
+			$stream = $this->streamRequest->getStreamById($queue->getStreamId());
+		} catch (StreamNotFoundException $e) {
 			$this->deleteCache($queue);
 
 			return;
@@ -211,7 +211,7 @@ class StreamQueueService {
 				$this->cacheItem($item);
 				$item->setStatus(StreamQueue::STATUS_SUCCESS);
 				$cache->updateItem($item);
-			} catch (NoteNotFoundException $e) {
+			} catch (StreamNotFoundException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
 					. $e->getMessage(), 1
@@ -291,7 +291,7 @@ class StreamQueueService {
 	 * @throws InvalidResourceException
 	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -303,8 +303,8 @@ class StreamQueueService {
 	private function cacheItem(CacheItem &$item) {
 
 		try {
-			$object = $this->notesRequest->getNoteById($item->getUrl());
-		} catch (NoteNotFoundException $e) {
+			$object = $this->streamRequest->getStreamById($item->getUrl());
+		} catch (StreamNotFoundException $e) {
 			$data = $this->curlService->retrieveObject($item->getUrl());
 			$object = AP::$activityPub->getItemFromData($data);
 
@@ -323,7 +323,7 @@ class StreamQueueService {
 			$interface->save($object);
 		}
 
-		$note = $this->notesRequest->getNoteById($object->getId());
+		$note = $this->streamRequest->getStreamById($object->getId());
 		$item->setContent(json_encode($note, JSON_UNESCAPED_SLASHES));
 	}
 
@@ -335,7 +335,7 @@ class StreamQueueService {
 	 * @return bool
 	 */
 	private function updateCache(Stream $stream, Cache $cache): bool {
-		$this->notesRequest->updateCache($stream, $cache);
+		$this->streamRequest->updateCache($stream, $cache);
 
 		$done = true;
 		foreach ($cache->getItems() as $item) {

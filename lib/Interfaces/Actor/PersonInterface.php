@@ -33,7 +33,7 @@ namespace OCA\Social\Interfaces\Actor;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\NotesRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -60,8 +60,8 @@ class PersonInterface implements IActivityPubInterface {
 	/** @var CacheActorsRequest */
 	private $cacheActorsRequest;
 
-	/** @var NotesRequest */
-	private $notesRequest;
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var ActorService */
 	private $actorService;
@@ -77,17 +77,17 @@ class PersonInterface implements IActivityPubInterface {
 	 * UndoService constructor.
 	 *
 	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param NotesRequest $notesRequest
+	 * @param StreamRequest $streamRequest
 	 * @param ActorService $actorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheActorsRequest $cacheActorsRequest, NotesRequest $notesRequest,
+		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
 		ActorService $actorService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->notesRequest = $notesRequest;
+		$this->streamRequest = $streamRequest;
 		$this->actorService = $actorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -161,7 +161,7 @@ class PersonInterface implements IActivityPubInterface {
 	public function delete(ACore $item) {
 		/** @var Person $item */
 		$this->cacheActorsRequest->deleteFromId($item->getId());
-		$this->notesRequest->deleteByAuthor($item->getId());
+		$this->streamRequest->deleteByAuthor($item->getId());
 	}
 
 

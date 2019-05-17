@@ -34,7 +34,7 @@ use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\NoteNotFoundException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
@@ -95,7 +95,7 @@ class PostService {
 	 * @throws InvalidResourceException
 	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
-	 * @throws NoteNotFoundException
+	 * @throws StreamNotFoundException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException

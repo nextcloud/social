@@ -35,6 +35,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCP\DB\QueryBuilder\ICompositeExpression;
@@ -42,11 +43,11 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
- * Class NotesRequestBuilder
+ * Class StreamRequestBuilder
  *
  * @package OCA\Social\Db
  */
-class NotesRequestBuilder extends CoreRequestBuilder {
+class StreamRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -57,7 +58,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesInsertSql(): IQueryBuilder {
+	protected function getStreamInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->insert(self::TABLE_STREAMS);
 
@@ -70,7 +71,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesUpdateSql(): IQueryBuilder {
+	protected function getStreamUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->update(self::TABLE_STREAMS);
 
@@ -83,21 +84,21 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesSelectSql(): IQueryBuilder {
+	protected function getStreamSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->selectDistinct('sn.id')
+		$qb->selectDistinct('s.id')
 		   ->addSelect(
-			   'sn.type', 'sn.to', 'sn.to_array', 'sn.cc', 'sn.bcc', 'sn.content',
-			   'sn.summary', 'sn.attachments', 'sn.published', 'sn.published_time', 'sn.cache',
-			   'sn.object_id',
-			   'sn.attributed_to', 'sn.in_reply_to', 'sn.source', 'sn.local', 'sn.instances',
-			   'sn.creation'
+			   's.type', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
+			   's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
+			   's.object_id',
+			   's.attributed_to', 's.in_reply_to', 's.source', 's.local', 's.instances',
+			   's.creation'
 		   )
-		   ->from(self::TABLE_STREAMS, 'sn');
+		   ->from(self::TABLE_STREAMS, 's');
 
-		$this->defaultSelectAlias = 'sn';
+		$this->defaultSelectAlias = 's';
 
 		return $qb;
 	}
@@ -111,9 +112,11 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	protected function countNotesSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAMS, 'sn');
+		   ->from(self::TABLE_STREAMS, 's');
 
-		$this->defaultSelectAlias = 'sn';
+		$this->limitToType($qb, Note::TYPE);
+
+		$this->defaultSelectAlias = 's';
 
 		return $qb;
 	}
@@ -124,7 +127,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getNotesDeleteSql(): IQueryBuilder {
+	protected function getStreamDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAMS);
 
@@ -155,7 +158,6 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$on = $this->exprJoinFollowing($qb, $actor);
-
 		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
 	}
 
@@ -163,7 +165,6 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param Person $actor
-	 *
 	 * @param bool $followers
 	 *
 	 * @return ICompositeExpression
@@ -362,7 +363,7 @@ class NotesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return Stream
 	 */
-	protected function parseNotesSelectSql($data): Stream {
+	protected function parseStreamSelectSql($data): Stream {
 		$item = new Stream();
 		$item->importFromDatabase($data);
 
