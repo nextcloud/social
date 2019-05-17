@@ -349,7 +349,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getStreamHome($actor, $since, $limit);
+		return $this->streamRequest->getTimelineHome($actor, $since, $limit);
 	}
 
 
@@ -362,7 +362,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getStreamNotifications($actor, $since, $limit);
+		return $this->streamRequest->getTimelineNotifications($actor, $since, $limit);
 	}
 
 
@@ -375,7 +375,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getStreamAccount($actorId, $since, $limit);
+		return $this->streamRequest->getTimelineAccount($actorId, $since, $limit);
 	}
 
 
@@ -388,7 +388,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getStreamDirect($actor, $since, $limit);
+		return $this->streamRequest->getTimelineDirect($actor, $since, $limit);
 	}
 
 
@@ -400,7 +400,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getStreamTimeline($since, $limit, true);
+		return $this->streamRequest->getTimelineGlobal($since, $limit, true);
 	}
 
 
@@ -415,7 +415,7 @@ class NoteService {
 	 */
 	public function getStreamLocalTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
 	): array {
-		return $this->streamRequest->getStreamTag($actor, $hashtag, $since, $limit);
+		return $this->streamRequest->getTimelineTag($actor, $hashtag, $since, $limit);
 	}
 
 
@@ -440,7 +440,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getStreamTimeline($since, $limit, false);
+		return $this->streamRequest->getTimelineGlobal($since, $limit, false);
 	}
 
 

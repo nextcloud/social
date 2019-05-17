@@ -237,11 +237,13 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws Exception
 	 */
-	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
+	public function getTimelineHome(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
 		$this->joinFollowing($qb, $actor);
 		$this->limitPaginate($qb, $since, $limit);
+		$this->filterHiddenOnTimeline($qb);
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
@@ -274,11 +276,12 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
+	public function getTimelineNotifications(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
@@ -308,13 +311,14 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
+	public function getTimelineAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
 		$this->limitToAttributedTo($qb, $actorId);
-		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
+
+		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
 		$streams = [];
@@ -343,13 +347,14 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
+	public function getTimelineDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
 		$this->limitToRecipient($qb, $actor->getId(), true);
-		$this->filterToRecipient($qb, ACore::CONTEXT_PUBLIC);
-		$this->filterToRecipient($qb, $actor->getFollowers());
+		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
+		$this->filterRecipient($qb, $actor->getFollowers());
+		$this->filterHiddenOnTimeline($qb);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
@@ -378,7 +383,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getStreamTimeline(int $since = 0, int $limit = 5, bool $localOnly = true
+	public function getTimelineGlobal(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
@@ -387,6 +392,7 @@ class StreamRequest extends StreamRequestBuilder {
 			$this->limitToLocal($qb, true);
 		}
 
+		$this->filterHiddenOnTimeline($qb);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
@@ -421,7 +427,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getStreamTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
+	public function getTimelineTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
 	): array {
 		$qb = $this->getStreamSelectSql();
 
@@ -433,6 +439,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
 
 		$this->limitPaginate($qb, $since, $limit);
+		$this->filterHiddenOnTimeline($qb);
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
@@ -551,6 +559,10 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
 		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
+		   ->setValue(
+			   'hidden_on_timeline',
+			   $qb->createNamedParameter(($stream->isHiddenOnTimeline()) ? '1' : '0')
+		   )
 		   ->setValue(
 			   'instances', $qb->createNamedParameter(
 			   json_encode($stream->getInstancePaths(), JSON_UNESCAPED_SLASHES)

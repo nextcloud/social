@@ -74,6 +74,9 @@ class Stream extends ACore implements JsonSerializable {
 	/** @var StreamAction */
 	private $action = null;
 
+	/** @var bool */
+	private $hiddenOnTimeline = false;
+
 
 	public function __construct($parent = null) {
 		parent::__construct($parent);
@@ -289,6 +292,25 @@ class Stream extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return bool
+	 */
+	public function isHiddenOnTimeline(): bool {
+		return $this->hiddenOnTimeline;
+	}
+
+	/**
+	 * @param bool $hiddenOnTimeline
+	 *
+	 * @return Stream
+	 */
+	public function setHiddenOnTimeline(bool $hiddenOnTimeline): Stream {
+		$this->hiddenOnTimeline = $hiddenOnTimeline;
+
+		return $this;
+	}
+
+
+	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
@@ -321,6 +343,7 @@ class Stream extends ACore implements JsonSerializable {
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
+		$this->setHiddenOnTimeline($this->getBool('hidden_on_timeline', $data, false));
 
 		$cache = new Cache();
 		$cache->import($this->getArray('cache', $data, []));

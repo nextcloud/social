@@ -92,9 +92,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		   ->addSelect(
 			   's.type', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
 			   's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
-			   's.object_id',
-			   's.attributed_to', 's.in_reply_to', 's.source', 's.local', 's.instances',
-			   's.creation'
+			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
+			   's.instances', 's.creation', 's.hidden_on_timeline'
 		   )
 		   ->from(self::TABLE_STREAMS, 's');
 
@@ -145,6 +144,36 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
 		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 */
+	protected function filterHiddenOnTimeline(IQueryBuilder $qb) {
+		$actor = $this->viewer;
+
+		if ($actor === null) {
+			return;
+		}
+
+		$func = $qb->func();
+		$expr = $qb->expr();
+		$filter = $expr->orX();
+		$filter->add(
+			$expr->neq(
+				$func->lower('attributed_to'),
+				$func->lower($qb->createNamedParameter($actor->getId()))
+			)
+		);
+		$filter->add(
+			$expr->eq(
+				'hidden_on_timeline',
+				$qb->createNamedParameter('0')
+			)
+		);
+
+		$qb->andwhere($filter);
 	}
 
 
@@ -343,7 +372,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $recipient
 	 */
-	protected function filterToRecipient(IQueryBuilder &$qb, string $recipient) {
+	protected function filterRecipient(IQueryBuilder &$qb, string $recipient) {
 
 		$expr = $qb->expr();
 		$filter = $expr->andX();
@@ -354,7 +383,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'bcc', $recipient));
 
 		$qb->andWhere($filter);
-//		return $filter;
 	}
 
 
