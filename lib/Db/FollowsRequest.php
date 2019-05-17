@@ -61,7 +61,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
 		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
-		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()));
+		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
+		   ->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'));
 
 		try {
 			$qb->setValue(
@@ -98,7 +99,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * @return Follow
 	 * @throws FollowDoesNotExistException
 	 */
-	public function getByPersons(string $actorId, string $remoteActorId) {
+	public function getByPersons(string $actorId, string $remoteActorId): Follow {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToActorId($qb, $actorId);
 		$this->limitToObjectId($qb, $remoteActorId);

@@ -129,7 +129,7 @@ class Follow extends ACore implements JsonSerializable {
 		$result = parent::jsonSerialize();
 
 		if ($this->isCompleteDetails()) {
-			array_merge(
+			$result = array_merge(
 				$result,
 				[
 					'follow_id' => $this->getFollowId(),
