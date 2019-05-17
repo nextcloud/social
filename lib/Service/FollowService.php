@@ -149,8 +149,6 @@ class FollowService {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 		} catch (FollowDoesNotExistException $e) {
 			$this->followsRequest->save($follow);
-			// TODO - Remove this auto-accepted.
-			$this->followsRequest->accepted($follow);
 
 			$follow->addInstancePath(
 				new InstancePath(

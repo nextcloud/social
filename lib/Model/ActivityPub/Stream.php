@@ -48,7 +48,7 @@ class Stream extends ACore implements JsonSerializable {
 
 
 	/** @var string */
-	private $activityId;
+	private $activityId = '';
 
 	/** @var string */
 	private $content = '';
