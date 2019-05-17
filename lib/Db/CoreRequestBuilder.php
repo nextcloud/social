@@ -807,7 +807,6 @@ class CoreRequestBuilder {
 	 *
 	 * @return Document
 	 * @throws InvalidResourceException
-	 * @throws Exception
 	 */
 	protected function parseCacheDocumentsLeftJoin(array $data): Document {
 		$new = [];

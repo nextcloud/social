@@ -237,8 +237,6 @@ class Document extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
-	 *
-	 * @throws Exception
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
@@ -253,8 +251,11 @@ class Document extends ACore implements JsonSerializable {
 		if ($this->get('caching', $data, '') === '') {
 			$this->setCaching(0);
 		} else {
-			$date = new DateTime($this->get('caching', $data, ''));
-			$this->setCaching($date->getTimestamp());
+			try {
+				$date = new DateTime($this->get('caching', $data, ''));
+				$this->setCaching($date->getTimestamp());
+			} catch (Exception $e) {
+			}
 		}
 	}
 

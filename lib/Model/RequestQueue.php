@@ -34,6 +34,7 @@ namespace OCA\Social\Model;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use DateTime;
+use Exception;
 use JsonSerializable;
 
 
@@ -323,8 +324,11 @@ class RequestQueue implements JsonSerializable {
 		if ($last === '') {
 			$this->setLast(0);
 		} else {
-			$dTime = new DateTime($last);
-			$this->setLast($dTime->getTimestamp());
+			try {
+				$dTime = new DateTime($last);
+				$this->setLast($dTime->getTimestamp());
+			} catch (Exception $e) {
+			}
 		}
 	}
 

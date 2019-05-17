@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use DateTime;
+use Exception;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -111,11 +112,16 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function refreshKeys(Person $actor) {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
-		   ->set(
-			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+		   ->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+
+		try {
+			$qb->set(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
+
 		$this->limitToIdString($qb, $actor->getId());
 
 		$qb->execute();

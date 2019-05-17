@@ -212,12 +212,13 @@ class Stream extends ACore implements JsonSerializable {
 	}
 
 	/**
-	 *
-	 * @throws Exception
 	 */
 	public function convertPublished() {
-		$dTime = new DateTime($this->getPublished());
-		$this->setPublishedTime($dTime->getTimestamp());
+		try {
+			$dTime = new DateTime($this->getPublished());
+			$this->setPublishedTime($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
 	}
 
 
@@ -289,8 +290,6 @@ class Stream extends ACore implements JsonSerializable {
 
 	/**
 	 * @param array $data
-	 *
-	 * @throws Exception
 	 */
 	public function import(array $data) {
 		parent::import($data);
