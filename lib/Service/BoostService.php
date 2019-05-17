@@ -120,7 +120,7 @@ class BoostService {
 		} catch (StreamNotFoundException $e) {
 		}
 
-		$announce = new Announce();
+		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
 		$this->noteService->assignItem($announce, $actor, Stream::TYPE_PUBLIC);
 		$announce->setActor($actor);
 

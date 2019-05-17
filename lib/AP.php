@@ -278,6 +278,7 @@ class AP {
 
 			case Announce::TYPE:
 				$item = new Announce();
+				$item->setHiddenOnTimeline(true);
 				break;
 
 			case Block::TYPE:
@@ -313,7 +314,8 @@ class AP {
 				break;
 
 			case SocialAppNotification::TYPE:
-				return new SocialAppNotification();
+				$item = new SocialAppNotification();
+				break;
 
 			case Person::TYPE:
 				$item = new Person();
