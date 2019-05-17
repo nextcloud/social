@@ -57,11 +57,15 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('error', $qb->createNamedParameter($document->getError()))
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
-		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'))
-		   ->setValue(
-			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
+
+		try {
+			$qb->setValue(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
 
 		$this->generatePrimaryKey($qb, $document->getId());
 
@@ -83,11 +87,15 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->set('error', $qb->createNamedParameter($document->getError()))
 		   ->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->set('parent_id', $qb->createNamedParameter($document->getParentId()))
-		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'))
-		   ->set(
-			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
+
+		try {
+			$qb->set(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
 
 		$this->limitToIdString($qb, $document->getId());
 		$qb->execute();
@@ -100,9 +108,13 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function initCaching(Document $document) {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$this->limitToIdString($qb, $document->getId());
-		$qb->set(
-			'caching', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		);
+
+		try {
+			$qb->set(
+				'caching', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
 
 		$qb->execute();
 	}

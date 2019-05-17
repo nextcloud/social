@@ -50,6 +50,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IURLGenerator;
@@ -147,6 +148,12 @@ class DocumentService {
 			);
 			$document->setMimeType($mime);
 			$document->setError(self::ERROR_MIMETYPE);
+			$this->cacheDocumentsRequest->endCaching($document);
+		} catch (NotFoundException $e) {
+			$this->miscService->log(
+				'Cannot save cache file ' . json_encode($document) . ' ' . json_encode($e), 1
+			);
+			$document->setError(self::ERROR_PERMISSION);
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (NotPermittedException $e) {
 			$this->miscService->log(

@@ -36,9 +36,11 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonLdException;
+use OC;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -187,10 +189,17 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
+	 * @throws DateTimeException
 	 */
 	public function checkRequest(IRequest $request, int &$time = 0): string {
-		$dTime = new DateTime($request->getHeader('date'));
-		$time = $dTime->getTimestamp();
+		try {
+			$dTime = new DateTime($request->getHeader('date'));
+			$time = $dTime->getTimestamp();
+		} catch (Exception $e) {
+			throw new DateTimeException(
+				'datetime exception: ' . $e->getMessage() . ' - ' . $request->getHeader('date')
+			);
+		}
 
 		if ($time < (time() - self::DATE_DELAY)) {
 			throw new SignatureException('object is too old');
@@ -221,6 +230,7 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
+	 * @throws DateTimeException
 	 */
 	public function checkObject(ACore $object): bool {
 		try {
@@ -237,8 +247,14 @@ class SignatureService {
 				}
 			}
 
-			$dTime = new DateTime($signature->getCreated());
-			$time = $dTime->getTimestamp();
+			try {
+				$dTime = new DateTime($signature->getCreated());
+				$time = $dTime->getTimestamp();
+			} catch (Exception $e) {
+				throw new DateTimeException(
+					'datetime exception: ' . $e->getMessage() . ' - ' . $signature->getCreated()
+				);
+			}
 
 			$object->setOrigin(
 				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time
@@ -432,6 +448,7 @@ class SignatureService {
 	 * @return stdClass
 	 * @throws NotPermittedException
 	 * @throws JsonLdException
+	 * @throws NotFoundException
 	 */
 	public static function documentLoader($url): stdClass {
 		$recursion = 0;
@@ -472,7 +489,7 @@ class SignatureService {
 	private static function getContextCacheFolder(): ISimpleFolder {
 		$path = 'context';
 
-		$appData = \OC::$server->getAppDataDir(Application::APP_NAME);
+		$appData = OC::$server->getAppDataDir(Application::APP_NAME);
 		try {
 			$folder = $appData->getFolder($path);
 		} catch (NotFoundException $e) {
@@ -492,6 +509,7 @@ class SignatureService {
 	 * @return stdClass
 	 * @throws JsonLdException
 	 * @throws NotPermittedException
+	 * @throws NotFoundException
 	 */
 	private static function generateContextCacheDocument(
 		ISimpleFolder $folder, string $filename, string $url
@@ -522,6 +540,7 @@ class SignatureService {
 	 * @param string $url
 	 *
 	 * @throws NotPermittedException
+	 * @throws NotFoundException
 	 */
 	private static function updateContextCacheDocument(ISimpleFile $cache, string $url) {
 		if ($cache->getMTime() < (time() - 98765)) {

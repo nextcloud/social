@@ -129,6 +129,9 @@ class Note extends Stream implements JsonSerializable {
 	}
 
 
+	/**
+	 * @param array $list
+	 */
 	public function importAttachments(array $list) {
 		$new = [];
 		foreach ($list as $item) {

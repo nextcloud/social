@@ -34,16 +34,15 @@ use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\StreamNotFoundException;
-use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+
 
 /**
  * Class BoostService
@@ -154,9 +153,6 @@ class BoostService {
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
-	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
-	 * @throws RedundancyLimitException
 	 */
 	public function get(Person $actor, string $postId): Stream {
 		$stream = $this->streamRequest->getStreamByObjectId($actor, Announce::TYPE, $postId);

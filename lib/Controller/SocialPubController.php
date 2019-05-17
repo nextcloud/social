@@ -32,6 +32,7 @@ namespace OCA\Social\Controller;
 
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 
+use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -118,7 +119,7 @@ class SocialPubController extends Controller {
 			$data['application'] = $displayName . ' - ' . $data['application'];
 		} catch (CacheActorDoesNotExistException $e) {
 			$status = Http::STATUS_NOT_FOUND;
-		} catch (\Exception $e) {
+		} catch (Exception $e) {
 			return $this->fail($e);
 		}
 		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);

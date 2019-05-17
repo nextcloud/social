@@ -161,7 +161,6 @@ class AccountService {
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
-	 * @throws ItemUnknownException
 	 */
 	public function getActorFromUserId(string $userId, bool $create = false): Person {
 		$this->miscService->confirmUserId($userId);
@@ -196,7 +195,6 @@ class AccountService {
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
-	 * @throws ItemUnknownException
 	 */
 	public function createActor(string $userId, string $username) {
 

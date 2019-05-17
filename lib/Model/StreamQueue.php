@@ -33,6 +33,7 @@ namespace OCA\Social\Model;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
+use Exception;
 use JsonSerializable;
 
 
@@ -239,8 +240,11 @@ class StreamQueue implements JsonSerializable {
 		if ($last === '') {
 			$this->setLast(0);
 		} else {
-			$dTime = new DateTime($last);
-			$this->setLast($dTime->getTimestamp());
+			try {
+				$dTime = new DateTime($last);
+				$this->setLast($dTime->getTimestamp());
+			} catch (Exception $e) {
+			}
 		}
 	}
 

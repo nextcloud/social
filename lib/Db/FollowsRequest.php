@@ -54,8 +54,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * Insert a new Note in the database.
 	 *
 	 * @param Follow $follow
-	 *
-	 * @throws Exception
 	 */
 	public function save(Follow $follow) {
 		$qb = $this->getFollowsInsertSql();
@@ -63,11 +61,15 @@ class FollowsRequest extends FollowsRequestBuilder {
 		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
 		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
-		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
-		   ->setValue(
-			   'creation',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()));
+
+		try {
+			$qb->setValue(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
 
 		$this->generatePrimaryKey($qb, $follow->getId());
 

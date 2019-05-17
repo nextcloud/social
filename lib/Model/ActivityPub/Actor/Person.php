@@ -32,6 +32,7 @@ namespace OCA\Social\Model\ActivityPub\Actor;
 
 
 use DateTime;
+use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -483,8 +484,6 @@ class Person extends ACore implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
-		$dTime = new DateTime($this->get('creation', $data, 'yesterday'));
-
 		$this->setPreferredUsername(
 			$this->validate(self::AS_USERNAME, 'preferred_username', $data, '')
 		)
@@ -498,8 +497,13 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
 			 ->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
 			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
-			 ->setDetails($this->getArray('details', $data, []))
-			 ->setCreation($dTime->getTimestamp());
+			 ->setDetails($this->getArray('details', $data, []));
+
+		try {
+			$dTime = new DateTime($this->get('creation', $data, 'yesterday'));
+			$this->setCreation($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
 	}
 
 

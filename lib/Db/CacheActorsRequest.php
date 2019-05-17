@@ -65,13 +65,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function save(Person $actor) {
 
-		if ($actor->getCreation() > 0) {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($actor->getCreation());
-		} else {
-			$dTime = new DateTime('now');
-		}
-
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
@@ -91,11 +84,22 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
-		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
-		   ->setValue(
-			   'creation',
-			   $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
-		   );
+		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())));
+
+		try {
+			if ($actor->getCreation() > 0) {
+				$dTime = new DateTime();
+				$dTime->setTimestamp($actor->getCreation());
+			} else {
+				$dTime = new DateTime('now');
+			}
+
+			$qb->setValue(
+				'creation',
+				$qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
 
 		if ($actor->gotIcon()) {
 			$iconId = $actor->getIcon()
@@ -121,13 +125,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function update(Person $actor): int {
 
-		if ($actor->getCreation() > 0) {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($actor->getCreation());
-		} else {
-			$dTime = new DateTime('now');
-		}
-
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
 		   ->set('followers', $qb->createNamedParameter($actor->getFollowers()))
@@ -143,11 +140,21 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->set('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->set('source', $qb->createNamedParameter($actor->getSource()))
-		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetails())))
-		   ->set(
-			   'creation',
-			   $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
-		   );
+		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetails())));
+
+		try {
+			if ($actor->getCreation() > 0) {
+				$dTime = new DateTime();
+				$dTime->setTimestamp($actor->getCreation());
+			} else {
+				$dTime = new DateTime('now');
+			}
+			$qb->set(
+				'creation',
+				$qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
 
 		if ($actor->gotIcon()) {
 			$iconId = $actor->getIcon()
