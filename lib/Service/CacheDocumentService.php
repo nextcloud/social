@@ -196,9 +196,10 @@ class CacheDocumentService {
 	 */
 	public function retrieveContent(string $url) {
 		$url = parse_url($url);
-		$this->mustContains(['path', 'host'], $url);
+		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new Request($url['path'], Request::TYPE_GET, true);
 		$request->setAddress($url['host']);
+		$request->setProtocol($url['scheme']);
 
 		$content = $this->curlService->request($request);
 
