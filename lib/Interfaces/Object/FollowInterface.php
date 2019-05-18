@@ -254,13 +254,15 @@ class FollowInterface implements IActivityPubInterface {
 	 * @param Follow $follow
 	 *
 	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
 	private function generateNotification(Follow $follow) {
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface =
 			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
-		$notification = new SocialAppNotification();
+		/** @var SocialAppNotification $notification */
+		$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
 		$notification->setAttributedTo($follow->getActorId())
 					 ->setId($follow->getId() . '/notification')
 					 ->setSummary('{actor} is following you')

@@ -110,6 +110,9 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 			return;
 		}
 
+		$notification->setPublished(date("c"));
+		$notification->convertPublished();
+
 		$this->miscService->log('Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1);
 		$this->streamRequest->save($notification);
 	}
