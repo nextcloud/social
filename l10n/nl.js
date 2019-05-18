@@ -39,6 +39,7 @@ OC.L10N.register(
     "There were no results for your search:" : "Geen resultaten voor je zoekterm:",
     "Searching for" : "Zoeken naar",
     "Reply" : "Antwoord",
+    "Boost" : "Boost",
     "More actions" : "Meer acties",
     "Delete post" : "Verwijder bericht",
     "No posts found" : "Geen berichten gevonden",
