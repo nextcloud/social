@@ -40,8 +40,10 @@ use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -321,6 +323,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
+		$this->limitToType($qb, SocialAppNotification::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
@@ -394,6 +397,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToRecipient($qb, $actor->getId(), true);
 		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterRecipient($qb, $actor->getFollowers());
+		$this->filterType($qb, SocialAppNotification::TYPE);
 //		$this->filterHiddenOnTimeline($qb);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
