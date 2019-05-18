@@ -200,6 +200,15 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $type
+	 */
+	protected function filterType(IQueryBuilder $qb, string $type) {
+		$this->filterDBField($qb, 'type', $type);
+	}
+
+
+	/**
 	 * Limit the request to the Preferred Username
 	 *
 	 * @param IQueryBuilder $qb
@@ -474,7 +483,7 @@ class CoreRequestBuilder {
 	protected function limitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
-		$expr = $this->exprLimitToDBField($qb, $field, $value, $cs, $alias);
+		$expr = $this->exprLimitToDBField($qb, $field, $value, true, $cs, $alias);
 		$qb->andWhere($expr);
 	}
 
@@ -483,13 +492,30 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param string $value
+	 * @param bool $cs - case sensitive
+	 * @param string $alias
+	 */
+	protected function filterDBField(
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+	) {
+		$expr = $this->exprLimitToDBField($qb, $field, $value, false, $cs, $alias);
+		$qb->andWhere($expr);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $field
+	 * @param string $value
+	 * @param bool $eq - true = limit, false = filter
 	 * @param bool $cs
 	 * @param string $alias
 	 *
 	 * @return string
 	 */
 	protected function exprLimitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+		IQueryBuilder &$qb, string $field, string $value, bool $eq, bool $cs = true,
+		string $alias = ''
 	): string {
 		$expr = $qb->expr();
 
@@ -499,12 +525,19 @@ class CoreRequestBuilder {
 		}
 		$field = $pf . $field;
 
+		$comp = 'eq';
+		if (!$eq) {
+			$comp = 'neq';
+		}
+
 		if ($cs) {
-			return $expr->eq($field, $qb->createNamedParameter($value));
+			return $expr->$comp($field, $qb->createNamedParameter($value));
 		} else {
 			$func = $qb->func();
 
-			return $expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)));
+			return $expr->$comp(
+				$func->lower($field), $func->lower($qb->createNamedParameter($value))
+			);
 		}
 	}
 

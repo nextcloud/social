@@ -137,6 +137,16 @@ export default {
 					text: t('social', 'Direct messages')
 				},
 				{
+					id: 'social-notifications',
+					classes: [],
+					router: {
+						name: 'timeline',
+						params: { type: 'notifications' }
+					},
+					icon: 'icon-comment',
+					text: t('social', 'Notifications')
+				},
+				{
 					id: 'social-account',
 					classes: [],
 					icon: 'icon-user',
