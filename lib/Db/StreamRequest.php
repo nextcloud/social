@@ -216,6 +216,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->countNotesSelectSql();
 		$this->limitToAttributedTo($qb, $actorId);
 		$this->limitToType($qb, Note::TYPE);
+		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
