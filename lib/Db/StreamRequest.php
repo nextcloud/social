@@ -36,7 +36,6 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\StreamNotFoundException;
-use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
@@ -135,7 +134,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new StreamNotFoundException('Stream not found');
+			throw new StreamNotFoundException(
+				'Stream (ById) not found - ' . $id . ' (asViewer: ' . $asViewer . ')'
+			);
 		}
 
 		try {
@@ -168,7 +169,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new StreamNotFoundException('Stream not found');
+			throw new StreamNotFoundException('Stream (ByActivityId) not found - ' . $id);
 		}
 
 		return $this->parseStreamSelectSql($data);
