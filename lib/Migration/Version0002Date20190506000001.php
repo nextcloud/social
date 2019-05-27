@@ -422,7 +422,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'attachments', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false
 			]
 		);
 		$table->addColumn(

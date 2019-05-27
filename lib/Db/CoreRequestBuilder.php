@@ -969,9 +969,12 @@ class CoreRequestBuilder {
 			self::TABLE_REQUEST_QUEUE,
 			self::TABLE_ACTORS,
 			self::TABLE_STREAMS,
+			self::TABLE_HASHTAGS,
 			self::TABLE_FOLLOWS,
 			self::TABLE_CACHE_ACTORS,
-			self::TABLE_CACHE_DOCUMENTS
+			self::TABLE_CACHE_DOCUMENTS,
+			self::TABLE_STREAM_QUEUE,
+			self::TABLE_STREAM_ACTIONS
 		];
 
 		foreach ($tables as $table) {
