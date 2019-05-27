@@ -115,7 +115,14 @@ class CurlService {
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
 
-		$result = $this->request($request);
+		try {
+			$result = $this->request($request);
+		} catch (RequestNetworkException $e) {
+			if ($e->getCode() === CURLE_COULDNT_CONNECT) {
+				$request->setProtocol('http');
+				$result = $this->request($request);
+			} else throw $e;
+		}
 
 		return $result;
 	}
@@ -419,7 +426,7 @@ class CurlService {
 			throw new RequestNetworkException(
 				$errno . ' - ' . curl_error($curl) . ' - ' . json_encode(
 					$request, JSON_UNESCAPED_SLASHES
-				)
+				), $errno
 			);
 		}
 	}
