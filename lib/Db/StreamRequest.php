@@ -133,7 +133,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new StreamNotFoundException('Stream not found');
+			throw new StreamNotFoundException(
+				'Stream (ById) not found - ' . $id . ' (asViewer: ' . $asViewer . ')'
+			);
 		}
 
 		try {
@@ -166,7 +168,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new StreamNotFoundException('Stream not found');
+			throw new StreamNotFoundException('Stream (ByActivityId) not found - ' . $id);
 		}
 
 		return $this->parseStreamSelectSql($data);

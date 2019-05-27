@@ -54,17 +54,17 @@ if ($type !== 'acct') {
 
 
 list($username, $instance) = explode('@', $account);
-
 try {
 	$cacheActorService = OC::$server->query(CacheActorService::class);
 	$configService = OC::$server->query(ConfigService::class);
 
 	if ($configService->getCloudAddress(true) !== $instance) {
-		throw new Exception();
+		throw new Exception('instance is ' . $instance . ', expected ' . $configService->getCloudAddress(true));
 	}
 
 	$cacheActorService->getFromLocalAccount($username);
 } catch (Exception $e) {
+	OC::$server->getLogger()->log(1, 'Exception on webfinger - ' . $e->getMessage());
 	http_response_code(404);
 	exit;
 }
