@@ -107,6 +107,7 @@ class Queue extends TimedJob {
 
 
 	private function manageStreamQueue() {
+		$total = 0;
 		$items = $this->streamQueueService->getRequestStandby($total);
 
 		foreach ($items as $item) {

@@ -296,6 +296,7 @@ class CurlService {
 		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 
+		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
 
 		$this->maxDownloadSize =
