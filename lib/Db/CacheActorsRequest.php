@@ -242,7 +242,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$cursor->closeCursor();
 
 		if ($data === false) {
-			throw new CacheActorDoesNotExistException();
+			throw new CacheActorDoesNotExistException('Unknown account \'' . $account . "'");
 		}
 
 		return $this->parseCacheActorsSelectSql($data);
