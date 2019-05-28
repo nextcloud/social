@@ -64,7 +64,8 @@ export default {
 	},
 	mixins: [popoverMenu, currentUser],
 	props: {
-		item: { type: Object, default: () => {} }
+		item: { type: Object, default: () => {} },
+    parentAnnounce: { type: Object, default: () => {} }
 	},
 	data() {
 		return {
@@ -131,10 +132,14 @@ export default {
 			this.$root.$emit('composer-reply', this.item)
 		},
 		boost() {
+      let params = {
+        post: this.item,
+        parentAnnounce: this.parentAnnounce
+      }
 			if (this.isBoosted) {
-				this.$store.dispatch('postUnBoost', this.item)
+				this.$store.dispatch('postUnBoost', params)
 			} else {
-				this.$store.dispatch('postBoost', this.item)
+				this.$store.dispatch('postBoost', params)
 			}
 		}
 	}

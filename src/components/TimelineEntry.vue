@@ -14,7 +14,7 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-content :item="entryContent" />
+		<timeline-content :item="entryContent" :parentAnnounce="isBoost" />
 	</div>
 </template>
 
@@ -40,7 +40,11 @@ export default {
 			} else {
 				return this.item
 			}
-
+		},
+		isBoost() {
+			if (this.item.type === 'Announce'){
+				return this.item
+			}
 		},
 		boosted() {
 			return t('social', 'boosted')
