@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\AP;
@@ -415,11 +416,20 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		} catch (InvalidResourceException $e) {
 		}
 
-		try {
-			$action = $this->parseStreamActionsLeftJoin($data);
-			$item->setAction($action);
-		} catch (InvalidResourceException $e) {
+		$action = $this->parseStreamActionsLeftJoin($data);
+		if ($item->hasCache()) {
+			$cache = $item->getCache();
+			try {
+				$cachedItem = $cache->getItem($action->getStreamId());
+				$cachedObject = $cachedItem->getObject();
+				$cachedObject['action'] = $action;
+				$cachedItem->setContent(json_encode($cachedObject));
+				$cache->updateItem($cachedItem, false);
+			} catch (CacheItemNotFoundException $e) {
+			}
 		}
+
+		$item->setAction($action);
 
 		return $item;
 	}

@@ -54,11 +54,21 @@ const mutations = {
 	setAccount(state, account) {
 		state.account = account
 	},
-	boostPost(state, post) {
-		Vue.set(state.timeline[post.id].action.values, 'boosted', true)
+	boostPost(state, { post, parentAnnounce }) {
+		if (typeof state.timeline[post.id] !== 'undefined') {
+			Vue.set(state.timeline[post.id].action.values, 'boosted', true)
+		}
+		if (typeof parentAnnounce.id !== 'undefined') {
+			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', true)
+		}
 	},
-	unboostPost(state, post) {
-		Vue.set(state.timeline[post.id].action.values, 'boosted', false)
+	unboostPost(state, { post, parentAnnounce }) {
+		if (typeof state.timeline[post.id] !== 'undefined') {
+			Vue.set(state.timeline[post.id].action.values, 'boosted', false)
+		}
+		if (typeof parentAnnounce.id !== 'undefined') {
+			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
+		}
 	}
 }
 const getters = {
@@ -103,10 +113,10 @@ const actions = {
 			console.error('Failed to delete the post', error)
 		})
 	},
-	postBoost(context, post) {
+	postBoost(context, { post, parentAnnounce }) {
 		return new Promise((resolve, reject) => {
 			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-				context.commit('boostPost', post)
+				context.commit('boostPost', { post, parentAnnounce })
 				// eslint-disable-next-line no-console
 				console.log('Post boosted with token ' + response.data.result.token)
 				resolve(response)
@@ -117,9 +127,9 @@ const actions = {
 			})
 		})
 	},
-	postUnBoost(context, post) {
+	postUnBoost(context, { post, parentAnnounce }) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-			context.commit('unboostPost', post)
+			context.commit('unboostPost', { post, parentAnnounce })
 			// eslint-disable-next-line no-console
 			console.log('Boost deleted with token ' + response.data.result.token)
 		}).catch((error) => {

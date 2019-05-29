@@ -524,7 +524,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		$cache = '[]';
-		if ($stream->gotCache()) {
+		if ($stream->hasCache()) {
 			$cache = json_encode($stream->getCache(), JSON_UNESCAPED_SLASHES);
 		}
 
