@@ -473,7 +473,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$streams = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$streams[] = $this->parseStreamSelectSql($data);
+			$streams[] = $this->parseStreamSelectSql($data, Note::TYPE);
 		}
 		$cursor->closeCursor();
 

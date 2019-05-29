@@ -41,6 +41,9 @@ use OCA\Social\Model\StreamAction;
 class Stream extends ACore implements JsonSerializable {
 
 
+	const TYPE = 'Stream';
+
+
 	const TYPE_PUBLIC = 'public';
 	const TYPE_UNLISTED = 'unlisted';
 	const TYPE_FOLLOWERS = 'followers';

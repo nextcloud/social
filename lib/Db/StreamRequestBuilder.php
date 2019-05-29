@@ -32,7 +32,10 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
+use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -385,11 +388,15 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
+	 * @param string $as
 	 *
 	 * @return Stream
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
-	protected function parseStreamSelectSql($data): Stream {
-		$item = new Stream();
+	protected function parseStreamSelectSql(array $data, string $as = Stream::TYPE): Stream {
+		/** @var Stream $item */
+		$item = AP::$activityPub->getItemFromType($as);
 		$item->importFromDatabase($data);
 
 		$instances = json_decode($this->get('instances', $data, '[]'), true);
