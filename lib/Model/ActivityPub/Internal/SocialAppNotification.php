@@ -59,7 +59,7 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 	 * @throws Exception
 	 */
 	public function import(array $data) {
-		parent::import($data);
+		//parent::import($data);
 	}
 
 
