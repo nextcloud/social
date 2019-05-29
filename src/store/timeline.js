@@ -55,18 +55,18 @@ const mutations = {
 		state.account = account
 	},
 	boostPost(state, { post, parentAnnounce }) {
-		if (!typeof state.timeline[post.id] === 'undefined') {
+		if (typeof state.timeline[post.id] !== 'undefined') {
 			Vue.set(state.timeline[post.id].action.values, 'boosted', true)
 		}
-		if (parentAnnounce) {
+		if (typeof parentAnnounce.id !== 'undefined') {
 			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', true)
 		}
 	},
 	unboostPost(state, { post, parentAnnounce }) {
-		if (!typeof state.timeline[post.id] === 'undefined') {
+		if (typeof state.timeline[post.id] !== 'undefined') {
 			Vue.set(state.timeline[post.id].action.values, 'boosted', false)
 		}
-		if (parentAnnounce) {
+		if (typeof parentAnnounce.id !== 'undefined') {
 			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
 		}
 	}

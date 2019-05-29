@@ -1,7 +1,7 @@
 <template>
 	<div class="timeline-entry">
 		<div v-if="item.type === 'Announce'" class="boost">
-			<span class="icon-boost"></span>
+			<span class="icon-boost" />
 			<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
 				<span v-tooltip.bottom="item.actor_info.account" class="post-author">
 					{{ userDisplayName(item.actor_info) }}
