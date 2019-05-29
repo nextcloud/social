@@ -1,48 +1,48 @@
 <template>
-  <div class="entry-content">
-    <div v-if="item.actor_info" class="post-avatar">
-      <avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
-        :display-name="item.actor_info.account" :disable-tooltip="true" />
-      <avatar v-else :size="32" :url="avatarUrl"
-        :disable-tooltip="true" />
-    </div>
-    <div class="post-content">
-      <div class="post-author-wrapper">
-        <router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-          <span class="post-author">
-            {{ userDisplayName(item.actor_info) }}
-          </span>
-          <span class="post-author-id">
-            @{{ item.actor_info.account }}
-          </span>
-        </router-link>
-        <a v-else :href="item.attributedTo">
-          <span class="post-author-id">
-            {{ item.attributedTo }}
-          </span>
-        </a>
-      </div>
-      <!-- eslint-disable-next-line vue/no-v-html -->
-      <div class="post-message" v-html="formatedMessage" />
-      <div v-click-outside="hidePopoverMenu" class="post-actions">
-        <a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
-        <a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
-          :class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
-          @click.prevent="boost" />
-        <div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
-          <a class="icon-more" @click.prevent="togglePopoverMenu" />
-          <div :class="{open: menuOpened}" class="popovermenu menu-center">
-            <popover-menu :menu="popoverMenu" />
-          </div>
-        </div>
-      </div>
-    </div>
-    <div>
-      <div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
-        {{ relativeTimestamp }}
-      </div>
-    </div>
-  </div>
+	<div class="entry-content">
+		<div v-if="item.actor_info" class="post-avatar">
+			<avatar v-if="item.local" :size="32" :user="item.actor_info.preferredUsername"
+				:display-name="item.actor_info.account" :disable-tooltip="true" />
+			<avatar v-else :size="32" :url="avatarUrl"
+				:disable-tooltip="true" />
+		</div>
+		<div class="post-content">
+			<div class="post-author-wrapper">
+				<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
+					<span class="post-author">
+						{{ userDisplayName(item.actor_info) }}
+					</span>
+					<span class="post-author-id">
+						@{{ item.actor_info.account }}
+					</span>
+				</router-link>
+				<a v-else :href="item.attributedTo">
+					<span class="post-author-id">
+						{{ item.attributedTo }}
+					</span>
+				</a>
+			</div>
+			<!-- eslint-disable-next-line vue/no-v-html -->
+			<div class="post-message" v-html="formatedMessage" />
+			<div v-click-outside="hidePopoverMenu" class="post-actions">
+				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
+				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
+					:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
+					@click.prevent="boost" />
+				<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
+					<a class="icon-more" @click.prevent="togglePopoverMenu" />
+					<div :class="{open: menuOpened}" class="popovermenu menu-center">
+						<popover-menu :menu="popoverMenu" />
+					</div>
+				</div>
+			</div>
+		</div>
+		<div>
+			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
+				{{ relativeTimestamp }}
+			</div>
+		</div>
+	</div>
 </template>
 
 <script>
@@ -65,7 +65,7 @@ export default {
 	mixins: [popoverMenu, currentUser],
 	props: {
 		item: { type: Object, default: () => {} },
-    parentAnnounce: { type: Object, default: () => {} }
+		parentAnnounce: { type: Object, default: () => {} }
 	},
 	data() {
 		return {
@@ -132,10 +132,10 @@ export default {
 			this.$root.$emit('composer-reply', this.item)
 		},
 		boost() {
-      let params = {
-        post: this.item,
-        parentAnnounce: this.parentAnnounce
-      }
+			let params = {
+				post: this.item,
+				parentAnnounce: this.parentAnnounce
+			}
 			if (this.isBoosted) {
 				this.$store.dispatch('postUnBoost', params)
 			} else {

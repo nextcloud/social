@@ -1,7 +1,7 @@
 <template>
 	<div class="timeline-entry">
 		<div v-if="item.type === 'Announce'" class="boost">
-			<span class="icon-container"><span class="icon-boost"></span></span>
+			<span class="icon-boost"></span>
 			<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
 				<span v-tooltip.bottom="item.actor_info.account" class="post-author">
 					{{ userDisplayName(item.actor_info) }}
@@ -14,7 +14,7 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-content :item="entryContent" :parentAnnounce="isBoost" />
+		<timeline-content :item="entryContent" :parent-announce="isBoost" />
 	</div>
 </template>
 
@@ -42,9 +42,10 @@ export default {
 			}
 		},
 		isBoost() {
-			if (this.item.type === 'Announce'){
+			if (this.item.type === 'Announce') {
 				return this.item
 			}
+			return {}
 		},
 		boosted() {
 			return t('social', 'boosted')
@@ -68,13 +69,11 @@ export default {
 		width: 44px;
 		height: 17px;
 		opacity: .5;
+		background-position: right center;
+		vertical-align: middle;
 	}
 
-	.post-author {
-		font-weight: bold;
-	}
-
-	.post-author-id {
-		opacity: .7;
+	.boost {
+		opacity: .5;
 	}
 </style>
