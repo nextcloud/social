@@ -228,7 +228,7 @@ class Stream extends ACore implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
-	public function gotCache(): bool {
+	public function hasCache(): bool {
 		return ($this->cache !== null);
 	}
 
@@ -254,7 +254,7 @@ class Stream extends ACore implements JsonSerializable {
 	public function addCacheItem(string $url): Stream {
 		$cacheItem = new CacheItem($url);
 
-		if (!$this->gotCache()) {
+		if (!$this->hasCache()) {
 			$this->setCache(new Cache());
 		}
 
@@ -373,7 +373,7 @@ class Stream extends ACore implements JsonSerializable {
 				$result,
 				[
 					'action'        => ($this->hasAction()) ? $this->getAction() : [],
-					'cache'         => ($this->gotCache()) ? $this->getCache() : '',
+					'cache'         => ($this->hasCache()) ? $this->getCache() : '',
 					'publishedTime' => $this->getPublishedTime()
 				]
 			);

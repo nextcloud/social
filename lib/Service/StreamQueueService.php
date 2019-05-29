@@ -177,7 +177,7 @@ class StreamQueueService {
 			return;
 		}
 
-		if (!$stream->gotCache()) {
+		if (!$stream->hasCache()) {
 			$this->deleteCache($queue);
 
 			return;

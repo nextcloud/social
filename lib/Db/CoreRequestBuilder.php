@@ -755,7 +755,6 @@ class CoreRequestBuilder {
 	 * @param array $data
 	 *
 	 * @return StreamAction
-	 * @throws InvalidResourceException
 	 */
 	protected function parseStreamActionsLeftJoin(array $data): StreamAction {
 		$new = [];

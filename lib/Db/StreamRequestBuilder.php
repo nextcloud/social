@@ -410,6 +410,18 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		try {
 			$action = $this->parseStreamActionsLeftJoin($data);
+			if ($item->hasCache()) {
+				$cache = $item->getCache();
+				if ($cache->hasItem($action->getStreamId())) {
+					$cachedItem = $item->getCache()
+									   ->getItem($action->getStreamId());
+					$cachedObject = $cachedItem->getObject();
+					$cachedObject['action'] = $action;
+					$cachedItem->setContent(json_encode($cachedObject));
+					$cache->updateItem($cachedItem, false);
+				}
+			}
+
 			$item->setAction($action);
 		} catch (InvalidResourceException $e) {
 		}
