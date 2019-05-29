@@ -210,6 +210,23 @@ class StreamAction implements JsonSerializable {
 
 
 	/**
+	 * @param array $default
+	 *
+	 * @return StreamAction
+	 */
+	public function setDefaultValues(array $default): StreamAction {
+		$keys = array_keys($default);
+		foreach ($keys as $k) {
+			if (!array_key_exists($k, $this->values)) {
+				$this->values[$k] = $default[$k];
+			}
+		}
+
+		return $this;
+	}
+
+
+	/**
 	 * @param array $data
 	 */
 	public function importFromDatabase(array $data) {

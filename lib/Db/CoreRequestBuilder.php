@@ -731,8 +731,12 @@ class CoreRequestBuilder {
 		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
 		   ->selectAlias('sa.values', 'streamaction_values');
 
+		$orX = $expr->orX();
+		$orX->add($expr->eq($func->lower($pf . '.id'), $func->lower('sa.stream_id')));
+		$orX->add($expr->eq($func->lower($pf . '.object_id'), $func->lower('sa.stream_id')));
+
 		$andX = $expr->andX();
-		$andX->add($expr->eq($func->lower($pf . '.id'), $func->lower('sa.stream_id')));
+		$andX->add($orX);
 		$andX->add(
 			$expr->eq(
 				$func->lower('sa.actor_id'),
@@ -763,10 +767,11 @@ class CoreRequestBuilder {
 
 		$action = new StreamAction();
 		$action->importFromDatabase($new);
-
-		if ($action->getId() === 0) {
-			throw new InvalidResourceException();
-		}
+		$action->setDefaultValues(
+			[
+				'boosted' => false
+			]
+		);
 
 		return $action;
 	}
