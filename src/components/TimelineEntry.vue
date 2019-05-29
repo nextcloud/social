@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-entry">
+	<div v-if="noDuplicateBoost" class="timeline-entry">
 		<div v-if="item.type === 'Announce'" class="boost">
 			<div class="container-icon-boost">
 				<span class="icon-boost" />
@@ -51,6 +51,16 @@ export default {
 		},
 		boosted() {
 			return t('social', 'boosted')
+		},
+		noDuplicateBoost() {
+			if (this.item.type === 'Announce') {
+				for (var e in this.$store.state.timeline.timeline) {
+					if (this.item.cache[this.item.object].object.id === e) {
+						return false
+					}
+				}
+			}
+			return true
 		}
 	},
 	methods: {
