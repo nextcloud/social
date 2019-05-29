@@ -1,7 +1,9 @@
 <template>
 	<div class="timeline-entry">
 		<div v-if="item.type === 'Announce'" class="boost">
-			<span class="icon-boost" />
+			<div class="container-icon-boost">
+				<span class="icon-boost" />
+			</div>
 			<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
 				<span v-tooltip.bottom="item.actor_info.account" class="post-author">
 					{{ userDisplayName(item.actor_info) }}
@@ -64,9 +66,14 @@ export default {
 		margin-bottom: 10px;
 	}
 
+	.container-icon-boost {
+		display: inline-block;
+		padding-right: 6px;
+	}
+
 	.icon-boost {
 		display: inline-block;
-		width: 44px;
+		width: 38px;
 		height: 17px;
 		opacity: .5;
 		background-position: right center;
