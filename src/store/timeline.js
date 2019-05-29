@@ -59,7 +59,7 @@ const mutations = {
 			Vue.set(state.timeline[post.id].action.values, 'boosted', true)
 		}
 		if (parentAnnounce) {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].action.values, 'boosted', true)
+			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', true)
 		}
 	},
 	unboostPost(state, { post, parentAnnounce }) {
@@ -67,7 +67,7 @@ const mutations = {
 			Vue.set(state.timeline[post.id].action.values, 'boosted', false)
 		}
 		if (parentAnnounce) {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].action.values, 'boosted', false)
+			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
 		}
 	}
 }
