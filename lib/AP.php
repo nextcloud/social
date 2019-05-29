@@ -73,6 +73,7 @@ use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\QueryException;
 
@@ -315,6 +316,10 @@ class AP {
 
 			case SocialAppNotification::TYPE:
 				$item = new SocialAppNotification();
+				break;
+
+			case Stream::TYPE:
+				$item = new Stream();
 				break;
 
 			case Person::TYPE:
