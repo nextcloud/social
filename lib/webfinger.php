@@ -33,6 +33,7 @@ use Exception;
 use OC;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FediverseService;
 
 require_once(__DIR__ . '/../appinfo/autoload.php');
 
@@ -56,15 +57,21 @@ if ($type !== 'acct') {
 list($username, $instance) = explode('@', $account);
 try {
 	$cacheActorService = OC::$server->query(CacheActorService::class);
+	$fediverseService = OC::$server->query(FediverseService::class);
 	$configService = OC::$server->query(ConfigService::class);
 
+	$fediverseService->jailed();
+
 	if ($configService->getCloudAddress(true) !== $instance) {
-		throw new Exception('instance is ' . $instance . ', expected ' . $configService->getCloudAddress(true));
+		throw new Exception(
+			'instance is ' . $instance . ', expected ' . $configService->getCloudAddress(true)
+		);
 	}
 
 	$cacheActorService->getFromLocalAccount($username);
 } catch (Exception $e) {
-	OC::$server->getLogger()->log(1, 'Exception on webfinger - ' . $e->getMessage());
+	OC::$server->getLogger()
+			   ->log(1, 'Exception on webfinger - ' . $e->getMessage());
 	http_response_code(404);
 	exit;
 }
@@ -81,14 +88,17 @@ $finger = [
 	'subject' => $subject,
 	'links'   => [
 		[
-			'rel' => 'self',
+			'rel'  => 'self',
 			'type' => 'application/activity+json',
 			'href' => $href
 		],
 		[
 			'rel'      => 'http://ostatus.org/schema/1.0/subscribe',
 			'template' => urldecode(
-				$href = $urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe', ['uri' => '{uri}']))
+				$href = $urlGenerator->linkToRouteAbsolute(
+					'social.OStatus.subscribe', ['uri' => '{uri}']
+				)
+			)
 		]
 	]
 ];
