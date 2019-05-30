@@ -1,6 +1,40 @@
 # Changelog
 
 
+## 0.2.0 - alpha2
+
+
+features:
+
+- [global] Boosting Post.
+- [global] Delete a Post.
+- [UI] Following an account from an external website.
+- [federated] Async on incoming request.
+- [federated] Caching on incoming request.
+- [federated] Caching incoming attachments.
+- [federated] limit rights and access to/from the fediverse.
+
+
+enhancements:
+
+- [global] Complete SQL migration.
+- [global] Timeline can now manage multiple type of Stream object.
+- [global] More logs.
+- [UI] Dark theme.
+- [UI] Searching now send only limited request.
+- [federated] Caching context content.
+- [federated] Outgoing request accepts redirection.
+- [federated] Removing an actor should deletes his posts.
+- [setup] The app can now works on local address, with no SSL support.
+- [setup] The app can be installed in custom apps folder.
+
+
+bugfixes:
+
+- [bugfix] public post counter now count only public post.
+
+
+
 ## 0.1.3
 
 - [global] fixing an issue displaying timeline when opening details for a local account.
