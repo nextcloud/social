@@ -48,6 +48,7 @@ use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 class CurlService {
@@ -64,6 +65,9 @@ class CurlService {
 	/** @var ConfigService */
 	private $configService;
 
+	/** @var FediverseService */
+	private $fediverseService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -79,10 +83,14 @@ class CurlService {
 	 * CurlService constructor.
 	 *
 	 * @param ConfigService $configService
+	 * @param FediverseService $fediverseService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(ConfigService $configService, MiscService $miscService) {
+	public function __construct(
+		ConfigService $configService, FediverseService $fediverseService, MiscService $miscService
+	) {
 		$this->configService = $configService;
+		$this->fediverseService = $fediverseService;
 		$this->miscService = $miscService;
 	}
 
@@ -94,9 +102,11 @@ class CurlService {
 	 * @throws InvalidResourceException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
-	 * @throws RequestResultNotJsonException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function webfingerAccount(string $account): array {
 		$account = $this->withoutBeginAt($account);
@@ -144,6 +154,7 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveAccount(string $account): Person {
 		$result = $this->webfingerAccount($account);
@@ -178,9 +189,11 @@ class CurlService {
 	 * @throws MalformedArrayException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
-	 * @throws RequestServerException
-	 * @throws RequestResultSizeException
 	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveObject($id): array {
 
@@ -205,11 +218,14 @@ class CurlService {
 	 * @return mixed
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
-	 * @throws RequestResultNotJsonException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function request(Request $request) {
+		$this->fediverseService->authorized($request->getAddress());
 
 		$this->maxDownloadSizeReached = false;
 		$curl = $this->initRequest($request);

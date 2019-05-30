@@ -48,6 +48,7 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
@@ -283,6 +284,8 @@ class ActivityService {
 		try {
 			$this->signatureService->signRequest($request, $queue);
 			$this->curlService->request($request);
+			$this->requestQueueService->endRequest($queue, true);
+		} catch (UnauthorizedFediverseException $e) {
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);

@@ -46,6 +46,7 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -117,6 +118,7 @@ class DocumentService {
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
 	 * @throws RequestResultNotJsonException
+	 * @throws SocialAppConfigException
 	 */
 	public function cacheRemoteDocument(string $id, bool $public = false) {
 		$document = $this->cacheDocumentsRequest->getById($id, $public);
@@ -169,6 +171,8 @@ class DocumentService {
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (RequestContentException $e) {
 			$this->cacheDocumentsRequest->deleteById($id);
+		} catch (UnauthorizedFediverseException $e) {
+			$this->cacheDocumentsRequest->deleteById($id);
 		} catch (RequestNetworkException $e) {
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (RequestServerException $e) {
@@ -189,6 +193,7 @@ class DocumentService {
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
 	 * @throws RequestResultNotJsonException
+	 * @throws SocialAppConfigException
 	 */
 	public function getFromCache(string $id, bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);

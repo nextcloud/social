@@ -48,6 +48,7 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
@@ -259,6 +260,12 @@ class StreamQueueService {
 					. $e->getMessage(), 1
 				);
 				$cache->removeItem($item->getUrl());
+			} catch (UnauthorizedFediverseException $e) {
+				$this->miscService->log(
+					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
+					. $e->getMessage(), 1
+				);
+				$cache->removeItem($item->getUrl());
 			} catch (RequestNetworkException $e) {
 				$this->miscService->log(
 					'Error caching stream: ' . json_encode($item) . ' ' . get_class($e) . ' '
@@ -299,6 +306,7 @@ class StreamQueueService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	private function cacheItem(CacheItem &$item) {
 

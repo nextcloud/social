@@ -43,6 +43,8 @@ use OCA\Social\Exceptions\RequestNetworkException;
 use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -96,13 +98,15 @@ class CacheDocumentService {
 	 * @return string
 	 * @throws CacheContentMimeTypeException
 	 * @throws MalformedArrayException
+	 * @throws NotFoundException
 	 * @throws NotPermittedException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
-	 * @throws RequestServerException
-	 * @throws RequestResultSizeException
 	 * @throws RequestResultNotJsonException
-	 * @throws NotFoundException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function saveRemoteFileToCache(string $url, &$mime = '') {
 
@@ -190,9 +194,11 @@ class CacheDocumentService {
 	 * @throws MalformedArrayException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
-	 * @throws RequestServerException
-	 * @throws RequestResultSizeException
 	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveContent(string $url) {
 		$url = parse_url($url);
