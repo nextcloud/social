@@ -47,6 +47,7 @@ use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
@@ -118,6 +119,7 @@ class CacheActorService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
 

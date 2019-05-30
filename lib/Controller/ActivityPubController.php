@@ -40,6 +40,7 @@ use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
@@ -60,6 +61,9 @@ class ActivityPubController extends Controller {
 
 	/** @var SocialPubController */
 	private $socialPubController;
+
+	/** @var FediverseService */
+	private $fediverseService;
 
 	/** @var CacheActorService */
 	private $cacheActorService;
@@ -85,6 +89,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param SocialPubController $socialPubController
+	 * @param FediverseService $fediverseService
 	 * @param CacheActorService $cacheActorService
 	 * @param SignatureService $signatureService
 	 * @param StreamQueueService $streamQueueService
@@ -94,13 +99,14 @@ class ActivityPubController extends Controller {
 	 */
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController,
-		CacheActorService $cacheActorService, SignatureService $signatureService,
-		StreamQueueService $streamQueueService, ImportService $importService,
-		FollowService $followService, MiscService $miscService
+		FediverseService $fediverseService, CacheActorService $cacheActorService,
+		SignatureService $signatureService, StreamQueueService $streamQueueService,
+		ImportService $importService, FollowService $followService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->socialPubController = $socialPubController;
+		$this->fediverseService = $fediverseService;
 		$this->cacheActorService = $cacheActorService;
 		$this->signatureService = $signatureService;
 		$this->streamQueueService = $streamQueueService;
@@ -178,6 +184,7 @@ class ActivityPubController extends Controller {
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $requestTime);
+			$this->fediverseService->authorized($origin);
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
@@ -221,6 +228,7 @@ class ActivityPubController extends Controller {
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $requestTime);
+			$this->fediverseService->authorized($origin);
 
 			// TODO - check the recipient <-> username
 //			$actor = $this->actorService->getActor($username);

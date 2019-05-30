@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 
 
@@ -68,6 +69,7 @@ class FediverseService {
 	 *
 	 * @return bool
 	 * @throws UnauthorizedFediverseException
+	 * @throws SocialAppConfigException
 	 */
 	public function authorized(string $address): bool {
 		if ($this->getAccessType() ===
@@ -78,11 +80,11 @@ class FediverseService {
 
 		if ($this->getAccessType() ===
 			$this->configService->accessTypeList['WHITELIST']
-			&& $this->isListed($address)) {
+			&& ($this->isListed($address) || $this->isLocal($address))) {
 			return true;
 		}
 
-		throw new UnauthorizedFediverseException();
+		throw new UnauthorizedFediverseException('Unauthorized Fediverse');
 	}
 
 
@@ -95,7 +97,7 @@ class FediverseService {
 			return;
 		}
 
-		throw new UnauthorizedFediverseException();
+		throw new UnauthorizedFediverseException('Jailed Fediverse');
 	}
 
 
@@ -119,6 +121,19 @@ class FediverseService {
 		}
 
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_TYPE, $type);
+	}
+
+
+	/**
+	 * @param string $address
+	 *
+	 * @return bool
+	 * @throws SocialAppConfigException
+	 */
+	public function isLocal(string $address): bool {
+		$local = $this->configService->getCloudAddress(true);
+
+		return ($local === $address);
 	}
 
 
