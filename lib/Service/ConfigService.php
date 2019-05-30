@@ -54,6 +54,8 @@ class ConfigService {
 	const SOCIAL_ADDRESS = 'address';
 	const SOCIAL_SERVICE = 'service';
 	const SOCIAL_MAX_SIZE = 'max_size';
+	const SOCIAL_ACCESS_TYPE = 'access_type';
+	const SOCIAL_ACCESS_LIST = 'access_list';
 
 	const BACKGROUND_CRON = 1;
 	const BACKGROUND_ASYNC = 2;
@@ -62,10 +64,19 @@ class ConfigService {
 
 	/** @var array */
 	public $defaults = [
-		self::SOCIAL_ADDRESS  => '',
-		self::SOCIAL_SERVICE  => 1,
-		self::SOCIAL_MAX_SIZE => 10
+		self::SOCIAL_ADDRESS     => '',
+		self::SOCIAL_SERVICE     => 1,
+		self::SOCIAL_MAX_SIZE    => 10,
+		self::SOCIAL_ACCESS_TYPE => 'all_but',
+		self::SOCIAL_ACCESS_LIST => '[]'
 	];
+
+	/** @var array */
+	public $accessTypeList = [
+		'BLACKLIST' => 'all_but',
+		'WHITELIST' => 'none_but'
+	];
+
 
 	/** @var string */
 	private $userId;
