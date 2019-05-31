@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- [setup] fixing an issue with empty creation field during migration.
+
 
 ## 0.2.0 - alpha2
 
