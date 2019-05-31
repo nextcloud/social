@@ -1192,6 +1192,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		$insert = $this->connection->getQueryBuilder();
 		$insert->insert($table);
 
+		$datetimeFields = [
+			'creation',
+			'last',
+			'caching',
+			'published_time'
+		];
+
 		foreach ($fields as $field) {
 			$value = $this->get($field, $data, '');
 			if ($field === 'id_prim'
@@ -1199,10 +1206,10 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				&& $this->get('id', $data, '') !== '') {
 				$value = hash('sha512', $this->get('id', $data, ''));
 			}
-
-			if ($field === 'creation' && $value === '') {
+			
+			if (in_array($field, $datetimeFields) && $value === '') {
 				$insert->setValue(
-					'creation',
+					$field,
 					$insert->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 				);
 			} else {
