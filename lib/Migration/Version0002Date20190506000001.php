@@ -32,9 +32,13 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use DateTime;
 use Doctrine\DBAL\Types\Type;
+use Exception;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCP\DB\ISchemaWrapper;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
@@ -1172,7 +1176,6 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
 			$this->insertInto($dest, $fields, $data);
-
 		}
 
 		$cursor->closeCursor();
@@ -1183,10 +1186,19 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param string $table
 	 * @param array $fields
 	 * @param array $data
+	 *
+	 * @throws Exception
 	 */
 	private function insertInto(string $table, array $fields, array $data) {
 		$insert = $this->connection->getQueryBuilder();
 		$insert->insert($table);
+
+		$datetimeFields = [
+			'creation',
+			'last',
+			'caching',
+			'published_time'
+		];
 
 		foreach ($fields as $field) {
 			$value = $this->get($field, $data, '');
@@ -1195,13 +1207,23 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				&& $this->get('id', $data, '') !== '') {
 				$value = hash('sha512', $this->get('id', $data, ''));
 			}
-
-			$insert->setValue(
-				$field, $insert->createNamedParameter($value)
-			);
+			
+			if (in_array($field, $datetimeFields) && $value === '') {
+				$insert->setValue(
+					$field,
+					$insert->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+				);
+			} else {
+				$insert->setValue(
+					$field, $insert->createNamedParameter($value)
+				);
+			}
 		}
-
-		$insert->execute();
+		
+		try {
+			$insert->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
 	}
 
 
