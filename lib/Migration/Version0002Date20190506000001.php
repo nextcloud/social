@@ -32,6 +32,7 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use DateTime;
 use Doctrine\DBAL\Types\Type;
 use Exception;
@@ -1218,8 +1219,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				);
 			}
 		}
-
-		$insert->execute();
+		
+		try {
+			$insert->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
 	}
 
 
