@@ -42,6 +42,7 @@ OC.L10N.register(
     "Boost" : "推荐",
     "More actions" : "更多操作",
     "Delete post" : "删除帖子",
+    "boosted" : "已推荐",
     "No posts found" : "未找到文章",
     "Posts from people you follow will show up here" : "来自您关注的人的帖子将在此处显示",
     "No direct messages found" : "未找到直接消息",

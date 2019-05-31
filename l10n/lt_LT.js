@@ -11,6 +11,7 @@ OC.L10N.register(
     "No results found" : "Nerasta jokių rezultatų",
     "There were no results for your search:" : "Jūsų paieška negrąžino jokių rezultatų:",
     "Searching for" : "Ieškoma",
+    "Reply" : "Atsakyti",
     "More actions" : "Daugiau veiksmų",
     "Close" : "Užverti",
     "Continue" : "Tęsti",

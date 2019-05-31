@@ -42,6 +42,7 @@ OC.L10N.register(
     "Boost" : "Yükselt",
     "More actions" : "Diğer işlemler",
     "Delete post" : "İletiyi sil",
+    "boosted" : "yükseltilmiş",
     "No posts found" : "Herhangi bir ileti bulunamadı",
     "Posts from people you follow will show up here" : "Takip ettiğiniz kişilerin iletileri burada görüntülenir",
     "No direct messages found" : "Herhangi bir doğrudan ileti bulunamadı",
