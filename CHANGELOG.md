@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+- [setup] fixing an issue with empty boolean field during postgresql migration.
+- [setup] enlarging some database field.
+
+
 ## 0.2.1
 
 - [setup] fixing an issue with empty creation field during migration.
