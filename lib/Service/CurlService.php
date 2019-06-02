@@ -58,7 +58,7 @@ class CurlService {
 	use TPathTools;
 
 
-	const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
+	const ASYNC_REQUEST_TOKEN = '/async/request/{token}/';
 	const USER_AGENT = 'Nextcloud Social';
 
 
