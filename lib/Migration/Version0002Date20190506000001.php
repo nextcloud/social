@@ -1223,6 +1223,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			'published_time'
 		];
 
+		$booleanFields = [
+			'local',
+			'public',
+			'accepted',
+			'hidden_on_timeline'
+		];
+
 		foreach ($fields as $field) {
 			$value = $this->get($field, $data, '');
 			if ($field === 'id_prim'
@@ -1235,6 +1242,10 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				$insert->setValue(
 					$field,
 					$insert->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+				);
+			} else if (in_array($field, $booleanFields) && $value === '') {
+				$insert->setValue(
+					$field, $insert->createNamedParameter('0')
 				);
 			} else {
 				$insert->setValue(
