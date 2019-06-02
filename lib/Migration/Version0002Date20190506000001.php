@@ -32,8 +32,8 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use DateTime;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Types\Type;
 use Exception;
 use OCA\Social\Db\CoreRequestBuilder;
@@ -94,6 +94,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param IOutput $output
 	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
 	 * @param array $options
+	 *
+	 * @throws Exception
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 
@@ -331,24 +333,21 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'to_array', 'string',
+			'to_array', Type::TEXT,
 			[
-				'notnull' => true,
-				'length'  => 1000,
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
-			'cc', 'string',
+			'cc', Type::TEXT,
 			[
-				'notnull' => true,
-				'length'  => 1000,
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
-			'bcc', 'string',
+			'bcc', Type::TEXT,
 			[
-				'notnull' => true,
-				'length'  => 1000,
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
@@ -589,15 +588,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'source', Type::TEXT,
 			[
-				'notnull' => true,
-				'length'  => 3000,
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
-			'details', 'string',
+			'details', Type::TEXT,
 			[
-				'notnull' => false,
-				'length'  => 3000,
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
@@ -899,6 +896,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillActors(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -921,6 +920,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillFollows(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -940,6 +941,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillHashtags(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -980,6 +983,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillStreams(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1014,6 +1019,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillCacheActors(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1045,6 +1052,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillCacheDocuments(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1070,6 +1079,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillRequestQueue(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1089,6 +1100,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	}
 
 
+	/**
+	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
+	 */
 	private function fillStreamActions(ISchemaWrapper $schema) {
 		$this->duplicateTable(
 			$schema, 'social_stream_actions', CoreRequestBuilder::TABLE_STREAM_ACTIONS,
@@ -1102,6 +1118,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	}
 
 
+	/**
+	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
+	 */
 	private function fillStreamQueue(ISchemaWrapper $schema) {
 		$this->duplicateTable(
 			$schema, 'social_queue_stream', CoreRequestBuilder::TABLE_STREAM_QUEUE,
@@ -1161,6 +1182,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param string $source
 	 * @param string $dest
 	 * @param array $fields
+	 *
+	 * @throws Exception
 	 */
 	private function duplicateTable(
 		ISchemaWrapper $schema, string $source, string $dest, array $fields
@@ -1207,7 +1230,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				&& $this->get('id', $data, '') !== '') {
 				$value = hash('sha512', $this->get('id', $data, ''));
 			}
-			
+
 			if (in_array($field, $datetimeFields) && $value === '') {
 				$insert->setValue(
 					$field,
@@ -1219,7 +1242,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				);
 			}
 		}
-		
+
 		try {
 			$insert->execute();
 		} catch (UniqueConstraintViolationException $e) {
