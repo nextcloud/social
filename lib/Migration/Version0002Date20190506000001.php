@@ -94,6 +94,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param IOutput $output
 	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
 	 * @param array $options
+	 *
+	 * @throws Exception
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 
@@ -334,14 +336,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			'to_array', 'string',
 			[
 				'notnull' => true,
-				'length'  => 1000,
+				'length'  => 2000,
 			]
 		);
 		$table->addColumn(
-			'cc', 'string',
+			'cc', 'text',
 			[
-				'notnull' => true,
-				'length'  => 1000,
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
@@ -899,6 +900,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillActors(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -921,6 +924,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillFollows(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -940,6 +945,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillHashtags(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -980,6 +987,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillStreams(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1014,6 +1023,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillCacheActors(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1045,6 +1056,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillCacheDocuments(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1070,6 +1083,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
 	 */
 	private function fillRequestQueue(ISchemaWrapper $schema) {
 		$this->duplicateTable(
@@ -1089,6 +1104,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	}
 
 
+	/**
+	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
+	 */
 	private function fillStreamActions(ISchemaWrapper $schema) {
 		$this->duplicateTable(
 			$schema, 'social_stream_actions', CoreRequestBuilder::TABLE_STREAM_ACTIONS,
@@ -1103,18 +1123,21 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 
 	private function fillStreamQueue(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_queue_stream', CoreRequestBuilder::TABLE_STREAM_QUEUE,
-			[
-				'id',
-				'token',
-				'stream_id',
-				'type',
-				'status',
-				'tries',
-				'last'
-			]
-		);
+		try {
+			$this->duplicateTable(
+				$schema, 'social_queue_stream', CoreRequestBuilder::TABLE_STREAM_QUEUE,
+				[
+					'id',
+					'token',
+					'stream_id',
+					'type',
+					'status',
+					'tries',
+					'last'
+				]
+			);
+		} catch (Exception $e) {
+		}
 	}
 
 
