@@ -1118,22 +1118,24 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	}
 
 
+	/**
+	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws Exception
+	 */
 	private function fillStreamQueue(ISchemaWrapper $schema) {
-		try {
-			$this->duplicateTable(
-				$schema, 'social_queue_stream', CoreRequestBuilder::TABLE_STREAM_QUEUE,
-				[
-					'id',
-					'token',
-					'stream_id',
-					'type',
-					'status',
-					'tries',
-					'last'
-				]
-			);
-		} catch (Exception $e) {
-		}
+		$this->duplicateTable(
+			$schema, 'social_queue_stream', CoreRequestBuilder::TABLE_STREAM_QUEUE,
+			[
+				'id',
+				'token',
+				'stream_id',
+				'type',
+				'status',
+				'tries',
+				'last'
+			]
+		);
 	}
 
 
@@ -1180,6 +1182,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param string $source
 	 * @param string $dest
 	 * @param array $fields
+	 *
+	 * @throws Exception
 	 */
 	private function duplicateTable(
 		ISchemaWrapper $schema, string $source, string $dest, array $fields
