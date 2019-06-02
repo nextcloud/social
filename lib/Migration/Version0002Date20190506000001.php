@@ -32,8 +32,8 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use DateTime;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Types\Type;
 use Exception;
 use OCA\Social\Db\CoreRequestBuilder;
@@ -333,23 +333,21 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'to_array', 'string',
-			[
-				'notnull' => true,
-				'length'  => 2000,
-			]
-		);
-		$table->addColumn(
-			'cc', 'text',
+			'to_array', Type::TEXT,
 			[
 				'notnull' => true
 			]
 		);
 		$table->addColumn(
-			'bcc', 'string',
+			'cc', Type::TEXT,
 			[
-				'notnull' => true,
-				'length'  => 1000,
+				'notnull' => true
+			]
+		);
+		$table->addColumn(
+			'bcc', Type::TEXT,
+			[
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
@@ -590,15 +588,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'source', Type::TEXT,
 			[
-				'notnull' => true,
-				'length'  => 3000,
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
-			'details', 'string',
+			'details', Type::TEXT,
 			[
-				'notnull' => false,
-				'length'  => 3000,
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
@@ -1230,7 +1226,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				&& $this->get('id', $data, '') !== '') {
 				$value = hash('sha512', $this->get('id', $data, ''));
 			}
-			
+
 			if (in_array($field, $datetimeFields) && $value === '') {
 				$insert->setValue(
 					$field,
@@ -1242,7 +1238,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 				);
 			}
 		}
-		
+
 		try {
 			$insert->execute();
 		} catch (UniqueConstraintViolationException $e) {
