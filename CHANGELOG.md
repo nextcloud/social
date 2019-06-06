@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- [global] reverting nextcloud to 0.9.x
+- [global] reverting routes
+
+
 ## 0.2.2
 
 - [setup] fixing an issue with empty boolean field during postgresql migration.
