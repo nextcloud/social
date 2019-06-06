@@ -42,6 +42,7 @@ OC.L10N.register(
     "Boost" : "Refuerzo",
     "More actions" : "Más acciones",
     "Delete post" : "Eliminar post",
+    "boosted" : "Arrancado",
     "No posts found" : "No se han encontrado entradas",
     "Posts from people you follow will show up here" : "Las entradas de gente a la que sigues aparecerán aquí",
     "No direct messages found" : "No se han encontrado mensajes directos",
