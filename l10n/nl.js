@@ -42,6 +42,7 @@ OC.L10N.register(
     "Boost" : "Boost",
     "More actions" : "Meer acties",
     "Delete post" : "Verwijder bericht",
+    "boosted" : "booste",
     "No posts found" : "Geen berichten gevonden",
     "Posts from people you follow will show up here" : "Berichten van mensen die je volgt, worden hier getoond",
     "No direct messages found" : "Geen directe berichten gevonden",
