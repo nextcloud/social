@@ -279,21 +279,23 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function checkOrigin($id) {
 		$host = parse_url($id, PHP_URL_HOST);
-		if ($this->getRoot()
-				 ->getOrigin() === $host) {
+		$origin = $this->getRoot()
+					   ->getOrigin();
+
+		if ($origin === $host) {
 			return;
 		}
 
-		throw new InvalidOriginException();
+		throw new InvalidOriginException('ACore::checkOrigin - id: ' . $id . ' - origin: ' . $origin);
 	}
 
 
 	/**
-	 * @deprecated
-	 *
 	 * @param string $url
 	 *
 	 * @throws ActivityCantBeVerifiedException
+	 * @deprecated
+	 *
 	 */
 	public function verify(string $url) {
 		// TODO - Compare this with checkOrigin() - and delete this method.

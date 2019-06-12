@@ -144,7 +144,9 @@ class CacheActorService {
 			}
 
 			if ($id !== $actor->getId()) {
-				throw new InvalidOriginException();
+				throw new InvalidOriginException(
+					'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actor->getId()
+				);
 			}
 
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
@@ -227,8 +229,8 @@ class CacheActorService {
 
 
 	/**
-	 * @throws Exception
 	 * @return int
+	 * @throws Exception
 	 */
 	public function missingCacheRemoteActors(): int {
 		// TODO - looking for missing cache remote actors...
@@ -246,8 +248,8 @@ class CacheActorService {
 
 
 	/**
-	 * @throws Exception
 	 * @return int
+	 * @throws Exception
 	 */
 	public function manageCacheRemoteActors(): int {
 		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate();

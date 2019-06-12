@@ -175,7 +175,9 @@ class CurlService {
 		}
 
 		if (strtolower($actor->getId()) !== strtolower($id)) {
-			throw new InvalidOriginException();
+			throw new InvalidOriginException(
+				'CurlService::retrieveAccount - id: ' . $id . ' - actorId: ' . $actor->getId()
+			);
 		}
 
 		return $actor;

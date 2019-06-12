@@ -320,7 +320,10 @@ class StreamQueueService {
 			$object->setOrigin($origin, SignatureService::ORIGIN_REQUEST, time());
 
 			if ($object->getId() !== $item->getUrl()) {
-				throw new InvalidOriginException();
+				throw new InvalidOriginException(
+					'StreamQueueService::cacheItem - objectId: ' . $object->getId() . ' - itemUrl: '
+					. $item->getUrl()
+				);
 			}
 
 			if ($object->getType() !== Note::TYPE) {
