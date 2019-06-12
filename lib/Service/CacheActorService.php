@@ -185,13 +185,15 @@ class CacheActorService {
 	 * @throws CacheActorDoesNotExistException
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
-	 * @throws RetrieveAccountFormatException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws RetrieveAccountFormatException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException

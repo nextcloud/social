@@ -90,7 +90,7 @@ if (substr($href, -1) === '/') {
 }
 
 $finger = [
-	'subject' => $username . '@' . $instance,
+	'subject' => 'acct:' . $username . '@' . $instance,
 	'links'   => [
 		[
 			'rel'  => 'self',

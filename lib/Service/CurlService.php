@@ -109,7 +109,7 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function webfingerAccount(string $account): array {
+	public function webfingerAccount(string &$account): array {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
@@ -139,6 +139,12 @@ class CurlService {
 				$request->setProtocol('http');
 				$result = $this->request($request);
 			} else throw $e;
+		}
+
+		$subject = $this->get('subject', $result, '');
+		list($type, $temp) = explode(':', $subject, 2);
+		if ($type === 'acct') {
+			$account = $temp;
 		}
 
 		return $result;
@@ -189,7 +195,7 @@ class CurlService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveAccount(string $account): Person {
+	public function retrieveAccount(string &$account): Person {
 		$result = $this->webfingerAccount($account);
 
 		try {
