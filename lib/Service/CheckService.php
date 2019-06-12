@@ -50,16 +50,29 @@ class CheckService {
 	use TStringTools;
 
 
+	const CACHE_PREFIX = 'social_check_';
+
+
+	/** @var ICache */
 	private $cache;
+
+	/** @var IConfig */
 	private $config;
+
+	/** @var IClientService */
 	private $clientService;
+
+	/** @var IRequest */
 	private $request;
+
+	/** @var IURLGenerator */
 	private $urlGenerator;
+
+	/** @var ConfigService */
+	private $configService;
 
 	/** @var FollowsRequest */
 	private $followRequest;
-
-	const CACHE_PREFIX = 'social_check_';
 
 
 	/**
@@ -71,10 +84,11 @@ class CheckService {
 	 * @param IRequest $request
 	 * @param IURLGenerator $urlGenerator
 	 * @param FollowsRequest $followRequest
+	 * @param ConfigService $configService
 	 */
 	public function __construct(
 		ICache $cache, IConfig $config, IClientService $clientService, IRequest $request,
-		IURLGenerator $urlGenerator, FollowsRequest $followRequest
+		IURLGenerator $urlGenerator, FollowsRequest $followRequest, ConfigService $configService
 	) {
 		$this->cache = $cache;
 		$this->config = $config;
@@ -82,6 +96,7 @@ class CheckService {
 		$this->request = $request;
 		$this->urlGenerator = $urlGenerator;
 		$this->followRequest = $followRequest;
+		$this->configService = $configService;
 	}
 
 
@@ -139,6 +154,8 @@ class CheckService {
 	 *
 	 */
 	public function checkInstallationStatus() {
+		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
+		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 		$this->checkStatusTableFollows();
 	}
 

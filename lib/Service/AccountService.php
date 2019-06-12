@@ -216,6 +216,7 @@ class AccountService {
 		}
 
 		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
+		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 
 		$actor = new Person();
 		$actor->setUserId($userId);
@@ -320,8 +321,8 @@ class AccountService {
 
 
 	/**
-	 * @throws Exception
 	 * @return int
+	 * @throws Exception
 	 */
 	public function manageCacheLocalActors(): int {
 		$update = $this->actorsRequest->getAll();
@@ -337,8 +338,8 @@ class AccountService {
 
 
 	/**
-	 * @throws Exception
 	 * @return int
+	 * @throws Exception
 	 */
 	public function blindKeyRotation(): int {
 		$update = $this->actorsRequest->getAll();
