@@ -42,6 +42,7 @@ OC.L10N.register(
     "Boost" : "Подржи",
     "More actions" : "Још радњи",
     "Delete post" : "Обриши објаву",
+    "boosted" : "подржано",
     "No posts found" : "Нема објава",
     "Posts from people you follow will show up here" : "Објаве од људи које пратите ће се појавити овде",
     "No direct messages found" : "Нема директних порука",
