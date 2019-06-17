@@ -36,7 +36,6 @@ use DateTime;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Types\Type;
 use Exception;
-use OCA\Social\Db\CoreRequestBuilder;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -118,11 +117,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createActors(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_ACTORS)) {
+		if ($schema->hasTable('social_a2_actors')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_ACTORS);
+		$table = $schema->createTable('social_a2_actors');
 
 		$table->addColumn(
 			'id', 'string',
@@ -200,11 +199,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function createFollows(ISchemaWrapper $schema) {
 
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_FOLLOWS)) {
+		if ($schema->hasTable('social_a2_follows')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_FOLLOWS);
+		$table = $schema->createTable('social_a2_follows');
 
 		$table->addColumn(
 			'id', 'string',
@@ -270,11 +269,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createHashtags(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_HASHTAGS)) {
+		if ($schema->hasTable('social_a2_hashtags')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_HASHTAGS);
+		$table = $schema->createTable('social_a2_hashtags');
 		$table->addColumn(
 			'hashtag', 'string',
 			[
@@ -298,11 +297,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreams(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_STREAMS)) {
+		if ($schema->hasTable('social_a2_stream')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_STREAMS);
+		$table = $schema->createTable('social_a2_stream');
 
 		$table->addColumn(
 			'id', 'string',
@@ -463,11 +462,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createCacheActors(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_CACHE_ACTORS)) {
+		if ($schema->hasTable('social_a2_cache_actors')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_CACHE_ACTORS);
+		$table = $schema->createTable('social_a2_cache_actors');
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -612,11 +611,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createCacheDocuments(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS)) {
+		if ($schema->hasTable('social_a2_cache_documts')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS);
+		$table = $schema->createTable('social_a2_cache_documts');
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -709,11 +708,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createRequestQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_REQUEST_QUEUE)) {
+		if ($schema->hasTable('social_a2_request_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_REQUEST_QUEUE);
+		$table = $schema->createTable('social_a2_request_queue');
 		$table->addColumn(
 			'id', 'bigint',
 			[
@@ -789,11 +788,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreamActions(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_STREAM_ACTIONS)) {
+		if ($schema->hasTable('social_a2_stream_action')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_STREAM_ACTIONS);
+		$table = $schema->createTable('social_a2_stream_action');
 
 		$table->addColumn(
 			'id', Type::INTEGER,
@@ -833,11 +832,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreamQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable(CoreRequestBuilder::TABLE_STREAM_QUEUE)) {
+		if ($schema->hasTable('social_a2_stream_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable(CoreRequestBuilder::TABLE_STREAM_QUEUE);
+		$table = $schema->createTable('social_a2_stream_queue');
 		$table->addColumn(
 			'id', 'bigint',
 			[
@@ -901,7 +900,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillActors(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_server_actors', CoreRequestBuilder::TABLE_ACTORS,
+			$schema, 'social_server_actors', 'social_a2_actors',
 			[
 				'id',
 				'id_prim',
@@ -925,7 +924,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillFollows(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_server_follows', CoreRequestBuilder::TABLE_FOLLOWS,
+			$schema, 'social_server_follows', 'social_a2_follows',
 			[
 				'id',
 				'id_prim',
@@ -946,7 +945,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillHashtags(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_server_hashtags', CoreRequestBuilder::TABLE_HASHTAGS,
+			$schema, 'social_server_hashtags', 'social_a2_hashtags',
 			[
 				'hashtag',
 				'trend'
@@ -965,7 +964,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 //		$cursor = $qb->execute();
 //		while ($data = $cursor->fetch()) {
 //			$insert = $this->connection->getQueryBuilder();
-//			$insert->insert(CoreRequestBuilder::TABLE_HASHTAGS);
+//			$insert->insert('social_a2_hashtags');
 //
 //			$insert->setValue(
 //				'hashtag', $insert->createNamedParameter($this->get('hashtag', $data, ''))
@@ -988,7 +987,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillStreams(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_server_notes', CoreRequestBuilder::TABLE_STREAMS,
+			$schema, 'social_server_notes', 'social_a2_stream',
 			[
 				'id',
 				'id_prim',
@@ -1024,7 +1023,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillCacheActors(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_cache_actors', CoreRequestBuilder::TABLE_CACHE_ACTORS,
+			$schema, 'social_cache_actors', 'social_a2_cache_actors',
 			[
 				'id',
 				'id_prim',
@@ -1057,7 +1056,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillCacheDocuments(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_cache_documents', CoreRequestBuilder::TABLE_CACHE_DOCUMENTS,
+			$schema, 'social_cache_documents', 'social_a2_cache_documts',
 			[
 				'id',
 				'id_prim',
@@ -1084,7 +1083,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillRequestQueue(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_request_queue', CoreRequestBuilder::TABLE_REQUEST_QUEUE,
+			$schema, 'social_request_queue', 'social_a2_request_queue',
 			[
 				'id',
 				'token',
@@ -1107,7 +1106,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillStreamActions(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_stream_actions', CoreRequestBuilder::TABLE_STREAM_ACTIONS,
+			$schema, 'social_stream_actions', 'social_a2_stream_action',
 			[
 				'id',
 				'actor_id',
@@ -1125,7 +1124,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillStreamQueue(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_queue_stream', CoreRequestBuilder::TABLE_STREAM_QUEUE,
+			$schema, 'social_queue_stream', 'social_a2_stream_queue',
 			[
 				'id',
 				'token',
