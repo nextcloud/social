@@ -88,7 +88,7 @@ class Announce extends Stream implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
-		$result['actor'] = $this->getAttributedTo();
+		//$result['actor'] = $this->getAttributedTo();
 
 		return $result;
 	}

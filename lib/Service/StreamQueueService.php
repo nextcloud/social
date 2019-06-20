@@ -68,7 +68,11 @@ class StreamQueueService {
 	/** @var StreamQueueRequest */
 	private $streamQueueRequest;
 
+	/** @var ImportService */
 	private $importService;
+
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var CurlService */
 	private $curlService;
@@ -82,17 +86,20 @@ class StreamQueueService {
 	 *
 	 * @param StreamRequest $streamRequest
 	 * @param StreamQueueRequest $streamQueueRequest
+	 * @param CacheActorService $cacheActorService
 	 * @param ImportService $importService
 	 * @param CurlService $curlService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamQueueRequest $streamQueueRequest,
-		ImportService $importService, CurlService $curlService, MiscService $miscService
+		CacheActorService $cacheActorService, ImportService $importService,
+		CurlService $curlService, MiscService $miscService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamQueueRequest = $streamQueueRequest;
 		$this->importService = $importService;
+		$this->cacheActorService = $cacheActorService;
 		$this->curlService = $curlService;
 		$this->miscService = $miscService;
 	}
@@ -309,9 +316,8 @@ class StreamQueueService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	private function cacheItem(CacheItem &$item) {
-
 		try {
-			$object = $this->streamRequest->getStreamById($item->getUrl());
+			$note = $this->streamRequest->getStreamById($item->getUrl());
 		} catch (StreamNotFoundException $e) {
 			$data = $this->curlService->retrieveObject($item->getUrl());
 			$object = AP::$activityPub->getItemFromData($data);
@@ -330,11 +336,15 @@ class StreamQueueService {
 				throw new InvalidResourceException();
 			}
 
+			/** @var Stream $object */
+			$this->cacheActorService->getFromId($object->getAttributedTo());
+
 			$interface = AP::$activityPub->getInterfaceForItem($object);
 			$interface->save($object);
+
+			$note = $this->streamRequest->getStreamById($object->getId());
 		}
 
-		$note = $this->streamRequest->getStreamById($object->getId());
 		$item->setContent(json_encode($note, JSON_UNESCAPED_SLASHES));
 	}
 
@@ -347,6 +357,11 @@ class StreamQueueService {
 	 */
 	private function updateCache(Stream $stream, Cache $cache): bool {
 		$this->streamRequest->updateCache($stream, $cache);
+		try {
+			$interface = AP::$activityPub->getInterfaceForItem($stream);
+			$interface->event($stream, 'updateCache');
+		} catch (ItemUnknownException $e) {
+		}
 
 		$done = true;
 		foreach ($cache->getItems() as $item) {

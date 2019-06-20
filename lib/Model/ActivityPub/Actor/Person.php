@@ -41,6 +41,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Traits\TDetails;
 
 
 /**
@@ -49,6 +50,9 @@ use OCA\Social\Model\ActivityPub\Object\Image;
  * @package OCA\Social\Model\ActivityPub
  */
 class Person extends ACore implements JsonSerializable {
+
+
+	use TDetails;
 
 
 	const TYPE = 'Person';
@@ -92,9 +96,6 @@ class Person extends ACore implements JsonSerializable {
 
 	/** @var string */
 	private $featured = '';
-
-	/** @var array */
-	private $details = [];
 
 	/** @var int */
 	private $avatarVersion = -1;
@@ -359,73 +360,6 @@ class Person extends ACore implements JsonSerializable {
 
 
 	/**
-	 * @return array
-	 */
-	public function getDetails(): array {
-		return $this->details;
-	}
-
-	/**
-	 * @param string $detail
-	 * @param string $value
-	 *
-	 * @return Person
-	 */
-	public function addDetail(string $detail, string $value): Person {
-		$this->details[$detail] = $value;
-
-		return $this;
-	}
-
-	/**
-	 * @param string $detail
-	 * @param int $value
-	 *
-	 * @return Person
-	 */
-	public function addDetailInt(string $detail, int $value): Person {
-		$this->details[$detail] = $value;
-
-		return $this;
-	}
-
-	/**
-	 * @param string $detail
-	 * @param array $value
-	 *
-	 * @return Person
-	 */
-	public function addDetailArray(string $detail, array $value): Person {
-		$this->details[$detail] = $value;
-
-		return $this;
-	}
-
-	/**
-	 * @param string $detail
-	 * @param bool $value
-	 *
-	 * @return Person
-	 */
-	public function addDetailBool(string $detail, bool $value): Person {
-		$this->details[$detail] = $value;
-
-		return $this;
-	}
-
-	/**
-	 * @param array $details
-	 *
-	 * @return Person
-	 */
-	public function setDetails(array $details): Person {
-		$this->details = $details;
-
-		return $this;
-	}
-
-
-	/**
 	 * @return int
 	 */
 	public function getAvatarVersion(): int {
@@ -497,7 +431,7 @@ class Person extends ACore implements JsonSerializable {
 			 ->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
 			 ->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
 			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
-			 ->setDetails($this->getArray('details', $data, []));
+			 ->setDetailsAll($this->getArray('details', $data, []));
 
 		try {
 			$dTime = new DateTime($this->get('creation', $data, 'yesterday'));
@@ -536,7 +470,7 @@ class Person extends ACore implements JsonSerializable {
 		);
 
 		if ($this->isCompleteDetails()) {
-			$result['details'] = $this->getDetails();
+			$result['details'] = $this->getDetailsAll();
 		}
 
 		return $result;

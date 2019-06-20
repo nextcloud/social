@@ -38,8 +38,8 @@ use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\LinkedDataSignature;
 
 
 class ACore extends Item implements JsonSerializable {
@@ -219,6 +219,15 @@ class ACore extends Item implements JsonSerializable {
 		$this->displayW3ContextSecurity = $display;
 
 		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isPublic(): bool {
+		return ($this->getTo() === self::CONTEXT_PUBLIC
+				|| in_array(self::CONTEXT_PUBLIC, $this->getCcArray()));
 	}
 
 
@@ -635,7 +644,7 @@ class ACore extends Item implements JsonSerializable {
 		$this->addEntryArray('to', $this->getToArray());
 		$this->addEntryArray('cc', $this->getCcArray());
 
-		if ($this->gotActor()) {
+		if ($this->hasActor()) {
 			$this->addEntry(
 				'actor', $this->getActor()
 							  ->getId()

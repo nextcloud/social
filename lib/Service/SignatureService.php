@@ -54,6 +54,7 @@ use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
@@ -402,10 +403,11 @@ class SignatureService {
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	private function retrieveKey(string $keyId, bool $refresh = false): string {
 		$actor = $this->cacheActorService->getFromId($keyId, $refresh);

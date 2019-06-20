@@ -261,7 +261,7 @@ class Item {
 	/**
 	 * @return bool
 	 */
-	public function gotActor(): bool {
+	public function hasActor(): bool {
 		if ($this->actor === null) {
 			return false;
 		}
@@ -394,11 +394,43 @@ class Item {
 	}
 
 
+	/**
+	 * @param string $cc
+	 *
+	 * @return Item
+	 */
 	public function addCc(string $cc): Item {
-		$this->cc[] = $cc;
+		if (!$this->hasCc($cc)) {
+			$this->cc[] = $cc;
+		}
 
 		return $this;
 	}
+
+	/**
+	 * @param string $cc
+	 *
+	 * @return Item
+	 */
+	public function removeCc(string $cc): Item {
+		if (!in_array($cc, $this->cc)) {
+			return $this;
+		}
+
+		$this->cc = array_diff($this->cc, [$cc]);
+
+		return $this;
+	}
+
+	/**
+	 * @param string $cc
+	 *
+	 * @return bool
+	 */
+	public function hasCc(string $cc): bool {
+		return (in_array($cc, $this->cc));
+	}
+
 
 	/**
 	 * @return array

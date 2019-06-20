@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -114,14 +115,9 @@ class BoostService {
 	 * @throws Exception
 	 */
 	public function create(Person $actor, string $postId, &$token = ''): ACore {
-
-		try {
-			return $this->get($actor, $postId);
-		} catch (StreamNotFoundException $e) {
-		}
-
+		/** @var Announce $announce */
 		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
-		$this->noteService->assignItem($announce, $actor, Stream::TYPE_PUBLIC);
+		$this->noteService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
 		$announce->setActor($actor);
 
 		$note = $this->noteService->getNoteById($postId, true);
@@ -129,7 +125,11 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-		$announce->addCc($note->getAttributedTo());
+		if (!$note->isPublic()) {
+			throw new StreamNotFoundException('Stream is not Public');
+		}
+
+		$announce->addCc($actor->getFollowers());
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
 
@@ -148,14 +148,15 @@ class BoostService {
 
 
 	/**
-	 * @param Person $actor
 	 * @param string $postId
 	 *
 	 * @return Stream
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function get(Person $actor, string $postId): Stream {
-		$stream = $this->streamRequest->getStreamByObjectId($actor, Announce::TYPE, $postId);
+	public function get(string $postId): Stream {
+		$stream = $this->streamRequest->getStreamByObjectId($postId, Announce::TYPE);
 
 		return $stream;
 	}
@@ -167,8 +168,8 @@ class BoostService {
 	 * @param string $token
 	 *
 	 * @return ACore
-	 * @throws StreamNotFoundException
 	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
 	 */
 	public function delete(Person $actor, string $postId, &$token = ''): ACore {
 		$undo = new Undo();
@@ -180,16 +181,24 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-		$announce = $this->streamRequest->getStreamByObjectId($actor, Announce::TYPE, $postId);
+		try {
+			$announce = $this->streamRequest->getStreamByObjectId($postId, Announce::TYPE);
+			$announce->setActor($actor);
 
-		$undo->setObject($announce);
-		$undo->setCcArray($announce->getCcArray());
+			$undo->setObjectId($announce->getId());
+			$undo->addCc($actor->getFollowers());
 
-		$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
+			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
+			$interface->delete($announce);
+//			$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
+			$this->signatureService->signObject($actor, $undo);
+
+			$token = $this->activityService->request($undo);
+		} catch (ItemUnknownException $e) {
+		} catch (StreamNotFoundException $e) {
+		}
+
 		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
-		$this->signatureService->signObject($actor, $undo);
-
-		$token = $this->activityService->request($undo);
 
 		return $undo;
 	}

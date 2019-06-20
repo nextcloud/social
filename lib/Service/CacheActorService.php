@@ -195,6 +195,7 @@ class CacheActorService {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
 

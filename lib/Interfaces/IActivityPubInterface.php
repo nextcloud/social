@@ -62,8 +62,8 @@ interface IActivityPubInterface {
 	/**
 	 * @param string $id
 	 *
-	 * @throws ItemNotFoundException
 	 * @return ACore
+	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore;
 
@@ -83,6 +83,23 @@ interface IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function save(ACore $item);
+
+
+	/**
+	 * Update the current item.
+	 *
+	 * @param ACore $item
+	 */
+	public function update(ACore $item);
+
+
+	/**
+	 * Event on the current item.
+	 *
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source);
 
 
 	/**

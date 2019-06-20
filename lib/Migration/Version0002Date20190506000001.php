@@ -43,6 +43,14 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
+// notes on migration for A3:
+//
+// 'details' in _stream
+// 'hidden_on_timeline' in _stream should be replaced by '
+//filter_duplicate'
+//
+//
+
 /**
  * Class Version0002Date20190226000001
  *

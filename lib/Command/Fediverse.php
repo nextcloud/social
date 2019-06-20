@@ -33,6 +33,7 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -208,6 +209,8 @@ class Fediverse extends Base {
 
 	/**
 	 * @param string $address
+	 *
+	 * @throws SocialAppConfigException
 	 */
 	private function testAddress(string $address) {
 		try {

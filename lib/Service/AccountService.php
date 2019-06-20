@@ -280,7 +280,7 @@ class AccountService {
 			'following' => $this->followsRequest->countFollowing($actor->getId()),
 			'post'      => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
-		$actor->addDetailArray('count', $count);
+		$actor->setDetailArray('count', $count);
 	}
 
 

@@ -36,9 +36,13 @@ use DateTime;
 use Exception;
 use JsonSerializable;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Traits\TDetails;
 
 
 class Stream extends ACore implements JsonSerializable {
+
+
+	use TDetails;
 
 
 	const TYPE = 'Stream';
@@ -48,6 +52,7 @@ class Stream extends ACore implements JsonSerializable {
 	const TYPE_UNLISTED = 'unlisted';
 	const TYPE_FOLLOWERS = 'followers';
 	const TYPE_DIRECT = 'direct';
+	const TYPE_ANNOUNCE = 'announce';
 
 
 	/** @var string */
@@ -81,6 +86,11 @@ class Stream extends ACore implements JsonSerializable {
 	private $hiddenOnTimeline = false;
 
 
+	/**
+	 * Stream constructor.
+	 *
+	 * @param null $parent
+	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 	}
@@ -346,6 +356,7 @@ class Stream extends ACore implements JsonSerializable {
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
+		$this->setDetailsAll($this->getArray('details', $data, []));
 		$this->setHiddenOnTimeline($this->getBool('hidden_on_timeline', $data, false));
 
 		$cache = new Cache();
@@ -375,11 +386,16 @@ class Stream extends ACore implements JsonSerializable {
 			$result = array_merge(
 				$result,
 				[
+					'details'       => $this->getDetailsAll(),
 					'action'        => ($this->hasAction()) ? $this->getAction() : [],
 					'cache'         => ($this->hasCache()) ? $this->getCache() : '',
 					'publishedTime' => $this->getPublishedTime()
 				]
 			);
+
+			$result['cc'] = '';
+			$result['bcc'] = '';
+			$result['to'] = '';
 		}
 
 		$this->cleanArray($result);

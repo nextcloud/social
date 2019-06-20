@@ -32,14 +32,10 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use DateTime;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Type;
 use Exception;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCP\DB\ISchemaWrapper;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
@@ -82,12 +78,14 @@ class Version0002Date20190618000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->getTable('social_a2_stream');
-		$table->addColumn(
-			'details', Type::TEXT,
-			[
-				'notnull' => false
-			]
-		);
+		if (!$table->hasColumn('details')) {
+			$table->addColumn(
+				'details', Type::TEXT,
+				[
+					'notnull' => false
+				]
+			);
+		}
 
 		return $schema;
 	}

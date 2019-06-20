@@ -44,6 +44,7 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -158,7 +159,7 @@ class NoteService {
 	 */
 	private function setRecipient(ACore $stream, Person $actor, string $type) {
 		switch ($type) {
-			case Note::TYPE_UNLISTED:
+			case Stream::TYPE_UNLISTED:
 				$stream->setTo($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
@@ -169,7 +170,7 @@ class NoteService {
 				$stream->addCc(ACore::CONTEXT_PUBLIC);
 				break;
 
-			case Note::TYPE_FOLLOWERS:
+			case Stream::TYPE_FOLLOWERS:
 				$stream->setTo($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
@@ -179,7 +180,17 @@ class NoteService {
 				);
 				break;
 
-			case Note::TYPE_DIRECT:
+			case Stream::TYPE_ANNOUNCE:
+				$stream->addInstancePath(
+					new InstancePath(
+						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						InstancePath::PRIORITY_LOW
+					)
+				);
+				$stream->addCc($actor->getFollowers());
+				break;
+
+			case Stream::TYPE_DIRECT:
 				break;
 
 			default:
@@ -215,7 +226,7 @@ class NoteService {
 		$instancePath = new InstancePath(
 			$actor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM
 		);
-		if ($type === Note::TYPE_DIRECT) {
+		if ($type === Stream::TYPE_DIRECT) {
 			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
 			$stream->addToArray($actor->getId());
 		} else {
@@ -460,6 +471,7 @@ class NoteService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function getAuthorFromPostId($noteId) {
 		$note = $this->streamRequest->getStreamById($noteId);

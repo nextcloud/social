@@ -652,8 +652,9 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
+	 * @param string $alias
 	 */
-	protected function leftJoinCacheActors(IQueryBuilder &$qb, string $fieldActorId) {
+	protected function leftJoinCacheActors(IQueryBuilder &$qb, string $fieldActorId, string $alias = '') {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -661,7 +662,7 @@ class CoreRequestBuilder {
 		$expr = $qb->expr();
 		$func = $qb->func();
 
-		$pf = $this->defaultSelectAlias;
+		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
 		$qb->selectAlias('ca.id', 'cacheactor_id')
 		   ->selectAlias('ca.type', 'cacheactor_type')
@@ -949,16 +950,16 @@ class CoreRequestBuilder {
 
 		try {
 			$this->parseFollowLeftJoin($data, 'as_follower');
-			$actor->addDetailBool('following', true);
+			$actor->setDetailBool('following', true);
 		} catch (InvalidResourceException $e) {
-			$actor->addDetailBool('following', false);
+			$actor->setDetailBool('following', false);
 		}
 
 		try {
 			$this->parseFollowLeftJoin($data, 'as_followed');
-			$actor->addDetailBool('followed', true);
+			$actor->setDetailBool('followed', true);
 		} catch (InvalidResourceException $e) {
-			$actor->addDetailBool('followed', false);
+			$actor->setDetailBool('followed', false);
 		}
 
 		$actor->setCompleteDetails(true);
