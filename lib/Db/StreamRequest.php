@@ -427,11 +427,12 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
-		if ($localOnly) {
-			$this->limitToLocal($qb, true);
-		}
+//		if ($localOnly) {
+		$this->limitToLocal($qb, $localOnly);
+//		}
 
-//		$this->filterHiddenOnTimeline($qb);
+		$this->limitToType($qb, Note::TYPE);
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
