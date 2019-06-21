@@ -1,5 +1,17 @@
 # Changelog
 
+
+## 0.2.4
+
+- [setup] Rewrite of the announce system
+- [setup] Fixing migrations
+- [global] Fixing caching from 3rd party instance 
+- [global] Fixing signature check
+- [global] Fixing local and federated timeline
+- [global] More debug logging
+- [federated] Managing local and remote host-meta
+
+
 ## 0.2.3
 
 - [global] reverting nextcloud to 0.9.x
