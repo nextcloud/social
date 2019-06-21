@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "6e8f346a2ee488655316d1e4139c27417d6b7e4d"
+                "reference": "59516b3d988cb14b49db050df8b6a94290c44298"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/6e8f346a2ee488655316d1e4139c27417d6b7e4d",
-                "reference": "6e8f346a2ee488655316d1e4139c27417d6b7e4d",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/59516b3d988cb14b49db050df8b6a94290c44298",
+                "reference": "59516b3d988cb14b49db050df8b6a94290c44298",
                 "shasum": ""
             },
             "require": {
@@ -40,7 +40,7 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2019-05-29T20:52:05+00:00"
+            "time": "2019-06-11T20:45:04+00:00"
         },
         {
             "name": "friendica/json-ld",

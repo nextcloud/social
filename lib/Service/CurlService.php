@@ -37,6 +37,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Exceptions\HostMetaException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RedundancyLimitException;
@@ -108,7 +109,7 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function webfingerAccount(string $account): array {
+	public function webfingerAccount(string &$account): array {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
@@ -121,7 +122,13 @@ class CurlService {
 			throw new InvalidResourceException();
 		}
 
-		$request = new Request('/.well-known/webfinger');
+		try {
+			$path = $this->hostMeta($host);
+		} catch (HostMetaException $e) {
+			$path = '/.well-known/webfinger';
+		}
+
+		$request = new Request($path);
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
 
@@ -134,7 +141,39 @@ class CurlService {
 			} else throw $e;
 		}
 
+		$subject = $this->get('subject', $result, '');
+		list($type, $temp) = explode(':', $subject, 2);
+		if ($type === 'acct') {
+			$account = $temp;
+		}
+
 		return $result;
+	}
+
+
+	/**
+	 * @param string $host
+	 *
+	 * @return string
+	 * @throws HostMetaException
+	 */
+	public function hostMeta(string &$host): string {
+		$request = new Request('/.well-known/host-meta');
+		$request->setAddress($host);
+
+		try {
+			$result = $this->request($request);
+		} catch (Exception $e) {
+			$this->miscService->log(
+				'hostMeta Exception - ' . get_class($e) . ' - ' . $e->getMessage(), 0
+			);
+			throw new HostMetaException($e->getMessage());
+		}
+
+		$url = $this->get('Link.@attributes.template', $result, '');
+		$host = parse_url($url, PHP_URL_HOST);
+
+		return parse_url($url, PHP_URL_PATH);
 	}
 
 
@@ -156,7 +195,7 @@ class CurlService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveAccount(string $account): Person {
+	public function retrieveAccount(string &$account): Person {
 		$result = $this->webfingerAccount($account);
 
 		try {
@@ -252,8 +291,15 @@ class CurlService {
 		}
 
 		$this->miscService->log(
-			'[>>] request: ' . json_encode($request) . ' - result: ' . $result, 1
+			'[>>] request: ' . json_encode($request) . ' - content-type: '
+			. $request->getContentType() . ' - result: ' . $result, 1
 		);
+
+		if (strpos($request->getContentType(), 'application/xrd') === 0) {
+			$xml = simplexml_load_string($result);
+			$result = json_encode($xml, JSON_UNESCAPED_SLASHES);
+			$this->miscService->log('XRD conversion to JSON: ' . $result, 1);
+		}
 
 		$result = json_decode((string)$result, true);
 		if (is_array($result)) {
@@ -427,6 +473,8 @@ class CurlService {
 		$this->parseRequestResultCurl($curl, $request);
 
 		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+		$contentType = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+		$request->setContentType(($contentType === null) ? '' : $contentType);
 		$request->setResultCode($code);
 
 		$this->parseRequestResultCode301($code, $request);

@@ -62,10 +62,15 @@ try {
 
 	$fediverseService->jailed();
 
-	if ($configService->getCloudAddress(true) !== $instance) {
-		throw new Exception(
-			'instance is ' . $instance . ', expected ' . $configService->getCloudAddress(true)
-		);
+	if ($configService->getSocialAddress() !== $instance) {
+
+		if ($configService->getCloudAddress(true) === $instance) {
+			$instance = $configService->getSocialAddress();
+		} else {
+			throw new Exception(
+				'instance is ' . $instance . ', expected ' . $configService->getSocialAddress()
+			);
+		}
 	}
 
 	$cacheActorService->getFromLocalAccount($username);
@@ -85,7 +90,7 @@ if (substr($href, -1) === '/') {
 }
 
 $finger = [
-	'subject' => $subject,
+	'subject' => 'acct:' . $username . '@' . $instance,
 	'links'   => [
 		[
 			'rel'  => 'self',

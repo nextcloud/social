@@ -51,7 +51,8 @@ class ConfigService {
 	use TArrayTools;
 
 
-	const SOCIAL_ADDRESS = 'address';
+	const CLOUD_ADDRESS = 'address';
+	const SOCIAL_ADDRESS = 'social_address';
 	const SOCIAL_SERVICE = 'service';
 	const SOCIAL_MAX_SIZE = 'max_size';
 	const SOCIAL_ACCESS_TYPE = 'access_type';
@@ -64,6 +65,7 @@ class ConfigService {
 
 	/** @var array */
 	public $defaults = [
+		self::CLOUD_ADDRESS      => '',
 		self::SOCIAL_ADDRESS     => '',
 		self::SOCIAL_SERVICE     => 1,
 		self::SOCIAL_MAX_SIZE    => 10,
@@ -258,7 +260,7 @@ class ConfigService {
 	 * @param string $cloudAddress
 	 */
 	public function setCloudAddress(string $cloudAddress) {
-		$this->setAppValue(self::SOCIAL_ADDRESS, $cloudAddress);
+		$this->setAppValue(self::CLOUD_ADDRESS, $cloudAddress);
 	}
 
 	/**
@@ -268,7 +270,7 @@ class ConfigService {
 	 * @throws SocialAppConfigException
 	 */
 	public function getCloudAddress(bool $host = false) {
-		$address = $this->getAppValue(self::SOCIAL_ADDRESS);
+		$address = $this->getAppValue(self::CLOUD_ADDRESS);
 		if ($address === '') {
 			throw new SocialAppConfigException();
 		}
@@ -291,6 +293,28 @@ class ConfigService {
 		}
 
 		return $this->withoutEndSlash($address, false, false);
+	}
+
+
+	/**
+	 * @param string $address
+	 */
+	public function setSocialAddress(string $address) {
+		$this->setAppValue(self::SOCIAL_ADDRESS, $address);
+	}
+
+	/**
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function getSocialAddress(): string {
+		$address = $this->getAppValue(self::SOCIAL_ADDRESS);
+
+		if ($address === '') {
+			return $this->getCloudAddress(true);
+		}
+
+		return $address;
 	}
 
 
