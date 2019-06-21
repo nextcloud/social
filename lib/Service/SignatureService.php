@@ -127,7 +127,7 @@ class SignatureService {
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				"digest_alg" => "rsa",
+				"digest_alg"       => "rsa",
 				"private_key_bits" => 2048,
 				"private_key_type" => OPENSSL_KEYTYPE_RSA,
 			]
@@ -232,6 +232,7 @@ class SignatureService {
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
 	 * @throws DateTimeException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function checkObject(ACore $object): bool {
 		try {
@@ -263,6 +264,10 @@ class SignatureService {
 
 			return true;
 		} catch (LinkedDataSignatureMissingException $e) {
+			$this->miscService->log(
+				'LinkedDataSignatureMissingException while checkObject : ' . $e->getMessage()
+				. ' --- ' . json_encode($object), 1
+			);
 		}
 
 		return false;
