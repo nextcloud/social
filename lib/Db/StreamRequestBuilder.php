@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCP\DB\QueryBuilder\ICompositeExpression;
@@ -98,7 +99,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 			   's.instances', 's.creation', 's.hidden_on_timeline'
 		   )
-		   ->from(self::TABLE_STREAMS, 's');
+		   ->from(self::TABLE_STREAMS, 's')
+		   ->groupBy('s.id');
 
 		$this->defaultSelectAlias = 's';
 
@@ -160,19 +162,26 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		$func = $qb->func();
 		$expr = $qb->expr();
+
 		$filter = $expr->orX();
+		$filter->add($this->exprLimitToDBFieldInt($qb, 'hidden_on_timeline', 0));
+
 		$filter->add(
 			$expr->neq(
 				$func->lower('attributed_to'),
 				$func->lower($qb->createNamedParameter($actor->getId()))
 			)
 		);
-		$filter->add(
+
+		$follower = $expr->andX();
+		$follower->add(
 			$expr->eq(
-				'hidden_on_timeline',
-				$qb->createNamedParameter('0')
+				$func->lower('f.object_id'),
+				$func->lower('attributed_to')
 			)
 		);
+		$follower->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'f'));
+		$filter->add($follower);
 
 		$qb->andwhere($filter);
 	}
@@ -188,6 +197,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$on = $this->exprJoinFollowing($qb, $actor);
+		$qb->selectAlias('f.object_id', 'following_actor_id');
 		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
 	}
 
@@ -430,6 +440,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$item->setAction($action);
+
+		if ($item->getType() === Announce::TYPE) {
+			$item->setAttributedTo($this->get('following_actor_id', $data, ''));
+		}
 
 		return $item;
 	}

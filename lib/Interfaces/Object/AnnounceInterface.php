@@ -31,10 +31,14 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Object;
 
 
+use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -42,6 +46,7 @@ use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamQueueService;
 
@@ -54,11 +59,17 @@ use OCA\Social\Service\StreamQueueService;
 class AnnounceInterface implements IActivityPubInterface {
 
 
+	use TArrayTools;
+
+
 	/** @var StreamRequest */
 	private $streamRequest;
 
 	/** @var StreamQueueService */
 	private $streamQueueService;
+
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -69,14 +80,16 @@ class AnnounceInterface implements IActivityPubInterface {
 	 *
 	 * @param StreamRequest $streamRequest
 	 * @param StreamQueueService $streamQueueService
+	 * @param CacheActorService $cacheActorService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamQueueService $streamQueueService,
-		MiscService $miscService
+		CacheActorService $cacheActorService, MiscService $miscService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamQueueService = $streamQueueService;
+		$this->cacheActorService = $cacheActorService;
 		$this->miscService = $miscService;
 	}
 
@@ -137,7 +150,20 @@ class AnnounceInterface implements IActivityPubInterface {
 	public function save(ACore $item) {
 		/** @var Announce $item */
 		try {
-			$this->streamRequest->getStreamById($item->getId());
+			$knownItem =
+				$this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
+
+			if ($item->hasActor()) {
+				$actor = $item->getActor();
+			} else {
+				$actor = $this->cacheActorService->getFromId($item->getActorId());
+			}
+
+			if (!$knownItem->hasCc($actor->getFollowers())) {
+				$knownItem->addCc($actor->getFollowers());
+				$this->streamRequest->update($knownItem);
+			}
+			
 		} catch (StreamNotFoundException $e) {
 			$objectId = $item->getObjectId();
 			$item->addCacheItem($objectId);
@@ -153,8 +179,56 @@ class AnnounceInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $item
 	 */
+	public function update(ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
 	public function delete(ACore $item) {
-		$this->streamRequest->deleteStreamById($item->getId(), Announce::TYPE);
+		try {
+			$knownItem =
+				$this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
+
+			$actor = $item->getActor();
+			$knownItem->removeCc($actor->getFollowers());
+
+			if (empty($knownItem->getCcArray())) {
+				$this->streamRequest->deleteStreamById($knownItem->getId(), Announce::TYPE);
+			} else {
+				$this->streamRequest->update($knownItem);
+			}
+		} catch (StreamNotFoundException $e) {
+		} catch (ItemUnknownException $e) {
+		} catch (SocialAppConfigException $e) {
+		}
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source) {
+		/** @var Stream $item */
+		switch ($source) {
+			case 'updateCache':
+				$objectId = $item->getObjectId();
+				try {
+					$cachedItem = $item->getCache()
+									   ->getItem($objectId);
+				} catch (CacheItemNotFoundException $e) {
+					return;
+				}
+
+				$to = $this->get('attributedTo', $cachedItem->getObject(), '');
+				if ($to !== '') {
+					$this->streamRequest->updateAttributedTo($item->getId(), $to);
+				}
+
+				break;
+		}
 	}
 
 }

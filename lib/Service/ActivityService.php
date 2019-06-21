@@ -358,7 +358,7 @@ class ActivityService {
 		$sharedInboxes = [];
 		$instancePaths = [];
 		foreach ($follows as $follow) {
-			if (!$follow->gotActor()) {
+			if (!$follow->hasActor()) {
 				// TODO - check if cache can be empty at this point ?
 				continue;
 			}
@@ -415,7 +415,7 @@ class ActivityService {
 	 * @return string
 	 */
 	private function getAuthorFromItem(Acore $activity): string {
-		if ($activity->gotActor()) {
+		if ($activity->hasActor()) {
 			return $activity->getActor()
 							->getId();
 		}

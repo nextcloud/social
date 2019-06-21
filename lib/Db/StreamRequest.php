@@ -32,9 +32,13 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
+use Doctrine\DBAL\Driver\Statement;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\DateTimeException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -73,7 +77,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function save(Stream $stream) {
 		$qb = $this->saveStream($stream);
-
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
 			$qb->setValue(
@@ -86,7 +89,30 @@ class StreamRequest extends StreamRequestBuilder {
 			   );
 		}
 
-		$qb->execute();
+		try {
+			$qb->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
+	}
+
+
+	/**
+	 * @param Stream $stream \
+	 *
+	 * @return Statement|int
+	 */
+	public function update(Stream $stream) {
+		$qb = $this->getStreamUpdateSql();
+
+		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
+		$qb->set(
+			'cc', $qb->createNamedParameter(
+			json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
+		)
+		);
+		$this->limitToIdString($qb, $stream->getId());
+
+		return $qb->execute();
 	}
 
 
@@ -100,10 +126,21 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$this->limitToIdString($qb, $stream->getId());
 
-		try {
-			$qb->execute();
-		} catch (UniqueConstraintViolationException $e) {
-		}
+		$qb->execute();
+	}
+
+
+	/**
+	 * @param string $itemId
+	 * @param string $to
+	 */
+	public function updateAttributedTo(string $itemId, string $to) {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('attributed_to', $qb->createNamedParameter($to));
+
+		$this->limitToIdString($qb, $itemId);
+
+		$qb->execute();
 	}
 
 
@@ -176,15 +213,15 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param Person $actor
 	 * @param string $type
-	 *
 	 * @param string $objectId
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
-	public function getStreamByObjectId(Person $actor, string $type, string $objectId): Stream {
+	public function getStreamByObjectId(string $objectId, string $type): Stream {
 		if ($objectId === '') {
 			throw new StreamNotFoundException('missing objectId');
 		};
@@ -192,7 +229,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitToObjectId($qb, $objectId);
 		$this->limitToType($qb, $type);
-		$this->limitToAttributedTo($qb, $actor->getId());
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -200,8 +236,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		if ($data === false) {
 			throw new StreamNotFoundException(
-				'StreamByObjectId not found - ' . $actor->getId() . ' - ' . $type . ' - '
-				. $objectId
+				'StreamByObjectId not found - ' . $type . ' - ' . $objectId
 			);
 		}
 
@@ -245,10 +280,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$this->joinFollowing($qb, $actor);
 		$this->limitPaginate($qb, $since, $limit);
-		$this->filterHiddenOnTimeline($qb);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinCacheActors($qb, 'object_id', 'f');
 		$this->leftJoinStreamAction($qb);
+
+		$this->filterDuplicate($qb);
 
 		$streams = [];
 		$cursor = $qb->execute();
@@ -357,7 +393,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToRecipient($qb, $actor->getId(), true);
 		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterRecipient($qb, $actor->getFollowers());
-		$this->filterHiddenOnTimeline($qb);
+//		$this->filterHiddenOnTimeline($qb);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
@@ -391,11 +427,12 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
-		if ($localOnly) {
-			$this->limitToLocal($qb, true);
-		}
+//		if ($localOnly) {
+		$this->limitToLocal($qb, $localOnly);
+//		}
 
-		$this->filterHiddenOnTimeline($qb);
+		$this->limitToType($qb, Note::TYPE);
+
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
@@ -442,7 +479,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
 
 		$this->limitPaginate($qb, $since, $limit);
-		$this->filterHiddenOnTimeline($qb);
+//		$this->filterHiddenOnTimeline($qb);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
@@ -463,6 +500,8 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
 	public function getNoteSince(int $since): array {
 		$qb = $this->getStreamSelectSql();
@@ -561,6 +600,7 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('source', $qb->createNamedParameter($stream->getSource()))
 		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
 		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
+		   ->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
 		   ->setValue(
 			   'hidden_on_timeline',
@@ -590,6 +630,71 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $qb;
 	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param Person $actor
+	 */
+	private function leftJoinFollowStatus(IQueryBuilder $qb, Person $actor) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$func = $qb->func();
+		$pf = $this->defaultSelectAlias . '.';
+
+		$on = $expr->andX();
+		$on->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'fs'));
+		$on->add($expr->eq($func->lower($pf . 'attributed_to'), $func->lower('fs.object_id')));
+		$on->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'fs'));
+
+		$qb->leftJoin($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'fs', $on);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 */
+	private function filterDuplicate(IQueryBuilder $qb) {
+		$actor = $this->viewer;
+
+		if ($actor === null) {
+			return;
+		}
+
+		$this->leftJoinFollowStatus($qb, $actor);
+
+		$func = $qb->func();
+		$expr = $qb->expr();
+
+		$filter = $expr->orX();
+		$filter->add($this->exprLimitToDBFieldInt($qb, 'hidden_on_timeline', 0, 's'));
+
+		$follower = $expr->andX();
+		$follower->add(
+			$expr->neq(
+				$func->lower('attributed_to'),
+				$func->lower($qb->createNamedParameter($actor->getId()))
+			)
+		);
+		$follower->add($expr->isNull('fs.id'));
+//		$follower->add(
+//			$expr->eq(
+//				$func->lower('f.object_id'),
+//				$func->lower('s.attributed_to')
+//			)
+//		);
+		// needed ?
+//		$follower->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'f'));
+//		$follower->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
+
+		$filter->add($follower);
+
+		$qb->andWhere($filter);
+	}
+
 
 }
 

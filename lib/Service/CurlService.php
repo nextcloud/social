@@ -230,6 +230,8 @@ class CurlService {
 		$this->fediverseService->authorized($request->getAddress());
 
 		$this->maxDownloadSizeReached = false;
+		$this->assignUserAgent($request);
+
 		$curl = $this->initRequest($request);
 
 		$this->initRequestPost($curl, $request);
@@ -292,6 +294,7 @@ class CurlService {
 
 		try {
 			$this->request($request);
+		} catch (RequestResultNotJsonException $e) {
 		} catch (Exception $e) {
 			$this->miscService->log(
 				'Cannot initiate AsyncWithToken ' . json_encode($token) . ' (' . get_class($e)

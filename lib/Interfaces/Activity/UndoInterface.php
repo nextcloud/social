@@ -102,7 +102,22 @@ class UndoInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $item
 	 */
+	public function update(ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
 	public function delete(ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source) {
 	}
 
 

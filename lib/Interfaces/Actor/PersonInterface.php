@@ -126,20 +126,6 @@ class PersonInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $person
-	 */
-	public function save(ACore $person) {
-		/** @var Person $person */
-		try {
-			$this->getItemById($person->getId());
-			$this->actorService->update($person);
-		} catch (ItemNotFoundException $e) {
-			$this->actorService->save($person);
-		}
-	}
-
-
-	/**
 	 * @param ACore $activity
 	 * @param ACore $item
 	 *
@@ -156,12 +142,41 @@ class PersonInterface implements IActivityPubInterface {
 
 
 	/**
+	 * @param ACore $person
+	 */
+	public function save(ACore $person) {
+		/** @var Person $person */
+		try {
+			$this->getItemById($person->getId());
+			$this->actorService->update($person);
+		} catch (ItemNotFoundException $e) {
+			$this->actorService->save($person);
+		}
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function update(ACore $item) {
+	}
+
+
+	/**
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
 		/** @var Person $item */
 		$this->cacheActorsRequest->deleteFromId($item->getId());
 		$this->streamRequest->deleteByAuthor($item->getId());
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source) {
 	}
 
 

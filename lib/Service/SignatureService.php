@@ -54,6 +54,7 @@ use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
@@ -126,7 +127,7 @@ class SignatureService {
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				"digest_alg" => "rsa",
+				"digest_alg"       => "rsa",
 				"private_key_bits" => 2048,
 				"private_key_type" => OPENSSL_KEYTYPE_RSA,
 			]
@@ -231,6 +232,7 @@ class SignatureService {
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
 	 * @throws DateTimeException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function checkObject(ACore $object): bool {
 		try {
@@ -262,6 +264,10 @@ class SignatureService {
 
 			return true;
 		} catch (LinkedDataSignatureMissingException $e) {
+			$this->miscService->log(
+				'LinkedDataSignatureMissingException while checkObject : ' . $e->getMessage()
+				. ' --- ' . json_encode($object), 1
+			);
 		}
 
 		return false;
@@ -402,10 +408,11 @@ class SignatureService {
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	private function retrieveKey(string $keyId, bool $refresh = false): string {
 		$actor = $this->cacheActorService->getFromId($keyId, $refresh);

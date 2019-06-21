@@ -102,6 +102,14 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 
 
 	/**
+	 * @param ACore $activity
+	 * @param ACore $item
+	 */
+	public function activity(Acore $activity, ACore $item) {
+	}
+
+
+	/**
 	 * @param ACore $notification
 	 */
 	public function save(ACore $notification) {
@@ -113,16 +121,17 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 		$notification->setPublished(date("c"));
 		$notification->convertPublished();
 
-		$this->miscService->log('Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1);
+		$this->miscService->log(
+			'Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1
+		);
 		$this->streamRequest->save($notification);
 	}
 
 
 	/**
-	 * @param ACore $activity
 	 * @param ACore $item
 	 */
-	public function activity(Acore $activity, ACore $item) {
+	public function update(ACore $item) {
 	}
 
 
@@ -131,6 +140,15 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 	 */
 	public function delete(ACore $item) {
 	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source) {
+	}
+
 
 }
 

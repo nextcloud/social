@@ -100,8 +100,25 @@ class ImageInterface extends DocumentInterface implements IActivityPubInterface 
 	/**
 	 * @param ACore $item
 	 */
+	public function update(ACore $item) {
+		parent::update($item);
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
 	public function delete(ACore $item) {
 		parent::delete($item);
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source) {
+		parent::event($item, $source);
 	}
 
 

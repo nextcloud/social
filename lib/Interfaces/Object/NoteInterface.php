@@ -109,20 +109,6 @@ class NoteInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $note
-	 */
-	public function save(ACore $note) {
-		/** @var Note $note */
-
-		try {
-			$this->streamRequest->getStreamById($note->getId());
-		} catch (StreamNotFoundException $e) {
-			$this->streamRequest->save($note);
-		}
-	}
-
-
-	/**
 	 * @param ACore $activity
 	 * @param ACore $item
 	 *
@@ -141,6 +127,27 @@ class NoteInterface implements IActivityPubInterface {
 
 
 	/**
+	 * @param ACore $note
+	 */
+	public function save(ACore $note) {
+		/** @var Note $note */
+
+		try {
+			$this->streamRequest->getStreamById($note->getId());
+		} catch (StreamNotFoundException $e) {
+			$this->streamRequest->save($note);
+		}
+	}
+
+
+	/**
+	 * @param ACore $item
+	 */
+	public function update(ACore $item) {
+	}
+
+
+	/**
 	 * @param ACore $item
 	 *
 	 * @throws InvalidOriginException
@@ -150,6 +157,14 @@ class NoteInterface implements IActivityPubInterface {
 
 		/** @var Note $item */
 		$this->streamRequest->deleteStreamById($item->getId(), Note::TYPE);
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param string $source
+	 */
+	public function event(ACore $item, string $source) {
 	}
 
 

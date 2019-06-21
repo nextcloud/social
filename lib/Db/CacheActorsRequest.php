@@ -31,6 +31,7 @@ namespace OCA\Social\Db;
 
 
 use DateTime;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -84,7 +85,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
-		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetails())));
+		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
 
 		try {
 			if ($actor->getCreation() > 0) {
@@ -112,7 +113,10 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		$this->generatePrimaryKey($qb, $actor->getId());
 
-		$qb->execute();
+		try {
+			$qb->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
 	}
 
 
@@ -140,7 +144,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->set('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->set('source', $qb->createNamedParameter($actor->getSource()))
-		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetails())));
+		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
 
 		try {
 			if ($actor->getCreation() > 0) {
