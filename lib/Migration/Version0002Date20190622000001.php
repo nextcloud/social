@@ -87,13 +87,6 @@ class Version0002Date20190622000001 extends SimpleMigrationStep {
 			);
 		}
 
-		$qb = $this->connection->getQueryBuilder();
-		$qb->delete('social_a2_stream');
-		$expr = $qb->expr();
-		$qb->where($expr->eq('type', $qb->createNamedParameter('Announce')));
-
-		$qb->execute();
-
 		return $schema;
 	}
 
@@ -110,6 +103,12 @@ class Version0002Date20190622000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
+		$qb = $this->connection->getQueryBuilder();
+		$qb->delete('social_a2_stream');
+		$expr = $qb->expr();
+		$qb->where($expr->eq('type', $qb->createNamedParameter('Announce')));
+
+		$qb->execute();
 
 		$this->check(
 			$schema, 'id', 'social_server_follows', 'social_a2_follows', 'accepted', 'boolean'
