@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.5
+
+- [setup] Fixing migrations (again)
+
 
 ## 0.2.4
 

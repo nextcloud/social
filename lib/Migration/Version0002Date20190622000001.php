@@ -46,7 +46,7 @@ use OCP\Migration\SimpleMigrationStep;
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190618000001 extends SimpleMigrationStep {
+class Version0002Date20190622000001 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -86,6 +86,13 @@ class Version0002Date20190618000001 extends SimpleMigrationStep {
 				]
 			);
 		}
+
+		$qb = $this->connection->getQueryBuilder();
+		$qb->delete('social_a2_stream');
+		$expr = $qb->expr();
+		$qb->where($expr->eq('type', $qb->createNamedParameter('Announce')));
+
+		$qb->execute();
 
 		return $schema;
 	}
@@ -359,6 +366,10 @@ class Version0002Date20190618000001 extends SimpleMigrationStep {
 					return;
 				}
 
+				if ($oldValue === '') {
+					$oldValue = null;
+				}
+
 				$update = $this->connection->getQueryBuilder();
 				$update->update($dest);
 				$update->set($field, $update->createNamedParameter($oldValue));
@@ -366,7 +377,10 @@ class Version0002Date20190618000001 extends SimpleMigrationStep {
 
 				$update->where($expr->eq($prim, $update->createNamedParameter($oldId)));
 
-				$update->execute();
+				try {
+					$update->execute();
+				} catch (Exception $e) {
+				}
 				break;
 
 			case 'boolean':
