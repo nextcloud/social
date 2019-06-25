@@ -475,7 +475,7 @@ class CoreRequestBuilder {
 	protected function limitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
-		$expr = $this->exprLimitToDBField($qb, $field, $value, $cs, $alias);
+		$expr = $this->exprLimitToDBField($qb, $field, $value, true, $cs, $alias);
 		$qb->andWhere($expr);
 	}
 
@@ -484,13 +484,15 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param string $field
 	 * @param string $value
+	 * @param bool $eq
 	 * @param bool $cs
 	 * @param string $alias
 	 *
 	 * @return string
 	 */
 	protected function exprLimitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
+		string $alias = ''
 	): string {
 		$expr = $qb->expr();
 
@@ -500,12 +502,20 @@ class CoreRequestBuilder {
 		}
 		$field = $pf . $field;
 
+		if ($eq) {
+			$comp = 'eq';
+		} else {
+			$comp = 'neq';
+		}
+
 		if ($cs) {
-			return $expr->eq($field, $qb->createNamedParameter($value));
+			return $expr->$comp($field, $qb->createNamedParameter($value));
 		} else {
 			$func = $qb->func();
 
-			return $expr->eq($func->lower($field), $func->lower($qb->createNamedParameter($value)));
+			return $expr->$comp(
+				$func->lower($field), $func->lower($qb->createNamedParameter($value))
+			);
 		}
 	}
 
@@ -653,9 +663,12 @@ class CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
+	 * @param Person $author
 	 * @param string $alias
 	 */
-	protected function leftJoinCacheActors(IQueryBuilder &$qb, string $fieldActorId, string $alias = '') {
+	protected function leftJoinCacheActors(
+		IQueryBuilder &$qb, string $fieldActorId, Person $author = null, string $alias = ''
+	) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -681,11 +694,28 @@ class CoreRequestBuilder {
 		   ->selectAlias('ca.public_key', 'cacheactor_public_key')
 		   ->selectAlias('ca.source', 'cacheactor_source')
 		   ->selectAlias('ca.creation', 'cacheactor_creation')
-		   ->selectAlias('ca.local', 'cacheactor_local')
-		   ->leftJoin(
-			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca',
-			   $expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id'))
-		   );
+		   ->selectAlias('ca.local', 'cacheactor_local');
+
+		$orX = $expr->orX();
+		$orX->add($expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id')));
+		if ($author !== null) {
+			$andX = $expr->andX();
+			$andX->add(
+				$this->exprLimitToDBField($qb, 'attributed_to', $author->getId(), true, false, 's')
+			);
+			$andX->add(
+				$expr->eq(
+					$func->lower($this->defaultSelectAlias . '.attributed_to'),
+					$func->lower('ca.id')
+				)
+			);
+			$orX->add($andX);
+		}
+
+		$qb->leftJoin(
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca', $orX
+		);
+
 	}
 
 

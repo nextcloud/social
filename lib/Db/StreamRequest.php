@@ -278,10 +278,11 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getTimelineHome(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
-		$this->joinFollowing($qb, $actor);
+		$this->leftJoinFollowing($qb, $actor);
+		$this->limitToFollowing($qb, $actor);
 		$this->limitPaginate($qb, $since, $limit);
 
-		$this->leftJoinCacheActors($qb, 'object_id', 'f');
+		$this->leftJoinCacheActors($qb, 'object_id', $actor, 'f');
 		$this->leftJoinStreamAction($qb);
 
 		$this->filterDuplicate($qb);
@@ -646,7 +647,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$pf = $this->defaultSelectAlias . '.';
 
 		$on = $expr->andX();
-		$on->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'fs'));
+		$on->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'fs'));
 		$on->add($expr->eq($func->lower($pf . 'attributed_to'), $func->lower('fs.object_id')));
 		$on->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'fs'));
 
