@@ -35,6 +35,7 @@ use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -706,7 +707,7 @@ class CoreRequestBuilder {
 		$actor = new Person();
 		$actor->importFromDatabase($new);
 
-		if ($actor->getType() !== Person::TYPE) {
+		if (!AP::$activityPub->isActor($actor)) {
 			throw new InvalidResourceException();
 		}
 

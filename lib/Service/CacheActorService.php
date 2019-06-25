@@ -139,7 +139,7 @@ class CacheActorService {
 
 			/** @var Person $actor */
 			$actor = AP::$activityPub->getItemFromData($object);
-			if ($actor->getType() !== Person::TYPE) {
+			if (!AP::$activityPub->isActor($actor)) {
 				throw new InvalidResourceException();
 			}
 
@@ -273,7 +273,7 @@ class CacheActorService {
 	 */
 	private function save(Person $actor) {
 		try {
-			$interface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+			$interface = AP::$activityPub->getInterfaceFromType($actor->getType());
 			$interface->save($actor);
 		} catch (ItemUnknownException $e) {
 		}
