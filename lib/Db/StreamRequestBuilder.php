@@ -99,8 +99,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 			   's.instances', 's.creation', 's.hidden_on_timeline'
 		   )
-		   ->from(self::TABLE_STREAMS, 's')
-		   ->groupBy('s.id');
+		   ->from(self::TABLE_STREAMS, 's');
 
 		$this->defaultSelectAlias = 's';
 
@@ -143,7 +142,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function limitToViewer(IQueryBuilder $qb) {
 		$actor = $this->viewer;
 
-		$on = $this->exprJoinFollowing($qb, $actor, false);
+		$on = $this->exprJoinFollowing($qb, $actor);
 		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
 		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
@@ -180,7 +179,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 				$func->lower('attributed_to')
 			)
 		);
-		$follower->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'f'));
+		$follower->add(
+			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
+		);
 		$filter->add($follower);
 
 		$qb->andwhere($filter);
@@ -191,33 +192,47 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param Person $actor
 	 */
-	protected function joinFollowing(IQueryBuilder $qb, Person $actor) {
+	protected function leftJoinFollowing(IQueryBuilder $qb, Person $actor) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
 
 		$on = $this->exprJoinFollowing($qb, $actor);
 		$qb->selectAlias('f.object_id', 'following_actor_id');
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
+		$qb->leftJoin($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
 	}
 
 
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param Person $actor
-	 * @param bool $followers
+	 */
+	protected function limitToFollowing(IQueryBuilder $qb, Person $actor) {
+		$expr = $qb->expr();
+		$andX = $expr->andX();
+		$andX->add($this->exprLimitToDBField($qb, 'attributed_to', $actor->getId(), true, false));
+		$andX->add($this->exprLimitToDBField($qb, 'cc', '[]', false));
+
+		$orX = $expr->orX();
+		$orX->add($andX);
+		$orX->add($expr->isNotNull('f.object_id'));
+
+		$qb->andWhere($orX);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param Person $actor
 	 *
 	 * @return ICompositeExpression
 	 */
-	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor, bool $followers = true) {
+	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor) {
 		$expr = $qb->expr();
 		$func = $qb->func();
 		$pf = $this->defaultSelectAlias . '.';
 
 		$on = $expr->orX();
-		if ($followers) {
-			$on->add($this->exprLimitToRecipient($qb, $actor->getFollowers(), false));
-		}
 
 		// list of possible recipient as a follower (to, to_array, cc, ...)
 		$recipientFields = $expr->orX();
@@ -229,7 +244,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		// all possible follow, but linked by followers (actor_id) and accepted follow
 		$crossFollows = $expr->andX();
 		$crossFollows->add($recipientFields);
-		$crossFollows->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'f'));
+		$crossFollows->add(
+			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
+		);
 		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
 		$on->add($crossFollows);
 
