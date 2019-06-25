@@ -1,5 +1,11 @@
 # Changelog
 
+
+## 0.2.6
+
+- [global] Improving and fixing streams.
+
+
 ## 0.2.5
 
 - [setup] Fixing migrations (again)
