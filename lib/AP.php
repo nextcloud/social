@@ -41,6 +41,7 @@ use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
+use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Activity\LikeInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
@@ -60,6 +61,7 @@ use OCA\Social\Model\ActivityPub\Activity\Add;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Like;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
@@ -134,6 +136,9 @@ class AP {
 	/** @var RemoveInterface */
 	public $removeInterface;
 
+	/** @var ServiceInterface */
+	public $serviceInterface;
+
 	/** @var UndoInterface */
 	public $undoInterface;
 
@@ -177,6 +182,7 @@ class AP {
 			$ap->noteInterface = OC::$server->query(NoteInterface::class);
 			$ap->notificationInterface = OC::$server->query(SocialAppNotificationInterface::class);
 			$ap->personInterface = OC::$server->query(PersonInterface::class);
+			$ap->serviceInterface = OC::$server->query(ServiceInterface::class);
 			$ap->rejectInterface = OC::$server->query(RejectInterface::class);
 			$ap->removeInterface = OC::$server->query(RemoveInterface::class);
 			$ap->undoInterface = OC::$server->query(UndoInterface::class);
@@ -334,6 +340,10 @@ class AP {
 				$item = new Remove();
 				break;
 
+			case Service::TYPE:
+				$item = new Service();
+				break;
+
 			case Tombstone::TYPE:
 				$item = new Tombstone();
 				break;
@@ -435,6 +445,10 @@ class AP {
 				$interface = $this->removeInterface;
 				break;
 
+			case Service::TYPE:
+				$interface = $this->serviceInterface;
+				break;
+
 			case Undo::TYPE:
 				$interface = $this->undoInterface;
 				break;
@@ -448,6 +462,22 @@ class AP {
 		}
 
 		return $interface;
+	}
+
+
+	/**
+	 * @param ACore $item
+	 *
+	 * @return bool
+	 */
+	public function isActor(ACore $item): bool {
+		$types =
+			[
+				Person::TYPE,
+				Service::TYPE
+			];
+
+		return (in_array($item->getType(), $types));
 	}
 
 }

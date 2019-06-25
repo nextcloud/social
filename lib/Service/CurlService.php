@@ -51,6 +51,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Actor\Service;
 
 class CurlService {
 
@@ -209,7 +210,7 @@ class CurlService {
 
 		/** @var Person $actor */
 		$actor = AP::$activityPub->getItemFromData($data);
-		if ($actor->getType() !== Person::TYPE) {
+		if (!AP::$activityPub->isActor($actor)) {
 			throw new ItemUnknownException();
 		}
 
