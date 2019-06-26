@@ -106,6 +106,9 @@ export default {
 	computed: {
 		allResults() {
 			if (this.results.accounts) {
+				if (this.results.accounts.exact) {
+					return [this.results.accounts.exact]
+				}
 				return this.results.accounts.result
 			}
 			return []
@@ -139,6 +142,9 @@ export default {
 				this.results = response.data.result
 				this.loading = false
 
+				if (this.results.accounts.exact !== null) {
+					this.$store.commit('addAccount', { actorId: this.results.accounts.exact.id, data: this.results.accounts.exact })
+				}
 				this.results.accounts.result.forEach((account) => {
 					this.$store.commit('addAccount', { actorId: account.id, data: account })
 				})
