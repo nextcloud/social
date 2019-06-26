@@ -51,6 +51,7 @@
 		<command>OCA\Social\Command\Fediverse</command>
 		<command>OCA\Social\Command\NoteCreate</command>
 		<command>OCA\Social\Command\NoteBoost</command>
+		<command>OCA\Social\Command\Timeline</command>
 		<command>OCA\Social\Command\Reset</command>
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>
