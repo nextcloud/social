@@ -58,7 +58,7 @@ pluginTag(linkify)
 pluginMention(linkify)
 
 export default {
-	name: 'TimelineContent',
+	name: 'TimelinePost',
 	components: {
 		Avatar
 	},
