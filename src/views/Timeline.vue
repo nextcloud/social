@@ -21,11 +21,11 @@
 				</div>
 			</div>
 		</transition>
-		<composer />
+		<composer v-if="type !== 'notifications'" />
 		<h2 v-if="type === 'tags'">
 			#{{ this.$route.params.tag }}
 		</h2>
-		<timeline-list />
+		<timeline-list :type="type" />
 	</div>
 </template>
 

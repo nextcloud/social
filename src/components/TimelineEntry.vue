@@ -1,6 +1,9 @@
 <template>
-	<div v-if="noDuplicateBoost" class="timeline-entry">
-		<div v-if="item.type === 'Announce'" class="boost">
+	<div class="timeline-entry">
+		<div v-if="item.type === 'SocialAppNotification'">
+			{{ actionSummary }}
+		</div>
+		<div v-if="item.type === 'Announce' && noDuplicateBoost" class="boost">
 			<div class="container-icon-boost">
 				<span class="icon-boost" />
 			</div>
@@ -16,17 +19,20 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-content :item="entryContent" :parent-announce="isBoost" />
+		<timeline-post v-if="noDuplicateBoost && item.type === 'Note | Announce'" :item="entryContent" :parent-announce="isBoost" />
+		<user-entry v-if="item.type === 'SocialAppNotificationUser'" :key="user.id" :item="user" />
 	</div>
 </template>
 
 <script>
-import TimelineContent from './TimelineContent.vue'
+import TimelinePost from './TimelinePost'
+import UserEntry from './UserEntry'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
-		TimelineContent
+		TimelinePost,
+		UserEntry
 	},
 	props: {
 		item: { type: Object, default: () => {} }
@@ -61,6 +67,9 @@ export default {
 				}
 			}
 			return true
+		},
+		actionSummary() {
+			return this.item.summary.replace('{account}', this.item.details.account)
 		}
 	},
 	methods: {
