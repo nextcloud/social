@@ -41,6 +41,7 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -66,8 +67,8 @@ class Timeline extends Base {
 	/** @var StreamRequest */
 	private $streamRequest;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	/** @var AccountService */
+	private $accountService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -91,20 +92,20 @@ class Timeline extends Base {
 	 *
 	 * @param IUserManager $userManager
 	 * @param StreamRequest $streamRequest
-	 * @param CacheActorService $cacheActorService
+	 * @param AccountService $accountService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IUserManager $userManager, StreamRequest $streamRequest,
-		CacheActorService $cacheActorService, ConfigService $configService,
+		AccountService $accountService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->userManager = $userManager;
 		$this->streamRequest = $streamRequest;
-		$this->cacheActorService = $cacheActorService;
+		$this->accountService = $accountService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -144,7 +145,7 @@ class Timeline extends Base {
 			throw new Exception('Unknown user');
 		}
 
-		$actor = $this->cacheActorService->getFromLocalAccount($userId);
+		$actor = $this->accountService->getActor($userId);
 
 		$this->outputActor($actor);
 		$this->displayStream($actor, $timeline);

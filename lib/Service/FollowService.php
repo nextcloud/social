@@ -48,6 +48,7 @@ use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -131,6 +132,7 @@ class FollowService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function followAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
