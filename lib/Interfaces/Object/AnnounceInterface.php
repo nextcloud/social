@@ -32,17 +32,30 @@ namespace OCA\Social\Interfaces\Object;
 
 
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
+use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\RequestContentException;
+use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Exceptions\RequestResultSizeException;
+use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
@@ -99,6 +112,15 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 *
 	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws MalformedArrayException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function activity(Acore $activity, ACore $item) {
 		$item->checkOrigin($activity->getId());
@@ -148,6 +170,7 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @throws Exception
 	 */
 	public function save(ACore $item) {
+
 		/** @var Announce $item */
 		try {
 			$knownItem =
@@ -159,11 +182,12 @@ class AnnounceInterface implements IActivityPubInterface {
 				$actor = $this->cacheActorService->getFromId($item->getActorId());
 			}
 
+			$this->updateNotification($knownItem, $actor);
 			if (!$knownItem->hasCc($actor->getFollowers())) {
 				$knownItem->addCc($actor->getFollowers());
 				$this->streamRequest->update($knownItem);
 			}
-			
+
 		} catch (StreamNotFoundException $e) {
 			$objectId = $item->getObjectId();
 			$item->addCacheItem($objectId);
@@ -173,6 +197,7 @@ class AnnounceInterface implements IActivityPubInterface {
 				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
 			);
 		}
+
 	}
 
 
@@ -185,13 +210,29 @@ class AnnounceInterface implements IActivityPubInterface {
 
 	/**
 	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws UnauthorizedFediverseException
+	 * @throws MalformedArrayException
 	 */
 	public function delete(ACore $item) {
 		try {
 			$knownItem =
 				$this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
 
-			$actor = $item->getActor();
+			if ($item->hasActor()) {
+				$actor = $item->getActor();
+			} else {
+				$actor = $this->cacheActorService->getFromId($item->getActorId());
+			}
+
 			$knownItem->removeCc($actor->getFollowers());
 
 			if (empty($knownItem->getCcArray())) {
@@ -227,7 +268,69 @@ class AnnounceInterface implements IActivityPubInterface {
 					$this->streamRequest->updateAttributedTo($item->getId(), $to);
 				}
 
+				try {
+					if ($item->hasActor()) {
+						$actor = $item->getActor();
+					} else {
+						$actor = $this->cacheActorService->getFromId($item->getActorId());
+					}
+
+					$this->updateNotification($item, $actor);
+				} catch (Exception $e) {
+				}
+
 				break;
+		}
+	}
+
+
+	/**
+	 * @param Stream $item
+	 *
+	 * @param Person $author
+	 *
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
+	 */
+	private function updateNotification(Stream $item, Person $author) {
+
+		/** @var SocialAppNotificationInterface $notificationInterface */
+		$notificationInterface =
+			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+
+		try {
+			$notification = $this->streamRequest->getStreamByObjectId(
+				$item->getId(), SocialAppNotification::TYPE
+			);
+
+			$notification->addDetail('accounts', $author->getAccount());
+			$notificationInterface->update($notification);
+
+		} catch (StreamNotFoundException $e) {
+
+			try {
+				$post = $this->streamRequest->getStreamById($item->getObjectId());
+			} catch (StreamNotFoundException $e) {
+				return; // should not happens.
+			}
+
+			if (!$post->isLocal()) {
+				return;
+			}
+
+			/** @var SocialAppNotification $notification */
+			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+//			$notification->setDetail('url', '');
+			$notification->setDetailItem('post', $post);
+			$notification->addDetail('accounts', $author->getAccount());
+			$notification->setAttributedTo($author->getId())
+						 ->setId($item->getId() . '/notification')
+						 ->setSummary('{accounts} boosted your post')
+						 ->setObjectId($item->getId())
+						 ->setTo($item->getAttributedTo())
+						 ->setLocal(true);
+
+			$notificationInterface->save($notification);
 		}
 	}
 

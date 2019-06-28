@@ -53,7 +53,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\InstancePath;
@@ -147,7 +146,7 @@ class FollowInterface implements IActivityPubInterface {
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
 			$this->accountService->cacheLocalActorDetailCount($actor);
 
-			$this->generateNotification($actor, $follow);
+			$this->generateNotification($follow);
 		} catch (Exception $e) {
 			$this->miscService->log(
 				'exception while confirmFollowRequest: ' . get_class($e) . ' - ' . $e->getMessage(),
@@ -267,24 +266,29 @@ class FollowInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param Person $actor
 	 * @param Follow $follow
 	 *
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	private function generateNotification(Person $actor, Follow $follow) {
+	private function generateNotification(Follow $follow) {
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface =
 			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
+		try {
+			$follower = $this->cacheActorService->getFromId($follow->getActorId());
+		} catch (Exception $e) {
+			return;
+		}
+
 		/** @var SocialAppNotification $notification */
 		$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
-		$notification->setDetail('account', $actor->getAccount());
-		$notification->setDetail('url', $actor->getId());
+		$notification->setDetail('url', $follower->getId());
+		$notification->setDetail('account', $follower->getAccount());
 		$notification->setAttributedTo($follow->getActorId())
 					 ->setId($follow->getId() . '/notification')
-					 ->setActorId($actor->getId())
+					 ->setActorId($follower->getId())
 					 ->setSummary('{account} is following you')
 					 ->setTo($follow->getObjectId())
 					 ->setLocal(true);

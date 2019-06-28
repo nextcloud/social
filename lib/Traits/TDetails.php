@@ -31,6 +31,8 @@ declare(strict_types=1);
 namespace OCA\Social\Traits;
 
 
+use OCA\Social\Model\ActivityPub\Item;
+
 /**
  * Trait TDetails
  *
@@ -86,6 +88,14 @@ trait TDetails {
 	 * @param bool $value
 	 */
 	public function setDetailBool(string $detail, bool $value) {
+		$this->details[$detail] = $value;
+	}
+
+	/**
+	 * @param string $detail
+	 * @param Item $value
+	 */
+	public function setDetailItem(string $detail, Item $value) {
 		$this->details[$detail] = $value;
 	}
 

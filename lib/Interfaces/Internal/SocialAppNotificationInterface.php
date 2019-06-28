@@ -129,9 +129,14 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $item
+	 * @param ACore $notification
 	 */
-	public function update(ACore $item) {
+	public function update(ACore $notification) {
+		/** @var SocialAppNotification $notification */
+		$this->miscService->log(
+			'Updating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1
+		);
+		$this->streamRequest->update($notification);
 	}
 
 
