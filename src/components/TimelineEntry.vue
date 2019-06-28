@@ -19,7 +19,7 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-post v-if="noDuplicateBoost && item.type === 'Note | Announce'" :item="entryContent" :parent-announce="isBoost" />
+		<timeline-post v-if="noDuplicateBoost && (item.type === 'Note' || item.type === 'Announce')" :item="entryContent" :parent-announce="isBoost" />
 		<user-entry v-if="item.type === 'SocialAppNotificationUser'" :key="user.id" :item="user" />
 	</div>
 </template>
