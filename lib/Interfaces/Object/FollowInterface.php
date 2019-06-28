@@ -288,6 +288,7 @@ class FollowInterface implements IActivityPubInterface {
 		$notification->setDetail('account', $follower->getAccount());
 		$notification->setAttributedTo($follow->getActorId())
 					 ->setId($follow->getId() . '/notification')
+					 ->setSubType(Follow::TYPE)
 					 ->setActorId($follower->getId())
 					 ->setSummary('{account} is following you')
 					 ->setTo($follow->getObjectId())

@@ -76,6 +76,7 @@ class CoreRequestBuilder {
 	const TABLE_STREAMS = 'social_a2_stream';
 	const TABLE_HASHTAGS = 'social_a2_hashtags';
 	const TABLE_FOLLOWS = 'social_a2_follows';
+	const TABLE_LIKES = 'social_a2_likes';
 
 	const TABLE_CACHE_ACTORS = 'social_a2_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_documts';
@@ -197,6 +198,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToType(IQueryBuilder &$qb, string $type) {
 		$this->limitToDBField($qb, 'type', $type);
+	}
+
+
+	/**
+	 * Limit the request to the sub-type
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $subType
+	 */
+	protected function limitToSubType(IQueryBuilder &$qb, string $subType) {
+		$this->limitToDBField($qb, 'subtype', $subType);
 	}
 
 

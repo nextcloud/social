@@ -214,15 +214,16 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param string $type
 	 * @param string $objectId
+	 * @param string $type
+	 * @param string $subType
 	 *
 	 * @return Stream
-	 * @throws StreamNotFoundException
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByObjectId(string $objectId, string $type): Stream {
+	public function getStreamByObjectId(string $objectId, string $type, string $subType = ''): Stream {
 		if ($objectId === '') {
 			throw new StreamNotFoundException('missing objectId');
 		};
@@ -230,6 +231,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitToObjectId($qb, $objectId);
 		$this->limitToType($qb, $type);
+		$this->limitToSubType($qb, $subType);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -580,6 +582,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($stream->getId()))
 		   ->setValue('type', $qb->createNamedParameter($stream->getType()))
+		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
 		   ->setValue(
 			   'to_array', $qb->createNamedParameter(

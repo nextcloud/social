@@ -324,6 +324,7 @@ class AnnounceInterface implements IActivityPubInterface {
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())
+						 ->setSubType(Announce::TYPE)
 						 ->setId($item->getId() . '/notification')
 						 ->setSummary('{accounts} boosted your post')
 						 ->setObjectId($item->getId())

@@ -32,6 +32,8 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
+use Doctrine\DBAL\Schema\SchemaException;
+use Doctrine\DBAL\Types\Type;
 use Exception;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
@@ -65,11 +67,73 @@ class Version0002Date20190628000001 extends SimpleMigrationStep {
 	 * @param array $options
 	 *
 	 * @return ISchemaWrapper
+	 * @throws SchemaException
 	 */
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options
 	): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
+		if ($schema->hasTable('social_a2_stream')) {
+			$table = $schema->getTable('social_a2_stream');
+			if (!$table->hasColumn('subtype')) {
+				$table->addColumn(
+					'subtype', Type::STRING,
+					[
+						'notnull' => false,
+						'length'  => 31,
+					]
+				);
+			}
+		}
+
+
+		if (!$schema->hasTable('social_a2_likes')) {
+			$table = $schema->createTable('social_a2_likes');
+
+			$table->addColumn(
+				'id', 'string',
+				[
+					'notnull' => false,
+					'length'  => 1000
+				]
+			);
+			$table->addColumn(
+				'id_prim', 'string',
+				[
+					'notnull' => false,
+					'length'  => 128
+				]
+			);
+			$table->addColumn(
+				'type', 'string',
+				[
+					'notnull' => false,
+					'length'  => 31,
+				]
+			);
+			$table->addColumn(
+				'actor_id', 'string',
+				[
+					'notnull' => true,
+					'length'  => 1000,
+				]
+			);
+			$table->addColumn(
+				'object_id', 'string',
+				[
+					'notnull' => true,
+					'length'  => 1000,
+				]
+			);
+			$table->addColumn(
+				'creation', 'datetime',
+				[
+					'notnull' => false,
+				]
+			);
+
+			$table->setPrimaryKey(['id_prim']);
+		}
 
 		return $schema;
 	}
