@@ -19,7 +19,7 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-post v-if="noDuplicateBoost && item.type === 'Note | Announce'" :item="entryContent" :parent-announce="isBoost" />
+		<timeline-post v-if="noDuplicateBoost && (item.type === 'Note' || item.type === 'Announce')" :item="entryContent" :parent-announce="isBoost" />
 		<user-entry v-if="item.type === 'SocialAppNotificationUser'" :key="user.id" :item="user" />
 	</div>
 </template>
@@ -69,7 +69,11 @@ export default {
 			return true
 		},
 		actionSummary() {
-			return this.item.summary.replace('{account}', this.item.details.account)
+			for (var key in this.item.details) {
+				let keyword = '{' + key + '}'
+				this.item.summary = this.item.summary.replace(keyword, this.item.details[key])
+			}
+			return this.item.summary
 		}
 	},
 	methods: {
