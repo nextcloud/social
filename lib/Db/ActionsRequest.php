@@ -35,16 +35,17 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\LikeDoesNotExistException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
- * Class LikesRequest
+ * Class ActionsRequest
  *
  * @package OCA\Social\Db
  */
-class LikesRequest extends LikesRequestBuilder {
+class ActionsRequest extends ActionsRequestBuilder {
 
 
 	use TArrayTools;
@@ -53,10 +54,10 @@ class LikesRequest extends LikesRequestBuilder {
 	/**
 	 * Insert a new Note in the database.
 	 *
-	 * @param Like $like
+	 * @param ACore $like
 	 */
-	public function save(Like $like) {
-		$qb = $this->getLikesInsertSql();
+	public function save(ACore $like) {
+		$qb = $this->getActionsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
 		   ->setValue('type', $qb->createNamedParameter($like->getType()))
@@ -80,13 +81,16 @@ class LikesRequest extends LikesRequestBuilder {
 	 * @param string $actorId
 	 * @param string $objectId
 	 *
-	 * @return Like
+	 * @param string $type
+	 *
+	 * @return ACore
 	 * @throws LikeDoesNotExistException
 	 */
-	public function getLike(string $actorId, string $objectId): Like {
-		$qb = $this->getLikesSelectSql();
+	public function getAction(string $actorId, string $objectId, string $type): ACore {
+		$qb = $this->getActionsSelectSql();
 		$this->limitToActorId($qb, $actorId);
 		$this->limitToObjectId($qb, $objectId);
+		$this->limitToType($qb, $type);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -95,18 +99,20 @@ class LikesRequest extends LikesRequestBuilder {
 			throw new LikeDoesNotExistException();
 		}
 
-		return $this->parseLikesSelectSql($data);
+		return $this->parseActionsSelectSql($data);
 	}
 
 
 	/**
 	 * @param string $objectId
+	 * @param string $type
 	 *
 	 * @return int
 	 */
-	public function countLikes(string $objectId): int {
-		$qb = $this->countLikesSelectSql();
+	public function countActions(string $objectId, string $type): int {
+		$qb = $this->countActionsSelectSql();
 		$this->limitToObjectId($qb, $objectId);
+		$this->limitToType($qb, $type);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -122,14 +128,14 @@ class LikesRequest extends LikesRequestBuilder {
 	 * @return Like[]
 	 */
 	public function getByObjectId(string $objectId): array {
-		$qb = $this->getLikesSelectSql();
+		$qb = $this->getActionsSelectSql();
 		$this->limitToObjectId($qb, $objectId);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 
 		$likes = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
-			$likes[] = $this->parseLikesSelectSql($data);
+			$likes[] = $this->parseActionsSelectSql($data);
 		}
 		$cursor->closeCursor();
 
@@ -141,7 +147,7 @@ class LikesRequest extends LikesRequestBuilder {
 	 * @param Like $like
 	 */
 	public function delete(Like $like) {
-		$qb = $this->getLikesDeleteSql();
+		$qb = $this->getActionsDeleteSql();
 		$this->limitToIdString($qb, $like->getId());
 
 		$qb->execute();
@@ -152,7 +158,7 @@ class LikesRequest extends LikesRequestBuilder {
 	 * @param string $objectId
 	 */
 	public function deleteLikes(string $objectId) {
-		$qb = $this->getLikesDeleteSql();
+		$qb = $this->getActionsDeleteSql();
 		$this->limitToObjectId($qb, $objectId);
 
 		$qb->execute();

@@ -46,7 +46,7 @@ use OCP\Migration\SimpleMigrationStep;
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190628000001 extends SimpleMigrationStep {
+class Version0002Date20190629000001 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -87,8 +87,8 @@ class Version0002Date20190628000001 extends SimpleMigrationStep {
 		}
 
 
-		if (!$schema->hasTable('social_a2_likes')) {
-			$table = $schema->createTable('social_a2_likes');
+		if (!$schema->hasTable('social_a2_actions')) {
+			$table = $schema->createTable('social_a2_actions');
 
 			$table->addColumn(
 				'id', 'string',

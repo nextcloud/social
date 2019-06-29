@@ -33,17 +33,16 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
- * Class LikesRequestBuilder
+ * Class ActionsRequestBuilder
  *
  * @package OCA\Social\Db
  */
-class LikesRequestBuilder extends CoreRequestBuilder {
+class ActionsRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -54,9 +53,9 @@ class LikesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getLikesInsertSql(): IQueryBuilder {
+	protected function getActionsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_LIKES);
+		$qb->insert(self::TABLE_ACTIONS);
 
 		return $qb;
 	}
@@ -67,9 +66,9 @@ class LikesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getLikesUpdateSql(): IQueryBuilder {
+	protected function getActionsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_LIKES);
+		$qb->update(self::TABLE_ACTIONS);
 
 		return $qb;
 	}
@@ -80,14 +79,14 @@ class LikesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getLikesSelectSql(): IQueryBuilder {
+	protected function getActionsSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('l.id', 'l.type', 'l.actor_id', 'l.object_id', 'l.creation')
-		   ->from(self::TABLE_LIKES, 'l');
+		$qb->select('a.id', 'a.type', 'a.actor_id', 'a.object_id', 'a.creation')
+		   ->from(self::TABLE_ACTIONS, 'a');
 
-		$this->defaultSelectAlias = 'l';
+		$this->defaultSelectAlias = 'a';
 
 		return $qb;
 	}
@@ -98,12 +97,12 @@ class LikesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function countLikesSelectSql(): IQueryBuilder {
+	protected function countActionsSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_LIKES, 'l');
+		   ->from(self::TABLE_ACTIONS, 'a');
 
-		$this->defaultSelectAlias = 'l';
+		$this->defaultSelectAlias = 'a';
 
 		return $qb;
 	}
@@ -114,9 +113,9 @@ class LikesRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getLikesDeleteSql(): IQueryBuilder {
+	protected function getActionsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_LIKES);
+		$qb->delete(self::TABLE_ACTIONS);
 
 		return $qb;
 	}
@@ -125,21 +124,21 @@ class LikesRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return Like
+	 * @return ACore
 	 */
-	protected function parseLikesSelectSql($data): Like {
-		$like = new Like();
-		$like->importFromDatabase($data);
+	protected function parseActionsSelectSql($data): ACore {
+		$item = new ACore();
+		$item->importFromDatabase($data);
 
 		try {
 			$actor = $this->parseCacheActorsLeftJoin($data);
 			$actor->setCompleteDetails(true);
 
-			$like->setActor($actor);
+			$item->setActor($actor);
 		} catch (InvalidResourceException $e) {
 		}
 
-		return $like;
+		return $item;
 	}
 
 }

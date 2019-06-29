@@ -33,7 +33,7 @@ namespace OCA\Social\Interfaces\Object;
 
 use Exception;
 use OCA\Social\AP;
-use OCA\Social\Db\LikesRequest;
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -48,6 +48,7 @@ use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 
@@ -59,8 +60,8 @@ use OCA\Social\Service\MiscService;
  */
 class LikeInterface implements IActivityPubInterface {
 
-	/** @var LikesRequest */
-	private $likesRequest;
+	/** @var ActionsRequest */
+	private $actionsRequest;
 
 	/** @var StreamRequest */
 	private $streamRequest;
@@ -75,16 +76,16 @@ class LikeInterface implements IActivityPubInterface {
 	/**
 	 * LikeService constructor.
 	 *
-	 * @param LikesRequest $likesRequest
+	 * @param ActionsRequest $actionsRequest
 	 * @param StreamRequest $streamRequest
 	 * @param CacheActorService $cacheActorService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		LikesRequest $likesRequest, StreamRequest $streamRequest,
+		ActionsRequest $actionsRequest, StreamRequest $streamRequest,
 		CacheActorService $cacheActorService, MiscService $miscService
 	) {
-		$this->likesRequest = $likesRequest;
+		$this->actionsRequest = $actionsRequest;
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->miscService = $miscService;
@@ -101,9 +102,9 @@ class LikeInterface implements IActivityPubInterface {
 		$like->checkOrigin($like->getActorId());
 
 		try {
-			$this->likesRequest->getLike($like->getActorId(), $like->getObjectId());
+			$this->actionsRequest->getAction($like->getActorId(), $like->getObjectId(), Like::TYPE);
 		} catch (LikeDoesNotExistException $e) {
-			$this->likesRequest->save($like);
+			$this->actionsRequest->save($like);
 
 			try {
 				if ($like->hasActor()) {
@@ -112,7 +113,14 @@ class LikeInterface implements IActivityPubInterface {
 					$actor = $this->cacheActorService->getFromId($like->getActorId());
 				}
 
-				$this->generateNotification($like, $actor);
+				try {
+					$post = $this->streamRequest->getStreamById($like->getObjectId());
+					$this->updateDetails($post);
+					$this->generateNotification($post, $actor);
+				} catch (StreamNotFoundException $e) {
+					return; // should not happens.
+				}
+
 			} catch (Exception $e) {
 			}
 		}
@@ -177,40 +185,51 @@ class LikeInterface implements IActivityPubInterface {
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getActorId());
-			$this->likesRequest->delete($item);
+			$this->actionsRequest->delete($item);
 		}
 	}
 
 
 	/**
-	 * @param Like $like
+	 * @param Stream $post
+	 */
+	private function updateDetails(Stream $post) {
+		if (!$post->isLocal()) {
+			return;
+		}
+
+		$post->setDetailInt(
+			'likes', $this->actionsRequest->countActions($post->getId(), Like::TYPE)
+		);
+
+		$this->streamRequest->update($post);
+	}
+
+
+	/**
+	 * @param Stream $post
 	 * @param Person $author
 	 *
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	private function generateNotification(Like $like, Person $author) {
+	private function generateNotification(Stream $post, Person $author) {
+		if (!$post->isLocal()) {
+			return;
+		}
+
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface =
 			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
-				$like->getObjectId(), SocialAppNotification::TYPE, Like::TYPE
+				$post->getId(), SocialAppNotification::TYPE, Like::TYPE
 			);
 
 			$notification->addDetail('accounts', $author->getAccount());
 			$notificationInterface->update($notification);
 		} catch (StreamNotFoundException $e) {
-			try {
-				$post = $this->streamRequest->getStreamById($like->getObjectId());
-			} catch (StreamNotFoundException $e) {
-				return; // should not happens.
-			}
-
-			if (!$post->isLocal()) {
-				return;
-			}
 
 			/** @var SocialAppNotification $notification */
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
@@ -219,9 +238,9 @@ class LikeInterface implements IActivityPubInterface {
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())
 						 ->setSubType(Like::TYPE)
-						 ->setId($like->getObjectId() . '/like')
+						 ->setId($post->getId() . '/notification+like')
 						 ->setSummary('{accounts} liked your post')
-						 ->setObjectId($like->getObjectId())
+						 ->setObjectId($post->getId())
 						 ->setTo($post->getAttributedTo())
 						 ->setLocal(true);
 
