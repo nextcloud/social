@@ -3,7 +3,7 @@
 		<div v-if="item.type === 'SocialAppNotification'">
 			{{ actionSummary }}
 		</div>
-		<div v-if="item.type === 'Announce' && noDuplicateBoost" class="boost">
+		<div v-if="item.type === 'Announce'" class="boost">
 			<div class="container-icon-boost">
 				<span class="icon-boost" />
 			</div>
@@ -19,7 +19,7 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-post v-if="noDuplicateBoost && (item.type === 'Note' || item.type === 'Announce')" :item="entryContent" :parent-announce="isBoost" />
+		<timeline-post v-if="(item.type === 'Note' || item.type === 'Announce')" :item="entryContent" :parent-announce="isBoost" />
 		<user-entry v-if="item.type === 'SocialAppNotificationUser'" :key="user.id" :item="user" />
 	</div>
 </template>
@@ -58,22 +58,13 @@ export default {
 		boosted() {
 			return t('social', 'boosted')
 		},
-		noDuplicateBoost() {
-			if (this.item.type === 'Announce') {
-				for (var e in this.$store.state.timeline.timeline) {
-					if (this.item.cache[this.item.object].object.id === e) {
-						return false
-					}
-				}
-			}
-			return true
-		},
 		actionSummary() {
+			let summary
 			for (var key in this.item.details) {
 				let keyword = '{' + key + '}'
-				this.item.summary = this.item.summary.replace(keyword, this.item.details[key])
+				summary = this.item.summary.replace(keyword, JSON.stringify(this.item.details[key]))
 			}
-			return this.item.summary
+			return summary
 		}
 	},
 	methods: {
