@@ -42,6 +42,7 @@ OC.L10N.register(
     "Boost" : "Potencia",
     "More actions" : "Més accions",
     "Delete post" : "Suprimeix missatge",
+    "boosted" : "Potenciat",
     "No posts found" : "No s'han trobat missatges",
     "Posts from people you follow will show up here" : "Els missatges de persones que seguiu es mostraran aquí",
     "No direct messages found" : "No s’han trobat missatges directes",
