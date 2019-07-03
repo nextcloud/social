@@ -34,7 +34,7 @@ namespace OCA\Social\Exceptions;
 use Exception;
 
 
-class LikeDoesNotExistException extends Exception {
+class ActionDoesNotExistException extends Exception {
 
 }
 

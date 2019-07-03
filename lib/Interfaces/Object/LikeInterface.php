@@ -38,7 +38,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\LikeDoesNotExistException;
+use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -103,7 +103,7 @@ class LikeInterface implements IActivityPubInterface {
 
 		try {
 			$this->actionsRequest->getAction($like->getActorId(), $like->getObjectId(), Like::TYPE);
-		} catch (LikeDoesNotExistException $e) {
+		} catch (ActionDoesNotExistException $e) {
 			$this->actionsRequest->save($like);
 
 			try {
@@ -113,16 +113,28 @@ class LikeInterface implements IActivityPubInterface {
 					$actor = $this->cacheActorService->getFromId($like->getActorId());
 				}
 
-				try {
-					$post = $this->streamRequest->getStreamById($like->getObjectId());
-					$this->updateDetails($post);
-					$this->generateNotification($post, $actor);
-				} catch (StreamNotFoundException $e) {
-					return; // should not happens.
-				}
-
+				$post = $this->streamRequest->getStreamById($like->getObjectId());
+				$this->updateDetails($post);
+				$this->generateNotification($post, $actor);
 			} catch (Exception $e) {
 			}
+		}
+	}
+
+
+	/**
+	 * @param ACore $activity
+	 * @param ACore $like
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function activity(ACore $activity, ACore $like) {
+		/** @var Like $like */
+		if ($activity->getType() === Undo::TYPE) {
+			$activity->checkOrigin($like->getId());
+			$activity->checkOrigin($like->getActorId());
+
+			$this->undoLike($like);
 		}
 	}
 
@@ -175,17 +187,26 @@ class LikeInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
+	 * @param Like $like
 	 */
-	public function activity(ACore $activity, ACore $item) {
-		/** @var Like $item */
-		if ($activity->getType() === Undo::TYPE) {
-			$activity->checkOrigin($item->getId());
-			$activity->checkOrigin($item->getActorId());
-			$this->actionsRequest->delete($item);
+	private function undoLike(Like $like) {
+		try {
+			$this->actionsRequest->getAction($like->getActorId(), $like->getObjectId(), Like::TYPE);
+			$this->actionsRequest->delete($like);
+		} catch (ActionDoesNotExistException $e) {
+		}
+
+		try {
+			if ($like->hasActor()) {
+				$actor = $like->getActor();
+			} else {
+				$actor = $this->cacheActorService->getFromId($like->getActorId());
+			}
+
+			$post = $this->streamRequest->getStreamById($like->getObjectId());
+			$this->updateDetails($post);
+			$this->cancelNotification($post, $actor);
+		} catch (Exception $e) {
 		}
 	}
 
@@ -245,6 +266,38 @@ class LikeInterface implements IActivityPubInterface {
 						 ->setLocal(true);
 
 			$notificationInterface->save($notification);
+		}
+	}
+
+
+	/**
+	 * @param Stream $post
+	 * @param Person $author
+	 *
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
+	 */
+	private function cancelNotification(Stream $post, Person $author) {
+		if (!$post->isLocal()) {
+			return;
+		}
+
+		/** @var SocialAppNotificationInterface $notificationInterface */
+		$notificationInterface =
+			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+
+		try {
+			$notification = $this->streamRequest->getStreamByObjectId(
+				$post->getId(), SocialAppNotification::TYPE, Like::TYPE
+			);
+
+			$notification->removeDetail('accounts', $author->getAccount());
+			if (empty($notification->getDetails('accounts'))) {
+				$notificationInterface->delete($notification);
+			} else {
+				$notificationInterface->update($notification);
+			}
+		} catch (StreamNotFoundException $e) {
 		}
 	}
 }

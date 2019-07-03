@@ -34,7 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
-use OCA\Social\Exceptions\LikeDoesNotExistException;
+use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -84,7 +84,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 * @param string $type
 	 *
 	 * @return ACore
-	 * @throws LikeDoesNotExistException
+	 * @throws ActionDoesNotExistException
 	 */
 	public function getAction(string $actorId, string $objectId, string $type): ACore {
 		$qb = $this->getActionsSelectSql();
@@ -96,7 +96,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 		if ($data === false) {
-			throw new LikeDoesNotExistException();
+			throw new ActionDoesNotExistException();
 		}
 
 		return $this->parseActionsSelectSql($data);
@@ -144,11 +144,11 @@ class ActionsRequest extends ActionsRequestBuilder {
 
 
 	/**
-	 * @param Like $like
+	 * @param ACore $item
 	 */
-	public function delete(Like $like) {
+	public function delete(ACore $item) {
 		$qb = $this->getActionsDeleteSql();
-		$this->limitToIdString($qb, $like->getId());
+		$this->limitToIdString($qb, $item->getId());
 
 		$qb->execute();
 	}

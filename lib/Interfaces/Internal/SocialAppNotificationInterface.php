@@ -36,6 +36,7 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
@@ -144,6 +145,8 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
+		/** @var Stream $item */
+		$this->streamRequest->deleteStreamById($item->getId(), SocialAppNotification::TYPE);
 	}
 
 

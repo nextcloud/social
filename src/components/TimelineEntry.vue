@@ -59,10 +59,10 @@ export default {
 			return t('social', 'boosted')
 		},
 		actionSummary() {
-			let summary
+			let summary = this.item.summary
 			for (var key in this.item.details) {
 				let keyword = '{' + key + '}'
-				summary = this.item.summary.replace(keyword, JSON.stringify(this.item.details[key]))
+				summary = summary.replace(keyword, JSON.stringify(this.item.details[key]))
 			}
 			return summary
 		}
