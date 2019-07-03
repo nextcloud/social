@@ -1,0 +1,25 @@
+OC.L10N.register(
+    "social",
+    {
+    "Social" : "Social",
+    "🎉 Nextcloud becomes part of the federated social networks!" : "Nextcloud passa a ser part de les xarxes socials federades!",
+    "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** Renúncia de responsabilitat: aquesta és una versió ALPHA **\n\n**🎉 Nextcloud passa a formar part de les xarxes socials federades!**\n\n**🙋 Trobeu als vostres amics i amigues:** No importa si usen o no Nextcloud, 🐘 Mastodon, 🇫 Friendica, i aviat ✱ Diaspora, 👹 MediaGoblin i més – els podràs seguir!\n\n**📜 Informació de perfil:** No necessitareu emplenar més perfils d'usuari – la vostra informació a Nextcloud serà usada i ampliada.\n\n**👐 Conserveu les vostres publicacions:** Tot el que publiqueu restarà desat a Nextcloud!\n\n**🕸 Estàndards oberts:** Emprem l'estàndard ActivityPub!",
+    ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger no està ben configurat!",
+    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "L'aplicació Social necessita el descobriment automàtic del .well-known per estar ben configurada. Si Nextcloud no està instal·lat a l'arrel del domini, és habitual que Nextcloud no pugui fer aquesta configuració de manera automàtica. Per poder emprar Social, l'administrador d'aquesta instància de Nextcloud ha de configurar manualment la redirecció de .well-known a:",
+    "Open documentation" : "Obrir la documentació",
+    "Social app setup" : "Configuració de l'aplicació Social",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub requereix una URL fixa pe a fer entrades úniques. Tingueu en compte que això no pot ser canviat després sense reiniciar l'aplicació Social.",
+    "ActivityPub URL base" : "URL de base per ActivityPub",
+    "Finish setup" : "Enllestir configuració",
+    "The Social app needs to be set up by the server administrator." : "L'aplicació Social necessita ser configurada per l'administrador del servidor.",
+    "Home" : "Inici",
+    "Direct messages" : "Missatges directes",
+    "Profile" : "Perfil",
+    "Local timeline" : "Línia de temps local",
+    "Global timeline" : "Línia de temps global",
+    "Following" : "Seguint",
+    "Post publicly" : "Publicar públicament",
+    "Post to followers" : "Publicar pels seguidors",
+    "Post to recipients" : "Publicar als destinataris"
+},
+"nplurals=2; plural=(n != 1);");
