@@ -2,13 +2,6 @@
 
 **🎉 Nextcloud becomes part of the federated social networks!**
 
-The app is in alpha stage, so it’s time for you to [get involved! 👩‍💻](https://github.com/nextcloud/social#development-setup)
-
-Some requirements in this alpha stage are that your Nextcloud:
-- must use a real SSL certificate
-- must be accessible from the internet
-- must run on the default port
-
 ![](img/screenshot.png)
 
 - **🙋 Find your friends:** No matter if they use [☁ Nextcloud Social](https://github.com/nextcloud/social#nextcloud-social), [🐘 Mastodon](https://joinmastodon.org), [🇫 Friendica](https://friendi.ca) – and soon [📺 PeerTube](https://joinpeertube.org), [🅿️ Pleroma](https://pleroma.social) or [📷 PixelFed](https://pixelfed.org) – you can follow them!
@@ -17,6 +10,16 @@ Some requirements in this alpha stage are that your Nextcloud:
 - **🕸 Open standards:** We use the established [ActivityPub](https://en.wikipedia.org/wiki/ActivityPub) standard!
 - **🎨 Nice illustrations:** Made by [Katerina Limpitsouni of unDraw](https://undraw.co).
 
+For more information about about our motivation and goals, read [the announcement blog.](https://nextcloud.com/blog/nextcloud-introduces-social-features-joins-the-fediverse/)
+
+The app is in alpha stage, so it’s time for you to [get involved! 👩‍💻](https://github.com/nextcloud/social#development-setup)
+
+For a roadmap, see our [development milestones](https://github.com/nextcloud/social/milestones) - feel free to pick up any of the tasks which are not yet in progress!
+
+Some requirements in this alpha stage are that your Nextcloud:
+- must use a real SSL certificate
+- must be accessible from the internet
+- must run on the default port
 
 ## Emojis
 
