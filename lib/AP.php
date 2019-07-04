@@ -219,6 +219,7 @@ class AP {
 		}
 
 		$this->getObjectFromData($data, $item, $level);
+		$this->getActorFromData($data, $item, $level);
 
 		return $item;
 	}
@@ -244,6 +245,27 @@ class AP {
 			} else {
 				$object = $this->getItemFromData($objectData, $item, $level);
 				$item->setObject($object);
+			}
+		} catch (ItemUnknownException $e) {
+		}
+	}
+
+
+	/**
+	 * @param array $data
+	 * @param ACore $item
+	 * @param int $level
+	 *
+	 * @throws RedundancyLimitException
+	 * @throws SocialAppConfigException
+	 */
+	public function getActorFromData(array $data, ACore &$item, int $level) {
+		try {
+			$actorData = $this->getArray('actor_info', $data, []);
+			if (!empty($actorData)) {
+				/** @var Person $actor */
+				$actor = $this->getItemFromData($actorData, $item, $level);
+				$item->setActor($actor);
 			}
 		} catch (ItemUnknownException $e) {
 		}

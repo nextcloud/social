@@ -46,12 +46,15 @@
 	</repair-steps>
 
 	<commands>
+		<command>OCA\Social\Command\AccountCreate</command>
+		<command>OCA\Social\Command\AccountFollowing</command>
 		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\CheckInstall</command>
 		<command>OCA\Social\Command\Fediverse</command>
 		<command>OCA\Social\Command\NoteCreate</command>
 		<command>OCA\Social\Command\NoteBoost</command>
 		<command>OCA\Social\Command\Reset</command>
+		<command>OCA\Social\Command\Timeline</command>
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>
 	</commands>
