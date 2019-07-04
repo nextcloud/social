@@ -57,9 +57,9 @@
 
 <script>
 import InfiniteLoading from 'vue-infinite-loading'
-import TimelineEntry from './../components/TimelineEntry'
+import TimelineEntry from './TimelineEntry'
 import CurrentUserMixin from './../mixins/currentUserMixin'
-import EmptyContent from './../components/EmptyContent'
+import EmptyContent from './EmptyContent'
 
 export default {
 	name: 'Timeline',
@@ -69,6 +69,9 @@ export default {
 		EmptyContent
 	},
 	mixins: [CurrentUserMixin],
+	props: {
+		type: { type: String, default: () => 'home' }
+	},
 	data: function() {
 		return {
 			infoHidden: false,

@@ -57,6 +57,9 @@ class Item {
 	private $type = '';
 
 	/** @var string */
+	private $subType = '';
+
+	/** @var string */
 	private $url = '';
 
 	/** @var string */
@@ -149,10 +152,27 @@ class Item {
 	 * @return Item
 	 */
 	public function setType(string $type): Item {
-//		if ($type !== '') {
 		$this->type = $type;
 
-//		}
+		return $this;
+	}
+
+
+
+	/**
+	 * @return string
+	 */
+	public function getSubType(): string {
+		return $this->subType;
+	}
+
+	/**
+	 * @param string $type
+	 *
+	 * @return Item
+	 */
+	public function setSubType(string $type): Item {
+		$this->subType = $type;
 
 		return $this;
 	}
@@ -665,6 +685,7 @@ class Item {
 
 		return $this;
 	}
+
 
 
 }

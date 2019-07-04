@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityPub\Activity;
+namespace OCA\Social\Model\ActivityPub\Object;
 
 
 use JsonSerializable;
@@ -38,7 +38,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 /**
  * Class Like
  *
- * @package OCA\Social\Model\ActivityPub\Activity
+ * @package OCA\Social\Model\ActivityPub\Object
  */
 class Like extends ACore implements JsonSerializable {
 

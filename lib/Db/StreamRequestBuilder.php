@@ -97,7 +97,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			   's.type', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
 			   's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
-			   's.instances', 's.creation', 's.hidden_on_timeline'
+			   's.instances', 's.creation', 's.hidden_on_timeline', 's.details'
 		   )
 		   ->from(self::TABLE_STREAMS, 's');
 
@@ -244,9 +244,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		// all possible follow, but linked by followers (actor_id) and accepted follow
 		$crossFollows = $expr->andX();
 		$crossFollows->add($recipientFields);
-		$crossFollows->add(
-			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
-		);
+		$crossFollows->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(),true, false, 'f'));
 		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
 		$on->add($crossFollows);
 

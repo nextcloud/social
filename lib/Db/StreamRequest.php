@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -213,15 +214,16 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param string $type
 	 * @param string $objectId
+	 * @param string $type
+	 * @param string $subType
 	 *
 	 * @return Stream
-	 * @throws StreamNotFoundException
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByObjectId(string $objectId, string $type): Stream {
+	public function getStreamByObjectId(string $objectId, string $type, string $subType = ''): Stream {
 		if ($objectId === '') {
 			throw new StreamNotFoundException('missing objectId');
 		};
@@ -229,6 +231,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitToObjectId($qb, $objectId);
 		$this->limitToType($qb, $type);
+		$this->limitToSubType($qb, $subType);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -321,6 +324,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
+		$this->limitToType($qb, SocialAppNotification::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
@@ -394,6 +398,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToRecipient($qb, $actor->getId(), true);
 		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterRecipient($qb, $actor->getFollowers());
+		$this->filterType($qb, SocialAppNotification::TYPE);
 //		$this->filterHiddenOnTimeline($qb);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
@@ -577,6 +582,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($stream->getId()))
 		   ->setValue('type', $qb->createNamedParameter($stream->getType()))
+		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
 		   ->setValue(
 			   'to_array', $qb->createNamedParameter(

@@ -31,6 +31,8 @@ declare(strict_types=1);
 namespace OCA\Social\Traits;
 
 
+use OCA\Social\Model\ActivityPub\Item;
+
 /**
  * Trait TDetails
  *
@@ -56,6 +58,7 @@ trait TDetails {
 	public function setDetailsAll(array $details) {
 		$this->details = $details;
 	}
+
 
 	/**
 	 * @param string $detail
@@ -87,6 +90,28 @@ trait TDetails {
 	 */
 	public function setDetailBool(string $detail, bool $value) {
 		$this->details[$detail] = $value;
+	}
+
+	/**
+	 * @param string $detail
+	 * @param Item $value
+	 */
+	public function setDetailItem(string $detail, Item $value) {
+		$this->details[$detail] = $value;
+	}
+
+
+	/**
+	 * @param string $detail
+	 *
+	 * @return array
+	 */
+	public function getDetails(string $detail): array {
+		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
+			return [];
+		}
+
+		return $this->details[$detail];
 	}
 
 
@@ -138,6 +163,54 @@ trait TDetails {
 		$this->details[$detail][] = $value;
 	}
 
+
+	/**
+	 * @param string $detail
+	 * @param string $value
+	 */
+	public function removeDetail(string $detail, string $value) {
+		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
+			return;
+		}
+
+		$this->details[$detail] = array_diff($this->details[$detail], [$value]);
+	}
+
+	/**
+	 * @param string $detail
+	 * @param int $value
+	 */
+	public function removeDetailInt(string $detail, int $value) {
+		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
+			return;
+		}
+
+		$this->details[$detail] = array_diff($this->details, [$value]);
+	}
+
+	/**
+	 * @param string $detail
+	 * @param array $value
+	 */
+	public function removeDetailArray(string $detail, array $value) {
+		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
+			return;
+		}
+
+		$this->details[$detail] = array_diff($this->details, [$value]);
+	}
+
+	/**
+	 * @param string $detail
+	 * @param bool $value
+	 */
+	public function removeDetailBool(string $detail, bool $value) {
+		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
+			return;
+		}
+
+		$this->details[$detail] = array_diff($this->details, [$value]);
+	}
 
 }
 
