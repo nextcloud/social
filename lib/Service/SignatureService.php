@@ -191,6 +191,7 @@ class SignatureService {
 	 * @throws ItemUnknownException
 	 * @throws RequestResultNotJsonException
 	 * @throws DateTimeException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function checkRequest(IRequest $request, int &$time = 0): string {
 		try {
@@ -310,6 +311,7 @@ class SignatureService {
 	 * @throws RequestContentException
 	 * @throws RequestResultSizeException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	private function checkRequestSignature(IRequest $request): string {
 		$signatureHeader = $request->getHeader('Signature');
@@ -351,10 +353,11 @@ class SignatureService {
 		} catch (Exception $e) {
 		}
 
-		$estimated = "(request-target): " . $target;
+		$estimated = '';
 
 		foreach ($keys as $key) {
 			if ($key === '(request-target)') {
+				$estimated .= "(request-target): " . $target;
 				continue;
 			}
 
@@ -363,10 +366,10 @@ class SignatureService {
 				$value = $this->configService->getCloudAddress(true);
 			}
 
-			$estimated .= "\n" . $key . ': ' . $value;
+			$estimated .= $key . ': ' . $value . "\n";
 		}
 
-		return $estimated;
+		return trim($estimated, "\n");
 	}
 
 
@@ -448,6 +451,9 @@ class SignatureService {
 		switch ($this->get('algorithm', $sign, '')) {
 			case 'rsa-sha512':
 				return 'sha512';
+
+			case 'rsa-sha256':
+				return 'sha256';
 
 			default:
 				return 'sha256';

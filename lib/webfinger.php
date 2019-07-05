@@ -46,13 +46,11 @@ if (!array_key_exists('resource', $_GET)) {
 $subject = $_GET['resource'];
 
 $urlGenerator = OC::$server->getURLGenerator();
-
-list($type, $account) = explode(':', $subject, 2);
-if ($type !== 'acct') {
-	echo 'no acct';
-	exit();
+if (strpos($subject, 'acct:') === 0) {
+	list($type, $account) = explode(':', $subject, 2);
+} else {
+	$account = $subject;
 }
-
 
 list($username, $instance) = explode('@', $account);
 try {
