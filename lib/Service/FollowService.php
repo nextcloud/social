@@ -180,6 +180,7 @@ class FollowService {
 	 * @throws ItemUnknownException
 	 * @throws UrlCloudException
 	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function unfollowAccount(Person $actor, string $account) {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);

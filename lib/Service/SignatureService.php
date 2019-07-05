@@ -357,7 +357,7 @@ class SignatureService {
 
 		foreach ($keys as $key) {
 			if ($key === '(request-target)') {
-				$estimated .= "(request-target): " . $target;
+				$estimated .= "(request-target): " . $target . "\n";
 				continue;
 			}
 
