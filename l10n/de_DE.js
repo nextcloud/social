@@ -14,6 +14,7 @@ OC.L10N.register(
     "The Social app needs to be set up by the server administrator." : "Die Social-App muss vom Server-Administrator eingerichtet werden.",
     "Home" : "Home",
     "Direct messages" : "Direktnachrichten",
+    "Notifications" : "Benachrichtigungen",
     "Profile" : "Profil",
     "Local timeline" : "Lokale Zeitachse",
     "Global timeline" : "Globale Zeitachse",

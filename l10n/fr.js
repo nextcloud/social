@@ -14,6 +14,7 @@ OC.L10N.register(
     "The Social app needs to be set up by the server administrator." : "L'appli Social a besoin d'être configurée par l'administrateur du serveur.",
     "Home" : "Accueil",
     "Direct messages" : "Messages directs",
+    "Notifications" : "Notifications",
     "Profile" : "Profil",
     "Following" : "Suivi",
     "Post publicly" : "Poster publiquement",
