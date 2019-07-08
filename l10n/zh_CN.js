@@ -14,6 +14,7 @@ OC.L10N.register(
     "The Social app needs to be set up by the server administrator." : "社交应用需要服务器管理员进行配置。",
     "Home" : "主页",
     "Direct messages" : "直接消息",
+    "Notifications" : "通知",
     "Profile" : "简介",
     "Local timeline" : "本地时间线",
     "Global timeline" : "全局时间线",
