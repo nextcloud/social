@@ -158,7 +158,6 @@ class Item {
 	}
 
 
-
 	/**
 	 * @return string
 	 */
@@ -305,6 +304,11 @@ class Item {
 	 * @return string
 	 */
 	public function getActorId(): string {
+		if ($this->hasActor()) {
+			return $this->getActor()
+						->getId();
+		}
+
 		return $this->actorId;
 	}
 
@@ -685,7 +689,6 @@ class Item {
 
 		return $this;
 	}
-
 
 
 }

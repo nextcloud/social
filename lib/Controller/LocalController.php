@@ -45,6 +45,7 @@ use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NoteService;
 use OCA\Social\Service\PostService;
@@ -81,6 +82,9 @@ class LocalController extends Controller {
 	/** @var BoostService */
 	private $boostService;
 
+	/** @var LikeService */
+	private $likeService;
+
 	/** @var PostService */
 	private $postService;
 
@@ -116,6 +120,7 @@ class LocalController extends Controller {
 	 * @param NoteService $noteService
 	 * @param SearchService $searchService
 	 * @param BoostService $boostService
+	 * @param LikeService $likeService
 	 * @param DocumentService $documentService
 	 * @param MiscService $miscService
 	 */
@@ -123,7 +128,8 @@ class LocalController extends Controller {
 		IRequest $request, $userId, AccountService $accountService,
 		CacheActorService $cacheActorService, FollowService $followService,
 		PostService $postService, NoteService $noteService, SearchService $searchService,
-		BoostService $boostService, DocumentService $documentService, MiscService $miscService
+		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
+		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -135,6 +141,7 @@ class LocalController extends Controller {
 		$this->postService = $postService;
 		$this->followService = $followService;
 		$this->boostService = $boostService;
+		$this->likeService = $likeService;
 		$this->documentService = $documentService;
 		$this->miscService = $miscService;
 	}
@@ -254,6 +261,58 @@ class LocalController extends Controller {
 
 
 	/**
+	 * Create a new boost.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $postId
+	 *
+	 * @return DataResponse
+	 */
+	public function postLike(string $postId): DataResponse {
+		try {
+			$this->initViewer(true);
+			$announce = $this->likeService->create($this->viewer, $postId, $token);
+
+			return $this->success(
+				[
+					'like'  => $announce,
+					'token' => $token
+				]
+			);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * Delete a boost.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $postId
+	 *
+	 * @return DataResponse
+	 */
+	public function postUnlike(string $postId): DataResponse {
+		try {
+			$this->initViewer(true);
+			$announce = $this->likeService->delete($this->viewer, $postId, $token);
+
+			return $this->success(
+				[
+					'like'  => $announce,
+					'token' => $token
+				]
+			);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
@@ -275,6 +334,7 @@ class LocalController extends Controller {
 
 
 	/**
+	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
 	 * @param int $since

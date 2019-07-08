@@ -27,6 +27,7 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Service;
 
 
@@ -39,19 +40,21 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
 
 
 /**
- * Class BoostService
+ * Class LikeService
  *
  * @package OCA\Social\Service
  */
-class BoostService {
+class LikeService {
 
 
 	use TStringTools;
@@ -80,7 +83,7 @@ class BoostService {
 
 
 	/**
-	 * BoostService constructor.
+	 * LikeService constructor.
 	 *
 	 * @param StreamRequest $streamRequest
 	 * @param NoteService $noteService
@@ -116,10 +119,10 @@ class BoostService {
 	 * @throws Exception
 	 */
 	public function create(Person $actor, string $postId, &$token = ''): ACore {
-		/** @var Announce $announce */
-		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
-		$this->noteService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
-		$announce->setActor($actor);
+		/** @var Like $like */
+		$like = AP::$activityPub->getItemFromType(Like::TYPE);
+		$like->setId($actor->getId() . '#like/' . $this->uuid(8));
+		$like->setActor($actor);
 
 		$note = $this->noteService->getNoteById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
@@ -130,27 +133,16 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not Public');
 		}
 
-		$announce->addCc($actor->getFollowers());
-		$announce->setObjectId($note->getId());
-		$announce->setRequestToken($this->uuid());
+		$like->setObjectId($note->getId());
+		$this->assignInstance($like, $actor, $note);
 
-		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
-		// TODO: check that announce does not exist already ?
-//		try {
-//			return $interface->getItem($announce);
-//		} catch (ItemNotFoundException $e) {
-//		}
+		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
+		$interface->save($like);
 
-		$interface->save($announce);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, 'liked', true);
+		$token = $this->activityService->request($like);
 
-		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', true);
-		$this->signatureService->signObject($actor, $announce);
-
-		$token = $this->activityService->request($announce);
-
-		$this->streamQueueService->cacheStreamByToken($announce->getRequestToken());
-
-		return $announce;
+		return $like;
 	}
 
 
@@ -163,7 +155,7 @@ class BoostService {
 	 * @throws StreamNotFoundException
 	 */
 	public function get(string $postId): Stream {
-		$stream = $this->streamRequest->getStreamByObjectId($postId, Announce::TYPE);
+		$stream = $this->streamRequest->getStreamByObjectId($postId, Like::TYPE);
 
 		return $stream;
 	}
@@ -180,7 +172,6 @@ class BoostService {
 	 */
 	public function delete(Person $actor, string $postId, &$token = ''): ACore {
 		$undo = new Undo();
-		$this->noteService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);
 
 		$note = $this->noteService->getNoteById($postId, true);
@@ -188,26 +179,47 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
+		$this->assignInstance($undo, $actor, $note);
 		try {
-			$announce = $this->streamRequest->getStreamByObjectId($postId, Announce::TYPE);
-			$announce->setActor($actor);
+			$tmp = AP::$activityPub->getItemFromType(Like::TYPE);
+			$tmp->setActor($actor);
+			$tmp->setObjectId($postId);
 
-			$undo->setObjectId($announce->getId());
-			$undo->addCc($actor->getFollowers());
+			$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
+			$like = $interface->getItem($tmp);
 
-			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
-			$interface->delete($announce);
-//			$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
-			$this->signatureService->signObject($actor, $undo);
+			$undo->setId($like->getId() . '/undo');
+			$undo->setObject($like);
+
+			$interface->delete($like);
 
 			$token = $this->activityService->request($undo);
 		} catch (ItemUnknownException $e) {
-		} catch (StreamNotFoundException $e) {
+		} catch (ItemNotFoundException $e) {
 		}
 
 		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
 
 		return $undo;
+	}
+
+
+	/**
+	 * @param ACore $item
+	 * @param Person $actor
+	 * @param Stream $note
+	 */
+	private function assignInstance(ACore $item, Person $actor, Stream $note) {
+//		$item->addInstancePath(
+//			new InstancePath(
+//				$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+//			)
+//		);
+		$item->addInstancePath(
+			new InstancePath(
+				$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+			)
+		);
 	}
 
 }

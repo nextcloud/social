@@ -36,6 +36,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
@@ -99,25 +100,12 @@ class LikeInterface implements IActivityPubInterface {
 	 */
 	public function processIncomingRequest(ACore $like) {
 		/** @var Like $like */
+		$like->checkOrigin($like->getId());
 		$like->checkOrigin($like->getActorId());
 
 		try {
-			$this->actionsRequest->getAction($like->getActorId(), $like->getObjectId(), Like::TYPE);
-		} catch (ActionDoesNotExistException $e) {
-			$this->actionsRequest->save($like);
-
-			try {
-				if ($like->hasActor()) {
-					$actor = $like->getActor();
-				} else {
-					$actor = $this->cacheActorService->getFromId($like->getActorId());
-				}
-
-				$post = $this->streamRequest->getStreamById($like->getObjectId());
-				$this->updateDetails($post);
-				$this->generateNotification($post, $actor);
-			} catch (Exception $e) {
-			}
+			$this->save($like);
+		} catch (ItemAlreadyExistsException $e) {
 		}
 	}
 
@@ -134,7 +122,7 @@ class LikeInterface implements IActivityPubInterface {
 			$activity->checkOrigin($like->getId());
 			$activity->checkOrigin($like->getActorId());
 
-			$this->undoLike($like);
+			$this->delete($like);
 		}
 	}
 
@@ -143,6 +131,24 @@ class LikeInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function processResult(ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItem(ACore $item): ACore {
+		try {
+			return $this->actionsRequest->getAction(
+				$item->getActorId(), $item->getObjectId(), Like::TYPE
+			);
+		} catch (ActionDoesNotExistException $e) {
+		}
+
+		throw new ItemNotFoundException();
 	}
 
 
@@ -159,8 +165,29 @@ class LikeInterface implements IActivityPubInterface {
 
 	/**
 	 * @param ACore $item
+	 *
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function save(ACore $item) {
+		try {
+			$this->actionsRequest->getActionFromItem($item);
+			throw new ItemAlreadyExistsException();
+		} catch (ActionDoesNotExistException $e) {
+		}
+
+		$this->actionsRequest->save($item);
+		try {
+			if ($item->hasActor()) {
+				$actor = $item->getActor();
+			} else {
+				$actor = $this->cacheActorService->getFromId($item->getActorId());
+			}
+
+			$post = $this->streamRequest->getStreamById($item->getObjectId());
+			$this->updateDetails($post);
+			$this->generateNotification($post, $actor);
+		} catch (Exception $e) {
+		}
 	}
 
 
@@ -175,6 +202,8 @@ class LikeInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item) {
+		$this->actionsRequest->delete($item);
+		$this->undoLikeAction($item);
 	}
 
 
@@ -187,15 +216,9 @@ class LikeInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param Like $like
+	 * @param ACore $like
 	 */
-	private function undoLike(Like $like) {
-		try {
-			$this->actionsRequest->getAction($like->getActorId(), $like->getObjectId(), Like::TYPE);
-			$this->actionsRequest->delete($like);
-		} catch (ActionDoesNotExistException $e) {
-		}
-
+	private function undoLikeAction(ACore $like) {
 		try {
 			if ($like->hasActor()) {
 				$actor = $like->getActor();
@@ -215,9 +238,9 @@ class LikeInterface implements IActivityPubInterface {
 	 * @param Stream $post
 	 */
 	private function updateDetails(Stream $post) {
-		if (!$post->isLocal()) {
-			return;
-		}
+//		if (!$post->isLocal()) {
+//			return;
+//		}
 
 		$post->setDetailInt(
 			'likes', $this->actionsRequest->countActions($post->getId(), Like::TYPE)
