@@ -69,6 +69,7 @@ class DeleteInterface implements IActivityPubInterface {
 			if ($item->getObjectId() !== '') {
 				$item->checkOrigin($item->getObjectId());
 
+				// TODO: migrate to activity() !!
 				$types = ['Note', 'Person'];
 				foreach ($types as $type) {
 					try {
@@ -91,8 +92,9 @@ class DeleteInterface implements IActivityPubInterface {
 		$object = $item->getObject();
 		try {
 			$item->checkOrigin($object->getId());
-			$interface = AP::$activityPub->getInterfaceForItem($object);
-			$interface->delete($object);
+			// FIXME: needed ? better use activity()
+//			$interface = AP::$activityPub->getInterfaceForItem($object);
+//			$interface->delete($object);
 		} catch (InvalidOriginException $e) {
 		} catch (ItemUnknownException $e) {
 		}
@@ -103,6 +105,17 @@ class DeleteInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function processResult(ACore $item) {
+	}
+
+
+	/**
+	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItem(ACore $item): ACore {
+		throw new ItemNotFoundException();
 	}
 
 

@@ -81,6 +81,17 @@ class AcceptInterface implements IActivityPubInterface {
 
 
 	/**
+	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItem(ACore $item): ACore {
+		throw new ItemNotFoundException();
+	}
+
+
+	/**
 	 * @param string $id
 	 *
 	 * @return ACore
@@ -98,7 +109,6 @@ class AcceptInterface implements IActivityPubInterface {
 	}
 
 
-
 	/**
 	 * @param ACore $item
 	 */
@@ -113,14 +123,12 @@ class AcceptInterface implements IActivityPubInterface {
 	}
 
 
-
 	/**
 	 * @param ACore $item
 	 * @param string $source
 	 */
 	public function event(ACore $item, string $source) {
 	}
-
 
 
 	/**

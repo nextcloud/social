@@ -116,6 +116,33 @@ class AnnounceInterface implements IActivityPubInterface {
 
 
 	/**
+	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
+	 * @throws Exception
+	 */
+	public function processIncomingRequest(ACore $item) {
+		/** @var ACore $item */
+		$item->checkOrigin($item->getId());
+		$item->checkOrigin($item->getActorId());
+
+		try {
+			$this->actionsRequest->getActionFromItem($item);
+		} catch (ActionDoesNotExistException $e) {
+			$this->actionsRequest->save($item);
+
+			try {
+				$post = $this->streamRequest->getStreamById($item->getObjectId());
+				$this->updateDetails($post);
+			} catch (Exception $e) {
+			}
+		}
+
+		$this->save($item);
+	}
+
+
+	/**
 	 * @param ACore $activity
 	 * @param ACore $announce
 	 *
@@ -144,23 +171,19 @@ class AnnounceInterface implements IActivityPubInterface {
 
 	/**
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
-	 * @throws Exception
 	 */
-	public function processIncomingRequest(ACore $item) {
-		/** @var Stream $item */
-		$item->checkOrigin($item->getId());
-
-		$this->actionsRequest->save($item);
-		$this->save($item);
+	public function processResult(ACore $item) {
 	}
 
 
 	/**
 	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
 	 */
-	public function processResult(ACore $item) {
+	public function getItem(ACore $item): ACore {
+		throw new ItemNotFoundException();
 	}
 
 
@@ -309,9 +332,7 @@ class AnnounceInterface implements IActivityPubInterface {
 	 */
 	private function undoAnnounceAction(Announce $announce) {
 		try {
-			$this->actionsRequest->getAction(
-				$announce->getActorId(), $announce->getObjectId(), Announce::TYPE
-			);
+			$this->actionsRequest->getActionFromItem($announce);
 			$this->actionsRequest->delete($announce);
 		} catch (ActionDoesNotExistException $e) {
 		}
@@ -335,9 +356,9 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param Stream $post
 	 */
 	private function updateDetails(Stream $post) {
-		if (!$post->isLocal()) {
-			return;
-		}
+//		if (!$post->isLocal()) {
+//			return;
+//		}
 
 		$post->setDetailInt(
 			'boosts', $this->actionsRequest->countActions($post->getId(), Announce::TYPE)
@@ -419,7 +440,6 @@ class AnnounceInterface implements IActivityPubInterface {
 		} catch (StreamNotFoundException $e) {
 		}
 	}
-
 
 }
 
