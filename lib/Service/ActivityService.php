@@ -141,7 +141,6 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 */
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
-
 		$activity = new Create();
 		$item->setParent($activity);
 

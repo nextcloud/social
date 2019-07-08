@@ -34,6 +34,7 @@ use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -125,12 +126,17 @@ class Note extends Stream implements JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 
-		$this->importAttachments($this->getArray('attachment', $data, []));
+		try {
+			$this->importAttachments($this->getArray('attachment', $data, []));
+		} catch (ItemAlreadyExistsException $e) {
+		}
 	}
 
 
 	/**
 	 * @param array $list
+	 *
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function importAttachments(array $list) {
 		$new = [];

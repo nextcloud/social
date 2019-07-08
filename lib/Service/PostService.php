@@ -34,7 +34,6 @@ use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
@@ -42,6 +41,7 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
@@ -113,7 +113,7 @@ class PostService {
 			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
 		);
 
-		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
+		$note->setContent($post->getContent());
 
 		$this->noteService->replyTo($note, $post->getReplyTo());
 		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
@@ -124,7 +124,6 @@ class PostService {
 
 		return $activity;
 	}
-
 
 }
 

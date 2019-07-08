@@ -61,6 +61,7 @@ class ACore extends Item implements JsonSerializable {
 	const AS_USERNAME = 5;
 	const AS_ACCOUNT = 6;
 	const AS_STRING = 7;
+	const AS_CONTENT = 8;
 	const AS_TAGS = 10;
 
 
@@ -528,10 +529,15 @@ class ACore extends Item implements JsonSerializable {
 			case self::AS_DATE:
 				return $value;
 
+			case self::AS_CONTENT:
+				$allowed = ['br'];
+				$value = strip_tags($value, '<' . implode('><', $allowed) . '>');
+				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
+				return $value;
+
 			case self::AS_STRING:
 				$value = strip_tags($value);
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
-
 				return $value;
 
 			case self::AS_USERNAME:
