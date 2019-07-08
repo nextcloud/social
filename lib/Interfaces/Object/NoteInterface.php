@@ -94,6 +94,17 @@ class NoteInterface implements IActivityPubInterface {
 
 
 	/**
+	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
+	 */
+	public function getItem(ACore $item): ACore {
+		throw new ItemNotFoundException();
+	}
+
+
+	/**
 	 * @param string $id
 	 *
 	 * @return ACore

@@ -104,6 +104,29 @@ class ActionsRequest extends ActionsRequestBuilder {
 
 
 	/**
+	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ActionDoesNotExistException
+	 */
+	public function getActionFromItem(ACore $item): ACore {
+		$qb = $this->getActionsSelectSql();
+		$this->limitToActorId($qb, $item->getActorId());
+		$this->limitToObjectId($qb, $item->getObjectId());
+		$this->limitToType($qb, $item->getType());
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+		if ($data === false) {
+			throw new ActionDoesNotExistException();
+		}
+
+		return $this->parseActionsSelectSql($data);
+	}
+
+
+	/**
 	 * @param string $objectId
 	 * @param string $type
 	 *
@@ -149,6 +172,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function delete(ACore $item) {
 		$qb = $this->getActionsDeleteSql();
 		$this->limitToIdString($qb, $item->getId());
+		$this->limitToType($qb, $item->getType());
 
 		$qb->execute();
 	}

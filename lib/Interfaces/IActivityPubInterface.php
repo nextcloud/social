@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces;
 
 
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 
@@ -60,6 +61,19 @@ interface IActivityPubInterface {
 
 
 	/**
+	 * When an activity is triggered by an 'Model\ActivityPub\Activity' model.
+	 *
+	 * !! This should be the only way of interaction between 2 IActivityPubInterface !!
+	 *
+	 * @param ACore $activity
+	 * @param ACore $item
+	 */
+	public function activity(ACore $activity, ACore $item);
+
+
+	/**
+	 * get Item by its Id.
+	 *
 	 * @param string $id
 	 *
 	 * @return ACore
@@ -69,18 +83,23 @@ interface IActivityPubInterface {
 
 
 	/**
-	 * When an activity is triggered by an 'Model\ActivityPub\Activity' model.
+	 * get Item when Id is not known.
 	 *
-	 * @param ACore $activity
 	 * @param ACore $item
+	 *
+	 * @return ACore
+	 * @throws ItemNotFoundException
 	 */
-	public function activity(ACore $activity, ACore $item);
+	public function getItem(ACore $item): ACore;
 
 
 	/**
 	 * Save the current item.
 	 *
+	 * !! Should not be called from an other IActivityPubInterface !!
+	 *
 	 * @param ACore $item
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function save(ACore $item);
 
@@ -88,13 +107,18 @@ interface IActivityPubInterface {
 	/**
 	 * Update the current item.
 	 *
+	 * !! Should not be called from an other IActivityPubInterface !!
+	 *
 	 * @param ACore $item
+	 * @throws ItemNotFoundException
 	 */
 	public function update(ACore $item);
 
 
 	/**
 	 * Event on the current item.
+	 *
+	 * !! Should not be called from an other IActivityPubInterface !!
 	 *
 	 * @param ACore $item
 	 * @param string $source
@@ -104,6 +128,8 @@ interface IActivityPubInterface {
 
 	/**
 	 * Delete the current item.
+	 *
+	 * !! Should not be called from an other IActivityPubInterface !!
 	 *
 	 * @param ACore $item
 	 */

@@ -34,7 +34,7 @@ namespace OCA\Social\Command;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
-use OCA\Social\Service\BoostService;
+use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NoteService;
 use Symfony\Component\Console\Input\InputArgument;
@@ -44,11 +44,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 
 /**
- * Class NoteBoost
+ * Class NoteLike
  *
  * @package OCA\Social\Command
  */
-class NoteBoost extends Base {
+class NoteLike extends Base {
+
 
 	/** @var NoteService */
 	private $noteService;
@@ -56,8 +57,8 @@ class NoteBoost extends Base {
 	/** @var AccountService */
 	private $accountService;
 
-	/** @var BoostService */
-	private $boostService;
+	/** @var LikeService */
+	private $likeService;
 
 	/** @var MiscService */
 	private $miscService;
@@ -68,17 +69,17 @@ class NoteBoost extends Base {
 	 *
 	 * @param AccountService $accountService
 	 * @param NoteService $noteService
-	 * @param BoostService $boostService
+	 * @param LikeService $likeService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $accountService, NoteService $noteService, BoostService $boostService,
+		AccountService $accountService, NoteService $noteService, LikeService $likeService,
 		MiscService $miscService
 	) {
 		parent::__construct();
 
 		$this->noteService = $noteService;
-		$this->boostService = $boostService;
+		$this->likeService = $likeService;
 		$this->accountService = $accountService;
 		$this->miscService = $miscService;
 	}
@@ -89,11 +90,11 @@ class NoteBoost extends Base {
 	 */
 	protected function configure() {
 		parent::configure();
-		$this->setName('social:note:boost')
+		$this->setName('social:note:like')
 			 ->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
-			 ->addArgument('note_id', InputArgument::REQUIRED, 'Note to boost')
-			 ->addOption('unboost', '', InputOption::VALUE_NONE, 'Unboost')
-			 ->setDescription('Boost a note');
+			 ->addArgument('note_id', InputArgument::REQUIRED, 'Note to like')
+			 ->addOption('unlike', '', InputOption::VALUE_NONE, 'Unlike')
+			 ->setDescription('Like a note');
 	}
 
 
@@ -110,10 +111,10 @@ class NoteBoost extends Base {
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->noteService->setViewer($actor);
 
-		if (!$input->getOption('unboost')) {
-			$activity = $this->boostService->create($actor, $noteId, $token);
+		if (!$input->getOption('unlike')) {
+			$activity = $this->likeService->create($actor, $noteId, $token);
 		} else {
-			$activity = $this->boostService->delete($actor, $noteId, $token);
+			$activity = $this->likeService->delete($actor, $noteId, $token);
 		}
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
