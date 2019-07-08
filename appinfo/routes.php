@@ -71,6 +71,8 @@ return [
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
 
+		['name' => 'Local#postLike', 'url' => '/api/v1/post/like', 'verb' => 'POST'],
+		['name' => 'Local#postUnlike', 'url' => '/api/v1/post/like', 'verb' => 'DELETE'],
 		['name' => 'Local#postBoost', 'url' => '/api/v1/post/boost', 'verb' => 'POST'],
 		['name' => 'Local#postUnboost', 'url' => '/api/v1/post/boost', 'verb' => 'DELETE'],
 
