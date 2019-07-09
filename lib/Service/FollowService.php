@@ -50,6 +50,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;

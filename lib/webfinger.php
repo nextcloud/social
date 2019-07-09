@@ -46,8 +46,11 @@ if (!array_key_exists('resource', $_GET)) {
 $subject = $_GET['resource'];
 
 $urlGenerator = OC::$server->getURLGenerator();
+$type = '';
+
 if (strpos($subject, 'acct:') === 0) {
 	list($type, $account) = explode(':', $subject, 2);
+	$type .= ':';
 } else {
 	$account = $subject;
 }
@@ -88,7 +91,7 @@ if (substr($href, -1) === '/') {
 }
 
 $finger = [
-	'subject' => 'acct:' . $username . '@' . $instance,
+	'subject' => $type . $username . '@' . $instance,
 	'links'   => [
 		[
 			'rel'  => 'self',
@@ -105,7 +108,6 @@ $finger = [
 		]
 	]
 ];
-
 
 header('Content-type: application/json');
 
