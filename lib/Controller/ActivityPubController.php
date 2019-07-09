@@ -183,7 +183,7 @@ class ActivityPubController extends Controller {
 			$this->miscService->log('[<<] shared-inbox: ' . $body, 1);
 
 			$requestTime = 0;
-			$origin = $this->signatureService->checkRequest($this->request, $requestTime);
+			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
 
 			$activity = $this->importService->importFromJson($body);
@@ -227,7 +227,7 @@ class ActivityPubController extends Controller {
 			$this->miscService->log('[<<] inbox: ' . $body, 1);
 
 			$requestTime = 0;
-			$origin = $this->signatureService->checkRequest($this->request, $requestTime);
+			$origin = $this->signatureService->checkRequest($this->request, $body,$requestTime);
 			$this->fediverseService->authorized($origin);
 
 			// TODO - check the recipient <-> username

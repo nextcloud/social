@@ -156,43 +156,68 @@ class SignatureService {
 
 		$localActorLink =
 			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
-		$signature = "(request-target): post " . $path->getPath() . "\nhost: " . $path->getAddress()
-					 . "\ndate: " . $date;
+
+		$digest = $this->generateDigest($request->getDataBody());
+		$contentSize = strlen($request->getDataBody());
+
+		$signature = '';
+//		$signature .= "(request-target): post " . $path->getPath() . "\n";
+		$signature .= 'content-length: ' . $contentSize . "\n";
+		$signature .= 'date: ' . $date . "\n";
+		$signature .= 'digest: ' . $digest . "\n";
+		$signature .= 'host: ' . $path->getAddress();
 
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
 		$signed = base64_encode($signed);
 
-		$header = 'keyId="' . $localActorLink
-				  . '",algorithm="rsa-sha256",headers="(request-target) host date",signature="'
+		$header = 'keyId="' . $localActorLink . '#main-key'
+				  . '",algorithm="rsa-sha256",headers="content-length date digest host",signature="'
 				  . $signed . '"';
 
+
+		$request->addHeader('Content-length: ' . $contentSize);
 		$request->addHeader('Host: ' . $path->getAddress());
 		$request->addHeader('Date: ' . $date);
+		$request->addHeader('Digest: ' . $digest);
 		$request->addHeader('Signature: ' . $header);
+	}
+
+
+	/**
+	 * @param string $data
+	 *
+	 * @return string
+	 */
+	private function generateDigest(string $data): string {
+		$encoded = hash("sha256", utf8_encode($data), true);
+
+		return 'SHA-256=' . base64_encode($encoded);
 	}
 
 
 	/**
 	 * @param IRequest $request
 	 *
+	 * @param string $data
 	 * @param int $time
 	 *
 	 * @return string
+	 * @throws DateTimeException
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SignatureException
 	 * @throws SignatureIsGoneException
 	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
-	 * @throws RequestResultNotJsonException
-	 * @throws DateTimeException
+	 * @throws UnauthorizedFediverseException
 	 */
-	public function checkRequest(IRequest $request, int &$time = 0): string {
+	public function checkRequest(IRequest $request, string $data, int &$time = 0): string {
 		try {
 			$dTime = new DateTime($request->getHeader('date'));
 			$time = $dTime->getTimestamp();
@@ -207,7 +232,7 @@ class SignatureService {
 		}
 
 		try {
-			$origin = $this->checkRequestSignature($request);
+			$origin = $this->checkRequestSignature($request, $data);
 		} catch (RequestContentException $e) {
 			throw new SignatureIsGoneException();
 		}
@@ -297,24 +322,28 @@ class SignatureService {
 	/**
 	 * @param IRequest $request
 	 *
+	 * @param string $data
+	 *
 	 * @return string
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
 	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SignatureException
 	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
-	 * @throws RequestContentException
-	 * @throws RequestResultSizeException
-	 * @throws RequestResultNotJsonException
+	 * @throws UnauthorizedFediverseException
 	 */
-	private function checkRequestSignature(IRequest $request): string {
+	private function checkRequestSignature(IRequest $request, string $data): string {
 		$signatureHeader = $request->getHeader('Signature');
 
 		$sign = $this->parseSignatureHeader($signatureHeader);
+
 		$this->mustContains(['keyId', 'headers', 'signature'], $sign);
 
 		$keyId = $sign['keyId'];
@@ -324,11 +353,17 @@ class SignatureService {
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
+		// TODO: check digest
+		//	$this->generateDigest($data);
+
 		$publicKey = $this->retrieveKey($keyId);
 		$algorithm = $this->getAlgorithmFromSignature($sign);
 		if ($publicKey === ''
 			|| openssl_verify($estimated, $signed, $publicKey, $algorithm) !== 1) {
-			throw new SignatureException('signature cannot be checked');
+			throw new SignatureException(
+				'signature cannot be checked key: ' . $publicKey . ' - algo: ' . $algorithm
+				. ' - estimated: ' . $estimated
+			);
 		}
 
 		return $origin;
@@ -351,10 +386,11 @@ class SignatureService {
 		} catch (Exception $e) {
 		}
 
-		$estimated = "(request-target): " . $target;
+		$estimated = '';
 
 		foreach ($keys as $key) {
 			if ($key === '(request-target)') {
+				$estimated .= "(request-target): " . $target . "\n";
 				continue;
 			}
 
@@ -363,10 +399,10 @@ class SignatureService {
 				$value = $this->configService->getCloudAddress(true);
 			}
 
-			$estimated .= "\n" . $key . ': ' . $value;
+			$estimated .= $key . ': ' . $value . "\n";
 		}
 
-		return $estimated;
+		return trim($estimated, "\n");
 	}
 
 
@@ -448,6 +484,9 @@ class SignatureService {
 		switch ($this->get('algorithm', $sign, '')) {
 			case 'rsa-sha512':
 				return 'sha512';
+
+			case 'rsa-sha256':
+				return 'sha256';
 
 			default:
 				return 'sha256';

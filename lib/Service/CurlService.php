@@ -40,18 +40,17 @@ use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Actor\Service;
 
 class CurlService {
 
@@ -274,9 +273,12 @@ class CurlService {
 
 		$curl = $this->initRequest($request);
 
+		$this->initRequestGet($request);
 		$this->initRequestPost($curl, $request);
 		$this->initRequestPut($curl, $request);
 		$this->initRequestDelete($curl, $request);
+
+		$this->initRequestHeaders($curl, $request);
 
 		$result = curl_exec($curl);
 
@@ -359,9 +361,6 @@ class CurlService {
 	private function initRequest(Request $request) {
 
 		$curl = $this->generateCurlRequest($request);
-		$headers = $request->getHeaders();
-
-		$headers[] = 'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
 
 		curl_setopt($curl, CURLOPT_USERAGENT, $request->getUserAgent());
 		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, $request->getTimeout());
@@ -369,7 +368,6 @@ class CurlService {
 
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
-		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
@@ -421,6 +419,23 @@ class CurlService {
 
 
 	/**
+	 * @param Request $request
+	 */
+	private function initRequestGet(Request $request) {
+		if ($request->getType() !== Request::TYPE_GET) {
+			return;
+		}
+
+		$request->addHeader(
+			'Accept: application/json; profile="https://www.w3.org/ns/activitystreams"'
+		);
+		$request->addHeader(
+			'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+		);
+	}
+
+
+	/**
 	 * @param resource $curl
 	 * @param Request $request
 	 */
@@ -428,6 +443,10 @@ class CurlService {
 		if ($request->getType() !== Request::TYPE_POST) {
 			return;
 		}
+
+		$request->addHeader(
+			'Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+		);
 
 		curl_setopt($curl, CURLOPT_POST, true);
 		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
@@ -459,6 +478,17 @@ class CurlService {
 
 		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
+	}
+
+
+	/**
+	 * @param resource $curl
+	 * @param Request $request
+	 */
+	private function initRequestHeaders($curl, Request $request) {
+		$headers = $request->getHeaders();
+
+		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 	}
 
 
