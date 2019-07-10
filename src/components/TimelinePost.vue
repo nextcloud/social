@@ -29,7 +29,7 @@
 				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
 					:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
 					@click.prevent="boost" />
-				<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
+				<div v-if="popoverMenu.length > 0" v-tooltip.bottom="menuOpened ? '' : t('social', 'More actions')" class="post-actions-more">
 					<a class="icon-more" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">
 						<popover-menu :menu="popoverMenu" />
