@@ -154,7 +154,7 @@ export default {
 				post: this.item,
 				parentAnnounce: this.parentAnnounce
 			}
-			if (this.isBoosted) {
+			if (this.isLiked) {
 				this.$store.dispatch('postUnlike', params)
 			} else {
 				this.$store.dispatch('postLike', params)
