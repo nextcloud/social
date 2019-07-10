@@ -54,6 +54,22 @@ const mutations = {
 	setAccount(state, account) {
 		state.account = account
 	},
+	likePost(state, { post, parentAnnounce }) {
+		if (typeof state.timeline[post.id] !== 'undefined') {
+			Vue.set(state.timeline[post.id].action.values, 'liked', true)
+		}
+		if (typeof parentAnnounce.id !== 'undefined') {
+			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'liked', true)
+		}
+	},
+	unlikePost(state, { post, parentAnnounce }) {
+		if (typeof state.timeline[post.id] !== 'undefined') {
+			Vue.set(state.timeline[post.id].action.values, 'liked', false)
+		}
+		if (typeof parentAnnounce.id !== 'undefined') {
+			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'liked', false)
+		}
+	},
 	boostPost(state, { post, parentAnnounce }) {
 		if (typeof state.timeline[post.id] !== 'undefined') {
 			Vue.set(state.timeline[post.id].action.values, 'boosted', true)
@@ -111,6 +127,30 @@ const actions = {
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to delete the post')
 			console.error('Failed to delete the post', error)
+		})
+	},
+	postLike(context, { post, parentAnnounce }) {
+		return new Promise((resolve, reject) => {
+			axios.post(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
+				context.commit('likePost', { post, parentAnnounce })
+				// eslint-disable-next-line no-console
+				console.log('Post liked with token ' + response.data.result.token)
+				resolve(response)
+			}).catch((error) => {
+				OC.Notification.showTemporary('Failed to like post')
+				console.error('Failed to like post', error.response)
+				reject(error)
+			})
+		})
+	},
+	postUnlike(context, { post, parentAnnounce }) {
+		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
+			context.commit('unlikePost', { post, parentAnnounce })
+			// eslint-disable-next-line no-console
+			console.log('Boost unliked with token ' + response.data.result.token)
+		}).catch((error) => {
+			OC.Notification.showTemporary('Failed to unlike post')
+			console.error('Failed to unlike post', error)
 		})
 	},
 	postBoost(context, { post, parentAnnounce }) {

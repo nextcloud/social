@@ -29,6 +29,7 @@
 				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
 					:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
 					@click.prevent="boost" />
+				<a v-tooltip.bottom="t('social', 'Like')" :class="(isLiked) ? 'icon-starred' : 'icon-favorite'" @click.prevent="like" />
 				<div v-if="popoverMenu.length > 0" v-tooltip.bottom="t('social', 'More actions')" class="post-actions-more">
 					<a class="icon-more" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">
@@ -122,6 +123,12 @@ export default {
 				return false
 			}
 			return !!this.item.action.values.boosted
+		},
+		isLiked() {
+			if (typeof this.item.action === 'undefined') {
+				return false
+			}
+			return !!this.item.action.values.liked
 		}
 	},
 	methods: {
@@ -140,6 +147,17 @@ export default {
 				this.$store.dispatch('postUnBoost', params)
 			} else {
 				this.$store.dispatch('postBoost', params)
+			}
+		},
+		like() {
+			let params = {
+				post: this.item,
+				parentAnnounce: this.parentAnnounce
+			}
+			if (this.isBoosted) {
+				this.$store.dispatch('postUnlike', params)
+			} else {
+				this.$store.dispatch('postLike', params)
 			}
 		}
 	}
@@ -184,6 +202,8 @@ export default {
 		.icon-reply,
 		.icon-boost,
 		.icon-boosted,
+		.icon-starred,
+		.icon-favorite,
 		.icon-more {
 			display: inline-block;
 			width: 44px;
