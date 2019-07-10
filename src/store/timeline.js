@@ -147,7 +147,7 @@ const actions = {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
 			context.commit('unlikePost', { post, parentAnnounce })
 			// eslint-disable-next-line no-console
-			console.log('Boost unliked with token ' + response.data.result.token)
+			console.log('Post unliked with token ' + response.data.result.token)
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to unlike post')
 			console.error('Failed to unlike post', error)
