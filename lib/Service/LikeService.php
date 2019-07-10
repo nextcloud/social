@@ -129,9 +129,9 @@ class LikeService {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-		if (!$note->isPublic()) {
-			throw new StreamNotFoundException('Stream is not Public');
-		}
+//		if (!$note->isPublic()) {
+//			throw new StreamNotFoundException('Stream is not Public');
+//		}
 
 		$like->setObjectId($note->getId());
 		$this->assignInstance($like, $actor, $note);
