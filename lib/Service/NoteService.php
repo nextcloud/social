@@ -50,6 +50,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCP\ILogger;
 
 class NoteService {
 
@@ -78,6 +79,9 @@ class NoteService {
 	/** @var MiscService */
 	private $miscService;
 
+	/** @var ILogger */
+	private $logger;
+
 
 	/** @var Person */
 	private $viewer = null;
@@ -94,12 +98,14 @@ class NoteService {
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
+	 * @param ILogger $logger
 	 */
 	public function __construct(
 		StreamRequest $streamRequest, ActivityService $activityService,
 		AccountService $accountService, SignatureService $signatureService,
 		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService, MiscService $miscService,
+		ILogger $logger
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
@@ -109,6 +115,7 @@ class NoteService {
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
