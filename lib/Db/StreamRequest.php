@@ -50,6 +50,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use OCP\ILogger;
 
 
 /**
@@ -59,6 +60,8 @@ use OCP\IDBConnection;
  */
 class StreamRequest extends StreamRequestBuilder {
 
+	/** var ILogger */
+	private $logger;
 
 	/**
 	 * StreamRequest constructor.
@@ -68,9 +71,12 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ConfigService $configService,
+		MiscService $miscService, ILogger $logger
 	) {
 		parent::__construct($connection, $configService, $miscService);
+
+		$this->logger = $logger;
 	}
 
 
