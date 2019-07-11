@@ -262,12 +262,6 @@ class ConfigService {
 	}
 
 
-	//
-	//
-	//
-	//
-	//
-
 	/**
 	 * getCloudHost - cloud.example.com
 	 *
@@ -312,18 +306,6 @@ class ConfigService {
 	public function setCloudUrl(string $cloudAddress) {
 		$this->setAppValue(self::CLOUD_URL, $cloudAddress);
 	}
-
-
-
-//
-//	/**
-//	 * @return string
-//	 */
-//	public function getSocialUrl2(): string {
-//		$url = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
-//
-//		return $url;
-//	}
 
 
 	/**
@@ -379,55 +361,6 @@ class ConfigService {
 
 		$this->setAppValue(self::SOCIAL_URL, $url);
 	}
-
-
-	//
-	//
-	//
-	//
-	//
-	//
-	//
-
-
-//	/**
-//	 * @param string $cloudAddress
-//	 */
-//	public function setCloudUrl(string $cloudAddress) {
-//		$this->setAppValue(self::CLOUD_ADDRESS, $cloudAddress);
-//	}
-//
-//	/**
-//	 * @param bool $host
-//	 *
-//	 * @return string
-//	 * @throws SocialAppConfigException
-//	 */
-//	public function getCloudUrl(bool $host = false) {
-//		$address = $this->getAppValue(self::CLOUD_ADDRESS);
-//		if ($address === '') {
-//			throw new SocialAppConfigException();
-//		}
-//
-//		// fixing address for alpha2
-//		if (substr($address, -10) === '/index.php') {
-//			$address = substr($address, 0, -10);
-//			$this->setCloudUrl($address);
-//		}
-//
-//		if ($host === true) {
-//			$parsed = parse_url($address);
-//			$result = $this->get('host', $parsed, '');
-//			$port = $this->get('port', $parsed, '');
-////			if ($port !== '') {
-////				$result .= ':' . $port;
-////			}
-//
-//			return $result;
-//		}
-//
-//		return $this->withoutEndSlash($address, false, false);
-//	}
 
 
 	/**
