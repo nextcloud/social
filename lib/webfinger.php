@@ -64,12 +64,12 @@ try {
 	$fediverseService->jailed();
 
 	if ($configService->getSocialAddress() !== $instance) {
-
-		if ($configService->getCloudAddress(true) === $instance) {
+		if ($configService->getCloudHost() === $instance) {
 			$instance = $configService->getSocialAddress();
 		} else {
 			throw new Exception(
 				'instance is ' . $instance . ', expected ' . $configService->getSocialAddress()
+				. ' or ' . $configService->getCloudHost()
 			);
 		}
 	}
@@ -82,9 +82,9 @@ try {
 	exit;
 }
 
-$href = $configService->getUrlSocial(
-	$urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $username])
-);
+$href = $configService->getSocialUrl() . '@' . $username;
+//	$urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $username])
+//);
 
 if (substr($href, -1) === '/') {
 	$href = substr($href, 0, -1);

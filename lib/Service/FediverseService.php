@@ -131,7 +131,7 @@ class FediverseService {
 	 * @throws SocialAppConfigException
 	 */
 	public function isLocal(string $address): bool {
-		$local = $this->configService->getCloudAddress(true);
+		$local = $this->configService->getCloudHost();
 
 		return ($local === $address);
 	}

@@ -50,9 +50,13 @@ class ConfigService {
 	use TPathTools;
 	use TArrayTools;
 
-
-	const CLOUD_ADDRESS = 'address';
+	const CLOUD_URL = 'cloud_url';
+	const SOCIAL_URL = 'social_url';
 	const SOCIAL_ADDRESS = 'social_address';
+
+	// deprecated -> CLOUD_URL
+	const CLOUD_ADDRESS = 'address';
+
 	const SOCIAL_SERVICE = 'service';
 	const SOCIAL_MAX_SIZE = 'max_size';
 	const SOCIAL_ACCESS_TYPE = 'access_type';
@@ -65,8 +69,10 @@ class ConfigService {
 
 	/** @var array */
 	public $defaults = [
-		self::CLOUD_ADDRESS      => '',
+		self::CLOUD_URL          => '',
+		self::SOCIAL_URL         => '',
 		self::SOCIAL_ADDRESS     => '',
+		self::CLOUD_ADDRESS      => '',
 		self::SOCIAL_SERVICE     => 1,
 		self::SOCIAL_MAX_SIZE    => 10,
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
@@ -256,45 +262,85 @@ class ConfigService {
 	}
 
 
-	/**
-	 * @param string $cloudAddress
-	 */
-	public function setCloudAddress(string $cloudAddress) {
-		$this->setAppValue(self::CLOUD_ADDRESS, $cloudAddress);
-	}
+	//
+	//
+	//
+	//
+	//
 
 	/**
-	 * @param bool $host
+	 * getCloudHost - cloud.example.com
 	 *
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function getCloudAddress(bool $host = false) {
-		$address = $this->getAppValue(self::CLOUD_ADDRESS);
+	public function getCloudHost(): string {
+		$url = $this->getCloudUrl();
+
+		return parse_url($url, PHP_URL_HOST);
+	}
+
+
+	/**
+	 * getCloudUrl - https://cloud.example.com/index.php
+	 *             - https://cloud.example.com
+	 *
+	 * @param bool $noPhp
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function getCloudUrl(bool $noPhp = false) {
+		$address = $this->getAppValue(self::CLOUD_URL);
 		if ($address === '') {
 			throw new SocialAppConfigException();
 		}
 
-		// fixing address for alpha2
-		if (substr($address, -10) === '/index.php') {
-			$address = substr($address, 0, -10);
-			$this->setCloudAddress($address);
-		}
-
-		if ($host === true) {
-			$parsed = parse_url($address);
-			$result = $this->get('host', $parsed, '');
-			$port = $this->get('port', $parsed, '');
-//			if ($port !== '') {
-//				$result .= ':' . $port;
-//			}
-
-			return $result;
+		if ($noPhp) {
+			$pos = strpos($address, '/index.php');
+			if ($pos) {
+				$address = substr($address, 0, $pos);
+			}
 		}
 
 		return $this->withoutEndSlash($address, false, false);
 	}
 
+	/**
+	 * @param string $cloudAddress
+	 */
+	public function setCloudUrl(string $cloudAddress) {
+		$this->setAppValue(self::CLOUD_URL, $cloudAddress);
+	}
+
+
+
+//
+//	/**
+//	 * @return string
+//	 */
+//	public function getSocialUrl2(): string {
+//		$url = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+//
+//		return $url;
+//	}
+
+
+	/**
+	 * getSocialAddress - example.com
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function getSocialAddress(): string {
+		$address = $this->getAppValue(self::SOCIAL_ADDRESS);
+
+		if ($address === '') {
+			return $this->getCloudHost();
+		}
+
+		return $address;
+	}
 
 	/**
 	 * @param string $address
@@ -303,35 +349,81 @@ class ConfigService {
 		$this->setAppValue(self::SOCIAL_ADDRESS, $address);
 	}
 
-	/**
-	 * @return string
-	 * @throws SocialAppConfigException
-	 */
-	public function getSocialAddress(): string {
-		$address = $this->getAppValue(self::SOCIAL_ADDRESS);
-
-		if ($address === '') {
-			return $this->getCloudAddress(true);
-		}
-
-		return $address;
-	}
-
 
 	/**
-	 * @param string $path
+	 * getSocialUrl - https://cloud.example.com/apps/social/
 	 *
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function getUrlSocial(string $path = ''): string {
-		if ($path === '') {
-			$path = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+	public function getSocialUrl(): string {
+		$socialUrl = $this->getAppValue(self::SOCIAL_URL);
+		if ($socialUrl === '') {
+			throw new SocialAppConfigException();
 		}
 
-		return $this->getCloudAddress() . $path;
-//		return 'https://' . $this->getCloudAddress(true) . $path;
+		return $socialUrl;
 	}
+
+	/**
+	 * @param string $url
+	 */
+	public function setSocialUrl(string $url = '') {
+		if ($url === '') {
+			$url = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+		}
+
+		$this->setAppValue(self::SOCIAL_URL, $url);
+	}
+
+
+	//
+	//
+	//
+	//
+	//
+	//
+	//
+
+
+//	/**
+//	 * @param string $cloudAddress
+//	 */
+//	public function setCloudUrl(string $cloudAddress) {
+//		$this->setAppValue(self::CLOUD_ADDRESS, $cloudAddress);
+//	}
+//
+//	/**
+//	 * @param bool $host
+//	 *
+//	 * @return string
+//	 * @throws SocialAppConfigException
+//	 */
+//	public function getCloudUrl(bool $host = false) {
+//		$address = $this->getAppValue(self::CLOUD_ADDRESS);
+//		if ($address === '') {
+//			throw new SocialAppConfigException();
+//		}
+//
+//		// fixing address for alpha2
+//		if (substr($address, -10) === '/index.php') {
+//			$address = substr($address, 0, -10);
+//			$this->setCloudUrl($address);
+//		}
+//
+//		if ($host === true) {
+//			$parsed = parse_url($address);
+//			$result = $this->get('host', $parsed, '');
+//			$port = $this->get('port', $parsed, '');
+////			if ($port !== '') {
+////				$result .= ':' . $port;
+////			}
+//
+//			return $result;
+//		}
+//
+//		return $this->withoutEndSlash($address, false, false);
+//	}
 
 
 	/**
@@ -344,7 +436,7 @@ class ConfigService {
 	public function generateId(string $path = '', $generateId = true): string {
 		$path = $this->withoutBeginSlash($this->withEndSlash($path));
 
-		$id = $this->getUrlSocial() . $path;
+		$id = $this->getSocialUrl() . $path;
 		if ($generateId === true) {
 			$id .= time() . crc32(uniqid());
 		}

@@ -52,7 +52,7 @@ try {
 header('Content-type: application/xdr+xml');
 
 try {
-	$url = $configService->getCloudAddress() . '/.well-known/webfinger?resource={uri}';
+	$url = $configService->getCloudUrl(true) . '/.well-known/webfinger?resource={uri}';
 	echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 	echo '<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">' . "\n";
 	echo '  <Link rel="lrdd" type="application/xrd+xml" template="' . $url . '"/>' . "\n";

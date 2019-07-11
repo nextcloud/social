@@ -382,7 +382,7 @@ class AP {
 				throw new ItemUnknownException();
 		}
 
-		$item->setUrlCloud($this->configService->getCloudAddress());
+		$item->setUrlCloud($this->configService->getCloudUrl());
 
 		return $item;
 	}

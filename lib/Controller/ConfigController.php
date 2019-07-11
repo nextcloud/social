@@ -47,7 +47,7 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function setCloudAddress(string $cloudAddress): DataResponse {
-		$this->configService->setCloudAddress($cloudAddress);
+		$this->configService->setCloudUrl($cloudAddress);
 
 		return new DataResponse([]);
 	}

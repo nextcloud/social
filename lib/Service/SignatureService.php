@@ -154,8 +154,8 @@ class SignatureService {
 
 		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
 
-		$localActorLink =
-			$this->configService->getUrlSocial() . '@' . $localActor->getPreferredUsername();
+//		$localActorLink =
+//			$this->configService->getSocialUrl() . '@' . $localActor->getPreferredUsername();
 
 		$digest = $this->generateDigest($request->getDataBody());
 		$contentSize = strlen($request->getDataBody());
@@ -170,10 +170,9 @@ class SignatureService {
 		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
 		$signed = base64_encode($signed);
 
-		$header = 'keyId="' . $localActorLink . '#main-key'
+		$header = 'keyId="' . $localActor->getId() . '#main-key'
 				  . '",algorithm="rsa-sha256",headers="content-length date digest host",signature="'
 				  . $signed . '"';
-
 
 		$request->addHeader('Content-length: ' . $contentSize);
 		$request->addHeader('Host: ' . $path->getAddress());
@@ -396,7 +395,7 @@ class SignatureService {
 
 			$value = $request->getHeader($key);
 			if ($key === 'host') {
-				$value = $this->configService->getCloudAddress(true);
+				$value = $this->configService->getCloudHost();
 			}
 
 			$estimated .= $key . ': ' . $value . "\n";
