@@ -244,7 +244,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		// all possible follow, but linked by followers (actor_id) and accepted follow
 		$crossFollows = $expr->andX();
 		$crossFollows->add($recipientFields);
-		$crossFollows->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(),true, false, 'f'));
+		$crossFollows->add(
+			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
+		);
 		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
 		$on->add($crossFollows);
 
