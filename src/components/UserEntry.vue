@@ -92,12 +92,6 @@ export default {
 }
 </script>
 <style scoped>
-	.user-entry {
-		width: 100%;
-		padding: 20px;
-		margin-bottom: 10px;
-	}
-
 	.user-avatar {
 		margin: 5px;
 		margin-right: 10px;
