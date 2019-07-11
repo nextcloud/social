@@ -421,6 +421,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @throws SocialAppConfigException
 	 */
 	protected function parseStreamSelectSql(array $data, string $as = Stream::TYPE): Stream {
+		if ($as === Stream::TYPE) {
+			$as = $this->get('type', $data, Stream::TYPE);
+		}
+
 		/** @var Stream $item */
 		$item = AP::$activityPub->getItemFromType($as);
 		$item->importFromDatabase($data);
