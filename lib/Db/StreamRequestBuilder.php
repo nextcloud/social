@@ -244,7 +244,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		// all possible follow, but linked by followers (actor_id) and accepted follow
 		$crossFollows = $expr->andX();
 		$crossFollows->add($recipientFields);
-		$crossFollows->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(),true, false, 'f'));
+		$crossFollows->add(
+			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
+		);
 		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
 		$on->add($crossFollows);
 
@@ -421,6 +423,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @throws SocialAppConfigException
 	 */
 	protected function parseStreamSelectSql(array $data, string $as = Stream::TYPE): Stream {
+		if ($as === Stream::TYPE) {
+			$as = $this->get('type', $data, Stream::TYPE);
+		}
+
 		/** @var Stream $item */
 		$item = AP::$activityPub->getItemFromType($as);
 		$item->importFromDatabase($data);
