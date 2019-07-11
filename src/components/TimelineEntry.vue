@@ -62,7 +62,16 @@ export default {
 			let summary = this.item.summary
 			for (var key in this.item.details) {
 				let keyword = '{' + key + '}'
-				summary = summary.replace(keyword, JSON.stringify(this.item.details[key]))
+				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
+					let concatination = ''
+					for (var stringkey in this.item.details[key]) {
+						concatination += this.item.details[key][stringkey] + ', '
+					}
+					concatination = concatination.substring(0, concatination.length - 2)
+					summary = summary.replace(keyword, concatination)
+				} else {
+					summary = summary.replace(keyword, this.item.details[key])
+				}
 			}
 			return summary
 		}
