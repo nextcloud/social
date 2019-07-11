@@ -108,7 +108,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 * @throws SocialAppConfigException
 	 */
 	protected function parseActorsSelectSql($data): Person {
-		$root = $this->configService->getUrlSocial();
+		$root = $this->configService->getSocialUrl();
 
 		$actor = new Person();
 		$actor->importFromDatabase($data);
@@ -122,7 +122,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 			  ->setLocal(true)
 			  ->setAvatarVersion($this->getInt('avatar_version', $data, -1))
 			  ->setAccount(
-				  $actor->getPreferredUsername() . '@' . $this->configService->getCloudAddress(true)
+				  $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress()
 			  );
 		$actor->setUrlSocial($root)
 			  ->setUrl($actor->getId());

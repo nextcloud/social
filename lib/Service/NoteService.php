@@ -254,7 +254,7 @@ class NoteService {
 			$note->addTag(
 				[
 					'type' => 'Hashtag',
-					'href' => $this->configService->getCloudAddress() . '/tag/' . strtolower(
+					'href' => $this->configService->getSocialUrl() . 'tag/' . strtolower(
 							$hashtag
 						),
 					'name' => '#' . $hashtag

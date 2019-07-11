@@ -329,17 +329,15 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 */
 	public function asyncWithToken(string $token) {
-		$address = $this->configService->getUrlSocial();
-		$parse = parse_url($address);
-		$host = $this->get('host', $parse, '');
-		$path = $this->withEndSlash($this->get('path', $parse, '')) . $this->withoutBeginSlash(
-				self::ASYNC_REQUEST_TOKEN
-			);
+		$address = $this->configService->getSocialUrl();
+
+		$path = $this->withEndSlash(parse_url($address, PHP_URL_PATH));
+		$path .= $this->withoutBeginSlash(self::ASYNC_REQUEST_TOKEN);
 		$path = str_replace('{token}', $token, $path);
 
 		$request = new Request($path, Request::TYPE_POST);
-		$request->setAddress($host);
-		$request->setProtocol($this->get('scheme', $parse, 'https'));
+		$request->setAddress($this->configService->getCloudHost());
+		$request->setProtocol(parse_url($address, PHP_URL_SCHEME));
 
 		try {
 			$this->request($request);

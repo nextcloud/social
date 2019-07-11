@@ -124,7 +124,7 @@ class Reset extends Base {
 
 		$output->writeln('');
 
-		$cloudAddress = $this->configService->getCloudAddress();
+		$cloudAddress = $this->configService->getCloudUrl();
 		$question = new Question(
 			'<info>Now is a good time to change the base address of your cloud: </info> ('
 			. $cloudAddress . ') ',
@@ -137,7 +137,7 @@ class Reset extends Base {
 			return;
 		}
 
-		$this->configService->setCloudAddress($newCloudAddress);
+		$this->configService->setCloudUrl($newCloudAddress);
 		$output->writeln('');
 		$output->writeln('New address: <info>' . $newCloudAddress . '</info>');
 	}

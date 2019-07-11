@@ -145,7 +145,7 @@ class NavigationController extends Controller {
 		];
 
 		try {
-			$data['serverData']['cloudAddress'] = $this->configService->getCloudAddress();
+			$data['serverData']['cloudAddress'] = $this->configService->getCloudUrl();
 		} catch (SocialAppConfigException $e) {
 			$this->checkService->checkInstallationStatus();
 			$cloudAddress = $this->setupCloudAddress();
@@ -157,12 +157,18 @@ class NavigationController extends Controller {
 				if ($data['serverData']['isAdmin']) {
 					$cloudAddress = $this->request->getParam('cloudAddress');
 					if ($cloudAddress !== null) {
-						$this->configService->setCloudAddress($cloudAddress);
+						$this->configService->setCloudUrl($cloudAddress);
 					} else {
 						return new TemplateResponse(Application::APP_NAME, 'main', $data);
 					}
 				}
 			}
+		}
+
+		try {
+			$this->configService->getSocialUrl();
+		} catch (SocialAppConfigException $e) {
+			$this->configService->setSocialUrl('');
 		}
 
 		if ($data['serverData']['isAdmin']) {
@@ -188,16 +194,16 @@ class NavigationController extends Controller {
 	}
 
 	private function setupCloudAddress(): string {
-//		$frontControllerActive =
-//			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
-//			 || getenv('front_controller_active') === 'true');
+		$frontControllerActive =
+			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+			 || getenv('front_controller_active') === 'true');
 
 		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
 		if ($cloudAddress !== '') {
-//			if (!$frontControllerActive) {
-//				$cloudAddress .= '/index.php';
-//			}
-			$this->configService->setCloudAddress($cloudAddress);
+			if (!$frontControllerActive) {
+				$cloudAddress .= '/index.php';
+			}
+			$this->configService->setCloudUrl($cloudAddress);
 
 			return $cloudAddress;
 		}
@@ -229,7 +235,7 @@ class NavigationController extends Controller {
 
 		$setup = false;
 		try {
-			$this->configService->getCloudAddress(true);
+			$this->configService->getCloudUrl();
 			$setup = true;
 		} catch (SocialAppConfigException $e) {
 		}

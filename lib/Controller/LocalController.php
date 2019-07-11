@@ -804,7 +804,9 @@ class LocalController extends Controller {
 			$this->cacheActorService->setViewer($this->viewer);
 		} catch (Exception $e) {
 			if ($exception) {
-				throw new AccountDoesNotExistException();
+				throw new AccountDoesNotExistException(
+					'unable to initViewer - ' . get_class($e) . ' - ' . $e->getMessage()
+				);
 			}
 		}
 	}

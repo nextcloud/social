@@ -109,9 +109,8 @@ class PostService {
 		$actor = $post->getActor();
 		$this->noteService->assignItem($note, $actor, $post->getType());
 
-		$note->setAttributedTo(
-			$this->configService->getUrlSocial() . '@' . $actor->getPreferredUsername()
-		);
+		$note->setAttributedTo($actor->getId());
+//		$this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername()
 
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
 
