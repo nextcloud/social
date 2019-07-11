@@ -24,6 +24,9 @@
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div class="post-message" v-html="formatedMessage" />
+			<div v-if="hasAttachments" class="post-message">
+				<span>Attachments here</span>
+			</div>
 			<div v-click-outside="hidePopoverMenu" class="post-actions">
 				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
@@ -117,6 +120,9 @@ export default {
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		},
+		hasAttachments() {
+			return (typeof this.item.attachment === 'undefined') ? false : true;
 		},
 		isBoosted() {
 			if (typeof this.item.action === 'undefined') {
