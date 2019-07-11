@@ -337,7 +337,7 @@ class CurlService {
 
 		$request = new Request($path, Request::TYPE_POST);
 		$request->setAddress($this->configService->getCloudHost());
-		$request->setProtocol($this->get('scheme', parse_url($address, PHP_URL_SCHEME), 'https'));
+		$request->setProtocol(parse_url($address, PHP_URL_SCHEME));
 
 		try {
 			$this->request($request);

@@ -367,10 +367,14 @@ class ConfigService {
 
 	/**
 	 * @param string $url
+	 *
+	 * @throws SocialAppConfigException
 	 */
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
-			$url = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+			$url = $this->getCloudUrl() . $this->urlGenerator->linkToRoute(
+					'social.Navigation.navigate'
+				);
 		}
 
 		$this->setAppValue(self::SOCIAL_URL, $url);

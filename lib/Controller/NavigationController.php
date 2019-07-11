@@ -165,6 +165,12 @@ class NavigationController extends Controller {
 			}
 		}
 
+		try {
+			$this->configService->getSocialUrl();
+		} catch (SocialAppConfigException $e) {
+			$this->configService->setSocialUrl('');
+		}
+
 		if ($data['serverData']['isAdmin']) {
 			$checks = $this->checkService->checkDefault();
 			$data['serverData']['checks'] = $checks;
