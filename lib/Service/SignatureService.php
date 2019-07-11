@@ -154,31 +154,57 @@ class SignatureService {
 
 		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
 
-//		$localActorLink =
-//			$this->configService->getSocialUrl() . '@' . $localActor->getPreferredUsername();
+		$headersElements = ['content-length', 'date', 'host', 'digest'];
+		$allElements = [
+			'(request-target)' => 'post ' . $path->getPath(),
+			'date'             => $date,
+			'host'             => $path->getAddress(),
+			'digest'           => $this->generateDigest($request->getDataBody()),
+			'content-length'   => strlen($request->getDataBody())
+		];
 
-		$digest = $this->generateDigest($request->getDataBody());
-		$contentSize = strlen($request->getDataBody());
+		$signing = $this->generateHeaders($headersElements, $allElements, $request);
+		openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
 
-		$signature = '';
-//		$signature .= "(request-target): post " . $path->getPath() . "\n";
-		$signature .= 'content-length: ' . $contentSize . "\n";
-		$signature .= 'date: ' . $date . "\n";
-		$signature .= 'digest: ' . $digest . "\n";
-		$signature .= 'host: ' . $path->getAddress();
-
-		openssl_sign($signature, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
 		$signed = base64_encode($signed);
+		$signature = $this->generateSignature($headersElements, $localActor->getId(), $signed);
 
-		$header = 'keyId="' . $localActor->getId() . '#main-key'
-				  . '",algorithm="rsa-sha256",headers="content-length date digest host",signature="'
-				  . $signed . '"';
+		$request->addHeader('Signature: ' . $signature);
+	}
 
-		$request->addHeader('Content-length: ' . $contentSize);
-		$request->addHeader('Host: ' . $path->getAddress());
-		$request->addHeader('Date: ' . $date);
-		$request->addHeader('Digest: ' . $digest);
-		$request->addHeader('Signature: ' . $header);
+
+	/**
+	 * @param array $elements
+	 * @param array $data
+	 * @param Request $request
+	 *
+	 * @return string
+	 */
+	private function generateHeaders(array $elements, array $data, Request $request): string {
+		$signingElements = [];
+		foreach ($elements as $element) {
+			$signingElements[] = $element . ': ' . $data[$element];
+			$request->addHeader($element . ': ' . $data[$element]);
+		}
+
+		return implode("\n", $signingElements);
+	}
+
+
+	/**
+	 * @param array $elements
+	 * @param string $actorId
+	 * @param string $signed
+	 *
+	 * @return array
+	 */
+	private function generateSignature(array $elements, string $actorId, string $signed): string {
+		$signatureElements[] = 'keyId="' . $actorId . '#main-key"';
+		$signatureElements[] = 'algorithm="rsa-sha256"';
+		$signatureElements[] = 'headers="' . implode(' ', $elements) . '"';
+		$signatureElements[] = 'signature="' . $signed . '"';
+
+		return implode(',', $signatureElements);
 	}
 
 
@@ -360,8 +386,8 @@ class SignatureService {
 		if ($publicKey === ''
 			|| openssl_verify($estimated, $signed, $publicKey, $algorithm) !== 1) {
 			throw new SignatureException(
-				'signature cannot be checked key: ' . $publicKey . ' - algo: ' . $algorithm
-				. ' - estimated: ' . $estimated
+				'signature cannot be checked - signed: ' . $signed . ' - key: ' . $publicKey
+				. ' - algo: ' . $algorithm . ' - estimated: ' . $estimated
 			);
 		}
 
@@ -472,7 +498,6 @@ class SignatureService {
 			'SignatureService::getKeyOrigin - host: ' . $host . ' - id: ' . $id
 		);
 	}
-
 
 	/**
 	 * @param array $sign
