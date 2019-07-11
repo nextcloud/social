@@ -261,7 +261,7 @@ class LocalController extends Controller {
 
 
 	/**
-	 * Create a new boost.
+	 * Like a post.
 	 *
 	 * @NoAdminRequired
 	 *
@@ -287,7 +287,7 @@ class LocalController extends Controller {
 
 
 	/**
-	 * Delete a boost.
+	 * unlike a post.
 	 *
 	 * @NoAdminRequired
 	 *
