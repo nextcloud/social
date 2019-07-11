@@ -36,9 +36,11 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
@@ -74,6 +76,8 @@ class DocumentService {
 	/** @var ActorsRequest */
 	private $actorRequest;
 
+	/** @var StreamRequest */
+	private $streamRequest;
 
 	/** @var CacheDocumentService */
 	private $cacheService;
@@ -91,19 +95,20 @@ class DocumentService {
 	 * @param IUrlGenerator $urlGenerator
 	 * @param CacheDocumentsRequest $cacheDocumentsRequest
 	 * @param ActorsRequest $actorRequest
+	 * @param StreamRequest $streamRequest
 	 * @param CacheDocumentService $cacheService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
-		ActorsRequest $actorRequest,
-		CacheDocumentService $cacheService,
-		ConfigService $configService, MiscService $miscService
+		ActorsRequest $actorRequest, StreamRequest $streamRequest,
+		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
 		$this->actorRequest = $actorRequest;
+		$this->streamRequest = $streamRequest;
 		$this->configService = $configService;
 		$this->cacheService = $cacheService;
 		$this->miscService = $miscService;
@@ -142,6 +147,8 @@ class DocumentService {
 			$document->setMimeType($mime);
 			$document->setLocalCopy($localCopy);
 			$this->cacheDocumentsRequest->endCaching($document);
+
+			$this->streamRequest->updateAttachments($document);
 
 			return $document;
 		} catch (CacheContentMimeTypeException $e) {
@@ -234,6 +241,7 @@ class DocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 * @throws ItemUnknownException
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function cacheLocalAvatarByUsername(Person $actor): string {
 		$url = $this->urlGenerator->linkToRouteAbsolute(

@@ -43,6 +43,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -128,6 +129,54 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToIdString($qb, $stream->getId());
 
 		$qb->execute();
+	}
+
+
+	/**
+	 * @param Document $document
+	 */
+	public function updateAttachments(Document $document) {
+		$qb = $this->getStreamSelectSql();
+		$this->limitToIdString($qb, $document->getParentId());
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			return;
+		}
+
+		$new = $this->updateAttachmentInList($document, $this->getArray('attachments', $data, []));
+
+		$qb = $this->getStreamUpdateSql();
+		$qb->set(
+			'attachments', $qb->createNamedParameter(json_encode($new, JSON_UNESCAPED_SLASHES))
+		);
+		$this->limitToIdString($qb, $document->getParentId());
+
+		$qb->execute();
+	}
+
+	/**
+	 * @param Document $document
+	 * @param array $attachments
+	 *
+	 * @return array
+	 */
+	private function updateAttachmentInList(Document $document, array $attachments): array {
+		$new = [];
+		foreach ($attachments as $attachment) {
+			$tmp = new Document();
+			$tmp->importFromDatabase($attachment);
+			if ($tmp->getId() === $document->getId()) {
+				$new[] = $document;
+			} else {
+				$new[] = $tmp;
+			}
+		}
+
+		return $new;
 	}
 
 
@@ -223,7 +272,8 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByObjectId(string $objectId, string $type, string $subType = ''): Stream {
+	public function getStreamByObjectId(string $objectId, string $type, string $subType = ''
+	): Stream {
 		if ($objectId === '') {
 			throw new StreamNotFoundException('missing objectId');
 		};
@@ -701,7 +751,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->andWhere($filter);
 	}
-
 
 }
 

@@ -109,6 +109,9 @@ class QueueProcess extends Base {
 	}
 
 
+	/**
+	 * @param OutputInterface $output
+	 */
 	private function processRequestQueue(OutputInterface $output) {
 		$total = 0;
 		$requests = $this->requestQueueService->getRequestStandby($total);

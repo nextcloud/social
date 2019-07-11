@@ -502,8 +502,8 @@ class CurlService {
 		$this->parseRequestResultCurl($curl, $request);
 
 		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-		$contentType = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
-		$request->setContentType(($contentType === null) ? '' : $contentType);
+		$type = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+		$request->setContentType((is_null($type) || is_bool($type)) ? '' : $type);
 		$request->setResultCode($code);
 
 		$this->parseRequestResultCode301($code, $request);
