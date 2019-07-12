@@ -24,8 +24,8 @@
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div class="post-message" v-html="formatedMessage" />
-			<div v-if="hasAttachments" class="post-message">
-				<span>Attachments here</span>
+			<div v-if="hasAttachments" class="post-attachments">
+				<post-attachment v-for="attachment in item.attachment" :key="attachment.id" :url="attachment.url" />
 			</div>
 			<div v-click-outside="hidePopoverMenu" class="post-actions">
 				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
@@ -57,6 +57,7 @@ import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
+import PostAttachment from './PostAttachment'
 
 pluginTag(linkify)
 pluginMention(linkify)
@@ -64,7 +65,8 @@ pluginMention(linkify)
 export default {
 	name: 'TimelinePost',
 	components: {
-		Avatar
+		Avatar,
+		PostAttachment
 	},
 	mixins: [popoverMenu, currentUser],
 	props: {
