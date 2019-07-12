@@ -5,3 +5,5 @@
 .icon-boosted {
   @include icon-color('boost', 'social', '#0082c9', 1);
 }
+
+@include icon-black-white('notifications', 'social', 1);
