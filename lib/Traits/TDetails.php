@@ -122,6 +122,8 @@ trait TDetails {
 	public function addDetail(string $detail, string $value) {
 		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
 			$this->details[$detail] = [];
+		} else if (in_array($value, $this->details[$detail])) {
+			return;
 		}
 
 		$this->details[$detail][] = $value;
