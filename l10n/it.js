@@ -51,6 +51,7 @@ OC.L10N.register(
     "No posts found for this tag" : "Nessun commento trovato per questa etichetta",
     "Reply" : "Rispondi",
     "Boost" : "Boost",
+    "Like" : "Mi piace",
     "More actions" : "Altre azioni",
     "Delete post" : "Elimina commento",
     "Follow on Nextcloud Social" : "Segui su Nextcloud Sociale",
