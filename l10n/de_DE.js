@@ -51,6 +51,7 @@ OC.L10N.register(
     "No posts found for this tag" : "Keine Posts für dieses Schlagwort gefunden",
     "Reply" : "Antworten",
     "Boost" : "Verstärken",
+    "Like" : "Mag ich",
     "More actions" : "Weitere Aktionen",
     "Delete post" : "Post löschen",
     "Follow on Nextcloud Social" : "Auf Nextcloud Social folgen",
