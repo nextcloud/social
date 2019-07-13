@@ -57,6 +57,7 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IURLGenerator;
+use OCP\ILogger;
 
 
 class DocumentService {
@@ -88,6 +89,9 @@ class DocumentService {
 	/** @var MiscService */
 	private $miscService;
 
+	/** @var ILogger */
+	private $logger;
+
 
 	/**
 	 * DocumentInterface constructor.
@@ -99,11 +103,13 @@ class DocumentService {
 	 * @param CacheDocumentService $cacheService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
+	 * @param ILogger $logger
 	 */
 	public function __construct(
 		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
 		ActorsRequest $actorRequest, StreamRequest $streamRequest,
-		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService
+		CacheDocumentService $cacheService, ConfigService $configService, 
+		MiscService $miscService, ILogger $logger
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
@@ -112,6 +118,7 @@ class DocumentService {
 		$this->configService = $configService;
 		$this->cacheService = $cacheService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 

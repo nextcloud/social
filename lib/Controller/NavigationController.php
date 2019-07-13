@@ -53,6 +53,7 @@ use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\ILogger;
 
 class NavigationController extends Controller {
 
@@ -87,6 +88,9 @@ class NavigationController extends Controller {
 	/** @var CheckService */
 	private $checkService;
 
+	/** @var ILogger */
+	private $logger;
+
 	/**
 	 * NavigationController constructor.
 	 *
@@ -100,11 +104,13 @@ class NavigationController extends Controller {
 	 * @param ConfigService $configService
 	 * @param CheckService $checkService
 	 * @param MiscService $miscService
+	 * @param Ilogger $ilogger
 	 */
 	public function __construct(
 		IL10N $l10n, IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
 		AccountService $accountService, DocumentService $documentService,
-		ConfigService $configService, CheckService $checkService, MiscService $miscService
+		ConfigService $configService, CheckService $checkService,
+	       	MiscService $miscService, ILogger $logger
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -118,6 +124,7 @@ class NavigationController extends Controller {
 		$this->documentService = $documentService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
