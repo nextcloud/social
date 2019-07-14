@@ -51,6 +51,7 @@ OC.L10N.register(
     "No posts found for this tag" : "Nenhum post encontrado para este rótulo",
     "Reply" : "Responder",
     "Boost" : "Impulsionar",
+    "Like" : "Curtir",
     "More actions" : "Mais ações",
     "Delete post" : "Excluir post",
     "Follow on Nextcloud Social" : "Seguir no Nextcloud Social",
