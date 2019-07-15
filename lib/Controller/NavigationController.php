@@ -282,6 +282,7 @@ class NavigationController extends Controller {
 
 	/**
 	 * @NoAdminRequired
+	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *

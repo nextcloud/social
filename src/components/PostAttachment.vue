@@ -1,6 +1,6 @@
 <template>
 	<div class="post-attachment">
-		<img :src='url' />
+		<img ref='image' src='' />
 	</div>
 </template>
 
@@ -10,12 +10,16 @@ export default {
 	components: {
 	},
 	mixins: [],
-	props: ['url'],
+	props: ['id'],
 	data() {
 		return {
 		}
 	},
 	computed: {
+	},
+	mounted() {
+		var image = this.$refs.image
+		image.src = OC.generateUrl('/apps/social/document/get?id=' + this.id)
 	},
 	methods: {
 	}
