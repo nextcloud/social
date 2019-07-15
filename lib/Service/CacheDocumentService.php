@@ -35,6 +35,8 @@ use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
+use Gumlet\ImageResize;
+use Gumlet\ImageResizeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -131,6 +133,7 @@ class CacheDocumentService {
 		fclose($tmpFile);
 
 		$this->filterMimeTypes($mime);
+		$this->resizeImage($content);
 
 		$cache = $folder->newFile($filename);
 		$cache->putContent($content);
@@ -159,6 +162,23 @@ class CacheDocumentService {
 
 		throw new CacheContentMimeTypeException();
 	}
+
+
+	/**
+	 * @param $content
+	 */
+	private function resizeImage(&$content) {
+		try {
+			$image = ImageResize::createFromString($content);
+			$image->quality_jpg = 100;
+			$image->quality_png = 9;
+
+			$image->resizeToBestFit(500, 300);
+			$content = $image->getImageAsString();
+		} catch (ImageResizeException $e) {
+		}
+	}
+
 
 	/**
 	 * @param string $path

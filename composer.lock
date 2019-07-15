@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "d711d18021f3044f1dbf97c6a423d2ac",
+    "content-hash": "f93a783c86bad53b0b8486db3fc61380",
     "packages": [
         {
             "name": "daita/my-small-php-tools",
@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "45a543b86ad93ea36845e5bc32ca03320b6cfa9c"
+                "reference": "6ba571ffa6bda6f32fcc6529a474ccc777eb1fb2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/45a543b86ad93ea36845e5bc32ca03320b6cfa9c",
-                "reference": "45a543b86ad93ea36845e5bc32ca03320b6cfa9c",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/6ba571ffa6bda6f32fcc6529a474ccc777eb1fb2",
+                "reference": "6ba571ffa6bda6f32fcc6529a474ccc777eb1fb2",
                 "shasum": ""
             },
             "require": {
@@ -40,7 +40,7 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2019-06-21T16:40:45+00:00"
+            "time": "2019-07-12T20:21:51+00:00"
         },
         {
             "name": "friendica/json-ld",
@@ -85,6 +85,61 @@
                 "jsonld"
             ],
             "time": "2018-10-08T20:41:00+00:00"
+        },
+        {
+            "name": "gumlet/php-image-resize",
+            "version": "1.9.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/gumlet/php-image-resize.git",
+                "reference": "06339a9c1b167acd58173db226f57957a6617547"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/06339a9c1b167acd58173db226f57957a6617547",
+                "reference": "06339a9c1b167acd58173db226f57957a6617547",
+                "shasum": ""
+            },
+            "require": {
+                "ext-fileinfo": "*",
+                "ext-gd": "*",
+                "php": ">=5.5.0"
+            },
+            "require-dev": {
+                "apigen/apigen": "^4.1",
+                "ext-exif": "*",
+                "ext-gd": "*",
+                "php-coveralls/php-coveralls": "^2.1",
+                "phpunit/phpunit": "^4.8"
+            },
+            "suggest": {
+                "ext-exif": "Auto-rotate jpeg files"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Gumlet\\": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Aditya Patadia",
+                    "homepage": "http://aditya.patadia.org/"
+                }
+            ],
+            "description": "PHP class to re-size and scale images",
+            "homepage": "https://github.com/gumlet/php-image-resize",
+            "keywords": [
+                "image",
+                "php",
+                "resize",
+                "scale"
+            ],
+            "time": "2019-01-01T13:53:00+00:00"
         }
     ],
     "packages-dev": [
