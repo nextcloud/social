@@ -1,6 +1,6 @@
 <template>
 	<div class="post-attachment">
-		<img ref='image' src='' />
+		<img ref="image" src="" />
 	</div>
 </template>
 
@@ -10,7 +10,9 @@ export default {
 	components: {
 	},
 	mixins: [],
-	props: ['id'],
+	props: {
+		id: String,
+	},
 	data() {
 		return {
 		}

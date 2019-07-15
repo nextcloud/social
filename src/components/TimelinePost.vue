@@ -25,7 +25,7 @@
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div class="post-message" v-html="formatedMessage" />
 			<div v-if="hasAttachments" class="post-attachments">
-				<post-attachment v-for="attachment in item.attachment" :key="attachment.id" :id="attachment.id" />
+				<post-attachment v-for="attachment in item.attachment" :id="attachment.id" :key="attachment.id" />
 			</div>
 			<div v-click-outside="hidePopoverMenu" class="post-actions">
 				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
@@ -124,7 +124,7 @@ export default {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
 		},
 		hasAttachments() {
-			return (typeof this.item.attachment === 'undefined') ? false : true;
+			return (typeof this.item.attachment !== 'undefined')
 		},
 		isBoosted() {
 			if (typeof this.item.action === 'undefined') {
