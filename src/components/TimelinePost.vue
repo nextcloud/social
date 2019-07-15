@@ -25,7 +25,7 @@
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div class="post-message" v-html="formatedMessage" />
 			<div v-if="hasAttachments" class="post-attachments">
-				<post-attachment v-for="attachment in item.attachment" :id="attachment.id" :key="attachment.id" />
+				<post-attachment :attachments="item.attachment" />
 			</div>
 			<div v-click-outside="hidePopoverMenu" class="post-actions">
 				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
