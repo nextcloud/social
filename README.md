@@ -16,8 +16,6 @@ The app is in alpha stage, so it’s time for you to [get involved! 👩‍💻]
 
 For a roadmap, see our [development milestones](https://github.com/nextcloud/social/milestones) - feel free to pick up any of the tasks which are not yet in progress!
 
-Some requirements in this alpha stage are that your Nextcloud:
-- must run on the default port
 
 ## Emojis
 
