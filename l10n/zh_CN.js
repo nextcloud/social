@@ -51,6 +51,7 @@ OC.L10N.register(
     "No posts found for this tag" : "未找到带有此标签的帖子",
     "Reply" : "回复",
     "Boost" : "推荐",
+    "Like" : "赞",
     "More actions" : "更多操作",
     "Delete post" : "删除帖子",
     "Follow on Nextcloud Social" : "关注Nextcloud社交",
