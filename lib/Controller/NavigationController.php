@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC;
+use OC\AppFramework\Http;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -139,7 +140,7 @@ class NavigationController extends Controller {
 				'firstrun' => false,
 				'setup'    => false,
 				'isAdmin'  => OC::$server->getGroupManager()
-										  ->isAdmin($this->userId),
+										 ->isAdmin($this->userId),
 				'cliUrl'   => $this->getCliUrl()
 			]
 		];
@@ -289,9 +290,48 @@ class NavigationController extends Controller {
 	 * @return Response
 	 */
 	public function documentGet(string $id): Response {
-
 		try {
 			$file = $this->documentService->getFromCache($id);
+
+			return new FileDisplayResponse($file, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return Response
+	 */
+	public function documentGetPublic(string $id): Response {
+
+		try {
+			$file = $this->documentService->getFromCache($id, true);
+
+			return new FileDisplayResponse($file);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return Response
+	 */
+	public function resizedGet(string $id): Response {
+
+		try {
+			$file = $this->documentService->getResizedFromCache($id);
 
 			return new FileDisplayResponse($file);
 		} catch (Exception $e) {
@@ -308,10 +348,10 @@ class NavigationController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function documentGetPublic(string $id): Response {
+	public function resizedGetPublic(string $id): Response {
 
 		try {
-			$file = $this->documentService->getFromCache($id, true);
+			$file = $this->documentService->getResizedFromCache($id, true);
 
 			return new FileDisplayResponse($file);
 		} catch (Exception $e) {

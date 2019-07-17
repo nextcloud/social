@@ -59,6 +59,9 @@ class Document extends ACore implements JsonSerializable {
 	/** @var string */
 	private $localCopy = '';
 
+	/** @var string */
+	private $resizedCopy = '';
+
 	/** @var int */
 	private $caching = 0;
 
@@ -135,6 +138,25 @@ class Document extends ACore implements JsonSerializable {
 	 */
 	public function setLocalCopy(string $localCopy): Document {
 		$this->localCopy = $localCopy;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getResizedCopy(): string {
+		return $this->resizedCopy;
+	}
+
+	/**
+	 * @param string $resizedCopy
+	 *
+	 * @return Document
+	 */
+	public function setResizedCopy(string $resizedCopy): Document {
+		$this->resizedCopy = $resizedCopy;
 
 		return $this;
 	}
@@ -244,6 +266,7 @@ class Document extends ACore implements JsonSerializable {
 		$this->setPublic(($this->getInt('public', $data, 0) === 1) ? true : false);
 		$this->setError($this->getInt('error', $data, 0));
 		$this->setLocalCopy($this->get('local_copy', $data, ''));
+		$this->setResizedCopy($this->get('resized_copy', $data, ''));
 		$this->setMediaType($this->get('media_type', $data, ''));
 		$this->setMimeType($this->get('mime_type', $data, ''));
 		$this->setParentId($this->get('parent_id', $data, ''));
@@ -266,9 +289,10 @@ class Document extends ACore implements JsonSerializable {
 		$result = array_merge(
 			parent::jsonSerialize(),
 			[
-				'mediaType' => $this->getMediaType(),
-				'mimeType'  => $this->getMimeType(),
-				'localCopy' => $this->getLocalCopy()
+				'mediaType'   => $this->getMediaType(),
+				'mimeType'    => $this->getMimeType(),
+				'localCopy'   => $this->getLocalCopy(),
+				'resizedCopy' => $this->getResizedCopy()
 			]
 		);
 

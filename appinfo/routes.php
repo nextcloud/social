@@ -45,6 +45,8 @@ return [
 		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
+		['name' => 'Navigation#resizedGet', 'url' => '/document/get/resized', 'verb' => 'GET'],
+		['name' => 'Navigation#resizedGetPublic', 'url' => '/document/public/resized', 'verb' => 'GET'],
 
 		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
 		['name' => 'ActivityPub#actorAlias', 'url' => '/@{username}/', 'verb' => 'GET'],
