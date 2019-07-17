@@ -129,7 +129,10 @@ return [
 
 		//		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
-		['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
+	    ['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
+
+		['name' => 'Mastodon#createApp', 'url' => '/api/v1/apps', 'verb' => 'POST'],
+		['name' => 'Mastodon#oauthAuthorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
 
 		['name' => 'Queue#asyncForRequest', 'url' => CurlService::ASYNC_REQUEST_TOKEN, 'verb' => 'POST'],
 
