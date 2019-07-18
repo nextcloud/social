@@ -37,6 +37,7 @@ use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
@@ -79,6 +80,7 @@ class Reset extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:reset')
+			 ->addOption('uninstall', '', InputOption::VALUE_NONE, 'full removing of the app')
 			 ->setDescription('Reset ALL data related to the Social App');
 	}
 
@@ -99,6 +101,7 @@ class Reset extends Base {
 		$question = new ConfirmationQuestion(
 			'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
 		);
+
 		if (!$helper->ask($input, $output, $question)) {
 			return;
 		}
@@ -122,6 +125,13 @@ class Reset extends Base {
 			return;
 		}
 
+		if ($input->getOption('uninstall')) {
+			$this->fullUninstall($output);
+
+			return;
+		}
+
+
 		$output->writeln('');
 
 		$cloudAddress = $this->configService->getCloudUrl();
@@ -142,6 +152,38 @@ class Reset extends Base {
 		$output->writeln('New address: <info>' . $newCloudAddress . '</info>');
 	}
 
+
+	/**
+	 * @param OutputInterface $output
+	 */
+	private function fullUninstall(OutputInterface $output) {
+		$this->coreRequestBuilder->uninstallSocialTables();
+		$this->coreRequestBuilder->uninstallFromMigrations();
+		$this->coreRequestBuilder->uninstallFromJobs();
+		$this->uninstallWellKnown();
+		$this->configService->unsetAppConfig();
+
+		$output->writeln('Nextcloud Social App <info>uninstalled</info>');
+	}
+
+
+	/**
+	 *
+	 */
+	private function uninstallWellKnown() {
+		echo $this->configService->getCoreValue('public_webfinger');
+		if ($this->configService->getCoreValue('public_webfinger') === 'social/lib/webfinger.php') {
+			echo '##@$#@$';
+			$this->configService->unsetCoreValue('public_webfinger');
+		}
+		if ($this->configService->getCoreValue('public_host-meta') === 'social/lib/hostmeta.php') {
+			$this->configService->unsetCoreValue('public_host-meta');
+		}
+		if ($this->configService->getCoreValue('public_host-meta-json')
+			=== 'social/lib/hostmeta.php') {
+			$this->configService->unsetCoreValue('public_host-meta-json');
+		}
+	}
 
 }
 

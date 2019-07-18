@@ -251,6 +251,30 @@ class ConfigService {
 		$this->config->setAppValue('core', $key, $value);
 	}
 
+	/**
+	 * @param string $key
+	 *
+	 * @return string
+	 */
+	public function getCoreValue(string $key): string {
+		return $this->config->getAppValue('core', $key, '');
+	}
+
+	/**
+	 * @param string $key
+	 */
+	public function unsetCoreValue(string $key) {
+		$this->config->deleteAppValue('core', $key);
+	}
+
+
+	/**
+	 *
+	 */
+	public function unsetAppConfig() {
+		$this->config->deleteAppValues(Application::APP_NAME);
+	}
+
 
 	/**
 	 * @param $key
