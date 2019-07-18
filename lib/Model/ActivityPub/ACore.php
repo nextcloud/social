@@ -227,7 +227,8 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function isPublic(): bool {
 		return ($this->getTo() === self::CONTEXT_PUBLIC
-				|| in_array(self::CONTEXT_PUBLIC, $this->getCcArray()));
+				|| in_array(self::CONTEXT_PUBLIC, $this->getCcArray())
+				|| in_array(self::CONTEXT_PUBLIC, $this->getToArray()));
 	}
 
 
