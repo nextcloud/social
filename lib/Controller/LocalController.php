@@ -183,6 +183,26 @@ class LocalController extends Controller {
 
 
 	/**
+	 * get info about a post (limited to viewer rights).
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return DataResponse
+	 */
+	public function postData(string $id): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return $this->directSuccess($this->noteService->getNoteById($id, true));
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
 	 * Delete your own post.
 	 *
 	 * @NoAdminRequired

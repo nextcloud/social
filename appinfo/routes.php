@@ -70,6 +70,8 @@ return [
 		['name' => 'Local#streamDirect', 'url' => '/api/v1/stream/direct', 'verb' => 'GET'],
 		['name' => 'Local#streamAccount', 'url' => '/api/v1/account/{username}/stream', 'verb' => 'GET'],
 
+		['name' => 'Local#postData', 'url' => '/local/v1/post', 'verb' => 'GET'],
+
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
 
