@@ -1100,6 +1100,6 @@ class CoreRequestBuilder {
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
 		$qb->execute();
 	}
-	
+
 }
 

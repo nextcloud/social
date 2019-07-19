@@ -483,10 +483,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
-//		if ($localOnly) {
 		$this->limitToLocal($qb, $localOnly);
-//		}
-
 		$this->limitToType($qb, Note::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
@@ -500,6 +497,40 @@ class StreamRequest extends StreamRequestBuilder {
 		while ($data = $cursor->fetch()) {
 			try {
 				$streams[] = $this->parseStreamSelectSql($data);
+			} catch (Exception $e) {
+			}
+		}
+		$cursor->closeCursor();
+
+		return $streams;
+	}
+
+
+	/**
+	 * Should returns:
+	 *  * All liked posts
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 * @param bool $localOnly
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function getLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
+		$qb = $this->getStreamSelectSql();
+		$this->limitPaginate($qb, $since, $limit);
+
+		$this->limitToType($qb, Note::TYPE);
+
+		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinStreamAction($qb);
+
+		$streams = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			try {
+//				$streams[] = $this->parseStreamSelectSql($data);
 			} catch (Exception $e) {
 			}
 		}

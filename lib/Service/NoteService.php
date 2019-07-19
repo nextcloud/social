@@ -442,7 +442,7 @@ class NoteService {
 	}
 
 
-	/**m
+	/**
 	 *
 	 * @param int $since
 	 * @param int $limit
@@ -452,6 +452,19 @@ class NoteService {
 	 */
 	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineGlobal($since, $limit, false);
+	}
+
+
+	/**
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return Note[]
+	 * @throws Exception
+	 */
+	public function getStreamLiked(int $since = 0, int $limit = 5): array {
+		return $this->streamRequest->getLiked($since, $limit);
 	}
 
 
