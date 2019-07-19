@@ -44,6 +44,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -524,13 +525,14 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToType($qb, Note::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinStreamAction($qb);
+		$this->leftJoinActions($qb, Like::TYPE);
+		$this->filterDBField($qb, 'id', '', false, 'a');
 
 		$streams = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
 			try {
-//				$streams[] = $this->parseStreamSelectSql($data);
+				$streams[] = $this->parseStreamSelectSql($data);
 			} catch (Exception $e) {
 			}
 		}
