@@ -35,7 +35,9 @@ use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
+use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -84,6 +86,19 @@ class CoreRequestBuilder {
 	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
 	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
 
+	/** @var array */
+	private $tables = [
+		self::TABLE_REQUEST_QUEUE,
+		self::TABLE_ACTORS,
+		self::TABLE_STREAMS,
+		self::TABLE_HASHTAGS,
+		self::TABLE_FOLLOWS,
+		self::TABLE_ACTIONS,
+		self::TABLE_CACHE_ACTORS,
+		self::TABLE_CACHE_DOCUMENTS,
+		self::TABLE_STREAM_QUEUE,
+		self::TABLE_STREAM_ACTIONS
+	];
 
 	/** @var IDBConnection */
 	protected $dbConnection;
@@ -1036,19 +1051,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function emptyAll() {
-		$tables = [
-			self::TABLE_REQUEST_QUEUE,
-			self::TABLE_ACTORS,
-			self::TABLE_STREAMS,
-			self::TABLE_HASHTAGS,
-			self::TABLE_FOLLOWS,
-			self::TABLE_CACHE_ACTORS,
-			self::TABLE_CACHE_DOCUMENTS,
-			self::TABLE_STREAM_QUEUE,
-			self::TABLE_STREAM_ACTIONS
-		];
-
-		foreach ($tables as $table) {
+		foreach ($this->tables as $table) {
 			$qb = $this->dbConnection->getQueryBuilder();
 			$qb->delete($table);
 
@@ -1056,5 +1059,47 @@ class CoreRequestBuilder {
 		}
 	}
 
+
+	/**
+	 * this just empty all tables from the app.
+	 */
+	public function uninstallSocialTables() {
+		$schema = new SchemaWrapper($this->dbConnection);
+		foreach ($this->tables as $table) {
+			if ($schema->hasTable($table)) {
+				$schema->dropTable($table);
+			}
+		}
+
+		$schema->performDropTableCalls();
+	}
+
+
+	/**
+	 *
+	 */
+	public function uninstallFromMigrations() {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->delete('migrations');
+		$qb->where($this->exprLimitToDBField($qb, 'app', 'social', true, true));
+
+		$qb->execute();
+	}
+
+	/**
+	 *
+	 */
+	public function uninstallFromJobs() {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->delete('jobs');
+		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Cache', true, true));
+		$qb->execute();
+
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->delete('jobs');
+		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
+		$qb->execute();
+	}
+	
 }
 
