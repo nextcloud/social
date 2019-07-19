@@ -1,21 +1,16 @@
 <template>
-	<hooper>
-		<slide v-for="(slide,idx) in attachments" :key="slide.id" :index="idx">
-			<img :src="OC.generateUrl('/apps/social/document/get?id=' + slide.id)" />
-		</slide>
-	</hooper>
+	<masonry>
+		<div v-for="(item,idx) in attachments" :key="idx">
+			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" />
+		</div>
+	</masonry>
 </template>
 
 <script>
 
-import { Hooper, Slide } from 'hooper';
-import 'hooper/dist/hooper.css';
-
 export default {
 	name: 'PostAttachment',
 	components: {
-		Hooper,
-		Slide
 	},
 	mixins: [],
 	props: {
@@ -35,8 +30,9 @@ export default {
 </script>
 
 <style scoped lang="scss">
-	.post-attachment {
-		display: flex;
-		flex-grow: 1;
-	}
+       .post-attachment {
+               display: flex;
+               flex-grow: 1;
+       }
 </style>
+

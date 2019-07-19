@@ -30,6 +30,7 @@ import vuetwemoji from 'vue-twemoji'
 import contenteditableDirective from 'vue-contenteditable-directive'
 import ClickOutside from 'vue-click-outside'
 import VTooltip from 'nextcloud-vue/dist/Directives/Tooltip'
+import VueMasonry from 'vue-masonry-css'
 
 sync(store, router)
 
@@ -56,6 +57,7 @@ Vue.use(vuetwemoji, {
 	className: 'emoji', // custom className for image output
 	size: 'twemoji' // image size
 })
+Vue.use(VueMasonry);
 
 /* eslint-disable-next-line no-new */
 new Vue({
