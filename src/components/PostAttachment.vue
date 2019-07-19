@@ -1,13 +1,13 @@
 <template>
 	<masonry>
-		<div v-for="(item,idx) in attachments" :key="idx">
-			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal"/>
-			<modal v-show="modal" @close="closeModal" size="full">
-				<div class="modal__content">
-					<img :src="OC.generateUrl('/apps/social/document/get?id=' + item.id)"/>
-				</div>
-			</modal>
+		<div v-for="(item, index) in attachments" :key="index">
+			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal(index)"/>
 		</div>
+		<modal v-show="modal" @close="closeModal" @previous="showPrevious" @next="showNext" :hasPrevious="current > 0" :hasNext="current < (attachments.length - 1)" size="full">
+				<div class="modal__content">
+					<img ref="modalImg" src=""/>
+				</div>
+		</modal>
 	</masonry>
 </template>
 
@@ -26,15 +26,26 @@ export default {
 	},
 	data() {
 		return {
-			modal: false
+			modal: false,
+			current: ''
 		}
 	},
 	methods: {
-		showModal() {
+		showModal(idx) {
+			this.current = idx;
+			this.$refs.modalImg.src = OC.generateUrl('/apps/social/document/get?id=' + this.attachments[this.current].id)
 			this.modal = true
 		},
 		closeModal() {
 			this.modal = false
+		},
+		showPrevious() {
+			this.current--;
+			this.$refs.modalImg.src = OC.generateUrl('/apps/social/document/get?id=' + this.attachments[this.current].id)
+		},
+		showNext() {
+			this.current++;
+			this.$refs.modalImg.src = OC.generateUrl('/apps/social/document/get?id=' + this.attachments[this.current].id)
 		}
 	}
 }
