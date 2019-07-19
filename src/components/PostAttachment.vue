@@ -1,16 +1,24 @@
 <template>
 	<masonry>
 		<div v-for="(item,idx) in attachments" :key="idx">
-			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" />
+			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal"/>
+			<modal v-show="modal" @close="closeModal" size="full">
+				<div class="modal__content">
+					<img :src="OC.generateUrl('/apps/social/document/get?id=' + item.id)"/>
+				</div>
+			</modal>
 		</div>
 	</masonry>
 </template>
 
 <script>
 
+import Modal from 'nextcloud-vue/dist/Components/Modal';
+
 export default {
 	name: 'PostAttachment',
 	components: {
+		Modal,
 	},
 	mixins: [],
 	props: {
@@ -18,21 +26,16 @@ export default {
 	},
 	data() {
 		return {
+			modal: false
 		}
 	},
-	computed: {
-	},
-	mounted() {
-	},
 	methods: {
+		showModal() {
+			this.modal = true
+		},
+		closeModal() {
+			this.modal = false
+		}
 	}
 }
 </script>
-
-<style scoped lang="scss">
-       .post-attachment {
-               display: flex;
-               flex-grow: 1;
-       }
-</style>
-
