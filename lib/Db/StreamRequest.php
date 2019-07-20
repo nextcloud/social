@@ -518,12 +518,13 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
+	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
 		$this->limitToType($qb, Note::TYPE);
 
+		$this->leftJoinStreamAction($qb);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinActions($qb, Like::TYPE);
 		$this->filterDBField($qb, 'id', '', false, 'a');

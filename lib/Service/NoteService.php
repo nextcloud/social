@@ -464,7 +464,7 @@ class NoteService {
 	 * @throws Exception
 	 */
 	public function getStreamLiked(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getLiked($since, $limit);
+		return $this->streamRequest->getTimelineLiked($since, $limit);
 	}
 
 
