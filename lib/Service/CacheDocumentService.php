@@ -61,8 +61,8 @@ class CacheDocumentService {
 	use TStringTools;
 
 
-	const RESIZED_HEIGHT = 250;
-	const RESIZED_WIDTH = 350;
+	const RESIZED_WIDTH = 280;
+	const RESIZED_HEIGHT = 180;
 
 	/** @var IAppData */
 	private $appData;

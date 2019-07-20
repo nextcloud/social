@@ -701,9 +701,10 @@ class LocalController extends Controller {
 			$actor = $this->cacheActorService->getFromId($id);
 			if ($actor->gotIcon()) {
 				$avatar = $actor->getIcon();
-				$document = $this->documentService->getFromCache($avatar->getId());
+				$document = $this->documentService->getFromCache($avatar->getId(), $mime);
 
-				$response = new FileDisplayResponse($document);
+				$response =
+					new FileDisplayResponse($document, Http::STATUS_OK, ['Content-Type' => $mime]);
 				$response->cacheFor(86400);
 
 				return $response;

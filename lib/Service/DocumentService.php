@@ -190,6 +190,7 @@ class DocumentService {
 
 	/**
 	 * @param string $id
+	 * @param string $mime
 	 * @param bool $public
 	 *
 	 * @return ISimpleFile
@@ -199,8 +200,9 @@ class DocumentService {
 	 * @throws RequestResultNotJsonException
 	 * @throws SocialAppConfigException
 	 */
-	public function getResizedFromCache(string $id, bool $public = false) {
+	public function getResizedFromCache(string $id, string &$mime = '', bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);
+		$mime = $document->getMimeType();
 
 		return $this->cacheService->getContentFromCache($document->getResizedCopy());
 	}
@@ -218,7 +220,7 @@ class DocumentService {
 	 * @throws RequestResultNotJsonException
 	 * @throws SocialAppConfigException
 	 */
-	public function getFromCache(string $id, bool $public = false, string &$mimeType = '') {
+	public function getFromCache(string $id, string &$mimeType = '', bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);
 		$mimeType = $document->getMimeType();
 
