@@ -57,7 +57,7 @@ Vue.use(vuetwemoji, {
 	className: 'emoji', // custom className for image output
 	size: 'twemoji' // image size
 })
-Vue.use(VueMasonry);
+Vue.use(VueMasonry)
 
 /* eslint-disable-next-line no-new */
 new Vue({

@@ -61,6 +61,9 @@ class CacheDocumentService {
 	use TStringTools;
 
 
+	const RESIZED_HEIGHT = 250;
+	const RESIZED_WIDTH = 350;
+
 	/** @var IAppData */
 	private $appData;
 
@@ -186,7 +189,7 @@ class CacheDocumentService {
 			$image->quality_jpg = 100;
 			$image->quality_png = 9;
 
-			$image->resizeToBestFit(500, 300);
+			$image->resizeToBestFit(self::RESIZED_WIDTH, self::RESIZED_HEIGHT);
 			$content = $image->getImageAsString();
 		} catch (ImageResizeException $e) {
 		}
