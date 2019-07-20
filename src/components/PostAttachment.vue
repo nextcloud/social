@@ -7,7 +7,7 @@
 			size="full" @close="closeModal" @previous="showPrevious"
 			@next="showNext">
 			<div class="modal__content">
-				<canvas ref="modalCanvas"></canvas>
+				<canvas ref="modalCanvas" />
 			</div>
 		</modal>
 	</masonry>
@@ -38,17 +38,17 @@ export default {
 	methods: {
 		displayResizedImage() {
 			var canvas = this.$refs.modalCanvas
-			var ctx = canvas.getContext("2d")
+			var ctx = canvas.getContext('2d')
 			var img = new Image()
 			img.onload = function() {
-				var width= img.width
+				var width = img.width
 				var height = img.height
-				if ( width > window.innerWidth ) {
-					height = height * ( window.innerWidth / width )
+				if (width > window.innerWidth) {
+					height = height * (window.innerWidth / width)
 					width = window.innerWidth
 				}
-				if ( height > window.innerHeight ) {
-					width = width * ( window.innerHeight / height )
+				if (height > window.innerHeight) {
+					width = width * (window.innerHeight / height)
 					height = window.innerHeight
 				}
 				canvas.width = width
