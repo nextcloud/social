@@ -468,6 +468,28 @@ class LocalController extends Controller {
 
 
 	/**
+	 * Get liked post
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function streamLiked(int $since = 0, int $limit = 5): DataResponse {
+		try {
+			$this->initViewer(true);
+			$posts = $this->noteService->getStreamLiked($since, $limit);
+
+			return $this->success($posts);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
 	 * @NoAdminRequired
 	 *
 	 * @param string $account

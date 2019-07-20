@@ -860,6 +860,59 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param string $type
+	 */
+	protected function leftJoinActions(IQueryBuilder &$qb, string $type) {
+		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$func = $qb->func();
+
+		$pf = $this->defaultSelectAlias;
+
+		$qb->selectAlias('a.id', 'action_id')
+		   ->selectAlias('a.actor_id', 'action_actor_id')
+		   ->selectAlias('a.object_id', 'action_object_id')
+		   ->selectAlias('a.type', 'action_type');
+
+		$andX = $expr->andX();
+		$andX->add($expr->eq($func->lower($pf . '.id'), $func->lower('a.object_id')));
+		$andX->add($expr->eq('a.type', $qb->createNamedParameter($type)));
+		$andX->add(
+			$expr->eq(
+				$func->lower('a.actor_id'),
+				$qb->createNamedParameter(strtolower($this->viewer->getId()))
+			)
+		);
+
+		$qb->leftJoin(
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTIONS, 'a', $andX
+		);
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	protected function parseActionsLeftJoin(array $data) {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 7) === 'action_') {
+				$new[substr($k, 7)] = $v;
+			}
+		}
+
+//		$action = new Action();
+//		$action->importFromDatabase($new);
+
+//		return $action;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param string $fieldDocumentId
 	 */
 	protected function leftJoinCacheDocuments(IQueryBuilder &$qb, string $fieldDocumentId) {
@@ -1100,6 +1153,6 @@ class CoreRequestBuilder {
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
 		$qb->execute();
 	}
-	
+
 }
 

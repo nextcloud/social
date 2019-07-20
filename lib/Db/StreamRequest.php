@@ -44,6 +44,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -483,10 +484,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
-//		if ($localOnly) {
 		$this->limitToLocal($qb, $localOnly);
-//		}
-
 		$this->limitToType($qb, Note::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
@@ -494,6 +492,41 @@ class StreamRequest extends StreamRequestBuilder {
 
 		// TODO: to: = real public, cc: = unlisted !?
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
+
+		$streams = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			try {
+				$streams[] = $this->parseStreamSelectSql($data);
+			} catch (Exception $e) {
+			}
+		}
+		$cursor->closeCursor();
+
+		return $streams;
+	}
+
+
+	/**
+	 * Should returns:
+	 *  * All liked posts
+	 *
+	 * @param int $since
+	 * @param int $limit
+	 * @param bool $localOnly
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function getLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
+		$qb = $this->getStreamSelectSql();
+		$this->limitPaginate($qb, $since, $limit);
+
+		$this->limitToType($qb, Note::TYPE);
+
+		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->leftJoinActions($qb, Like::TYPE);
+		$this->filterDBField($qb, 'id', '', false, 'a');
 
 		$streams = [];
 		$cursor = $qb->execute();
