@@ -24,7 +24,10 @@ export default {
 	},
 	mixins: [],
 	props: {
-		attachments: Array
+		attachments: {
+			type: Array,
+			default: Array
+		}
 	},
 	data() {
 		return {
