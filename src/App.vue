@@ -157,6 +157,16 @@ export default {
 					}
 				},
 				{
+					id: 'social-liked',
+					classes: [],
+					icon: 'icon-favorite',
+					text: t('social', 'Liked'),
+					router: {
+						name: 'timeline',
+						params: { type: 'liked' }
+					}
+				},
+				{
 					id: 'social-local',
 					classes: [],
 					icon: 'icon-category-monitoring',
