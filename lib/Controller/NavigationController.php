@@ -291,9 +291,11 @@ class NavigationController extends Controller {
 	 */
 	public function documentGet(string $id): Response {
 		try {
-			$file = $this->documentService->getFromCache($id);
+			$mime = '';
+			$file = $this->documentService->getFromCache($id, $mime);
 
-			return new FileDisplayResponse($file, Http::STATUS_OK);
+			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
+
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -311,9 +313,10 @@ class NavigationController extends Controller {
 	public function documentGetPublic(string $id): Response {
 
 		try {
-			$file = $this->documentService->getFromCache($id, true);
+			$mime = '';
+			$file = $this->documentService->getFromCache($id, $mime, true);
 
-			return new FileDisplayResponse($file);
+			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -331,9 +334,10 @@ class NavigationController extends Controller {
 	public function resizedGet(string $id): Response {
 
 		try {
-			$file = $this->documentService->getResizedFromCache($id);
+			$mime = '';
+			$file = $this->documentService->getResizedFromCache($id, $mime);
 
-			return new FileDisplayResponse($file);
+			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -351,12 +355,14 @@ class NavigationController extends Controller {
 	public function resizedGetPublic(string $id): Response {
 
 		try {
-			$file = $this->documentService->getResizedFromCache($id, true);
+			$mime = '';
+			$file = $this->documentService->getResizedFromCache($id, $mime, true);
 
-			return new FileDisplayResponse($file);
+			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
 	}
 
 }
+
