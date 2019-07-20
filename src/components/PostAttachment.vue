@@ -4,7 +4,7 @@
 			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal(index)">
 		</div>
 		<modal v-show="modal" :has-previous="current > 0" :has-next="current < (attachments.length - 1)"
-			size="full" @close="closeModal" @previous="showPrevious"
+			size="large" @close="closeModal" @previous="showPrevious"
 			@next="showNext">
 			<div class="modal__content">
 				<img ref="modalImg" src="">
