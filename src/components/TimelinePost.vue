@@ -24,6 +24,9 @@
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div class="post-message" v-html="formatedMessage" />
+			<div v-if="hasAttachments" class="post-attachments">
+				<post-attachment :attachments="item.attachment" />
+			</div>
 			<div v-click-outside="hidePopoverMenu" class="post-actions">
 				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
@@ -54,6 +57,7 @@ import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
+import PostAttachment from './PostAttachment'
 
 pluginTag(linkify)
 pluginMention(linkify)
@@ -61,7 +65,8 @@ pluginMention(linkify)
 export default {
 	name: 'TimelinePost',
 	components: {
-		Avatar
+		Avatar,
+		PostAttachment
 	},
 	mixins: [popoverMenu, currentUser],
 	props: {
@@ -117,6 +122,9 @@ export default {
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		},
+		hasAttachments() {
+			return (typeof this.item.attachment !== 'undefined')
 		},
 		isBoosted() {
 			if (typeof this.item.action === 'undefined') {

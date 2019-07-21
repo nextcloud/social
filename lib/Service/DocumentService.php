@@ -143,9 +143,7 @@ class DocumentService {
 		$this->cacheDocumentsRequest->initCaching($document);
 
 		try {
-			$localCopy = $this->cacheService->saveRemoteFileToCache($document->getUrl(), $mime);
-			$document->setMimeType($mime);
-			$document->setLocalCopy($localCopy);
+			$this->cacheService->saveRemoteFileToCache($document, $mime);
 			$this->cacheDocumentsRequest->endCaching($document);
 
 			$this->streamRequest->updateAttachments($document);
@@ -192,7 +190,7 @@ class DocumentService {
 
 	/**
 	 * @param string $id
-	 *
+	 * @param string $mime
 	 * @param bool $public
 	 *
 	 * @return ISimpleFile
@@ -202,8 +200,29 @@ class DocumentService {
 	 * @throws RequestResultNotJsonException
 	 * @throws SocialAppConfigException
 	 */
-	public function getFromCache(string $id, bool $public = false) {
+	public function getResizedFromCache(string $id, string &$mime = '', bool $public = false) {
 		$document = $this->cacheRemoteDocument($id, $public);
+		$mime = $document->getMimeType();
+
+		return $this->cacheService->getContentFromCache($document->getResizedCopy());
+	}
+
+
+	/**
+	 * @param string $id
+	 * @param bool $public
+	 * @param string $mimeType
+	 *
+	 * @return ISimpleFile
+	 * @throws CacheContentException
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws MalformedArrayException
+	 * @throws RequestResultNotJsonException
+	 * @throws SocialAppConfigException
+	 */
+	public function getFromCache(string $id, string &$mimeType = '', bool $public = false) {
+		$document = $this->cacheRemoteDocument($id, $public);
+		$mimeType = $document->getMimeType();
 
 		return $this->cacheService->getContentFromCache($document->getLocalCopy());
 	}

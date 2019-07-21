@@ -35,6 +35,8 @@ use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
+use Gumlet\ImageResize;
+use Gumlet\ImageResizeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -45,6 +47,7 @@ use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -57,6 +60,9 @@ class CacheDocumentService {
 	use TArrayTools;
 	use TStringTools;
 
+
+	const RESIZED_WIDTH = 280;
+	const RESIZED_HEIGHT = 180;
 
 	/** @var IAppData */
 	private $appData;
@@ -91,11 +97,9 @@ class CacheDocumentService {
 
 
 	/**
-	 * @param string $url
-	 *
+	 * @param Document $document
 	 * @param string $mime
 	 *
-	 * @return string
 	 * @throws CacheContentMimeTypeException
 	 * @throws MalformedArrayException
 	 * @throws NotFoundException
@@ -108,20 +112,8 @@ class CacheDocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function saveRemoteFileToCache(string $url, &$mime = '') {
-
-		$filename = $this->uuid();
-
-		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
-		$path = chunk_split(substr($filename, 0, 8), 2, '/');
-
-		try {
-			$folder = $this->appData->getFolder($path);
-		} catch (NotFoundException $e) {
-			$folder = $this->appData->newFolder($path);
-		}
-
-		$content = $this->retrieveContent($url);
+	public function saveRemoteFileToCache(Document $document, &$mime = '') {
+		$content = $this->retrieveContent($document->getUrl());
 
 		// To get the mime type, we create a temp file
 		$tmpFile = tmpfile();
@@ -131,6 +123,33 @@ class CacheDocumentService {
 		fclose($tmpFile);
 
 		$this->filterMimeTypes($mime);
+
+		$filename = $this->saveContentToCache($content);
+		$document->setLocalCopy($filename);
+		$this->resizeImage($content);
+		$resized = $this->saveContentToCache($content);
+		$document->setResizedCopy($resized);
+	}
+
+
+	/**
+	 * @param string $content
+	 *
+	 * @return string
+	 * @throws NotPermittedException
+	 * @throws NotFoundException
+	 */
+	private function saveContentToCache(string $content): string {
+
+		$filename = $this->uuid();
+		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
+		$path = chunk_split(substr($filename, 0, 8), 2, '/');
+
+		try {
+			$folder = $this->appData->getFolder($path);
+		} catch (NotFoundException $e) {
+			$folder = $this->appData->newFolder($path);
+		}
 
 		$cache = $folder->newFile($filename);
 		$cache->putContent($content);
@@ -160,6 +179,23 @@ class CacheDocumentService {
 		throw new CacheContentMimeTypeException();
 	}
 
+
+	/**
+	 * @param $content
+	 */
+	private function resizeImage(&$content) {
+		try {
+			$image = ImageResize::createFromString($content);
+			$image->quality_jpg = 100;
+			$image->quality_png = 9;
+
+			$image->resizeToBestFit(self::RESIZED_WIDTH, self::RESIZED_HEIGHT);
+			$content = $image->getImageAsString();
+		} catch (ImageResizeException $e) {
+		}
+	}
+
+
 	/**
 	 * @param string $path
 	 *
@@ -167,7 +203,7 @@ class CacheDocumentService {
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
 	 */
-	public function getContentFromCache(string $path) {
+	public function getContentFromCache(string $path): ISimpleFile {
 		if ($path === '') {
 			throw new CacheDocumentDoesNotExistException();
 		}

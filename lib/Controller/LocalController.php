@@ -183,6 +183,26 @@ class LocalController extends Controller {
 
 
 	/**
+	 * get info about a post (limited to viewer rights).
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return DataResponse
+	 */
+	public function postData(string $id): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return $this->directSuccess($this->noteService->getNoteById($id, true));
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
 	 * Delete your own post.
 	 *
 	 * @NoAdminRequired
@@ -703,9 +723,10 @@ class LocalController extends Controller {
 			$actor = $this->cacheActorService->getFromId($id);
 			if ($actor->gotIcon()) {
 				$avatar = $actor->getIcon();
-				$document = $this->documentService->getFromCache($avatar->getId());
+				$document = $this->documentService->getFromCache($avatar->getId(), $mime);
 
-				$response = new FileDisplayResponse($document);
+				$response =
+					new FileDisplayResponse($document, Http::STATUS_OK, ['Content-Type' => $mime]);
 				$response->cacheFor(86400);
 
 				return $response;

@@ -56,6 +56,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('mime_type', $qb->createNamedParameter($document->getMimeType()))
 		   ->setValue('error', $qb->createNamedParameter($document->getError()))
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+		   ->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 		   ->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
 		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
@@ -86,6 +87,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->set('mime_type', $qb->createNamedParameter($document->getMimeType()))
 		   ->set('error', $qb->createNamedParameter($document->getError()))
 		   ->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+		   ->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 		   ->set('parent_id', $qb->createNamedParameter($document->getParentId()))
 		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
@@ -127,6 +129,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$this->limitToIdString($qb, $document->getId());
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
+		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
 		$qb->set('error', $qb->createNamedParameter($document->getError()));
 
 		$qb->execute();
