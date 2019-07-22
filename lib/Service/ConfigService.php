@@ -379,7 +379,7 @@ class ConfigService {
 	 */
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
-			$url = $this->getCloudUrl() . $this->urlGenerator->linkToRoute(
+			$url = $this->getCloudUrl(true) . $this->urlGenerator->linkToRoute(
 					'social.Navigation.navigate'
 				);
 		}

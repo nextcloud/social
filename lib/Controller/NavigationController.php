@@ -132,6 +132,7 @@ class NavigationController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function navigate(string $path = ''): TemplateResponse {
 		$data = [
@@ -169,7 +170,7 @@ class NavigationController extends Controller {
 		try {
 			$this->configService->getSocialUrl();
 		} catch (SocialAppConfigException $e) {
-			$this->configService->setSocialUrl('');
+			$this->configService->setSocialUrl();
 		}
 
 		if ($data['serverData']['isAdmin']) {
