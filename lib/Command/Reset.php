@@ -171,9 +171,7 @@ class Reset extends Base {
 	 *
 	 */
 	private function uninstallWellKnown() {
-		echo $this->configService->getCoreValue('public_webfinger');
 		if ($this->configService->getCoreValue('public_webfinger') === 'social/lib/webfinger.php') {
-			echo '##@$#@$';
 			$this->configService->unsetCoreValue('public_webfinger');
 		}
 		if ($this->configService->getCoreValue('public_host-meta') === 'social/lib/hostmeta.php') {

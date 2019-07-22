@@ -27,6 +27,7 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
