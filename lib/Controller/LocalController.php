@@ -723,6 +723,7 @@ class LocalController extends Controller {
 			$actor = $this->cacheActorService->getFromId($id);
 			if ($actor->gotIcon()) {
 				$avatar = $actor->getIcon();
+				$mime = '';
 				$document = $this->documentService->getFromCache($avatar->getId(), $mime);
 
 				$response =
