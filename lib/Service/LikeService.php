@@ -198,7 +198,7 @@ class LikeService {
 		} catch (ItemNotFoundException $e) {
 		}
 
-		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, 'liked', false);
 
 		return $undo;
 	}
