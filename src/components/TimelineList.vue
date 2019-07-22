@@ -97,6 +97,10 @@ export default {
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here')
 				},
+				liked: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No liked posts found')
+				}
 				tags: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'No posts found for this tag')
