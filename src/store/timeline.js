@@ -133,8 +133,6 @@ const actions = {
 		return new Promise((resolve, reject) => {
 			axios.post(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
 				context.commit('likePost', { post, parentAnnounce })
-				// eslint-disable-next-line no-console
-				console.log('Post liked with token ' + response.data.result.token)
 				resolve(response)
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to like post')
@@ -146,8 +144,10 @@ const actions = {
 	postUnlike(context, { post, parentAnnounce }) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
 			context.commit('unlikePost', { post, parentAnnounce })
-			// eslint-disable-next-line no-console
-			console.log('Post unliked with token ' + response.data.result.token)
+                        // Remove post from list if we are in the 'liked' timeline
+                       	if (state.type === 'liked') {
+                        	context.commit('removePost', post)
+                        }
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to unlike post')
 			console.error('Failed to unlike post', error)
