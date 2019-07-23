@@ -79,6 +79,12 @@
 				</div>
 			</emoji-picker>
 
+                        <masonry>
+                                <div v-for="(item, index) in postAttachments" :key="index">
+                                        <img src="">
+                                </div>
+                        </masonry>
+
 			<div class="options">
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
@@ -359,6 +365,7 @@ export default {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			post: '',
+			postAttachments: [],
 			canType: true,
 			search: '',
 			replyTo: null,
