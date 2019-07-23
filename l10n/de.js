@@ -16,6 +16,7 @@ OC.L10N.register(
     "Direct messages" : "Direktnachrichten",
     "Notifications" : "Benachrichtigungen",
     "Profile" : "Profil",
+    "Liked" : "Geliked",
     "Local timeline" : "Lokale Zeitleiste",
     "Global timeline" : "Globale Zeitleiste",
     "Following" : "Folge ich",
