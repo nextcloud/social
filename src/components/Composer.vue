@@ -81,11 +81,12 @@
 
                         <masonry>
                                 <div v-for="(item, index) in postAttachments" :key="index">
-                                        <img src="">
+                                        <img :src="item">
                                 </div>
                         </masonry>
 
 			<div class="options">
+				<input ref="addAttach" class="emoji-invoker" type="file" @change="uploadImages" />
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div v-click-outside="hidePopoverMenu">
@@ -238,6 +239,12 @@
 	}
 	.popovermenu {
 		top: 55px;
+	}
+
+	.attachment-picker-wrapper {
+		position: absolute;
+		right: 0;
+		top: 2;
 	}
 </style>
 <style>
@@ -559,6 +566,37 @@ export default {
 		})
 	},
 	methods: {
+		uploadImages() {
+			var self = this
+			let file = this.$refs.addAttach.files[0];
+			let reader = new FileReader()
+			reader.onload = function(e) {
+				var canvas = document.createElement('canvas')
+				var ctx = canvas.getContext('2d');
+				var width  = 300
+				var height = 200
+				var img = new Image()
+	                        img.onload = function() {
+		                	var imgWidth = img.width
+         	      		        var imgHeight = img.height
+                       		        if (imgWidth > window.innerWidth) {
+	                                	imgHeight = imgHeight * (width / imgWidth)
+                                        	imgWidth = width
+                                	}
+	                                if (imgHeight > height) {
+        	                                imgWidth = imgWidth * (height / imgHeight)
+               	        	                imgHeight = height
+                	                }
+	                                canvas.width = imgWidth
+	                                canvas.height = imgHeight
+	                                ctx.drawImage(img, 0, 0, imgWidth, imgHeight)
+					var resizedImg = canvas.toDataURL()
+					self.postAttachments.push(resizedImg)
+                        	}
+				img.src = e.target.result
+			}
+			reader.readAsDataURL(file)
+		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
 				let category = Object.keys(emoji)[0]
