@@ -49,6 +49,7 @@ OC.L10N.register(
     "Posts from other people on this instance will show up here" : "Posts von anderen Personen dieser Instanz werden hier angezeigt",
     "No global posts found" : "Keine globalen Posts gefunden",
     "Posts from federated instances will show up here" : "Posts von federierten Instanzen werden hier angezeigt",
+    "No liked posts found" : "Keine gelikten Posts gefunden",
     "No posts found for this tag" : "Keine Posts für dieses Schlagwort gefunden",
     "Reply" : "Antworten",
     "Boost" : "Verstärken",
