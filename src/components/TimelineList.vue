@@ -100,7 +100,7 @@ export default {
 				liked: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'No liked posts found')
-				}
+				},
 				tags: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'No posts found for this tag')
