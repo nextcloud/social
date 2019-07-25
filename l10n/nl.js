@@ -16,6 +16,7 @@ OC.L10N.register(
     "Direct messages" : "Directe berichten",
     "Notifications" : "Meldingen",
     "Profile" : "Profiel",
+    "Liked" : "Leuk gevonden",
     "Local timeline" : "Lokale tijdlijn",
     "Global timeline" : "Globale tijdlijn",
     "Following" : "Volgend",
