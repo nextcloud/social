@@ -145,7 +145,7 @@ export default {
 				var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
 				return a
 			})
-			return msg;
+			return msg
 		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
