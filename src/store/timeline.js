@@ -144,10 +144,10 @@ const actions = {
 	postUnlike(context, { post, parentAnnounce }) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
 			context.commit('unlikePost', { post, parentAnnounce })
-                        // Remove post from list if we are in the 'liked' timeline
-                       	if (state.type === 'liked') {
-                        	context.commit('removePost', post)
-                        }
+			// Remove post from list if we are in the 'liked' timeline
+			if (state.type === 'liked') {
+				context.commit('removePost', post)
+			}
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to unlike post')
 			console.error('Failed to unlike post', error)

@@ -52,15 +52,15 @@
 <script>
 import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import * as linkify from 'linkifyjs'
-import pluginTag from 'linkifyjs/plugins/hashtag'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment'
 
-pluginTag(linkify)
 pluginMention(linkify)
+
+const hashtagRegex = require('hashtag-regex')
 
 export default {
 	name: 'TimelinePost',
@@ -102,21 +102,19 @@ export default {
 			return Date.parse(this.item.published)
 		},
 		formatedMessage() {
-			let message = this.item.content
+			var message = this.item.content
 			if (typeof message === 'undefined') {
 				return ''
 			}
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 			message = message.linkify({
 				formatHref: {
-					hashtag: function(href) {
-						return OC.generateUrl('/apps/social/timeline/tags/' + href.substring(1))
-					},
 					mention: function(href) {
 						return OC.generateUrl('/apps/social/@' + href.substring(1))
 					}
 				}
 			})
+			message = this.mangleHashtags(message)
 			message = this.$twemoji.parse(message)
 			return message
 		},
@@ -140,6 +138,15 @@ export default {
 		}
 	},
 	methods: {
+		mangleHashtags(msg) {
+			// Replace hashtag's href parameter with local ones
+			const regex = hashtagRegex()
+			msg = msg.replace(regex, function(matched) {
+				var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
+				return a
+			})
+			return msg
+		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
