@@ -129,6 +129,7 @@ class Note extends Stream implements JsonSerializable {
 		parent::import($data);
 
 		$this->importAttachments($this->getArray('attachment', $data, []));
+		$this->fillHashtags();
 	}
 
 
