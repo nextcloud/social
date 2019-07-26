@@ -102,7 +102,7 @@ export default {
 			return Date.parse(this.item.published)
 		},
 		formatedMessage() {
-			let message = this.item.content
+			var message = this.item.content
 			if (typeof message === 'undefined') {
 				return ''
 			}
@@ -114,12 +114,7 @@ export default {
 					}
 				}
 			})
-			// Replace hashtag's href parameter with local ones
-			const regex = hashtagRegex()
-			message = message.replace(regex, function(matched) {
-				var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
-				return a
-			})
+			message = this.mangleHashtags(message)
 			message = this.$twemoji.parse(message)
 			return message
 		},
@@ -143,6 +138,15 @@ export default {
 		}
 	},
 	methods: {
+		mangleHashtags(msg) {
+			// Replace hashtag's href parameter with local ones
+			const regex = hashtagRegex()
+			msg = msg.replace(regex, function(matched) {
+				var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
+				return a
+			})
+			return msg;
+		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
