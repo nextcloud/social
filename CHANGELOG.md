@@ -1,6 +1,24 @@
 # Changelog
 
 
+## 0.2.100 (alpha 2.1)
+
+- [setup] it is now possible to create an account using ./occ
+- [setup] it is now possible to follow an account using ./occ
+- [setup] new command to completely uninstall the app: ./occ social:reset --uninstall 
+- [federated] better management of the ID generator.
+- [federated] Caching now generate also a thumb version of remote Image document.
+- [federated] fixing an issue with hashtags importation
+- [global] better parsing on non-latin hashtags
+- [global] Attachments (Image) should now be displayed.
+- [global] like/unlike on Post.
+- [global] new Timeline: Liked post.
+- [global] better compatibility with Pleroma.
+- [global] fixing an issue on exact result during search. 
+- [global] cleaning code.
+
+
+
 ## 0.2.6
 
 - [global] Improving and fixing streams.
