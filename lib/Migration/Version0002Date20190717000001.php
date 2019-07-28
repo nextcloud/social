@@ -82,7 +82,7 @@ class Version0002Date20190717000001 extends SimpleMigrationStep {
 			$table->addColumn(
 				'resized_copy', Type::TEXT,
 				[
-					'notnull' => true
+					'notnull' => false
 				]
 			);
 		}

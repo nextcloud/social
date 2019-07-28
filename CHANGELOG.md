@@ -1,6 +1,11 @@
 # Changelog
 
 
+## 0.2.101
+
+- [setup] fixing an issue with migration on pgsql
+
+
 ## 0.2.100 (alpha 2.1)
 
 - [setup] it is now possible to create an account using ./occ
