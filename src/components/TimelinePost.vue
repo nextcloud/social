@@ -60,8 +60,6 @@ import PostAttachment from './PostAttachment'
 
 pluginMention(linkify)
 
-const hashtagRegex = require('hashtag-regex')
-
 export default {
 	name: 'TimelinePost',
 	components: {
@@ -102,7 +100,7 @@ export default {
 			return Date.parse(this.item.published)
 		},
 		formatedMessage() {
-			var message = this.item.content
+			let message = this.item.content
 			if (typeof message === 'undefined') {
 				return ''
 			}
@@ -114,7 +112,9 @@ export default {
 					}
 				}
 			})
-			message = this.mangleHashtags(message)
+			if (this.item.hashtags !== undefined) {
+				message = this.mangleHashtags(message)
+			}
 			message = this.$twemoji.parse(message)
 			return message
 		},
@@ -140,10 +140,12 @@ export default {
 	methods: {
 		mangleHashtags(msg) {
 			// Replace hashtag's href parameter with local ones
-			const regex = hashtagRegex()
-			msg = msg.replace(regex, function(matched) {
-				var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
-				return a
+			this.item.hashtags.forEach(tag => {
+				let patt = new RegExp("#" + tag, "gi")
+				msg = msg.replace( patt, function(matched) {
+					var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
+					return a
+				})
 			})
 			return msg
 		},

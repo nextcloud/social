@@ -28,7 +28,6 @@
 	},
 	"dependencies": {
 		"vue-masonry-css": "^1.0.3",
-		"hashtag-regex": "^2.0.0",
 		"linkifyjs": "^2.1.8",
 		"nextcloud-axios": "^0.2.0",
 		"nextcloud-vue": "^0.11.4",
