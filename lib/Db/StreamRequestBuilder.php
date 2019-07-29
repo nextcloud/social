@@ -97,7 +97,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			   's.type', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
 			   's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
-			   's.instances', 's.creation', 's.hidden_on_timeline', 's.details'
+			   's.instances', 's.creation', 's.hidden_on_timeline', 's.details', 's.hashtags'
 		   )
 		   ->from(self::TABLE_STREAMS, 's');
 
