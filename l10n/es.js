@@ -13,6 +13,7 @@ OC.L10N.register(
     "Direct messages" : "Mensajes directos",
     "Notifications" : "Notificaciones",
     "Profile" : "Perfil",
+    "Liked" : "Me gusta",
     "Local timeline" : "Timeline local",
     "Global timeline" : "Timeline global",
     "Following" : "Siguiendo",
