@@ -45,6 +45,7 @@ use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\NoteService;
@@ -75,6 +76,9 @@ class LocalController extends Controller {
 
 	/** @var CacheActorService */
 	private $cacheActorService;
+
+	/** @var HashtagService */
+	private $hashtagService;
 
 	/** @var FollowService */
 	private $followService;
@@ -115,6 +119,7 @@ class LocalController extends Controller {
 	 * @param string $userId
 	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
+	 * @param HashtagService $hashtagService
 	 * @param FollowService $followService
 	 * @param PostService $postService
 	 * @param NoteService $noteService
@@ -126,7 +131,8 @@ class LocalController extends Controller {
 	 */
 	public function __construct(
 		IRequest $request, $userId, AccountService $accountService,
-		CacheActorService $cacheActorService, FollowService $followService,
+		CacheActorService $cacheActorService, HashtagService $hashtagService,
+		FollowService $followService,
 		PostService $postService, NoteService $noteService, SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService
@@ -135,6 +141,7 @@ class LocalController extends Controller {
 
 		$this->userId = $userId;
 		$this->cacheActorService = $cacheActorService;
+		$this->hashtagService = $hashtagService;
 		$this->accountService = $accountService;
 		$this->noteService = $noteService;
 		$this->searchService = $searchService;
@@ -760,6 +767,41 @@ class LocalController extends Controller {
 		}
 
 		/* Look for an exactly matching account */
+		$match = null;
+		try {
+			$match = $this->hashtagService->getHashtag($search);
+		} catch (Exception $e) {
+		}
+
+		try {
+			$tags = $this->hashtagService->searchHashtags($search);
+
+			return $this->success(['tags' => $tags, 'exact' => $match]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoAdminRequired
+	 *
+	 * @param string $search
+	 *
+	 * @return DataResponse
+	 * @throws Exception
+	 */
+	public function globalTagsSearch(string $search): DataResponse {
+		$this->initViewer();
+
+		if (substr($search, 0, 1) === '#') {
+			$search = substr($search, 1);
+		}
+
+		if ($search === '') {
+			return $this->success(['accounts' => [], 'exact' => []]);
+		}
+
 		$match = null;
 		try {
 			$match = $this->cacheActorService->getFromAccount($search, false);
