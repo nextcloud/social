@@ -769,14 +769,15 @@ class LocalController extends Controller {
 		/* Look for an exactly matching account */
 		$match = null;
 		try {
-			$match = $this->hashtagService->getHashtag($search);
+			$match = $this->cacheActorService->getFromAccount($search, false);
+			$match->setCompleteDetails(true);
 		} catch (Exception $e) {
 		}
 
 		try {
-			$tags = $this->hashtagService->searchHashtags($search);
+			$accounts = $this->cacheActorService->searchCachedAccounts($search);
 
-			return $this->success(['tags' => $tags, 'exact' => $match]);
+			return $this->success(['accounts' => $accounts, 'exact' => $match]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -799,20 +800,19 @@ class LocalController extends Controller {
 		}
 
 		if ($search === '') {
-			return $this->success(['accounts' => [], 'exact' => []]);
+			return $this->success(['tags' => [], 'exact' => []]);
 		}
 
 		$match = null;
 		try {
-			$match = $this->cacheActorService->getFromAccount($search, false);
-			$match->setCompleteDetails(true);
+			$match = $this->hashtagService->getHashtag($search);
 		} catch (Exception $e) {
 		}
 
 		try {
-			$accounts = $this->cacheActorService->searchCachedAccounts($search);
+			$tags = $this->hashtagService->searchHashtags($search);
 
-			return $this->success(['accounts' => $accounts, 'exact' => $match]);
+			return $this->success(['tags' => $tags, 'exact' => $match]);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
