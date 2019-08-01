@@ -139,7 +139,7 @@ class SearchService {
 		}
 
 		try {
-			$hashtags = $this->hashtagService->searchHashtags($search);
+			$hashtags = $this->hashtagService->searchHashtags($search, true);
 			$result['result'] = $hashtags;
 		} catch (Exception $e) {
 		}

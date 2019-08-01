@@ -118,12 +118,13 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 	/**
 	 * @param string $hashtag
+	 * @param bool $all
 	 *
 	 * @return array
 	 */
-	public function searchHashtags(string $hashtag): array {
+	public function searchHashtags(string $hashtag, bool $all): array {
 		$qb = $this->getHashtagsSelectSql();
-		$this->searchInHashtag($qb, $hashtag);
+		$this->searchInHashtag($qb, $hashtag, $all);
 		$this->limitResults($qb, 25);
 
 		$hashtags = [];

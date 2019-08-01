@@ -386,7 +386,7 @@ export default {
 						},
 						values: (text, cb) => {
 							let users = []
-		
+
 							if (text.length < 1) {
 								cb(users)
 							}
@@ -419,7 +419,7 @@ export default {
 							return item.original.value
 						},
 						selectTemplate: function(item) {
-							let tag = '';
+							let tag = ''
 							// item is undefined if selectTemplate is called from a noMatchTemplate menu
 							if (typeof item === 'undefined') {
 								tag = this.currentMentionTextSnapshot
@@ -431,7 +431,7 @@ export default {
 						},
 						values: (text, cb) => {
 							let tags = []
-		
+
 							if (text.length < 1) {
 								cb(tags)
 							}
@@ -439,14 +439,14 @@ export default {
 								if (result.data.result.exact) {
 									tags.push({
 										key: result.data.result.exact,
-										value: result.data.result.exact,
+										value: result.data.result.exact
 									})
 								}
 								for (var i in result.data.result.tags) {
 									let tag = result.data.result.tags[i]
 									tags.push({
 										key: tag.hashtag,
-										value: tag.hashtag,
+										value: tag.hashtag
 									})
 								}
 								cb(tags)
@@ -455,12 +455,13 @@ export default {
 					}
 				],
 				noMatchTemplate() {
-					if (this.current.collection.trigger === "#")
+					if (this.current.collection.trigger === '#') {
 						if (this.current.mentionText === '') {
 							return undefined
 						} else {
-							return '<li data-index="0">#' + this.current.mentionText + '</li>';
+							return '<li data-index="0">#' + this.current.mentionText + '</li>'
 						}
+					}
 				}
 			},
 			menuOpened: false

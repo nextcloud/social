@@ -141,8 +141,8 @@ export default {
 		mangleHashtags(msg) {
 			// Replace hashtag's href parameter with local ones
 			this.item.hashtags.forEach(tag => {
-				let patt = new RegExp("#" + tag, "gi")
-				msg = msg.replace( patt, function(matched) {
+				let patt = new RegExp('#' + tag, 'gi')
+				msg = msg.replace(patt, function(matched) {
 					var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
 					return a
 				})

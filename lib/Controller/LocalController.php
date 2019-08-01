@@ -810,7 +810,7 @@ class LocalController extends Controller {
 		}
 
 		try {
-			$tags = $this->hashtagService->searchHashtags($search);
+			$tags = $this->hashtagService->searchHashtags($search, false);
 
 			return $this->success(['tags' => $tags, 'exact' => $match]);
 		} catch (Exception $e) {
