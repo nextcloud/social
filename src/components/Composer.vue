@@ -46,7 +46,7 @@
 			</div>
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
-			<vue-tribute ref="composerTribute" :options="tributeOptions">
+			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
 					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup" />
