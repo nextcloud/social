@@ -46,7 +46,7 @@
 			</div>
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
-			<vue-tribute :options="tributeOptions">
+			<vue-tribute ref="composerTribute" :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
 					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup" />
@@ -419,15 +419,20 @@ export default {
 							return item.original.value
 						},
 						selectTemplate: function(item) {
-							return '<span class="hashtag" contenteditable="false">@' + item.original.value + '</span>'
+							return '<span class="hashtag" contenteditable="false">'
+								+ '<a href="' + OC.generateUrl('/timeline/tags/' + item.original.value) + '" target="_blank">#' + item.original.value + '</a></span>'
 						},
 						values: [
-					              { key: "foo", value: "foo" },
-					              { key: "bar", value: "bar" },
-					              { key: "baz", value: "baz" }
+					              { key: "nextcloud", value: "nextcloud" },
+					              { key: "social", value: "social" },
 						]	
 					}
-				]
+				],
+				noMatchTemplate() {
+					console.log(this.current)
+					if (this.current.collection.trigger === "#")
+						return "<span><strong>#" + this.current.mentionText + "</strong>: Tag not found." + "</span><br/><button>add tag</button>";
+				}
 			},
 			menuOpened: false
 
