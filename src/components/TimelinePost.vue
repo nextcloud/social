@@ -52,7 +52,6 @@
 <script>
 import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import * as linkify from 'linkifyjs'
-import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
@@ -101,10 +100,13 @@ export default {
 		},
 		formatedMessage() {
 			let message = this.item.content
+
 			if (typeof message === 'undefined') {
 				return ''
 			}
+
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
+
 			message = message.linkify({
 				formatHref: {
 					mention: function(href) {
@@ -112,10 +114,32 @@ export default {
 					}
 				}
 			})
-			if (this.item.hashtags !== undefined) {
-				message = this.mangleHashtags(message)
+
+                        // Create links for mentions
+			if (typeof this.item.source !== 'undefined') {
+	                        let source = JSON.parse(this.item.source)
+        	                if (typeof source.tag !== 'undefined') {
+                	                source.tag.forEach(tag => {
+                        	                if (tag.type === 'Mention') {
+							let shortname = tag.name.match(/^@[^@]+/)
+                                        	        let patt = new RegExp(shortname[0], "g")
+                                                	message = message.replace(patt, function(matched) {
+	                                                        var a = '<a href="' + tag.href + '">' + matched + '</a>'
+        	                                                return a
+                	                                })
+						}
+                                	})
+	                        }
 			}
+
+                        // Create links for hashtags
+			// we cannot use the same method as for mentions as there may be locale issues 
+                        if (this.item.hashtags !== undefined) {
+                                message = this.mangleHashtags(message)
+                        }
+
 			message = this.$twemoji.parse(message)
+
 			return message
 		},
 		avatarUrl() {
