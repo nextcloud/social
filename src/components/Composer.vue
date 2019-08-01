@@ -456,7 +456,11 @@ export default {
 				],
 				noMatchTemplate() {
 					if (this.current.collection.trigger === "#")
-						return '<li data-index="0">#' + this.current.mentionText + '</li>';
+						if (this.current.mentionText === '') {
+							return ''
+						} else {
+							return '<li data-index="0">#' + this.current.mentionText + '</li>';
+						}
 				}
 			},
 			menuOpened: false
