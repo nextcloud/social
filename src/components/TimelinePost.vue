@@ -124,7 +124,7 @@ export default {
 							let shortname = tag.name.match(/^@[^@]+/)
                                         	        let patt = new RegExp(shortname[0], "g")
                                                 	message = message.replace(patt, function(matched) {
-	                                                        var a = '<a href="' + tag.href + '">' + matched + '</a>'
+	                                                        var a = '<a href="' + OC.generateUrl('/apps/social/' + tag.name) + '">' + matched + '</a>'
         	                                                return a
                 	                                })
 						}
