@@ -390,7 +390,7 @@ export default {
 							if (text.length < 1) {
 								cb(users)
 							}
-							this.remoteSearch(text).then((result) => {
+							this.remoteSearchAccounts(text).then((result) => {
 								if (result.data.result.exact) {
 									let user = result.data.result.exact
 									users.push({
@@ -422,14 +422,32 @@ export default {
 							return '<span class="hashtag" contenteditable="false">'
 								+ '<a href="' + OC.generateUrl('/timeline/tags/' + item.original.value) + '" target="_blank">#' + item.original.value + '</a></span>'
 						},
-						values: [
-					              { key: "nextcloud", value: "nextcloud" },
-					              { key: "social", value: "social" },
-						]	
+						values: (text, cb) => {
+							let tags = []
+		
+							if (text.length < 1) {
+								cb(tags)
+							}
+							this.remoteSearchHashtags(text).then((result) => {
+								if (result.data.result.exact) {
+									tags.push({
+										key: result.data.result.exact,
+										value: result.data.result.exact,
+									})
+								}
+								for (var i in result.data.result.tags) {
+									let tag = result.data.result.tags[i]
+									tags.push({
+										key: tag.hashtag,
+										value: tag.hashtag,
+									})
+								}
+								cb(tags)
+							})
+						}
 					}
 				],
 				noMatchTemplate() {
-					console.log(this.current)
 					if (this.current.collection.trigger === "#")
 						return "<span><strong>#" + this.current.mentionText + "</strong>: Tag not found." + "</span><br/><button>add tag</button>";
 				}
@@ -602,8 +620,11 @@ export default {
 				this.$store.dispatch('refreshTimeline')
 			})
 		},
-		remoteSearch(text) {
+		remoteSearchAccounts(text) {
 			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
+		},
+		remoteSearchHashtags(text) {
+			return axios.get(OC.generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
 		}
 	}
 }
