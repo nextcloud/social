@@ -419,8 +419,15 @@ export default {
 							return item.original.value
 						},
 						selectTemplate: function(item) {
+							let tag = '';
+							// item is undefined if selectTemplate is called from a noMatchTemplate menu
+							if (typeof item === 'undefined') {
+								tag = this.currentMentionTextSnapshot
+							} else {
+								tag = item.original.value
+							}
 							return '<span class="hashtag" contenteditable="false">'
-								+ '<a href="' + OC.generateUrl('/timeline/tags/' + item.original.value) + '" target="_blank">#' + item.original.value + '</a></span>'
+								+ '<a href="' + OC.generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
 						},
 						values: (text, cb) => {
 							let tags = []
@@ -449,7 +456,7 @@ export default {
 				],
 				noMatchTemplate() {
 					if (this.current.collection.trigger === "#")
-						return "<span><strong>#" + this.current.mentionText + "</strong>: Tag not found." + "</span><br/><button>add tag</button>";
+						return '<li data-index="0">#' + this.current.mentionText + '</li>';
 				}
 			},
 			menuOpened: false
