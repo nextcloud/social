@@ -457,7 +457,7 @@ export default {
 				noMatchTemplate() {
 					if (this.current.collection.trigger === "#")
 						if (this.current.mentionText === '') {
-							return ''
+							return undefined
 						} else {
 							return '<li data-index="0">#' + this.current.mentionText + '</li>';
 						}
