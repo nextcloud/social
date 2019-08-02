@@ -388,8 +388,9 @@ export default {
 							let users = []
 
 							if (text.length < 1) {
-								cb(users)
+								return
 							}
+
 							this.remoteSearchAccounts(text).then((result) => {
 								if (result.data.result.exact) {
 									let user = result.data.result.exact
@@ -409,7 +410,9 @@ export default {
 										avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : OC.generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
 									})
 								}
-								cb(users)
+								if (users.length > 0) {
+									cb(users)
+								}
 							})
 						}
 					},
@@ -433,7 +436,7 @@ export default {
 							let tags = []
 
 							if (text.length < 1) {
-								cb(tags)
+								return
 							}
 							this.remoteSearchHashtags(text).then((result) => {
 								if (result.data.result.exact) {
@@ -449,20 +452,13 @@ export default {
 										value: tag.hashtag
 									})
 								}
-								cb(tags)
+								if (tags.length > 0) {
+									cb(tags)
+								}
 							})
 						}
 					}
-				],
-				noMatchTemplate() {
-					if (this.current.collection.trigger === '#') {
-						if (this.current.mentionText === '') {
-							return undefined
-						} else {
-							return '<li data-index="0">#' + this.current.mentionText + '</li>'
-						}
-					}
-				}
+				]
 			},
 			menuOpened: false
 
