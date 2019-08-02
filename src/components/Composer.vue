@@ -328,6 +328,9 @@
 		width: 16px;
 		vertical-align: text-bottom;
 	}
+	.hashtag {
+		text-decoration: underline;
+	}
 </style>
 <script>
 
@@ -365,47 +368,97 @@ export default {
 			search: '',
 			replyTo: null,
 			tributeOptions: {
-				lookup: function(item) {
-					return item.key + item.value
-				},
-				menuItemTemplate: function(item) {
-					return '<img src="' + item.original.avatar + '" /><div>'
-						+ '<span class="displayName">' + item.original.key + '</span>'
-						+ '<span class="account">' + item.original.value + '</span>'
-						+ '</div>'
-				},
-				selectTemplate: function(item) {
-					return '<span class="mention" contenteditable="false">'
-						+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
-				},
-				values: (text, cb) => {
-					let users = []
+				collection: [
+					{
+						trigger: '@',
+						lookup: function(item) {
+							return item.key + item.value
+						},
+						menuItemTemplate: function(item) {
+							return '<img src="' + item.original.avatar + '" /><div>'
+								+ '<span class="displayName">' + item.original.key + '</span>'
+								+ '<span class="account">' + item.original.value + '</span>'
+								+ '</div>'
+						},
+						selectTemplate: function(item) {
+							return '<span class="mention" contenteditable="false">'
+								+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
+						},
+						values: (text, cb) => {
+							let users = []
 
-					if (text.length < 1) {
-						cb(users)
+							if (text.length < 1) {
+								return
+							}
+
+							this.remoteSearchAccounts(text).then((result) => {
+								if (result.data.result.exact) {
+									let user = result.data.result.exact
+									users.push({
+										key: user.preferredUsername,
+										value: user.account,
+										url: user.url,
+										avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
+									})
+								}
+								for (var i in result.data.result.accounts) {
+									let user = result.data.result.accounts[i]
+									users.push({
+										key: user.preferredUsername,
+										value: user.account,
+										url: user.url,
+										avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : OC.generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
+									})
+								}
+								if (users.length > 0) {
+									cb(users)
+								}
+							})
+						}
+					},
+					{
+						trigger: '#',
+						menuItemTemplate: function(item) {
+							return item.original.value
+						},
+						selectTemplate: function(item) {
+							let tag = ''
+							// item is undefined if selectTemplate is called from a noMatchTemplate menu
+							if (typeof item === 'undefined') {
+								tag = this.currentMentionTextSnapshot
+							} else {
+								tag = item.original.value
+							}
+							return '<span class="hashtag" contenteditable="false">'
+								+ '<a href="' + OC.generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
+						},
+						values: (text, cb) => {
+							let tags = []
+
+							if (text.length < 1) {
+								return
+							}
+							this.remoteSearchHashtags(text).then((result) => {
+								if (result.data.result.exact) {
+									tags.push({
+										key: result.data.result.exact,
+										value: result.data.result.exact
+									})
+								}
+								for (var i in result.data.result.tags) {
+									let tag = result.data.result.tags[i]
+									tags.push({
+										key: tag.hashtag,
+										value: tag.hashtag
+									})
+								}
+								if (tags.length > 0) {
+									cb(tags)
+								}
+							})
+						}
 					}
-					this.remoteSearch(text).then((result) => {
-						if (result.data.result.exact) {
-							let user = result.data.result.exact
-							users.push({
-								key: user.preferredUsername,
-								value: user.account,
-								url: user.url,
-								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
-							})
-						}
-						for (var i in result.data.result.accounts) {
-							let user = result.data.result.accounts[i]
-							users.push({
-								key: user.preferredUsername,
-								value: user.account,
-								url: user.url,
-								avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : OC.generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
-							})
-						}
-						cb(users)
-					})
-				}
+				]
 			},
 			menuOpened: false
 
@@ -528,29 +581,29 @@ export default {
 				var em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
-			let content = element.innerText.trim()
+			let contentHtml = element.innerHTML
 			let to = []
 			let hashtags = []
 			const mentionRegex = /@(([\w-_.]+)(@[\w-.]+)?)/g
 			let match = null
 			do {
-				match = mentionRegex.exec(content)
+				match = mentionRegex.exec(contentHtml)
 				if (match) {
 					to.push(match[1])
 				}
 			} while (match)
 
-			const hashtagRegex = /#([\w-_.]+)/g
+			const hashtagRegex = />#([^<]+)</g
 			match = null
 			do {
-				match = hashtagRegex.exec(content)
+				match = hashtagRegex.exec(contentHtml)
 				if (match) {
 					hashtags.push(match[1])
 				}
 			} while (match)
 
 			let data = {
-				content: content,
+				content: element.innerText.trim(),
 				to: to,
 				hashtags: hashtags,
 				type: this.type
@@ -575,8 +628,11 @@ export default {
 				this.$store.dispatch('refreshTimeline')
 			})
 		},
-		remoteSearch(text) {
+		remoteSearchAccounts(text) {
 			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
+		},
+		remoteSearchHashtags(text) {
+			return axios.get(OC.generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
 		}
 	}
 }

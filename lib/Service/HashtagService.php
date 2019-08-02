@@ -36,6 +36,8 @@ use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 
@@ -100,6 +102,8 @@ class HashtagService {
 	/**
 	 * @return int
 	 * @throws DateTimeException
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
 	public function manageHashtags(): int {
 		$current = $this->hashtagsRequest->getAll();
@@ -146,11 +150,12 @@ class HashtagService {
 
 	/**
 	 * @param string $hashtag
+	 * @param bool $all
 	 *
 	 * @return array
 	 */
-	public function searchHashtags(string $hashtag): array {
-		return $this->hashtagsRequest->searchHashtags($hashtag);
+	public function searchHashtags(string $hashtag, bool $all = false): array {
+		return $this->hashtagsRequest->searchHashtags($hashtag, $all);
 	}
 
 
@@ -159,6 +164,8 @@ class HashtagService {
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
 	 */
 	private function getTrendSince(int $timestamp): array {
 		$result = [];

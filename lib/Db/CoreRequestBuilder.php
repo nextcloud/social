@@ -37,7 +37,6 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -307,10 +306,13 @@ class CoreRequestBuilder {
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $hashtag
+	 * @param bool $all
 	 */
-	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag) {
+	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag, bool $all = false) {
 		$dbConn = $this->dbConnection;
-		$this->searchInDBField($qb, 'hashtag', '%' . $dbConn->escapeLikeParameter($hashtag) . '%');
+		$this->searchInDBField(
+			$qb, 'hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%'
+		);
 	}
 
 
