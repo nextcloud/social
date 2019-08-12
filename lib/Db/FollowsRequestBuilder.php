@@ -139,6 +139,14 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 
 			$follow->setCompleteDetails(true);
 			$follow->setActor($actor);
+
+			return $follow;
+		} catch (InvalidResourceException $e) {
+		}
+
+		try {
+			$actor = $this->parseAccountsLeftJoin($data);
+			$follow->setActor($actor);
 		} catch (InvalidResourceException $e) {
 		}
 

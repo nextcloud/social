@@ -173,6 +173,22 @@ class ACore extends Item implements JsonSerializable {
 
 
 	/**
+	 * @param bool $filter - will remove general url like Public
+	 *
+	 * @return array
+	 */
+	public function getRecipients(bool $filter = false): array {
+		$recipients = array_merge($this->getToAll(), $this->getCcArray());
+
+		if (!$filter) {
+			return $recipients;
+		}
+
+		return array_diff($recipients, [self::CONTEXT_PUBLIC]);
+	}
+
+
+	/**
 	 * @return bool
 	 */
 	public function gotIcon(): bool {
@@ -226,9 +242,7 @@ class ACore extends Item implements JsonSerializable {
 	 * @return bool
 	 */
 	public function isPublic(): bool {
-		return ($this->getTo() === self::CONTEXT_PUBLIC
-				|| in_array(self::CONTEXT_PUBLIC, $this->getCcArray())
-				|| in_array(self::CONTEXT_PUBLIC, $this->getToArray()));
+		return in_array(self::CONTEXT_PUBLIC, $this->getRecipients());
 	}
 
 
@@ -296,7 +310,9 @@ class ACore extends Item implements JsonSerializable {
 			return;
 		}
 
-		throw new InvalidOriginException('ACore::checkOrigin - id: ' . $id . ' - origin: ' . $origin);
+		throw new InvalidOriginException(
+			'ACore::checkOrigin - id: ' . $id . ' - origin: ' . $origin
+		);
 	}
 
 

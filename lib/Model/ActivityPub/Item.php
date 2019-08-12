@@ -31,6 +31,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 
@@ -393,6 +394,16 @@ class Item {
 	 */
 	public function getToArray(): array {
 		return $this->toArray;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getToAll(): array {
+		$arr = $this->toArray;
+		$arr[] = $this->to;
+
+		return $arr;
 	}
 
 	/**

@@ -421,6 +421,7 @@ class Person extends ACore implements JsonSerializable {
 		$this->setPreferredUsername(
 			$this->validate(self::AS_USERNAME, 'preferred_username', $data, '')
 		)
+			 ->setUserId($this->get('user_id', $data, ''))
 			 ->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
 			 ->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
 			 ->setPublicKey($this->get('public_key', $data, ''))

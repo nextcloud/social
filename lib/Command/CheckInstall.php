@@ -35,12 +35,19 @@ use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\PushService;
+use OCP\IUserManager;
+use OCP\Stratos\Exceptions\StratosInstallException;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 
 class CheckInstall extends Base {
 
+
+	/** @var IUserManager */
+	private $userManager;
 
 	/** @var CheckService */
 	private $checkService;
@@ -52,16 +59,25 @@ class CheckInstall extends Base {
 	/**
 	 * CacheUpdate constructor.
 	 *
+	 * @param IUserManager $userManager
 	 * @param CheckService $checkService
 	 * @param MiscService $miscService
+	 * @param PushService $pushService
 	 */
-	public function __construct(CheckService $checkService, MiscService $miscService) {
+	public function __construct(
+		IUserManager $userManager, CheckService $checkService, MiscService $miscService,
+		PushService $pushService
+	) {
 		parent::__construct();
 
+		$this->userManager = $userManager;
 		$this->checkService = $checkService;
 		$this->miscService = $miscService;
+		$this->pushService = $pushService;
 	}
 
+	/** @var PushService */
+	private $pushService;
 
 	/**
 	 *
@@ -69,6 +85,10 @@ class CheckInstall extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')
+			 ->addOption(
+				 'stratos', '', InputOption::VALUE_REQUIRED, 'a local account used to test Stratos',
+				 ''
+			 )
 			 ->setDescription('Check the integrity of the installation');
 	}
 
@@ -81,8 +101,30 @@ class CheckInstall extends Base {
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 		$this->checkService->checkInstallationStatus();
+
+		$this->checkStratos($input, $output);
 	}
 
+
+	/**
+	 * @param InputInterface $input
+	 * @param OutputInterface $output
+	 *
+	 * @throws Exception
+	 */
+	private function checkStratos(InputInterface $input, OutputInterface $output) {
+		$userId = $input->getOption('stratos');
+		if ($userId !== '') {
+			$user = $this->userManager->get($userId);
+			if ($user === null) {
+				throw new Exception('unknown user');
+			}
+
+			$wrapper = $this->pushService->testOnAccount($userId);
+
+			$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
+		}
+	}
 
 }
 

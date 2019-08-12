@@ -42,6 +42,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\PushService;
 
 
 class NoteInterface implements IActivityPubInterface {
@@ -52,6 +53,9 @@ class NoteInterface implements IActivityPubInterface {
 
 	/** @var CurlService */
 	private $curlService;
+
+	/** @var PushService */
+	private $pushService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -65,15 +69,17 @@ class NoteInterface implements IActivityPubInterface {
 	 *
 	 * @param StreamRequest $streamRequest
 	 * @param CurlService $curlService
+	 * @param PushService $pushService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamRequest $streamRequest, CurlService $curlService, ConfigService $configService,
-		MiscService $miscService
+		StreamRequest $streamRequest, CurlService $curlService, PushService $pushService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->curlService = $curlService;
+		$this->pushService = $pushService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -147,6 +153,7 @@ class NoteInterface implements IActivityPubInterface {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
 			$this->streamRequest->save($note);
+			$this->pushService->onNewStream($note);
 		}
 	}
 

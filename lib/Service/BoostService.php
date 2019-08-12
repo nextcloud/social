@@ -60,8 +60,8 @@ class BoostService {
 	/** @var StreamRequest */
 	private $streamRequest;
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var SignatureService */
 	private $signatureService;
@@ -83,7 +83,7 @@ class BoostService {
 	 * BoostService constructor.
 	 *
 	 * @param StreamRequest $streamRequest
-	 * @param NoteService $noteService
+	 * @param StreamService $streamService
 	 * @param SignatureService $signatureService
 	 * @param ActivityService $activityService
 	 * @param StreamActionService $streamActionService
@@ -91,12 +91,12 @@ class BoostService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamRequest $streamRequest, NoteService $noteService, SignatureService $signatureService,
+		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
 		StreamQueueService $streamQueueService, MiscService $miscService
 	) {
 		$this->streamRequest = $streamRequest;
-		$this->noteService = $noteService;
+		$this->streamService = $streamService;
 		$this->signatureService = $signatureService;
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
@@ -118,10 +118,10 @@ class BoostService {
 	public function create(Person $actor, string $postId, &$token = ''): ACore {
 		/** @var Announce $announce */
 		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
-		$this->noteService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
+		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
 		$announce->setActor($actor);
 
-		$note = $this->noteService->getNoteById($postId, true);
+		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
@@ -180,10 +180,10 @@ class BoostService {
 	 */
 	public function delete(Person $actor, string $postId, &$token = ''): ACore {
 		$undo = new Undo();
-		$this->noteService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
+		$this->streamService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);
 
-		$note = $this->noteService->getNoteById($postId, true);
+		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
