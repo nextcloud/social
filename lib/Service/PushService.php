@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TAsync;
+use OC\Stratos\Model\Helper\StratosEvent;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -39,6 +40,7 @@ use OCP\AppFramework\QueryException;
 use OCP\Stratos\Exceptions\StratosInstallException;
 use OCP\Stratos\IStratosManager;
 use OCP\Stratos\Model\IStratosWrapper;
+
 
 /**
  * Class PushService
@@ -86,6 +88,7 @@ class PushService {
 	 * @param Stream $stream
 	 *
 	 * @throws SocialAppConfigException
+	 * @throws StratosInstallException
 	 */
 	public function onNewStream(Stream $stream) {
 		// FIXME: remove in nc18
@@ -97,17 +100,30 @@ class PushService {
 			return;
 		}
 
+		$stratosHelper = $this->stratosManager->getStratosHelper();
+
 		$details = $this->detailsService->generateDetailsFromStream($stream);
 		$home = array_map(
 			function(Person $item): string {
 				return $item->getUserId();
 			}, $details->getHomeViewers()
 		);
+
+		$event = new StratosEvent('social', 'Social.timeline.home');
+		$event->addUsers($home);
+		$event->setPayloadSerializable($stream);
+		$stratosHelper->broadcastEvent($event);
+
 		$direct = array_map(
 			function(Person $item): string {
 				return $item->getUserId();
 			}, $details->getDirectViewers()
 		);
+
+		$event = new StratosEvent('social', 'Social.timeline.direct');
+		$event->addUsers($direct);
+		$event->setPayloadSerializable($stream);
+		$stratosHelper->broadcastEvent($event);
 	}
 
 
