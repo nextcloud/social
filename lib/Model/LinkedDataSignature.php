@@ -39,7 +39,7 @@ use OCA\Social\Service\SignatureService;
 
 
 /**
- * Class InstancePath
+ * Class LinkedDataSignature
  *
  * @package OCA\Social\Model
  */

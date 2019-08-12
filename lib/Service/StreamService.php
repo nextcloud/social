@@ -51,7 +51,8 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 
-class NoteService {
+
+class StreamService {
 
 
 	/** @var StreamRequest */
@@ -208,6 +209,32 @@ class NoteService {
 
 
 	/**
+	 * @param $stream
+	 */
+	public function detectType(Stream $stream) {
+		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getToAll())) {
+			$stream->setType(Stream::TYPE_PUBLIC);
+
+			return;
+		}
+
+		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getCcArray())) {
+			$stream->setType(Stream::TYPE_UNLISTED);
+
+			return;
+		}
+
+		try {
+			$actor = $this->cacheActorService->getFromId($stream->getAttributedTo());
+			echo json_encode($actor) . "\n";
+		} catch (Exception $e) {
+			return;
+		}
+
+	}
+
+
+	/**
 	 * @param Stream $stream
 	 * @param string $type
 	 * @param string $account
@@ -295,16 +322,17 @@ class NoteService {
 	 *
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
 	 * @throws MalformedArrayException
-	 * @throws StreamNotFoundException
 	 * @throws RedundancyLimitException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
-	 * @throws RequestResultNotJsonException
+	 * @throws StreamNotFoundException
+	 * @throws UnauthorizedFediverseException
 	 */
 	public function replyTo(Note $note, string $replyTo) {
 		if ($replyTo === '') {
@@ -346,7 +374,7 @@ class NoteService {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getNoteById(string $id, bool $asViewer = false): Stream {
+	public function getStreamById(string $id, bool $asViewer = false): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer);
 	}
 

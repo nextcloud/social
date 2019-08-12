@@ -48,7 +48,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\NoteService;
+use OCA\Social\Service\StreamService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCP\AppFramework\Controller;
@@ -92,8 +92,8 @@ class LocalController extends Controller {
 	/** @var PostService */
 	private $postService;
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var SearchService */
 	private $searchService;
@@ -122,7 +122,7 @@ class LocalController extends Controller {
 	 * @param HashtagService $hashtagService
 	 * @param FollowService $followService
 	 * @param PostService $postService
-	 * @param NoteService $noteService
+	 * @param StreamService $streamService
 	 * @param SearchService $searchService
 	 * @param BoostService $boostService
 	 * @param LikeService $likeService
@@ -133,7 +133,7 @@ class LocalController extends Controller {
 		IRequest $request, $userId, AccountService $accountService,
 		CacheActorService $cacheActorService, HashtagService $hashtagService,
 		FollowService $followService,
-		PostService $postService, NoteService $noteService, SearchService $searchService,
+		PostService $postService, StreamService $streamService, SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService
 	) {
@@ -143,7 +143,7 @@ class LocalController extends Controller {
 		$this->cacheActorService = $cacheActorService;
 		$this->hashtagService = $hashtagService;
 		$this->accountService = $accountService;
-		$this->noteService = $noteService;
+		$this->streamService = $streamService;
 		$this->searchService = $searchService;
 		$this->postService = $postService;
 		$this->followService = $followService;
@@ -202,7 +202,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			return $this->directSuccess($this->noteService->getNoteById($id, true));
+			return $this->directSuccess($this->streamService->getStreamById($id, true));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -220,13 +220,13 @@ class LocalController extends Controller {
 	 */
 	public function postDelete(string $id): DataResponse {
 		try {
-			$note = $this->noteService->getNoteById($id);
+			$note = $this->streamService->getStreamById($id);
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			if ($note->getAttributedTo() !== $actor->getId()) {
 				throw new InvalidResourceException('user have no rights');
 			}
 
-			$this->noteService->deleteLocalItem($note, Note::TYPE);
+			$this->streamService->deleteLocalItem($note, Note::TYPE);
 
 			return $this->success();
 		} catch (Exception $e) {
@@ -351,7 +351,7 @@ class LocalController extends Controller {
 	public function streamHome($since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamHome($this->viewer, $since, $limit);
+			$posts = $this->streamService->getStreamHome($this->viewer, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -372,7 +372,7 @@ class LocalController extends Controller {
 	public function streamNotifications($since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamNotifications($this->viewer, $since, $limit);
+			$posts = $this->streamService->getStreamNotifications($this->viewer, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -396,7 +396,7 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$account = $this->cacheActorService->getFromLocalAccount($username);
-			$posts = $this->noteService->getStreamAccount($account->getId(), $since, $limit);
+			$posts = $this->streamService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -417,7 +417,7 @@ class LocalController extends Controller {
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamDirect($this->viewer, $since, $limit);
+			$posts = $this->streamService->getStreamDirect($this->viewer, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -440,7 +440,7 @@ class LocalController extends Controller {
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamLocalTimeline($since, $limit);
+			$posts = $this->streamService->getStreamLocalTimeline($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -463,7 +463,7 @@ class LocalController extends Controller {
 	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamLocalTag($this->viewer, $hashtag, $since, $limit);
+			$posts = $this->streamService->getStreamLocalTag($this->viewer, $hashtag, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -485,7 +485,7 @@ class LocalController extends Controller {
 	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamGlobalTimeline($since, $limit);
+			$posts = $this->streamService->getStreamGlobalTimeline($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -507,7 +507,7 @@ class LocalController extends Controller {
 	public function streamLiked(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->noteService->getStreamLiked($since, $limit);
+			$posts = $this->streamService->getStreamLiked($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
@@ -886,7 +886,7 @@ class LocalController extends Controller {
 		try {
 			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
 
-			$this->noteService->setViewer($this->viewer);
+			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);
 			$this->cacheActorService->setViewer($this->viewer);
 		} catch (Exception $e) {
