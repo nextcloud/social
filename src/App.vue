@@ -210,6 +210,9 @@ export default {
 			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
 
+		if (OCA.Stratos && OCA.Stratos.isEnabled()) {
+			OCA.Stratos.addCallback(this.fromStratos, 'social')
+		}
 	},
 	methods: {
 		hideInfo() {
@@ -226,6 +229,20 @@ export default {
 		},
 		resetSearch() {
 			this.searchTerm = ''
+		},
+		fromStratos: function(data) {
+			// FIXME: might be better to use Timeline.type() ?
+			let timeline = 'home'
+			if (this.$route.params.type) {
+				timeline = this.$route.params.type
+			}
+
+			if (data.source === 'timeline.home' && timeline === 'home') {
+				this.$store.dispatch('addToTimeline', [data.payload])
+			}
+			if (data.source === 'timeline.direct' && timeline === 'direct') {
+				this.$store.dispatch('addToTimeline', [data.payload])
+			}
 		}
 	}
 }

@@ -153,7 +153,7 @@ class NoteInterface implements IActivityPubInterface {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
 			$this->streamRequest->save($note);
-			$this->pushService->onNewStream($note);
+			$this->pushService->onNewStream($note->getId());
 		}
 	}
 

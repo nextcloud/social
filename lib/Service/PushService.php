@@ -32,10 +32,11 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TAsync;
-use OC\Stratos\Model\Helper\StratosEvent;
+use OC;
+use OC\Stratos\Model\Helper\StratosCallback;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Stream;
 use OCP\AppFramework\QueryException;
 use OCP\Stratos\Exceptions\StratosInstallException;
 use OCP\Stratos\IStratosManager;
@@ -59,6 +60,9 @@ class PushService {
 	/** @var DetailsService */
 	private $detailsService;
 
+	/** @var StreamService */
+	private $streamService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -69,14 +73,17 @@ class PushService {
 	 * @param DetailsService $detailsService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(DetailsService $detailsService, MiscService $miscService) {
+	public function __construct(
+		DetailsService $detailsService, StreamService $streamService, MiscService $miscService
+	) {
 		$this->detailsService = $detailsService;
+		$this->streamService = $streamService;
 		$this->miscService = $miscService;
 
 		// FIX ME: nc18/stratos
 		if ($this->miscService->getNcVersion() >= 17) {
 			try {
-				$this->stratosManager = \OC::$server->query(IStratosManager::class);
+				$this->stratosManager = OC::$server->query(IStratosManager::class);
 			} catch (QueryException $e) {
 				$miscService->log('QueryException while loading StratosManager');
 			}
@@ -85,12 +92,12 @@ class PushService {
 
 
 	/**
-	 * @param Stream $stream
+	 * @param string $streamId
 	 *
 	 * @throws SocialAppConfigException
 	 * @throws StratosInstallException
 	 */
-	public function onNewStream(Stream $stream) {
+	public function onNewStream(string $streamId) {
 		// FIXME: remove in nc18
 		if ($this->miscService->getNcVersion() < 17) {
 			return;
@@ -100,8 +107,13 @@ class PushService {
 			return;
 		}
 
-		$stratosHelper = $this->stratosManager->getStratosHelper();
+		try {
+			$stream = $this->streamService->getStreamById($streamId);
+		} catch (StreamNotFoundException $e) {
+			return;
+		}
 
+		$stratosHelper = $this->stratosManager->getStratosHelper();
 		$details = $this->detailsService->generateDetailsFromStream($stream);
 		$home = array_map(
 			function(Person $item): string {
@@ -109,10 +121,10 @@ class PushService {
 			}, $details->getHomeViewers()
 		);
 
-		$event = new StratosEvent('social', 'Social.timeline.home');
-		$event->addUsers($home);
-		$event->setPayloadSerializable($stream);
-		$stratosHelper->broadcastEvent($event);
+		$callback = new StratosCallback('social', 'timeline.home');
+		$callback->setPayloadSerializable($stream);
+		$callback->addUsers($home);
+		$stratosHelper->toCallback($callback);
 
 		$direct = array_map(
 			function(Person $item): string {
@@ -120,10 +132,10 @@ class PushService {
 			}, $details->getDirectViewers()
 		);
 
-		$event = new StratosEvent('social', 'Social.timeline.direct');
-		$event->addUsers($direct);
-		$event->setPayloadSerializable($stream);
-		$stratosHelper->broadcastEvent($event);
+		$callback = new StratosCallback('social', 'timeline.direct');
+		$callback->addUsers($direct);
+		$callback->setPayloadSerializable($stream);
+		$stratosHelper->toCallback($callback);
 	}
 
 

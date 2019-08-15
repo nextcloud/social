@@ -88,7 +88,7 @@ class DetailsService {
 		$details = new StreamDetails($stream);
 		$this->setStreamViewers($details);
 
-		if ($stream->getType() === Stream::TYPE_PUBLIC) {
+		if ($stream->getTimeline() === Stream::TYPE_PUBLIC) {
 			if ($stream->isLocal()) {
 				$details->setPublic(true);
 			} else {

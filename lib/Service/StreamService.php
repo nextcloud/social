@@ -213,7 +213,7 @@ class StreamService {
 	 */
 	public function detectType(Stream $stream) {
 		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getToAll())) {
-			$stream->setType(Stream::TYPE_PUBLIC);
+			$stream->setTimeline(Stream::TYPE_PUBLIC);
 
 			return;
 		}

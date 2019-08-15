@@ -199,6 +199,9 @@ const actions = {
 			context.commit('addToTimeline', response.data.result)
 			return response.data
 		})
+	},
+	addToTimeline(context, data) {
+		context.commit('addToTimeline', data)
 	}
 }
 
