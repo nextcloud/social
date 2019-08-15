@@ -144,7 +144,7 @@ class ACore extends Item implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
-	public function gotObject(): bool {
+	public function hasObject(): bool {
 		if ($this->object === null) {
 			return false;
 		}
@@ -677,7 +677,7 @@ class ACore extends Item implements JsonSerializable {
 		$this->addEntry('published', $this->getPublished());
 		$this->addEntryArray('tag', $this->getTags());
 
-		if ($this->gotObject()) {
+		if ($this->hasObject()) {
 			$this->addEntryItem('object', $this->getObject());
 		} else {
 			$this->addEntry('object', $this->getObjectId());

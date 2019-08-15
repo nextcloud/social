@@ -64,7 +64,7 @@ class DeleteInterface implements IActivityPubInterface {
 	public function processIncomingRequest(ACore $item) {
 		$item->checkOrigin($item->getId());
 
-		if (!$item->gotObject()) {
+		if (!$item->hasObject()) {
 
 			if ($item->getObjectId() !== '') {
 				$item->checkOrigin($item->getObjectId());
