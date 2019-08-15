@@ -233,7 +233,9 @@ export default {
 		fromStratos: function(data) {
 			// FIXME: might be better to use Timeline.type() ?
 			let timeline = 'home'
-			if (this.$route.params.type) {
+			if (this.$route.name === 'tags') {
+				timeline = 'tags'
+			} else if (this.$route.params.type) {
 				timeline = this.$route.params.type
 			}
 
