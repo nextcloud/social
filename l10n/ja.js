@@ -7,7 +7,7 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Socialが適切に設定されるためには、.well-knownの自動検出が必要です。 Nextcloudがドメインのルートにインストールされていない場合、Nextcloudがこれを自動的に設定できないことがよくあります。 Socialを使用するには、このNextcloudインスタンスの管理者は手動で.well-knownリダイレクトを設定する必要があります。",
     "Open documentation" : "ドキュメントを開く",
     "Social app setup" : "Socialアプリのセットアップ",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPubでは、エントリを一意にするために固定のURLが必要です。 \nこれは、Socialアプリをリセットせずに後で変更することはできません。",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPubでは、エントリを一意にするために固定のURLが必要です。 これは、Socialアプリをリセットせずに後で変更することはできません。",
     "ActivityPub URL base" : "ActivityPub URLベース",
     "Finish setup" : "セットアップを終了",
     "The Social app needs to be set up by the server administrator." : "Socialアプリはサーバー管理者が設定する必要があります。",
