@@ -257,12 +257,11 @@ class SignatureService {
 		}
 
 		try {
-			$origin = $this->checkRequestSignature($request, $data);
+			return $this->checkRequestSignature($request, $data);
 		} catch (RequestContentException $e) {
 			throw new SignatureIsGoneException();
+		} catch (SignatureException $e) {
 		}
-
-		return $origin;
 	}
 
 
@@ -360,9 +359,9 @@ class SignatureService {
 	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
-	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
+	 * @throws SignatureException
 	 */
 	private function checkRequestSignature(IRequest $request, string $data): string {
 		$signatureHeader = $request->getHeader('Signature');
@@ -381,7 +380,29 @@ class SignatureService {
 		// TODO: check digest
 		//	$this->generateDigest($data);
 
-		$publicKey = $this->retrieveKey($keyId);
+		try {
+			$publicKey = $this->retrieveKey($keyId);
+			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
+		} catch (SignatureException $e) {
+			$publicKey = $this->retrieveKey($keyId, true);
+			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
+		}
+
+		return $origin;
+	}
+
+
+	/**
+	 * @param string $publicKey
+	 * @param array $sign
+	 * @param string $estimated
+	 * @param bool $signed
+	 *
+	 * @throws SignatureException
+	 */
+	private function checkRequestSignatureUsingPublicKey(
+		string $publicKey, array $sign, string $estimated, bool $signed
+	) {
 		$algorithm = $this->getAlgorithmFromSignature($sign);
 		if ($publicKey === ''
 			|| openssl_verify($estimated, $signed, $publicKey, $algorithm) !== 1) {
@@ -390,8 +411,6 @@ class SignatureService {
 				. ' - algo: ' . $algorithm . ' - estimated: ' . $estimated
 			);
 		}
-
-		return $origin;
 	}
 
 
