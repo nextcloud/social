@@ -7,20 +7,25 @@
 				:disable-tooltip="true" />
 		</div>
 		<div class="post-content">
-			<div class="post-author-wrapper">
-				<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-					<span class="post-author">
-						{{ userDisplayName(item.actor_info) }}
-					</span>
-					<span class="post-author-id">
-						@{{ item.actor_info.account }}
-					</span>
-				</router-link>
-				<a v-else :href="item.attributedTo">
-					<span class="post-author-id">
-						{{ item.attributedTo }}
-					</span>
-				</a>
+			<div class="post-header">
+				<div class="post-author-wrapper">
+					<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
+						<span class="post-author">
+							{{ userDisplayName(item.actor_info) }}
+						</span>
+						<span class="post-author-id">
+							@{{ item.actor_info.account }}
+						</span>
+					</router-link>
+					<a v-else :href="item.attributedTo">
+						<span class="post-author-id">
+							{{ item.attributedTo }}
+						</span>
+					</a>
+				</div>
+				<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
+					{{ relativeTimestamp }}
+				</div>
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div class="post-message" v-html="formatedMessage" />
@@ -39,11 +44,6 @@
 						<popover-menu :menu="popoverMenu" />
 					</div>
 				</div>
-			</div>
-		</div>
-		<div>
-			<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
-				{{ relativeTimestamp }}
 			</div>
 		</div>
 	</div>
@@ -244,6 +244,12 @@ export default {
 
 	.post-content {
 		flex-grow: 1;
+	}
+
+	.post-header {
+		display: flex;
+		flex-direction: row;
+		justify-content: space-between;
 	}
 
 	.post-timestamp {
