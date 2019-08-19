@@ -54,7 +54,7 @@ import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment'
-import linkifyHtml from 'linkifyjs/html';
+import linkifyHtml from 'linkifyjs/html'
 
 export default {
 	name: 'TimelinePost',
@@ -64,17 +64,23 @@ export default {
 	},
 	mixins: [popoverMenu, currentUser],
 	props: {
-		item: { type: Object, default: () => {} },
-		parentAnnounce: { type: Object, default: () => {} }
+		item: {
+			type: Object,
+			default: () => {
+			}
+		},
+		parentAnnounce: {
+			type: Object,
+			default: () => {
+			}
+		}
 	},
 	data() {
-		return {
-		}
+		return {}
 	},
 	computed: {
 		popoverMenu() {
-			var actions = [
-			]
+			var actions = []
 			if (this.item.actor_info.account === this.cloudId) {
 				actions.push(
 					{
@@ -105,44 +111,44 @@ export default {
 			// Render newlines
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 
-                        // Create links for mentions
+			// Create links for mentions
 			if (typeof this.item.source !== 'undefined') {
-	                        let source = JSON.parse(this.item.source)
-        	                if (typeof source.tag !== 'undefined') {
-                	                source.tag.forEach(tag => {
-                        	                if (tag.type === 'Mention') {
+				let source = JSON.parse(this.item.source)
+				if (typeof source.tag !== 'undefined') {
+					source.tag.forEach(tag => {
+						if (tag.type === 'Mention') {
 							let shortname = tag.name.match(/^@[^@]+/)
-                                        	        let patt = new RegExp(shortname[0], "g")
-                                                	message = message.replace(patt, function(matched) {
-	                                                        var a = '<a href="' + OC.generateUrl('/apps/social/' + tag.name) + '">' + matched + '</a>'
-        	                                                return a
-                	                                })
+							let patt = new RegExp(shortname[0], 'g')
+							message = message.replace(patt, function(matched) {
+								var a = '<a href="' + OC.generateUrl('/apps/social/' + tag.name) + '">' + matched + '</a>'
+								return a
+							})
 						}
-                                	})
-	                        }
-			} else if ( this.item.local === true ) {
+					})
+				}
+			} else if (this.item.local === true) {
 				// For local posts, we don't have a source attribute, so we use this slightly less robust method to create links for mentions
 				// It is less robust because mentions not followed by a space will be identified with the text following them.
 				// Example: In message "Hello @cyrille@nextcloud.bollu.be.How are u?", the identified mention will be "@cyrille@nextcloud.bollu.be.How"
 				//          rather than "@cyrille@bollu.be"
-                               	message = message.replace(/@[^@]+@\S+/g, function(matched) {
+				message = message.replace(/@[^@]+@\S+/g, function(matched) {
 					var a = '<a href="' + OC.generateUrl('/apps/social/' + matched) + '">' + matched + '</a>'
 					return a
 				})
 			}
 
-                        // Create links for hashtags
-			// we cannot use the same method as for mentions as there may be locale issues 
-                        if (this.item.hashtags !== undefined) {
-                                message = this.mangleHashtags(message)
-                        }
+			// Create links for hashtags
+			// we cannot use the same method as for mentions as there may be locale issues
+			if (this.item.hashtags !== undefined) {
+				message = this.mangleHashtags(message)
+			}
 
 			// Render emoji's
 			message = this.$twemoji.parse(message)
 
 			// Create links for URL's
 			// ignore <a> and <img> tags as they have been created (and properly formated) earlier in this function
-			message = linkifyHtml( message, { ignoreTags: [ 'a', 'img' ] })
+			message = linkifyHtml(message, { ignoreTags: ['a', 'img'] })
 
 			return message
 		},
@@ -244,6 +250,7 @@ export default {
 			height: 34px;
 			display: inline-block;
 		}
+
 		.icon-reply,
 		.icon-boost,
 		.icon-boosted,
@@ -254,10 +261,12 @@ export default {
 			width: 44px;
 			height: 34px;
 			opacity: .5;
+
 			&:hover, &:focus {
 				opacity: 1;
 			}
 		}
+
 		.icon-boosted {
 			opacity: 1;
 		}
@@ -266,6 +275,7 @@ export default {
 	span {
 		/* opacity: 0.5; */
 	}
+
 	.entry-content {
 		display: flex;
 	}
