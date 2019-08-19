@@ -51,13 +51,10 @@
 
 <script>
 import Avatar from 'nextcloud-vue/dist/Components/Avatar'
-import * as linkify from 'linkifyjs'
-import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment'
-
-pluginMention(linkify)
+import linkifyHtml from 'linkifyjs/html';
 
 export default {
 	name: 'TimelinePost',
@@ -105,15 +102,8 @@ export default {
 				return ''
 			}
 
+			// Render newlines
 			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
-
-			message = message.linkify({
-				formatHref: {
-					mention: function(href) {
-						return OC.generateUrl('/apps/social/@' + href.substring(1))
-					}
-				}
-			})
 
                         // Create links for mentions
 			if (typeof this.item.source !== 'undefined') {
@@ -138,7 +128,12 @@ export default {
                                 message = this.mangleHashtags(message)
                         }
 
+			// Render emoji's
 			message = this.$twemoji.parse(message)
+
+			// Create links for URL's
+			// ignore <a> and <img> tags as they have been created (and properly formated) earlier in this function
+			message = linkifyHtml( message, { ignoreTags: [ 'a', 'img' ] })
 
 			return message
 		},
