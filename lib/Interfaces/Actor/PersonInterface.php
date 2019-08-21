@@ -185,7 +185,7 @@ class PersonInterface implements IActivityPubInterface {
 	 */
 	public function delete(ACore $item) {
 		/** @var Person $item */
-		$this->cacheActorsRequest->deleteFromId($item->getId());
+		$this->cacheActorsRequest->deleteCacheById($item->getId());
 		$this->streamRequest->deleteByAuthor($item->getId());
 		$this->followsRequest->deleteRelatedId($item->getId());
 	}

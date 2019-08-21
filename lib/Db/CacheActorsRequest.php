@@ -301,13 +301,12 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 *
 	 * @param string $id
 	 */
-	public function deleteFromId(string $id) {
+	public function deleteCacheById(string $id) {
 		$qb = $this->getCacheActorsDeleteSql();
 		$this->limitToIdString($qb, $id);
 
 		$qb->execute();
 	}
-
 
 }
 
