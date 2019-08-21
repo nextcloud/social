@@ -93,6 +93,23 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
+	 * @return Follow[]
+	 */
+	public function getAll(): array {
+		$qb = $this->getFollowsSelectSql();
+
+		$follows = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$follows[] = $this->parseFollowsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $follows;
+	}
+
+
+	/**
 	 * @param string $actorId
 	 * @param string $remoteActorId
 	 *
@@ -293,6 +310,15 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->execute();
 	}
 
+	/**
+	 * @param string $followId
+	 */
+	public function deleteFollowById(string $followId) {
+		$qb = $this->getFollowsDeleteSql();
+		$this->limitToIdString($qb, $followId);
+
+		$qb->execute();
+	}
 
 }
 

@@ -196,6 +196,27 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @return Stream[]
+	 */
+	public function getAll(): array {
+		$qb = $this->getStreamSelectSql();
+
+		$streams = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			try {
+				$streams[] = $this->parseStreamSelectSql($data);
+			} catch (Exception $e) {
+			}
+		}
+		$cursor->closeCursor();
+
+		return $streams;
+
+	}
+
+
+	/**
 	 * @param string $id
 	 * @param bool $asViewer
 	 *
@@ -518,7 +539,8 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
+	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true
+	): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
