@@ -323,11 +323,6 @@
 		vertical-align: middle;
 		margin-top: -1px;
 	}
-	img.emoji {
-		margin: 3px;
-		width: 16px;
-		vertical-align: text-bottom;
-	}
 	.hashtag {
 		text-decoration: underline;
 	}
