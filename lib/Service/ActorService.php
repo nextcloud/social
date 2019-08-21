@@ -131,7 +131,7 @@ class ActorService {
 	 * @param Person $actor
 	 */
 	private function cacheDocumentIfNeeded(Person $actor) {
-		if ($actor->gotIcon()) {
+		if ($actor->hasIcon()) {
 			$icon = $actor->getIcon();
 			try {
 				$cache = $this->cacheDocumentsRequest->getByUrl($icon->getUrl());

@@ -102,7 +102,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		if ($actor->gotIcon()) {
+		if ($actor->hasIcon()) {
 			$iconId = $actor->getIcon()
 							->getId();
 		} else {
@@ -160,7 +160,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		if ($actor->gotIcon()) {
+		if ($actor->hasIcon()) {
 			$iconId = $actor->getIcon()
 							->getId();
 		} else {
