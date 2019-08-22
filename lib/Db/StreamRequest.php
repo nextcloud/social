@@ -196,6 +196,32 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $type
+	 *
+	 * @return Stream[]
+	 */
+	public function getAll(string $type = ''): array {
+		$qb = $this->getStreamSelectSql();
+
+		if ($type !== '') {
+			$this->limitToType($qb, $type);
+		}
+
+		$streams = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			try {
+				$streams[] = $this->parseStreamSelectSql($data);
+			} catch (Exception $e) {
+			}
+		}
+		$cursor->closeCursor();
+
+		return $streams;
+	}
+
+
+	/**
 	 * @param string $id
 	 * @param bool $asViewer
 	 *
@@ -614,10 +640,10 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param string $id
 	 * @param string $type
 	 */
-	public function deleteStreamById(string $id, string $type = '') {
+	public function deleteById(string $id, string $type = '') {
 		$qb = $this->getStreamDeleteSql();
-
 		$this->limitToIdString($qb, $id);
+
 		if ($type !== '') {
 			$this->limitToType($qb, $type);
 		}

@@ -38,6 +38,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
@@ -140,6 +141,11 @@ class NoteInterface implements IActivityPubInterface {
 			$item->setActivityId($activity->getId());
 			$this->save($item);
 		}
+
+		if ($activity->getType() === Delete::TYPE) {
+			$activity->checkOrigin($item->getId());
+			$this->delete($item);
+		}
 	}
 
 
@@ -167,14 +173,10 @@ class NoteInterface implements IActivityPubInterface {
 
 	/**
 	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
 	 */
 	public function delete(ACore $item) {
-		$item->checkOrigin(($item->getId()));
-
 		/** @var Note $item */
-		$this->streamRequest->deleteStreamById($item->getId(), Note::TYPE);
+		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
 	}
 
 

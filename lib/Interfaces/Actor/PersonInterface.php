@@ -33,6 +33,7 @@ namespace OCA\Social\Interfaces\Actor;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -63,6 +64,9 @@ class PersonInterface implements IActivityPubInterface {
 	/** @var StreamRequest */
 	private $streamRequest;
 
+	/** @var FollowsRequest */
+	private $followsRequest;
+
 	/** @var ActorService */
 	private $actorService;
 
@@ -78,16 +82,19 @@ class PersonInterface implements IActivityPubInterface {
 	 *
 	 * @param CacheActorsRequest $cacheActorsRequest
 	 * @param StreamRequest $streamRequest
+	 * @param FollowsRequest $followsRequest
 	 * @param ActorService $actorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
-		ActorService $actorService, ConfigService $configService, MiscService $miscService
+		FollowsRequest $followsRequest, ActorService $actorService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->streamRequest = $streamRequest;
+		$this->followsRequest = $followsRequest;
 		$this->actorService = $actorService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -178,8 +185,9 @@ class PersonInterface implements IActivityPubInterface {
 	 */
 	public function delete(ACore $item) {
 		/** @var Person $item */
-		$this->cacheActorsRequest->deleteFromId($item->getId());
+		$this->cacheActorsRequest->deleteCacheById($item->getId());
 		$this->streamRequest->deleteByAuthor($item->getId());
+		$this->followsRequest->deleteRelatedId($item->getId());
 	}
 
 

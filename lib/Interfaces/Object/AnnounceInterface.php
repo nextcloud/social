@@ -277,7 +277,7 @@ class AnnounceInterface implements IActivityPubInterface {
 			$knownItem->removeCc($actor->getFollowers());
 
 			if (empty($knownItem->getCcArray())) {
-				$this->streamRequest->deleteStreamById($knownItem->getId(), Announce::TYPE);
+				$this->streamRequest->deleteById($knownItem->getId(), Announce::TYPE);
 			} else {
 				$this->streamRequest->update($knownItem);
 			}

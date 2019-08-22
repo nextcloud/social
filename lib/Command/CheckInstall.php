@@ -31,19 +31,22 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
 use OCP\IUserManager;
-use OCP\Push\Exceptions\PushInstallException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 
 class CheckInstall extends Base {
+
+
+	use TArrayTools;
 
 
 	/** @var IUserManager */
@@ -86,7 +89,8 @@ class CheckInstall extends Base {
 		parent::configure();
 		$this->setName('social:check:install')
 			 ->addOption(
-				 'push', '', InputOption::VALUE_REQUIRED, 'a local account used to test integration to Nextcloud Push',
+				 'push', '', InputOption::VALUE_REQUIRED,
+				 'a local account used to test integration to Nextcloud Push',
 				 ''
 			 )
 			 ->setDescription('Check the integrity of the installation');
@@ -100,9 +104,14 @@ class CheckInstall extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-		$this->checkService->checkInstallationStatus();
+		$result = $this->checkService->checkInstallationStatus();
 
-		$this->checkPushApp($input, $output);
+		if ($this->checkPushApp($input, $output)) {
+			return;
+		}
+
+		$output->writeln('- ' . $this->getInt('invalidFollowers', $result, 0) . ' invalid followers removed');
+		$output->writeln('- ' . $this->getInt('invalidNotes', $result, 0) . ' invalid notes removed');
 	}
 
 
@@ -110,20 +119,25 @@ class CheckInstall extends Base {
 	 * @param InputInterface $input
 	 * @param OutputInterface $output
 	 *
+	 * @return bool
 	 * @throws Exception
 	 */
-	private function checkPushApp(InputInterface $input, OutputInterface $output) {
+	private function checkPushApp(InputInterface $input, OutputInterface $output): bool {
 		$userId = $input->getOption('push');
-		if ($userId !== '') {
-			$user = $this->userManager->get($userId);
-			if ($user === null) {
-				throw new Exception('unknown user');
-			}
-
-			$wrapper = $this->pushService->testOnAccount($userId);
-
-			$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
+		if ($userId === '') {
+			return false;
 		}
+
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			throw new Exception('unknown user');
+		}
+
+		$wrapper = $this->pushService->testOnAccount($userId);
+
+		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
+
+		return true;
 	}
 
 }

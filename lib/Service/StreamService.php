@@ -363,7 +363,7 @@ class StreamService {
 
 		$item->setActorId($item->getAttributedTo());
 		$this->activityService->deleteActivity($item);
-		$this->streamRequest->deleteStreamById($item->getId(), $type);
+		$this->streamRequest->deleteById($item->getId(), $type);
 	}
 
 

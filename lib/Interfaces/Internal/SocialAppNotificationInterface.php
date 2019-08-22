@@ -157,7 +157,7 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 	 */
 	public function delete(ACore $item) {
 		/** @var Stream $item */
-		$this->streamRequest->deleteStreamById($item->getId(), SocialAppNotification::TYPE);
+		$this->streamRequest->deleteById($item->getId(), SocialAppNotification::TYPE);
 	}
 
 

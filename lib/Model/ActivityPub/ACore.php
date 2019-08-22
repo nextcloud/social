@@ -171,6 +171,18 @@ class ACore extends Item implements JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * @return string
+	 */
+	public function getObjectId(): string {
+		if ($this->hasObject()) {
+			return $this->getObject()
+						->getId();
+		}
+
+		return parent::getObjectId();
+	}
+
 
 	/**
 	 * @param bool $filter - will remove general url like Public
@@ -191,7 +203,7 @@ class ACore extends Item implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
-	public function gotIcon(): bool {
+	public function hasIcon(): bool {
 		if ($this->icon === null) {
 			return false;
 		}
@@ -306,7 +318,7 @@ class ACore extends Item implements JsonSerializable {
 		$origin = $this->getRoot()
 					   ->getOrigin();
 
-		if ($origin === $host) {
+		if ($id !== '' && $origin === $host && $host !== '') {
 			return;
 		}
 
@@ -684,7 +696,7 @@ class ACore extends Item implements JsonSerializable {
 		}
 
 		// TODO - moving the $this->icon to Model/Person ?
-		if ($this->gotIcon()) {
+		if ($this->hasIcon()) {
 			$this->addEntryItem('icon', $this->getIcon());
 		}
 

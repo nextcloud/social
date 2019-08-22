@@ -325,11 +325,11 @@ class LocalController extends Controller {
 	public function postUnlike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
-			$announce = $this->likeService->delete($this->viewer, $postId, $token);
+			$like = $this->likeService->delete($this->viewer, $postId, $token);
 
 			return $this->success(
 				[
-					'like'  => $announce,
+					'like'  => $like,
 					'token' => $token
 				]
 			);
@@ -728,7 +728,7 @@ class LocalController extends Controller {
 	public function globalActorAvatar(string $id): Response {
 		try {
 			$actor = $this->cacheActorService->getFromId($id);
-			if ($actor->gotIcon()) {
+			if ($actor->hasIcon()) {
 				$avatar = $actor->getIcon();
 				$mime = '';
 				$document = $this->documentService->getFromCache($avatar->getId(), $mime);

@@ -73,7 +73,7 @@ class CheckInstallation implements IRepairStep {
 	 * @param IOutput $output
 	 */
 	public function run(IOutput $output) {
-		$this->checkService->checkInstallationStatus();
+		$this->checkService->checkInstallationStatus(true);
 	}
 
 

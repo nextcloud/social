@@ -63,26 +63,19 @@ class DeleteInterface implements IActivityPubInterface {
 	 */
 	public function processIncomingRequest(ACore $item) {
 		$item->checkOrigin($item->getId());
+		$item->checkOrigin($item->getObjectId());
 
 		if (!$item->hasObject()) {
+			$types = ['Note', 'Person'];
+			foreach ($types as $type) {
+				try {
+					$interface = AP::$activityPub->getInterfaceFromType($type);
+					$object = $interface->getItemById($item->getObjectId());
+					$interface->delete($object);
 
-			if ($item->getObjectId() !== '') {
-				$item->checkOrigin($item->getObjectId());
-
-				// TODO: migrate to activity() !!
-				$types = ['Note', 'Person'];
-				foreach ($types as $type) {
-					try {
-						$item->checkOrigin($item->getObjectId());
-						$interface = AP::$activityPub->getInterfaceFromType($type);
-						$object = $interface->getItemById($item->getObjectId());
-						$interface->delete($object);
-
-						return;
-					} catch (InvalidOriginException $e) {
-					} catch (ItemNotFoundException $e) {
-					} catch (ItemUnknownException $e) {
-					}
+					return;
+				} catch (ItemNotFoundException $e) {
+				} catch (ItemUnknownException $e) {
 				}
 			}
 
@@ -91,11 +84,8 @@ class DeleteInterface implements IActivityPubInterface {
 
 		$object = $item->getObject();
 		try {
-			$item->checkOrigin($object->getId());
-			// FIXME: needed ? better use activity()
-//			$interface = AP::$activityPub->getInterfaceForItem($object);
-//			$interface->delete($object);
-		} catch (InvalidOriginException $e) {
+			$interface = AP::$activityPub->getInterfaceForItem($object);
+			$interface->activity($item, $object);
 		} catch (ItemUnknownException $e) {
 		}
 	}

@@ -28,8 +28,12 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;
@@ -68,11 +72,20 @@ class CheckService {
 	/** @var IURLGenerator */
 	private $urlGenerator;
 
+	/** @var FollowsRequest */
+	private $followRequest;
+
+	/** @var CacheActorsRequest */
+	private $cacheActorsRequest;
+
+	/** @var StreamRequest */
+	private $streamRequest;
+
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var FollowsRequest */
-	private $followRequest;
+	/** @var MiscService */
+	private $miscService;
 
 
 	/**
@@ -84,11 +97,17 @@ class CheckService {
 	 * @param IRequest $request
 	 * @param IURLGenerator $urlGenerator
 	 * @param FollowsRequest $followRequest
+	 * @param CacheActorsRequest $cacheActorsRequest
+	 * @param StreamRequest $streamRequest
 	 * @param ConfigService $configService
+	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		ICache $cache, IConfig $config, IClientService $clientService, IRequest $request,
-		IURLGenerator $urlGenerator, FollowsRequest $followRequest, ConfigService $configService
+		IURLGenerator $urlGenerator, FollowsRequest $followRequest,
+		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
+		ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->cache = $cache;
 		$this->config = $config;
@@ -96,7 +115,10 @@ class CheckService {
 		$this->request = $request;
 		$this->urlGenerator = $urlGenerator;
 		$this->followRequest = $followRequest;
+		$this->cacheActorsRequest = $cacheActorsRequest;
+		$this->streamRequest = $streamRequest;
 		$this->configService = $configService;
+		$this->miscService = $miscService;
 	}
 
 
@@ -151,12 +173,24 @@ class CheckService {
 
 
 	/**
+	 * @param bool $light
 	 *
+	 * @return array
 	 */
-	public function checkInstallationStatus() {
+	public function checkInstallationStatus(bool $light = false): array {
 		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
+
+		if (!$light) {
+			$result = [
+				'invalidFollows' => $this->removeInvalidFollows(),
+				'invalidNotes'   => $this->removeInvalidNotes()
+			];
+		}
+
 		$this->checkStatusTableFollows();
+
+		return $result;
 	}
 
 
@@ -176,6 +210,50 @@ class CheckService {
 		$follow->setFollowId($this->uuid());
 
 		$this->followRequest->save($follow);
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function removeInvalidFollows(): int {
+		$count = 0;
+		$follows = $this->followRequest->getAll();
+		foreach ($follows as $follow) {
+			try {
+				$this->cacheActorsRequest->getFromId($follow->getActorId());
+				$this->cacheActorsRequest->getFromId($follow->getObjectId());
+			} catch (CacheActorDoesNotExistException $e) {
+				$this->followRequest->deleteById($follow->getId());
+				$count++;
+			}
+		}
+
+		$this->miscService->log('removeInvalidFollows removed ' . $count . ' entries', 1);
+
+		return $count;
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function removeInvalidNotes(): int {
+		$count = 0;
+		$streams = $this->streamRequest->getAll(Note::TYPE);
+		foreach ($streams as $stream) {
+			try {
+				// Check if it's enough for Note, Announce, ...
+				$this->cacheActorsRequest->getFromId($stream->getAttributedTo());
+			} catch (CacheActorDoesNotExistException $e) {
+				$this->streamRequest->deleteById($stream->getId(), Note::TYPE);
+				$count++;
+			}
+		}
+
+		$this->miscService->log('removeInvalidNotes removed ' . $count . ' entries', 1);
+
+		return $count;
 	}
 
 
