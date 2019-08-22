@@ -210,8 +210,8 @@ export default {
 			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
 
-		if (OCA.Stratos && OCA.Stratos.isEnabled()) {
-			OCA.Stratos.addCallback(this.fromStratos, 'social')
+		if (OCA.Push && OCA.Push.isEnabled()) {
+			OCA.Push.addCallback(this.fromPushApp, 'social')
 		}
 	},
 	methods: {
@@ -230,7 +230,7 @@ export default {
 		resetSearch() {
 			this.searchTerm = ''
 		},
-		fromStratos: function(data) {
+		fromPushApp: function(data) {
 			// FIXME: might be better to use Timeline.type() ?
 			let timeline = 'home'
 			if (this.$route.name === 'tags') {

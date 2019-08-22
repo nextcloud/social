@@ -33,14 +33,14 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TAsync;
 use OC;
-use OC\Stratos\Model\Helper\StratosCallback;
+use OC\Push\Model\Helper\PushCallback;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\AppFramework\QueryException;
-use OCP\Stratos\Exceptions\StratosInstallException;
-use OCP\Stratos\IStratosManager;
-use OCP\Stratos\Model\IStratosWrapper;
+use OCP\Push\Exceptions\PushInstallException;
+use OCP\Push\IPushManager;
+use OCP\Push\Model\IPushWrapper;
 
 
 /**
@@ -54,8 +54,8 @@ class PushService {
 	use TAsync;
 
 
-	/** @var IStratosManager */
-	private $stratosManager;
+	/** @var IPushManager */
+	private $pushManager;
 
 	/** @var DetailsService */
 	private $detailsService;
@@ -68,9 +68,10 @@ class PushService {
 
 
 	/**
-	 * DetailsService constructor.
+	 * PushService constructor.
 	 *
 	 * @param DetailsService $detailsService
+	 * @param StreamService $streamService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
@@ -80,12 +81,12 @@ class PushService {
 		$this->streamService = $streamService;
 		$this->miscService = $miscService;
 
-		// FIX ME: nc18/stratos
+		// FIX ME: nc18/push
 		if ($this->miscService->getNcVersion() >= 17) {
 			try {
-				$this->stratosManager = OC::$server->query(IStratosManager::class);
+				$this->pushManager = OC::$server->query(IPushManager::class);
 			} catch (QueryException $e) {
-				$miscService->log('QueryException while loading StratosManager');
+				$miscService->log('QueryException while loading IPushManager - ' . $e->getMessage());
 			}
 		}
 	}
@@ -95,7 +96,7 @@ class PushService {
 	 * @param string $streamId
 	 *
 	 * @throws SocialAppConfigException
-	 * @throws StratosInstallException
+	 * @throws PushInstallException
 	 */
 	public function onNewStream(string $streamId) {
 		// FIXME: remove in nc18
@@ -103,7 +104,7 @@ class PushService {
 			return;
 		}
 
-		if (!$this->stratosManager->isAvailable()) {
+		if (!$this->pushManager->isAvailable()) {
 			return;
 		}
 
@@ -113,7 +114,7 @@ class PushService {
 			return;
 		}
 
-		$stratosHelper = $this->stratosManager->getStratosHelper();
+		$pushHelper = $this->pushManager->getPushHelper();
 		$details = $this->detailsService->generateDetailsFromStream($stream);
 		$home = array_map(
 			function(Person $item): string {
@@ -121,10 +122,10 @@ class PushService {
 			}, $details->getHomeViewers()
 		);
 
-		$callback = new StratosCallback('social', 'timeline.home');
+		$callback = new PushCallback('social', 'timeline.home');
 		$callback->setPayloadSerializable($stream);
 		$callback->addUsers($home);
-		$stratosHelper->toCallback($callback);
+		$pushHelper->toCallback($callback);
 
 		$direct = array_map(
 			function(Person $item): string {
@@ -132,23 +133,23 @@ class PushService {
 			}, $details->getDirectViewers()
 		);
 
-		$callback = new StratosCallback('social', 'timeline.direct');
+		$callback = new PushCallback('social', 'timeline.direct');
 		$callback->addUsers($direct);
 		$callback->setPayloadSerializable($stream);
-		$stratosHelper->toCallback($callback);
+		$pushHelper->toCallback($callback);
 	}
 
 
 	/**
 	 * @param $userId
 	 *
-	 * @return IStratosWrapper
-	 * @throws StratosInstallException
+	 * @return IPushWrapper
+	 * @throws PushInstallException
 	 */
-	public function testOnAccount(string $userId): IStratosWrapper {
-		$stratosHelper = $this->stratosManager->getStratosHelper();
+	public function testOnAccount(string $userId): IPushWrapper {
+		$pushHelper = $this->pushManager->getPushHelper();
 
-		return $stratosHelper->test($userId);
+		return $pushHelper->test($userId);
 	}
 
 }

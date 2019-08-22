@@ -37,7 +37,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
 use OCP\IUserManager;
-use OCP\Stratos\Exceptions\StratosInstallException;
+use OCP\Push\Exceptions\PushInstallException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -86,7 +86,7 @@ class CheckInstall extends Base {
 		parent::configure();
 		$this->setName('social:check:install')
 			 ->addOption(
-				 'stratos', '', InputOption::VALUE_REQUIRED, 'a local account used to test Stratos',
+				 'push', '', InputOption::VALUE_REQUIRED, 'a local account used to test integration to Nextcloud Push',
 				 ''
 			 )
 			 ->setDescription('Check the integrity of the installation');
@@ -102,7 +102,7 @@ class CheckInstall extends Base {
 	protected function execute(InputInterface $input, OutputInterface $output) {
 		$this->checkService->checkInstallationStatus();
 
-		$this->checkStratos($input, $output);
+		$this->checkPushApp($input, $output);
 	}
 
 
@@ -112,8 +112,8 @@ class CheckInstall extends Base {
 	 *
 	 * @throws Exception
 	 */
-	private function checkStratos(InputInterface $input, OutputInterface $output) {
-		$userId = $input->getOption('stratos');
+	private function checkPushApp(InputInterface $input, OutputInterface $output) {
+		$userId = $input->getOption('push');
 		if ($userId !== '') {
 			$user = $this->userManager->get($userId);
 			if ($user === null) {
