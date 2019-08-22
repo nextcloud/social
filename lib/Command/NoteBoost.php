@@ -36,7 +36,7 @@ use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\NoteService;
+use OCA\Social\Service\StreamService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -50,8 +50,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class NoteBoost extends Base {
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -67,17 +67,17 @@ class NoteBoost extends Base {
 	 * NoteBoost constructor.
 	 *
 	 * @param AccountService $accountService
-	 * @param NoteService $noteService
+	 * @param StreamService $streamService
 	 * @param BoostService $boostService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $accountService, NoteService $noteService, BoostService $boostService,
+		AccountService $accountService, StreamService $streamService, BoostService $boostService,
 		MiscService $miscService
 	) {
 		parent::__construct();
 
-		$this->noteService = $noteService;
+		$this->streamService = $streamService;
 		$this->boostService = $boostService;
 		$this->accountService = $accountService;
 		$this->miscService = $miscService;
@@ -108,7 +108,7 @@ class NoteBoost extends Base {
 		$noteId = $input->getArgument('note_id');
 
 		$actor = $this->accountService->getActorFromUserId($userId);
-		$this->noteService->setViewer($actor);
+		$this->streamService->setViewer($actor);
 
 		if (!$input->getOption('unboost')) {
 			$activity = $this->boostService->create($actor, $noteId, $token);

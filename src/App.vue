@@ -210,6 +210,9 @@ export default {
 			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
 
+		if (OCA.Push && OCA.Push.isEnabled()) {
+			OCA.Push.addCallback(this.fromPushApp, 'social')
+		}
 	},
 	methods: {
 		hideInfo() {
@@ -226,6 +229,22 @@ export default {
 		},
 		resetSearch() {
 			this.searchTerm = ''
+		},
+		fromPushApp: function(data) {
+			// FIXME: might be better to use Timeline.type() ?
+			let timeline = 'home'
+			if (this.$route.name === 'tags') {
+				timeline = 'tags'
+			} else if (this.$route.params.type) {
+				timeline = this.$route.params.type
+			}
+
+			if (data.source === 'timeline.home' && timeline === 'home') {
+				this.$store.dispatch('addToTimeline', [data.payload])
+			}
+			if (data.source === 'timeline.direct' && timeline === 'direct') {
+				this.$store.dispatch('addToTimeline', [data.payload])
+			}
 		}
 	}
 }

@@ -144,7 +144,7 @@ class ACore extends Item implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
-	public function gotObject(): bool {
+	public function hasObject(): bool {
 		if ($this->object === null) {
 			return false;
 		}
@@ -169,6 +169,22 @@ class ACore extends Item implements JsonSerializable {
 		$this->object = $object;
 
 		return $this;
+	}
+
+
+	/**
+	 * @param bool $filter - will remove general url like Public
+	 *
+	 * @return array
+	 */
+	public function getRecipients(bool $filter = false): array {
+		$recipients = array_merge($this->getToAll(), $this->getCcArray());
+
+		if (!$filter) {
+			return $recipients;
+		}
+
+		return array_diff($recipients, [self::CONTEXT_PUBLIC]);
 	}
 
 
@@ -226,9 +242,7 @@ class ACore extends Item implements JsonSerializable {
 	 * @return bool
 	 */
 	public function isPublic(): bool {
-		return ($this->getTo() === self::CONTEXT_PUBLIC
-				|| in_array(self::CONTEXT_PUBLIC, $this->getCcArray())
-				|| in_array(self::CONTEXT_PUBLIC, $this->getToArray()));
+		return in_array(self::CONTEXT_PUBLIC, $this->getRecipients());
 	}
 
 
@@ -296,7 +310,9 @@ class ACore extends Item implements JsonSerializable {
 			return;
 		}
 
-		throw new InvalidOriginException('ACore::checkOrigin - id: ' . $id . ' - origin: ' . $origin);
+		throw new InvalidOriginException(
+			'ACore::checkOrigin - id: ' . $id . ' - origin: ' . $origin
+		);
 	}
 
 
@@ -661,7 +677,7 @@ class ACore extends Item implements JsonSerializable {
 		$this->addEntry('published', $this->getPublished());
 		$this->addEntryArray('tag', $this->getTags());
 
-		if ($this->gotObject()) {
+		if ($this->hasObject()) {
 			$this->addEntryItem('object', $this->getObject());
 		} else {
 			$this->addEntry('object', $this->getObjectId());

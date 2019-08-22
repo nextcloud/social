@@ -51,6 +51,7 @@ class ConfigService {
 	use TPathTools;
 	use TArrayTools;
 
+
 	const CLOUD_URL = 'cloud_url';
 	const SOCIAL_URL = 'social_url';
 	const SOCIAL_ADDRESS = 'social_address';

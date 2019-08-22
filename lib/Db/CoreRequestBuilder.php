@@ -767,7 +767,40 @@ class CoreRequestBuilder {
 		$qb->leftJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca', $orX
 		);
+	}
 
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $fieldActorId
+	 * @param string $alias
+	 */
+	protected function leftJoinAccounts(IQueryBuilder &$qb, string $fieldActorId, string $alias = ''
+	) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $qb->expr();
+		$func = $qb->func();
+
+		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
+
+		$qb->selectAlias('lja.id', 'accounts_id')
+		   ->selectAlias('lja.user_id', 'accounts_user_id')
+		   ->selectAlias('lja.preferred_username', 'accounts_preferred_username')
+		   ->selectAlias('lja.name', 'accounts_name')
+		   ->selectAlias('lja.summary', 'accounts_summary')
+		   ->selectAlias('lja.public_key', 'accounts_public_key');
+
+		$on = $expr->eq(
+			$func->lower($pf . '.' . $fieldActorId),
+			$func->lower('lja.id')
+		);
+
+		$qb->leftJoin(
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTORS, 'lja', $on
+		);
 	}
 
 
@@ -790,6 +823,31 @@ class CoreRequestBuilder {
 		$actor->importFromDatabase($new);
 
 		if (!AP::$activityPub->isActor($actor)) {
+			throw new InvalidResourceException();
+		}
+
+		return $actor;
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return Person
+	 * @throws InvalidResourceException
+	 */
+	protected function parseAccountsLeftJoin(array $data): Person {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 9) === 'accounts_') {
+				$new[substr($k, 9)] = $v;
+			}
+		}
+
+		$actor = new Person();
+		$actor->importFromDatabase($new);
+
+		if (!$actor->getUserId()) {
 			throw new InvalidResourceException();
 		}
 

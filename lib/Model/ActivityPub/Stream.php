@@ -82,6 +82,9 @@ class Stream extends ACore implements JsonSerializable {
 	/** @var StreamAction */
 	private $action = null;
 
+	/** @var string */
+	private $timeline = '';
+
 	/** @var bool */
 	private $hiddenOnTimeline = false;
 
@@ -301,6 +304,25 @@ class Stream extends ACore implements JsonSerializable {
 	 */
 	public function hasAction(): bool {
 		return ($this->action !== null);
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getTimeline(): string {
+		return $this->timeline;
+	}
+
+	/**
+	 * @param string $timeline
+	 *
+	 * @return Stream
+	 */
+	public function setTimeline(string $timeline): self {
+		$this->timeline = $timeline;
+
+		return $this;
 	}
 
 

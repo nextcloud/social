@@ -461,7 +461,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$item->setAction($action);
-
 		if ($item->getType() === Announce::TYPE) {
 			$item->setAttributedTo($this->get('following_actor_id', $data, ''));
 		}

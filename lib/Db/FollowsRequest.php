@@ -236,6 +236,28 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
+	 * @param string $followId
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollowersByFollowId(string $followId): array {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToFollowId($qb, $followId);
+		$this->limitToAccepted($qb, true);
+		$this->leftJoinAccounts($qb, 'actor_id');
+
+		$follows = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$follows[] = $this->parseFollowsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $follows;
+	}
+
+
+	/**
 	 * @param Follow $follow
 	 */
 	public function delete(Follow $follow) {

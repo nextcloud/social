@@ -63,8 +63,8 @@ class LikeService {
 	/** @var StreamRequest */
 	private $streamRequest;
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var SignatureService */
 	private $signatureService;
@@ -86,7 +86,7 @@ class LikeService {
 	 * LikeService constructor.
 	 *
 	 * @param StreamRequest $streamRequest
-	 * @param NoteService $noteService
+	 * @param StreamService $streamService
 	 * @param SignatureService $signatureService
 	 * @param ActivityService $activityService
 	 * @param StreamActionService $streamActionService
@@ -94,12 +94,12 @@ class LikeService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamRequest $streamRequest, NoteService $noteService, SignatureService $signatureService,
+		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
 		StreamQueueService $streamQueueService, MiscService $miscService
 	) {
 		$this->streamRequest = $streamRequest;
-		$this->noteService = $noteService;
+		$this->streamService = $streamService;
 		$this->signatureService = $signatureService;
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
@@ -124,7 +124,7 @@ class LikeService {
 		$like->setId($actor->getId() . '#like/' . $this->uuid(8));
 		$like->setActor($actor);
 
-		$note = $this->noteService->getNoteById($postId, true);
+		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
@@ -174,7 +174,7 @@ class LikeService {
 		$undo = new Undo();
 		$undo->setActor($actor);
 
-		$note = $this->noteService->getNoteById($postId, true);
+		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}

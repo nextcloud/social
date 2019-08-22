@@ -36,7 +36,7 @@ use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\NoteService;
+use OCA\Social\Service\StreamService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -51,8 +51,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 class NoteLike extends Base {
 
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -68,17 +68,17 @@ class NoteLike extends Base {
 	 * NoteBoost constructor.
 	 *
 	 * @param AccountService $accountService
-	 * @param NoteService $noteService
+	 * @param StreamService $streamService
 	 * @param LikeService $likeService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		AccountService $accountService, NoteService $noteService, LikeService $likeService,
+		AccountService $accountService, StreamService $streamService, LikeService $likeService,
 		MiscService $miscService
 	) {
 		parent::__construct();
 
-		$this->noteService = $noteService;
+		$this->streamService = $streamService;
 		$this->likeService = $likeService;
 		$this->accountService = $accountService;
 		$this->miscService = $miscService;
@@ -109,7 +109,7 @@ class NoteLike extends Base {
 		$noteId = $input->getArgument('note_id');
 
 		$actor = $this->accountService->getActorFromUserId($userId);
-		$this->noteService->setViewer($actor);
+		$this->streamService->setViewer($actor);
 
 		if (!$input->getOption('unlike')) {
 			$activity = $this->likeService->create($actor, $noteId, $token);

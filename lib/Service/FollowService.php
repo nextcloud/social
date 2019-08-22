@@ -39,21 +39,20 @@ use OCA\Social\Exceptions\FollowDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\InstancePath;
 
@@ -283,6 +282,16 @@ class FollowService {
 //		$collection->setFirst('...');
 
 		return $collection;
+	}
+
+
+	/**
+	 * @param string $recipient
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollowersFromFollowId(string $recipient): array {
+		return $this->followsRequest->getFollowersByFollowId($recipient);
 	}
 
 }

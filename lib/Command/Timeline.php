@@ -31,22 +31,13 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 
-use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use Exception;
-use OC\Core\Command\Base;
-use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
-use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IUserManager;
-use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -59,7 +50,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @package OCA\Social\Command
  */
-class Timeline extends Base {
+class Timeline extends ExtendedBase {
 
 	/** @var IUserManager */
 	private $userManager;
@@ -77,18 +68,12 @@ class Timeline extends Base {
 	private $miscService;
 
 
-	/** @var OutputInterface */
-	private $output;
-
-	/** @var bool */
-	private $asJson;
-
 	/** @var int */
 	private $count;
 
 
 	/**
-	 * Stream constructor.
+	 * Timeline constructor.
 	 *
 	 * @param IUserManager $userManager
 	 * @param StreamRequest $streamRequest
@@ -147,24 +132,12 @@ class Timeline extends Base {
 
 		$actor = $this->accountService->getActor($userId);
 
-		$this->outputActor($actor);
+		if (!$this->asJson) {
+			$this->outputActor($actor);
+		}
 		$this->displayStream($actor, $timeline);
 	}
 
-
-	/**
-	 * @param Person $actor
-	 */
-	private function outputActor(Person $actor) {
-		if ($this->asJson) {
-			return;
-		}
-
-		$this->output->writeln('<info>Account</info>: ' . $actor->getAccount());
-		$this->output->writeln('<info>Id</info>: ' . $actor->getId());
-		$this->output->writeln('');
-
-	}
 
 
 	/**
@@ -177,27 +150,27 @@ class Timeline extends Base {
 		switch ($timeline) {
 			case 'home':
 				$stream = $this->streamRequest->getTimelineHome($actor, 0, $this->count);
-				$this->outputStream($stream);
+				$this->outputStreams($stream);
 				break;
 
 			case 'direct':
 				$stream = $this->streamRequest->getTimelineDirect($actor, 0, $this->count);
-				$this->outputStream($stream);
+				$this->outputStreams($stream);
 				break;
 
 			case 'notifications':
 				$stream = $this->streamRequest->getTimelineNotifications($actor, 0, $this->count);
-				$this->outputStream($stream);
+				$this->outputStreams($stream);
 				break;
 
 			case 'local':
 				$stream = $this->streamRequest->getTimelineGlobal(0, $this->count, true);
-				$this->outputStream($stream);
+				$this->outputStreams($stream);
 				break;
 
 			case 'global':
 				$stream = $this->streamRequest->getTimelineGlobal(0, $this->count, false);
-				$this->outputStream($stream);
+				$this->outputStreams($stream);
 				break;
 
 			default:
@@ -206,62 +179,6 @@ class Timeline extends Base {
 				);
 		}
 	}
-
-
-	/**
-	 * @param Stream[] $stream
-	 */
-	private function outputStream(array $stream) {
-		if ($this->asJson) {
-			$this->output->writeln(json_encode($stream, JSON_PRETTY_PRINT));
-		}
-
-		$table = new Table($this->output);
-		$table->setHeaders(['Id', 'Source', 'Type', 'Author', 'Content']);
-		$table->render();
-		$this->output->writeln('');
-
-		foreach ($stream as $item) {
-			$objectId = $item->getObjectId();
-			$cache = $item->getCache();
-			$content = '';
-			$author = '';
-			if ($objectId !== '' && $cache->hasItem($objectId)) {
-				try {
-					$cachedObject = $cache->getItem($objectId)
-										  ->getObject();
-
-					/** @var Stream $cachedItem */
-					$cachedItem = AP::$activityPub->getItemFromData($cachedObject);
-					$content = $cachedItem->getContent();
-					$author = $cachedItem->getActor()
-										 ->getAccount();
-				} catch (CacheItemNotFoundException $e) {
-				} catch (ItemUnknownException $e) {
-				} catch (RedundancyLimitException $e) {
-				} catch (SocialAppConfigException $e) {
-				}
-			} else {
-				$content = $item->getContent();
-				$author = $item->getActor()
-							   ->getAccount();
-			}
-
-			$table->appendRow(
-				[
-					'<comment>' . $item->getId() . '</comment>',
-					'<info>' . $item->getActor()
-									->getAccount() . '</info>',
-					$item->getType(),
-					'<info>' . $author . '</info>',
-					$content,
-				]
-			);
-		}
-
-
-	}
-
 
 }
 

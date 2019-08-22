@@ -60,7 +60,7 @@ class AcceptInterface implements IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function processIncomingRequest(ACore $item) {
-		if (!$item->gotObject()) {
+		if (!$item->hasObject()) {
 			return;
 		}
 		$object = $item->getObject();

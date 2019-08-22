@@ -49,8 +49,8 @@ use OCA\Social\Model\Post;
 class PostService {
 
 
-	/** @var NoteService */
-	private $noteService;
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -68,17 +68,17 @@ class PostService {
 	/**
 	 * PostService constructor.
 	 *
-	 * @param NoteService $noteService
+	 * @param StreamService $streamService
 	 * @param AccountService $accountService
 	 * @param ActivityService $activityService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		NoteService $noteService, AccountService $accountService, ActivityService $activityService,
+		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
 		ConfigService $configService, MiscService $miscService
 	) {
-		$this->noteService = $noteService;
+		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->configService = $configService;
@@ -107,16 +107,16 @@ class PostService {
 	public function createPost(Post $post, &$token = ''): ACore {
 		$note = new Note();
 		$actor = $post->getActor();
-		$this->noteService->assignItem($note, $actor, $post->getType());
+		$this->streamService->assignItem($note, $actor, $post->getType());
 
 		$note->setAttributedTo($actor->getId());
 //		$this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername()
 
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
 
-		$this->noteService->replyTo($note, $post->getReplyTo());
-		$this->noteService->addRecipients($note, $post->getType(), $post->getTo());
-		$this->noteService->addHashtags($note, $post->getHashtags());
+		$this->streamService->replyTo($note, $post->getReplyTo());
+		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
+		$this->streamService->addHashtags($note, $post->getHashtags());
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
