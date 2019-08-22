@@ -118,7 +118,7 @@ class NoteCreate extends Base {
 				 'hashtag', 'g', InputOption::VALUE_OPTIONAL,
 				 'hashtag, without the leading #'
 			 )
-			 ->addArgument('userid', InputArgument::REQUIRED, 'userId of the author')
+			 ->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')
 			 ->setDescription('Create a new note');
 	}
