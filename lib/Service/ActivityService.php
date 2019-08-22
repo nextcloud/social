@@ -430,7 +430,7 @@ class ActivityService {
 	private function saveActivity(ACore $activity) {
 		// TODO: save activity in DB ?
 
-		if ($activity->gotObject()) {
+		if ($activity->hasObject()) {
 			$this->saveObject($activity->getObject());
 		}
 	}
@@ -441,7 +441,7 @@ class ActivityService {
 	 */
 	private function saveObject(ACore $activity) {
 		try {
-			if ($activity->gotObject()) {
+			if ($activity->hasObject()) {
 				$this->saveObject($activity->getObject());
 			}
 

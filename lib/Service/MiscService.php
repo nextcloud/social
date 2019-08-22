@@ -36,6 +36,7 @@ use OCA\Social\AppInfo\Application;
 use OCP\ILogger;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\Util;
 
 
 /**
@@ -76,6 +77,16 @@ class MiscService {
 		);
 
 		$this->logger->log($level, $message, $data);
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function getNcVersion(): int {
+		$ver = Util::getVersion();
+
+		return $ver[0];
 	}
 
 

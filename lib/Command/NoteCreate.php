@@ -132,7 +132,7 @@ class NoteCreate extends Base {
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
 
-		$userId = $input->getArgument('user_id');
+		$userId = $input->getArgument('userid');
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
 		$hashtag = $input->getOption('hashtag');
