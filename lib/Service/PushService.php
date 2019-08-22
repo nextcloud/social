@@ -82,7 +82,7 @@ class PushService {
 		$this->miscService = $miscService;
 
 		// FIX ME: nc18/push
-		if ($this->miscService->getNcVersion() >= 17) {
+		if ($this->miscService->getNcVersion() >= 18) {
 			try {
 				$this->pushManager = OC::$server->query(IPushManager::class);
 			} catch (QueryException $e) {
@@ -100,7 +100,7 @@ class PushService {
 	 */
 	public function onNewStream(string $streamId) {
 		// FIXME: remove in nc18
-		if ($this->miscService->getNcVersion() < 17) {
+		if ($this->miscService->getNcVersion() < 18) {
 			return;
 		}
 
