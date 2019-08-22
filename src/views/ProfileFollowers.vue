@@ -28,13 +28,11 @@
 
 <style scoped>
 	.social__followers {
+		width: 100%;
 		max-width: 600px;
 		margin: 15px auto;
 		display: flex;
 		flex-wrap: wrap;
-	}
-	.user-entry {
-		width: 50%;
 	}
 </style>
 

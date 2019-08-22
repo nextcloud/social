@@ -22,7 +22,7 @@
 
 <template>
 	<div v-if="account && accountInfo" class="user-profile">
-		<div class="user-profile--info">
+		<div>
 			<avatar v-if="accountInfo.local" :user="uid" :disable-tooltip="true"
 				:size="128" />
 			<avatar v-else :url="avatarUrl" :disable-tooltip="true"
@@ -62,6 +62,8 @@
 <style scoped>
 	.user-profile {
 		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
 		width: 100%;
 		text-align: center;
 		padding-top: 20px;
@@ -72,11 +74,7 @@
 		margin-bottom: 5px;
 	}
 
-	.user-profile--info {
-		width: 40%;
-	}
 	.user-profile--sections {
-		width: 60%;
 		display: flex;
 		margin-bottom: 30px;
 	}

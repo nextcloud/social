@@ -93,6 +93,7 @@ export default {
 </script>
 <style scoped>
 	.user-entry {
+		width: 100%;
 		padding: 20px;
 		margin-bottom: 10px;
 	}
@@ -122,6 +123,7 @@ export default {
 	}
 
 	button {
+		margin-left: 10px;
 		min-width: 110px;
 	}
 
