@@ -196,10 +196,16 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $type
+	 *
 	 * @return Stream[]
 	 */
-	public function getAll(): array {
+	public function getAll(string $type = ''): array {
 		$qb = $this->getStreamSelectSql();
+
+		if ($type !== '') {
+			$this->limitToType($qb, $type);
+		}
 
 		$streams = [];
 		$cursor = $qb->execute();
@@ -212,7 +218,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		return $streams;
-
 	}
 
 
@@ -539,8 +544,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true
-	): array {
+	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitPaginate($qb, $since, $limit);
 
@@ -636,10 +640,10 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param string $id
 	 * @param string $type
 	 */
-	public function deleteStreamById(string $id, string $type = '') {
+	public function deleteById(string $id, string $type = '') {
 		$qb = $this->getStreamDeleteSql();
-
 		$this->limitToIdString($qb, $id);
+
 		if ($type !== '') {
 			$this->limitToType($qb, $type);
 		}

@@ -305,17 +305,17 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->execute();
 
 		$qb = $this->getFollowsDeleteSql();
-		$this->limitToFollowId($qb, $actorId);
+		$this->limitToObjectId($qb, $actorId);
 
 		$qb->execute();
 	}
 
 	/**
-	 * @param string $followId
+	 * @param string $id
 	 */
-	public function deleteFollowById(string $followId) {
+	public function deleteById(string $id) {
 		$qb = $this->getFollowsDeleteSql();
-		$this->limitToIdString($qb, $followId);
+		$this->limitToIdString($qb, $id);
 
 		$qb->execute();
 	}

@@ -176,7 +176,7 @@ class NoteInterface implements IActivityPubInterface {
 	 */
 	public function delete(ACore $item) {
 		/** @var Note $item */
-		$this->streamRequest->deleteStreamById($item->getId(), Note::TYPE);
+		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
 	}
 
 

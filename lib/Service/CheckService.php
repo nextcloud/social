@@ -33,6 +33,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;
@@ -172,14 +173,24 @@ class CheckService {
 
 
 	/**
+	 * @param bool $light
 	 *
+	 * @return array
 	 */
-	public function checkInstallationStatus() {
+	public function checkInstallationStatus(bool $light = false): array {
 		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
-		$this->removeInvalidFollows();
-		$this->removeInvalidNotes();
+
+		if (!$light) {
+			$result = [
+				'invalidFollows' => $this->removeInvalidFollows(),
+				'invalidNotes'   => $this->removeInvalidNotes()
+			];
+		}
+
 		$this->checkStatusTableFollows();
+
+		return $result;
 	}
 
 
@@ -203,9 +214,9 @@ class CheckService {
 
 
 	/**
-	 *
+	 * @return int
 	 */
-	public function removeInvalidFollows() {
+	public function removeInvalidFollows(): int {
 		$count = 0;
 		$follows = $this->followRequest->getAll();
 		foreach ($follows as $follow) {
@@ -213,33 +224,38 @@ class CheckService {
 				$this->cacheActorsRequest->getFromId($follow->getActorId());
 				$this->cacheActorsRequest->getFromId($follow->getObjectId());
 			} catch (CacheActorDoesNotExistException $e) {
-				$this->followRequest->deleteFollowById($follow->getId());
+				$this->followRequest->deleteById($follow->getId());
 				$count++;
 			}
 		}
 
 		$this->miscService->log('removeInvalidFollows removed ' . $count . ' entries', 1);
+
+		return $count;
 	}
 
 
 	/**
-	 *
+	 * @return int
 	 */
-	public function removeInvalidNotes() {
+	public function removeInvalidNotes(): int {
 		$count = 0;
-		$streams = $this->streamRequest->getAll();
+		$streams = $this->streamRequest->getAll(Note::TYPE);
 		foreach ($streams as $stream) {
 			try {
 				// Check if it's enough for Note, Announce, ...
 				$this->cacheActorsRequest->getFromId($stream->getAttributedTo());
 			} catch (CacheActorDoesNotExistException $e) {
-				$this->streamRequest->deleteStreamById($stream->getId());
+				$this->streamRequest->deleteById($stream->getId(), Note::TYPE);
 				$count++;
 			}
 		}
 
 		$this->miscService->log('removeInvalidNotes removed ' . $count . ' entries', 1);
+
+		return $count;
 	}
+
 
 	/**
 	 * @param string $base

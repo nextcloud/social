@@ -318,7 +318,7 @@ class ACore extends Item implements JsonSerializable {
 		$origin = $this->getRoot()
 					   ->getOrigin();
 
-		if ($origin === $host && $host !== '') {
+		if ($id !== '' && $origin === $host && $host !== '') {
 			return;
 		}
 
