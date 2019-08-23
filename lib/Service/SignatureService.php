@@ -396,12 +396,12 @@ class SignatureService {
 	 * @param string $publicKey
 	 * @param array $sign
 	 * @param string $estimated
-	 * @param bool $signed
+	 * @param string $signed
 	 *
 	 * @throws SignatureException
 	 */
 	private function checkRequestSignatureUsingPublicKey(
-		string $publicKey, array $sign, string $estimated, bool $signed
+		string $publicKey, array $sign, string $estimated, string $signed
 	) {
 		$algorithm = $this->getAlgorithmFromSignature($sign);
 		if ($publicKey === ''
