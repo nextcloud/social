@@ -181,6 +181,8 @@ class CheckService {
 		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 
+		$result = [];
+
 		if (!$light) {
 			$result = [
 				'invalidFollows' => $this->removeInvalidFollows(),
