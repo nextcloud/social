@@ -94,9 +94,6 @@ class PushService {
 
 	/**
 	 * @param string $streamId
-	 *
-	 * @throws SocialAppConfigException
-	 * @throws PushInstallException
 	 */
 	public function onNewStream(string $streamId) {
 		// FIXME: remove in nc18
@@ -114,8 +111,13 @@ class PushService {
 			return;
 		}
 
-		$pushHelper = $this->pushManager->getPushHelper();
-		$details = $this->detailsService->generateDetailsFromStream($stream);
+		try {
+			$pushHelper = $this->pushManager->getPushHelper();
+			$details = $this->detailsService->generateDetailsFromStream($stream);
+		} catch (PushInstallException | SocialAppConfigException $e) {
+			return;
+		}
+
 		$home = array_map(
 			function(Person $item): string {
 				return $item->getUserId();
