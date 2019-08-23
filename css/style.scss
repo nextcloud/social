@@ -7,7 +7,7 @@
   @include icon-color('boost', 'social', '#0082c9', 1);
 }
 .icon-upload {
-  @include icon-color('upload', 'actions', $color-white, 1, true);
+  @include icon-color('upload', 'actions', $color-black, 1, true);
 }
 
 img.emoji {
