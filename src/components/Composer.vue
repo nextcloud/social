@@ -80,7 +80,7 @@
 			</emoji-picker>
 
                         <masonry>
-                                <div v-for="(item, index) in postAttachments" :key="index">
+                                <div v-for="(item, index) in miniatures" :key="index">
                                         <img :src="item">
                                 </div>
                         </masonry>
@@ -94,7 +94,7 @@
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
-                                <label v-tooltip="'Upload image'" class="icon-upload" for="file-upload" />
+				<label v-tooltip="'Upload image'" class="icon-upload" for="file-upload" />
 				<input id="file-upload" ref="addAttach" class="upload-button" type="file" @change="uploadImages" />
 			</div>
 		</form>
@@ -389,7 +389,8 @@ export default {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			post: '',
-			postAttachments: [],
+			miniatures: [],		// miniatures of images stored in postAttachments
+			postAttachments: [],	// The toot's attachments
 			canType: true,
 			search: '',
 			replyTo: null,
@@ -608,7 +609,8 @@ export default {
 	                                canvas.height = imgHeight
 	                                ctx.drawImage(img, 0, 0, imgWidth, imgHeight)
 					var resizedImg = canvas.toDataURL()
-					self.postAttachments.push(resizedImg)
+					self.postAttachments.push(Img)
+					self.miniatures.push(resizedImg)
                         	}
 				img.src = e.target.result
 			}
@@ -667,7 +669,8 @@ export default {
 				content: element.innerText.trim(),
 				to: to,
 				hashtags: hashtags,
-				type: this.type
+				type: this.type,
+				attachments: this.postAttachments
 			}
 			if (this.replyTo) {
 				data.replyTo = this.replyTo.id
