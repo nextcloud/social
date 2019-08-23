@@ -86,7 +86,6 @@
                         </masonry>
 
 			<div class="options">
-				<input ref="addAttach" class="emoji-invoker" type="file" @change="uploadImages" />
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div v-click-outside="hidePopoverMenu">
@@ -95,11 +94,14 @@
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
+                                <label v-tooltip="'Upload image'" class="icon-upload" for="file-upload" />
+				<input id="file-upload" ref="addAttach" class="upload-button" type="file" @change="uploadImages" />
 			</div>
 		</form>
 	</div>
 </template>
-<style scoped lang="scss">
+<style scoped lang="scss"> 
+
 	.new-post {
 		padding: 10px;
 		background-color: var(--color-main-background);
@@ -191,6 +193,21 @@
 	.options button {
 		width: 34px;
 		height: 34px;
+	}
+
+
+       .icon-upload {
+                border-radius: 50%;
+                border: 1px solid #666;
+                padding: 0px 10px;
+                width: 34px;
+                height: 34px;
+                background-size: 16px 16px;
+                cursor: pointer;
+      }
+
+	.upload-button {
+		display: none;
 	}
 
 	.emoji-invoker {
