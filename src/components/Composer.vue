@@ -79,11 +79,11 @@
 				</div>
 			</emoji-picker>
 
-                        <masonry>
-                                <div v-for="(item, index) in miniatures" :key="index">
-                                        <img :src="item">
-                                </div>
-                        </masonry>
+			<masonry>
+				<div v-for="(item, index) in miniatures" :key="index">
+					<img :src="item">
+				</div>
+			</masonry>
 
 			<div class="options">
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
@@ -95,12 +95,13 @@
 					</div>
 				</div>
 				<label v-tooltip="'Upload image'" class="icon-upload" for="file-upload" />
-				<input id="file-upload" ref="addAttach" class="upload-button" type="file" @change="uploadImages" />
+				<input id="file-upload" ref="addAttach" class="upload-button"
+					type="file" @change="uploadImages">
 			</div>
 		</form>
 	</div>
 </template>
-<style scoped lang="scss"> 
+<style scoped lang="scss">
 
 	.new-post {
 		padding: 10px;
@@ -115,12 +116,14 @@
 		padding: 5px;
 		display: flex;
 		flex-wrap: wrap;
+
 		.post-author {
 			padding: 6px;
 
 			.post-author-name {
 				font-weight: bold;
 			}
+
 			.post-author-id {
 				opacity: .7;
 			}
@@ -138,6 +141,7 @@
 		border-radius: 3px;
 		padding: 5px;
 		padding-left: 30px;
+
 		.icon-close {
 			display: inline-block;
 			float: right;
@@ -161,7 +165,7 @@
 		display: block;
 	}
 
-	[contenteditable=true]:empty:before{
+	[contenteditable=true]:empty:before {
 		content: attr(placeholder);
 		display: block; /* For Firefox */
 		opacity: .5;
@@ -179,6 +183,7 @@
 		bottom: 0;
 		right: 0;
 	}
+
 	.options {
 		display: flex;
 		align-items: flex-end;
@@ -195,16 +200,15 @@
 		height: 34px;
 	}
 
-
-       .icon-upload {
-                border-radius: 50%;
-                border: 1px solid #666;
-                padding: 0px 10px;
-                width: 34px;
-                height: 34px;
-                background-size: 16px 16px;
-                cursor: pointer;
-      }
+	.icon-upload {
+		border-radius: 50%;
+		border: 1px solid #666;
+		padding: 0px 10px;
+		width: 34px;
+		height: 34px;
+		background-size: 16px 16px;
+		cursor: pointer;
+	}
 
 	.upload-button {
 		display: none;
@@ -221,15 +225,18 @@
 		cursor: pointer;
 		display: block;
 	}
+
 	.emoji-invoker:focus,
 	.emoji-invoker:hover {
 		opacity: 1;
 	}
+
 	.emoji-picker-wrapper {
 		position: absolute;
 		right: 0;
 		top: 0;
 	}
+
 	.emoji-picker.popovermenu {
 		display: block;
 		padding: 5px;
@@ -237,23 +244,29 @@
 		height: 200px;
 		top: 44px;
 	}
+
 	.emoji-picker > div {
 		overflow: hidden;
 		overflow-y: scroll;
 		height: 190px;
 	}
+
 	.emoji-picker input {
 		width: 100%;
 	}
+
 	.emoji-picker span.emoji {
 		padding: 3px;
 	}
+
 	.emoji-picker span.emoji:focus {
 		background-color: var(--color-background-dark);
 	}
+
 	.emoji-picker .emoji img {
 		width: 16px;
 	}
+
 	.popovermenu {
 		top: 55px;
 	}
@@ -280,6 +293,7 @@
 		border-radius: 4px;
 		box-shadow: 0 1px 3px var(--color-box-shadow);
 	}
+
 	.tribute-container ul {
 		margin: 0;
 		margin-top: 2px;
@@ -290,6 +304,7 @@
 		background-clip: padding-box;
 		overflow: hidden;
 	}
+
 	.tribute-container li {
 		color: var(--color-text);
 		padding: 5px 10px;
@@ -297,14 +312,17 @@
 		font-size: 14px;
 		display: flex;
 	}
+
 	.tribute-container li span {
 		display: block;
 	}
+
 	.tribute-container li.highlight,
 	.tribute-container li:hover {
 		background: var(--color-primary);
 		color: var(--color-primary-text);
 	}
+
 	.tribute-container li img {
 		width: 32px;
 		height: 32px;
@@ -314,12 +332,15 @@
 		margin-left: -3px;
 		margin-top: 3px;
 	}
+
 	.tribute-container li span {
 		font-weight: bold;
 	}
+
 	.tribute-container li.no-match {
 		cursor: default;
 	}
+
 	.tribute-container .menu-highlighted {
 		font-weight: bold;
 	}
@@ -331,11 +352,13 @@
 		color: var(--color-text-light);
 		opacity: 0.5;
 	}
+
 	.tribute-container li.highlight .account,
 	.tribute-container li:hover .account {
 		color: var(--color-primary-text) !important;
 		opacity: .6;
 	}
+
 	.message .mention {
 		color: var(--color-primary-element);
 		background-color: var(--color-background-dark);
@@ -345,6 +368,7 @@
 		padding-bottom: 1px;
 		padding-right: 5px;
 	}
+
 	.mention img {
 		width: 16px;
 		border-radius: 50%;
@@ -353,6 +377,7 @@
 		vertical-align: middle;
 		margin-top: -1px;
 	}
+
 	.hashtag {
 		text-decoration: underline;
 	}
@@ -381,9 +406,7 @@ export default {
 		FocusOnCreate: FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
-	props: {
-
-	},
+	props: {},
 	data() {
 		return {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
@@ -548,28 +571,36 @@ export default {
 		visibilityPopover() {
 			return [
 				{
-					action: () => { this.switchType('public') },
+					action: () => {
+						this.switchType('public')
+					},
 					icon: this.visibilityIconClass('public'),
 					active: this.activeState('public'),
 					text: t('social', 'Public'),
 					longtext: t('social', 'Post to public timelines')
 				},
 				{
-					action: () => { this.switchType('unlisted') },
+					action: () => {
+						this.switchType('unlisted')
+					},
 					icon: this.visibilityIconClass('unlisted'),
 					active: this.activeState('unlisted'),
 					text: t('social', 'Unlisted'),
 					longtext: t('social', 'Do not post to public timelines')
 				},
 				{
-					action: () => { this.switchType('followers') },
+					action: () => {
+						this.switchType('followers')
+					},
 					icon: this.visibilityIconClass('followers'),
 					active: this.activeState('followers'),
 					text: t('social', 'Followers'),
 					longtext: t('social', 'Post to followers only')
 				},
 				{
-					action: () => { this.switchType('direct') },
+					action: () => {
+						this.switchType('direct')
+					},
 					icon: this.visibilityIconClass('direct'),
 					active: this.activeState('direct'),
 					text: t('social', 'Direct'),
@@ -585,33 +616,39 @@ export default {
 	},
 	methods: {
 		uploadImages() {
-			var self = this
-			let file = this.$refs.addAttach.files[0];
+			let self = this
+			let file = this.$refs.addAttach.files[0]
 			let reader = new FileReader()
 			reader.onload = function(e) {
-				var canvas = document.createElement('canvas')
-				var ctx = canvas.getContext('2d');
-				var width  = 300
-				var height = 200
-				var img = new Image()
-	                        img.onload = function() {
-		                	var imgWidth = img.width
-         	      		        var imgHeight = img.height
-                       		        if (imgWidth > window.innerWidth) {
-	                                	imgHeight = imgHeight * (width / imgWidth)
-                                        	imgWidth = width
-                                	}
-	                                if (imgHeight > height) {
-        	                                imgWidth = imgWidth * (height / imgHeight)
-               	        	                imgHeight = height
-                	                }
-	                                canvas.width = imgWidth
-	                                canvas.height = imgHeight
-	                                ctx.drawImage(img, 0, 0, imgWidth, imgHeight)
-					var resizedImg = canvas.toDataURL()
-					self.postAttachments.push(Img)
-					self.miniatures.push(resizedImg)
-                        	}
+				let canvas = document.createElement('canvas')
+				let ctx = canvas.getContext('2d')
+				let width = 300
+				let height = 200
+				let img = new Image()
+				img.onload = function() {
+
+					canvas.width = this.naturalWidth
+					canvas.height = this.naturalHeight
+
+					ctx.drawImage(this, 0, 0)
+					let imgDataUrl = canvas.toDataURL()
+
+					let imgWidth = img.width
+					let imgHeight = img.height
+					if (imgWidth > window.innerWidth) {
+						imgHeight = imgHeight * (width / imgWidth)
+						imgWidth = width
+					}
+					if (imgHeight > height) {
+						imgWidth = imgWidth * (height / imgHeight)
+						imgHeight = height
+					}
+					canvas.width = imgWidth
+					canvas.height = imgHeight
+					ctx.drawImage(img, 0, 0, imgWidth, imgHeight)
+					self.postAttachments.push(imgDataUrl)
+					self.miniatures.push(canvas.toDataURL())
+				}
 				img.src = e.target.result
 			}
 			reader.readAsDataURL(file)
