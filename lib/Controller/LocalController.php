@@ -48,9 +48,9 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\LikeService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\StreamService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
+use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -174,6 +174,7 @@ class LocalController extends Controller {
 			$post->addTo($this->get('to', $data, ''));
 			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
 			$post->setHashtags($this->getArray('hashtags', $data, []));
+			$post->setAttachments($this->getArray('attachments', $data, []));
 
 			$activity = $this->postService->createPost($post, $token);
 

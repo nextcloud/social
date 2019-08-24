@@ -98,6 +98,22 @@ class CacheDocumentService {
 
 	/**
 	 * @param Document $document
+	 * @param string $uploaded
+	 * @param string $mime
+	 *
+	 * @throws CacheContentMimeTypeException
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function saveLocalUploadToCache(Document $document, string $uploaded, string &$mime = '') {
+		$content = $uploaded;
+
+		$this->saveContentToCache($document, $content, $mime);
+	}
+
+
+	/**
+	 * @param Document $document
 	 * @param string $mime
 	 *
 	 * @throws CacheContentMimeTypeException
@@ -112,9 +128,23 @@ class CacheDocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function saveRemoteFileToCache(Document $document, &$mime = '') {
+	public function saveRemoteFileToCache(Document $document, string &$mime = '') {
 		$content = $this->retrieveContent($document->getUrl());
 
+		$this->saveContentToCache($document, $content, $mime);
+	}
+
+
+	/**
+	 * @param Document $document
+	 * @param string $content
+	 * @param string $mime
+	 *
+	 * @throws CacheContentMimeTypeException
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function saveContentToCache(Document $document, string $content, string &$mime = '') {
 		// To get the mime type, we create a temp file
 		$tmpFile = tmpfile();
 		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
@@ -124,10 +154,10 @@ class CacheDocumentService {
 
 		$this->filterMimeTypes($mime);
 
-		$filename = $this->saveContentToCache($content);
+		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
 		$this->resizeImage($content);
-		$resized = $this->saveContentToCache($content);
+		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
 	}
 
@@ -139,7 +169,7 @@ class CacheDocumentService {
 	 * @throws NotPermittedException
 	 * @throws NotFoundException
 	 */
-	private function saveContentToCache(string $content): string {
+	private function generateFileFromContent(string $content): string {
 
 		$filename = $this->uuid();
 		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]

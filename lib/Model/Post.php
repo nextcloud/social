@@ -33,6 +33,7 @@ namespace OCA\Social\Model;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
 
 
 /**
@@ -64,6 +65,11 @@ class Post implements JsonSerializable {
 	/** @var array */
 	private $hashtags = [];
 
+	/** @var string[] */
+	private $attachments = [];
+
+	/** @var Document[] */
+	private $documents = [];
 
 	/**
 	 * Post constructor.
@@ -171,6 +177,44 @@ class Post implements JsonSerializable {
 
 
 	/**
+	 * @return string[]
+	 */
+	public function getAttachments(): array {
+		return $this->attachments;
+	}
+
+	/**
+	 * @param string[] $attachments
+	 *
+	 * @return Post
+	 */
+	public function setAttachments(array $attachments): Post {
+		$this->attachments = $attachments;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return Document[]
+	 */
+	public function getDocuments(): array {
+		return $this->documents;
+	}
+
+	/**
+	 * @param Document[] $documents
+	 *
+	 * @return Post
+	 */
+	public function setDocuments(array $documents): Post {
+		$this->documents = $documents;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getContent(): string {
@@ -190,11 +234,13 @@ class Post implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'actor'   => $this->getActor(),
-			'to'      => $this->getTo(),
-			'replyTo' => $this->getReplyTo(),
-			'content' => $this->getContent(),
-			'type'    => $this->getType()
+			'actor'       => $this->getActor(),
+			'to'          => $this->getTo(),
+			'replyTo'     => $this->getReplyTo(),
+			'content'     => $this->getContent(),
+			'attachments' => $this->getAttachments(),
+			'hashtags'    => $this->getHashtags(),
+			'type'        => $this->getType()
 		];
 	}
 

@@ -39,6 +39,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
@@ -437,17 +438,17 @@ class ActivityService {
 
 
 	/**
-	 * @param ACore $activity
+	 * @param ACore $item
 	 */
-	private function saveObject(ACore $activity) {
+	private function saveObject(ACore $item) {
 		try {
-			if ($activity->hasObject()) {
-				$this->saveObject($activity->getObject());
+			if ($item->hasObject()) {
+				$this->saveObject($item->getObject());
 			}
 
-			$service = AP::$activityPub->getInterfaceForItem($activity);
-			$service->save($activity);
-		} catch (ItemUnknownException $e) {
+			$service = AP::$activityPub->getInterfaceForItem($item);
+			$service->save($item);
+		} catch (ItemUnknownException | ItemAlreadyExistsException $e) {
 		}
 	}
 
