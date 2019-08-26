@@ -114,7 +114,9 @@ class PushService {
 		try {
 			$pushHelper = $this->pushManager->getPushHelper();
 			$details = $this->detailsService->generateDetailsFromStream($stream);
-		} catch (PushInstallException | SocialAppConfigException $e) {
+		} catch (PushInstallException $e) {
+			return;
+		} catch (SocialAppConfigException $e) {
 			return;
 		}
 
