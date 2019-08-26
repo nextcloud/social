@@ -81,7 +81,7 @@
 
 			<masonry>
 				<div v-for="(item, index) in miniatures" :key="index">
-					<img :src="item">
+					<img :src="item" @click="removeAttachment(index)">
 				</div>
 			</masonry>
 
@@ -652,6 +652,11 @@ export default {
 				img.src = e.target.result
 			}
 			reader.readAsDataURL(file)
+		},
+		removeAttachment(idx) {
+			console.log("removing attachment", idx)
+			this.postAttachments.splice(idx,1)
+			this.miniatures.splice(idx,1)
 		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
