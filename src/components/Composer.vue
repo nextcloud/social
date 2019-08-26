@@ -647,37 +647,37 @@ export default {
 
 					// draw a close badge in the upper-right corner
 					ctx.beginPath()
-					ctx.arc( imgWidth - 25, 25, 15, 0, 2 * Math.PI)
+					ctx.arc(imgWidth - 25, 25, 15, 0, 2 * Math.PI)
 					ctx.fillStyle = 'white'
 					ctx.fill()
 					ctx.lineWidth = 3
 					ctx.StrokeStyle = 'darkgray'
 					ctx.stroke()
 					ctx.beginPath()
-					ctx.moveTo( imgWidth - (25+10), 25-10 )
-					ctx.lineTo( imgWidth - (25-10), 25+10 )
+					ctx.moveTo(imgWidth - (25 + 10), 25 - 10)
+					ctx.lineTo(imgWidth - (25 - 10), 25 + 10)
 					ctx.stroke()
-					ctx.moveTo( imgWidth - (25-10), 25-10 )
-					ctx.lineTo( imgWidth - (25+10), 25+10 )
+					ctx.moveTo(imgWidth - (25 - 10), 25 - 10)
+					ctx.lineTo(imgWidth - (25 + 10), 25 + 10)
 					ctx.stroke()
-					
+
 					// Add filename to generic icon for non image document
-					if ( ! e.target.result.startsWith("data:image") ) {
+					if (!e.target.result.startsWith('data:image')) {
 						ctx.fillStyle = 'black'
-						ctx.font = "12px Arial"
+						ctx.font = '12px Arial'
 						ctx.fillText(file.name, 30, imgHeight - 20)
 					}
 
 					// Save miniature
 					self.miniatures.push(canvas.toDataURL())
-					
+
 				}
 
 				// Save document
 				self.postAttachments.push(e.target.result)
 
 				// Draw a generic icon when document is not an image
-				if ( e.target.result.startsWith("data:image") ) {
+				if (e.target.result.startsWith('data:image')) {
 					img.src = e.target.result
 				} else {
 					img.src = OC.generateUrl('svg/core/filetypes/x-office-document?color=d8d8d8')
@@ -688,8 +688,8 @@ export default {
 			reader.readAsDataURL(file)
 		},
 		removeAttachment(idx) {
-			this.postAttachments.splice(idx,1)
-			this.miniatures.splice(idx,1)
+			this.postAttachments.splice(idx, 1)
+			this.miniatures.splice(idx, 1)
 		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
