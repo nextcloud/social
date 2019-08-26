@@ -645,10 +645,27 @@ export default {
 					canvas.height = imgHeight
 					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
 
+					// draw a close badge in the upper-right corner
+					ctx.beginPath()
+					ctx.arc( imgWidth - 25, 25, 15, 0, 2 * Math.PI)
+					ctx.fillStyle = 'white'
+					ctx.fill()
+					ctx.lineWidth = 3
+					ctx.StrokeStyle = 'darkgray'
+					ctx.stroke()
+					ctx.beginPath()
+					ctx.moveTo( imgWidth - (25+10), 25-10 )
+					ctx.lineTo( imgWidth - (25-10), 25+10 )
+					ctx.stroke()
+					ctx.moveTo( imgWidth - (25-10), 25-10 )
+					ctx.lineTo( imgWidth - (25+10), 25+10 )
+					ctx.stroke()
+					
 					// Add filename to generic icon for non image document
 					if ( ! e.target.result.startsWith("data:image") ) {
+						ctx.fillStyle = 'black'
 						ctx.font = "12px Arial"
-						ctx.fillText(file.name, 30, height - 20)
+						ctx.fillText(file.name, 30, imgHeight - 20)
 					}
 
 					// Save miniature
