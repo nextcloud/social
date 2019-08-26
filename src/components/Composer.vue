@@ -726,6 +726,8 @@ export default {
 				this.replyTo = null
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
+				this.postAttachments = []
+				this.miniatures = []
 				this.$store.dispatch('refreshTimeline')
 			})
 		},
