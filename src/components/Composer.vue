@@ -96,7 +96,7 @@
 				</div>
 				<label v-tooltip="'Upload image'" class="icon-upload" for="file-upload" />
 				<input id="file-upload" ref="addAttach" class="upload-button"
-					type="file" @change="uploadImages">
+					type="file" @change="uploadDocument">
 			</div>
 		</form>
 	</div>
@@ -615,46 +615,56 @@ export default {
 		})
 	},
 	methods: {
-		uploadImages() {
+		uploadDocument() {
+			// TODO: handle (or prevent) mulitple files
 			let self = this
 			let file = this.$refs.addAttach.files[0]
 			let reader = new FileReader()
+
+			// Called when selected file is completly loaded to draw a miniature
 			reader.onload = function(e) {
 				let canvas = document.createElement('canvas')
 				let ctx = canvas.getContext('2d')
 				let width = 300
 				let height = 200
 				let img = new Image()
+
+				// Called when img.src is set below
 				img.onload = function() {
 
-					canvas.width = this.naturalWidth
-					canvas.height = this.naturalHeight
-
-					ctx.drawImage(this, 0, 0)
-					let imgDataUrl = canvas.toDataURL()
-
-					let imgWidth = img.width
-					let imgHeight = img.height
-					if (imgWidth > window.innerWidth) {
-						imgHeight = imgHeight * (width / imgWidth)
-						imgWidth = width
-					}
+					// scale image for miniature
+					let imgWidth = this.width
+					let imgHeight = this.height
+					imgHeight = imgHeight * (width / imgWidth)
+					imgWidth = width
 					if (imgHeight > height) {
 						imgWidth = imgWidth * (height / imgHeight)
 						imgHeight = height
 					}
 					canvas.width = imgWidth
 					canvas.height = imgHeight
-					ctx.drawImage(img, 0, 0, imgWidth, imgHeight)
-					self.postAttachments.push(imgDataUrl)
+					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
+
+					// Save miniature
 					self.miniatures.push(canvas.toDataURL())
+					
 				}
-				img.src = e.target.result
+
+				// Save document
+				self.postAttachments.push(e.target.result)
+
+				// Draw a generic icon when document is not an image
+				if ( e.target.result.startsWith("data:image") ) {
+					img.src = e.target.result
+				} else {
+					img.src = OC.generateUrl('svg/core/filetypes/x-office-document?color=000000')
+				}
 			}
+
+			// Start reading selected file
 			reader.readAsDataURL(file)
 		},
 		removeAttachment(idx) {
-			console.log("removing attachment", idx)
 			this.postAttachments.splice(idx,1)
 			this.miniatures.splice(idx,1)
 		},
