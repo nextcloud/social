@@ -645,6 +645,12 @@ export default {
 					canvas.height = imgHeight
 					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
 
+					// Add filename to generic icon for non image document
+					if ( ! e.target.result.startsWith("data:image") ) {
+						ctx.font = "12px Arial"
+						ctx.fillText(file.name, 30, height - 20)
+					}
+
 					// Save miniature
 					self.miniatures.push(canvas.toDataURL())
 					
@@ -657,7 +663,7 @@ export default {
 				if ( e.target.result.startsWith("data:image") ) {
 					img.src = e.target.result
 				} else {
-					img.src = OC.generateUrl('svg/core/filetypes/x-office-document?color=000000')
+					img.src = OC.generateUrl('svg/core/filetypes/x-office-document?color=d8d8d8')
 				}
 			}
 
