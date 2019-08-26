@@ -448,7 +448,8 @@ class ActivityService {
 
 			$service = AP::$activityPub->getInterfaceForItem($item);
 			$service->save($item);
-		} catch (ItemUnknownException | ItemAlreadyExistsException $e) {
+		} catch (ItemUnknownException $e) {
+		} catch (ItemAlreadyExistsException $e) {
 		}
 	}
 
