@@ -94,7 +94,7 @@
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
-				<label v-tooltip="'Upload image'" class="icon-upload" for="file-upload" />
+				<label v-tooltip="'Upload image'" class="button icon-upload" for="file-upload" />
 				<input id="file-upload" ref="addAttach" class="upload-button"
 					type="file" @change="uploadDocument">
 			</div>
@@ -201,13 +201,8 @@
 	}
 
 	.icon-upload {
-		border-radius: 50%;
-		border: 1px solid #666;
-		padding: 0px 10px;
 		width: 34px;
 		height: 34px;
-		background-size: 16px 16px;
-		cursor: pointer;
 	}
 
 	.upload-button {
