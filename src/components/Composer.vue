@@ -80,9 +80,12 @@
 			</emoji-picker>
 
 			<masonry>
-				<div v-for="(item, index) in miniatures" :key="index">
-					<img :src="item" @click="removeAttachment(index)">
-				</div>
+				<div v-for="(item, index) in miniatures" :key="index" ref="miniatures" >
+					<img :src="item.img" :usemap="'#map' + index">
+					<map :name="'map' + index">
+						<area shape="circle" @click="removeAttachment(index)" :coords="getImageMapCoords(index)">
+					</map>
+			</div>
 			</masonry>
 
 			<div class="options">
@@ -95,9 +98,9 @@
 					</div>
 				</div>
 				<div class="emptySpace" />
-				<label v-tooltip="'Upload document'" class="button icon-upload" for="file-upload" />
+				<label v-tooltip="'Attach document'" class="button icon-upload" for="file-upload" />
 				<input id="file-upload" ref="addAttach" class="upload-button"
-					type="file" @change="uploadDocument">
+					type="file" @change="AddAttachment">
 			</div>
 		</form>
 	</div>
@@ -615,7 +618,7 @@ export default {
 		})
 	},
 	methods: {
-		uploadDocument() {
+		AddAttachment() {
 			// TODO: handle (or prevent) mulitple files
 			let self = this
 			let file = this.$refs.addAttach.files[0]
@@ -645,22 +648,22 @@ export default {
 					canvas.height = imgHeight
 					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
 
-					// draw a close badge in the upper-right corner
+					// Create a close badge in the upper-right corner
 					ctx.beginPath()
-					ctx.arc(imgWidth - 25, 25, 15, 0, 2 * Math.PI)
+					ctx.arc(imgWidth - 20, 20, 10, 0, 2 * Math.PI)
 					ctx.fillStyle = 'white'
 					ctx.fill()
-					ctx.lineWidth = 3
+					ctx.lineWidth = 2
 					ctx.StrokeStyle = 'darkgray'
 					ctx.stroke()
 					ctx.beginPath()
-					ctx.moveTo(imgWidth - (25 + 10), 25 - 10)
-					ctx.lineTo(imgWidth - (25 - 10), 25 + 10)
+					ctx.moveTo(imgWidth - (20 + 5), 20 - 5)
+					ctx.lineTo(imgWidth - (20 - 5), 20 + 5)
 					ctx.stroke()
-					ctx.moveTo(imgWidth - (25 - 10), 25 - 10)
-					ctx.lineTo(imgWidth - (25 + 10), 25 + 10)
+					ctx.moveTo(imgWidth - (20 - 5), 20 - 5)
+					ctx.lineTo(imgWidth - (20 + 5), 20 + 5)
 					ctx.stroke()
-
+	
 					// Add filename to generic icon for non image document
 					if (!e.target.result.startsWith('data:image')) {
 						ctx.fillStyle = 'black'
@@ -669,7 +672,10 @@ export default {
 					}
 
 					// Save miniature
-					self.miniatures.push(canvas.toDataURL())
+					self.miniatures.push({
+						"img": canvas.toDataURL(),
+						"coords": String(imgWidth-20) + ",20,10"
+					})
 
 				}
 
@@ -690,6 +696,9 @@ export default {
 		removeAttachment(idx) {
 			this.postAttachments.splice(idx, 1)
 			this.miniatures.splice(idx, 1)
+		},
+		getImageMapCoords(idx) {
+			return 	this.miniatures[idx].coords
 		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
