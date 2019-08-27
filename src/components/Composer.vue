@@ -94,6 +94,7 @@
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
+				<div class="emptySpace" />
 				<label v-tooltip="'Upload image'" class="button icon-upload" for="file-upload" />
 				<input id="file-upload" ref="addAttach" class="upload-button"
 					type="file" @change="uploadDocument">
@@ -198,6 +199,10 @@
 	.options button {
 		width: 34px;
 		height: 34px;
+	}
+
+	.emptySpace {
+		flex-grow:1;
 	}
 
 	.icon-upload {
