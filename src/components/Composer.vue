@@ -628,8 +628,8 @@ export default {
 			reader.onload = function(e) {
 				let canvas = document.createElement('canvas')
 				let ctx = canvas.getContext('2d')
-				let width = 300
-				let height = 200
+				let width = 265
+				let height = 180
 				let img = new Image()
 
 				// Called when img.src is set below
@@ -638,16 +638,27 @@ export default {
 					// scale image for miniature
 					let imgWidth = this.width
 					let imgHeight = this.height
-					imgHeight = imgHeight * (width / imgWidth)
+					imgHeight = Math.floor( imgHeight * (width / imgWidth) )
 					imgWidth = width
 					if (imgHeight > height) {
-						imgWidth = imgWidth * (height / imgHeight)
+						imgWidth = Math.floor( imgWidth * (height / imgHeight) )
 						imgHeight = height
 					}
 					canvas.width = imgWidth
 					canvas.height = imgHeight
 					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
 
+					// Draw a border
+					ctx.beginPath()
+					ctx.fillStyle = 'black'
+					ctx.lineWidth = 1
+				 	ctx.moveTo(0,0)
+					ctx.lineTo(imgWidth,0)	
+					ctx.lineTo(imgWidth, imgHeight)	
+					ctx.lineTo(0, imgHeight)	
+				 	ctx.lineTo(0,0)
+					ctx.stroke()
+	
 					// Create a close badge in the upper-right corner
 					ctx.beginPath()
 					ctx.arc(imgWidth - 20, 20, 10, 0, 2 * Math.PI)
