@@ -79,6 +79,15 @@
 				</div>
 			</emoji-picker>
 
+			<masonry>
+				<div v-for="(item, index) in miniatures" :key="index" ref="miniatures" >
+					<img :src="item.img" :usemap="'#map' + index">
+					<map :name="'map' + index">
+						<area shape="circle" @click="removeAttachment(index)" :coords="getImageMapCoords(index)">
+					</map>
+			</div>
+			</masonry>
+
 			<div class="options">
 				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
 					type="submit" title="" data-original-title="Post">
@@ -88,11 +97,16 @@
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
+				<div class="emptySpace" />
+				<label v-tooltip="'Attach document'" class="button icon-upload" for="file-upload" />
+				<input id="file-upload" ref="addAttach" class="upload-button"
+					type="file" @change="AddAttachment">
 			</div>
 		</form>
 	</div>
 </template>
 <style scoped lang="scss">
+
 	.new-post {
 		padding: 10px;
 		background-color: var(--color-main-background);
@@ -106,12 +120,14 @@
 		padding: 5px;
 		display: flex;
 		flex-wrap: wrap;
+
 		.post-author {
 			padding: 6px;
 
 			.post-author-name {
 				font-weight: bold;
 			}
+
 			.post-author-id {
 				opacity: .7;
 			}
@@ -129,6 +145,7 @@
 		border-radius: 3px;
 		padding: 5px;
 		padding-left: 30px;
+
 		.icon-close {
 			display: inline-block;
 			float: right;
@@ -152,7 +169,7 @@
 		display: block;
 	}
 
-	[contenteditable=true]:empty:before{
+	[contenteditable=true]:empty:before {
 		content: attr(placeholder);
 		display: block; /* For Firefox */
 		opacity: .5;
@@ -170,6 +187,7 @@
 		bottom: 0;
 		right: 0;
 	}
+
 	.options {
 		display: flex;
 		align-items: flex-end;
@@ -186,6 +204,19 @@
 		height: 34px;
 	}
 
+	.emptySpace {
+		flex-grow:1;
+	}
+
+	.icon-upload {
+		width: 34px;
+		height: 34px;
+	}
+
+	.upload-button {
+		display: none;
+	}
+
 	.emoji-invoker {
 		background-image: var(--icon-social-emoji-000);
 		background-position: center center;
@@ -197,15 +228,18 @@
 		cursor: pointer;
 		display: block;
 	}
+
 	.emoji-invoker:focus,
 	.emoji-invoker:hover {
 		opacity: 1;
 	}
+
 	.emoji-picker-wrapper {
 		position: absolute;
 		right: 0;
 		top: 0;
 	}
+
 	.emoji-picker.popovermenu {
 		display: block;
 		padding: 5px;
@@ -213,25 +247,37 @@
 		height: 200px;
 		top: 44px;
 	}
+
 	.emoji-picker > div {
 		overflow: hidden;
 		overflow-y: scroll;
 		height: 190px;
 	}
+
 	.emoji-picker input {
 		width: 100%;
 	}
+
 	.emoji-picker span.emoji {
 		padding: 3px;
 	}
+
 	.emoji-picker span.emoji:focus {
 		background-color: var(--color-background-dark);
 	}
+
 	.emoji-picker .emoji img {
 		width: 16px;
 	}
+
 	.popovermenu {
 		top: 55px;
+	}
+
+	.attachment-picker-wrapper {
+		position: absolute;
+		right: 0;
+		top: 2;
 	}
 </style>
 <style>
@@ -250,6 +296,7 @@
 		border-radius: 4px;
 		box-shadow: 0 1px 3px var(--color-box-shadow);
 	}
+
 	.tribute-container ul {
 		margin: 0;
 		margin-top: 2px;
@@ -260,6 +307,7 @@
 		background-clip: padding-box;
 		overflow: hidden;
 	}
+
 	.tribute-container li {
 		color: var(--color-text);
 		padding: 5px 10px;
@@ -267,14 +315,17 @@
 		font-size: 14px;
 		display: flex;
 	}
+
 	.tribute-container li span {
 		display: block;
 	}
+
 	.tribute-container li.highlight,
 	.tribute-container li:hover {
 		background: var(--color-primary);
 		color: var(--color-primary-text);
 	}
+
 	.tribute-container li img {
 		width: 32px;
 		height: 32px;
@@ -284,12 +335,15 @@
 		margin-left: -3px;
 		margin-top: 3px;
 	}
+
 	.tribute-container li span {
 		font-weight: bold;
 	}
+
 	.tribute-container li.no-match {
 		cursor: default;
 	}
+
 	.tribute-container .menu-highlighted {
 		font-weight: bold;
 	}
@@ -301,11 +355,13 @@
 		color: var(--color-text-light);
 		opacity: 0.5;
 	}
+
 	.tribute-container li.highlight .account,
 	.tribute-container li:hover .account {
 		color: var(--color-primary-text) !important;
 		opacity: .6;
 	}
+
 	.message .mention {
 		color: var(--color-primary-element);
 		background-color: var(--color-background-dark);
@@ -315,6 +371,7 @@
 		padding-bottom: 1px;
 		padding-right: 5px;
 	}
+
 	.mention img {
 		width: 16px;
 		border-radius: 50%;
@@ -323,6 +380,7 @@
 		vertical-align: middle;
 		margin-top: -1px;
 	}
+
 	.hashtag {
 		text-decoration: underline;
 	}
@@ -351,14 +409,14 @@ export default {
 		FocusOnCreate: FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
-	props: {
-
-	},
+	props: {},
 	data() {
 		return {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			post: '',
+			miniatures: [],		// miniatures of images stored in postAttachments
+			postAttachments: [],	// The toot's attachments
 			canType: true,
 			search: '',
 			replyTo: null,
@@ -516,28 +574,36 @@ export default {
 		visibilityPopover() {
 			return [
 				{
-					action: () => { this.switchType('public') },
+					action: () => {
+						this.switchType('public')
+					},
 					icon: this.visibilityIconClass('public'),
 					active: this.activeState('public'),
 					text: t('social', 'Public'),
 					longtext: t('social', 'Post to public timelines')
 				},
 				{
-					action: () => { this.switchType('unlisted') },
+					action: () => {
+						this.switchType('unlisted')
+					},
 					icon: this.visibilityIconClass('unlisted'),
 					active: this.activeState('unlisted'),
 					text: t('social', 'Unlisted'),
 					longtext: t('social', 'Do not post to public timelines')
 				},
 				{
-					action: () => { this.switchType('followers') },
+					action: () => {
+						this.switchType('followers')
+					},
 					icon: this.visibilityIconClass('followers'),
 					active: this.activeState('followers'),
 					text: t('social', 'Followers'),
 					longtext: t('social', 'Post to followers only')
 				},
 				{
-					action: () => { this.switchType('direct') },
+					action: () => {
+						this.switchType('direct')
+					},
 					icon: this.visibilityIconClass('direct'),
 					active: this.activeState('direct'),
 					text: t('social', 'Direct'),
@@ -552,6 +618,99 @@ export default {
 		})
 	},
 	methods: {
+		AddAttachment() {
+			// TODO: handle (or prevent) mulitple files
+			let self = this
+			let file = this.$refs.addAttach.files[0]
+			let reader = new FileReader()
+
+			// Called when selected file is completly loaded to draw a miniature
+			reader.onload = function(e) {
+				let canvas = document.createElement('canvas')
+				let ctx = canvas.getContext('2d')
+				let width = 265
+				let height = 180
+				let img = new Image()
+
+				// Called when img.src is set below
+				img.onload = function() {
+
+					// scale image for miniature
+					let imgWidth = this.width
+					let imgHeight = this.height
+					imgHeight = Math.floor( imgHeight * (width / imgWidth) )
+					imgWidth = width
+					if (imgHeight > height) {
+						imgWidth = Math.floor( imgWidth * (height / imgHeight) )
+						imgHeight = height
+					}
+					canvas.width = imgWidth
+					canvas.height = imgHeight
+					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
+
+					// Draw a border
+					ctx.beginPath()
+					ctx.fillStyle = 'black'
+					ctx.lineWidth = 1
+				 	ctx.moveTo(0,0)
+					ctx.lineTo(imgWidth,0)	
+					ctx.lineTo(imgWidth, imgHeight)	
+					ctx.lineTo(0, imgHeight)	
+				 	ctx.lineTo(0,0)
+					ctx.stroke()
+	
+					// Create a close badge in the upper-right corner
+					ctx.beginPath()
+					ctx.arc(imgWidth - 20, 20, 10, 0, 2 * Math.PI)
+					ctx.fillStyle = 'white'
+					ctx.fill()
+					ctx.lineWidth = 2
+					ctx.StrokeStyle = 'darkgray'
+					ctx.stroke()
+					ctx.beginPath()
+					ctx.moveTo(imgWidth - (20 + 5), 20 - 5)
+					ctx.lineTo(imgWidth - (20 - 5), 20 + 5)
+					ctx.stroke()
+					ctx.moveTo(imgWidth - (20 - 5), 20 - 5)
+					ctx.lineTo(imgWidth - (20 + 5), 20 + 5)
+					ctx.stroke()
+	
+					// Add filename to generic icon for non image document
+					if (!e.target.result.startsWith('data:image')) {
+						ctx.fillStyle = 'black'
+						ctx.font = '12px Arial'
+						ctx.fillText(file.name, 30, imgHeight - 20)
+					}
+
+					// Save miniature
+					self.miniatures.push({
+						"img": canvas.toDataURL(),
+						"coords": String(imgWidth-20) + ",20,10"
+					})
+
+				}
+
+				// Save document
+				self.postAttachments.push(e.target.result)
+
+				// Draw a generic icon when document is not an image
+				if (e.target.result.startsWith('data:image')) {
+					img.src = e.target.result
+				} else {
+					img.src = OC.generateUrl('svg/core/filetypes/x-office-document?color=d8d8d8')
+				}
+			}
+
+			// Start reading selected file
+			reader.readAsDataURL(file)
+		},
+		removeAttachment(idx) {
+			this.postAttachments.splice(idx, 1)
+			this.miniatures.splice(idx, 1)
+		},
+		getImageMapCoords(idx) {
+			return 	this.miniatures[idx].coords
+		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
 				let category = Object.keys(emoji)[0]
@@ -605,7 +764,8 @@ export default {
 				content: element.innerText.trim(),
 				to: to,
 				hashtags: hashtags,
-				type: this.type
+				type: this.type,
+				attachments: this.postAttachments
 			}
 			if (this.replyTo) {
 				data.replyTo = this.replyTo.id
@@ -624,6 +784,8 @@ export default {
 				this.replyTo = null
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
+				this.postAttachments = []
+				this.miniatures = []
 				this.$store.dispatch('refreshTimeline')
 			})
 		},

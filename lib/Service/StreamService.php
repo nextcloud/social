@@ -47,6 +47,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
@@ -313,6 +314,15 @@ class StreamService {
 		foreach ($hashtags as $hashtag) {
 			$this->addHashtag($note, $hashtag);
 		}
+	}
+
+
+	/**
+	 * @param Note $note
+	 * @param Document[] $documents
+	 */
+	public function addAttachments(Note $note, array $documents) {
+		$note->setAttachments($documents);
 	}
 
 

@@ -303,8 +303,7 @@ class ACore extends Item implements JsonSerializable {
 			$base = $this->withoutEndSlash($this->withBeginSlash($base));
 		}
 
-		$uuid = $this->uuid();
-		$this->setId($url . $base . '/' . $uuid);
+		$this->setId($url . $base . '/' . $this->uuid());
 	}
 
 
