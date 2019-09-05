@@ -130,7 +130,7 @@ export default {
 				// For local posts, we don't have a source attribute, so we use this slightly less robust method to create links for mentions
 				// It is less robust because mentions not followed by a space will be identified with the text following them.
 				// Example: In message "Hello @cyrille@nextcloud.bollu.be.How are u?", the identified mention will be "@cyrille@nextcloud.bollu.be.How"
-				//          rather than "@cyrille@bollu.be"
+				//          rather than "@cyrille@nextcloud.bollu.be"
 				message = message.replace(/@[^@]+@\S+/g, function(matched) {
 					var a = '<a href="' + OC.generateUrl('/apps/social/' + matched) + '">' + matched + '</a>'
 					return a
