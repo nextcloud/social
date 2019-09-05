@@ -374,7 +374,18 @@ class Stream extends ACore implements JsonSerializable {
 		}
 
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
-		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));
+
+		// Replaces hCard's by their corresponding actor name before importing 'content'
+                $content['content'] = $this->get('content', $data, '');
+  	        $tags = json_decode($data['source'])->{'tag'};
+		foreach($tags as $tag) {
+			if ($tag->{'type'} === 'Mention' ) {
+				$pattern = '/<span class="h-card"><a href="' . addcslashes($tag->{'href'}, '/') . '" class="u-url mention">@<span>[^<]+<\/span><\/a><\/span>/';
+				$content['content'] = preg_replace($pattern, $tag->{'name'}, $content['content']);
+			}
+		}
+
+		$this->setContent($this->validate(self::AS_STRING, 'content', $content, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
