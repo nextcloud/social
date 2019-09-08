@@ -80,12 +80,12 @@
 			</emoji-picker>
 
 			<masonry>
-				<div v-for="(item, index) in miniatures" :key="index" ref="miniatures" >
+				<div v-for="(item, index) in miniatures" :key="index" ref="miniatures">
 					<img :src="item.img" :usemap="'#map' + index">
 					<map :name="'map' + index">
-						<area shape="circle" @click="removeAttachment(index)" :coords="getImageMapCoords(index)">
+						<area shape="circle" :coords="getImageMapCoords(index)" @click="removeAttachment(index)">
 					</map>
-			</div>
+				</div>
 			</masonry>
 
 			<div class="options">
@@ -638,10 +638,10 @@ export default {
 					// scale image for miniature
 					let imgWidth = this.width
 					let imgHeight = this.height
-					imgHeight = Math.floor( imgHeight * (width / imgWidth) )
+					imgHeight = Math.floor(imgHeight * (width / imgWidth))
 					imgWidth = width
 					if (imgHeight > height) {
-						imgWidth = Math.floor( imgWidth * (height / imgHeight) )
+						imgWidth = Math.floor(imgWidth * (height / imgHeight))
 						imgHeight = height
 					}
 					canvas.width = imgWidth
@@ -652,13 +652,13 @@ export default {
 					ctx.beginPath()
 					ctx.fillStyle = 'black'
 					ctx.lineWidth = 1
-				 	ctx.moveTo(0,0)
-					ctx.lineTo(imgWidth,0)	
-					ctx.lineTo(imgWidth, imgHeight)	
-					ctx.lineTo(0, imgHeight)	
-				 	ctx.lineTo(0,0)
+					ctx.moveTo(0, 0)
+					ctx.lineTo(imgWidth, 0)
+					ctx.lineTo(imgWidth, imgHeight)
+					ctx.lineTo(0, imgHeight)
+					ctx.lineTo(0, 0)
 					ctx.stroke()
-	
+
 					// Create a close badge in the upper-right corner
 					ctx.beginPath()
 					ctx.arc(imgWidth - 20, 20, 10, 0, 2 * Math.PI)
@@ -674,7 +674,7 @@ export default {
 					ctx.moveTo(imgWidth - (20 - 5), 20 - 5)
 					ctx.lineTo(imgWidth - (20 + 5), 20 + 5)
 					ctx.stroke()
-	
+
 					// Add filename to generic icon for non image document
 					if (!e.target.result.startsWith('data:image')) {
 						ctx.fillStyle = 'black'
@@ -684,8 +684,8 @@ export default {
 
 					// Save miniature
 					self.miniatures.push({
-						"img": canvas.toDataURL(),
-						"coords": String(imgWidth-20) + ",20,10"
+						'img': canvas.toDataURL(),
+						'coords': String(imgWidth - 20) + ',20,10'
 					})
 
 				}
