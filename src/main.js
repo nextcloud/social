@@ -23,7 +23,7 @@
 import Vue from 'vue'
 import { sync } from 'vuex-router-sync'
 
-import App from './App'
+import App from './App.vue'
 import store from './store'
 import router from './router'
 import vuetwemoji from 'vue-twemoji'

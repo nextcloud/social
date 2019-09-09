@@ -25,8 +25,8 @@
 </template>
 
 <script>
-import TimelinePost from './TimelinePost'
-import UserEntry from './UserEntry'
+import TimelinePost from './TimelinePost.vue'
+import UserEntry from './UserEntry.vue'
 
 export default {
 	name: 'TimelineEntry',

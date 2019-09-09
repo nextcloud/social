@@ -22,7 +22,7 @@
 
 import Vue from 'vue'
 import store from './store'
-import OStatus from './views/OStatus'
+import OStatus from './views/OStatus.vue'
 
 // eslint-disable-next-line
 __webpack_nonce__ = btoa(OC.requestToken)

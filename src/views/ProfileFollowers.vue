@@ -37,7 +37,7 @@
 </style>
 
 <script>
-import UserEntry from '../components/UserEntry'
+import UserEntry from '../components/UserEntry.vue'
 import serverData from '../mixins/serverData'
 
 export default {

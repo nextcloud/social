@@ -56,7 +56,7 @@ import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
-import PostAttachment from './PostAttachment'
+import PostAttachment from './PostAttachment.vue'
 
 pluginMention(linkify)
 

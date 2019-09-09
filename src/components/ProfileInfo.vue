@@ -100,7 +100,7 @@ import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import serverData from '../mixins/serverData'
 import currentUser from '../mixins/currentUserMixin'
 import follow from '../mixins/follow'
-import FollowButton from './FollowButton'
+import FollowButton from './FollowButton.vue'
 
 export default {
 	name: 'ProfileInfo',
