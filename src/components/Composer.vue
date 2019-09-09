@@ -394,7 +394,7 @@ import VueTribute from 'vue-tribute'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
-import ActorAvatar from './ActorAvatar'
+import ActorAvatar from './ActorAvatar.vue'
 
 export default {
 	name: 'Composer',

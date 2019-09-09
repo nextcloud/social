@@ -93,7 +93,7 @@
 <script>
 import AppNavigationItem from 'nextcloud-vue/dist/Components/AppNavigationItem'
 import axios from 'nextcloud-axios'
-import Search from './components/Search'
+import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
 
 export default {

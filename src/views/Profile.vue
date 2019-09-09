@@ -38,8 +38,8 @@
 </style>
 
 <script>
-import ProfileInfo from './../components/ProfileInfo'
-import EmptyContent from '../components/EmptyContent'
+import ProfileInfo from './../components/ProfileInfo.vue'
+import EmptyContent from '../components/EmptyContent.vue'
 import serverData from '../mixins/serverData'
 
 export default {

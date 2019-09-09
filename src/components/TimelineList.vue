@@ -57,9 +57,9 @@
 
 <script>
 import InfiniteLoading from 'vue-infinite-loading'
-import TimelineEntry from './TimelineEntry'
+import TimelineEntry from './TimelineEntry.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin'
-import EmptyContent from './EmptyContent'
+import EmptyContent from './EmptyContent.vue'
 
 export default {
 	name: 'Timeline',

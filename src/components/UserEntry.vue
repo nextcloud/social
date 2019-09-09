@@ -58,7 +58,7 @@
 import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import follow from '../mixins/follow'
 import currentUser from '../mixins/currentUserMixin'
-import FollowButton from './FollowButton'
+import FollowButton from './FollowButton.vue'
 
 export default {
 	name: 'UserEntry',

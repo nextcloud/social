@@ -92,10 +92,10 @@
 </style>
 
 <script>
-import Composer from './../components/Composer'
+import Composer from './../components/Composer.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import follow from './../mixins/follow'
-import TimelineList from './../components/TimelineList'
+import TimelineList from './../components/TimelineList.vue'
 
 export default {
 	name: 'Timeline',
