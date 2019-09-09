@@ -62,20 +62,33 @@ export default {
 			return t('social', 'boosted')
 		},
 		actionSummary() {
+
 			let summary = this.item.summary
 			for (var key in this.item.details) {
+
 				let keyword = '{' + key + '}'
 				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
+
 					let concatination = ''
-					for (var stringkey in this.item.details[key]) {
-						concatination += this.item.details[key][stringkey] + ', '
+					for (var stringKey in this.item.details[key]) {
+
+						if (this.item.details[key].length > 3 && stringKey === 3) {
+							// ellipses the actors' list to 3 actors when it's big
+							concatination += 'and ' + (this.item.details[key].length - 3).toString() + ' other(s), '
+							break
+						} else {
+							concatination += this.item.details[key][stringKey] + ', '
+						}
 					}
+
 					concatination = concatination.substring(0, concatination.length - 2)
 					summary = summary.replace(keyword, concatination)
+
 				} else {
 					summary = summary.replace(keyword, this.item.details[key])
 				}
 			}
+
 			return summary
 		}
 	},
