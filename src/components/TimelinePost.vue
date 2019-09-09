@@ -28,7 +28,9 @@
 				</div>
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div class="post-message" v-html="formatedMessage" />
+			<div v-if="item.content" class="post-message" v-html="formatedMessage" />
+			<!-- eslint-disable-next-line vue/no-v-html -->
+			<div v-else class="post-message" v-html="item.actor_info.summary" />
 			<div v-if="hasAttachments" class="post-attachments">
 				<post-attachment :attachments="item.attachment" />
 			</div>

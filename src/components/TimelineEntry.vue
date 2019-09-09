@@ -20,25 +20,22 @@
 			{{ boosted }}
 		</div>
 		<timeline-post
-			v-if="item.type === 'Note' || item.type === 'Announce'"
+			v-if="item.type === 'SocialAppNotification' && item.details.post"
+			:item="item.details.post" />
+		<timeline-post
+			v-else
 			:item="entryContent"
 			:parent-announce="isBoost" />
-		<timeline-post
-			v-else-if="item.type === 'SocialAppNotification' && item.details.post"
-			:item="item.details.post" />
-		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 	</div>
 </template>
 
 <script>
-import TimelinePost from './TimelinePost.vue'
-import UserEntry from './UserEntry.vue'
+import TimelinePost from './TimelinePost'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
-		TimelinePost,
-		UserEntry
+		TimelinePost
 	},
 	props: {
 		item: { type: Object, default: () => {} }
