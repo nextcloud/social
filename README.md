@@ -4,7 +4,7 @@
 
 ![](img/screenshot.png)
 
-- **🙋 Find your friends:** No matter if they use [☁ Nextcloud Social](https://github.com/nextcloud/social#nextcloud-social), [🐘 Mastodon](https://joinmastodon.org), [🇫 Friendica](https://friendi.ca) – and soon [📺 PeerTube](https://joinpeertube.org), [🅿️ Pleroma](https://pleroma.social) or [📷 PixelFed](https://pixelfed.org) – you can follow them!
+- **🙋 Find your friends:** No matter if they use [☁ Nextcloud Social](https://github.com/nextcloud/social#nextcloud-social), [🐘 Mastodon](https://joinmastodon.org), [🇫 Friendica](https://friendi.ca), [🇭 Hubzilla](https://start.hubzilla.org/page/admin/start), [🅿️ Pleroma](https://pleroma.social) and soon [📺 PeerTube](https://joinpeertube.org) or [📷 PixelFed](https://pixelfed.org) – you can follow them!
 - **📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.
 - **👐 Own your posts:** Everything you post stays on your Nextcloud!
 - **🕸 Open standards:** We use the established [ActivityPub](https://en.wikipedia.org/wiki/ActivityPub) standard!
