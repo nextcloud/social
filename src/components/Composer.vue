@@ -49,7 +49,8 @@
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
-					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup" @tribute-replaced="updatePostFromTribute" />
+					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup"
+					@tribute-replaced="updatePostFromTribute" />
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
 				@emoji="insert">
