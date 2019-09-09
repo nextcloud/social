@@ -56,9 +56,6 @@ class ConfigService {
 	const SOCIAL_URL = 'social_url';
 	const SOCIAL_ADDRESS = 'social_address';
 
-	// deprecated -> CLOUD_URL
-	const CLOUD_ADDRESS = 'address';
-
 	const SOCIAL_SERVICE = 'service';
 	const SOCIAL_MAX_SIZE = 'max_size';
 	const SOCIAL_ACCESS_TYPE = 'access_type';
@@ -74,7 +71,6 @@ class ConfigService {
 		self::CLOUD_URL          => '',
 		self::SOCIAL_URL         => '',
 		self::SOCIAL_ADDRESS     => '',
-		self::CLOUD_ADDRESS      => '',
 		self::SOCIAL_SERVICE     => 1,
 		self::SOCIAL_MAX_SIZE    => 10,
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
@@ -126,6 +122,22 @@ class ConfigService {
 
 
 	/**
+	 * @return array
+	 */
+	public function getConfig(): array {
+		$keys = array_keys($this->defaults);
+		$data = [];
+
+		foreach ($keys as $k) {
+			$data[$k] = $this->getAppValue($k);
+		}
+
+		return $data;
+	}
+
+
+	/**
+	 * /**
 	 * Get a value by key
 	 *
 	 * @param string $key
@@ -406,6 +418,7 @@ class ConfigService {
 
 		return $id;
 	}
+
 
 }
 

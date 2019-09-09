@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\CheckService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
 use OCP\IUserManager;
@@ -55,6 +56,9 @@ class CheckInstall extends Base {
 	/** @var CheckService */
 	private $checkService;
 
+	/** @var */
+	private $configService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -64,17 +68,19 @@ class CheckInstall extends Base {
 	 *
 	 * @param IUserManager $userManager
 	 * @param CheckService $checkService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 * @param PushService $pushService
 	 */
 	public function __construct(
-		IUserManager $userManager, CheckService $checkService, MiscService $miscService,
-		PushService $pushService
+		IUserManager $userManager, CheckService $checkService, ConfigService $configService,
+		MiscService $miscService, PushService $pushService
 	) {
 		parent::__construct();
 
 		$this->userManager = $userManager;
 		$this->checkService = $checkService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 		$this->pushService = $pushService;
 	}
@@ -112,6 +118,8 @@ class CheckInstall extends Base {
 
 		$output->writeln('- ' . $this->getInt('invalidFollowers', $result, 0) . ' invalid followers removed');
 		$output->writeln('- ' . $this->getInt('invalidNotes', $result, 0) . ' invalid notes removed');
+
+		$output->writeln(json_encode($this->configService->getConfig(), JSON_PRETTY_PRINT));
 	}
 
 
