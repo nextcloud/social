@@ -72,10 +72,10 @@ export default {
 					let concatination = ''
 					for (var stringKey in this.item.details[key]) {
 
-						if (this.item.details[key].length > 3 && stringKey === 3) {
+						if (this.item.details[key].length > 3 && stringKey === '3') {
 							// ellipses the actors' list to 3 actors when it's big
 							concatination = concatination.substring(0, concatination.length - 2)
-							concatination += 'and ' + (this.item.details[key].length - 3).toString() + ' other(s), '
+							concatination += ' and ' + (this.item.details[key].length - 3).toString() + ' other(s), '
 							break
 						} else {
 							concatination += this.item.details[key][stringKey] + ', '
