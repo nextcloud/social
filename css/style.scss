@@ -2,6 +2,7 @@
 @include icon-black-white('emoji', 'social', 1);
 @include icon-black-white('boost', 'social', 1);
 @include icon-black-white('upload', 'actions', 1, true);
+@include icon-black-white('notifications', 'social', 1);
 
 .icon-boosted {
   @include icon-color('boost', 'social', '#0082c9', 1);

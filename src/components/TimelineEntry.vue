@@ -19,20 +19,23 @@
 			</a>
 			{{ boosted }}
 		</div>
-		<timeline-post v-if="(item.type === 'Note' || item.type === 'Announce')" :item="entryContent" :parent-announce="isBoost" />
-		<user-entry v-if="item.type === 'SocialAppNotificationUser'" :key="user.id" :item="user" />
+		<timeline-post
+			v-if="item.type === 'SocialAppNotification' && item.details.post"
+			:item="item.details.post" />
+		<timeline-post
+			v-else
+			:item="entryContent"
+			:parent-announce="isBoost" />
 	</div>
 </template>
 
 <script>
 import TimelinePost from './TimelinePost.vue'
-import UserEntry from './UserEntry.vue'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
-		TimelinePost,
-		UserEntry
+		TimelinePost
 	},
 	props: {
 		item: { type: Object, default: () => {} }
@@ -59,11 +62,34 @@ export default {
 			return t('social', 'boosted')
 		},
 		actionSummary() {
+
 			let summary = this.item.summary
 			for (var key in this.item.details) {
+
 				let keyword = '{' + key + '}'
-				summary = summary.replace(keyword, JSON.stringify(this.item.details[key]))
+				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
+
+					let concatination = ''
+					for (var stringKey in this.item.details[key]) {
+
+						if (this.item.details[key].length > 3 && stringKey === '3') {
+							// ellipses the actors' list to 3 actors when it's big
+							concatination = concatination.substring(0, concatination.length - 2)
+							concatination += ' and ' + (this.item.details[key].length - 3).toString() + ' other(s), '
+							break
+						} else {
+							concatination += this.item.details[key][stringKey] + ', '
+						}
+					}
+
+					concatination = concatination.substring(0, concatination.length - 2)
+					summary = summary.replace(keyword, concatination)
+
+				} else {
+					summary = summary.replace(keyword, this.item.details[key])
+				}
 			}
+
 			return summary
 		}
 	},
