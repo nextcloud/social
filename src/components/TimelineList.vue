@@ -93,7 +93,7 @@ export default {
 					description: t('social', 'Posts from other people on this instance will show up here')
 				},
 				notifications: {
-					image: 'img/undraw/profile.svg',
+					image: 'img/undraw/notifications.svg',
 					title: t('social', 'No notifications found'),
 					description: t('social', 'You haven\'t receive any notifications yet')
 				},
@@ -103,8 +103,12 @@ export default {
 					description: t('social', 'Posts from federated instances will show up here')
 				},
 				liked: {
-					image: 'img/undraw/profile.svg',
+					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found')
+				},
+				profile: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'You haven\'t tooted yet')
 				},
 				tags: {
 					image: 'img/undraw/profile.svg',
@@ -115,11 +119,11 @@ export default {
 	},
 	computed: {
 		emptyContentData() {
-			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
-				return this.emptyContent[this.$route.name]
-			}
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
+			}
+			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
+				return this.$route.name === 'timeline' ? this.emptyContent['default'] : this.emptyContent[this.$route.name]
 			}
 			return this.emptyContent.default
 		},
