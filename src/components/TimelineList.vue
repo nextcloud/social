@@ -92,6 +92,11 @@ export default {
 					title: t('social', 'No local posts found'),
 					description: t('social', 'Posts from other people on this instance will show up here')
 				},
+				notifications: {
+					image: 'img/undraw/profile.svg',
+					title: t('social', 'No notifications found'),
+					description: t('social', 'You haven\'t receive any notifications yet')
+				},
 				federated: {
 					image: 'img/undraw/global.svg',
 					title: t('social', 'No global posts found'),
