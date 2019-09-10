@@ -35,5 +35,9 @@ If you want to reset all Social app data e.g. to change the domain used for Soci
 4. ✅ Enable the app through the app management of your Nextcloud
 5. 🎉 Partytime! Help fix [some issues](https://github.com/nextcloud/social/issues) and [review pull requests](https://github.com/nextcloud/social/pulls) 👍
 
+## Development guidelines
+
+1. Before submitting a pull request, please run `make lint` to make sure your (javascript) code complies with our coding style guidelines.
+2. You can run unit tests for your PHP code by running `make test-php`
 
 ![](img/social-promo.png)
