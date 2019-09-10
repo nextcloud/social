@@ -30,7 +30,7 @@
 </template>
 
 <script>
-import TimelinePost from './TimelinePost'
+import TimelinePost from './TimelinePost.vue'
 
 export default {
 	name: 'TimelineEntry',
