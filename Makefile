@@ -49,6 +49,8 @@ test-watch:
 test-coverage:
 	npm run test:coverage
 
+test-php:
+	vendor/bin/phpunit -c tests/phpunit.xml
 # Linting
 lint:
 	npm run lint
