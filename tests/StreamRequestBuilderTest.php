@@ -73,9 +73,7 @@ WwIDAQAB
 
 		$stream = $sr->parseStreamSelectSql($data);
 
-		print_r($stream);
-
-		$this->assertTrue(true);
+		$this->assertSame('@cult@social.artificial-owl.com  @testing @cult@test.artificial-own.com let\'s test !', $stream->getContent());
 	}
 
 }
