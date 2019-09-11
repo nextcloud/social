@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-entry">
+	<div class="timeline-entry" @click="showModal">
 		<div v-if="item.type === 'SocialAppNotification'">
 			{{ actionSummary }}
 		</div>
@@ -26,22 +26,28 @@
 			v-else
 			:item="entryContent"
 			:parent-announce="isBoost" />
+		<modal v-show="modal" size="full" @close="closeModal">
+			<div class="modal_content">Hello world!</div>
+		</modal>
 	</div>
 </template>
 
 <script>
+import Modal from 'nextcloud-vue/dist/Components/Modal'
 import TimelinePost from './TimelinePost.vue'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
+		Modal,
 		TimelinePost
 	},
 	props: {
-		item: { type: Object, default: () => {} }
+		item: { type: Object, default: () => {} },
 	},
 	data() {
 		return {
+			modal: false
 		}
 	},
 	computed: {
@@ -94,6 +100,12 @@ export default {
 		}
 	},
 	methods: {
+		showModal() {
+			this.modal = true
+		},
+		closeModal() {
+			this.modal = false
+		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		}
@@ -104,6 +116,9 @@ export default {
 	.timeline-entry {
 		padding: 10px;
 		margin-bottom: 10px;
+	}
+	.timeline-entry:hover {
+		background-color: #F5F5F5;
 	}
 
 	.container-icon-boost {
