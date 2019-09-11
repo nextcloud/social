@@ -90,7 +90,7 @@
 			</masonry>
 
 			<div class="options">
-				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
+				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1 || post==='br'" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div v-click-outside="hidePopoverMenu">
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
