@@ -194,16 +194,19 @@ class LocalController extends Controller {
 	 * get info about a post (limited to viewer rights).
 	 *
 	 * @NoAdminRequired
+	 * @NoCSRFRequired
 	 *
-	 * @param string $id
+	 * @param string $postId
 	 *
 	 * @return DataResponse
 	 */
-	public function postData(string $id): DataResponse {
+	public function postGet(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			return $this->directSuccess($this->streamService->getStreamById($id, true));
+			$stream = $this->streamService->getStreamById($postId, true);
+
+			return $this->directSuccess($stream);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

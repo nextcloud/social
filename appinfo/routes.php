@@ -60,7 +60,7 @@ return [
 		['name' => 'OStatus#followRemote', 'url' => '/api/v1/ostatus/followRemote/{local}', 'verb' => 'GET'],
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
-		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{postId}', 'verb' => 'GET'],
+		['name' => 'SocialPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
 
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
 		['name' => 'Local#streamNotifications', 'url' => '/api/v1/stream/notifications', 'verb' => 'GET'],
@@ -71,8 +71,7 @@ return [
 		['name' => 'Local#streamLiked', 'url' => '/api/v1/stream/liked', 'verb' => 'GET'],
 		['name' => 'Local#streamAccount', 'url' => '/api/v1/account/{username}/stream', 'verb' => 'GET'],
 
-		['name' => 'Local#postData', 'url' => '/local/v1/post', 'verb' => 'GET'],
-
+		['name' => 'Local#postGet', 'url' => '/local/v1/post', 'verb' => 'GET'],
 		['name' => 'Local#postCreate', 'url' => '/api/v1/post', 'verb' => 'POST'],
 		['name' => 'Local#postDelete', 'url' => '/api/v1/post', 'verb' => 'DELETE'],
 
