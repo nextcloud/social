@@ -743,7 +743,7 @@ export default {
 			let contentHtml = element.innerHTML
 			let to = []
 			let hashtags = []
-			const mentionRegex = /@(([\w-_.]+)(@[\w-.]+)?)/g
+			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
 			let match = null
 			do {
 				match = mentionRegex.exec(contentHtml)
@@ -783,8 +783,18 @@ export default {
 			this.$refs.composerInput.oninput(event)
 		},
 		createPost(event) {
+
+			let postData = this.getPostData()
+
+			// Abort if the post is a direct message and no valid mentions were found
+			if (this.type === 'direct' && postData.to.length === 0) {
+				OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
+				return
+			}
+
+			// Post toot
 			this.loading = true
-			this.$store.dispatch('post', this.getPostData()).then((response) => {
+			this.$store.dispatch('post', postData).then((response) => {
 				this.loading = false
 				this.replyTo = null
 				this.post = ''
@@ -793,6 +803,7 @@ export default {
 				this.miniatures = []
 				this.$store.dispatch('refreshTimeline')
 			})
+
 		},
 		remoteSearchAccounts(text) {
 			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
