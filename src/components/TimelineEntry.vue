@@ -26,7 +26,7 @@
 			v-else
 			:item="entryContent"
 			:parent-announce="isBoost" />
-		<modal v-show="modal" size="full" @close="closeModal">
+		<modal v-if="modal" size="full" @close="closeModal">
 			<div class="modal_content">Hello world!</div>
 		</modal>
 	</div>
