@@ -43,7 +43,7 @@ export default {
 		TimelinePost
 	},
 	props: {
-		item: { type: Object, default: () => {} },
+		item: { type: Object, default: () => {} }
 	},
 	data() {
 		return {
@@ -100,7 +100,11 @@ export default {
 		}
 	},
 	methods: {
-		showModal() {
+		showModal(event) {
+			// Do not show the timeline entry's modal if we click on a link, an attachment's miniature, or the post's author name
+			if (event.target.tagName === 'A' || event.target.tagName === 'IMG' || event.target.className.indexOf('post-author') !== -1) {
+				return
+			}
 			this.modal = true
 		},
 		closeModal() {
