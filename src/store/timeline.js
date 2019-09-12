@@ -189,6 +189,8 @@ const actions = {
 			url = OC.generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
 		} else if (state.type === 'tags') {
 			url = OC.generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
+		} else if (state.type === 'post') {
+			url = OC.generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=0`)
 		} else {
 			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
 		}

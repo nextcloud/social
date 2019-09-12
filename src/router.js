@@ -54,6 +54,10 @@ export default new Router({
 				{
 					path: 'tags/:tag',
 					name: 'tags'
+				},
+				{
+					path: 'post',
+					name: 'post'
 				}
 			]
 		},

@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-entry" @click="showModal">
+	<div class="timeline-entry" @click.prevent="getSinglePostTimeline">
 		<div v-if="item.type === 'SocialAppNotification'">
 			{{ actionSummary }}
 		</div>
@@ -26,20 +26,15 @@
 			v-else
 			:item="entryContent"
 			:parent-announce="isBoost" />
-		<modal v-if="modal" size="full" @close="closeModal">
-			<div class="modal_content">Hello world!</div>
-		</modal>
 	</div>
 </template>
 
 <script>
-import Modal from 'nextcloud-vue/dist/Components/Modal'
 import TimelinePost from './TimelinePost.vue'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
-		Modal,
 		TimelinePost
 	},
 	props: {
@@ -47,7 +42,6 @@ export default {
 	},
 	data() {
 		return {
-			modal: false
 		}
 	},
 	computed: {
@@ -66,6 +60,9 @@ export default {
 		},
 		boosted() {
 			return t('social', 'boosted')
+		},
+		getSinglePostTimeline() {
+			this.$store.dispatch('changeTimelineType', { type: 'post', params: {id: this.item.id} })	
 		},
 		actionSummary() {
 
@@ -100,16 +97,6 @@ export default {
 		}
 	},
 	methods: {
-		showModal(event) {
-			// Do not show the timeline entry's modal if we click on a link, an attachment's miniature, or the post's author name
-			if (event.target.tagName === 'A' || event.target.tagName === 'IMG' || event.target.className.indexOf('post-author') !== -1) {
-				return
-			}
-			this.modal = true
-		},
-		closeModal() {
-			this.modal = false
-		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		}
