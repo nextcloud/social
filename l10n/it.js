@@ -47,6 +47,8 @@ OC.L10N.register(
     "Posts directed to you will show up here" : "I commenti diretti a te saranno mostrati qui",
     "No local posts found" : "Nessun commento locale trovato",
     "Posts from other people on this instance will show up here" : "I commenti da altre persone su questa istanza saranno mostrati qui",
+    "No notifications found" : "Nessuna notifica trovata",
+    "You haven't receive any notifications yet" : "Non hai ancora ricevuto alcuna notifica",
     "No global posts found" : "Nessun commento globale trovato",
     "Posts from federated instances will show up here" : "Commenti da istanze federate saranno mostrati qui",
     "No liked posts found" : "Nessun commento piaciuto trovato",

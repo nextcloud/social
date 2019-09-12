@@ -47,6 +47,8 @@ OC.L10N.register(
     "Posts directed to you will show up here" : "Les messages qui vous sont adressés apparaîtront ici",
     "No local posts found" : "Aucun message local trouvé",
     "Posts from other people on this instance will show up here" : "Les messages d'autres personnes de cette instance apparaîtront ici",
+    "No notifications found" : "Aucune notification",
+    "You haven't receive any notifications yet" : "Vous n'avez pas encore reçu de notification",
     "No global posts found" : "Aucun message global trouvé",
     "Posts from federated instances will show up here" : "Les messages des instances fédérées apparaîtront ici",
     "No liked posts found" : "Aucun message aimé trouvé",
