@@ -391,13 +391,15 @@ class StreamService {
 
 	/**
 	 * @param string $id
+	 * @param int $since
+	 * @param int $limit
 	 * @param bool $asViewer
 	 *
 	 * @return Stream[]
 	 * @throws StreamNotFoundException
 	 */
-	public function getRepliesByParentId(string $id, bool $asViewer = false): array {
-		return $this->streamRequest->getRepliesByParentId($id, $asViewer);
+	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false): array {
+		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
 
 

@@ -257,18 +257,23 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/**
 	 * @param string $id
+	 * @param int $since
+	 * @param int $limit
 	 * @param bool $asViewer
 	 *
 	 * @return Stream[]
 	 * @throws StreamNotFoundException
+	 * @throws DateTimeException
 	 */
-	public function getRepliesByParentId(string $id, bool $asViewer = false): array {
+	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false
+	): array {
 		if ($id === '') {
 			throw new StreamNotFoundException();
 		};
 
 		$qb = $this->getStreamSelectSql();
 		$this->limitToInReplyTo($qb, $id);
+		$this->limitPaginate($qb, $since, $limit);
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
 		if ($asViewer) {
@@ -353,7 +358,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineHome(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
@@ -387,7 +392,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineNotifications(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
@@ -413,7 +418,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
@@ -439,7 +444,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
@@ -466,7 +471,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param bool $localOnly
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineGlobal(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
@@ -495,7 +500,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param bool $localOnly
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
 		$qb = $this->getStreamSelectSql();
@@ -524,7 +529,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @return Stream[]
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	public function getTimelineTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
 	): array {

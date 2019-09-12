@@ -220,14 +220,16 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 *
 	 * @param string $id
+	 * @param int $since
+	 * @param int $limit
 	 *
 	 * @return DataResponse
 	 */
-	public function postReplies(string $id): DataResponse {
+	public function postReplies(string $id, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			return $this->success($this->streamService->getRepliesByParentId($id, true));
+			return $this->success($this->streamService->getRepliesByParentId($id, $since, $limit, true));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

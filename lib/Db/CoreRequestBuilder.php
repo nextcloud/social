@@ -506,13 +506,17 @@ class CoreRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
-		if ($since > 0) {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($since);
-			$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
+		try {
+			if ($since > 0) {
+				$dTime = new DateTime();
+				$dTime->setTimestamp($since);
+				$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
+			}
+		} catch (\Exception $e) {
+			throw new DateTimeException();
 		}
 
 		$qb->setMaxResults($limit);
