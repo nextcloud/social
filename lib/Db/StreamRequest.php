@@ -171,7 +171,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param Document $document
 	 * @param array $attachments
 	 *
-	 * @return array
+	 * @return Document[]
 	 */
 	private function updateAttachmentInList(Document $document, array $attachments): array {
 		$new = [];
@@ -216,17 +216,7 @@ class StreamRequest extends StreamRequestBuilder {
 			$this->limitToType($qb, $type);
 		}
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -236,6 +226,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
+	 * @throws SocialAppConfigException
 	 */
 	public function getStreamById(string $id, bool $asViewer = false): Stream {
 		if ($id === '') {
@@ -251,23 +242,41 @@ class StreamRequest extends StreamRequestBuilder {
 			$this->leftJoinStreamAction($qb);
 		}
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
 
-		if ($data === false) {
+		try {
+			return $this->getStreamFromRequest($qb);
+		} catch (ItemUnknownException $e) {
+			throw new StreamNotFoundException('Malformed Stream');
+		} catch (StreamNotFoundException $e) {
 			throw new StreamNotFoundException(
 				'Stream (ById) not found - ' . $id . ' (asViewer: ' . $asViewer . ')'
 			);
 		}
+	}
 
-		try {
-			$stream = $this->parseStreamSelectSql($data);
-		} catch (Exception $e) {
-			throw new StreamNotFoundException('Malformed Stream');
+
+	/**
+	 * @param string $id
+	 * @param bool $asViewer
+	 *
+	 * @return Stream[]
+	 * @throws StreamNotFoundException
+	 */
+	public function getRepliesByParentId(string $id, bool $asViewer = false): array {
+		if ($id === '') {
+			throw new StreamNotFoundException();
+		};
+
+		$qb = $this->getStreamSelectSql();
+		$this->limitToInReplyTo($qb, $id);
+		$this->leftJoinCacheActors($qb, 'attributed_to');
+
+		if ($asViewer) {
+			$this->limitToViewer($qb);
+			$this->leftJoinStreamAction($qb);
 		}
 
-		return $stream;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -286,15 +295,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$this->limitToActivityId($qb, $id);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new StreamNotFoundException('Stream (ByActivityId) not found - ' . $id);
-		}
-
-		return $this->parseStreamSelectSql($data);
+		return $this->getStreamFromRequest($qb);
 	}
 
 
@@ -319,17 +320,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToType($qb, $type);
 		$this->limitToSubType($qb, $subType);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new StreamNotFoundException(
-				'StreamByObjectId not found - ' . $type . ' - ' . $objectId
-			);
-		}
-
-		return $this->parseStreamSelectSql($data);
+		return $this->getStreamFromRequest($qb);
 	}
 
 
@@ -379,17 +370,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->leftJoinStreamAction($qb);
 		$this->filterDuplicate($qb);
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -405,7 +386,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @return array
+	 * @return Stream[]
 	 * @throws Exception
 	 */
 	public function getTimelineNotifications(Person $actor, int $since = 0, int $limit = 5): array {
@@ -418,17 +399,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -441,7 +412,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @return array
+	 * @return Stream[]
 	 * @throws Exception
 	 */
 	public function getTimelineAccount(string $actorId, int $since = 0, int $limit = 5): array {
@@ -454,17 +425,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -477,7 +438,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @return array
+	 * @return Stream[]
 	 * @throws Exception
 	 */
 	public function getTimelineDirect(Person $actor, int $since = 0, int $limit = 5): array {
@@ -492,17 +453,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -514,7 +465,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 * @param bool $localOnly
 	 *
-	 * @return array
+	 * @return Stream[]
 	 * @throws Exception
 	 */
 	public function getTimelineGlobal(int $since = 0, int $limit = 5, bool $localOnly = true
@@ -531,17 +482,7 @@ class StreamRequest extends StreamRequestBuilder {
 		// TODO: to: = real public, cc: = unlisted !?
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -553,7 +494,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $limit
 	 * @param bool $localOnly
 	 *
-	 * @return array
+	 * @return Stream[]
 	 * @throws Exception
 	 */
 	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
@@ -567,17 +508,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->leftJoinActions($qb, Like::TYPE);
 		$this->filterDBField($qb, 'id', '', false, 'a');
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$streams[] = $this->parseStreamSelectSql($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -592,7 +523,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @return array
+	 * @return Stream[]
 	 * @throws Exception
 	 */
 	public function getTimelineTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
@@ -612,14 +543,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$streams[] = $this->parseStreamSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -628,8 +552,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
-	 * @throws ItemUnknownException
-	 * @throws SocialAppConfigException
 	 */
 	public function getNoteSince(int $since): array {
 		$qb = $this->getStreamSelectSql();
@@ -637,14 +559,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitToType($qb, Note::TYPE);
 		$this->leftJoinStreamAction($qb);
 
-		$streams = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$streams[] = $this->parseStreamSelectSql($data, Note::TYPE);
-		}
-		$cursor->closeCursor();
-
-		return $streams;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 

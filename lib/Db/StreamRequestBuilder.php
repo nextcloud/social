@@ -36,7 +36,9 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RowNotFoundException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
@@ -444,6 +446,37 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'bcc', $recipient));
 
 		$qb->andWhere($filter);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	protected function getStreamFromRequest(IQueryBuilder $qb): Stream {
+		/** @var Stream $result */
+		try {
+			$result = $this->getRowFromRequest($qb, [$this, 'parseStreamSelectSql']);
+		} catch (RowNotFoundException $e) {
+			throw new StreamNotFoundException($e->getMessage());
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 *
+	 * @return Stream[]
+	 */
+	public function getStreamsFromRequest(IQueryBuilder $qb): array {
+		/** @var Stream[] $result */
+		$result = $this->getRowsFromRequest($qb, [$this, 'parseStreamSelectSql']);
+
+		return $result;
 	}
 
 

@@ -39,6 +39,8 @@ use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RowNotFoundException;
+use OCA\Social\IQueryRow;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -195,6 +197,17 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToActivityId(IQueryBuilder &$qb, string $activityId) {
 		$this->limitToDBField($qb, 'activity_id', $activityId, false);
+	}
+
+
+	/**
+	 * Limit the request to the Id (string)
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $id
+	 */
+	protected function limitToInReplyTo(IQueryBuilder &$qb, string $id) {
+		$this->limitToDBField($qb, 'in_reply_to', $id, false);
 	}
 
 
@@ -1160,11 +1173,49 @@ class CoreRequestBuilder {
 	 * @param string $fieldActorId
 	 * @param string $pf
 	 */
-	protected function leftJoinDetails(
-		IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = ''
-	) {
+	protected function leftJoinDetails(IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param callable $method
+	 *
+	 * @return IQueryRow
+	 * @throws RowNotFoundException
+	 */
+	public function getRowFromRequest(IQueryBuilder $qb, callable $method): IQueryRow {
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new RowNotFoundException();
+		}
+
+		return $method($data);
+	}
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param callable $method
+	 *
+	 * @return array
+	 */
+	public function getRowsFromRequest(IQueryBuilder $qb, callable $method): array {
+		$rows = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			try {
+				$rows[] = $method($data);
+			} catch (Exception $e) {
+			}
+		}
+		$cursor->closeCursor();
+
+		return $rows;
 	}
 
 

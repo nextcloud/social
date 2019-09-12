@@ -35,11 +35,12 @@ use daita\MySmallPhpTools\Model\CacheItem;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\IQueryRow;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Traits\TDetails;
 
 
-class Stream extends ACore implements JsonSerializable {
+class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 
 	use TDetails;
