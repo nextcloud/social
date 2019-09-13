@@ -38,6 +38,8 @@ use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FediverseService;
@@ -131,6 +133,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
@@ -162,6 +165,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function actorAlias(string $username): Response {
 		return $this->actor($username);
@@ -281,6 +285,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function followers(string $username): Response {
 
@@ -311,6 +316,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function following(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
@@ -328,11 +334,13 @@ class ActivityPubController extends Controller {
 	 * @PublicPage
 	 *
 	 * @param string $username
-	 * @param $postId
+	 * @param string $postId
 	 *
 	 * @return Response
+	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
 	 */
-	public function displayPost($username, $postId) {
+	public function displayPost(string $username, string $postId) {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->displayPost($username, $postId);
 		}

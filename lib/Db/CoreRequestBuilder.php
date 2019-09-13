@@ -31,16 +31,17 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\IQueryRow;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC\DB\SchemaWrapper;
+use OC\SystemConfig;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RowNotFoundException;
-use OCA\Social\IQueryRow;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -50,6 +51,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use OCP\ILogger;
 
 
 /**
@@ -121,6 +123,20 @@ class CoreRequestBuilder {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
+
+
+//	/**
+//	 * @return SocialQueryBuilder
+//	 */
+//	public function getQueryBuilder(): SocialQueryBuilder {
+//		$qb = new SocialQueryBuilder(
+//			$this->dbConnection,
+//			$this->config,
+//			$this->logger
+//		);
+//
+//		return $qb;
+//	}
 
 
 	/**
@@ -515,7 +531,7 @@ class CoreRequestBuilder {
 				$dTime->setTimestamp($since);
 				$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
 			}
-		} catch (\Exception $e) {
+		} catch (Exception $e) {
 			throw new DateTimeException();
 		}
 
@@ -1190,7 +1206,7 @@ class CoreRequestBuilder {
 	 * @return IQueryRow
 	 * @throws RowNotFoundException
 	 */
-	public function getRowFromRequest(IQueryBuilder $qb, callable $method): IQueryRow {
+	public function getRow(IQueryBuilder $qb, callable $method): IQueryRow {
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
@@ -1206,9 +1222,9 @@ class CoreRequestBuilder {
 	 * @param IQueryBuilder $qb
 	 * @param callable $method
 	 *
-	 * @return array
+	 * @return IQueryRow[]
 	 */
-	public function getRowsFromRequest(IQueryBuilder $qb, callable $method): array {
+	public function getRows(IQueryBuilder $qb, callable $method): array {
 		$rows = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {

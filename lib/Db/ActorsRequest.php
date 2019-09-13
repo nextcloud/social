@@ -44,20 +44,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
-	 * ActorsRequest constructor.
-	 *
-	 * @param IDBConnection $connection
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
-	public function __construct(
-		IDBConnection $connection, ConfigService $configService, MiscService $miscService
-	) {
-		parent::__construct($connection, $configService, $miscService);
-	}
-
-
-	/**
 	 * create a new Person in the database.
 	 *
 	 * @param Person $actor

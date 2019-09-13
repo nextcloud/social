@@ -35,28 +35,12 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\IDBConnection;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 
 	const CACHE_TTL = 60 * 24; // 1d
-
-	/**
-	 * CacheActorsRequest constructor.
-	 *
-	 * @param IDBConnection $connection
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
-	public function __construct(
-		IDBConnection $connection, ConfigService $configService, MiscService $miscService
-	) {
-		parent::__construct($connection, $configService, $miscService);
-	}
 
 
 	/**

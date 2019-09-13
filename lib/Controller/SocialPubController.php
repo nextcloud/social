@@ -48,6 +48,12 @@ use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IL10N;
 use OCP\IRequest;
 
+
+/**
+ * Class SocialPubController
+ *
+ * @package OCA\Social\Controller
+ */
 class SocialPubController extends Controller {
 
 
@@ -193,7 +199,7 @@ class SocialPubController extends Controller {
 	 * Display the navigation page of the Social app.
 	 *
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
+	 * @PublicPage
 	 *
 	 * @param string $username
 	 * @param string $token

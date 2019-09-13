@@ -28,30 +28,31 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social;
+namespace OCA\Social\Db;
 
 
-use OCA\Social\Exceptions\ItemAlreadyExistsException;
-use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Model\ActivityPub\ACore;
+use daita\MySmallPhpTools\Db\ExtendedQueryBuilder;
 
 
 /**
- * Interface IQueryRow
+ * Class SocialQueryBuilder
  *
- * TODO: MOVE THIS TO MyPhpTools
- *
- * @package OCA\Social\Service
+ * @package OCA\Push\Db
  */
-interface IQueryRow {
-
+class SocialQueryBuilder extends ExtendedQueryBuilder {
 
 	/**
-	 * import data to feed the model.
+	 * Limit the request to the Type
 	 *
-	 * @param array $data
+	 * @param string $type
+	 *
+	 * @return SocialQueryBuilder
 	 */
-	public function import(array $data);
+	public function limitToType(string $type): self {
+		$this->limitToDBField('type', $type, false);
+
+		return $this;
+	}
 
 }
 

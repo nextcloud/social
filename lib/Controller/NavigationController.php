@@ -261,6 +261,7 @@ class NavigationController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();
@@ -276,6 +277,7 @@ class NavigationController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function account(string $path = ''): TemplateResponse {
 		return $this->navigate();

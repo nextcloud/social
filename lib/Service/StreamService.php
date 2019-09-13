@@ -383,6 +383,7 @@ class StreamService {
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
+	 * @throws SocialAppConfigException
 	 */
 	public function getStreamById(string $id, bool $asViewer = false): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer);

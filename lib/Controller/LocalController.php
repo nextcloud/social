@@ -27,6 +27,7 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Controller;
 
 
@@ -130,10 +131,10 @@ class LocalController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, $userId, AccountService $accountService,
-		CacheActorService $cacheActorService, HashtagService $hashtagService,
-		FollowService $followService,
-		PostService $postService, StreamService $streamService, SearchService $searchService,
+		IRequest $request, $userId, AccountService $accountService, CacheActorService $cacheActorService,
+		HashtagService $hashtagService,
+		FollowService $followService, PostService $postService, StreamService $streamService,
+		SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService
 	) {

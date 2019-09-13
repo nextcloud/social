@@ -458,7 +458,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function getStreamFromRequest(IQueryBuilder $qb): Stream {
 		/** @var Stream $result */
 		try {
-			$result = $this->getRowFromRequest($qb, [$this, 'parseStreamSelectSql']);
+			$result = $this->getRow($qb, [$this, 'parseStreamSelectSql']);
 		} catch (RowNotFoundException $e) {
 			throw new StreamNotFoundException($e->getMessage());
 		}
@@ -474,7 +474,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	public function getStreamsFromRequest(IQueryBuilder $qb): array {
 		/** @var Stream[] $result */
-		$result = $this->getRowsFromRequest($qb, [$this, 'parseStreamSelectSql']);
+		$result = $this->getRows($qb, [$this, 'parseStreamSelectSql']);
 
 		return $result;
 	}
