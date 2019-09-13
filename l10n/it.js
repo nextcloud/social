@@ -52,6 +52,7 @@ OC.L10N.register(
     "No global posts found" : "Nessun commento globale trovato",
     "Posts from federated instances will show up here" : "Commenti da istanze federate saranno mostrati qui",
     "No liked posts found" : "Nessun commento piaciuto trovato",
+    "You haven't tooted yet" : "Non hai ancora fiatato",
     "No posts found for this tag" : "Nessun commento trovato per questa etichetta",
     "Reply" : "Rispondi",
     "Boost" : "Boost",
