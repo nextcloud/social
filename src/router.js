@@ -55,11 +55,15 @@ export default new Router({
 					path: 'tags/:tag',
 					name: 'tags'
 				},
-				{
-					path: 'post',
-					name: 'post'
-				}
 			]
+		},
+		{
+			path: '/:index(index.php/)?apps/social/@:account/:id',
+			components: {
+				default: Timeline
+			},
+			props: true,
+			name: 'single-post',
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account',
