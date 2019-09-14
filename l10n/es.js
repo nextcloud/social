@@ -47,6 +47,8 @@ OC.L10N.register(
     "Posts directed to you will show up here" : "Las entradas dirigidas a ti aparecerán aquí",
     "No local posts found" : "No se han encontrado entradas locales",
     "Posts from other people on this instance will show up here" : "Las entradas de otras personas en esta instancia aparecerán aquí",
+    "No notifications found" : "No hay notificaciones",
+    "You haven't receive any notifications yet" : "Todavía no has recibido ninguna notificación",
     "No global posts found" : "No se han encontrado entradas globales",
     "Posts from federated instances will show up here" : "Las entradas de instancias federadas aparecerán aquí",
     "No liked posts found" : "No se han encontrado entradas con Me gusta",
