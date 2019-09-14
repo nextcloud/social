@@ -94,7 +94,13 @@ export default {
 		}
 	},
 	methods: {
-		getSinglePostTimeline() {
+		getSinglePostTimeline(e) {
+		
+			// Do not call the single-post view when clicking on a link, a post attachment miniature or the post's author 
+			if (e.target.tagName === 'A' || e.target.tagName === 'IMG' || e.target.className.startsWith('post-author')) {
+				return
+			}
+
 			this.$router.push({ name: 'single-post',
 				params: {
 					id: this.item.id,
