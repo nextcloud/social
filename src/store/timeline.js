@@ -192,7 +192,7 @@ const actions = {
 		} else if (state.type === 'tags') {
 			url = OC.generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
 		} else if (state.type === 'single-post') {
-			url = OC.generateUrl(`apps/social/@{state.params.account}/${state.params.id}`)
+			url = OC.generateUrl(`apps/social/@${state.params.account}/${state.params.id}`)
 		} else {
 			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
 		}

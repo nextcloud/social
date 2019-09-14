@@ -101,7 +101,7 @@ export default {
 				params: {
 					account: account,
 					id: postId,
-					type: 'post'
+					type: 'single-post'
 				}
 			})
 		},
