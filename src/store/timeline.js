@@ -181,24 +181,46 @@ const actions = {
 		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},
 	fetchTimeline(context, { sinceTimestamp }) {
+
 		if (typeof sinceTimestamp === 'undefined') {
 			sinceTimestamp = state.since - 1
 		}
+
 		let url
 		if (state.type === 'account') {
 			url = OC.generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
 		} else if (state.type === 'tags') {
 			url = OC.generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
-		} else if (state.type === 'post') {
-			url = OC.generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=0`)
+		} else if (state.type === 'single-post') {
+			url = OC.generateUrl(`apps/social/@{state.params.account}/${state.params.id}`)
 		} else {
 			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
 		}
+
+		// Get the data
 		return axios.get(url).then((response) => {
+
 			if (response.status === -1) {
 				throw response.message
 			}
-			context.commit('addToTimeline', response.data.result)
+
+			let result = []
+
+			// Also load replies when displaying a single post timeline
+			if (state.type === 'single-post') {
+				result.push(response.data)
+//                             axios.get(OC.generateUrl(``)).then((response) => {
+//                                     if (response.status !== -1) {
+//                                             result.concat(response.data.result)
+//                                     }
+//                             }
+			} else {
+				result = response.data.result
+			}
+
+			// Add results to timeline
+			context.commit('addToTimeline', result)
+
 			return response.data
 		})
 	},
