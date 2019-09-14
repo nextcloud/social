@@ -58,7 +58,7 @@ export default new Router({
 			]
 		},
 		{
-			path: '/:index(index.php/)?apps/social/@:account/:id',
+			path: '/:index(index.php/)?apps/social/post?id=:id',
 			components: {
 				default: Timeline
 			},
