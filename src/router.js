@@ -54,7 +54,7 @@ export default new Router({
 				{
 					path: 'tags/:tag',
 					name: 'tags'
-				},
+				}
 			]
 		},
 		{
@@ -63,7 +63,7 @@ export default new Router({
 				default: Timeline
 			},
 			props: true,
-			name: 'single-post',
+			name: 'single-post'
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account',

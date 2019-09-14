@@ -96,8 +96,8 @@ export default {
 	methods: {
 		getSinglePostTimeline() {
 			let account = this.item.local ? this.item.actor_info.preferredUsername : this.item.actor_info.account
-			let postId = this.item.id.split('/')[this.item.id.split('/').length-1]
-			this.$router.push({name: 'single-post',
+			let postId = this.item.id.split('/')[this.item.id.split('/').length - 1]
+			this.$router.push({ name: 'single-post',
 				params: {
 					account: account,
 					id: postId,

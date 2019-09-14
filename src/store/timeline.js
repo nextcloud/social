@@ -209,11 +209,11 @@ const actions = {
 			// Also load replies when displaying a single post timeline
 			if (state.type === 'single-post') {
 				result.push(response.data)
-//                             axios.get(OC.generateUrl(``)).then((response) => {
-//                                     if (response.status !== -1) {
-//                                             result.concat(response.data.result)
-//                                     }
-//                             }
+//				axios.get(OC.generateUrl(``)).then((response) => {
+//					if (response.status !== -1) {
+//						result.concat(response.data.result)
+//					}
+//				}
 			} else {
 				result = response.data.result
 			}
