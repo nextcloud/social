@@ -36,8 +36,8 @@ use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
+use OC;
 use OC\DB\SchemaWrapper;
-use OC\SystemConfig;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -92,6 +92,8 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_ACTIONS
 	];
 
+	protected $logger;
+
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -102,41 +104,44 @@ class CoreRequestBuilder {
 	protected $miscService;
 
 
-	/** @var string */
-	protected $defaultSelectAlias;
 
 	/** @var Person */
 	protected $viewer = null;
+
+	/** @var string */
+	protected $defaultSelectAlias;
 
 
 	/**
 	 * CoreRequestBuilder constructor.
 	 *
 	 * @param IDBConnection $connection
+	 * @param ILogger $logger
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, ConfigService $configService, MiscService $miscService
 	) {
 		$this->dbConnection = $connection;
+		$this->logger = $logger;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
 
-//	/**
-//	 * @return SocialQueryBuilder
-//	 */
-//	public function getQueryBuilder(): SocialQueryBuilder {
-//		$qb = new SocialQueryBuilder(
-//			$this->dbConnection,
-//			$this->config,
-//			$this->logger
-//		);
-//
-//		return $qb;
-//	}
+	/**
+	 * @return SocialQueryBuilder
+	 */
+	public function getQueryBuilder(): SocialQueryBuilder {
+		$qb = new SocialQueryBuilder(
+			$this->dbConnection,
+			OC::$server->getSystemConfig(),
+			$this->logger
+		);
+
+		return $qb;
+	}
 
 
 	/**
@@ -540,6 +545,8 @@ class CoreRequestBuilder {
 		$qb->orderBy($pf . '.published_time', 'desc');
 	}
 
+//
+//
 
 	/**
 	 * @param IQueryBuilder $qb
