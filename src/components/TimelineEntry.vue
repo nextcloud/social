@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-entry" @click.prevent="getSinglePostTimeline">
+	<div class="timeline-entry" @click="getSinglePostTimeline">
 		<div v-if="item.type === 'SocialAppNotification'">
 			{{ actionSummary }}
 		</div>
@@ -61,9 +61,6 @@ export default {
 		boosted() {
 			return t('social', 'boosted')
 		},
-		getSinglePostTimeline() {
-			this.$store.dispatch('changeTimelineType', { type: 'post', params: {id: this.item.id} })	
-		},
 		actionSummary() {
 
 			let summary = this.item.summary
@@ -97,6 +94,17 @@ export default {
 		}
 	},
 	methods: {
+		getSinglePostTimeline() {
+			let account = this.item.local ? this.item.actor_info.preferredUsername : this.item.actor_info.account
+			let postId = this.item.id.split('/')[this.item.id.split('/').length-1]
+			this.$router.push({name: 'single-post',
+				params: {
+					account: account,
+					id: postId,
+					type: 'post'
+				}
+			})
+		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		}
