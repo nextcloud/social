@@ -59,7 +59,7 @@ export default new Router({
 			]
 		},
 		{
-			path: '/:index(index.php/)?apps/social/post?id=:id',
+			path: '/:index(index.php/)?apps/social/:account/:localId',
 			components: {
 				default: TimelineSinglePost
 			},

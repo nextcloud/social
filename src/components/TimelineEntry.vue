@@ -119,9 +119,13 @@ export default {
 			}
 
 			// Display internal posts
+			let account = this.item.local ? this.item.actor_info.preferredUsername : this.item.actor_info.account
+			let postId = this.item.id.split('/')[this.item.id.split('/').length - 1]
 			this.$router.push({ name: 'single-post',
 				params: {
+					account: account,
 					id: this.item.id,
+					localId: postId,
 					type: 'single-post'
 				}
 			})
