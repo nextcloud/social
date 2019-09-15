@@ -26,6 +26,7 @@ import Router from 'vue-router'
 
 // Dynamic loading
 const Timeline = () => import('./views/Timeline')
+const TimelineSinglePost = () => import('./views/TimelineSinglePost')
 const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile')
 const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline')
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers')
@@ -60,7 +61,7 @@ export default new Router({
 		{
 			path: '/:index(index.php/)?apps/social/post?id=:id',
 			components: {
-				default: Timeline
+				default: TimelineSinglePost
 			},
 			props: true,
 			name: 'single-post'
