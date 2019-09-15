@@ -32,6 +32,7 @@
 		"nextcloud-axios": "^0.2.1",
 		"nextcloud-vue": "^0.12.3",
 		"nextcloud-logger": "0.0.6",
+		"nextcloud-auth": "0.0.3",
 		"tributejs": "^3.7.3",
 		"twemoji": "^12.0.1",
 		"uuid": "^3.3.3",
