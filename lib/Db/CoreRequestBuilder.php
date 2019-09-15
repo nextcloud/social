@@ -31,7 +31,6 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
-use daita\MySmallPhpTools\IQueryRow;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
@@ -41,7 +40,6 @@ use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\RowNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -104,7 +102,6 @@ class CoreRequestBuilder {
 	protected $miscService;
 
 
-
 	/** @var Person */
 	protected $viewer = null;
 
@@ -141,6 +138,14 @@ class CoreRequestBuilder {
 		);
 
 		return $qb;
+	}
+
+
+	/**
+	 * @return IDBConnection
+	 */
+	public function getConnection(): IDBConnection {
+		return $this->dbConnection;
 	}
 
 
@@ -291,7 +296,7 @@ class CoreRequestBuilder {
 	 * @param string $username
 	 */
 	protected function searchInPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$dbConn = $this->dbConnection;
+		$dbConn = $this->getConnection();
 		$this->searchInDBField(
 			$qb, 'preferred_username', $dbConn->escapeLikeParameter($username) . '%'
 		);
@@ -348,7 +353,7 @@ class CoreRequestBuilder {
 	 * @param bool $all
 	 */
 	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag, bool $all = false) {
-		$dbConn = $this->dbConnection;
+		$dbConn = $this->getConnection();
 		$this->searchInDBField(
 			$qb, 'hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%'
 		);
@@ -419,7 +424,7 @@ class CoreRequestBuilder {
 	 * @param string $account
 	 */
 	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
-		$dbConn = $this->dbConnection;
+		$dbConn = $this->getConnection();
 		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
 	}
 
@@ -1203,46 +1208,6 @@ class CoreRequestBuilder {
 	protected function leftJoinDetails(IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param callable $method
-	 *
-	 * @return IQueryRow
-	 * @throws RowNotFoundException
-	 */
-	public function getRow(IQueryBuilder $qb, callable $method): IQueryRow {
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new RowNotFoundException();
-		}
-
-		return $method($data);
-	}
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param callable $method
-	 *
-	 * @return IQueryRow[]
-	 */
-	public function getRows(IQueryBuilder $qb, callable $method): array {
-		$rows = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			try {
-				$rows[] = $method($data);
-			} catch (Exception $e) {
-			}
-		}
-		$cursor->closeCursor();
-
-		return $rows;
 	}
 
 
