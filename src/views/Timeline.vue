@@ -21,7 +21,7 @@
 				</div>
 			</div>
 		</transition>
-		<composer v-if="type !== 'notifications' && type !== 'single-post'" />
+		<composer v-if="type !== 'notifications' && type !== 'single-post' && type !== 'liked'" />
 		<h2 v-if="type === 'tags'">
 			#{{ this.$route.params.tag }}
 		</h2>
