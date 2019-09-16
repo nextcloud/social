@@ -342,6 +342,10 @@ class ConfigService {
 	 * @param string $cloudAddress
 	 */
 	public function setCloudUrl(string $cloudAddress) {
+		if (parse_url($cloudAddress, PHP_URL_SCHEME) === null) {
+			$cloudAddress = 'http://' . $cloudAddress;
+		}
+
 		$this->setAppValue(self::CLOUD_URL, $cloudAddress);
 	}
 
@@ -395,6 +399,10 @@ class ConfigService {
 			$url = $this->getCloudUrl(true) . $this->urlGenerator->linkToRoute(
 					'social.Navigation.navigate'
 				);
+		}
+
+		if (parse_url($url, PHP_URL_SCHEME) === null) {
+			$url = 'http://' . $url;
 		}
 
 		$this->setAppValue(self::SOCIAL_URL, $url);
