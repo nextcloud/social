@@ -19,8 +19,9 @@
 			</a>
 			{{ boosted }}
 		</div>
+		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 		<timeline-post
-			v-if="item.type === 'SocialAppNotification' && item.details.post"
+			v-else-if="item.type === 'SocialAppNotification' && item.details.post"
 			:item="item.details.post" />
 		<timeline-post
 			v-else
