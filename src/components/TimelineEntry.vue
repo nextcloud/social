@@ -97,16 +97,14 @@ export default {
 	methods: {
 		getSinglePostTimeline(e) {
 
-			Logger.debug('Clicked on post', { post: this.item })
 			// Do not call the single-post view when clicking on a link, a post attachment miniature or the post's author
 			if (e.target.tagName === 'A' || e.target.tagName === 'IMG' || e.target.className.startsWith('post-author')) {
 				Logger.debug('will not call single-post', { event: e })
 				return
 			}
 
-			// Display external posts
+			// Display internal or external post
 			if (!this.item.local) {
-
 				if (this.item.type === 'Note') {
 					window.open(this.item.id)
 				} else if (this.item.type === 'Announce') {
@@ -114,21 +112,17 @@ export default {
 				} else {
 					Logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
 				}
-
-				return
+			} else {
+				this.$router.push({ name: 'single-post',
+					params: {
+						account: this.item.actor_info.preferredUsername,
+						id: this.item.id,
+						localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
+						type: 'single-post'
+					}
+				})
 			}
 
-			// Display internal posts
-			let account = this.item.local ? this.item.actor_info.preferredUsername : this.item.actor_info.account
-			let postId = this.item.id.split('/')[this.item.id.split('/').length - 1]
-			this.$router.push({ name: 'single-post',
-				params: {
-					account: account,
-					id: this.item.id,
-					localId: postId,
-					type: 'single-post'
-				}
-			})
 		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername

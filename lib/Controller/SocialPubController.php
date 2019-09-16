@@ -214,7 +214,11 @@ class SocialPubController extends Controller {
 		$stream = $this->streamService->getStreamById($postId, false);
 		$data = [
 			'id'   => $postId,
-			'item' => $stream
+			'item' => $stream,
+			'serverData'  => [
+				'public' => true,
+			],
+			'application' => 'Social'
 		];
 
 		return new TemplateResponse(Application::APP_NAME, 'stream', $data);

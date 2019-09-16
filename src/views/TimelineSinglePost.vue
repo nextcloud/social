@@ -19,6 +19,7 @@
 </style>
 
 <script>
+import Logger from '../logger'
 import TimelineEntry from './../components/TimelineEntry.vue'
 import TimelineList from './../components/TimelineList.vue'
 
@@ -40,12 +41,24 @@ export default {
 	beforeMount: function() {
 
 		// Get data of post clicked on
-		this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id)
+		if (typeof this.$route.params.id === 'undefined') {
+			Logger.debug('displaying the single post timeline for a non logged-in user')
+			this.mainPost = JSON.parse(document.getElementById('postData').dataset.server)
+		} else {
+			this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id)
+		}
 
-		// Prepare to display main post's replies in TimelineList component
+		// Set params for the TimelineList component
+		let params = {
+			account: window.location.href.split('/')[window.location.href.split('/').length - 2].substr(1),
+			id: window.location.href,
+			localId: window.location.href.split('/')[window.location.href.split('/').length - 1],
+			type: 'single-post'
+		}
+
 		this.$store.dispatch('changeTimelineType', {
-			type: this.$route.params.type,
-			params: this.$route.params
+			type: 'single-post',
+			params: params
 		})
 	},
 	methods: {

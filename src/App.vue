@@ -202,7 +202,7 @@ export default {
 		// importing server data into the store
 		const serverDataElmt = document.getElementById('serverData')
 		if (serverDataElmt !== null) {
-			this.$store.commit('setServerData', JSON.parse(document.getElementById('serverData').dataset.server))
+			this.$store.commit('setServerData', JSON.parse(serverDataElmt.dataset.server))
 		}
 
 		if (!this.serverData.public) {
