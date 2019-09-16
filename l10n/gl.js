@@ -52,7 +52,7 @@ OC.L10N.register(
     "No global posts found" : "Non hai mensaxes federadas",
     "Posts from federated instances will show up here" : "As publicacións das instancias federadas amosaranse aquí",
     "No liked posts found" : "Non se atoparon mensaxes que me gustaran",
-    "You haven't tooted yet" : "Aínda non participaches",
+    "You haven't tooted yet" : "Vostede aínda non participou",
     "No posts found for this tag" : "Non se atoparon mensaxes por esta etiqueta",
     "Reply" : "Responder",
     "Boost" : "Reforzo",
