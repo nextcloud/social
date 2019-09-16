@@ -668,6 +668,7 @@ class ACore extends Item implements JsonSerializable {
 
 		$this->addEntry('id', $this->getId());
 		$this->addEntry('type', $this->getType());
+		$this->addEntry('subtype', $this->getSubType());
 		$this->addEntry('url', $this->getUrl());
 		$this->addEntry('to', $this->getTo());
 		$this->addEntryArray('to', $this->getToArray());
