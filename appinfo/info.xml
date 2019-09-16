@@ -33,6 +33,9 @@
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
 		<nextcloud min-version="15" max-version="17"/>
+		<database>pgsql</database>
+		<database>sqlite</database>
+		<database>mysql</database>
 	</dependencies>
 
 	<background-jobs>
