@@ -74,7 +74,11 @@ class CoreRequestBuilder {
 	const TABLE_REQUEST_QUEUE = 'social_a2_request_queue';
 
 	const TABLE_ACTORS = 'social_a2_actors';
-	const TABLE_STREAMS = 'social_a2_stream';
+	const TABLE_STREAM = 'social_a2_stream';
+	const TABLE_STREAM_DEST = 'social_a2_stream_dest';
+	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
+	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
+
 	const TABLE_HASHTAGS = 'social_a2_hashtags';
 	const TABLE_FOLLOWS = 'social_a2_follows';
 	const TABLE_ACTIONS = 'social_a2_actions';
@@ -82,14 +86,11 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_a2_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_documts';
 
-	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
-	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
-
 	/** @var array */
 	private $tables = [
 		self::TABLE_REQUEST_QUEUE,
 		self::TABLE_ACTORS,
-		self::TABLE_STREAMS,
+		self::TABLE_STREAM,
 		self::TABLE_HASHTAGS,
 		self::TABLE_FOLLOWS,
 		self::TABLE_ACTIONS,

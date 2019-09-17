@@ -64,7 +64,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_STREAMS);
+		$qb->insert(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -77,7 +77,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_STREAMS);
+		$qb->update(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -99,7 +99,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 			   's.instances', 's.creation', 's.hidden_on_timeline', 's.details', 's.hashtags'
 		   )
-		   ->from(self::TABLE_STREAMS, 's');
+		   ->from(self::TABLE_STREAM, 's');
 
 		$this->defaultSelectAlias = 's';
 
@@ -115,7 +115,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function countNotesSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAMS, 's');
+		   ->from(self::TABLE_STREAM, 's');
 
 		$this->defaultSelectAlias = 's';
 
@@ -130,7 +130,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_STREAMS);
+		$qb->delete(self::TABLE_STREAM);
 
 		return $qb;
 	}

@@ -231,7 +231,6 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 				}
 			}
 		}
-
 	}
 
 }
