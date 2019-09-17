@@ -84,6 +84,15 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 				]
 			);
 		}
+		if (!$table->hasColumn('actor_id_prim')) {
+			$table->addColumn(
+				'actor_id_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+		}
 
 		if (!$schema->hasTable('social_a2_stream_dest')) {
 			$table = $schema->createTable('social_a2_stream_dest');
@@ -165,6 +174,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		$update = $this->connection->getQueryBuilder();
 		$update->update('social_a2_follows');
 		$update->set('follow_id_prim', $update->createNamedParameter(hash('sha512', $data['follow_id'])));
+		$update->set('actor_id_prim', $update->createNamedParameter(hash('sha512', $data['actor_id'])));
 
 		$expr = $update->expr();
 		$update->where($expr->eq('id_prim', $update->createNamedParameter($data['id_prim'])));
