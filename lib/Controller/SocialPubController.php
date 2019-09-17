@@ -31,7 +31,6 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
-
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -106,7 +105,7 @@ class SocialPubController extends Controller {
 			return $this->navigationController->navigate('');
 		}
 		$data = [
-			'serverData' => [
+			'serverData'  => [
 				'public' => true,
 			],
 			'application' => 'Social'
@@ -114,7 +113,7 @@ class SocialPubController extends Controller {
 
 		$status = Http::STATUS_OK;
 		try {
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$actor = $this->cacheActorService->getFromAccount($username);
 			$displayName = $actor->getName() !== '' ? $actor->getName() : $actor->getPreferredUsername();
 			$data['application'] = $displayName . ' - ' . $data['application'];
 		} catch (CacheActorDoesNotExistException $e) {
