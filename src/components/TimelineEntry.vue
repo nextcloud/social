@@ -1,9 +1,12 @@
 <template>
 	<div class="timeline-entry">
-		<div v-if="item.type === 'SocialAppNotification'">
-			{{ actionSummary }}
-		</div>
-		<div v-if="item.type === 'Announce'" class="boost">
+		<template v-if="item.type === 'SocialAppNotification'">
+			<div class="notification-icon" :class="notificationIcon" />
+			<span class="notification-action">
+				{{ actionSummary }}
+			</span>
+		</template>
+		<template v-else-if="item.type === 'Announce'" class="boost">
 			<div class="container-icon-boost">
 				<span class="icon-boost" />
 			</div>
@@ -18,24 +21,28 @@
 				</span>
 			</a>
 			{{ boosted }}
-		</div>
-		<timeline-post
-			v-if="item.type === 'SocialAppNotification' && item.details.post"
-			:item="item.details.post" />
-		<timeline-post
-			v-else
-			:item="entryContent"
-			:parent-announce="isBoost" />
+		</template>
+		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
+		<template v-else>
+			<timeline-avatar :item="entryContent" />
+			<timeline-post
+				:item="entryContent"
+				:parent-announce="isBoost" />
+		</template>
 	</div>
 </template>
 
 <script>
 import TimelinePost from './TimelinePost.vue'
+import TimelineAvatar from './TimelineAvatar.vue'
+import UserEntry from './UserEntry.vue'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
-		TimelinePost
+		TimelinePost,
+		TimelineAvatar,
+		UserEntry
 	},
 	props: {
 		item: { type: Object, default: () => {} }
@@ -48,6 +55,8 @@ export default {
 		entryContent() {
 			if (this.item.type === 'Announce') {
 				return this.item.cache[this.item.object].object
+			} else if (this.item.type === 'SocialAppNotification') {
+				return this.item.details.post
 			} else {
 				return this.item
 			}
@@ -102,11 +111,54 @@ export default {
 </script>
 <style scoped lang="scss">
 	.timeline-entry {
+		display: grid;
+    grid-template-columns: 44px 1fr;
+    grid-template-rows: 30px 1fr;
 		padding: 10px;
 		margin-bottom: 10px;
 		&:hover {
 			background-color: var(--color-background-hover);
 		}
+	}
+	.notification-header {
+		display: flex;
+		align-items: bottom;
+	}
+
+	.notification-action {
+		flex-grow: 1;
+		display: inline-block;
+		grid-row: 1;
+		grid-column: 2;
+	}
+
+	.notification-icon {
+		opacity: .5;
+		background-position: center;
+		background-size: contain;
+		overflow: hidden;
+		height: 20px;
+		min-width: 32px;
+		flex-shrink: 0;
+		display: inline-block;
+		vertical-align: middle;
+		grid-column: 1;
+		grid-row: 1;
+	}
+
+	.icon-boost {
+		display: inline-block;
+		vertical-align: middle;
+	}
+
+	.icon-favorite {
+		display: inline-block;
+		vertical-align: middle;
+	}
+
+	.icon-user {
+		display: inline-block;
+		vertical-align: middle;
 	}
 
 	.container-icon-boost {
