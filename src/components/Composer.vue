@@ -422,6 +422,7 @@ export default {
 			search: '',
 			replyTo: null,
 			tributeOptions: {
+				spaceSelectsMatch: true,
 				collection: [
 					{
 						trigger: '@',
