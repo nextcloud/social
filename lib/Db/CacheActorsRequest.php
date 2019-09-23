@@ -65,9 +65,9 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @param Person $actor
 	 */
 	public function save(Person $actor) {
-
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
 		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
 		   ->setValue('type', $qb->createNamedParameter($actor->getType()))
 		   ->setValue('local', $qb->createNamedParameter(($actor->isLocal()) ? '1' : '0'))

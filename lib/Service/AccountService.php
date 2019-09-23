@@ -227,6 +227,9 @@ class AccountService {
 
 		// generate cache.
 		$this->cacheLocalActorByUsername($username);
+
+		// generate loopback
+		$this->followsRequest->generateLoopbackAccount($actor);
 	}
 
 

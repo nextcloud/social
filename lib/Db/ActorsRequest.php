@@ -62,16 +62,15 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 *
 	 * @param Person $actor
 	 *
-	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function create(Person $actor): string {
+	public function create(Person $actor) {
 
-		$id = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
+		$actor->setId($this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername());
 		$qb = $this->getActorsInsertSql();
 
-		$qb->setValue('id', $qb->createNamedParameter($id))
-//			   ->setValue('type', $qb->createNamedParameter($actor->getType()))
+		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
 		   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
 		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
@@ -86,11 +85,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
-		$this->generatePrimaryKey($qb, $id);
-
 		$qb->execute();
-
-		return $id;
 	}
 
 

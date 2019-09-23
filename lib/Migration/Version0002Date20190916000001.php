@@ -93,6 +93,15 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 				]
 			);
 		}
+		if (!$table->hasColumn('object_id_prim')) {
+			$table->addColumn(
+				'object_id_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+		}
 
 		if (!$schema->hasTable('social_a2_stream_dest')) {
 			$table = $schema->createTable('social_a2_stream_dest');
@@ -115,12 +124,56 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 				'type', 'string',
 				[
 					'notnull' => false,
-					'length'  => 7,
+					'length'  => 15,
 				]
 			);
 
-			$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'recipient');
-			$table->setPrimaryKey(['stream_id', 'actor_id', 'type']);
+			if (!$table->hasIndex('sat')) {
+				$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
+				$table->addUniqueIndex(['stream_id', 'actor_id'], 'sa');
+			}
+
+		}
+
+		$table = $schema->getTable('social_a2_stream');
+		if (!$table->hasColumn('object_id_prim')) {
+			$table->addColumn(
+				'object_id_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+		}
+		if (!$table->hasColumn('attributed_to_prim')) {
+			$table->addColumn(
+				'attributed_to_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+		}
+
+
+		$table = $schema->getTable('social_a2_stream_action');
+		if (!$table->hasColumn('actor_id_prim')) {
+			$table->addColumn(
+				'actor_id_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+		}
+		if (!$table->hasColumn('stream_id_prim')) {
+			$table->addColumn(
+				'stream_id_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
 		}
 
 		return $schema;
@@ -138,7 +191,9 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
+		$this->updateTableStream($schema);
 		$this->updateTableFollows($schema);
+		$this->updateTableStreamActions($schema);
 		$this->fillTableStreamDest($schema);
 	}
 
@@ -174,7 +229,92 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		$update = $this->connection->getQueryBuilder();
 		$update->update('social_a2_follows');
 		$update->set('follow_id_prim', $update->createNamedParameter(hash('sha512', $data['follow_id'])));
+		$update->set('object_id_prim', $update->createNamedParameter(hash('sha512', $data['object_id'])));
 		$update->set('actor_id_prim', $update->createNamedParameter(hash('sha512', $data['actor_id'])));
+
+		$expr = $update->expr();
+		$update->where($expr->eq('id_prim', $update->createNamedParameter($data['id_prim'])));
+
+		$update->execute();
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function updateTableStreamActions(ISchemaWrapper $schema) {
+		if (!$schema->hasTable('social_a2_stream_action')) {
+			return;
+		}
+
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('*')
+		   ->from('social_a2_stream_action');
+
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$this->updateStreamActionsPrim($data);
+		}
+
+		$cursor->closeCursor();
+	}
+
+	/**
+	 * @param array $data
+	 */
+	private function updateStreamActionsPrim(array $data) {
+		if ($data['actor_id_prim'] !== '') {
+			return;
+		}
+
+		$update = $this->connection->getQueryBuilder();
+		$update->update('social_a2_stream_action');
+		$update->set('stream_id_prim', $update->createNamedParameter(hash('sha512', $data['stream_id'])));
+		$update->set('actor_id_prim', $update->createNamedParameter(hash('sha512', $data['actor_id'])));
+
+		$expr = $update->expr();
+		$update->where($expr->eq('stream_id', $update->createNamedParameter($data['stream_id'])));
+		$update->andWhere($expr->eq('actor_id', $update->createNamedParameter($data['actor_id'])));
+
+		$update->execute();
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function updateTableStream(ISchemaWrapper $schema) {
+		if (!$schema->hasTable('social_a2_stream')) {
+			return;
+		}
+
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('id_prim', 'object_id', 'attributed_to', 'object_id_prim')
+		   ->from('social_a2_stream');
+
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$this->updateStreamPrim($data);
+		}
+
+		$cursor->closeCursor();
+	}
+
+
+	/**
+	 * @param array $data
+	 */
+	private function updateStreamPrim(array $data) {
+		if ($data['object_id_prim'] !== '') {
+			return;
+		}
+
+		$update = $this->connection->getQueryBuilder();
+		$update->update('social_a2_stream');
+		$update->set('object_id_prim', $update->createNamedParameter(hash('sha512', $data['object_id'])));
+		$update->set(
+			'attributed_to_prim', $update->createNamedParameter(hash('sha512', $data['attributed_to']))
+		);
 
 		$expr = $update->expr();
 		$update->where($expr->eq('id_prim', $update->createNamedParameter($data['id_prim'])));
@@ -195,7 +335,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		$limit = 1000;
 		while (true) {
 			$qb = $this->connection->getQueryBuilder();
-			$qb->select('id_prim', 'to_array', 'cc', 'bcc')
+			$qb->select('id_prim', 'to', 'to_array', 'cc', 'bcc')
 			   ->from('social_a2_stream')
 			   ->setMaxResults(1000)
 			   ->setFirstResult($start);
@@ -218,7 +358,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 
 	private function insertStreamDest($data) {
 		$recipients = [];
-		$recipients['to'] = json_decode($data['to_array'], true);
+		$recipients['to'] = array_merge(json_decode($data['to_array'], true), [$data['to']]);
 		$recipients['cc'] = json_decode($data['cc'], true);
 		$recipients['bcc'] = json_decode($data['bcc'], true);
 
@@ -226,6 +366,9 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		foreach (array_keys($recipients) as $dest) {
 			$type = $dest;
 			foreach ($recipients[$dest] as $actorId) {
+				if ($actorId === '') {
+					continue;
+				}
 				$insert = $this->connection->getQueryBuilder();
 				$insert->insert('social_a2_stream_dest');
 

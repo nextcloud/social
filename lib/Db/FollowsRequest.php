@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -62,7 +63,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
 		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
-		   ->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'));
+		   ->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'))
+		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($follow->getActorId())))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($this->prim($follow->getObjectId())))
+		   ->setValue('follow_id_prim', $qb->createNamedParameter($this->prim($follow->getFollowId())));
 
 		try {
 			$qb->setValue(
@@ -73,6 +77,32 @@ class FollowsRequest extends FollowsRequestBuilder {
 		}
 
 		$this->generatePrimaryKey($qb, $follow->getId());
+
+		$qb->execute();
+	}
+
+
+	public function generateLoopbackAccount(Person $actor) {
+		$qb = $this->getFollowsInsertSql();
+		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('actor_id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('type', $qb->createNamedParameter('Loopback'))
+		   ->setValue('object_id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('follow_id', $qb->createNamedParameter($actor->getId()))
+		   ->setValue('accepted', $qb->createNamedParameter('1'))
+		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
+		   ->setValue('follow_id_prim', $qb->createNamedParameter($this->prim($actor->getId())));
+
+		try {
+			$qb->setValue(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
+
+		$this->generatePrimaryKey($qb, $actor->getId());
 
 		$qb->execute();
 	}

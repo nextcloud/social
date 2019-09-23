@@ -34,6 +34,7 @@ namespace OCA\Social\Command;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
@@ -48,6 +49,9 @@ class Reset extends Base {
 
 	private $coreRequestBuilder;
 
+	/** @var CheckService */
+	private $checkService;
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -59,15 +63,17 @@ class Reset extends Base {
 	 * CacheUpdate constructor.
 	 *
 	 * @param CoreRequestBuilder $coreRequestBuilder
+	 * @param CheckService $checkService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CoreRequestBuilder $coreRequestBuilder, ConfigService $configService,
+		CoreRequestBuilder $coreRequestBuilder, CheckService $checkService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		parent::__construct();
 
+		$this->checkService = $checkService;
 		$this->coreRequestBuilder = $coreRequestBuilder;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -131,7 +137,7 @@ class Reset extends Base {
 			return;
 		}
 
-
+		$this->checkService->checkInstallationStatus(true);
 		$output->writeln('');
 
 		$cloudAddress = $this->configService->getCloudUrl();
@@ -148,6 +154,7 @@ class Reset extends Base {
 		}
 
 		$this->configService->setCloudUrl($newCloudAddress);
+
 		$output->writeln('');
 		$output->writeln('New address: <info>' . $newCloudAddress . '</info>');
 	}
@@ -177,8 +184,7 @@ class Reset extends Base {
 		if ($this->configService->getCoreValue('public_host-meta') === 'social/lib/hostmeta.php') {
 			$this->configService->unsetCoreValue('public_host-meta');
 		}
-		if ($this->configService->getCoreValue('public_host-meta-json')
-			=== 'social/lib/hostmeta.php') {
+		if ($this->configService->getCoreValue('public_host-meta-json') === 'social/lib/hostmeta.php') {
 			$this->configService->unsetCoreValue('public_host-meta-json');
 		}
 	}
