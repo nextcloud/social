@@ -280,8 +280,8 @@ class AccountService {
 	 */
 	public function addLocalActorDetailCount(Person &$actor) {
 		$count = [
-			'followers' => $this->followsRequest->countFollowers($actor->getId()),
-			'following' => $this->followsRequest->countFollowing($actor->getId()),
+			'followers' => $this->followsRequest->countFollowers($actor->getId()) - 1,
+			'following' => $this->followsRequest->countFollowing($actor->getId()) - 1,
 			'post'      => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
 		$actor->setDetailArray('count', $count);

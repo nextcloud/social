@@ -210,9 +210,12 @@ class CheckService {
 			];
 		}
 
-		$this->checkStatusTableFollows();
-		$this->checkStatusTableStreamDest();
-		$this->checkLocalAccountFollowingItself();
+//		$this->checkStatusTableFollows();
+//		$this->checkStatusTableStreamDest();
+		try {
+			$this->checkLocalAccountFollowingItself();
+		} catch (Exception $e) {
+		}
 
 		return $result;
 	}
