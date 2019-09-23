@@ -76,12 +76,15 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		foreach (array_keys($recipients) as $dest) {
 			$type = $dest;
 			foreach ($recipients[$dest] as $actorId) {
+				if ($actorId === '') {
+					continue;
+				}
+
 				$qb = $this->getStreamDestInsertSql();
 
 				$qb->setValue('stream_id', $qb->createNamedParameter($streamId));
 				$qb->setValue('actor_id', $qb->createNamedParameter($this->prim($actorId)));
 				$qb->setValue('type', $qb->createNamedParameter($type));
-
 				try {
 					$qb->execute();
 				} catch (UniqueConstraintViolationException $e) {
