@@ -65,6 +65,10 @@
 		<command>OCA\Social\Command\QueueProcess</command>
 	</commands>
 
+	<contactsmenu>
+		<provider>OCA\Social\Providers\ContactsMenuProvider</provider>
+	</contactsmenu>
+
 	<navigations>
 		<navigation>
 			<name>Social</name>
