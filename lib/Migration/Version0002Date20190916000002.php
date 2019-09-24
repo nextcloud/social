@@ -95,13 +95,13 @@ class Version0002Date20190916000002 extends SimpleMigrationStep {
 			);
 		}
 		if (!$table->hasIndex('object_id_prim')) {
-			$table->addUniqueIndex(
+			$table->addIndex(
 				['object_id_prim'],
 				'object_id_prim'
 			);
 		}
 		if (!$table->hasIndex('attributed_to_prim')) {
-			$table->addUniqueIndex(
+			$table->addIndex(
 				['attributed_to_prim'],
 				'attributed_to_prim'
 			);
