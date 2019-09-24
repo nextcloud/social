@@ -28,10 +28,16 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
+use OC\User\NoUserException;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCP\AppFramework\Http;
@@ -40,6 +46,7 @@ use OCP\ICache;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\IUserManager;
 
 
 /**
@@ -56,6 +63,8 @@ class CheckService {
 
 	const CACHE_PREFIX = 'social_check_';
 
+	/** @var IUserManager */
+	private $userManager;
 
 	/** @var ICache */
 	private $cache;
@@ -78,8 +87,14 @@ class CheckService {
 	/** @var CacheActorsRequest */
 	private $cacheActorsRequest;
 
+	/** @var StreamDestRequest */
+	private $streamDestRequest;
+
 	/** @var StreamRequest */
 	private $streamRequest;
+
+	/** @var AccountService */
+	private $accountService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -91,6 +106,7 @@ class CheckService {
 	/**
 	 * CheckService constructor.
 	 *
+	 * @param IUserManager $userManager
 	 * @param ICache $cache
 	 * @param IConfig $config
 	 * @param IClientService $clientService
@@ -98,17 +114,20 @@ class CheckService {
 	 * @param IURLGenerator $urlGenerator
 	 * @param FollowsRequest $followRequest
 	 * @param CacheActorsRequest $cacheActorsRequest
+	 * @param StreamDestRequest $streamDestRequest
 	 * @param StreamRequest $streamRequest
+	 * @param AccountService $accountService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ICache $cache, IConfig $config, IClientService $clientService, IRequest $request,
-		IURLGenerator $urlGenerator, FollowsRequest $followRequest,
-		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
-		ConfigService $configService,
+		IUserManager $userManager, ICache $cache, IConfig $config, IClientService $clientService,
+		IRequest $request, IURLGenerator $urlGenerator, FollowsRequest $followRequest,
+		CacheActorsRequest $cacheActorsRequest, StreamDestRequest $streamDestRequest,
+		StreamRequest $streamRequest, AccountService $accountService, ConfigService $configService,
 		MiscService $miscService
 	) {
+		$this->userManager = $userManager;
 		$this->cache = $cache;
 		$this->config = $config;
 		$this->clientService = $clientService;
@@ -116,7 +135,9 @@ class CheckService {
 		$this->urlGenerator = $urlGenerator;
 		$this->followRequest = $followRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
+		$this->streamDestRequest = $streamDestRequest;
 		$this->streamRequest = $streamRequest;
+		$this->accountService = $accountService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -182,7 +203,6 @@ class CheckService {
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 
 		$result = [];
-
 		if (!$light) {
 			$result = [
 				'invalidFollows' => $this->removeInvalidFollows(),
@@ -190,7 +210,12 @@ class CheckService {
 			];
 		}
 
-		$this->checkStatusTableFollows();
+//		$this->checkStatusTableFollows();
+//		$this->checkStatusTableStreamDest();
+		try {
+			$this->checkLocalAccountFollowingItself();
+		} catch (Exception $e) {
+		}
 
 		return $result;
 	}
@@ -212,6 +237,41 @@ class CheckService {
 		$follow->setFollowId($this->uuid());
 
 		$this->followRequest->save($follow);
+	}
+
+
+	/**
+	 * create a fake follow entry. Mandatory to have Home Stream working.
+	 */
+	public function checkStatusTableStreamDest() {
+		if ($this->streamDestRequest->countStreamDest() > 0) {
+			return;
+		}
+
+		$this->streamDestRequest->generateRandomDest();
+	}
+
+
+	/**
+	 * create entries in follows so that user follows itself.
+	 *
+	 * @throws AccountAlreadyExistsException
+	 * @throws NoUserException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 */
+	public function checkLocalAccountFollowingItself() {
+		$users = $this->userManager->search('');
+
+		foreach ($users as $user) {
+			try {
+				$actor = $this->accountService->getActorFromUserId($user->getUID());
+			} catch (ActorDoesNotExistException $e) {
+				continue;
+			}
+
+			$this->followRequest->generateLoopbackAccount($actor);
+		}
 	}
 
 

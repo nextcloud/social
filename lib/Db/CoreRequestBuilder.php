@@ -58,23 +58,14 @@ use OCP\IDBConnection;
 class CoreRequestBuilder {
 
 
-//	const TABLE_REQUEST_QUEUE = 'social_request_queue';
-//
-//	const TABLE_SERVER_ACTORS = 'social_server_actors';
-//	const TABLE_SERVER_NOTES = 'social_server_notes';
-//	const TABLE_SERVER_HASHTAGS = 'social_server_hashtags';
-//	const TABLE_SERVER_FOLLOWS = 'social_server_follows';
-//
-//	const TABLE_CACHE_ACTORS = 'social_cache_actors';
-//	const TABLE_CACHE_DOCUMENTS = 'social_cache_documents';
-//
-//	const TABLE_QUEUE_STREAM = 'social_queue_stream';
-//	const TABLE_STREAM_ACTIONS = 'social_stream_actions';
-
 	const TABLE_REQUEST_QUEUE = 'social_a2_request_queue';
 
 	const TABLE_ACTORS = 'social_a2_actors';
-	const TABLE_STREAMS = 'social_a2_stream';
+	const TABLE_STREAM = 'social_a2_stream';
+	const TABLE_STREAM_DEST = 'social_a2_stream_dest';
+	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
+	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
+
 	const TABLE_HASHTAGS = 'social_a2_hashtags';
 	const TABLE_FOLLOWS = 'social_a2_follows';
 	const TABLE_ACTIONS = 'social_a2_actions';
@@ -82,20 +73,18 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_a2_cache_actors';
 	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_documts';
 
-	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
-	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
-
 	/** @var array */
 	private $tables = [
 		self::TABLE_REQUEST_QUEUE,
 		self::TABLE_ACTORS,
-		self::TABLE_STREAMS,
+		self::TABLE_STREAM,
 		self::TABLE_HASHTAGS,
 		self::TABLE_FOLLOWS,
 		self::TABLE_ACTIONS,
 		self::TABLE_CACHE_ACTORS,
 		self::TABLE_CACHE_DOCUMENTS,
 		self::TABLE_STREAM_QUEUE,
+		self::TABLE_STREAM_DEST,
 		self::TABLE_STREAM_ACTIONS
 	];
 
@@ -141,11 +130,27 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * @param string $id
+	 *
+	 * @return string
+	 */
+	public function prim(string $id): string {
+		if ($id === '') {
+			return '';
+		}
+
+		return hash('sha512', $id);
+	}
+
+
+	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $id
+	 *
+	 * @deprecated - not that useful, the raw line should be implemented instead of calling this method !
 	 */
 	public function generatePrimaryKey(IQueryBuilder $qb, string $id) {
-		$qb->setValue('id_prim', $qb->createNamedParameter(hash('sha512', $id)));
+		$qb->setValue('id_prim', $qb->createNamedParameter($this->prim($id)));
 	}
 
 
@@ -544,7 +549,7 @@ class CoreRequestBuilder {
 	 * @return string
 	 */
 	protected function exprLimitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $eq, bool $cs = true,
+		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
 		string $alias = ''
 	): string {
 		$expr = $qb->expr();
@@ -714,9 +719,42 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param string $alias
+	 */
+	protected function selectCacheActors(IQueryBuilder &$qb, string $alias = 'ca') {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
+		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
+		$qb->selectAlias($pf . '.id', 'cacheactor_id')
+		   ->selectAlias($pf . '.type', 'cacheactor_type')
+		   ->selectAlias($pf . '.account', 'cacheactor_account')
+		   ->selectAlias($pf . '.following', 'cacheactor_following')
+		   ->selectAlias($pf . '.followers', 'cacheactor_followers')
+		   ->selectAlias($pf . '.inbox', 'cacheactor_inbox')
+		   ->selectAlias($pf . '.shared_inbox', 'cacheactor_shared_inbox')
+		   ->selectAlias($pf . '.outbox', 'cacheactor_outbox')
+		   ->selectAlias($pf . '.featured', 'cacheactor_featured')
+		   ->selectAlias($pf . '.url', 'cacheactor_url')
+		   ->selectAlias($pf . '.preferred_username', 'cacheactor_preferred_username')
+		   ->selectAlias($pf . '.name', 'cacheactor_name')
+		   ->selectAlias($pf . '.summary', 'cacheactor_summary')
+		   ->selectAlias($pf . '.public_key', 'cacheactor_public_key')
+		   ->selectAlias($pf . '.source', 'cacheactor_source')
+		   ->selectAlias($pf . '.creation', 'cacheactor_creation')
+		   ->selectAlias($pf . '.local', 'cacheactor_local');
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param Person $author
 	 * @param string $alias
+	 *
+	 * @deprecated ?
 	 */
 	protected function leftJoinCacheActors(
 		IQueryBuilder &$qb, string $fieldActorId, Person $author = null, string $alias = ''
@@ -863,10 +901,8 @@ class CoreRequestBuilder {
 			return;
 		}
 
-		$expr = $qb->expr();
-		$func = $qb->func();
-
 		$pf = $this->defaultSelectAlias;
+		$expr = $qb->expr();
 
 		$qb->selectAlias('sa.id', 'streamaction_id')
 		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
@@ -874,21 +910,20 @@ class CoreRequestBuilder {
 		   ->selectAlias('sa.values', 'streamaction_values');
 
 		$orX = $expr->orX();
-		$orX->add($expr->eq($func->lower($pf . '.id'), $func->lower('sa.stream_id')));
-		$orX->add($expr->eq($func->lower($pf . '.object_id'), $func->lower('sa.stream_id')));
+		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.id_prim'));
+		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.object_id_prim'));
 
-		$andX = $expr->andX();
-		$andX->add($orX);
-		$andX->add(
+		$on = $expr->andX();
+		$on->add(
 			$expr->eq(
-				$func->lower('sa.actor_id'),
-				$qb->createNamedParameter(strtolower($this->viewer->getId()))
+				'sa.actor_id_prim', $qb->createNamedParameter($this->prim($this->viewer->getId()))
 			)
 		);
+		$on->add($orX);
 
 		$qb->leftJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
-			$andX
+			$on
 		);
 	}
 

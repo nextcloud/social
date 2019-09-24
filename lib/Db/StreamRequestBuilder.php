@@ -64,7 +64,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_STREAMS);
+		$qb->insert(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -77,7 +77,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_STREAMS);
+		$qb->update(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -99,7 +99,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 			   's.instances', 's.creation', 's.hidden_on_timeline', 's.details', 's.hashtags'
 		   )
-		   ->from(self::TABLE_STREAMS, 's');
+		   ->from(self::TABLE_STREAM, 's');
 
 		$this->defaultSelectAlias = 's';
 
@@ -115,7 +115,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function countNotesSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAMS, 's');
+		   ->from(self::TABLE_STREAM, 's');
 
 		$this->defaultSelectAlias = 's';
 
@@ -130,7 +130,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_STREAMS);
+		$qb->delete(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -190,6 +190,56 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param string $aliasDest
+	 * @param string $aliasFollowing
+	 */
+	protected function selectDestFollowing(
+		IQueryBuilder $qb, string $aliasDest = 'sd', string $aliasFollowing = 'f'
+	) {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$qb->from(self::TABLE_STREAM_DEST, $aliasDest);
+		$qb->from(self::TABLE_FOLLOWS, $aliasFollowing);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param Person $actor
+	 * @param string $field
+	 * @param string $aliasDest
+	 * @param string $aliasFollowing
+	 *
+	 * @param string $alias
+	 *
+	 * @return ICompositeExpression
+	 */
+	protected function exprInnerJoinDestFollowing(
+		IQueryBuilder $qb, Person $actor, string $field = 'id_prim', string $aliasDest = 'sd',
+		string $aliasFollowing = 'f', string $alias = ''
+	): ICompositeExpression {
+
+		$expr = $qb->expr();
+		$andX = $expr->andX();
+
+		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
+		$andX->add(
+			$this->exprLimitToDBField(
+				$qb, 'actor_id_prim', $this->prim($actor->getId()), true, true, $aliasFollowing
+			)
+		);
+		$andX->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, $aliasFollowing));
+		$andX->add($expr->eq($aliasFollowing . '.follow_id_prim', $aliasDest . '.actor_id'));
+		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
+
+		return $andX;
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param Person $actor
 	 */
 	protected function leftJoinFollowing(IQueryBuilder $qb, Person $actor) {
@@ -206,26 +256,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param Person $actor
-	 */
-	protected function limitToFollowing(IQueryBuilder $qb, Person $actor) {
-		$expr = $qb->expr();
-		$andX = $expr->andX();
-		$andX->add($this->exprLimitToDBField($qb, 'attributed_to', $actor->getId(), true, false));
-		$andX->add($this->exprLimitToDBField($qb, 'cc', '[]', false));
-
-		$orX = $expr->orX();
-		$orX->add($andX);
-		$orX->add($expr->isNotNull('f.object_id'));
-
-		$qb->andWhere($orX);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param Person $actor
 	 *
 	 * @return ICompositeExpression
+	 * @deprecated - use the new table social_stream_dest
 	 */
 	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor) {
 		$expr = $qb->expr();

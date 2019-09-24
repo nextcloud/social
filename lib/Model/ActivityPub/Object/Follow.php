@@ -49,6 +49,9 @@ class Follow extends ACore implements JsonSerializable {
 	/** @var string */
 	private $followId = '';
 
+	/** @var string */
+	private $followIdPrim = '';
+
 	/** @var bool */
 	private $accepted = false;
 
@@ -79,6 +82,25 @@ class Follow extends ACore implements JsonSerializable {
 	 */
 	public function setFollowId(string $followId): Follow {
 		$this->followId = $followId;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getFollowIdPrim(): string {
+		return $this->followIdPrim;
+	}
+
+	/**
+	 * @param string $followIdPrim
+	 *
+	 * @return Follow
+	 */
+	public function setFollowIdPrim(string $followIdPrim): Follow {
+		$this->followIdPrim = $followIdPrim;
 
 		return $this;
 	}
@@ -119,6 +141,7 @@ class Follow extends ACore implements JsonSerializable {
 
 		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
 		$this->setFollowId($this->get('follow_id', $data, ''));
+		$this->setFollowIdPrim($this->get('follow_id_prim', $data, ''));
 	}
 
 
@@ -132,8 +155,9 @@ class Follow extends ACore implements JsonSerializable {
 			$result = array_merge(
 				$result,
 				[
-					'follow_id' => $this->getFollowId(),
-					'accepted'  => $this->isAccepted()
+					'follow_id'      => $this->getFollowId(),
+					'follow_id_prim' => $this->getFollowIdPrim(),
+					'accepted'       => $this->isAccepted()
 				]
 			);
 		}

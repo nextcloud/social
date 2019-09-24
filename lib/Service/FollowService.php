@@ -93,8 +93,7 @@ class FollowService {
 	 */
 	public function __construct(
 		FollowsRequest $followsRequest, ActivityService $activityService,
-		CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->activityService = $activityService;

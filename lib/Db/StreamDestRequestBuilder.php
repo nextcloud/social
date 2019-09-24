@@ -31,11 +31,15 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-class ActorsRequestBuilder extends CoreRequestBuilder {
+
+/**
+ * Class StreamDestRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
+class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -46,9 +50,9 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsInsertSql(): IQueryBuilder {
+	protected function getStreamDestInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_ACTORS);
+		$qb->insert(self::TABLE_STREAM_DEST);
 
 		return $qb;
 	}
@@ -59,9 +63,9 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsUpdateSql(): IQueryBuilder {
+	protected function getStreamDestUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_ACTORS);
+		$qb->update(self::TABLE_STREAM_DEST);
 
 		return $qb;
 	}
@@ -72,17 +76,14 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsSelectSql(): IQueryBuilder {
+	protected function getStreamDestSelectSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select(
-			'a.id', 'a.id_prim', 'a.user_id', 'a.preferred_username', 'a.name', 'a.summary',
-			'a.public_key', 'a.avatar_version', 'a.private_key', 'a.creation'
-		)
-		   ->from(self::TABLE_ACTORS, 'a');
+		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type')
+		   ->from(self::TABLE_STREAM_DEST, 'sd');
 
-		$this->defaultSelectAlias = 'a';
+		$this->defaultSelectAlias = 'sd';
 
 		return $qb;
 	}
@@ -93,42 +94,29 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsDeleteSql(): IQueryBuilder {
+	protected function getStreamDestDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_ACTORS);
+		$qb->delete(self::TABLE_STREAM_DEST);
 
 		return $qb;
 	}
 
 
 	/**
-	 * @param array $data
+	 * Base of the Sql Select request for Shares
 	 *
-	 * @return Person
-	 * @throws SocialAppConfigException
+	 * @return IQueryBuilder
 	 */
-	protected function parseActorsSelectSql($data): Person {
-		$root = $this->configService->getSocialUrl();
+	protected function countStreamDestSelectSql(): IQueryBuilder {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
+		   ->from(self::TABLE_STREAM_DEST, 'sd');
 
-		$actor = new Person();
-		$actor->importFromDatabase($data);
-		$actor->setType('Person');
-		$actor->setInbox($actor->getId() . '/inbox')
-			  ->setOutbox($actor->getId() . '/outbox')
-			  ->setUserId($this->get('user_id', $data, ''))
-			  ->setFollowers($actor->getId() . '/followers')
-			  ->setFollowing($actor->getId() . '/following')
-			  ->setSharedInbox($root . 'inbox')
-			  ->setLocal(true)
-			  ->setAvatarVersion($this->getInt('avatar_version', $data, -1))
-			  ->setAccount(
-				  $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress()
-			  );
-		$actor->setUrlSocial($root)
-			  ->setUrl($actor->getId());
+		$this->defaultSelectAlias = 'sd';
 
-		return $actor;
+		return $qb;
 	}
+
 
 }
 

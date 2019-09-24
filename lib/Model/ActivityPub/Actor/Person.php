@@ -388,9 +388,7 @@ class Person extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setPreferredUsername(
-			$this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, '')
-		)
+		$this->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
 			 ->setPublicKey($this->get('publicKey.publicKeyPem', $data))
 			 ->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
 			 ->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
@@ -417,10 +415,7 @@ class Person extends ACore implements JsonSerializable {
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
-
-		$this->setPreferredUsername(
-			$this->validate(self::AS_USERNAME, 'preferred_username', $data, '')
-		)
+		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
 			 ->setUserId($this->get('user_id', $data, ''))
 			 ->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
 			 ->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))

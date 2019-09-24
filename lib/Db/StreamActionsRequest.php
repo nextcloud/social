@@ -51,7 +51,9 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	public function create(StreamAction $action) {
 		$qb = $this->getStreamActionInsertSql();
 		$qb->setValue('actor_id', $qb->createNamedParameter($action->getActorId()))
+		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($action->getActorId())))
 		   ->setValue('stream_id', $qb->createNamedParameter($action->getStreamId()))
+		   ->setValue('stream_id_prim', $qb->createNamedParameter($this->prim($action->getStreamId())))
 		   ->setValue(
 			   'values', $qb->createNamedParameter(
 			   json_encode($action->getValues(), JSON_UNESCAPED_SLASHES)

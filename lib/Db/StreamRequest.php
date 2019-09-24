@@ -61,17 +61,25 @@ use OCP\IDBConnection;
 class StreamRequest extends StreamRequestBuilder {
 
 
+	/** @var StreamDestRequest */
+	private $streamDestRequest;
+
+
 	/**
 	 * StreamRequest constructor.
 	 *
 	 * @param IDBConnection $connection
+	 * @param StreamDestRequest $streamDestRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, StreamDestRequest $streamDestRequest, ConfigService $configService,
+		MiscService $miscService
 	) {
 		parent::__construct($connection, $configService, $miscService);
+
+		$this->streamDestRequest = $streamDestRequest;
 	}
 
 
@@ -82,9 +90,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->saveStream($stream);
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
-			$qb->setValue(
-				'hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags()))
-			)
+			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
 			   ->setValue(
 				   'attachments', $qb->createNamedParameter(
 				   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
@@ -94,6 +100,8 @@ class StreamRequest extends StreamRequestBuilder {
 
 		try {
 			$qb->execute();
+
+			$this->streamDestRequest->generateStreamDest($stream);
 		} catch (UniqueConstraintViolationException $e) {
 		}
 	}
@@ -188,6 +196,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function updateAttributedTo(string $itemId, string $to) {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attributed_to', $qb->createNamedParameter($to));
+		$qb->set('attributed_to_prim', $qb->createNamedParameter($this->prim($to)));
 
 		$this->limitToIdString($qb, $itemId);
 
@@ -357,14 +366,17 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimelineHome(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
+		$expr = $qb->expr();
 
-		$this->leftJoinFollowing($qb, $actor);
-		$this->limitToFollowing($qb, $actor);
+		$this->selectCacheActors($qb, 'ca');
+		$this->selectDestFollowing($qb, 'sd', 'f');
 		$this->limitPaginate($qb, $since, $limit);
 
-		$this->leftJoinCacheActors($qb, 'object_id', $actor, 'f');
-		$this->leftJoinStreamAction($qb);
+		$qb->andWhere($this->exprLimitToDBField($qb, 'type', SocialAppNotification::TYPE, false));
+		$qb->andWhere($this->exprInnerJoinDestFollowing($qb, $actor, 'id_prim', 'sd', 'f'));
+		$qb->andWhere($expr->eq('f.object_id_prim', 'ca.id_prim'));
 
+		$this->leftJoinStreamAction($qb);
 		$this->filterDuplicate($qb);
 
 		$streams = [];
@@ -713,10 +725,12 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))
 		   ->setValue('published', $qb->createNamedParameter($stream->getPublished()))
 		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
+		   ->setValue('attributed_to_prim', $qb->createNamedParameter($this->prim($attributedTo)))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($stream->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($stream->getSource()))
 		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
 		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($this->prim($stream->getObjectId())))
 		   ->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
 		   ->setValue(
@@ -759,13 +773,14 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		$expr = $qb->expr();
-		$func = $qb->func();
 		$pf = $this->defaultSelectAlias . '.';
 
 		$on = $expr->andX();
-		$on->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'fs'));
-		$on->add($expr->eq($func->lower($pf . 'attributed_to'), $func->lower('fs.object_id')));
 		$on->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'fs'));
+		$on->add(
+			$this->exprLimitToDBField($qb, 'actor_id_prim', $this->prim($actor->getId()), true, true, 'fs')
+		);
+		$on->add($expr->eq($pf . 'attributed_to_prim', 'fs.object_id_prim'));
 
 		$qb->leftJoin($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'fs', $on);
 	}
@@ -776,37 +791,22 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private function filterDuplicate(IQueryBuilder $qb) {
 		$actor = $this->viewer;
-
 		if ($actor === null) {
 			return;
 		}
 
+		// NEEDED ? use the follow 'f' ?
 		$this->leftJoinFollowStatus($qb, $actor);
 
-		$func = $qb->func();
 		$expr = $qb->expr();
-
 		$filter = $expr->orX();
 		$filter->add($this->exprLimitToDBFieldInt($qb, 'hidden_on_timeline', 0, 's'));
 
 		$follower = $expr->andX();
 		$follower->add(
-			$expr->neq(
-				$func->lower('attributed_to'),
-				$func->lower($qb->createNamedParameter($actor->getId()))
-			)
+			$this->exprLimitToDBField($qb, 'attributed_to_prim', $this->prim($actor->getId()), false)
 		);
-		$follower->add($expr->isNull('fs.id'));
-//		$follower->add(
-//			$expr->eq(
-//				$func->lower('f.object_id'),
-//				$func->lower('s.attributed_to')
-//			)
-//		);
-		// needed ?
-//		$follower->add($this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), false, 'f'));
-//		$follower->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
-
+		$follower->add($expr->isNull('fs.id_prim'));
 		$filter->add($follower);
 
 		$qb->andWhere($filter);

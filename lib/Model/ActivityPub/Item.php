@@ -31,7 +31,6 @@ namespace OCA\Social\Model\ActivityPub;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 
