@@ -38,6 +38,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -161,6 +162,7 @@ class AccountService {
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function getActorFromUserId(string $userId, bool $create = false): Person {
 		$this->miscService->confirmUserId($userId);
@@ -192,6 +194,7 @@ class AccountService {
 	 * @param string $username
 	 *
 	 * @throws AccountAlreadyExistsException
+	 * @throws ItemAlreadyExistsException
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
@@ -238,6 +241,7 @@ class AccountService {
 	 *
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function cacheLocalActorByUsername(string $username) {
 		try {

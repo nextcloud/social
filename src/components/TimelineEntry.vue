@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-entry">
+	<div class="timeline-entry" @click="getSinglePostTimeline">
 		<div v-if="item.type === 'SocialAppNotification'">
 			{{ actionSummary }}
 		</div>
@@ -30,6 +30,7 @@
 </template>
 
 <script>
+import Logger from '../logger'
 import TimelinePost from './TimelinePost.vue'
 
 export default {
@@ -94,6 +95,35 @@ export default {
 		}
 	},
 	methods: {
+		getSinglePostTimeline(e) {
+
+			// Do not call the single-post view when clicking on a link, a post attachment miniature or the post's author
+			if (e.target.tagName === 'A' || e.target.tagName === 'IMG' || e.target.className.startsWith('post-author')) {
+				Logger.debug('will not call single-post', { event: e })
+				return
+			}
+
+			// Display internal or external post
+			if (!this.item.local) {
+				if (this.item.type === 'Note') {
+					window.open(this.item.id)
+				} else if (this.item.type === 'Announce') {
+					window.open(this.item.object)
+				} else {
+					Logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
+				}
+			} else {
+				this.$router.push({ name: 'single-post',
+					params: {
+						account: this.item.actor_info.preferredUsername,
+						id: this.item.id,
+						localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
+						type: 'single-post'
+					}
+				})
+			}
+
+		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		}
@@ -104,6 +134,9 @@ export default {
 	.timeline-entry {
 		padding: 10px;
 		margin-bottom: 10px;
+	}
+	.timeline-entry:hover {
+		background-color: #F5F5F5;
 	}
 
 	.container-icon-boost {

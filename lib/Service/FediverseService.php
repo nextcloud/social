@@ -72,6 +72,10 @@ class FediverseService {
 	 * @throws SocialAppConfigException
 	 */
 	public function authorized(string $address): bool {
+		if ($address === '') {
+			throw new UnauthorizedFediverseException('Empty Origin');
+		}
+
 		if ($this->getAccessType() ===
 			$this->configService->accessTypeList['BLACKLIST']
 			&& !$this->isListed($address)) {

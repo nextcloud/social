@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub;
 
 
+use daita\MySmallPhpTools\IQueryRow;
 use daita\MySmallPhpTools\Model\Cache;
 use daita\MySmallPhpTools\Model\CacheItem;
 use DateTime;
@@ -39,7 +40,12 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Traits\TDetails;
 
 
-class Stream extends ACore implements JsonSerializable {
+/**
+ * Class Stream
+ *
+ * @package OCA\Social\Model\ActivityPub
+ */
+class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 
 	use TDetails;
@@ -396,8 +402,7 @@ class Stream extends ACore implements JsonSerializable {
 			[
 				'content'      => $this->getContent(),
 				'attributedTo' => ($this->getAttributedTo() !== '') ? $this->getUrlSocial()
-																	  . $this->getAttributedTo(
-					) : '',
+																	  . $this->getAttributedTo() : '',
 				'inReplyTo'    => $this->getInReplyTo(),
 				'sensitive'    => $this->isSensitive(),
 				'conversation' => $this->getConversation()

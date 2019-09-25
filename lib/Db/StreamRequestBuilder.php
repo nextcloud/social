@@ -31,12 +31,14 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
+use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
@@ -60,11 +62,11 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_STREAM);
+	protected function getStreamInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->insert(self::TABLE_STREAMS);
 
 		return $qb;
 	}
@@ -73,11 +75,11 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_STREAM);
+	protected function getStreamUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_STREAMS);
 
 		return $qb;
 	}
@@ -86,10 +88,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
@@ -110,10 +112,10 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function countNotesSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function countNotesSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 		   ->from(self::TABLE_STREAM, 's');
 
@@ -126,11 +128,11 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_STREAM);
+	protected function getStreamDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_STREAMS);
 
 		return $qb;
 	}
@@ -321,9 +323,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return string
 	 */
-	protected function exprValueWithinJsonFormat(IQueryBuilder $qb, string $field, string $value
-	): string {
-		$dbConn = $this->dbConnection;
+	protected function exprValueWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
+		$dbConn = $this->getConnection();
 		$expr = $qb->expr();
 
 		return $expr->iLike(
@@ -340,9 +341,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return string
 	 */
-	protected function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value
-	): string {
-		$dbConn = $this->dbConnection;
+	protected function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
+		$dbConn = $this->getConnection();
 		$expr = $qb->expr();
 		$func = $qb->func();
 
@@ -448,6 +448,37 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 
 	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	protected function getStreamFromRequest(SocialQueryBuilder $qb): Stream {
+		/** @var Stream $result */
+		try {
+			$result = $qb->getRow([$this, 'parseStreamSelectSql']);
+		} catch (RowNotFoundException $e) {
+			throw new StreamNotFoundException($e->getMessage());
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return Stream[]
+	 */
+	public function getStreamsFromRequest(SocialQueryBuilder $qb): array {
+		/** @var Stream[] $result */
+		$result = $qb->getRows([$this, 'parseStreamSelectSql']);
+
+		return $result;
+	}
+
+
+	/**
 	 * @param array $data
 	 * @param string $as
 	 *
@@ -455,7 +486,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	protected function parseStreamSelectSql(array $data, string $as = Stream::TYPE): Stream {
+	public function parseStreamSelectSql(array $data, string $as = Stream::TYPE): Stream {
 		if ($as === Stream::TYPE) {
 			$as = $this->get('type', $data, Stream::TYPE);
 		}

@@ -27,6 +27,7 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Controller;
 
 
@@ -130,10 +131,10 @@ class LocalController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, $userId, AccountService $accountService,
-		CacheActorService $cacheActorService, HashtagService $hashtagService,
-		FollowService $followService,
-		PostService $postService, StreamService $streamService, SearchService $searchService,
+		IRequest $request, $userId, AccountService $accountService, CacheActorService $cacheActorService,
+		HashtagService $hashtagService,
+		FollowService $followService, PostService $postService, StreamService $streamService,
+		SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService
 	) {
@@ -194,16 +195,42 @@ class LocalController extends Controller {
 	 * get info about a post (limited to viewer rights).
 	 *
 	 * @NoAdminRequired
+	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *
 	 * @return DataResponse
 	 */
-	public function postData(string $id): DataResponse {
+	public function postGet(string $id): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			return $this->directSuccess($this->streamService->getStreamById($id, true));
+			$stream = $this->streamService->getStreamById($id, true);
+
+			return $this->directSuccess($stream);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * get replies about a post (limited to viewer rights).
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 *
+	 * @param string $id
+	 * @param int $since
+	 * @param int $limit
+	 *
+	 * @return DataResponse
+	 */
+	public function postReplies(string $id, int $since = 0, int $limit = 5): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return $this->success($this->streamService->getRepliesByParentId($id, $since, $limit, true));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

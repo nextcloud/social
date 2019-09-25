@@ -55,6 +55,12 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 
+
+/**
+ * Class NavigationController
+ *
+ * @package OCA\Social\Controller
+ */
 class NavigationController extends Controller {
 
 
@@ -87,6 +93,7 @@ class NavigationController extends Controller {
 
 	/** @var CheckService */
 	private $checkService;
+
 
 	/**
 	 * NavigationController constructor.
@@ -261,6 +268,7 @@ class NavigationController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();
@@ -276,6 +284,7 @@ class NavigationController extends Controller {
 	 *
 	 * @return TemplateResponse
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function account(string $path = ''): TemplateResponse {
 		return $this->navigate();

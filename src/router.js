@@ -26,6 +26,7 @@ import Router from 'vue-router'
 
 // Dynamic loading
 const Timeline = () => import('./views/Timeline')
+const TimelineSinglePost = () => import('./views/TimelineSinglePost')
 const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile')
 const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline')
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers')
@@ -56,6 +57,14 @@ export default new Router({
 					name: 'tags'
 				}
 			]
+		},
+		{
+			path: '/:index(index.php/)?apps/social/@:account/:localId',
+			components: {
+				default: TimelineSinglePost
+			},
+			props: true,
+			name: 'single-post'
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account',

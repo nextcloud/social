@@ -262,6 +262,8 @@ class SignatureService {
 			throw new SignatureIsGoneException();
 		} catch (SignatureException $e) {
 		}
+
+		return '';
 	}
 
 

@@ -21,7 +21,7 @@
 				</div>
 			</div>
 		</transition>
-		<composer v-if="type !== 'notifications'" />
+		<composer v-if="type !== 'notifications' && type !== 'single-post'" />
 		<h2 v-if="type === 'tags'">
 			#{{ this.$route.params.tag }}
 		</h2>
@@ -117,6 +117,8 @@ export default {
 		params() {
 			if (this.$route.name === 'tags') {
 				return { tag: this.$route.params.tag }
+			} else if (this.$route.name === 'single-post') {
+				return this.$route.params
 			}
 			return {}
 		},

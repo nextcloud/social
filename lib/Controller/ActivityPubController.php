@@ -38,14 +38,18 @@ use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
+use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -80,6 +84,12 @@ class ActivityPubController extends Controller {
 	/** @var FollowService */
 	private $followService;
 
+	/** @var StreamService */
+	private $streamService;
+
+	/** @var ConfigService */
+	private $configService;
+
 	/** @var MiscService */
 	private $miscService;
 
@@ -95,13 +105,16 @@ class ActivityPubController extends Controller {
 	 * @param StreamQueueService $streamQueueService
 	 * @param ImportService $importService
 	 * @param FollowService $followService
+	 * @param StreamService $streamService
+	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController,
 		FediverseService $fediverseService, CacheActorService $cacheActorService,
 		SignatureService $signatureService, StreamQueueService $streamQueueService,
-		ImportService $importService, FollowService $followService, MiscService $miscService
+		ImportService $importService, FollowService $followService, StreamService $streamService,
+		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -112,6 +125,8 @@ class ActivityPubController extends Controller {
 		$this->streamQueueService = $streamQueueService;
 		$this->importService = $importService;
 		$this->followService = $followService;
+		$this->streamService = $streamService;
+		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
@@ -131,6 +146,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
@@ -162,6 +178,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function actorAlias(string $username): Response {
 		return $this->actor($username);
@@ -227,7 +244,7 @@ class ActivityPubController extends Controller {
 			$this->miscService->log('[<<] inbox: ' . $body, 1);
 
 			$requestTime = 0;
-			$origin = $this->signatureService->checkRequest($this->request, $body,$requestTime);
+			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
 
 			// TODO - check the recipient <-> username
@@ -281,9 +298,9 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function followers(string $username): Response {
-
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
 		}
@@ -311,6 +328,7 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
 	 */
 	public function following(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
@@ -328,16 +346,24 @@ class ActivityPubController extends Controller {
 	 * @PublicPage
 	 *
 	 * @param string $username
-	 * @param $postId
+	 * @param string $token
 	 *
 	 * @return Response
+	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
 	 */
-	public function displayPost($username, $postId) {
+	public function displayPost(string $username, string $token): Response {
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->socialPubController->displayPost($username, $postId);
+			return $this->socialPubController->displayPost($username, $token);
 		}
 
-		return $this->success([$username, $postId]);
+		// TODO - check viewer rights !
+		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+		$stream = $this->streamService->getStreamById($postId, false);
+
+		$stream->setCompleteDetails(false);
+
+		return $this->directSuccess($stream);
 	}
 
 

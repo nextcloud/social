@@ -36,7 +36,6 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
 use OCA\Social\Exceptions\RequestNetworkException;
@@ -44,6 +43,7 @@ use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -383,9 +383,24 @@ class StreamService {
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
+	 * @throws SocialAppConfigException
 	 */
 	public function getStreamById(string $id, bool $asViewer = false): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer);
+	}
+
+
+	/**
+	 * @param string $id
+	 * @param int $since
+	 * @param int $limit
+	 * @param bool $asViewer
+	 *
+	 * @return Stream[]
+	 * @throws StreamNotFoundException
+	 */
+	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false): array {
+		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
 
 

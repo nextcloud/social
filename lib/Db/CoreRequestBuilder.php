@@ -35,6 +35,7 @@ use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
+use OC;
 use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\DateTimeException;
@@ -48,6 +49,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use OCP\ILogger;
 
 
 /**
@@ -88,6 +90,8 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_ACTIONS
 	];
 
+	protected $logger;
+
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -98,26 +102,50 @@ class CoreRequestBuilder {
 	protected $miscService;
 
 
-	/** @var string */
-	protected $defaultSelectAlias;
-
 	/** @var Person */
 	protected $viewer = null;
+
+	/** @var string */
+	protected $defaultSelectAlias;
 
 
 	/**
 	 * CoreRequestBuilder constructor.
 	 *
 	 * @param IDBConnection $connection
+	 * @param ILogger $logger
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, ConfigService $configService, MiscService $miscService
 	) {
 		$this->dbConnection = $connection;
+		$this->logger = $logger;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+	}
+
+
+	/**
+	 * @return SocialQueryBuilder
+	 */
+	public function getQueryBuilder(): SocialQueryBuilder {
+		$qb = new SocialQueryBuilder(
+			$this->dbConnection,
+			OC::$server->getSystemConfig(),
+			$this->logger
+		);
+
+		return $qb;
+	}
+
+
+	/**
+	 * @return IDBConnection
+	 */
+	public function getConnection(): IDBConnection {
+		return $this->dbConnection;
 	}
 
 
@@ -199,6 +227,17 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * Limit the request to the Id (string)
+	 *
+	 * @param IQueryBuilder $qb
+	 * @param string $id
+	 */
+	protected function limitToInReplyTo(IQueryBuilder &$qb, string $id) {
+		$this->limitToDBField($qb, 'in_reply_to', $id, false);
+	}
+
+
+	/**
 	 * Limit the request to the StreamId
 	 *
 	 * @param IQueryBuilder $qb
@@ -257,7 +296,7 @@ class CoreRequestBuilder {
 	 * @param string $username
 	 */
 	protected function searchInPreferredUsername(IQueryBuilder &$qb, string $username) {
-		$dbConn = $this->dbConnection;
+		$dbConn = $this->getConnection();
 		$this->searchInDBField(
 			$qb, 'preferred_username', $dbConn->escapeLikeParameter($username) . '%'
 		);
@@ -314,7 +353,7 @@ class CoreRequestBuilder {
 	 * @param bool $all
 	 */
 	protected function searchInHashtag(IQueryBuilder &$qb, string $hashtag, bool $all = false) {
-		$dbConn = $this->dbConnection;
+		$dbConn = $this->getConnection();
 		$this->searchInDBField(
 			$qb, 'hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%'
 		);
@@ -385,7 +424,7 @@ class CoreRequestBuilder {
 	 * @param string $account
 	 */
 	protected function searchInAccount(IQueryBuilder &$qb, string $account) {
-		$dbConn = $this->dbConnection;
+		$dbConn = $this->getConnection();
 		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
 	}
 
@@ -493,13 +532,17 @@ class CoreRequestBuilder {
 	 * @param int $since
 	 * @param int $limit
 	 *
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
-		if ($since > 0) {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($since);
-			$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
+		try {
+			if ($since > 0) {
+				$dTime = new DateTime();
+				$dTime->setTimestamp($since);
+				$this->limitToDBFieldDateTime($qb, 'published_time', $dTime);
+			}
+		} catch (Exception $e) {
+			throw new DateTimeException();
 		}
 
 		$qb->setMaxResults($limit);
@@ -507,6 +550,8 @@ class CoreRequestBuilder {
 		$qb->orderBy($pf . '.published_time', 'desc');
 	}
 
+//
+//
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -1160,9 +1205,7 @@ class CoreRequestBuilder {
 	 * @param string $fieldActorId
 	 * @param string $pf
 	 */
-	protected function leftJoinDetails(
-		IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = ''
-	) {
+	protected function leftJoinDetails(IQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
 	}

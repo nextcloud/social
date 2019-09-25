@@ -21,6 +21,7 @@
  *
  */
 
+import Logger from '../logger'
 import axios from 'nextcloud-axios'
 import Vue from 'vue'
 
@@ -92,6 +93,15 @@ const getters = {
 		return Object.values(state.timeline).sort(function(a, b) {
 			return b.publishedTime - a.publishedTime
 		})
+	},
+	getPostFromTimeline(state) {
+		return (postId) => {
+			if (typeof state.timeline[postId] !== 'undefined') {
+				return state.timeline[postId]
+			} else {
+				Logger.warn('Could not find post in timeline', { postId: postId })
+			}
+		}
 	}
 }
 const actions = {
@@ -181,22 +191,47 @@ const actions = {
 		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},
 	fetchTimeline(context, { sinceTimestamp }) {
+
 		if (typeof sinceTimestamp === 'undefined') {
 			sinceTimestamp = state.since - 1
 		}
-		let url
+
+		// Compute URl to get the data
+		let url = ''
 		if (state.type === 'account') {
 			url = OC.generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
 		} else if (state.type === 'tags') {
 			url = OC.generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
+		} else if (state.type === 'single-post') {
+			url = OC.generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=` + sinceTimestamp)
 		} else {
 			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
 		}
+
+		// Get the data and add them to the timeline
 		return axios.get(url).then((response) => {
+
 			if (response.status === -1) {
 				throw response.message
 			}
-			context.commit('addToTimeline', response.data.result)
+
+			let result = []
+
+			// Also load replies when displaying a single post timeline
+			if (state.type === 'single-post') {
+				result.push(response.data)
+				// axios.get(OC.generateUrl(``)).then((response) => {
+				// 	if (response.status !== -1) {
+				// 		result.concat(response.data.result)
+				// 	}
+				// }
+			} else {
+				result = response.data.result
+			}
+
+			// Add results to timeline
+			context.commit('addToTimeline', result)
+
 			return response.data
 		})
 	},
