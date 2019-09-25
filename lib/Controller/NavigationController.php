@@ -55,6 +55,12 @@ use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 
+
+/**
+ * Class NavigationController
+ *
+ * @package OCA\Social\Controller
+ */
 class NavigationController extends Controller {
 
 
@@ -87,6 +93,7 @@ class NavigationController extends Controller {
 
 	/** @var CheckService */
 	private $checkService;
+
 
 	/**
 	 * NavigationController constructor.

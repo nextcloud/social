@@ -47,7 +47,11 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
+use OCP\ILogger;
 
 
 /**
@@ -66,15 +70,16 @@ class StreamRequest extends StreamRequestBuilder {
 	 * StreamRequest constructor.
 	 *
 	 * @param IDBConnection $connection
+	 * @param ILogger $logger
 	 * @param StreamDestRequest $streamDestRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, StreamDestRequest $streamDestRequest, ConfigService $configService,
-		MiscService $miscService
+		IDBConnection $connection, ILogger $logger, StreamDestRequest $streamDestRequest,
+		ConfigService $configService, MiscService $miscService
 	) {
-		parent::__construct($connection, $configService, $miscService);
+		parent::__construct($connection, $logger, $configService, $miscService);
 
 		$this->streamDestRequest = $streamDestRequest;
 	}
