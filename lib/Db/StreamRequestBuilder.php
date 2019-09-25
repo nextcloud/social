@@ -66,7 +66,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_STREAMS);
+		$qb->insert(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -79,7 +79,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_STREAMS);
+		$qb->update(self::TABLE_STREAM);
 
 		return $qb;
 	}
@@ -132,7 +132,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getStreamDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_STREAMS);
+		$qb->delete(self::TABLE_STREAM);
 
 		return $qb;
 	}
