@@ -783,9 +783,24 @@ export default {
 			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
 			this.$refs.composerInput.oninput(event)
 		},
-		createPost(event) {
+		createPost: async function(event) {
 
 			let postData = this.getPostData()
+
+			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
+			let regex = /@([-\w]+)$/
+			let lastMention = postData.content.match(regex)
+			if (lastMention) {
+
+				// Ask the server for matching accounts, and wait for the results
+				let result = await this.remoteSearchAccounts(lastMention[1])
+
+				// Validate the last mention only when it matches a single account
+				if (result.data.result.accounts.length === 1) {
+					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
+					postData.to.push('@' + result.data.result.accounts[0].account)
+				}
+			}
 
 			// Abort if the post is a direct message and no valid mentions were found
 			if (this.type === 'direct' && postData.to.length === 0) {
@@ -793,7 +808,7 @@ export default {
 				return
 			}
 
-			// Post toot
+			// Post message
 			this.loading = true
 			this.$store.dispatch('post', postData).then((response) => {
 				this.loading = false
