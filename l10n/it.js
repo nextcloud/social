@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "Sociale",
+    "Follow %s on Social" : "Segui %s su Sociale",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud diventa parte delle reti sociali federate!",
     "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** Avviso: questa è una versione ALFA version **\n\n**🎉 Nextcloud diventa parte delle reti sociali federate!**\n\n**🙋 Trova i tuoi amici:** Non importa se utilizzano Nextcloud, 🐘 Mastodon, 🇫 Friendica, e presto ✱ Diaspora, 👹 MediaGoblin e altro – puoi seguirli!\n\n**📜 Informazioni di profilo:** Non è necessario creare più profili – le tue informazioni da Nextcloud saranno utilizzate ed estese.\n\n**👐 Possiedi i tuoi commenti:** Tutti i tuoi commenti restano sul tuo Nextcloud!\n\n**🕸 Standard aperti:** Utilizziamo lo standardizzati riconosciuto ActivityPub!",
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger non è configurato correttamente!",
