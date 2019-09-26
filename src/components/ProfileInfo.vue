@@ -23,7 +23,7 @@
 <template>
 	<div v-if="account && accountInfo" class="user-profile">
 		<div>
-			<avatar v-if="accountInfo.local" :user="uid" :disable-tooltip="true"
+			<avatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
 				:size="128" />
 			<avatar v-else :url="avatarUrl" :disable-tooltip="true"
 				:size="128" />
@@ -125,6 +125,10 @@ export default {
 		}
 	},
 	computed: {
+		localUid() {
+			// Returns only the local part of a username
+			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.substr(0, this.uid.indexOf('@'))
+		},
 		account() {
 			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
 		},

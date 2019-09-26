@@ -37,7 +37,7 @@
 			<div v-if="hasAttachments" class="post-attachments">
 				<post-attachment :attachments="item.attachment" />
 			</div>
-			<div v-if="this.$route.params.type!=='notifications'" v-click-outside="hidePopoverMenu" class="post-actions">
+			<div v-if="this.$route.params.type!=='notifications' && !serverData.public" v-click-outside="hidePopoverMenu" class="post-actions">
 				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
 				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
 					:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"

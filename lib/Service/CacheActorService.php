@@ -38,15 +38,16 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\RequestNetworkException;
+use OCA\Social\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Exceptions\RequestResultSizeException;
 use OCA\Social\Exceptions\RequestServerException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
@@ -166,15 +167,22 @@ class CacheActorService {
 	 *
 	 * @return Person
 	 * @throws CacheActorDoesNotExistException
+	 * @throws SocialAppConfigException
 	 */
 	public function getFromLocalAccount(string $account): Person {
+		$instance = '';
 		if (strrpos($account, '@')) {
-			$account = substr($account, 0, strrpos($account, '@'));
+			list($account, $instance) = explode('@', $account);
 		}
 
-		return $this->cacheActorsRequest->getFromLocalAccount($account);
-	}
+		if ($instance === ''
+			|| $this->configService->getCloudHost() === $instance
+			|| $this->configService->getSocialAddress() === $instance) {
+			return $this->cacheActorsRequest->getFromLocalAccount($account);
+		}
 
+		throw new CacheActorDoesNotExistException();
+	}
 
 	/**
 	 * @param string $account
@@ -200,6 +208,10 @@ class CacheActorService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function getFromAccount(string $account, bool $retrieve = true): Person {
+		try {
+			return $this->getFromLocalAccount($account);
+		} catch (CacheActorDoesNotExistException $e) {
+		}
 
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
@@ -270,6 +282,8 @@ class CacheActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @throws ItemAlreadyExistsException
 	 */
 	private function save(Person $actor) {
 		try {
@@ -278,4 +292,6 @@ class CacheActorService {
 		} catch (ItemUnknownException $e) {
 		}
 	}
+
 }
+

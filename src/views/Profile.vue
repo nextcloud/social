@@ -79,12 +79,22 @@ export default {
 		}
 	},
 	beforeMount() {
+
+		let fetchMethod = ''
 		this.uid = this.$route.params.account
+
+		// Are we authenticated?
 		if (this.serverData.public) {
-			this.$store.dispatch('fetchPublicAccountInfo', this.uid)
+			fetchMethod = 'fetchPublicAccountInfo'
 		} else {
-			this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+			fetchMethod = 'fetchAccountInfo'
 		}
+
+		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
+		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
+		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
+			this.uid = response.account
+		})
 	},
 	methods: {
 	}

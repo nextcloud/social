@@ -108,13 +108,15 @@ const actions = {
 	fetchAccountInfo(context, account) {
 		return axios.get(OC.generateUrl(`apps/social/api/v1/global/account/info?account=${account}`)).then((response) => {
 			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
+			return response.data.result.account
 		}).catch(() => {
 			OC.Notification.showTemporary(`Failed to load account details ${account}`)
 		})
 	},
 	fetchPublicAccountInfo(context, uid) {
-		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
+		return axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
 			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
+			return response.data.result.account
 		}).catch(() => {
 			OC.Notification.showTemporary(`Failed to load account details ${uid}`)
 		})

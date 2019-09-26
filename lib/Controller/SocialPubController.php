@@ -125,7 +125,7 @@ class SocialPubController extends Controller {
 
 		$status = Http::STATUS_OK;
 		try {
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$actor = $this->cacheActorService->getFromAccount($username);
 			$displayName = $actor->getName() !== '' ? $actor->getName() : $actor->getPreferredUsername();
 			$data['application'] = $displayName . ' - ' . $data['application'];
 		} catch (CacheActorDoesNotExistException $e) {
