@@ -798,7 +798,7 @@ export default {
 				// Validate the last mention only when it matches a single account
 				if (result.data.result.accounts.length === 1) {
 					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
-					postData.to.push('@' + result.data.result.accounts[0].account)
+					postData.to.push(result.data.result.accounts[0].account)
 				}
 			}
 
