@@ -90,7 +90,7 @@
 			</masonry>
 
 			<div class="options">
-				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1" class="submit primary"
+				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1 || post==='br'" class="submit primary"
 					type="submit" title="" data-original-title="Post">
 				<div v-click-outside="hidePopoverMenu">
 					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
@@ -422,6 +422,7 @@ export default {
 			search: '',
 			replyTo: null,
 			tributeOptions: {
+				spaceSelectsMatch: true,
 				collection: [
 					{
 						trigger: '@',
@@ -743,7 +744,7 @@ export default {
 			let contentHtml = element.innerHTML
 			let to = []
 			let hashtags = []
-			const mentionRegex = /@(([\w-_.]+)(@[\w-.]+)?)/g
+			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
 			let match = null
 			do {
 				match = mentionRegex.exec(contentHtml)
@@ -782,9 +783,34 @@ export default {
 			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
 			this.$refs.composerInput.oninput(event)
 		},
-		createPost(event) {
+		createPost: async function(event) {
+
+			let postData = this.getPostData()
+
+			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
+			let regex = /@([-\w]+)$/
+			let lastMention = postData.content.match(regex)
+			if (lastMention) {
+
+				// Ask the server for matching accounts, and wait for the results
+				let result = await this.remoteSearchAccounts(lastMention[1])
+
+				// Validate the last mention only when it matches a single account
+				if (result.data.result.accounts.length === 1) {
+					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
+					postData.to.push(result.data.result.accounts[0].account)
+				}
+			}
+
+			// Abort if the post is a direct message and no valid mentions were found
+			if (this.type === 'direct' && postData.to.length === 0) {
+				OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
+				return
+			}
+
+			// Post message
 			this.loading = true
-			this.$store.dispatch('post', this.getPostData()).then((response) => {
+			this.$store.dispatch('post', postData).then((response) => {
 				this.loading = false
 				this.replyTo = null
 				this.post = ''
@@ -793,6 +819,7 @@ export default {
 				this.miniatures = []
 				this.$store.dispatch('refreshTimeline')
 			})
+
 		},
 		remoteSearchAccounts(text) {
 			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
