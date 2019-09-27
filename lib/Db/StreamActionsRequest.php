@@ -50,15 +50,24 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	 */
 	public function create(StreamAction $action) {
 		$qb = $this->getStreamActionInsertSql();
+
+		$values = $action->getValues();
+		$liked = $this->getBool(StreamAction::LIKED, $values, false);
+		$boosted = $this->getBool(StreamAction::BOOSTED, $values, false);
+		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
+
 		$qb->setValue('actor_id', $qb->createNamedParameter($action->getActorId()))
 		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($action->getActorId())))
 		   ->setValue('stream_id', $qb->createNamedParameter($action->getStreamId()))
 		   ->setValue('stream_id_prim', $qb->createNamedParameter($this->prim($action->getStreamId())))
 		   ->setValue(
 			   'values', $qb->createNamedParameter(
-			   json_encode($action->getValues(), JSON_UNESCAPED_SLASHES)
+			   json_encode($values, JSON_UNESCAPED_SLASHES)
 		   )
-		   );
+		   )
+		   ->setValue('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
+		   ->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
+		   ->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
 
 		$qb->execute();
 	}
@@ -74,13 +83,22 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	public function update(StreamAction $action): int {
 		$qb = $this->getStreamActionUpdateSql();
 
-		$values = json_encode($action->getValues(), JSON_UNESCAPED_SLASHES);
-		$qb->set('values', $qb->createNamedParameter($values));
+		$values = $action->getValues();
+		$liked = $this->getBool(StreamAction::LIKED, $values, false);
+		$boosted = $this->getBool(StreamAction::BOOSTED, $values, false);
+		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
+
+		$qb->set('values', $qb->createNamedParameter(json_encode($values, JSON_UNESCAPED_SLASHES)))
+		   ->set('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
+		   ->set('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
+		   ->set('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
 
 		$this->limitToActorId($qb, $action->getActorId());
 		$this->limitToStreamId($qb, $action->getStreamId());
 
-		return $qb->execute();
+		$count = $qb->execute();
+
+		return $count;
 	}
 
 

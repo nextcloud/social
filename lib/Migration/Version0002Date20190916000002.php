@@ -114,7 +114,7 @@ class Version0002Date20190916000002 extends SimpleMigrationStep {
 
 		$table = $schema->getTable('social_a2_stream_action');
 		if (!$table->hasIndex('sa')) {
-			$table->addIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
+			$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
 		}
 
 		return $schema;

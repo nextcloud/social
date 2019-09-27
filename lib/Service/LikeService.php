@@ -40,13 +40,13 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\StreamAction;
 
 
 /**
@@ -139,7 +139,7 @@ class LikeService {
 		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
 		$interface->save($like);
 
-		$this->streamActionService->setActionBool($actor->getId(), $postId, 'liked', true);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, true);
 		$token = $this->activityService->request($like);
 
 		return $like;
@@ -198,7 +198,7 @@ class LikeService {
 		} catch (ItemNotFoundException $e) {
 		}
 
-		$this->streamActionService->setActionBool($actor->getId(), $postId, 'liked', false);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, false);
 
 		return $undo;
 	}
