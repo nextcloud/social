@@ -795,6 +795,24 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 * @param string $alias
+	 */
+	protected function selectStreamActions(IQueryBuilder &$qb, string $alias = 'sa') {
+		if ($qb->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
+		$qb->from(self::TABLE_STREAM_ACTIONS, $pf);
+		$qb->selectAlias('sa.id', 'streamaction_id')
+		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
+		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
+		   ->selectAlias('sa.values', 'streamaction_values');
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param Person $author
 	 * @param string $alias

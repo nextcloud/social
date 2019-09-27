@@ -44,7 +44,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -499,21 +498,29 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @param int $since
 	 * @param int $limit
-	 * @param bool $localOnly
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineLiked(int $since = 0, int $limit = 5, bool $localOnly = true): array {
+	public function getTimelineLiked(int $since = 0, int $limit = 5): array {
+		if ($this->viewer === null) {
+			return [];
+		}
+
+		$actorId = $this->viewer->getId();
+
 		$qb = $this->getStreamSelectSql();
+		$this->limitToType($qb, Note::TYPE);
 		$this->limitPaginate($qb, $since, $limit);
 
-		$this->limitToType($qb, Note::TYPE);
+		$expr = $qb->expr();
+		$this->selectCacheActors($qb, 'ca');
+		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
 
-		$this->leftJoinStreamAction($qb);
-		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinActions($qb, Like::TYPE);
-		$this->filterDBField($qb, 'id', '', false, 'a');
+		$this->selectStreamActions($qb, 'sa');
+		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
+		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($this->prim($actorId))));
+		$qb->andWhere($expr->eq('sa.liked', $qb->createNamedParameter(1)));
 
 		return $this->getStreamsFromRequest($qb);
 	}
