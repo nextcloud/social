@@ -48,6 +48,11 @@ class StreamAction implements JsonSerializable {
 	use TStringTools;
 
 
+	const LIKED = 'liked';
+	const BOOSTED = 'boosted';
+	const REPLIED = 'replied';
+
+
 	/** @var integer */
 	private $id = 0;
 

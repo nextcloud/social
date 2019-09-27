@@ -34,7 +34,6 @@ use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -44,6 +43,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamAction;
 
 
 /**
@@ -143,7 +143,7 @@ class BoostService {
 
 		$interface->save($announce);
 
-		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', true);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, true);
 		$this->signatureService->signObject($actor, $announce);
 
 		$token = $this->activityService->request($announce);
@@ -205,7 +205,7 @@ class BoostService {
 		} catch (StreamNotFoundException $e) {
 		}
 
-		$this->streamActionService->setActionBool($actor->getId(), $postId, 'boosted', false);
+		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, false);
 
 		return $undo;
 	}
