@@ -146,9 +146,9 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 		$streamId = $data['stream_id'];
 
 		$values = json_decode($data['values'], true);
-		$liked = (int)((array_key_exists('liked', $values)) ? $values['liked'] : 0);
-		$boosted = (int)((array_key_exists('boosted', $values)) ? $values['boosted'] : 0);
-		$replied = (int)((array_key_exists('replied', $values)) ? $values['replied'] : 0);
+		$liked = (array_key_exists('liked', $values) && ($values['liked'])) ? 1 : 0;
+		$boosted = (array_key_exists('boosted', $values) && $values['boosted']) ? 1 : 0;
+		$replied = (array_key_exists('replied', $values) && $values['replied']) ? 1 : 0;
 
 		$update->set('actor_id_prim', $update->createNamedParameter(hash('sha512', $actorId)));
 		$update->set('stream_id_prim', $update->createNamedParameter(hash('sha512', $streamId)));

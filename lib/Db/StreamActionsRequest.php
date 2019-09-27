@@ -52,6 +52,10 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$qb = $this->getStreamActionInsertSql();
 
 		$values = $action->getValues();
+		$liked = $this->getBool(StreamAction::LIKED, $values, false);
+		$boosted = $this->getBool(StreamAction::BOOSTED, $values, false);
+		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
+
 		$qb->setValue('actor_id', $qb->createNamedParameter($action->getActorId()))
 		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($action->getActorId())))
 		   ->setValue('stream_id', $qb->createNamedParameter($action->getStreamId()))
@@ -61,13 +65,9 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			   json_encode($values, JSON_UNESCAPED_SLASHES)
 		   )
 		   )
-		   ->setValue('liked', $qb->createNamedParameter($this->getBool(StreamAction::LIKED, $values, false)))
-		   ->setValue(
-			   'boosted', $qb->createNamedParameter($this->getBool(StreamAction::BOOSTED, $values, false))
-		   )
-		   ->setValue(
-			   'replied', $qb->createNamedParameter($this->getBool(StreamAction::REPLIED, $values, false))
-		   );
+		   ->setValue('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
+		   ->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
+		   ->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
 
 		$qb->execute();
 	}
@@ -84,10 +84,14 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$qb = $this->getStreamActionUpdateSql();
 
 		$values = $action->getValues();
+		$liked = $this->getBool(StreamAction::LIKED, $values, false);
+		$boosted = $this->getBool(StreamAction::BOOSTED, $values, false);
+		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
+
 		$qb->set('values', $qb->createNamedParameter(json_encode($values, JSON_UNESCAPED_SLASHES)))
-		   ->set('liked', $qb->createNamedParameter($this->getBool(StreamAction::LIKED, $values, false)))
-		   ->set('boosted', $qb->createNamedParameter($this->getBool(StreamAction::BOOSTED, $values, false)))
-		   ->set('replied', $qb->createNamedParameter($this->getBool(StreamAction::REPLIED, $values, false)));
+		   ->set('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
+		   ->set('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
+		   ->set('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
 
 		$this->limitToActorId($qb, $action->getActorId());
 		$this->limitToStreamId($qb, $action->getStreamId());
