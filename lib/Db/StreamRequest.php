@@ -228,7 +228,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
-	 * @throws SocialAppConfigException
 	 */
 	public function getStreamById(string $id, bool $asViewer = false): Stream {
 		if ($id === '') {
@@ -236,14 +235,18 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
+		$expr = $qb->expr();
+
 		$this->limitToIdString($qb, $id);
-		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$this->selectCacheActors($qb, 'ca');
+		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
 
 		if ($asViewer) {
 			$this->limitToViewer($qb);
-			$this->leftJoinStreamAction($qb);
+			if ($this->viewer !== null) {
+				$this->leftJoinStreamAction($qb);
+			}
 		}
-
 
 		try {
 			return $this->getStreamFromRequest($qb);

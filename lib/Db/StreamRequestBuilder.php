@@ -144,6 +144,13 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function limitToViewer(IQueryBuilder $qb) {
 		$actor = $this->viewer;
 
+		// TODO - rewrite this request to use stream_dest !
+		if ($this->viewer === null) {
+			$qb->andWhere($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
+
+			return;
+		}
+
 		$on = $this->exprJoinFollowing($qb, $actor);
 		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));

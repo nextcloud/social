@@ -420,9 +420,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				]
 			);
 
-			$result['cc'] = '';
-			$result['bcc'] = '';
-			$result['to'] = '';
+//			$result['cc'] = '';
+//			$result['bcc'] = '';
+//			$result['to'] = '';
 		}
 
 		$this->cleanArray($result);

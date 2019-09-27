@@ -195,6 +195,7 @@ class LocalController extends Controller {
 	 * get info about a post (limited to viewer rights).
 	 *
 	 * @NoAdminRequired
+	 * @PublicPage
 	 * @NoCSRFRequired
 	 *
 	 * @param string $id
@@ -203,8 +204,7 @@ class LocalController extends Controller {
 	 */
 	public function postGet(string $id): DataResponse {
 		try {
-			$this->initViewer(true);
-
+			$this->initViewer(false);
 			$stream = $this->streamService->getStreamById($id, true);
 
 			return $this->directSuccess($stream);

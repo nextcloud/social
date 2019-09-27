@@ -209,14 +209,14 @@ class SocialPubController extends Controller {
 	 * @throws SocialAppConfigException
 	 */
 	public function displayPost(string $username, string $token): TemplateResponse {
-		// TODO - check viewer rights !
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+		// TODO: remove this, as viewer rights are already implemented in LocalController
 		$stream = $this->streamService->getStreamById($postId, false);
 		$data = [
-			'id'   => $postId,
-			'item' => $stream,
+			'id'          => $postId,
+			'item'        => $stream,
 			'serverData'  => [
-				'public' => true,
+				'public' => ($this->userId === null),
 			],
 			'application' => 'Social'
 		];
