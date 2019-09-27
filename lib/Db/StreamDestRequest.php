@@ -65,33 +65,29 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 * @param Stream $stream
 	 */
 	public function generateStreamDest(Stream $stream) {
-		$recipients = [
-			'to'            => $stream->getToAll(),
-			'cc'            => $stream->getCcArray(),
-			'bcc'           => $stream->getBccArray(),
-			'attributed_to' => [$stream->getAttributedTo()]
-		];
+		$recipients = array_merge(
+			$stream->getToAll(), $stream->getCcArray(), $stream->getBccArray(),
+			[$stream->getAttributedTo()]
+		);
 
 		$streamId = $this->prim($stream->getId());
-		foreach (array_keys($recipients) as $dest) {
-			$type = $dest;
-			foreach ($recipients[$dest] as $actorId) {
-				if ($actorId === '') {
-					continue;
-				}
-
-				$qb = $this->getStreamDestInsertSql();
-
-				$qb->setValue('stream_id', $qb->createNamedParameter($streamId));
-				$qb->setValue('actor_id', $qb->createNamedParameter($this->prim($actorId)));
-				$qb->setValue('type', $qb->createNamedParameter($type));
-				try {
-					$qb->execute();
-				} catch (UniqueConstraintViolationException $e) {
-					\OC::$server->getLogger()
-								->log(3, 'Social - Duplicate recipient on Stream ' . json_encode($stream));
-				}
+		foreach ($recipients as $actorId) {
+			if ($actorId === '') {
+				continue;
 			}
+
+			$qb = $this->getStreamDestInsertSql();
+
+			$qb->setValue('stream_id', $qb->createNamedParameter($streamId));
+			$qb->setValue('actor_id', $qb->createNamedParameter($this->prim($actorId)));
+			$qb->setValue('type', $qb->createNamedParameter('recipient'));
+			try {
+				$qb->execute();
+			} catch (UniqueConstraintViolationException $e) {
+				\OC::$server->getLogger()
+							->log(3, 'Social - Duplicate recipient on Stream ' . json_encode($stream));
+			}
+
 		}
 	}
 

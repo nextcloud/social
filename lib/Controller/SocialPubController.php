@@ -37,6 +37,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\StreamService;
@@ -69,6 +70,9 @@ class SocialPubController extends Controller {
 	/** @var NavigationController */
 	private $navigationController;
 
+	/** @var AccountService */
+	private $accountService;
+
 	/** @var CacheActorService */
 	private $cacheActorService;
 
@@ -87,18 +91,21 @@ class SocialPubController extends Controller {
 	 * @param IL10N $l10n
 	 * @param NavigationController $navigationController
 	 * @param CacheActorService $cacheActorService
+	 * @param AccountService $accountService
 	 * @param StreamService $streamService
 	 * @param ConfigService $configService
 	 */
 	public function __construct(
 		$userId, IRequest $request, IL10N $l10n, NavigationController $navigationController,
-		CacheActorService $cacheActorService, StreamService $streamService, ConfigService $configService
+		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
+		ConfigService $configService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
 		$this->l10n = $l10n;
 		$this->navigationController = $navigationController;
+		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
@@ -210,8 +217,16 @@ class SocialPubController extends Controller {
 	 */
 	public function displayPost(string $username, string $token): TemplateResponse {
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
-		// TODO: remove this, as viewer rights are already implemented in LocalController
-		$stream = $this->streamService->getStreamById($postId, false);
+
+		if (isset($this->userId)) {
+			try {
+				$viewer = $this->accountService->getActorFromUserId($this->userId, true);
+				$this->streamService->setViewer($viewer);
+			} catch (Exception $e) {
+			}
+		}
+
+		$stream = $this->streamService->getStreamById($postId, true);
 		$data = [
 			'id'          => $postId,
 			'item'        => $stream,

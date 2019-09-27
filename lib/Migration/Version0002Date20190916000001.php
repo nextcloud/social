@@ -374,7 +374,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 
 				$insert->setValue('stream_id', $insert->createNamedParameter($streamId));
 				$insert->setValue('actor_id', $insert->createNamedParameter(hash('sha512', $actorId)));
-				$insert->setValue('type', $insert->createNamedParameter($type));
+				$insert->setValue('type', $insert->createNamedParameter('recipient'));
 
 				try {
 					$insert->execute();
