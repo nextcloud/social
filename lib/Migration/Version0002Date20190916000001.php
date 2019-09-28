@@ -289,7 +289,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		}
 
 		$qb = $this->connection->getQueryBuilder();
-		$qb->select('id_prim', 'object_id', 'attributed_to', 'object_id_prim')
+		$qb->select('id_prim', 'object_id', 'attributed_to', 'attributed_to_prim')
 		   ->from('social_a2_stream');
 
 		$cursor = $qb->execute();
@@ -305,13 +305,15 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 	 * @param array $data
 	 */
 	private function updateStreamPrim(array $data) {
-		if ($data['object_id_prim'] !== '') {
+		if ($data['attributed_to_prim'] !== '') {
 			return;
 		}
 
 		$update = $this->connection->getQueryBuilder();
 		$update->update('social_a2_stream');
-		$update->set('object_id_prim', $update->createNamedParameter(hash('sha512', $data['object_id'])));
+		if ($data['object_id'] !== '') {
+			$update->set('object_id_prim', $update->createNamedParameter(hash('sha512', $data['object_id'])));
+		}
 		$update->set(
 			'attributed_to_prim', $update->createNamedParameter(hash('sha512', $data['attributed_to']))
 		);
