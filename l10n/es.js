@@ -33,6 +33,7 @@ OC.L10N.register(
     "Post to followers only" : "Publicar solo para seguidores",
     "Direct" : "Directo",
     "Post to mentioned users only" : "Publicar solo para usuarios mencionados",
+    "Error while trying to post your message: Could not find any valid recipients." : "Error al intentar publicar su mensaje: no se pudo encontrar un destinatario válido..",
     "Unfollow" : "Dejar de seguir",
     "Follow" : "Seguir",
     "posts" : "entradas",

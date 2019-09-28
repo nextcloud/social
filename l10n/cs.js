@@ -25,6 +25,8 @@ OC.L10N.register(
     "No results found" : "Nenalezeny žádné výsledky",
     "Searching for" : "Hledání",
     "No posts found" : "Nenalezeny žádné příspěvky",
+    "No notifications found" : "Nenalezena žádná oznámení",
+    "You haven't receive any notifications yet" : "Doposud jste neobdrželi žádná oznámení",
     "No liked posts found" : "Nenalezeny žádné příspěvky, které by se líbily",
     "No posts found for this tag" : "Nenalezeny žádné příspěvky s tímto štítkem",
     "Reply" : "Odpovědět",

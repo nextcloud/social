@@ -33,6 +33,7 @@ OC.L10N.register(
     "Post to followers only" : "Poster aux abonnés seulement",
     "Direct" : "Direct",
     "Post to mentioned users only" : "Poster aux utilisateurs mentionnées seulement",
+    "Error while trying to post your message: Could not find any valid recipients." : "Erreur lors de l'envoi de vote message : destinataires invalides.",
     "Unfollow" : "Ne plus suivre",
     "Follow" : "Suivre",
     "posts" : "messages",

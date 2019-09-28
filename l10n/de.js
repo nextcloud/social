@@ -33,6 +33,7 @@ OC.L10N.register(
     "Post to followers only" : "Nur an Follower posten",
     "Direct" : "Direkt",
     "Post to mentioned users only" : "Nur an erwähnte Benutzer posten",
+    "Error while trying to post your message: Could not find any valid recipients." : "Fehler beim Versuch Deine Nachricht zu senden: Konnte keinen gültigen Empfänger finden.",
     "Unfollow" : "Entfolgen",
     "Follow" : "Folgen",
     "posts" : "Posts",
