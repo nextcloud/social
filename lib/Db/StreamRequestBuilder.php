@@ -103,7 +103,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		   )
 		   ->from(self::TABLE_STREAM, 's');
 
-		$this->defaultSelectAlias = 's';
+		$qb->setDefaultSelectAlias('s');
 
 		return $qb;
 	}
@@ -194,56 +194,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$filter->add($follower);
 
 		$qb->andwhere($filter);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $aliasDest
-	 * @param string $aliasFollowing
-	 */
-	protected function selectDestFollowing(
-		IQueryBuilder $qb, string $aliasDest = 'sd', string $aliasFollowing = 'f'
-	) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$qb->from(self::TABLE_STREAM_DEST, $aliasDest);
-		$qb->from(self::TABLE_FOLLOWS, $aliasFollowing);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param Person $actor
-	 * @param string $field
-	 * @param string $aliasDest
-	 * @param string $aliasFollowing
-	 *
-	 * @param string $alias
-	 *
-	 * @return ICompositeExpression
-	 */
-	protected function exprInnerJoinDestFollowing(
-		IQueryBuilder $qb, Person $actor, string $field = 'id_prim', string $aliasDest = 'sd',
-		string $aliasFollowing = 'f', string $alias = ''
-	): ICompositeExpression {
-
-		$expr = $qb->expr();
-		$andX = $expr->andX();
-
-		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias) . '.';
-		$andX->add(
-			$this->exprLimitToDBField(
-				$qb, 'actor_id_prim', $this->prim($actor->getId()), true, true, $aliasFollowing
-			)
-		);
-		$andX->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, $aliasFollowing));
-		$andX->add($expr->eq($aliasFollowing . '.follow_id_prim', $aliasDest . '.actor_id'));
-		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
-
-		return $andX;
 	}
 
 
@@ -380,7 +330,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param string $recipient
 	 * @param bool $asAuthor
 	 * @param array $type
-	 *
+	 * @deprecated
 	 * @return ICompositeExpression
 	 */
 	protected function exprLimitToRecipient(

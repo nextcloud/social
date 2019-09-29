@@ -31,59 +31,56 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Db\ExtendedQueryBuilder;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+
+
 /**
- * Class SocialQueryBuilder
+ * Class SocialCoreQueryBuilder
  *
  * @package OCA\Social\Db
  */
-class SocialQueryBuilder extends SocialFiltersQueryBuilder {
+class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
+
+
+	/** @var Person */
+	private $viewer = null;
+
+
+	/**
+	 * @return bool
+	 */
+	public function hasViewer(): bool {
+		return ($this->viewer !== null);
+	}
+
+	/**
+	 * @param Person $viewer
+	 */
+	public function setViewer(Person $viewer): void {
+		$this->viewer = $viewer;
+	}
+
+	/**
+	 * @return Person
+	 */
+	public function getViewer(): Person {
+		return $this->viewer;
+	}
 
 
 	/**
 	 * @param string $id
-	 * @param string $field
+	 *
+	 * @return string
 	 */
-	public function generatePrimaryKey(string $id, string $field = 'id_prim') {
+	public function prim(string $id): string {
 		if ($id === '') {
-			return;
+			return '';
 		}
 
-		$this->setValue($field, $this->createNamedParameter($this->prim($id)));
+		return hash('sha512', $id);
 	}
-
-
-	/**
-	 * search using username
-	 *
-	 * @param string $username
-	 */
-	public function searchInPreferredUsername(string $username) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField('preferred_username', $dbConn->escapeLikeParameter($username) . '%');
-	}
-
-	/**
-	 * Limit the request to the ActorId
-	 *
-	 * @param string $hashtag
-	 * @param bool $all
-	 */
-	public function searchInHashtag(string $hashtag, bool $all = false) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField('hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%');
-	}
-
-
-	/**
-	 * Limit the request to the account
-	 *
-	 * @param string $account
-	 */
-	public function searchInAccount(string $account) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField('account', $dbConn->escapeLikeParameter($account) . '%');
-	}
-
 
 }
 

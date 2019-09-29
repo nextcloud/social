@@ -90,6 +90,7 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_ACTIONS
 	];
 
+	/** @var ILogger */
 	protected $logger;
 
 	/** @var IDBConnection */
@@ -137,6 +138,10 @@ class CoreRequestBuilder {
 			$this->logger
 		);
 
+		if ($this->viewer !== null) {
+			$qb->setViewer($this->viewer);
+		}
+
 		return $qb;
 	}
 
@@ -161,6 +166,7 @@ class CoreRequestBuilder {
 	 * @param string $id
 	 *
 	 * @return string
+	 * @deprecated
 	 */
 	public function prim(string $id): string {
 		if ($id === '') {
@@ -184,7 +190,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id
-	 *
+	 * @deprecated
 	 * @param IQueryBuilder $qb
 	 * @param int $id
 	 */
@@ -195,6 +201,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id (string)
+	 * @deprecated
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
@@ -206,6 +213,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the UserId
+	 * @deprecated
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $userId
@@ -533,6 +541,7 @@ class CoreRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @throws DateTimeException
+	 * @deprecated
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
 		try {
@@ -763,6 +772,7 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * @deprecated
 	 * @param IQueryBuilder $qb
 	 * @param string $alias
 	 */
@@ -958,6 +968,8 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 *
+	 * @deprecated
 	 */
 	protected function leftJoinStreamAction(IQueryBuilder &$qb) {
 		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
