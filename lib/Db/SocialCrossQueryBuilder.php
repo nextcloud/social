@@ -32,6 +32,8 @@ namespace OCA\Social\Db;
 
 
 use Doctrine\DBAL\Query\QueryBuilder;
+use OCP\DB\QueryBuilder\ICompositeExpression;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
@@ -62,8 +64,9 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 	/**
 	 * @param string $alias
+	 * @param string $link
 	 */
-	public function selectCacheActors(string $alias = 'ca') {
+	public function innerJoinCacheActors(string $alias = 'ca', string $link = '') {
 		if ($this->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -87,6 +90,12 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias($pf . '.source', 'cacheactor_source')
 			 ->selectAlias($pf . '.creation', 'cacheactor_creation')
 			 ->selectAlias($pf . '.local', 'cacheactor_local');
+
+		if ($link !== '') {
+			$expr = $this->expr();
+			$this->andWhere($expr->eq('ca.id_prim', $link));
+		}
+
 	}
 
 
@@ -110,6 +119,24 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$on->add($expr->eq($pf . 'attributed_to_prim', $alias . '.object_id_prim'));
 
 		$this->leftJoin($this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, $alias, $on);
+	}
+
+
+	/**
+	 * @param IQueryBuilder $qb
+	 * @param string $alias
+	 */
+	public function selectStreamActions(string $alias = 'sa') {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
+		$this->from(CoreRequestBuilder::TABLE_STREAM_ACTIONS, $pf);
+		$this->selectAlias('sa.id', 'streamaction_id')
+			 ->selectAlias('sa.actor_id', 'streamaction_actor_id')
+			 ->selectAlias('sa.stream_id', 'streamaction_stream_id')
+			 ->selectAlias('sa.values', 'streamaction_values');
 	}
 
 
@@ -151,11 +178,13 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $aliasDest
 	 * @param string $aliasFollowing
 	 * @param string $alias
+	 *
+	 * @return ICompositeExpression
 	 */
 	public function innerJoinDestFollowing(
 		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
 		string $aliasFollowing = 'f', string $alias = ''
-	) {
+	): ICompositeExpression {
 		$expr = $this->expr();
 		$andX = $expr->andX();
 		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
@@ -167,7 +196,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
 		$andX->add($expr->eq($aliasDest . '.type', $this->createNamedParameter($type)));
 
-		$this->andWhere($andX);
+		return $andX;
 	}
 
 }

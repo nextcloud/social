@@ -30,13 +30,13 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
 use Doctrine\DBAL\Driver\Statement;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
-use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -109,8 +109,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/**
 	 * @param Stream $stream \
-	 *
-	 * @return Statement|int
 	 */
 	public function update(Stream $stream) {
 		$qb = $this->getStreamUpdateSql();
@@ -122,9 +120,9 @@ class StreamRequest extends StreamRequestBuilder {
 		)
 		);
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
+		$qb->execute();
 
-		// TODO - update StreamDest !???
-		return $qb->execute();
+		$this->streamDestRequest->generateStreamDest($stream);
 	}
 
 
@@ -236,11 +234,10 @@ class StreamRequest extends StreamRequestBuilder {
 		$expr = $qb->expr();
 
 		$qb->limitToIdPrim($qb->prim($id));
-		$qb->selectCacheActors('ca');
-		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 
 		if ($asViewer) {
-			$qb->limitToViewer('sd', 'f');
+			$qb->limitToViewer('sd', 'f', true);
 			$qb->leftJoinStreamAction('sa');
 		}
 
@@ -273,13 +270,17 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
-		$this->limitToInReplyTo($qb, $id);
-		$this->limitPaginate($qb, $since, $limit);
-		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$qb->limitToInReplyTo($id);
+		$qb->limitPaginate($since, $limit);
+
+		$expr = $qb->expr();
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+
+		$qb->andWhere($expr->eq('s.attributed_to', 'ca.id_prim'));
 
 		if ($asViewer) {
-			$this->limitToViewer($qb);
-			$this->leftJoinStreamAction($qb);
+			$qb->limitToViewer('sd', 'f', true);
+			$qb->leftJoinStreamAction();
 		}
 
 		return $this->getStreamsFromRequest($qb);
@@ -299,7 +300,7 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
-		$this->limitToActivityId($qb, $id);
+		$qb->limitToActivityId($id);
 
 		return $this->getStreamFromRequest($qb);
 	}
@@ -320,9 +321,9 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
-		$this->limitToObjectId($qb, $objectId);
+		$qb->limitToObjectId($objectId);
 		$qb->limitToType($type);
-		$this->limitToSubType($qb, $subType);
+		$qb->limitToSubType($subType);
 
 		return $this->getStreamFromRequest($qb);
 	}
@@ -335,8 +336,9 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function countNotesFromActorId(string $actorId): int {
 		$qb = $this->countNotesSelectSql();
-		$this->limitToAttributedTo($qb, $actorId);
+		$qb->limitToAttributedTo($qb->prim($actorId), true);
 		$qb->limitToType(Note::TYPE);
+		// TODO rewrite this !
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
 
 		$cursor = $qb->execute();
@@ -363,16 +365,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$expr = $qb->expr();
 
-		$qb->selectCacheActors('ca');
+		$qb->innerJoinCacheActors('ca', 'f.object_id_prim');
 		$qb->limitPaginate($since, $limit);
 
 		$qb->andWhere($qb->exprLimitToDBField('type', SocialAppNotification::TYPE, false));
-
-		$qb->limitToViewer('sd', 'f');
-//		$qb->selectDestFollowing('sd', 'f');
-//		$qb->andWhere($qb->exprInnerJoinDestFollowing($actor, 'recipient', 'id_prim', 'sd', 'f'));
-		//
-
+		$qb->limitToViewer('sd', 'f', false);
 		$qb->andWhere($expr->eq('f.object_id_prim', 'ca.id_prim'));
 
 		$qb->leftJoinStreamAction('sa');
@@ -400,12 +397,12 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getTimelineNotifications(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->limitPaginate($since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
 		$qb->limitToType(SocialAppNotification::TYPE);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinStreamAction($qb);
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -425,13 +422,13 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimelineAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->limitPaginate($since, $limit);
 
-		$this->limitToAttributedTo($qb, $actorId);
+		$qb->limitToAttributedTo($actorId);
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinStreamAction($qb);
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -451,15 +448,15 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimelineDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->limitPaginate($since, $limit);
 
 		$this->limitToRecipient($qb, $actor->getId(), true);
 		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterRecipient($qb, $actor->getFollowers());
-		$this->filterType($qb, SocialAppNotification::TYPE);
+		$qb->filterType(SocialAppNotification::TYPE);
 //		$this->filterHiddenOnTimeline($qb);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -479,17 +476,19 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getTimelineGlobal(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
 		$qb = $this->getStreamSelectSql();
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->limitPaginate($since, $limit);
 
-		$this->limitToLocal($qb, $localOnly);
+		$qb->limitToLocal($localOnly);
 		$qb->limitToType(Note::TYPE);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinStreamAction($qb);
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
 
 		// TODO: to: = real public, cc: = unlisted !?
-		// DO NOT USE stream_dest.type = 'recipient' on this one !
-		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
+		// USE stream_dest.type = 'recipient' and stream_dest.subtype='to' on this one !
+		$qb->selectDestFollowing('sd', '');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
+//		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -506,23 +505,22 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @throws DateTimeException
 	 */
 	public function getTimelineLiked(int $since = 0, int $limit = 5): array {
-		if ($this->viewer === null) {
+		$qb = $this->getStreamSelectSql();
+		if (!$qb->hasViewer()) {
 			return [];
 		}
 
-		$actorId = $this->viewer->getId();
+		$actor = $qb->getViewer();
 
-		$qb = $this->getStreamSelectSql();
 		$qb->limitToType(Note::TYPE);
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->limitPaginate($since, $limit);
 
 		$expr = $qb->expr();
-		$this->selectCacheActors($qb, 'ca');
-		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 
-		$this->selectStreamActions($qb, 'sa');
+		$qb->selectStreamActions('sa');
 		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
-		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($this->prim($actorId))));
+		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
 		$qb->andWhere($expr->eq('sa.liked', $qb->createNamedParameter(1)));
 
 		return $this->getStreamsFromRequest($qb);
@@ -547,6 +545,7 @@ class StreamRequest extends StreamRequestBuilder {
 	): array {
 		$qb = $this->getStreamSelectSql();
 
+		// TODO - rewrite the whole method ?
 		$on = $this->exprJoinFollowing($qb, $actor);
 		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
 		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
@@ -554,7 +553,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
 
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->limitPaginate($since, $limit);
 //		$this->filterHiddenOnTimeline($qb);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
@@ -572,9 +571,9 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getNoteSince(int $since): array {
 		$qb = $this->getStreamSelectSql();
-		$this->limitToSince($qb, $since, 'published_time');
+		$qb->limitToSince($since, 'published_time');
 		$qb->limitToType(Note::TYPE);
-		$this->leftJoinStreamAction($qb);
+		$qb->leftJoinStreamAction();
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -601,7 +600,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function deleteByAuthor(string $actorId) {
 		$qb = $this->getStreamDeleteSql();
-		$this->limitToAttributedTo($qb, $actorId);
+		$qb->limitToAttributedTo($actorId, true);
 
 		$qb->execute();
 	}
@@ -707,45 +706,14 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		$expr = $qb->expr();
-		$pf = $this->defaultSelectAlias . '.';
+		$pf = $qb->getDefaultSelectAlias() . '.';
 
 		$on = $expr->andX();
-		$on->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'fs'));
-		$on->add(
-			$this->exprLimitToDBField($qb, 'actor_id_prim', $this->prim($actor->getId()), true, true, 'fs')
-		);
+		$on->add($qb->exprLimitToDBFieldInt('accepted', 1, 'fs'));
+		$on->add($qb->exprLimitToDBField('actor_id_prim', $qb->prim($actor->getId()), true, true, 'fs'));
 		$on->add($expr->eq($pf . 'attributed_to_prim', 'fs.object_id_prim'));
 
-		$qb->leftJoin($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'fs', $on);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 *
-	 * @deprecated
-	 */
-	private function filterDuplicate(IQueryBuilder $qb) {
-		$actor = $this->viewer;
-		if ($actor === null) {
-			return;
-		}
-
-		// NEEDED ? use the follow 'f' ?
-		$this->leftJoinFollowStatus($qb, $actor);
-
-		$expr = $qb->expr();
-		$filter = $expr->orX();
-		$filter->add($this->exprLimitToDBFieldInt($qb, 'hidden_on_timeline', 0, 's'));
-
-		$follower = $expr->andX();
-		$follower->add(
-			$this->exprLimitToDBField($qb, 'attributed_to_prim', $this->prim($actor->getId()), false)
-		);
-		$follower->add($expr->isNull('fs.id_prim'));
-		$filter->add($follower);
-
-		$qb->andWhere($filter);
+		$qb->leftJoin($qb->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, 'fs', $on);
 	}
 
 }
