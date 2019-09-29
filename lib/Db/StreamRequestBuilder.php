@@ -317,6 +317,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param string $recipient
 	 * @param bool $asAuthor
 	 * @param array $type
+	 * @deprecated
 	 */
 	protected function limitToRecipient(
 		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false, array $type = []

@@ -31,11 +31,12 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Exception;
-use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 
 
 /**
@@ -53,7 +54,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * @return SocialQueryBuilder
 	 */
 	public function limitToType(string $type): self {
-		$this->limitToDBField('type', $type, false);
+		$this->limitToDBField('type', $type, true);
 
 		return $this;
 	}
@@ -233,8 +234,15 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * Limit the request to the url
 	 *
 	 * @param string $actorId
+	 * @param bool $prim
 	 */
-	public function limitToAttributedTo(string $actorId) {
+	public function limitToAttributedTo(string $actorId, bool $prim = false) {
+		if ($prim) {
+			$this->limitToDBField('attributed_to_prim', $this->prim($actorId), false);
+
+			return;
+		}
+
 		$this->limitToDBField('attributed_to', $actorId, false);
 	}
 
@@ -309,20 +317,42 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * @param string $alias
 	 */
 	public function limitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd') {
-		$this->limitToDBField('actor_id', $this->prim($actorId), true, $alias);
-		$this->limitToDBField('type', $type, true, $alias);
+		$this->andWhere($this->exprLimitToDest($actorId, $type, $subType, $alias));
+	}
+
+
+	/**
+	 * @param string $actorId
+	 * @param string $type
+	 * @param string $subType
+	 * @param string $alias
+	 *
+	 * @return ICompositeExpression
+	 */
+	public function exprLimitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd'
+	): ICompositeExpression {
+		$expr = $this->expr();
+		$andX = $expr->andX();
+
+		$andX->add($expr->eq($alias . '.stream_id', $this->getDefaultSelectAlias() . '.id_prim'));
+		$andX->add($this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias));
+		$andX->add($this->exprLimitToDBField('type', $type, true, true, $alias));
 
 		if ($subType !== '') {
-			$this->limitToDBField('subtype', $subType, true, $alias);
+			$andX->add($this->exprLimitToDBField('subtype', $subType, true, true, $alias));
 		}
+
+		return $andX;
 	}
 
 
 	/**
 	 * @param string $aliasDest
 	 * @param string $aliasFollowing
+	 * @param bool $public
 	 */
-	public function limitToViewer(string $aliasDest = 'sd', string $aliasFollowing = 'f') {
+	public function limitToViewer(string $aliasDest = 'sd', string $aliasFollowing = 'f', bool $public = false
+	) {
 		if (!$this->hasViewer()) {
 			$this->selectDestFollowing($aliasDest);
 			$this->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest);
@@ -330,9 +360,21 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			return;
 		}
 
-		$actor = $this->getViewer();
 		$this->selectDestFollowing($aliasDest, $aliasFollowing);
-		$this->innerJoinDestFollowing($actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing);
+		$expr = $this->expr();
+		$orX = $expr->orX();
+		$actor = $this->getViewer();
+
+		$following = $this->innerJoinDestFollowing(
+			$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
+		);
+		$orX->add($following);
+
+		if ($public) {
+			$orX->add($this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest));
+		}
+
+		$this->andWhere($orX);
 	}
 }
 
