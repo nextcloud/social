@@ -31,6 +31,7 @@
     "Post to followers only" : "Yalnız takipçilere gönder",
     "Direct" : "Doğrudan",
     "Post to mentioned users only" : "Yalnız anılan kullanıcılara gönder",
+    "Error while trying to post your message: Could not find any valid recipients." : "İletiniz gönderilirken sorun çıktı: Geçerli bir alıcı bulunamadı.",
     "Unfollow" : "Takibi Bırak",
     "Follow" : "Takip Et",
     "posts" : "ileti",
