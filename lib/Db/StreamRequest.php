@@ -38,7 +38,6 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -122,8 +121,9 @@ class StreamRequest extends StreamRequestBuilder {
 			json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
 		)
 		);
-		$this->limitToIdString($qb, $stream->getId());
+		$qb->limitToIdPrim($qb->prim($stream->getId()));
 
+		// TODO - update StreamDest !???
 		return $qb->execute();
 	}
 
@@ -136,7 +136,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('cache', $qb->createNamedParameter(json_encode($cache, JSON_UNESCAPED_SLASHES)));
 
-		$this->limitToIdString($qb, $stream->getId());
+		$qb->limitToIdPrim($qb->prim($stream->getId()));
 
 		$qb->execute();
 	}
@@ -147,7 +147,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function updateAttachments(Document $document) {
 		$qb = $this->getStreamSelectSql();
-		$this->limitToIdString($qb, $document->getParentId());
+		$qb->limitToIdPrim($qb->prim($document->getParentId()));
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -158,12 +158,11 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		$new = $this->updateAttachmentInList($document, $this->getArray('attachments', $data, []));
-
 		$qb = $this->getStreamUpdateSql();
 		$qb->set(
 			'attachments', $qb->createNamedParameter(json_encode($new, JSON_UNESCAPED_SLASHES))
 		);
-		$this->limitToIdString($qb, $document->getParentId());
+		$qb->limitToIdPrim($qb->prim($document->getParentId()));
 
 		$qb->execute();
 	}
@@ -197,9 +196,9 @@ class StreamRequest extends StreamRequestBuilder {
 	public function updateAttributedTo(string $itemId, string $to) {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attributed_to', $qb->createNamedParameter($to));
-		$qb->set('attributed_to_prim', $qb->createNamedParameter($this->prim($to)));
+		$qb->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($to)));
 
-		$this->limitToIdString($qb, $itemId);
+		$qb->limitToIdPrim($qb->prim($itemId));
 
 		$qb->execute();
 	}
@@ -214,7 +213,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 
 		if ($type !== '') {
-			$this->limitToType($qb, $type);
+			$qb->limitToType($type);
 		}
 
 		return $this->getStreamsFromRequest($qb);
@@ -236,15 +235,13 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$expr = $qb->expr();
 
-		$this->limitToIdString($qb, $id);
-		$this->selectCacheActors($qb, 'ca');
+		$qb->limitToIdPrim($qb->prim($id));
+		$qb->selectCacheActors('ca');
 		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
 
 		if ($asViewer) {
-			$this->limitToViewer($qb);
-			if ($this->viewer !== null) {
-				$this->leftJoinStreamAction($qb);
-			}
+			$qb->limitToViewer('sd', 'f');
+			$qb->leftJoinStreamAction('sa');
 		}
 
 		try {
@@ -314,8 +311,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param string $subType
 	 *
 	 * @return Stream
-	 * @throws ItemUnknownException
-	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
 	public function getStreamByObjectId(string $objectId, string $type, string $subType = ''
@@ -326,7 +321,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb = $this->getStreamSelectSql();
 		$this->limitToObjectId($qb, $objectId);
-		$this->limitToType($qb, $type);
+		$qb->limitToType($type);
 		$this->limitToSubType($qb, $subType);
 
 		return $this->getStreamFromRequest($qb);
@@ -341,7 +336,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function countNotesFromActorId(string $actorId): int {
 		$qb = $this->countNotesSelectSql();
 		$this->limitToAttributedTo($qb, $actorId);
-		$this->limitToType($qb, Note::TYPE);
+		$qb->limitToType(Note::TYPE);
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
 
 		$cursor = $qb->execute();
@@ -368,16 +363,20 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$expr = $qb->expr();
 
-		$this->selectCacheActors($qb, 'ca');
-		$this->selectDestFollowing($qb, 'sd', 'f');
-		$this->limitPaginate($qb, $since, $limit);
+		$qb->selectCacheActors('ca');
+		$qb->limitPaginate($since, $limit);
 
-		$qb->andWhere($this->exprLimitToDBField($qb, 'type', SocialAppNotification::TYPE, false));
-		$qb->andWhere($this->exprInnerJoinDestFollowing($qb, $actor, 'id_prim', 'sd', 'f'));
+		$qb->andWhere($qb->exprLimitToDBField('type', SocialAppNotification::TYPE, false));
+
+		$qb->limitToViewer('sd', 'f');
+//		$qb->selectDestFollowing('sd', 'f');
+//		$qb->andWhere($qb->exprInnerJoinDestFollowing($actor, 'recipient', 'id_prim', 'sd', 'f'));
+		//
+
 		$qb->andWhere($expr->eq('f.object_id_prim', 'ca.id_prim'));
 
-		$this->leftJoinStreamAction($qb);
-		$this->filterDuplicate($qb);
+		$qb->leftJoinStreamAction('sa');
+		$qb->filterDuplicate();
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -403,7 +402,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$this->limitPaginate($qb, $since, $limit);
 		$this->limitToRecipient($qb, $actor->getId(), false);
-		$this->limitToType($qb, SocialAppNotification::TYPE);
+		$qb->limitToType(SocialAppNotification::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
@@ -483,12 +482,13 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->limitPaginate($qb, $since, $limit);
 
 		$this->limitToLocal($qb, $localOnly);
-		$this->limitToType($qb, Note::TYPE);
+		$qb->limitToType(Note::TYPE);
 
 		$this->leftJoinCacheActors($qb, 'attributed_to');
 		$this->leftJoinStreamAction($qb);
 
 		// TODO: to: = real public, cc: = unlisted !?
+		// DO NOT USE stream_dest.type = 'recipient' on this one !
 		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
 		return $this->getStreamsFromRequest($qb);
@@ -513,7 +513,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$actorId = $this->viewer->getId();
 
 		$qb = $this->getStreamSelectSql();
-		$this->limitToType($qb, Note::TYPE);
+		$qb->limitToType(Note::TYPE);
 		$this->limitPaginate($qb, $since, $limit);
 
 		$expr = $qb->expr();
@@ -573,7 +573,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getNoteSince(int $since): array {
 		$qb = $this->getStreamSelectSql();
 		$this->limitToSince($qb, $since, 'published_time');
-		$this->limitToType($qb, Note::TYPE);
+		$qb->limitToType(Note::TYPE);
 		$this->leftJoinStreamAction($qb);
 
 		return $this->getStreamsFromRequest($qb);
@@ -586,10 +586,10 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function deleteById(string $id, string $type = '') {
 		$qb = $this->getStreamDeleteSql();
-		$this->limitToIdString($qb, $id);
+		$qb->limitToIdPrim($qb->prim($id));
 
 		if ($type !== '') {
-			$this->limitToType($qb, $type);
+			$qb->limitToType($type);
 		}
 
 		$qb->execute();
@@ -657,12 +657,12 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))
 		   ->setValue('published', $qb->createNamedParameter($stream->getPublished()))
 		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
-		   ->setValue('attributed_to_prim', $qb->createNamedParameter($this->prim($attributedTo)))
+		   ->setValue('attributed_to_prim', $qb->createNamedParameter($qb->prim($attributedTo)))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($stream->getInReplyTo()))
 		   ->setValue('source', $qb->createNamedParameter($stream->getSource()))
 		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
 		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($this->prim($stream->getObjectId())))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($stream->getObjectId())))
 		   ->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
 		   ->setValue(
@@ -689,7 +689,7 @@ class StreamRequest extends StreamRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$this->generatePrimaryKey($qb, $stream->getId());
+		$qb->generatePrimaryKey($stream->getId(), 'id_prim');
 
 		return $qb;
 	}
@@ -698,6 +698,8 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param Person $actor
+	 *
+	 * @deprecated
 	 */
 	private function leftJoinFollowStatus(IQueryBuilder $qb, Person $actor) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
@@ -720,6 +722,8 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 *
+	 * @deprecated
 	 */
 	private function filterDuplicate(IQueryBuilder $qb) {
 		$actor = $this->viewer;
