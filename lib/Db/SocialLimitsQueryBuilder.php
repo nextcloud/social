@@ -311,6 +311,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * @param string $recipient
+	 */
+	public function filterDest(string $recipient) {
+		$expr = $this->expr();
+
+		$this->andWhere($expr->neq('actor_id', $this->createNamedParameter($this->prim($recipient))));
+	}
+
+
+	/**
 	 * @param string $actorId
 	 * @param string $type
 	 * @param string $subType
