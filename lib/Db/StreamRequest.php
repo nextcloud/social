@@ -33,7 +33,6 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
-use Doctrine\DBAL\Driver\Statement;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
@@ -336,10 +335,12 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function countNotesFromActorId(string $actorId): int {
 		$qb = $this->countNotesSelectSql();
-		$qb->limitToAttributedTo($qb->prim($actorId), true);
+		$qb->limitToAttributedTo($actorId, true);
 		$qb->limitToType(Note::TYPE);
-		// TODO rewrite this !
-		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -398,7 +399,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 
 		$qb->limitPaginate($since, $limit);
-		$this->limitToRecipient($qb, $actor->getId(), false);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
 		$qb->limitToType(SocialAppNotification::TYPE);
 
 		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
@@ -425,7 +428,10 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitPaginate($since, $limit);
 
 		$qb->limitToAttributedTo($actorId);
-		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
@@ -450,11 +456,13 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitPaginate($since, $limit);
 
-		$this->limitToRecipient($qb, $actor->getId(), true);
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
+
 		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
 		$this->filterRecipient($qb, $actor->getFollowers());
 		$qb->filterType(SocialAppNotification::TYPE);
-//		$this->filterHiddenOnTimeline($qb);
 
 		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 
@@ -484,11 +492,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
 
-		// TODO: to: = real public, cc: = unlisted !?
-		// USE stream_dest.type = 'recipient' and stream_dest.subtype='to' on this one !
 		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
-//		$this->limitToRecipient($qb, ACore::CONTEXT_PUBLIC, true, ['to']);
 
 		return $this->getStreamsFromRequest($qb);
 	}
