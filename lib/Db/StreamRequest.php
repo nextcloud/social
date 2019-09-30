@@ -454,17 +454,19 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimelineDirect(Person $actor, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
+
+		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitPaginate($since, $limit);
+
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
 
-		$this->filterRecipient($qb, ACore::CONTEXT_PUBLIC);
-		$this->filterRecipient($qb, $actor->getFollowers());
-		$qb->filterType(SocialAppNotification::TYPE);
-
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->filterDest(ACore::CONTEXT_PUBLIC);
+		$qb->filterDest($actor->getFollowers());
+		$qb->andWhere($qb->exprLimitToDBFieldInt('hidden_on_timeline', 1, 's'));
 
 		return $this->getStreamsFromRequest($qb);
 	}
