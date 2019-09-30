@@ -172,6 +172,52 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 
 	/**
+	 * @param string $type
+	 * @param string $subType
+	 * @param string $field
+	 * @param string $aliasDest
+	 * @param string $alias
+	 */
+	public function innerJoinDest(
+		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
+	) {
+		$this->andWhere($this->exprInnerJoinDest($type, $field, $aliasDest, $alias));
+	}
+
+
+	/**
+	 * @param string $type
+	 * @param string $subType
+	 * @param string $field
+	 * @param string $aliasDest
+	 * @param string $alias
+	 *
+	 * @return ICompositeExpression
+	 */
+	public function exprInnerJoinDest(
+		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
+	): ICompositeExpression {
+		$expr = $this->expr();
+		$andX = $expr->andX();
+		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
+		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
+		$andX->add($expr->eq($aliasDest . '.type', $this->createNamedParameter($type)));
+
+		return $andX;
+	}
+
+
+	public function innerJoinDestFollowing(
+		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
+		string $aliasFollowing = 'f', string $alias = ''
+	) {
+		$this->andWhere(
+			$this->exprInnerJoinDestFollowing($actorId, $type, $field, $aliasDest, $aliasFollowing, $alias)
+		);
+	}
+
+
+	/**
 	 * @param string $actorId
 	 * @param string $type
 	 * @param string $field
@@ -181,12 +227,13 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 *
 	 * @return ICompositeExpression
 	 */
-	public function innerJoinDestFollowing(
+	public function exprInnerJoinDestFollowing(
 		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
 		string $aliasFollowing = 'f', string $alias = ''
 	): ICompositeExpression {
 		$expr = $this->expr();
 		$andX = $expr->andX();
+
 		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
 
 		$idPrim = $this->prim($actorId);

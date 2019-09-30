@@ -119,7 +119,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 		   ->from(self::TABLE_STREAM, 's');
 
-		$this->defaultSelectAlias = 's';
+		$qb->setDefaultSelectAlias('s');
 
 		return $qb;
 	}
