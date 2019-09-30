@@ -119,6 +119,8 @@ class CheckInstall extends Base {
 		$output->writeln('- ' . $this->getInt('invalidFollowers', $result, 0) . ' invalid followers removed');
 		$output->writeln('- ' . $this->getInt('invalidNotes', $result, 0) . ' invalid notes removed');
 
+		$output->writeln('');
+		$output->writeln('- Your current configuration: ');
 		$output->writeln(json_encode($this->configService->getConfig(), JSON_PRETTY_PRINT));
 	}
 
