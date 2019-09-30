@@ -160,45 +160,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 */
-	protected function filterHiddenOnTimeline(IQueryBuilder $qb) {
-		$actor = $this->viewer;
-
-		if ($actor === null) {
-			return;
-		}
-
-		$func = $qb->func();
-		$expr = $qb->expr();
-
-		$filter = $expr->orX();
-		$filter->add($this->exprLimitToDBFieldInt($qb, 'hidden_on_timeline', 0));
-
-		$filter->add(
-			$expr->neq(
-				$func->lower('attributed_to'),
-				$func->lower($qb->createNamedParameter($actor->getId()))
-			)
-		);
-
-		$follower = $expr->andX();
-		$follower->add(
-			$expr->eq(
-				$func->lower('f.object_id'),
-				$func->lower('attributed_to')
-			)
-		);
-		$follower->add(
-			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
-		);
-		$filter->add($follower);
-
-		$qb->andwhere($filter);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
 	 * @param Person $actor
 	 */
 	protected function leftJoinFollowing(IQueryBuilder $qb, Person $actor) {
@@ -317,6 +278,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param string $recipient
 	 * @param bool $asAuthor
 	 * @param array $type
+	 *
 	 * @deprecated
 	 */
 	protected function limitToRecipient(
@@ -331,8 +293,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param string $recipient
 	 * @param bool $asAuthor
 	 * @param array $type
-	 * @deprecated
+	 *
 	 * @return ICompositeExpression
+	 * @deprecated
 	 */
 	protected function exprLimitToRecipient(
 		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false, array $type = []
