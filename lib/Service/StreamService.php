@@ -257,6 +257,7 @@ class StreamService {
 		if ($type === Stream::TYPE_DIRECT) {
 			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
 			$stream->addToArray($actor->getId());
+			$stream->setHiddenOnTimeline(true);
 		} else {
 			$stream->addCc($actor->getId());
 		}

@@ -124,8 +124,6 @@ class PostService {
 		$this->streamService->assignItem($note, $actor, $post->getType());
 
 		$note->setAttributedTo($actor->getId());
-//		$this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername()
-
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
 
 		$this->generateDocumentsFromAttachments($note, $post);
