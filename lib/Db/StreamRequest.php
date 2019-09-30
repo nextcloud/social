@@ -230,7 +230,6 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
-		$expr = $qb->expr();
 
 		$qb->limitToIdPrim($qb->prim($id));
 		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
