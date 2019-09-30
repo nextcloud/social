@@ -31,6 +31,7 @@
     "Post to followers only" : "Postar somente para seguidores",
     "Direct" : "Direto",
     "Post to mentioned users only" : "Postar somente para usuários citados",
+    "Error while trying to post your message: Could not find any valid recipients." : "Erro ao postar sua mensagem: Não foi possível encontrar destinatários válidos.",
     "Unfollow" : "Deixar de seguir",
     "Follow" : "Seguir",
     "posts" : "posts",
