@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 
 /**
@@ -27,13 +28,59 @@
  */
 
 
-namespace OCA\Social\Exceptions;
+namespace OCA\Social\Db;
 
 
-use Exception;
+use daita\MySmallPhpTools\Db\ExtendedQueryBuilder;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
-class DateTimeException extends Exception {
+/**
+ * Class SocialCoreQueryBuilder
+ *
+ * @package OCA\Social\Db
+ */
+class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
+
+
+	/** @var Person */
+	private $viewer = null;
+
+
+	/**
+	 * @return bool
+	 */
+	public function hasViewer(): bool {
+		return ($this->viewer !== null);
+	}
+
+	/**
+	 * @param Person $viewer
+	 */
+	public function setViewer(Person $viewer): void {
+		$this->viewer = $viewer;
+	}
+
+	/**
+	 * @return Person
+	 */
+	public function getViewer(): Person {
+		return $this->viewer;
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return string
+	 */
+	public function prim(string $id): string {
+		if ($id === '') {
+			return '';
+		}
+
+		return hash('sha512', $id);
+	}
 
 }
 

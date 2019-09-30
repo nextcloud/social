@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
@@ -38,7 +39,6 @@ use Exception;
 use OC;
 use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
-use OCA\Social\Exceptions\DateTimeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -90,6 +90,7 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_ACTIONS
 	];
 
+	/** @var ILogger */
 	protected $logger;
 
 	/** @var IDBConnection */
@@ -137,6 +138,10 @@ class CoreRequestBuilder {
 			$this->logger
 		);
 
+		if ($this->viewer !== null) {
+			$qb->setViewer($this->viewer);
+		}
+
 		return $qb;
 	}
 
@@ -161,6 +166,7 @@ class CoreRequestBuilder {
 	 * @param string $id
 	 *
 	 * @return string
+	 * @deprecated
 	 */
 	public function prim(string $id): string {
 		if ($id === '') {
@@ -184,7 +190,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id
-	 *
+	 * @deprecated
 	 * @param IQueryBuilder $qb
 	 * @param int $id
 	 */
@@ -195,6 +201,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id (string)
+	 * @deprecated
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
@@ -206,6 +213,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the UserId
+	 * @deprecated
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $userId
@@ -228,7 +236,7 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id (string)
-	 *
+	 * @deprecated
 	 * @param IQueryBuilder $qb
 	 * @param string $id
 	 */
@@ -533,6 +541,7 @@ class CoreRequestBuilder {
 	 * @param int $limit
 	 *
 	 * @throws DateTimeException
+	 * @deprecated
 	 */
 	protected function limitPaginate(IQueryBuilder &$qb, int $since = 0, int $limit = 5) {
 		try {
@@ -763,6 +772,7 @@ class CoreRequestBuilder {
 
 
 	/**
+	 * @deprecated
 	 * @param IQueryBuilder $qb
 	 * @param string $alias
 	 */
@@ -790,24 +800,6 @@ class CoreRequestBuilder {
 		   ->selectAlias($pf . '.source', 'cacheactor_source')
 		   ->selectAlias($pf . '.creation', 'cacheactor_creation')
 		   ->selectAlias($pf . '.local', 'cacheactor_local');
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $alias
-	 */
-	protected function selectStreamActions(IQueryBuilder &$qb, string $alias = 'sa') {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
-		$qb->from(self::TABLE_STREAM_ACTIONS, $pf);
-		$qb->selectAlias('sa.id', 'streamaction_id')
-		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
-		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
-		   ->selectAlias('sa.values', 'streamaction_values');
 	}
 
 
@@ -958,6 +950,8 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
+	 *
+	 * @deprecated
 	 */
 	protected function leftJoinStreamAction(IQueryBuilder &$qb) {
 		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {

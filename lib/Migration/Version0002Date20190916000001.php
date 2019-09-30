@@ -127,10 +127,17 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 					'length'  => 15,
 				]
 			);
+			$table->addColumn(
+				'subtype', 'string',
+				[
+					'notnull' => false,
+					'length'  => 7,
+				]
+			);
 
 			if (!$table->hasIndex('sat')) {
 				$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
-				$table->addUniqueIndex(['stream_id', 'actor_id'], 'sa');
+				$table->addIndex(['type', 'subtype'], 'ts');
 			}
 
 		}
@@ -337,7 +344,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		$limit = 1000;
 		while (true) {
 			$qb = $this->connection->getQueryBuilder();
-			$qb->select('id_prim', 'to', 'to_array', 'cc', 'bcc')
+			$qb->select('id_prim', 'to', 'to_array', 'cc', 'bcc', 'attributed_to')
 			   ->from('social_a2_stream')
 			   ->setMaxResults(1000)
 			   ->setFirstResult($start);
@@ -360,13 +367,13 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 
 	private function insertStreamDest($data) {
 		$recipients = [];
-		$recipients['to'] = array_merge(json_decode($data['to_array'], true), [$data['to']]);
-		$recipients['cc'] = json_decode($data['cc'], true);
-		$recipients['bcc'] = json_decode($data['bcc'], true);
+		$recipients['to'] =
+			array_merge(json_decode($data['to_array'], true), [$data['to']], [$data['attributed_to']]);
+		$recipients['cc'] = array_merge(json_decode($data['cc'], true), json_decode($data['bcc'], true));
 
 		$streamId = $data['id_prim'];
 		foreach (array_keys($recipients) as $dest) {
-			$type = $dest;
+			$subtype = $dest;
 			foreach ($recipients[$dest] as $actorId) {
 				if ($actorId === '') {
 					continue;
@@ -377,6 +384,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 				$insert->setValue('stream_id', $insert->createNamedParameter($streamId));
 				$insert->setValue('actor_id', $insert->createNamedParameter(hash('sha512', $actorId)));
 				$insert->setValue('type', $insert->createNamedParameter('recipient'));
+				$insert->setValue('subtype', $insert->createNamedParameter($subtype));
 
 				try {
 					$insert->execute();
