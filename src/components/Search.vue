@@ -28,7 +28,7 @@
 				{{ t('social', 'No results found') }}
 			</h2>
 			<p v-if="!loading">
-				{{ t('social', 'There were no results for your search:') }} {{ term }}
+				{{ t('social', 'There were no results for your search:') }} {{ decodeURIComponent(term) }}
 			</p>
 		</div>
 		<div v-else>

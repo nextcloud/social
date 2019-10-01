@@ -225,6 +225,7 @@ export default {
 			})
 		},
 		search(term) {
+			term = encodeURIComponent(term)
 			this.searchTerm = term
 		},
 		resetSearch() {
