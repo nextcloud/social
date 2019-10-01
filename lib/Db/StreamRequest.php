@@ -566,9 +566,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->leftJoinStreamAction('sa');
 
-		// TODO: Sql optimisation - Create a table like stream_dest for to link 'hashtag' to 'stream_id'
-//		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
-
 		return $this->getStreamsFromRequest($qb);
 	}
 
