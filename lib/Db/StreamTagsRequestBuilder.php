@@ -39,7 +39,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  *
  * @package OCA\Social\Db
  */
-class StreamDestRequestBuilder extends CoreRequestBuilder {
+class StreamTagsRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -48,11 +48,11 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamDestInsertSql(): SocialQueryBuilder {
+	protected function getStreamTagsInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_STREAM_DEST);
+		$qb->insert(self::TABLE_STREAM_TAGS);
 
 		return $qb;
 	}
@@ -63,9 +63,9 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getStreamDestUpdateSql(): IQueryBuilder {
+	protected function getStreamTagsUpdateSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_STREAM_DEST);
+		$qb->update(self::TABLE_STREAM_TAGS);
 
 		return $qb;
 	}
@@ -76,14 +76,14 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getStreamDestSelectSql(): IQueryBuilder {
+	protected function getStreamTagsSelectSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type')
-		   ->from(self::TABLE_STREAM_DEST, 'sd');
+		$qb->select('st.stream_id', 'st.hashtag')
+		   ->from(self::TABLE_STREAM_TAGS, 'st');
 
-		$this->defaultSelectAlias = 'sd';
+		$this->defaultSelectAlias = 'st';
 
 		return $qb;
 	}
@@ -94,29 +94,12 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getStreamDestDeleteSql(): IQueryBuilder {
+	protected function getStreamTagsDeleteSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_STREAM_DEST);
+		$qb->delete(self::TABLE_STREAM_TAGS);
 
 		return $qb;
 	}
-
-
-	/**
-	 * Base of the Sql Select request for Shares
-	 *
-	 * @return IQueryBuilder
-	 */
-	protected function countStreamDestSelectSql(): IQueryBuilder {
-		$qb = $this->getQueryBuilder();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAM_DEST, 'sd');
-
-		$this->defaultSelectAlias = 'sd';
-
-		return $qb;
-	}
-
 
 }
 

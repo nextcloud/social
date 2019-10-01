@@ -128,6 +128,5 @@ class CacheRefresh extends Base {
 		$output->writeLn($result . ' hashtags updated');
 	}
 
-
 }
 

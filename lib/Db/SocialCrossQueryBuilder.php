@@ -66,7 +66,24 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $alias
 	 * @param string $link
 	 */
-	public function innerJoinCacheActors(string $alias = 'ca', string $link = '') {
+	public function linkToStreamTags(string $alias = 'st', string $link = '') {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$this->from(CoreRequestBuilder::TABLE_STREAM_TAGS, $alias);
+		if ($link !== '') {
+			$expr = $this->expr();
+			$this->andWhere($expr->eq($alias . '.stream_id', $link));
+		}
+	}
+
+
+	/**
+	 * @param string $alias
+	 * @param string $link
+	 */
+	public function linkToCacheActors(string $alias = 'ca', string $link = '') {
 		if ($this->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -173,15 +190,14 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 	/**
 	 * @param string $type
-	 * @param string $subType
 	 * @param string $field
 	 * @param string $aliasDest
 	 * @param string $alias
 	 */
-	public function innerJoinDest(
+	public function innerJoinSteamDest(
 		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
 	) {
-		$this->andWhere($this->exprInnerJoinDest($type, $field, $aliasDest, $alias));
+		$this->andWhere($this->exprInnerJoinStreamDest($type, $field, $aliasDest, $alias));
 	}
 
 
@@ -194,7 +210,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 *
 	 * @return ICompositeExpression
 	 */
-	public function exprInnerJoinDest(
+	public function exprInnerJoinStreamDest(
 		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
 	): ICompositeExpression {
 		$expr = $this->expr();
@@ -207,12 +223,22 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	}
 
 
-	public function innerJoinDestFollowing(
+	/**
+	 * @param string $actorId
+	 * @param string $type
+	 * @param string $field
+	 * @param string $aliasDest
+	 * @param string $aliasFollowing
+	 * @param string $alias
+	 */
+	public function innerJoinStreamDestFollowing(
 		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
 		string $aliasFollowing = 'f', string $alias = ''
 	) {
 		$this->andWhere(
-			$this->exprInnerJoinDestFollowing($actorId, $type, $field, $aliasDest, $aliasFollowing, $alias)
+			$this->exprInnerJoinStreamDestFollowing(
+				$actorId, $type, $field, $aliasDest, $aliasFollowing, $alias
+			)
 		);
 	}
 
@@ -227,7 +253,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 *
 	 * @return ICompositeExpression
 	 */
-	public function exprInnerJoinDestFollowing(
+	public function exprInnerJoinStreamDestFollowing(
 		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
 		string $aliasFollowing = 'f', string $alias = ''
 	): ICompositeExpression {

@@ -87,7 +87,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 					$qb->execute();
 				} catch (UniqueConstraintViolationException $e) {
 					\OC::$server->getLogger()
-								->log(3, 'Social - Duplicate recipient on Stream ' . json_encode($stream));
+								->log(1, 'Social - Duplicate recipient on Stream ' . json_encode($stream));
 				}
 			}
 		}
