@@ -369,7 +369,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->andWhere($qb->exprLimitToDBField('type', SocialAppNotification::TYPE, false));
 		$qb->limitToViewer('sd', 'f', false);
-		$qb->andWhere($expr->eq('f.object_id_prim', 'ca.id_prim'));
 
 		$qb->leftJoinStreamAction('sa');
 		$qb->filterDuplicate();
@@ -539,7 +538,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  - direct message related to a tag (not yet)
 	 *  - message to followers related to a tag (not yet)
 	 *
-	 * @param Person $actor
 	 * @param string $hashtag
 	 * @param int $since
 	 * @param int $limit
@@ -547,23 +545,22 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
-	): array {
+	public function getTimelineTag(string $hashtag, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
-		// TODO - rewrite the whole method ?
-		$on = $this->exprJoinFollowing($qb, $actor);
-		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
-		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
-
-		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
-
+		$expr = $qb->expr();
+		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
 		$qb->limitPaginate($since, $limit);
-//		$this->filterHiddenOnTimeline($qb);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinStreamAction($qb);
+		$qb->andWhere($qb->exprLimitToDBField('type', Note::TYPE));
+
+		$qb->limitToViewer('sd', 'f', true);
+		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+
+		$qb->leftJoinStreamAction('sa');
+
+		// TODO: Sql optimisation - Create a table like stream_dest for to link 'hashtag' to 'stream_id'
+		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
 
 		return $this->getStreamsFromRequest($qb);
 	}
