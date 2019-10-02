@@ -32,7 +32,7 @@
 			</p>
 		</div>
 		<div v-else>
-			<h3>{{ t('social', 'Searching for') }} {{ term }}</h3>
+			<h3>{{ t('social', 'Searching for') }} {{ decodeURIComponent(term) }}</h3>
 			<user-entry v-for="result in allResults" :key="result.id" :item="result" />
 			<div v-if="hashtags.length > 0">
 				<li v-for="tag in hashtags" :key="tag.hashtag" class="tag">
