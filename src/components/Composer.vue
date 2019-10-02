@@ -446,15 +446,6 @@ export default {
 								cb(users)
 							}
 							this.remoteSearchAccounts(text).then((result) => {
-								if (result.data.result.exact) {
-									let user = result.data.result.exact
-									users.push({
-										key: user.preferredUsername,
-										value: user.account,
-										url: user.url,
-										avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : ''// TODO: use real avatar from server
-									})
-								}
 								for (var i in result.data.result.accounts) {
 									let user = result.data.result.accounts[i]
 									users.push({
