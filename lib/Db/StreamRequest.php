@@ -156,9 +156,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$new = $this->updateAttachmentInList($document, $this->getArray('attachments', $data, []));
 		$qb = $this->getStreamUpdateSql();
-		$qb->set(
-			'attachments', $qb->createNamedParameter(json_encode($new, JSON_UNESCAPED_SLASHES))
-		);
+		$qb->set('attachments', $qb->createNamedParameter(json_encode($new, JSON_UNESCAPED_SLASHES)));
 		$qb->limitToIdPrim($qb->prim($document->getParentId()));
 
 		$qb->execute();
