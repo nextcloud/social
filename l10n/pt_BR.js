@@ -54,6 +54,7 @@ OC.L10N.register(
     "No global posts found" : "Nenhum post global encontrado",
     "Posts from federated instances will show up here" : "Posts de instâncias federadas serão exibidos aqui",
     "No liked posts found" : "Nenhum post curtido encontrado",
+    "You haven't tooted yet" : "Você não reiniciou ainda",
     "No posts found for this tag" : "Nenhum post encontrado para este rótulo",
     "Reply" : "Responder",
     "Boost" : "Impulsionar",
