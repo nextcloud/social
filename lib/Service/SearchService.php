@@ -132,6 +132,10 @@ class SearchService {
 			return $result;
 		}
 
+		if (substr($search, 0, 1) === '#') {
+			$search = substr($search, 1);
+		}
+
 		try {
 			$exact = $this->hashtagService->getHashtag($search);
 			$result['exact'] = $exact;
@@ -161,6 +165,7 @@ class SearchService {
 			return $result;
 		}
 
+		// TODO : search using FullTextSearch ?
 		return $result;
 	}
 
