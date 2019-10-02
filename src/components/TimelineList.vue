@@ -126,7 +126,7 @@ export default {
 				let content = this.emptyContent[this.$route.name]
 				// Change text on profile page when accessed by another user or a public (non-authenticated) user
 				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
-					content.title = this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet') 
+					content.title = this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet')
 				}
 				return this.$route.name === 'timeline' ? this.emptyContent['default'] : content
 			}
