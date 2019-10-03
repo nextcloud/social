@@ -33,6 +33,7 @@ OC.L10N.register(
     "Post to followers only" : "Publica només pels seguidors",
     "Direct" : "Dirrecte",
     "Post to mentioned users only" : "Publica només als usuaris mencionats",
+    "Error while trying to post your message: Could not find any valid recipients." : "Error mentre s'intentava enviar el missatge. No s'ha pogut trobar cap destinatari vàlid.",
     "Unfollow" : "Deixa de seguir",
     "Follow" : "Segueix",
     "posts" : "publicacions",
