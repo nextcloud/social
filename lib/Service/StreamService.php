@@ -478,9 +478,8 @@ class StreamService {
 	 * @return Note[]
 	 * @throws Exception
 	 */
-	public function getStreamLocalTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
-	): array {
-		return $this->streamRequest->getTimelineTag($actor, $hashtag, $since, $limit);
+	public function getStreamLocalTag(string $hashtag, int $since = 0, int $limit = 5): array {
+		return $this->streamRequest->getTimelineTag($hashtag, $since, $limit);
 	}
 
 

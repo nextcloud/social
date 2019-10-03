@@ -491,7 +491,7 @@ class LocalController extends Controller {
 	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->streamService->getStreamLocalTag($this->viewer, $hashtag, $since, $limit);
+			$posts = $this->streamService-> getStreamLocalTag($hashtag, $since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {

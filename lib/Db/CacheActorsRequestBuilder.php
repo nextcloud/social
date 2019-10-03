@@ -160,7 +160,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $actor;
 	}
 
-
+  
 	/**
 	 * @param SocialQueryBuilder $qb
 	 * @param Person $actor
@@ -179,6 +179,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		$actor->setViewerLink($link);
 	}
-
+  
 }
 

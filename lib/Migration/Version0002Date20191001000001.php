@@ -42,11 +42,11 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0002Date20190925000001
+ * Class Version0002Date20191001000001
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190925000001 extends SimpleMigrationStep {
+class Version0002Date20191001000001 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -74,15 +74,27 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$table = $schema->getTable('social_a2_stream_action');
-		if (!$table->hasColumn('liked')) {
-			$table->addColumn('liked', 'boolean');
-		}
-		if (!$table->hasColumn('boosted')) {
-			$table->addColumn('boosted', 'boolean');
-		}
-		if (!$table->hasColumn('replied')) {
-			$table->addColumn('replied', 'boolean');
+		if (!$schema->hasTable('social_a2_stream_tags')) {
+			$table = $schema->createTable('social_a2_stream_tags');
+
+			$table->addColumn(
+				'stream_id', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+			$table->addColumn(
+				'hashtag', 'string',
+				[
+					'notnull' => false,
+					'length'  => 127,
+				]
+			);
+
+			if (!$table->hasIndex('sh')) {
+				$table->addUniqueIndex(['stream_id', 'hashtag'], 'sh');
+			}
 		}
 
 		return $schema;
@@ -100,20 +112,20 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$this->fillTableStreamActions($schema);
+		$this->fillTableStreamHashtags($schema);
 	}
 
 	/**
 	 * @param ISchemaWrapper $schema
 	 */
-	private function fillTableStreamActions(ISchemaWrapper $schema) {
+	private function fillTableStreamHashtags(ISchemaWrapper $schema) {
 
 		$start = 0;
 		$limit = 1000;
 		while (true) {
 			$qb = $this->connection->getQueryBuilder();
-			$qb->select('id', 'actor_id', 'stream_id', 'values')
-			   ->from('social_a2_stream_action')
+			$qb->select('id', 'hashtags')
+			   ->from('social_a2_stream')
 			   ->setMaxResults(1000)
 			   ->setFirstResult($start);
 
@@ -122,7 +134,7 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 			while ($data = $cursor->fetch()) {
 				$count++;
 
-				$this->updateStreamActions($data);
+				$this->updateStreamTags($data);
 			}
 			$cursor->closeCursor();
 
@@ -137,31 +149,29 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 	/**
 	 * @param array $data
 	 */
-	private function updateStreamActions(array $data) {
-		$update = $this->connection->getQueryBuilder();
-		$update->update('social_a2_stream_action');
+	private function updateStreamTags(array $data) {
+		if ($data['hashtags'] === '' || $data['hashtags'] === null) {
+			return;
+		}
 
 		$id = $data['id'];
-		$actorId = $data['actor_id'];
-		$streamId = $data['stream_id'];
+		$tags = json_decode($data['hashtags'], true);
 
-		$values = json_decode($data['values'], true);
-		$liked = (array_key_exists('liked', $values) && ($values['liked'])) ? 1 : 0;
-		$boosted = (array_key_exists('boosted', $values) && $values['boosted']) ? 1 : 0;
-		$replied = (array_key_exists('replied', $values) && $values['replied']) ? 1 : 0;
+		foreach ($tags as $tag) {
+			if ($tag === '') {
+				continue;
+			}
+			$insert = $this->connection->getQueryBuilder();
+			$insert->insert('social_a2_stream_tags');
 
-		$update->set('actor_id_prim', $update->createNamedParameter(hash('sha512', $actorId)));
-		$update->set('stream_id_prim', $update->createNamedParameter(hash('sha512', $streamId)));
-		$update->set('liked', $update->createNamedParameter($liked));
-		$update->set('boosted', $update->createNamedParameter($boosted));
-		$update->set('replied', $update->createNamedParameter($replied));
-
-		$expr = $update->expr();
-		$update->where($expr->eq('id', $update->createNamedParameter($id)));
-		try {
-			$update->execute();
-		} catch (UniqueConstraintViolationException $e) {
+			$insert->setValue('stream_id', $insert->createNamedParameter(hash('sha512', $id)));
+			$insert->setValue('hashtag', $insert->createNamedParameter($tag));
+			try {
+				$insert->execute();
+			} catch (UniqueConstraintViolationException $e) {
+			}
 		}
+
 	}
 
 }

@@ -390,7 +390,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 					$insert->execute();
 				} catch (UniqueConstraintViolationException $e) {
 					\OC::$server->getLogger()
-								->log(3, 'Social - Duplicate recipient on Stream ' . json_encode($data));
+								->log(1, 'Social - Duplicate recipient on Stream ' . json_encode($data));
 				}
 			}
 		}

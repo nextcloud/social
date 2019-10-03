@@ -65,6 +65,7 @@ class CoreRequestBuilder {
 	const TABLE_ACTORS = 'social_a2_actors';
 	const TABLE_STREAM = 'social_a2_stream';
 	const TABLE_STREAM_DEST = 'social_a2_stream_dest';
+	const TABLE_STREAM_TAGS = 'social_a2_stream_tags';
 	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
 	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
 
@@ -87,6 +88,7 @@ class CoreRequestBuilder {
 		self::TABLE_CACHE_DOCUMENTS,
 		self::TABLE_STREAM_QUEUE,
 		self::TABLE_STREAM_DEST,
+		self::TABLE_STREAM_TAGS,
 		self::TABLE_STREAM_ACTIONS
 	];
 
