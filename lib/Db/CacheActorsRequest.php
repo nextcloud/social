@@ -169,18 +169,10 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromId(string $id): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToIdString($qb, $id);
+		$qb->limitToIdString($id);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new CacheActorDoesNotExistException();
-		}
-
-		return $this->parseCacheActorsSelectSql($data);
+		return $this->getCacheActorFromRequest($qb);
 	}
 
 
@@ -194,19 +186,11 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToAccount($qb, $account);
+		$qb->limitToAccount($account);
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 		$this->leftJoinDetails($qb);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new CacheActorDoesNotExistException();
-		}
-
-		return $this->parseCacheActorsSelectSql($data);
+		return $this->getCacheActorFromRequest($qb);
 	}
 
 
@@ -225,15 +209,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->leftJoinCacheDocuments($qb, 'icon_id');
 		$this->leftJoinDetails($qb);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
-		if ($data === false) {
-			throw new CacheActorDoesNotExistException('Unknown account \'' . $account . "'");
-		}
-
-		return $this->parseCacheActorsSelectSql($data);
+		return $this->getCacheActorFromRequest($qb);
 	}
 
 
@@ -249,14 +225,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->leftJoinDetails($qb);
 		$this->limitResults($qb, 25);
 
-		$accounts = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$accounts[] = $this->parseCacheActorsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $accounts;
+		return $this->getCacheActorsFromRequest($qb);
 	}
 
 
@@ -269,14 +238,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->limitToLocal($qb, false);
 		$this->limitToCreation($qb, self::CACHE_TTL);
 
-		$update = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$update[] = $this->parseCacheActorsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $update;
+		return $this->getCacheActorsFromRequest($qb);
 	}
 
 

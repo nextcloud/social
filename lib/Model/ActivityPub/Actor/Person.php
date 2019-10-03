@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Actor;
 
 
+use daita\MySmallPhpTools\IQueryRow;
 use DateTime;
 use Exception;
 use JsonSerializable;
@@ -49,13 +50,18 @@ use OCA\Social\Traits\TDetails;
  *
  * @package OCA\Social\Model\ActivityPub
  */
-class Person extends ACore implements JsonSerializable {
+class Person extends ACore implements IQueryRow, JsonSerializable {
 
 
 	use TDetails;
 
 
 	const TYPE = 'Person';
+
+
+	const LINK_VIEWER = 'viewer';
+	const LINK_REMOTE = 'remote';
+	const LINK_LOCAL = 'local';
 
 
 	/** @var string */
@@ -99,6 +105,9 @@ class Person extends ACore implements JsonSerializable {
 
 	/** @var int */
 	private $avatarVersion = -1;
+
+	/** @var string */
+	private $viewerLink = '';
 
 
 	/**
@@ -379,6 +388,24 @@ class Person extends ACore implements JsonSerializable {
 
 
 	/**
+	 * @return string
+	 */
+	public function getViewerLink(): string {
+		return $this->viewerLink;
+	}
+
+	/**
+	 * @param string $viewerLink
+	 *
+	 * @return Person
+	 */
+	public function setViewerLink(string $viewerLink): Person {
+		$this->viewerLink = $viewerLink;
+
+		return $this;
+	}
+
+	/**
 	 * @param array $data
 	 *
 	 * @throws ItemUnknownException
@@ -467,6 +494,7 @@ class Person extends ACore implements JsonSerializable {
 
 		if ($this->isCompleteDetails()) {
 			$result['details'] = $this->getDetailsAll();
+			$result['viewerLink'] = $this->getViewerLink();
 		}
 
 		return $result;

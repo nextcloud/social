@@ -30,7 +30,9 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -72,8 +74,8 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getCacheActorsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
@@ -104,13 +106,48 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 
 	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return Person
+	 * @throws CacheActorDoesNotExistException
+	 */
+	protected function getCacheActorFromRequest(SocialQueryBuilder $qb): Person {
+		/** @var Person $result */
+		try {
+			$result = $qb->getRow([$this, 'parseCacheActorsSelectSql']);
+		} catch (RowNotFoundException $e) {
+			throw new CacheActorDoesNotExistException($e->getMessage());
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return Person[]
+	 */
+	public function getCacheActorsFromRequest(SocialQueryBuilder $qb): array {
+		/** @var Person[] $result */
+		$result = $qb->getRows([$this, 'parseCacheActorsSelectSql']);
+
+		return $result;
+	}
+
+
+	/**
 	 * @param array $data
+	 *
+	 * @param SocialQueryBuilder $qb
 	 *
 	 * @return Person
 	 */
-	protected function parseCacheActorsSelectSql(array $data): Person {
+	public function parseCacheActorsSelectSql(array $data, SocialQueryBuilder $qb): Person {
 		$actor = new Person();
 		$actor->importFromDatabase($data);
+
+		$this->assignViewerLink($qb, $actor);
 
 		try {
 			$icon = $this->parseCacheDocumentsLeftJoin($data);
@@ -123,5 +160,25 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $actor;
 	}
 
+  
+	/**
+	 * @param SocialQueryBuilder $qb
+	 * @param Person $actor
+	 */
+	private function assignViewerLink(SocialQueryBuilder $qb, Person $actor) {
+		if ($actor->isLocal()) {
+			$link = Person::LINK_LOCAL;
+			if ($qb->hasViewer()
+				&& $qb->getViewer()
+					  ->getId() === $actor->getId()) {
+				$link = Person::LINK_VIEWER;
+			}
+		} else {
+			$link = Person::LINK_REMOTE;
+		}
+
+		$actor->setViewerLink($link);
+	}
+  
 }
 
