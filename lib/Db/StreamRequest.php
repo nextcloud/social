@@ -62,6 +62,9 @@ class StreamRequest extends StreamRequestBuilder {
 	/** @var StreamDestRequest */
 	private $streamDestRequest;
 
+	/** @var StreamTagsRequest */
+	private $streamTagsRequest;
+
 
 	/**
 	 * StreamRequest constructor.
@@ -74,11 +77,12 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function __construct(
 		IDBConnection $connection, ILogger $logger, StreamDestRequest $streamDestRequest,
-		ConfigService $configService, MiscService $miscService
+		StreamTagsRequest $streamTagsRequest, ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct($connection, $logger, $configService, $miscService);
 
 		$this->streamDestRequest = $streamDestRequest;
+		$this->streamTagsRequest = $streamTagsRequest;
 	}
 
 
@@ -101,6 +105,7 @@ class StreamRequest extends StreamRequestBuilder {
 			$qb->execute();
 
 			$this->streamDestRequest->generateStreamDest($stream);
+			$this->streamTagsRequest->generateStreamTags($stream);
 		} catch (UniqueConstraintViolationException $e) {
 		}
 	}
@@ -231,7 +236,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$expr = $qb->expr();
 
 		$qb->limitToIdPrim($qb->prim($id));
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		if ($asViewer) {
 			$qb->limitToViewer('sd', 'f', true);
@@ -271,7 +276,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitPaginate($since, $limit);
 
 		$expr = $qb->expr();
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		$qb->andWhere($expr->eq('s.attributed_to', 'ca.id_prim'));
 
@@ -337,7 +342,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToType(Note::TYPE);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$cursor = $qb->execute();
@@ -364,12 +369,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$expr = $qb->expr();
 
-		$qb->innerJoinCacheActors('ca', 'f.object_id_prim');
+		$qb->linkToCacheActors('ca', 'f.object_id_prim');
 		$qb->limitPaginate($since, $limit);
 
 		$qb->andWhere($qb->exprLimitToDBField('type', SocialAppNotification::TYPE, false));
 		$qb->limitToViewer('sd', 'f', false);
-		$qb->andWhere($expr->eq('f.object_id_prim', 'ca.id_prim'));
 
 		$qb->leftJoinStreamAction('sa');
 		$qb->filterDuplicate();
@@ -402,7 +406,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
 		$qb->limitToType(SocialAppNotification::TYPE);
 
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
 
 		return $this->getStreamsFromRequest($qb);
@@ -428,10 +432,10 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToAttributedTo($actorId);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
 
 		return $this->getStreamsFromRequest($qb);
@@ -456,10 +460,10 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitPaginate($since, $limit);
 
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
 
 		$qb->filterDest(ACore::CONTEXT_PUBLIC);
@@ -489,11 +493,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToLocal($localOnly);
 		$qb->limitToType(Note::TYPE);
 
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
 
 		return $this->getStreamsFromRequest($qb);
@@ -522,7 +526,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitPaginate($since, $limit);
 
 		$expr = $qb->expr();
-		$qb->innerJoinCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		$qb->selectStreamActions('sa');
 		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
@@ -539,7 +543,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  - direct message related to a tag (not yet)
 	 *  - message to followers related to a tag (not yet)
 	 *
-	 * @param Person $actor
 	 * @param string $hashtag
 	 * @param int $since
 	 * @param int $limit
@@ -547,23 +550,21 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineTag(Person $actor, string $hashtag, int $since = 0, int $limit = 5
-	): array {
+	public function getTimelineTag(string $hashtag, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
-		// TODO - rewrite the whole method ?
-		$on = $this->exprJoinFollowing($qb, $actor);
-		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
-		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
-
-		$qb->andWhere($this->exprValueWithinJsonFormat($qb, 'hashtags', '' . $hashtag));
-
+		$expr = $qb->expr();
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToStreamTags('st', 's.id_prim');
 		$qb->limitPaginate($since, $limit);
-//		$this->filterHiddenOnTimeline($qb);
 
-		$this->leftJoinCacheActors($qb, 'attributed_to');
-		$this->leftJoinStreamAction($qb);
+		$qb->andWhere($qb->exprLimitToDBField('type', Note::TYPE));
+		$qb->andWhere($qb->exprLimitToDBField('hashtag', $hashtag, true, false, 'st'));
+
+		$qb->limitToViewer('sd', 'f', true);
+		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+
+		$qb->leftJoinStreamAction('sa');
 
 		return $this->getStreamsFromRequest($qb);
 	}

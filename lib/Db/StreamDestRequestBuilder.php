@@ -64,7 +64,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getStreamDestUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_STREAM_DEST);
 
 		return $qb;
@@ -77,7 +77,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getStreamDestSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type')
@@ -95,7 +95,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getStreamDestDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAM_DEST);
 
 		return $qb;
@@ -108,7 +108,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function countStreamDestSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 		   ->from(self::TABLE_STREAM_DEST, 'sd');
 

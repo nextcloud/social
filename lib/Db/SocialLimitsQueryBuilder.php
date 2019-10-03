@@ -365,7 +365,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	) {
 		if (!$this->hasViewer()) {
 			$this->selectDestFollowing($aliasDest);
-			$this->innerJoinDest('recipient', 'id_prim', 'sd', 's');
+			$this->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 			$this->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest);
 
 			return;
@@ -376,7 +376,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$orX = $expr->orX();
 		$actor = $this->getViewer();
 
-		$following = $this->exprInnerJoinDestFollowing(
+		$following = $this->exprInnerJoinStreamDestFollowing(
 			$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
 		);
 		$orX->add($following);

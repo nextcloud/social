@@ -31,11 +31,15 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-class CacheActorsRequestBuilder extends CoreRequestBuilder {
+
+/**
+ * Class StreamDestRequestBuilder
+ *
+ * @package OCA\Social\Db
+ */
+class StreamTagsRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -44,11 +48,11 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheActorsInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->insert(self::TABLE_CACHE_ACTORS);
+	protected function getStreamTagsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->insert(self::TABLE_STREAM_TAGS);
 
 		return $qb;
 	}
@@ -59,9 +63,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->update(self::TABLE_CACHE_ACTORS);
+	protected function getStreamTagsUpdateSql(): IQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_STREAM_TAGS);
 
 		return $qb;
 	}
@@ -72,19 +76,14 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamTagsSelectSql(): IQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
-			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url', 'ca.type',
-			'ca.preferred_username', 'ca.name', 'ca.summary',
-			'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
-		)
-		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
+		$qb->select('st.stream_id', 'st.hashtag')
+		   ->from(self::TABLE_STREAM_TAGS, 'st');
 
-		$this->defaultSelectAlias = 'ca';
+		$this->defaultSelectAlias = 'st';
 
 		return $qb;
 	}
@@ -95,32 +94,11 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
-		$qb->delete(self::TABLE_CACHE_ACTORS);
+	protected function getStreamTagsDeleteSql(): IQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_STREAM_TAGS);
 
 		return $qb;
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Person
-	 */
-	protected function parseCacheActorsSelectSql(array $data): Person {
-		$actor = new Person();
-		$actor->importFromDatabase($data);
-
-		try {
-			$icon = $this->parseCacheDocumentsLeftJoin($data);
-			$actor->setIcon($icon);
-		} catch (InvalidResourceException $e) {
-		}
-
-		$this->assignDetails($actor, $data);
-
-		return $actor;
 	}
 
 }
