@@ -123,6 +123,5 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $actor;
 	}
 
-
 }
 
