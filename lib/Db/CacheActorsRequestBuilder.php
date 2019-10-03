@@ -72,7 +72,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getCacheActorsSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -86,6 +86,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
 
+		$qb->setDefaultSelectAlias('ca');
+
+		/** @deprecated */
 		$this->defaultSelectAlias = 'ca';
 
 		return $qb;
@@ -160,7 +163,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $actor;
 	}
 
-  
+
 	/**
 	 * @param SocialQueryBuilder $qb
 	 * @param Person $actor
@@ -179,6 +182,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		$actor->setViewerLink($link);
 	}
-  
+
 }
 

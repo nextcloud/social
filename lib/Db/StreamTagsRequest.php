@@ -53,7 +53,6 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 	public function generateStreamTags(Stream $stream) {
 		$hashtags = $stream->getTags();
 
-		$this->miscService->log('$$$$ ' . json_encode($hashtags));
 		foreach ($hashtags as $hashtag) {
 			$tag = $this->get('name', $hashtag);
 			if ($this->get('type', $hashtag) !== 'Hashtag' || $tag === '') {
