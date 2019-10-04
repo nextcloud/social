@@ -392,6 +392,7 @@ import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import PopoverMenu from 'nextcloud-vue/dist/Components/PopoverMenu'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
+import he from 'he'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
@@ -757,8 +758,9 @@ export default {
 				}
 			} while (match)
 
-			// Remove all html tags but <br>
-			let content = element.innerHTML.replace(/<(?!br\s*\/?)[^>]+>/gi, '').replace(/<br\s*\/?>/gi, '\n').trim()
+			// Remove all html tags but </div> (wich we turn in newlines) and decode the remaining html entities 
+			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
+			content = he.decode(content)
 
 			let data = {
 				content: content,
