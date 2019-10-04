@@ -150,7 +150,7 @@ export default {
 	},
 	methods: {
 		followRemote() {
-			window.open(OC.generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.uid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
+			window.open(OC.generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		}
 	}
 }
