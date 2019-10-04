@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "Nessun commento piaciuto trovato",
     "You haven't tooted yet" : "Non hai ancora fiatato",
     "No posts found for this tag" : "Nessun commento trovato per questa etichetta",
+    "hasn't tooted yet" : "non ha ancora fiatato",
     "Reply" : "Rispondi",
     "Boost" : "Boost",
     "Like" : "Mi piace",
