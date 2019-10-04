@@ -49,7 +49,7 @@
 			<vue-tribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
-					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.enter="keyup"
+					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.prevent.enter="keyup"
 					@tribute-replaced="updatePostFromTribute" />
 			</vue-tribute>
 			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
@@ -777,7 +777,7 @@ export default {
 			return data
 		},
 		keyup(event) {
-			if (event.shiftKey) {
+			if (event.shiftKey || event.ctrlKey) {
 				this.createPost(event)
 			}
 		},
