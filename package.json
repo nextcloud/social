@@ -35,6 +35,7 @@
 		"nextcloud-auth": "0.0.3",
 		"tributejs": "^3.7.3",
 		"twemoji": "^12.0.1",
+		"he": "^1.2.0",
 		"uuid": "^3.3.3",
 		"v-tooltip": "^3.0.0-alpha.11",
 		"vue": "^2.6.10",

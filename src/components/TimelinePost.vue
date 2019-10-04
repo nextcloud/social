@@ -109,7 +109,6 @@ export default {
 			if (typeof message === 'undefined') {
 				return ''
 			}
-			message = message.replace(/(?:\r\n|\r|\n)/g, '<br />')
 			message = message.linkify({
 				formatHref: {
 					mention: function(href) {
@@ -120,6 +119,7 @@ export default {
 			if (this.item.hashtags !== undefined) {
 				message = this.mangleHashtags(message)
 			}
+			message = message.replace(/(?:\r\n|\r|\n)/g, '<br>')
 			message = this.$twemoji.parse(message)
 			return message
 		},

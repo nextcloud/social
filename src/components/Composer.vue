@@ -392,6 +392,7 @@ import Avatar from 'nextcloud-vue/dist/Components/Avatar'
 import PopoverMenu from 'nextcloud-vue/dist/Components/PopoverMenu'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
+import he from 'he'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from 'nextcloud-axios'
@@ -732,9 +733,11 @@ export default {
 				var em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
+
 			let contentHtml = element.innerHTML
+
+			// Extract mentions from content and create an array ot of them
 			let to = []
-			let hashtags = []
 			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
 			let match = null
 			do {
@@ -744,7 +747,9 @@ export default {
 				}
 			} while (match)
 
+			// Extract hashtags from content and create an array ot of them
 			const hashtagRegex = />#([^<]+)</g
+			let hashtags = []
 			match = null
 			do {
 				match = hashtagRegex.exec(contentHtml)
@@ -753,16 +758,22 @@ export default {
 				}
 			} while (match)
 
+			// Remove all html tags but </div> (wich we turn in newlines) and decode the remaining html entities 
+			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
+			content = he.decode(content)
+
 			let data = {
-				content: element.innerText.trim(),
+				content: content,
 				to: to,
 				hashtags: hashtags,
 				type: this.type,
 				attachments: this.postAttachments
 			}
+
 			if (this.replyTo) {
 				data.replyTo = this.replyTo.id
 			}
+
 			return data
 		},
 		keyup(event) {
