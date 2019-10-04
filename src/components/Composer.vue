@@ -766,7 +766,7 @@ export default {
 			return data
 		},
 		keyup(event) {
-			if (event.shiftKey) {
+			if (event.shiftKey || event.ctrlKey) {
 				this.createPost(event)
 			}
 		},
