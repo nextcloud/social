@@ -31,9 +31,11 @@ namespace OCA\Social;
 
 use Exception;
 use OC;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCP\AppFramework\QueryException;
 
 require_once(__DIR__ . '/../appinfo/autoload.php');
 
@@ -57,10 +59,20 @@ if (strpos($subject, 'acct:') === 0) {
 
 list($username, $instance) = explode('@', $account);
 try {
+	/** @var CacheActorService $cacheActorService */
 	$cacheActorService = OC::$server->query(CacheActorService::class);
+	/** @var FediverseService $fediverseService */
 	$fediverseService = OC::$server->query(FediverseService::class);
+	/** @var ConfigService $configService */
 	$configService = OC::$server->query(ConfigService::class);
+} catch (QueryException $e) {
+	OC::$server->getLogger()
+			   ->log(1, 'QueryException - ' . $e->getMessage());
+	http_response_code(404);
+	exit;
+}
 
+try {
 	$fediverseService->jailed();
 
 	if ($configService->getSocialAddress() !== $instance) {
@@ -76,15 +88,31 @@ try {
 
 	$cacheActorService->getFromLocalAccount($username);
 } catch (Exception $e) {
-	OC::$server->getLogger()
-			   ->log(1, 'Exception on webfinger - ' . $e->getMessage());
+	if ($type !== '') {
+		OC::$server->getLogger()
+				   ->log(1, 'Exception on webfinger/fromAccount - ' . $e->getMessage());
+		http_response_code(404);
+		exit;
+	}
+
+	try {
+		$fromId = $cacheActorService->getFromId($subject);
+		$instance = $configService->getSocialAddress();
+		$username = $fromId->getPreferredUsername();
+	} catch (Exception $e) {
+		OC::$server->getLogger()
+				   ->log(1, 'Exception on webfinger/fromId - ' . $e->getMessage());
+		http_response_code(404);
+		exit;
+	}
+}
+
+try {
+	$href = $configService->getSocialUrl() . '@' . $username;
+} catch (SocialAppConfigException $e) {
 	http_response_code(404);
 	exit;
 }
-
-$href = $configService->getSocialUrl() . '@' . $username;
-//	$urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $username])
-//);
 
 if (substr($href, -1) === '/') {
 	$href = substr($href, 0, -1);
