@@ -110,6 +110,7 @@ try {
 try {
 	$href = $configService->getSocialUrl() . '@' . $username;
 } catch (SocialAppConfigException $e) {
+	http_response_code(404);
 	exit;
 }
 
