@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "Non se atoparon mensaxes que me gustaran",
     "You haven't tooted yet" : "Vostede aínda non participou",
     "No posts found for this tag" : "Non se atoparon mensaxes por esta etiqueta",
+    "hasn't tooted yet" : "aínda non se participou",
     "Reply" : "Responder",
     "Boost" : "Reforzo",
     "Like" : "Gústame",

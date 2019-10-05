@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "Nenhum post curtido encontrado",
     "You haven't tooted yet" : "Você não reiniciou ainda",
     "No posts found for this tag" : "Nenhum post encontrado para este rótulo",
+    "hasn't tooted yet" : "Não enviado via Mastodon ainda",
     "Reply" : "Responder",
     "Boost" : "Impulsionar",
     "Like" : "Curtir",

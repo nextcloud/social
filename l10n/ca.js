@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "No s'han trobat publicacions agradades",
     "You haven't tooted yet" : "Encara no heu fet res.",
     "No posts found for this tag" : "No s'han trobat publicacions per a aquesta etiqueta",
+    "hasn't tooted yet" : "Encara no s'ha fet res",
     "Reply" : "Resposta",
     "Boost" : "Recomana",
     "Like" : "M'agrada",
