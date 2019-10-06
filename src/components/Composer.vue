@@ -706,6 +706,10 @@ export default {
 			return 	this.miniatures[idx].coords
 		},
 		insert(emoji) {
+			// If the user deletes the post's content, a trailing '<br>' may remain. In such case, remove it.
+			this.post = this.post.replace(/<br>\s?$/, '')
+			this.$refs.composerInput.innerHTML = this.$refs.composerInput.innerHTML.replace(/<br>\s?$/, '')
+			// Insert emoji
 			if (typeof emoji === 'object') {
 				let category = Object.keys(emoji)[0]
 				let emojis = emoji[category]
