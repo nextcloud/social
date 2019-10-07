@@ -21,11 +21,11 @@
   -->
 
 <template>
-	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
-		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
+	<div :class="{'icon-loading': !accountLoaded(uid)}" class="social__wrapper">
+		<profile-info v-if="accountLoaded(uid) && accountInfo(uid)" :uid="uid" />
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
-		<empty-content v-if="accountLoaded && !accountInfo" :item="emptyContentData" />
+		<router-view v-if="accountLoaded(uid) && accountInfo(uid) && accountInfo(uid).local" name="details" />
+		<empty-content v-if="accountLoaded(uid) && !accountInfo(uid)" :item="emptyContentData" />
 	</div>
 </template>
 
@@ -40,6 +40,7 @@
 <script>
 import ProfileInfo from './../components/ProfileInfo.vue'
 import EmptyContent from '../components/EmptyContent.vue'
+import accountMixins from '../mixins/accountMixins'
 import serverData from '../mixins/serverData'
 
 export default {
@@ -49,6 +50,7 @@ export default {
 		ProfileInfo
 	},
 	mixins: [
+		accountMixins,
 		serverData
 	],
 	data() {
@@ -58,17 +60,8 @@ export default {
 		}
 	},
 	computed: {
-		profileAccount() {
-			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
-		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
-		},
-		accountInfo: function() {
-			return this.$store.getters.getAccount(this.profileAccount)
-		},
-		accountLoaded() {
-			return this.$store.getters.accountLoaded(this.profileAccount)
 		},
 		emptyContentData() {
 			return {
@@ -78,12 +71,12 @@ export default {
 			}
 		}
 	},
+	// Start fetching account information before mounting the component
 	beforeMount() {
-
-		let fetchMethod = ''
 		this.uid = this.$route.params.account || this.serverData.account
 
 		// Are we authenticated?
+		let fetchMethod = ''
 		if (this.serverData.public) {
 			fetchMethod = 'fetchPublicAccountInfo'
 		} else {
@@ -92,11 +85,9 @@ export default {
 
 		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
 		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
+		this.$store.dispatch(fetchMethod, this.profileAccount(this.uid)).then((response) => {
 			this.uid = response.account
 		})
-	},
-	methods: {
 	}
 }
 </script>

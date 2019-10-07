@@ -21,26 +21,26 @@
   -->
 
 <template>
-	<div v-if="account && accountInfo" class="user-profile">
+	<div v-if="profileAccount(uid) && accountInfo(uid)" class="user-profile">
 		<div>
-			<avatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
+			<avatar v-if="accountInfo(uid).local" :user="localUid" :disable-tooltip="true"
 				:size="128" />
 			<avatar v-else :url="avatarUrl" :disable-tooltip="true"
 				:size="128" />
 			<h2>{{ displayName }}</h2>
-			<p>@{{ accountInfo.account }}</p>
-			<p v-if="accountInfo.website">
-				Website: <a :href="accountInfo.website.value">
-					{{ accountInfo.website.value }}
+			<p>@{{ accountInfo(uid).account }}</p>
+			<p v-if="accountInfo(uid).website">
+				Website: <a :href="accountInfo(uid).website.value">
+					{{ accountInfo(uid).website.value }}
 				</a>
 			</p>
-			<follow-button :account="accountInfo.account" />
+			<follow-button :account="accountInfo(uid).account" />
 			<button v-if="serverData.public" class="primary" @click="followRemote">
 				{{ t('social', 'Follow') }}
 			</button>
 		</div>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile--sections">
+		<ul v-if="accountInfo(uid).details && accountInfo(uid).local" class="user-profile--sections">
 			<li>
 				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
 					{{ getCount('post') }} {{ t('social', 'posts') }}
@@ -97,6 +97,7 @@
 </style>
 <script>
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import accountMixins from '../mixins/accountMixins'
 import serverData from '../mixins/serverData'
 import currentUser from '../mixins/currentUserMixin'
 import follow from '../mixins/follow'
@@ -110,8 +111,9 @@ export default {
 		Avatar
 	},
 	mixins: [
-		serverData,
+		accountMixins,
 		currentUser,
+		serverData,
 		follow
 	],
 	props: {
@@ -130,26 +132,21 @@ export default {
 			// Returns only the local part of a username
 			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.substr(0, this.uid.indexOf('@'))
 		},
-		account() {
-			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
-		},
 		displayName() {
-			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
-				return this.accountInfo.name
+			if (typeof this.accountInfo(this.uid).name !== 'undefined' && this.accountInfo(this.uid).name !== '') {
+				return this.accountInfo(this.uid).name
 			}
 			if (typeof this.accountInfo.preferredUsername !== 'undefined' && this.accountInfo.preferredUsername !== '') {
 				return this.accountInfo.preferredUsername
 			}
-			return this.account
-		},
-		accountInfo: function() {
-			return this.$store.getters.getAccount(this.account)
+			return this.profileAccount(this.uid)
 		},
 		getCount() {
-			return (field) => this.accountInfo.details.count ? this.accountInfo.details.count[field] : ''
+			let account = this.accountInfo(this.uid)
+			return (field) => account.details.count ? account.details.count[field] : ''
 		},
 		avatarUrl() {
-			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo(this.uid).id)
 		}
 	},
 	methods: {

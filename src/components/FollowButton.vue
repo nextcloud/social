@@ -22,7 +22,7 @@
 
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
-	<div v-if="!serverData.public && actorInfo && actorInfo.viewerLink!='viewer'">
+	<div v-if="!serverData.public && actorInfo(account) && actorInfo(account).viewerLink!='viewer'">
 		<button v-if="isCurrentUserFollowing" :class="{'icon-loading-small': followLoading}"
 			@click="unfollow()"
 			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
@@ -36,11 +36,13 @@
 </template>
 
 <script>
+import accountMixins from '../mixins/accountMixins'
 import currentUser from '../mixins/currentUserMixin'
 
 export default {
 	name: 'FollowButton',
 	mixins: [
+		accountMixins,
 		currentUser
 	],
 	props: {
@@ -55,9 +57,6 @@ export default {
 		}
 	},
 	computed: {
-		actorInfo() {
-			return this.$store.getters.getAccount(this.account)
-		},
 		followLoading() {
 			return false
 		},
