@@ -60,6 +60,7 @@ import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './TimelineEntry.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import EmptyContent from './EmptyContent.vue'
+import Logger from '../logger.js'
 
 export default {
 	name: 'Timeline',
@@ -113,6 +114,9 @@ export default {
 				tags: {
 					image: 'img/undraw/profile.svg',
 					title: t('social', 'No posts found for this tag')
+				},
+				'single-post': {
+					title: t('social', 'No replies found')
 				}
 			}
 		}
@@ -122,6 +126,7 @@ export default {
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
 			}
+
 			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
 				let content = this.emptyContent[this.$route.name]
 				// Change text on profile page when accessed by another user or a public (non-authenticated) user
@@ -130,7 +135,9 @@ export default {
 				}
 				return this.$route.name === 'timeline' ? this.emptyContent['default'] : content
 			}
+
 			// Fallback
+			Logger.log('Did not find any empty content for this route', { 'routeType': this.$route.params.type, 'routeName': this.$route.name })
 			return this.emptyContent.default
 		},
 		timeline: function() {

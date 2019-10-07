@@ -22,7 +22,10 @@
 
 <template>
 	<div class="emptycontent">
-		<img :src="imageUrl" class="icon-illustration" alt="">
+		<img v-if="item.image"
+			:src="imageUrl"
+			class="icon-illustration"
+			alt="">
 		<h2>{{ item.title }}</h2>
 		<p>{{ item.description }}</p>
 	</div>
