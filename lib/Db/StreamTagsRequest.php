@@ -73,5 +73,16 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 		}
 	}
 
+
+	/**
+	 *
+	 */
+	public function emptyStreamTags() {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->delete(self::TABLE_STREAM_TAGS);
+
+		$qb->execute();
+	}
+
 }
 

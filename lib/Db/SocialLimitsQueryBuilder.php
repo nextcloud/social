@@ -387,5 +387,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		$this->andWhere($orX);
 	}
+
 }
 
