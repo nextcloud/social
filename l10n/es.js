@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "No se han encontrado entradas con Me gusta",
     "You haven't tooted yet" : "Todavía no has hecho toots",
     "No posts found for this tag" : "No se han encontrado post para este tag",
+    "hasn't tooted yet" : "no ha escrito ningún toot todavía",
     "Reply" : "Responder",
     "Boost" : "Refuerzo",
     "Like" : "Me gusta",
