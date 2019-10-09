@@ -413,8 +413,8 @@ class StreamService {
 	 * @return Note[]
 	 * @throws Exception
 	 */
-	public function getStreamHome(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineHome($actor, $since, $limit);
+	public function getStreamHome(int $since = 0, int $limit = 5): array {
+		return $this->streamRequest->getTimelineHome($since, $limit);
 	}
 
 
@@ -452,8 +452,8 @@ class StreamService {
 	 * @return Note[]
 	 * @throws Exception
 	 */
-	public function getStreamDirect(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineDirect($actor, $since, $limit);
+	public function getStreamDirect(int $since = 0, int $limit = 5): array {
+		return $this->streamRequest->getTimelineDirect($since, $limit);
 	}
 
 

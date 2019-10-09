@@ -44,6 +44,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -59,6 +60,9 @@ use OCP\ILogger;
 class StreamRequest extends StreamRequestBuilder {
 
 
+	/** @var CacheActorService */
+	private $cacheActorService;
+
 	/** @var StreamDestRequest */
 	private $streamDestRequest;
 
@@ -71,16 +75,20 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
+	 * @param CacheActorService $cacheActorService
 	 * @param StreamDestRequest $streamDestRequest
+	 * @param StreamTagsRequest $streamTagsRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, StreamDestRequest $streamDestRequest,
-		StreamTagsRequest $streamTagsRequest, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, CacheActorService $cacheActorService,
+		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
+		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct($connection, $logger, $configService, $miscService);
 
+		$this->cacheActorService = $cacheActorService;
 		$this->streamDestRequest = $streamDestRequest;
 		$this->streamTagsRequest = $streamTagsRequest;
 	}
@@ -358,22 +366,20 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
-	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineHome(Person $actor, int $since = 0, int $limit = 5): array {
+	public function getTimelineHome(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
-		$expr = $qb->expr();
 
-		$qb->linkToCacheActors('ca', 'f.object_id_prim');
+		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitPaginate($since, $limit);
 
-		$qb->andWhere($qb->exprLimitToDBField('type', SocialAppNotification::TYPE, false));
 		$qb->limitToViewer('sd', 'f', false);
+		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
 
 		$qb->leftJoinStreamAction('sa');
 		$qb->filterDuplicate();
@@ -403,7 +409,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitPaginate($since, $limit);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
+		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
 		$qb->limitToType(SocialAppNotification::TYPE);
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -447,14 +453,13 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Private message.
 	 *  - group messages. (not yet)
 	 *
-	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineDirect(Person $actor, int $since = 0, int $limit = 5): array {
+	public function getTimelineDirect(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -462,13 +467,9 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
+		$viewer = $qb->getViewer();
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
-		$qb->limitToDest($actor->getId(), 'recipient', '', 'sd');
-
-		$qb->filterDest(ACore::CONTEXT_PUBLIC);
-		$qb->filterDest($actor->getFollowers());
-		$qb->andWhere($qb->exprLimitToDBFieldInt('hidden_on_timeline', 1, 's'));
+		$qb->limitToDest($viewer->getId(), 'dm', '', 'sd');
 
 		return $this->getStreamsFromRequest($qb);
 	}

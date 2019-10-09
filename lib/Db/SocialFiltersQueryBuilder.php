@@ -43,7 +43,7 @@ class SocialFiltersQueryBuilder extends SocialLimitsQueryBuilder {
 
 
 	/**
-	 * @param IQueryBuilder $qb
+	 *
 	 */
 	public function filterDuplicate() {
 		if (!$this->hasViewer()) {

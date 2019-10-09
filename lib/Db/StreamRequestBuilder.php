@@ -27,25 +27,21 @@ declare(strict_types=1);
  *
  */
 
+
 namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
-use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
-use OCP\DB\QueryBuilder\ICompositeExpression;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
@@ -139,232 +135,29 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 
 	/**
-	 * @param IQueryBuilder $qb
-	 */
-	protected function limitToViewer(IQueryBuilder $qb) {
-		$actor = $this->viewer;
-
-		// TODO - rewrite this request to use stream_dest !
-		if ($this->viewer === null) {
-			$qb->andWhere($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
-
-			return;
-		}
-
-		$on = $this->exprJoinFollowing($qb, $actor);
-		$on->add($this->exprLimitToRecipient($qb, ACore::CONTEXT_PUBLIC, false));
-		$on->add($this->exprLimitToRecipient($qb, $actor->getId(), true));
-		$qb->join($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param Person $actor
-	 */
-	protected function leftJoinFollowing(IQueryBuilder $qb, Person $actor) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$on = $this->exprJoinFollowing($qb, $actor);
-		$qb->selectAlias('f.object_id', 'following_actor_id');
-		$qb->leftJoin($this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, 'f', $on);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param Person $actor
-	 *
-	 * @return ICompositeExpression
-	 * @deprecated - use the new table social_stream_dest
-	 */
-	protected function exprJoinFollowing(IQueryBuilder $qb, Person $actor) {
-		$expr = $qb->expr();
-		$func = $qb->func();
-		$pf = $this->defaultSelectAlias . '.';
-
-		$on = $expr->orX();
-
-		// list of possible recipient as a follower (to, to_array, cc, ...)
-		$recipientFields = $expr->orX();
-		$recipientFields->add($expr->eq($func->lower($pf . 'to'), $func->lower('f.follow_id')));
-		$recipientFields->add($this->exprFieldWithinJsonFormat($qb, 'to_array', 'f.follow_id'));
-		$recipientFields->add($this->exprFieldWithinJsonFormat($qb, 'cc', 'f.follow_id'));
-		$recipientFields->add($this->exprFieldWithinJsonFormat($qb, 'bcc', 'f.follow_id'));
-
-		// all possible follow, but linked by followers (actor_id) and accepted follow
-		$crossFollows = $expr->andX();
-		$crossFollows->add($recipientFields);
-		$crossFollows->add(
-			$this->exprLimitToDBField($qb, 'actor_id', $actor->getId(), true, false, 'f')
-		);
-		$crossFollows->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, 'f'));
-		$on->add($crossFollows);
-
-		return $on;
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $fieldRight
+	 * @param SocialQueryBuilder $qb
 	 * @param string $alias
-	 *
-	 * @return string
+	 * @param string $aliasFollow
 	 */
-	protected function exprFieldWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = ''
+	protected function timelineHomeLinkCacheActor(
+		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f'
 	) {
-		$func = $qb->func();
-		$expr = $qb->expr();
-
-		if ($alias === '') {
-			$alias = $this->defaultSelectAlias;
-		}
-
-		$concat = $func->concat(
-			$qb->createNamedParameter('%"'),
-			$func->concat($fieldRight, $qb->createNamedParameter('"%'))
-		);
-
-		return $expr->iLike($alias . '.' . $field, $concat);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 *
-	 * @return string
-	 */
-	protected function exprValueWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
-		$dbConn = $this->getConnection();
-		$expr = $qb->expr();
-
-		return $expr->iLike(
-			$field,
-			$qb->createNamedParameter('%"' . $dbConn->escapeLikeParameter($value) . '"%')
-		);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 *
-	 * @return string
-	 */
-	protected function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
-		$dbConn = $this->getConnection();
-		$expr = $qb->expr();
-		$func = $qb->func();
-
-		return $expr->notLike(
-			$func->lower($field),
-			$qb->createNamedParameter(
-				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
-			)
-		);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $recipient
-	 * @param bool $asAuthor
-	 * @param array $type
-	 *
-	 * @deprecated
-	 */
-	protected function limitToRecipient(
-		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false, array $type = []
-	) {
-		$qb->andWhere($this->exprLimitToRecipient($qb, $recipient, $asAuthor, $type));
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $recipient
-	 * @param bool $asAuthor
-	 * @param array $type
-	 *
-	 * @return ICompositeExpression
-	 * @deprecated
-	 */
-	protected function exprLimitToRecipient(
-		IQueryBuilder &$qb, string $recipient, bool $asAuthor = false, array $type = []
-	): ICompositeExpression {
+		$qb->linkToCacheActors($alias);
 
 		$expr = $qb->expr();
-		$limit = $expr->orX();
+		$orX = $expr->orX();
 
-		if ($asAuthor === true) {
-			$func = $qb->func();
-			$limit->add(
-				$expr->eq(
-					$func->lower('attributed_to'),
-					$func->lower($qb->createNamedParameter($recipient))
-				)
-			);
-		}
+		$follow = $expr->andX();
+		$follow->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow')));
+		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
+		$orX->add($follow);
 
-		if ($type === []) {
-			$type = ['to', 'cc', 'bcc'];
-		}
+		$loopback = $expr->andX();
+		$loopback->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Loopback')));
+		$loopback->add($expr->eq($alias . '.id_prim', $qb->getDefaultSelectAlias() . '.attributed_to_prim'));
+		$orX->add($loopback);
 
-		$this->addLimitToRecipient($qb, $limit, $type, $recipient);
-
-		return $limit;
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param ICompositeExpression $limit
-	 * @param array $type
-	 * @param string $to
-	 */
-	private function addLimitToRecipient(
-		IQueryBuilder $qb, ICompositeExpression &$limit, array $type, string $to
-	) {
-
-		$expr = $qb->expr();
-		if (in_array('to', $type)) {
-			$limit->add($expr->eq('to', $qb->createNamedParameter($to)));
-			$limit->add($this->exprValueWithinJsonFormat($qb, 'to_array', $to));
-		}
-
-		if (in_array('cc', $type)) {
-			$limit->add($this->exprValueWithinJsonFormat($qb, 'cc', $to));
-		}
-
-		if (in_array('bcc', $type)) {
-			$limit->add($this->exprValueWithinJsonFormat($qb, 'bcc', $to));
-		}
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $recipient
-	 */
-	protected function filterRecipient(IQueryBuilder &$qb, string $recipient) {
-
-		$expr = $qb->expr();
-		$filter = $expr->andX();
-
-		$filter->add($expr->neq('to', $qb->createNamedParameter($recipient)));
-		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'to_array', $recipient));
-		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'cc', $recipient));
-		$filter->add($this->exprValueNotWithinJsonFormat($qb, 'bcc', $recipient));
-
-		$qb->andWhere($filter);
+		$qb->andWhere($orX);
 	}
 
 
@@ -401,7 +194,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
-	 * @param string $as
 	 *
 	 * @return Stream
 	 * @throws ItemUnknownException

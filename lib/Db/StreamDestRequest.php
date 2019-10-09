@@ -33,7 +33,14 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Exception;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
+use OCP\IDBConnection;
+use OCP\ILogger;
 
 
 /**
@@ -47,17 +54,47 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	use TStringTools;
 
 
+	/** @var CacheActorService */
+	private $cacheActorService;
+
+
 	/**
-	 * @return int
+	 * StreamDestRequest constructor.
+	 *
+	 * @param IDBConnection $connection
+	 * @param ILogger $logger
+	 * @param CacheActorService $cacheActorService
+	 * @param ConfigService $configService
+	 * @param MiscService $miscService
 	 */
-	public function countStreamDest(): int {
-		$qb = $this->countStreamDestSelectSql();
+	public function __construct(
+		IDBConnection $connection, ILogger $logger, CacheActorService $cacheActorService,
+		ConfigService $configService, MiscService $miscService
+	) {
+		parent::__construct($connection, $logger, $configService, $miscService);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
+		$this->cacheActorService = $cacheActorService;
+	}
 
-		return $this->getInt('count', $data, 0);
+
+	/**
+	 * @param string $streamId
+	 * @param string $actorId
+	 * @param string $type
+	 * @param string $subType
+	 */
+	public function create(string $streamId, string $actorId, string $type, string $subType = '') {
+		$qb = $this->getStreamDestInsertSql();
+
+		$qb->setValue('stream_id', $qb->createNamedParameter($qb->prim($streamId)));
+		$qb->setValue('actor_id', $qb->createNamedParameter($qb->prim($actorId)));
+		$qb->setValue('type', $qb->createNamedParameter($type));
+		$qb->setValue('subtype', $qb->createNamedParameter($subType));
+
+		try {
+			$qb->execute();
+		} catch (UniqueConstraintViolationException $e) {
+		}
 	}
 
 
@@ -65,6 +102,24 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 * @param Stream $stream
 	 */
 	public function generateStreamDest(Stream $stream) {
+		if ($this->generateStreamNotification($stream)) {
+			return;
+		}
+
+		if ($this->generateStreamDirect($stream)) {
+			return;
+		}
+
+		$this->generateStreamHome($stream);
+	}
+
+
+	/**
+	 * @param Stream $stream
+	 *
+	 * @return bool
+	 */
+	private function generateStreamHome(Stream $stream): bool {
 		$recipients =
 			[
 				'to' => array_merge($stream->getToAll(), [$stream->getAttributedTo()]),
@@ -77,32 +132,76 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 					continue;
 				}
 
-				$qb = $this->getStreamDestInsertSql();
-				$streamId = $qb->prim($stream->getId());
-				$qb->setValue('stream_id', $qb->createNamedParameter($streamId));
-				$qb->setValue('actor_id', $qb->createNamedParameter($qb->prim($actorId)));
-				$qb->setValue('type', $qb->createNamedParameter('recipient'));
-				$qb->setValue('subtype', $qb->createNamedParameter($subtype));
-				try {
-					$qb->execute();
-				} catch (UniqueConstraintViolationException $e) {
-					\OC::$server->getLogger()
-								->log(1, 'Social - Duplicate recipient on Stream ' . json_encode($stream));
-				}
+				$this->create($stream->getId(), $actorId, 'recipient', $subtype);
 			}
 		}
+
+		return true;
+	}
+
+
+	/**
+	 * @param Stream $stream
+	 *
+	 * @return bool
+	 */
+	private function generateStreamDirect(Stream $stream): bool {
+		try {
+			$author = $this->cacheActorService->getFromId($stream->getAttributedTo());
+		} catch (Exception $e) {
+			return false;
+		}
+
+		$all = array_merge(
+			$stream->getToAll(), [$stream->getAttributedTo()], $stream->getCcArray(), $stream->getBccArray()
+		);
+
+		foreach ($all as $item) {
+			if ($item === Stream::CONTEXT_PUBLIC || $item === $author->getFollowers()) {
+				return false;
+			}
+		}
+
+		foreach ($all as $actorId) {
+			if ($actorId === '') {
+				continue;
+			}
+
+			$this->create($stream->getId(), $actorId, 'dm');
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * @param Stream $stream
+	 *
+	 * @return bool
+	 */
+	private function generateStreamNotification(Stream $stream): bool {
+		if ($stream->getType() !== SocialAppNotification::TYPE) {
+			return false;
+		}
+
+		foreach ($stream->getToAll() as $actorId) {
+			if ($actorId === '') {
+				continue;
+			}
+
+			$this->create($stream->getId(), $actorId, 'notif');
+		}
+
+		return true;
 	}
 
 
 	/**
 	 *
 	 */
-	public function generateRandomDest() {
-		$qb = $this->getStreamDestInsertSql();
-
-		$qb->setValue('actor_id', $qb->createNamedParameter($this->uuid()));
-		$qb->setValue('stream_id', $qb->createNamedParameter($this->uuid()));
-		$qb->setValue('type', $qb->createNamedParameter('unk'));
+	public function emptyStreamDest() {
+		$qb = $this->dbConnection->getQueryBuilder();
+		$qb->delete(self::TABLE_STREAM_DEST);
 
 		$qb->execute();
 	}

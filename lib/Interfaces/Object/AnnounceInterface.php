@@ -204,11 +204,10 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @throws Exception
 	 */
 	public function save(ACore $item) {
-
 		/** @var Announce $item */
+
 		try {
-			$knownItem =
-				$this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
+			$knownItem = $this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
 
 			if ($item->hasActor()) {
 				$actor = $item->getActor();
@@ -216,6 +215,7 @@ class AnnounceInterface implements IActivityPubInterface {
 				$actor = $this->cacheActorService->getFromId($item->getActorId());
 			}
 
+			$knownItem->setAttributedTo($actor->getId());
 			if (!$knownItem->hasCc($actor->getFollowers())) {
 				$knownItem->addCc($actor->getFollowers());
 				$this->streamRequest->update($knownItem);
@@ -232,6 +232,7 @@ class AnnounceInterface implements IActivityPubInterface {
 		} catch (StreamNotFoundException $e) {
 			$objectId = $item->getObjectId();
 			$item->addCacheItem($objectId);
+			$item->setAttributedTo($item->getActorId());
 			$this->streamRequest->save($item);
 
 			$this->streamQueueService->generateStreamQueue(
@@ -356,10 +357,6 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @param Stream $post
 	 */
 	private function updateDetails(Stream $post) {
-//		if (!$post->isLocal()) {
-//			return;
-//		}
-
 		$post->setDetailInt(
 			'boosts', $this->actionsRequest->countActions($post->getId(), Announce::TYPE)
 		);

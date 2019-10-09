@@ -36,6 +36,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -241,24 +242,13 @@ class CheckService {
 
 
 	/**
-	 * create a fake follow entry. Mandatory to have Home Stream working.
-	 */
-	public function checkStatusTableStreamDest() {
-		if ($this->streamDestRequest->countStreamDest() > 0) {
-			return;
-		}
-
-		$this->streamDestRequest->generateRandomDest();
-	}
-
-
-	/**
 	 * create entries in follows so that user follows itself.
 	 *
 	 * @throws AccountAlreadyExistsException
 	 * @throws NoUserException
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function checkLocalAccountFollowingItself() {
 		$users = $this->userManager->search('');
