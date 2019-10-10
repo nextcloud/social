@@ -76,8 +76,15 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * Limit the request to the Id (string)
 	 *
 	 * @param string $id
+	 * @param bool $prim
 	 */
-	public function limitToInReplyTo(string $id) {
+	public function limitToInReplyTo(string $id, bool $prim = false) {
+		if ($prim) {
+			$this->limitToDBField('in_reply_to_prim', $this->prim($id), false);
+
+			return;
+		}
+
 		$this->limitToDBField('in_reply_to', $id, false);
 	}
 
