@@ -40,6 +40,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -82,6 +83,9 @@ class SocialPubController extends Controller {
 	/** @var ConfigService */
 	private $configService;
 
+	/** @var MiscService */
+	private $miscService;
+
 
 	/**
 	 * SocialPubController constructor.
@@ -94,11 +98,12 @@ class SocialPubController extends Controller {
 	 * @param AccountService $accountService
 	 * @param StreamService $streamService
 	 * @param ConfigService $configService
+	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		$userId, IRequest $request, IL10N $l10n, NavigationController $navigationController,
 		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
-		ConfigService $configService
+		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -109,6 +114,7 @@ class SocialPubController extends Controller {
 		$this->cacheActorService = $cacheActorService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
+		$this->miscService = $miscService;
 	}
 
 
@@ -236,6 +242,47 @@ class SocialPubController extends Controller {
 			'application' => 'Social'
 		];
 
+		return new TemplateResponse(Application::APP_NAME, 'stream', $data);
+	}
+
+
+	/**
+	 * Display the navigation page of the Social app.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param string $id
+	 *
+	 * @return TemplateResponse
+	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
+	 */
+	public function displayRemotePost(string $id): TemplateResponse {
+		if ($id === '') {
+			throw new StreamNotFoundException('Stream not found');
+		}
+
+		if (isset($this->userId)) {
+			try {
+				$viewer = $this->accountService->getActorFromUserId($this->userId, true);
+				$this->streamService->setViewer($viewer);
+			} catch (Exception $e) {
+			}
+		}
+
+		$stream = $this->streamService->getStreamById($id, true);
+		$data = [
+			'id'          => $id,
+			'item'        => $stream,
+			'serverData'  => [
+				'public' => ($this->userId === null),
+			],
+			'application' => 'Social'
+		];
+
+		$this->miscService->log('----- ' . json_encode($data));
+		
 		return new TemplateResponse(Application::APP_NAME, 'stream', $data);
 	}
 
