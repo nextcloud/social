@@ -610,6 +610,7 @@ export default {
 	mounted() {
 		this.$root.$on('composer-reply', (data) => {
 			this.replyTo = data
+			this.type = 'direct'
 		})
 	},
 	methods: {
@@ -737,7 +738,7 @@ export default {
 
 			let contentHtml = element.innerHTML
 
-			// Extract mentions from content and create an array ot of them
+			// Extract mentions from content and create an array out of them
 			let to = []
 			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
 			let match = null
@@ -747,6 +748,11 @@ export default {
 					to.push(match[1])
 				}
 			} while (match)
+
+			// Add author of original post in case of reply
+			if (this.replyTo !== null) {
+				to.push(this.replyTo.actor_info.account)
+			}
 
 			// Extract hashtags from content and create an array ot of them
 			const hashtagRegex = />#([^<]+)</g
