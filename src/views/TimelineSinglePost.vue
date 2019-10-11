@@ -20,7 +20,6 @@
 </style>
 
 <script>
-import Logger from '../logger'
 import ProfileInfo from '../components/ProfileInfo.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
