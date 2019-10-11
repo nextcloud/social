@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "未找到被点赞的文章",
     "You haven't tooted yet" : "您还没有toot过",
     "No posts found for this tag" : "未找到带有此标签的帖子",
+    "hasn't tooted yet" : "您还没有toot过",
     "Reply" : "回复",
     "Boost" : "推荐",
     "Like" : "赞",
