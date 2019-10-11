@@ -43,9 +43,11 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
 
@@ -59,6 +61,9 @@ class OStatusController extends Controller {
 
 	/** @var IUserManager */
 	private $userSession;
+
+	/** @var IURLGenerator */
+	private $urlGenerator;
 
 	/** @var CacheActorService */
 	private $cacheActorService;
@@ -79,27 +84,29 @@ class OStatusController extends Controller {
 	/**
 	 * OStatusController constructor.
 	 *
+	 * @param IUserSession $userSession
 	 * @param IRequest $request
+	 * @param IURLGenerator $urlGenerator
 	 * @param StreamService $streamService
 	 * @param CacheActorService $cacheActorService
 	 * @param AccountService $accountService
 	 * @param CurlService $curlService
 	 * @param MiscService $miscService
-	 * @param IUserSession $userSession
 	 */
 	public function __construct(
-		IUserSession $userSession, IRequest $request, StreamService $streamService,
-		CacheActorService $cacheActorService, AccountService $accountService, CurlService $curlService,
-		MiscService $miscService
+		IUserSession $userSession, IRequest $request, IURLGenerator $urlGenerator,
+		StreamService $streamService, CacheActorService $cacheActorService, AccountService $accountService,
+		CurlService $curlService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
+		$this->userSession = $userSession;
+		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorService = $cacheActorService;
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->curlService = $curlService;
 		$this->miscService = $miscService;
-		$this->userSession = $userSession;
 	}
 
 
@@ -136,7 +143,10 @@ class OStatusController extends Controller {
 		try {
 			$post = $this->streamService->getStreamById($uri, true, true);
 
-			return $this->directSuccess($post);
+			$link = $this->urlGenerator->linkToRouteAbsolute('social.SocialPub.displayRemotePost')
+					. '?id=' . $uri;
+
+			return new RedirectResponse($link);
 		} catch (Exception $e) {
 		}
 

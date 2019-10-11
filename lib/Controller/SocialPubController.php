@@ -282,7 +282,7 @@ class SocialPubController extends Controller {
 		];
 
 		$this->miscService->log('----- ' . json_encode($data));
-		
+
 		return new TemplateResponse(Application::APP_NAME, 'stream', $data);
 	}
 
