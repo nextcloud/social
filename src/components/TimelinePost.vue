@@ -110,6 +110,11 @@ export default {
 				return ''
 			}
 			message = message.linkify({
+				validate: {
+					url: function(value) {
+						return /^(http|ftp)s?:\/\//.test(value)
+					}
+				},
 				formatHref: {
 					mention: function(href) {
 						return OC.generateUrl('/apps/social/@' + href.substring(1))
