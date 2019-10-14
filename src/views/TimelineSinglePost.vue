@@ -2,7 +2,7 @@
 	<div class="social__wrapper">
 		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
 		<timeline-entry :item="mainPost" />
-		<timeline-list :type="$route.params.type" />
+		<timeline-list v-if="timeline" :type="$route.params.type" />
 	</div>
 </template>
 
@@ -45,9 +45,23 @@ export default {
 		}
 	},
 	computed: {
-		// Extract the viewed account name from the URL
+		/**
+		 * Extract the viewed account name from the URL
+		 *
+		 * @returns {String}
+		 *
+		 */
 		account() {
 			return window.location.href.split('/')[window.location.href.split('/').length - 2].substr(1)
+		},
+		/**
+		 * Returns the timeline currently loaded in the store
+		 *
+		 * @returns {Object}
+		 *
+		 */
+		timeline: function() {
+			return this.$store.getters.getTimeline
 		}
 	},
 	beforeMount: function() {
