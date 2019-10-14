@@ -1,6 +1,6 @@
 <template>
 	<div class="social__wrapper">
-		<composer />
+		<composer v-if="currentUser.uid!==''" />
 		<timeline-entry :item="mainPost" />
 		<!-- Do not show replies when composing a reply to a remote post -->
 		<timeline-list v-if="$route.name==='single-post'" />
@@ -24,6 +24,7 @@
 import Composer from '../components/Composer.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
+import CurrentUserMixin from '../mixins/currentUserMixin'
 
 export default {
 	name: 'TimelineSinglePost',
@@ -33,6 +34,7 @@ export default {
 		TimelineList
 	},
 	mixins: [
+		CurrentUserMixin
 	],
 	data() {
 		return {
@@ -42,7 +44,7 @@ export default {
 	computed: {
 	},
 	mounted: function() {
-		// Tell the Composer component to prepare a reply 
+		// Tell the Composer component to prepare a reply
 		this.$nextTick(function() {
 			if (this.$route.name === 'reply-remote') {
 				this.$root.$emit('composer-reply', this.mainPost)

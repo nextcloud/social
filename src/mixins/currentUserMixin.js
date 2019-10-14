@@ -20,18 +20,45 @@
  *
  */
 
+/**
+ * This file provides various computed properties related to the currently
+ * logged-in user.
+ *
+ * @mixin
+ */
+
 import serverData from './serverData'
+
 export default {
 	mixins: [
 		serverData
 	],
 	computed: {
+		/**
+		 * Returns an object describing the currently logged-in user
+		 *
+		 * @returns {Object}
+		 *
+		 */
 		currentUser() {
 			return OC.getCurrentUser()
 		},
+		/**
+		 * Returns the ActivityPub ID of the currently logged-in user
+		 *
+		 * @returns {String}
+		 *
+		 */
 		socialId() {
 			return '@' + this.cloudId
 		},
+		/**
+		 * Returns the ActivityPub ID of the currently logged-in user,
+		 * minus the leading '@'
+		 *
+		 * @returns {String}
+		 *
+		 */
 		cloudId() {
 			return this.currentUser.uid + '@' + this.hostname
 		}
