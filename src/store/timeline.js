@@ -119,12 +119,11 @@ const actions = {
 	post(context, post) {
 		return new Promise((resolve, reject) => {
 			axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
-				// eslint-disable-next-line no-console
-				console.log('Post created with token ' + response.data.result.token)
+				Logger.info('Post created with token ' + response.data.result.token)
 				resolve(response)
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to create a post')
-				console.error('Failed to create a post', error.response)
+				Logger.error('Failed to create a post', { 'error': error.response })
 				reject(error)
 			})
 		})
@@ -132,11 +131,10 @@ const actions = {
 	postDelete(context, post) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
 			context.commit('removePost', post)
-			// eslint-disable-next-line no-console
-			console.log('Post deleted with token ' + response.data.result.token)
+			Logger.info('Post deleted with token ' + response.data.result.token)
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to delete the post')
-			console.error('Failed to delete the post', error)
+			Logger.error('Failed to delete the post', { 'error': error })
 		})
 	},
 	postLike(context, { post, parentAnnounce }) {
@@ -146,7 +144,7 @@ const actions = {
 				resolve(response)
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to like post')
-				console.error('Failed to like post', error.response)
+				Logger.error('Failed to like post', { 'error': error.response })
 				reject(error)
 			})
 		})
@@ -160,19 +158,18 @@ const actions = {
 			}
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to unlike post')
-			console.error('Failed to unlike post', error)
+			Logger.error('Failed to unlike post', { 'error': error })
 		})
 	},
 	postBoost(context, { post, parentAnnounce }) {
 		return new Promise((resolve, reject) => {
 			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 				context.commit('boostPost', { post, parentAnnounce })
-				// eslint-disable-next-line no-console
-				console.log('Post boosted with token ' + response.data.result.token)
+				Logger.info('Post boosted with token ' + response.data.result.token)
 				resolve(response)
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to create a boost post')
-				console.error('Failed to create a boost post', error.response)
+				Logger.error('Failed to create a boost post', { 'error': error.response })
 				reject(error)
 			})
 		})
@@ -180,11 +177,10 @@ const actions = {
 	postUnBoost(context, { post, parentAnnounce }) {
 		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 			context.commit('unboostPost', { post, parentAnnounce })
-			// eslint-disable-next-line no-console
-			console.log('Boost deleted with token ' + response.data.result.token)
+			Logger.info('Boost deleted with token ' + response.data.result.token)
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to delete the boost')
-			console.error('Failed to delete the boost', error)
+			Logger.error('Failed to delete the boost', { 'error': error })
 		})
 	},
 	refreshTimeline(context) {
