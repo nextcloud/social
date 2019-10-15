@@ -40,12 +40,15 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
+require_once __DIR__ . '/../../appinfo/autoload.php';
+
+
 /**
- * Class Version0002Date20190916000002
+ * Class Version0002Date20191010000002
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190916000002 extends SimpleMigrationStep {
+class Version0002Date20191010000002 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -81,6 +84,7 @@ class Version0002Date20190916000002 extends SimpleMigrationStep {
 			$table->addUniqueIndex(['accepted', 'object_id_prim', 'actor_id_prim'], 'aoa');
 		}
 
+
 		$table = $schema->getTable('social_a2_stream');
 		if (!$table->hasIndex('ipoha')) {
 			$table->addUniqueIndex(
@@ -100,6 +104,12 @@ class Version0002Date20190916000002 extends SimpleMigrationStep {
 				'object_id_prim'
 			);
 		}
+		if (!$table->hasIndex('in_reply_to_prim')) {
+			$table->addIndex(
+				['in_reply_to_prim'],
+				'in_reply_to_prim'
+			);
+		}
 		if (!$table->hasIndex('attributed_to_prim')) {
 			$table->addIndex(
 				['attributed_to_prim'],
@@ -107,15 +117,13 @@ class Version0002Date20190916000002 extends SimpleMigrationStep {
 			);
 		}
 
-		$table = $schema->getTable('social_a2_cache_actors');
-		if (!$table->hasIndex('i')) {
-			$table->addUniqueIndex(['id_prim'], 'i');
-		}
 
-//		$table = $schema->getTable('social_a2_stream_action');
-//		if (!$table->hasIndex('sa')) {
-//			$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
-//		}
+		$table = $schema->getTable('social_a2_cache_actors');
+		if ($table->hasIndex('i')) {
+			$table->renameIndex('i', 'id_prim');
+		} else if (!$table->hasIndex('id_prim')) {
+			$table->addUniqueIndex(['id_prim'], 'id_prim');
+		}
 
 		return $schema;
 	}

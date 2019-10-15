@@ -32,21 +32,27 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Schema\SchemaException;
 use Exception;
+use OCA\Social\Db\StreamDestRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Db\StreamTagsRequest;
+use OCP\AppFramework\QueryException;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
+require_once __DIR__ . '/../../appinfo/autoload.php';
+
+
 /**
- * Class Version0002Date20190916000001
+ * Class Version0002Date20191010000001
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190916000001 extends SimpleMigrationStep {
+class Version0002Date20191010000001 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -135,14 +141,21 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 				]
 			);
 
-			if (!$table->hasIndex('sat')) {
-				$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
-				$table->addIndex(['type', 'subtype'], 'ts');
-			}
-
+			$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
+			$table->addIndex(['type', 'subtype'], 'ts');
 		}
 
+
 		$table = $schema->getTable('social_a2_stream');
+		if (!$table->hasColumn('in_reply_to_prim')) {
+			$table->addColumn(
+				'in_reply_to_prim', 'string',
+				[
+					'notnull' => true,
+					'length'  => 128,
+				]
+			);
+		}
 		if (!$table->hasColumn('object_id_prim')) {
 			$table->addColumn(
 				'object_id_prim', 'string',
@@ -296,7 +309,7 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 		}
 
 		$qb = $this->connection->getQueryBuilder();
-		$qb->select('id_prim', 'object_id', 'attributed_to', 'attributed_to_prim')
+		$qb->select('id_prim', 'object_id', 'attributed_to', 'in_reply_to')
 		   ->from('social_a2_stream');
 
 		$cursor = $qb->execute();
@@ -312,14 +325,15 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 	 * @param array $data
 	 */
 	private function updateStreamPrim(array $data) {
-		if ($data['attributed_to_prim'] !== '') {
-			return;
-		}
-
 		$update = $this->connection->getQueryBuilder();
 		$update->update('social_a2_stream');
 		if ($data['object_id'] !== '') {
 			$update->set('object_id_prim', $update->createNamedParameter(hash('sha512', $data['object_id'])));
+		}
+		if ($data['in_reply_to'] !== '') {
+			$update->set(
+				'in_reply_to_prim', $update->createNamedParameter(hash('sha512', $data['in_reply_to']))
+			);
 		}
 		$update->set(
 			'attributed_to_prim', $update->createNamedParameter(hash('sha512', $data['attributed_to']))
@@ -340,58 +354,32 @@ class Version0002Date20190916000001 extends SimpleMigrationStep {
 			return;
 		}
 
-		$start = 0;
-		$limit = 1000;
-		while (true) {
-			$qb = $this->connection->getQueryBuilder();
-			$qb->select('id_prim', 'to', 'to_array', 'cc', 'bcc', 'attributed_to')
-			   ->from('social_a2_stream')
-			   ->setMaxResults(1000)
-			   ->setFirstResult($start);
+		try {
+			$streamRequest = \OC::$server->query(StreamRequest::class);
+			$streamDestRequest = \OC::$server->query(StreamDestRequest::class);
+			$streamTagsRequest = \OC::$server->query(StreamTagsRequest::class);
+		} catch (QueryException $e) {
+			\OC::$server->getLogger()
+						->log(2, 'issue while querying stream* request');
 
-			$cursor = $qb->execute();
-			$count = 0;
-			while ($data = $cursor->fetch()) {
-				$count++;
-
-				$this->insertStreamDest($data);
-			}
-			$cursor->closeCursor();
-
-			$start += $count;
-			if ($count < $limit) {
-				break;
-			}
+			return;
 		}
-	}
 
-	private function insertStreamDest($data) {
-		$recipients = [];
-		$recipients['to'] =
-			array_merge(json_decode($data['to_array'], true), [$data['to']], [$data['attributed_to']]);
-		$recipients['cc'] = array_merge(json_decode($data['cc'], true), json_decode($data['bcc'], true));
+		$streamDestRequest->emptyStreamDest();
+		$streamTagsRequest->emptyStreamTags();
+		$streams = $streamRequest->getAll();
 
-		$streamId = $data['id_prim'];
-		foreach (array_keys($recipients) as $dest) {
-			$subtype = $dest;
-			foreach ($recipients[$dest] as $actorId) {
-				if ($actorId === '') {
-					continue;
-				}
-				$insert = $this->connection->getQueryBuilder();
-				$insert->insert('social_a2_stream_dest');
-
-				$insert->setValue('stream_id', $insert->createNamedParameter($streamId));
-				$insert->setValue('actor_id', $insert->createNamedParameter(hash('sha512', $actorId)));
-				$insert->setValue('type', $insert->createNamedParameter('recipient'));
-				$insert->setValue('subtype', $insert->createNamedParameter($subtype));
-
-				try {
-					$insert->execute();
-				} catch (UniqueConstraintViolationException $e) {
-					\OC::$server->getLogger()
-								->log(1, 'Social - Duplicate recipient on Stream ' . json_encode($data));
-				}
+		foreach ($streams as $stream) {
+			try {
+				$streamDestRequest->generateStreamDest($stream);
+				$streamTagsRequest->generateStreamTags($stream);
+			} catch (Exception $e) {
+				\OC::$server->getLogger()
+							->log(
+								2, '-- ' . get_class($e) . ' - ' . $e->getMessage() . ' - ' . json_encode(
+									 $stream
+								 )
+							);
 			}
 		}
 	}
