@@ -1,6 +1,8 @@
 /*
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
+ * @file Provides global methods for using the serverData structure.
+ *
  * @author Julius Härtl <jus@bitgrid.net>
  *
  * @license GNU AGPL version 3 or any later version
@@ -18,22 +20,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- */
-
-/*
- * This file provides global methods for using the serverData structure
- * the serverData structure's data are initialy found in a DOM element
- *  provided by the server.
- *
- * It may contain the following information:
- *	- account (only in 'OStatus.vue'): The account that the user wants to follow
- *	- cliUrl:
- *	- cloudAddress:
- *	- firstrun:
- *	- isAdmin:
- * 	- local (only in 'OStatus.vue'): The local part of the account that the user wants to follow
- *	- public: False when the page is accessed by an authenticated user. True otherwise.
- *	- setup:
  */
 
 export default {
