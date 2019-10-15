@@ -39,7 +39,7 @@
 				<span>In reply to</span>
 				<actor-avatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
-				<a class="icon-close" @click="replyTo=null" />
+				<a class="icon-close" @click="closeReply()" />
 			</p>
 			<div class="reply-to-preview">
 				{{ replyTo.content }}
@@ -829,6 +829,11 @@ export default {
 				this.$store.dispatch('refreshTimeline')
 			})
 
+		},
+		closeReply() {
+			this.replyTo = null
+			// View may want to hide the composer
+			this.$store.commit('setComposerDisplayStatus', false)
 		},
 		remoteSearchAccounts(text) {
 			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))

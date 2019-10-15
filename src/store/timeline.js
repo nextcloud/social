@@ -48,7 +48,8 @@ const state = {
 	 */
 	params: {},
 	account: '',
-	/* Tells whether the composer should be displayed or not
+	/* Tells whether the composer should be displayed or not.
+	 * It's up to the view to honor this status or not.
 	 * @member {boolean}
 	 */
 	composerDisplayStatus: false
