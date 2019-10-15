@@ -1,6 +1,7 @@
 <template>
 	<div class="social__wrapper">
 		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
+		<composer v-show="composerDisplayStatus" />
 		<timeline-entry :item="mainPost" />
 		<timeline-list v-if="timeline" :type="$route.params.type" />
 	</div>
@@ -20,9 +21,11 @@
 </style>
 
 <script>
+import Composer from '../components/Composer.vue'
 import ProfileInfo from '../components/ProfileInfo.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
+import currentUserMixin from '../mixins/currentUserMixin'
 import accountMixins from '../mixins/accountMixins'
 import serverData from '../mixins/serverData'
 import { loadState } from '@nextcloud/initial-state'
@@ -30,12 +33,14 @@ import { loadState } from '@nextcloud/initial-state'
 export default {
 	name: 'TimelineSinglePost',
 	components: {
+		Composer,
 		ProfileInfo,
 		TimelineEntry,
 		TimelineList
 	},
 	mixins: [
 		accountMixins,
+		currentUserMixin,
 		serverData
 	],
 	data() {
@@ -45,6 +50,15 @@ export default {
 		}
 	},
 	computed: {
+		/**
+		 * @description Tells whether Composer shall be displayed or not
+		 *
+		 * @returns {boolean}
+		 *
+		 */
+		composerDisplayStatus() {
+			return this.$store.getters.getComposerDisplayStatus
+		},
 		/**
 		 * Extract the viewed account name from the URL
 		 *

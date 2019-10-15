@@ -1,6 +1,8 @@
 /*
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
+ * @file Timeline related store
+ *
  * @author Julius Härtl <jus@bitgrid.net>
  * @author Jonas Sulzer <jonas@violoncello.ch>
  *
@@ -26,12 +28,30 @@ import axios from '@nextcloud/axios'
 import Vue from 'vue'
 import { generateUrl } from '@nextcloud/router'
 
+/**
+ * @property {object}	timeline	- The posts' collection
+ * @property {int}	since 		- Time (EPOCH) of the most recent post
+ * @property {string}	type		- Timeline's type: 'home', 'single-post',...
+ * @property {object}	params		- Timeline's parameters
+ * @property {string}	account		-
+ */
 const state = {
 	timeline: {},
 	since: Math.floor(Date.now() / 1000) + 1,
 	type: 'home',
+	/**
+	 * @namespace params
+	 * @property {string}	account			???
+	 * @property {string}	id
+	 * @property {string}	localId
+	 * @property {string}	type 			???
+	 */
 	params: {},
-	account: ''
+	account: '',
+	/* Tells whether the composer should be displayed or not
+	 * @member {boolean}
+	 */
+	composerDisplayStatus: false
 }
 const mutations = {
 	addToTimeline(state, data) {
@@ -52,6 +72,9 @@ const mutations = {
 	},
 	setTimelineParams(state, params) {
 		state.params = params
+	},
+	setComposerDisplayStatus(state, status) {
+		state.composerDisplayStatus = status
 	},
 	setAccount(state, account) {
 		state.account = account
@@ -90,6 +113,9 @@ const mutations = {
 	}
 }
 const getters = {
+	getComposerDisplayStatus(state) {
+		return state.composerDisplayStatus
+	},
 	getTimeline(state) {
 		return Object.values(state.timeline).sort(function(a, b) {
 			return b.publishedTime - a.publishedTime
