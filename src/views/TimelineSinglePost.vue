@@ -42,7 +42,7 @@ export default {
 	computed: {
 	},
 	mounted: function() {
-		// Tell the Composer component to prepare a reply 
+		// Tell the Composer component to prepare a reply
 		this.$nextTick(function() {
 			if (this.$route.name === 'reply-remote') {
 				this.$root.$emit('composer-reply', this.mainPost)
