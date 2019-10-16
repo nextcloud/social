@@ -255,7 +255,6 @@ class SocialPubController extends Controller {
 	 * @param string $id
 	 *
 	 * @return TemplateResponse
-	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
 	public function displayRemotePost(string $id): TemplateResponse {
@@ -280,9 +279,7 @@ class SocialPubController extends Controller {
 			],
 			'application' => 'Social'
 		];
-
-		$this->miscService->log('----- ' . json_encode($data));
-
+		
 		return new TemplateResponse(Application::APP_NAME, 'stream', $data);
 	}
 

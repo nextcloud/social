@@ -141,10 +141,10 @@ class OStatusController extends Controller {
 		}
 
 		try {
-			$post = $this->streamService->getStreamById($uri, true, true);
+			$this->streamService->getStreamById($uri, true, true);
 
 			$link = $this->urlGenerator->linkToRouteAbsolute('social.SocialPub.displayRemotePost')
-					. '?id=' . $uri;
+					. '?id=' . $uri . '&type=' . $this->parseRefererType();
 
 			return new RedirectResponse($link);
 		} catch (Exception $e) {
@@ -241,6 +241,35 @@ class OStatusController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+	}
+
+
+	/**
+	 * @return string
+	 */
+	private function parseRefererType(): string {
+		$referer = $this->request->getHeader('Referer');
+		$params = explode('&', parse_url($referer, PHP_URL_QUERY));
+		$type = '';
+		foreach ($params as $param) {
+			list($key, $value) = explode('=', $param);
+			if ($key === 'type') {
+				$type = $value;
+			}
+		}
+
+		switch ($type) {
+			case 'reblog':
+				return 'boost';
+
+			case 'favourite':
+				return 'like';
+
+			case 'reply':
+				return 'reply';
+		}
+
+		return '';
 	}
 
 }
