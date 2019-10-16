@@ -58,6 +58,9 @@ export default {
 			// Displaying the single post timeline for a non logged-in user
 			// or in case of a redirection from a remote instance (eg: a reply to remote post)
 			this.mainPost = JSON.parse(document.getElementById('postData').dataset.server)
+			this.$store.dispatch('addToTimeline', {
+				data: this.mainPost
+			})
 		} else {
 			this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id)
 		}
