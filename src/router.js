@@ -72,7 +72,7 @@ export default new Router({
 				default: TimelineSinglePost
 			},
 			props: true,
-			name: 'reply-remote'
+			name: 'interact-remote'
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account',

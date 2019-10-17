@@ -44,15 +44,25 @@ export default {
 	computed: {
 	},
 	mounted: function() {
-		// Tell the Composer component to prepare a reply
+		// Interacting with a post from a remote instance
 		this.$nextTick(function() {
-			if (this.$route.name === 'reply-remote') {
-				this.$root.$emit('composer-reply', this.mainPost)
+			if (this.$route.name === 'interact-remote') {
+				// Automaticaly like, boost, or prepare reply
+				switch (this.$route.query.type) {
+				case ('boost'):
+					setTimeout(this.$store.dispatch('postBoost', { post: this.mainPost }), 2000)
+					break
+				case ('like'):
+					setTimeout(this.$store.dispatch('postLike', { post: this.mainPost }), 2000)
+					break
+				case ('reply'):
+					setTimeout(this.$root.$emit('composer-reply', this.mainPost), 2000)
+					break
+				}
 			}
 		})
 	},
 	beforeMount: function() {
-
 		// Get data of post clicked on
 		if (typeof this.$route.params.id === 'undefined') {
 			// Displaying the single post timeline for a non logged-in user
@@ -65,8 +75,8 @@ export default {
 			this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id)
 		}
 
-		// No need to set params for the TimelineList component has we don't show it when replying to a remote post
-		if (this.$route.name === 'reply-remote') {
+		// We don't show the TimelineList component when interacting with a remote post
+		if (this.$route.name === 'interact-remote') {
 			return
 		}
 
