@@ -248,9 +248,15 @@ class OStatusController extends Controller {
 	 * @return string
 	 */
 	private function parseRefererType(): string {
-		$referer = $this->request->getHeader('Referer');
-		$params = explode('&', parse_url($referer, PHP_URL_QUERY));
 		$type = '';
+
+		$referer = $this->request->getHeader('Referer');
+		$query = parse_url($referer, PHP_URL_QUERY);
+		if ($query === null) {
+			return $type;
+		}
+		
+		$params = explode('&', parse_url($referer, PHP_URL_QUERY));
 		foreach ($params as $param) {
 			list($key, $value) = explode('=', $param);
 			if ($key === 'type') {
