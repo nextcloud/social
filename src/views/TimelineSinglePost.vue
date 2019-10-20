@@ -50,10 +50,16 @@ export default {
 				// Automaticaly like, boost, or prepare reply
 				switch (this.$route.query.type) {
 				case ('boost'):
-					setTimeout(this.$store.dispatch('postBoost', { post: this.mainPost }), 2000)
+					setTimeout(this.$store.dispatch('postBoost', {
+						post: this.mainPost,
+						parentAnnounce: { }
+					}), 2000)
 					break
 				case ('like'):
-					setTimeout(this.$store.dispatch('postLike', { post: this.mainPost }), 2000)
+					setTimeout(this.$store.dispatch('postLike', {
+						post: this.mainPost,
+						parentAnnounce: { }
+					}), 2000)
 					break
 				case ('reply'):
 					setTimeout(this.$root.$emit('composer-reply', this.mainPost), 2000)
