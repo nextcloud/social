@@ -46,6 +46,7 @@ export default {
 	mounted: function() {
 		// Interacting with a post from a remote instance
 		this.$nextTick(function() {
+			window.resizeTo(650,800)
 			if (this.$route.name === 'interact-remote') {
 				// Automaticaly like, boost, or prepare reply
 				switch (this.$route.query.type) {
