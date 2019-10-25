@@ -111,4 +111,3 @@ export default {
                 font-size: 150%;
         }
 </style>
-

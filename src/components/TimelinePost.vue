@@ -26,9 +26,9 @@
 						</span>
 					</a>
 				</div>
-				<div :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp">
+				<a :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp" @click="getSinglePostTimeline">
 					{{ relativeTimestamp }}
-				</div>
+				</a>
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div v-if="item.content" class="post-message">
@@ -64,6 +64,7 @@ import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment.vue'
+import Logger from '../logger'
 import MessageContent from './MessageContent'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
@@ -140,6 +141,31 @@ export default {
 		}
 	},
 	methods: {
+    /**
+     * @function getSinglePostTimeline
+     * @description Opens the timeline of the post clicked
+     */
+    getSinglePostTimeline(e) {
+      // Display internal or external post
+      if (!this.item.local) {
+        if (this.item.type === 'Note') {
+          window.open(this.item.id)
+        } else if (this.item.type === 'Announce') {
+          window.open(this.item.object)
+        } else {
+          Logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
+        }
+      } else {
+        this.$router.push({ name: 'single-post',
+          params: {
+            account: this.item.actor_info.preferredUsername,
+            id: this.item.id,
+            localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
+            type: 'single-post'
+          }
+        })
+      }
+    },
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
