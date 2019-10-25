@@ -22,7 +22,7 @@
 
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
-	<div v-if="!serverData.public && accountInfo(account) && accountInfo(account).viewerLink!='viewer'">
+	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
 		<button v-if="isCurrentUserFollowing" :class="{'icon-loading-small': followLoading}"
 			@click="unfollow()"
 			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
@@ -47,6 +47,10 @@ export default {
 	],
 	props: {
 		account: {
+			type: String,
+			default: ''
+		},
+		uid: {
 			type: String,
 			default: ''
 		}

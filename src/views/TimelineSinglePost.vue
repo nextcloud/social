@@ -46,33 +46,27 @@ export default {
 	data() {
 		return {
 			mainPost: {},
-			uid: this.account
+			uid: this.$route.params.account
 		}
 	},
 	computed: {
 		/**
 		 * @description Tells whether Composer shall be displayed or not
-		 *
 		 * @returns {boolean}
-		 *
 		 */
 		composerDisplayStatus() {
 			return this.$store.getters.getComposerDisplayStatus
 		},
 		/**
-		 * Extract the viewed account name from the URL
-		 *
+		 * @description Extracts the viewed account name from the URL
 		 * @returns {String}
-		 *
 		 */
 		account() {
 			return window.location.href.split('/')[window.location.href.split('/').length - 2].substr(1)
 		},
 		/**
-		 * Returns the timeline currently loaded in the store
-		 *
+		 * @description Returns the timeline currently loaded in the store
 		 * @returns {Object}
-		 *
 		 */
 		timeline: function() {
 			return this.$store.getters.getTimeline
