@@ -2,7 +2,7 @@
 	<div class="social__wrapper">
 		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
 		<composer v-show="composerDisplayStatus" />
-		<timeline-entry :item="mainPost" />
+		<timeline-entry class="main-post" :item="mainPost" />
 		<timeline-list v-if="timeline" :type="$route.params.type" />
 	</div>
 </template>
@@ -104,3 +104,11 @@ export default {
 	}
 }
 </script>
+
+<style>
+	/* Show main post with a bigger font */
+        .main-post {
+                font-size: 150%;
+        }
+</style>
+
