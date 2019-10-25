@@ -21,11 +21,11 @@
   -->
 
 <template>
-	<div :class="{'icon-loading': !accountLoaded(uid)}" class="social__wrapper">
-		<profile-info v-if="accountLoaded(uid) && accountInfo(uid)" :uid="uid" />
+	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
+		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<router-view v-if="accountLoaded(uid) && accountInfo(uid) && accountInfo(uid).local" name="details" />
-		<empty-content v-if="accountLoaded(uid) && !accountInfo(uid)" :item="emptyContentData" />
+		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
+		<empty-content v-if="accountLoaded && !accountInfo" :item="emptyContentData" />
 	</div>
 </template>
 
@@ -85,7 +85,7 @@ export default {
 
 		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
 		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-		this.$store.dispatch(fetchMethod, this.profileAccount(this.uid)).then((response) => {
+		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
 			this.uid = response.account
 		})
 	}
