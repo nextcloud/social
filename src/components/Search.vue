@@ -79,7 +79,7 @@
 <script>
 
 import UserEntry from './UserEntry.vue'
-import axios from 'nextcloud-axios'
+import axios from '@nextcloud/axios'
 import Trend from 'vuetrend'
 
 export default {

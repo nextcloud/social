@@ -1,10 +1,10 @@
 <template>
 	<div v-if="!serverData.setup" id="app-social" :class="{public: serverData.public}">
-		<div v-if="!serverData.public" id="app-navigation">
-			<ul>
-				<app-navigation-item v-for="item in menu.items" :key="item.key" :item="item" />
+		<app-navigation v-if="!serverData.public" id="app-navigation">
+			<ul id="app-social-navigation">
+				<app-navigation-item v-for="item in menu.items" :key="item.key" :to="item.to" :title="item.title" :icon="item.icon" :exact="true" />
 			</ul>
-		</div>
+		</app-navigation>
 		<div id="app-content">
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
@@ -91,14 +91,16 @@
 </style>
 
 <script>
-import AppNavigationItem from 'nextcloud-vue/dist/Components/AppNavigationItem'
-import axios from 'nextcloud-axios'
+import { AppNavigation } from '@nextcloud/vue/dist/Components/AppNavigation'
+import { AppNavigationItem } from '@nextcloud/vue/dist/Components/AppNavigationItem'
+import axios from '@nextcloud/axios'
 import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
 
 export default {
 	name: 'App',
 	components: {
+		AppNavigation,
 		AppNavigationItem,
 		Search
 	},
@@ -119,69 +121,62 @@ export default {
 			let defaultCategories = [
 				{
 					id: 'social-timeline',
-					classes: [],
 					icon: 'icon-home',
-					text: t('social', 'Home'),
-					router: {
+					title: t('social', 'Home'),
+					to: {
 						name: 'timeline'
 					}
 				},
 				{
 					id: 'social-direct-messages',
-					classes: [],
-					router: {
+					icon: 'icon-comment',
+					title: t('social', 'Direct messages'),
+					to: {
 						name: 'timeline',
 						params: { type: 'direct' }
-					},
-					icon: 'icon-comment',
-					text: t('social', 'Direct messages')
+					}
 				},
 				{
 					id: 'social-notifications',
-					classes: [],
-					router: {
+					icon: 'icon-notifications',
+					title: t('social', 'Notifications'),
+					to: {
 						name: 'timeline',
 						params: { type: 'notifications' }
-					},
-					icon: 'icon-notifications',
-					text: t('social', 'Notifications')
+					}
 				},
 				{
 					id: 'social-account',
-					classes: [],
 					icon: 'icon-user',
-					text: t('social', 'Profile'),
-					router: {
+					title: t('social', 'Profile'),
+					to: {
 						name: 'profile',
 						params: { account: this.currentUser.uid }
 					}
 				},
 				{
 					id: 'social-liked',
-					classes: [],
 					icon: 'icon-favorite',
-					text: t('social', 'Liked'),
-					router: {
+					title: t('social', 'Liked'),
+					to: {
 						name: 'timeline',
 						params: { type: 'liked' }
 					}
 				},
 				{
 					id: 'social-local',
-					classes: [],
 					icon: 'icon-category-monitoring',
-					text: t('social', 'Local timeline'),
-					router: {
+					title: t('social', 'Local timeline'),
+					to: {
 						name: 'timeline',
 						params: { type: 'timeline' }
 					}
 				},
 				{
 					id: 'social-global',
-					classes: [],
 					icon: 'icon-link',
-					text: t('social', 'Global timeline'),
-					router: {
+					title: t('social', 'Global timeline'),
+					to: {
 						name: 'timeline',
 						params: { type: 'federated' }
 					}

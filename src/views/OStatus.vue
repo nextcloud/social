@@ -60,8 +60,8 @@
 </style>
 
 <script>
-import Avatar from 'nextcloud-vue/dist/Components/Avatar'
-import axios from 'nextcloud-axios'
+import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import axios from '@nextcloud/axios'
 import currentuserMixin from './../mixins/currentUserMixin'
 
 export default {
