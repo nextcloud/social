@@ -264,5 +264,6 @@ export default {
 <style>
 	.post-message a {
 		text-decoration: underline;
+		overflow-wrap: anywhere;
 	}
 </style>
