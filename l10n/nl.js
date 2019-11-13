@@ -56,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "Geen leuk gevonden berichten gevonden",
     "You haven't tooted yet" : "Je hebt nog niet getoot",
     "No posts found for this tag" : "Geen berichten gevonden met deze tag",
+    "hasn't tooted yet" : "heeft nog niet getoot",
     "Reply" : "Antwoord",
     "Boost" : "Boost",
     "Like" : "Leuk vinden",
