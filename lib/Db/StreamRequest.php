@@ -666,6 +666,7 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
 		   ->setValue('attributed_to_prim', $qb->createNamedParameter($qb->prim($attributedTo)))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($stream->getInReplyTo()))
+		   ->setValue('in_reply_to_prim', $qb->createNamedParameter(hash('sha512', $stream->getInReplyTo())))
 		   ->setValue('source', $qb->createNamedParameter($stream->getSource()))
 		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
 		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
