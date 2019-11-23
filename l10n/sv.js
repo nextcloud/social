@@ -17,7 +17,7 @@ OC.L10N.register(
     "Direct messages" : "Direktmeddelanden",
     "Notifications" : "Aviseringar",
     "Profile" : "Profil",
-    "Liked" : "Gillad",
+    "Liked" : "Gillade",
     "Local timeline" : "Lokal tidslinje",
     "Global timeline" : "Global tidslinje",
     "Following" : "Följer",
