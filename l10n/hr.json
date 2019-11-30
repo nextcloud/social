@@ -1,5 +1,6 @@
 { "translations": {
     "Social" : "Aplikacija Social",
+    "Follow %s on Social" : "Prati %s na društvenim mrežama",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud postaje dio udruženih društvenih mreža!",
     "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** Izjava o odricanju od odgovornosti: ovo je ALPHA inačica **\n\n**🎉 Nextcloud postaje dio udruženih društvenih mreža!**\n\n**🙋 Pronađite svoje prijatelje:** Bez obzira upotrebljavate li platformu Nextcloud, 🐘 Mastodon, 🇫 Friendica, a uskoro i ✱ Diaspora, 👹 MediaGoblin i još mnogo toga – možete ih pratiti!\n\n**📜 Podaci o profilu:** Nema potrebe za popunjavanjem mnogobrojnih profila – koristit će se vaši podaci iz Nextclouda, ali i proširiti.\n\n**👐 Zadržite vlasništvo nad vlastitim objavama:** Sve što objavite ostaje na vašem Nextcloudu!\n\n**🕸 Otvoreni standardi:** Primjenjujemo široko prihvaćeni standard ActivityPub!",
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger nije pravilno postavljen!",
@@ -30,6 +31,7 @@
     "Post to followers only" : "Objavi samo pratiteljima",
     "Direct" : "Izravno",
     "Post to mentioned users only" : "Objavi samo spomenutim korisnicima",
+    "Error while trying to post your message: Could not find any valid recipients." : "Došlo je do pogreške pri objavljivanju poruke: nisu pronađeni valjani primatelji.",
     "Unfollow" : "Prestani pratiti",
     "Follow" : "Prati",
     "posts" : "objave",
@@ -52,6 +54,7 @@
     "No liked posts found" : "Nije pronađena nijedna objava označena kao „sviđa mi se“",
     "You haven't tooted yet" : "Niste se još uspostavili",
     "No posts found for this tag" : "Nije pronađena nijedna objava za ovu oznaku",
+    "hasn't tooted yet" : "nije se još uspostavio",
     "Reply" : "Odgovori",
     "Boost" : "Pojačaj",
     "Like" : "Sviđa mi se",
