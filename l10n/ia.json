@@ -1,0 +1,9 @@
+{ "translations": {
+    "Open documentation" : "Aperir documentation",
+    "Home" : "Initio",
+    "Notifications" : "Notificationes",
+    "Public" : "Public",
+    "Reply" : "Responder",
+    "Close" : "Clauder"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}

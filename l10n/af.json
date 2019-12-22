@@ -1,0 +1,10 @@
+{ "translations": {
+    "Open documentation" : "Open dokumentasie",
+    "Finish setup" : "Voltooi opstelling",
+    "Home" : "Tuis",
+    "Notifications" : "Kennisgewings",
+    "Reply" : "Antwoord",
+    "Close" : "Sluit",
+    "Continue" : "Gaan voort"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}

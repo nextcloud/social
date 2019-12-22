@@ -1,0 +1,15 @@
+OC.L10N.register(
+    "social",
+    {
+    "Open documentation" : "문서 열기",
+    "Finish setup" : "설치 완료",
+    "Home" : "집",
+    "Notifications" : "알림",
+    "Public" : "공개",
+    "Reply" : "답장",
+    "More actions" : "더 많은 동작",
+    "Close" : "닫기",
+    "Continue" : "Continue",
+    "User not found" : "사용자를 찾을 수 없음"
+},
+"nplurals=1; plural=0;");

@@ -1,10 +1,18 @@
 { "translations": {
+    "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud tampa federacinių socialinių tinklų dalimi!",
     "Open documentation" : "Atverti dokumentaciją",
+    "Finish setup" : "Užbaigti sąranką",
+    "Home" : "Namų",
     "Notifications" : "Pranešimai",
+    "Profile" : "Profilis",
+    "Post publicly" : "Paskelbti viešai",
+    "Public" : "Vieša",
     "Unfollow" : "Nebesekti",
     "Follow" : "Sekti",
+    "followers" : "sekėjų",
     "No results found" : "Nerasta jokių rezultatų",
     "There were no results for your search:" : "Jūsų paieška negrąžino jokių rezultatų:",
+    "Searching for" : "Ieškoma",
     "No notifications found" : "Nerasta jokių pranešimų",
     "You haven't receive any notifications yet" : "Kol kas nesate gavę jokių pranešimų",
     "Reply" : "Atsakyti",
@@ -14,6 +22,7 @@
     "Continue" : "Tęsti",
     "User not found" : "Naudotojas nerastas",
     "Sorry, we could not find the account of {userId}" : "Atleiskite, mums nepavyko rasti {userId} paskyros",
-    "Nextcloud becomes part of the federated social networks!" : "Nextcloud tampa federacinių socialinių tinklų dalimi!"
+    "Nextcloud becomes part of the federated social networks!" : "Nextcloud tampa federacinių socialinių tinklų dalimi!",
+    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Mes jums automatiškai sukūrėme socialinę paskyrą. Jūsų socialinis ID yra toks pats kaip ir federacinės debesijos ID:"
 },"pluralForm" :"nplurals=4; plural=(n % 10 == 1 && (n % 100 > 19 || n % 100 < 11) ? 0 : (n % 10 >= 2 && n % 10 <=9) && (n % 100 > 19 || n % 100 < 11) ? 1 : n % 1 != 0 ? 2: 3);"
 }

@@ -3,6 +3,7 @@ OC.L10N.register(
     {
     "Open documentation" : "Odpri dokumentacijo",
     "Finish setup" : "Končaj nastavitev",
+    "Home" : "Začetni pogled",
     "Direct messages" : "Neposredna sporočila",
     "Notifications" : "Obvestila",
     "Profile" : "Profil",
@@ -26,6 +27,9 @@ OC.L10N.register(
     "No results found" : "Ni najdenih zadetkov",
     "Reply" : "Odgovori",
     "More actions" : "Več možnosti",
-    "Close" : "apri"
+    "Hello" : "Pozdravljeni",
+    "Close" : "apri",
+    "Continue" : "Nadaljuj",
+    "User not found" : "Uporabnika ni mogoče najti"
 },
 "nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);");

@@ -1,0 +1,14 @@
+OC.L10N.register(
+    "social",
+    {
+    "Open documentation" : "Ava dokumentatsioon",
+    "Finish setup" : "Lõpeta seadistamine",
+    "Home" : "Avaleht",
+    "Notifications" : "Teavitused",
+    "Public" : "Avalik",
+    "Reply" : "Vasta",
+    "Close" : "Sulge",
+    "Continue" : "Jätka",
+    "User not found" : "Kasutajat ei leitud"
+},
+"nplurals=2; plural=(n != 1);");

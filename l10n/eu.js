@@ -4,6 +4,7 @@ OC.L10N.register(
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nexcloud federatutako sare sozialekin bat egiten du!",
     "Open documentation" : "Ireki dokumentazioa",
     "ActivityPub URL base" : "ActivityPub URL oinarria",
+    "Finish setup" : "Amaitu ezarpena",
     "Home" : "Hasiera",
     "Direct messages" : "Mezu zuzenak",
     "Notifications" : "Jakinarazpenak",
