@@ -32,6 +32,7 @@ OC.L10N.register(
     "Post to followers only" : "フォロワーだけに公開",
     "Direct" : "ダイレクト",
     "Post to mentioned users only" : "反応したユーザーのみに投稿",
+    "Error while trying to post your message: Could not find any valid recipients." : "メッセージの投稿中にエラーが発生しました：有効な受信者が見つかりませんでした。",
     "Unfollow" : "アンフォロー",
     "Follow" : "フォロー",
     "posts" : "投稿",
