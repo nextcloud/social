@@ -5,6 +5,7 @@ OC.L10N.register(
     "Finish setup" : "اتمام نصب",
     "Home" : "خانه ",
     "Notifications" : "آگاهی‌ها",
+    "Public" : "عمومی",
     "Reply" : "پاسخ",
     "Close" : "بستن",
     "Continue" : "ادامه"
