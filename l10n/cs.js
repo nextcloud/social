@@ -70,7 +70,7 @@ OC.L10N.register(
     "You are going to follow:" : "Chystáte se sledovat:",
     "name@domain of your federation account" : "jméno@doména vašeho federovaného účtu",
     "Continue" : "Pokračovat",
-    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Tanto krok je nutný, protože uřivatel zřejmě není registrován na stejném serveru jako vy. Budete přesměrování na svůj domácí server.",
+    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Tento krok je nutný, protože uživatel zřejmě není registrován na stejném serveru jako vy. Budete přesměrování na svůj domovský server.",
     "User not found" : "Uživatel nenalezen",
     "Sorry, we could not find the account of {userId}" : "Je nám líto, nepodařilo se nalézt účet {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud se stává součástí federované sociální sítě!",
