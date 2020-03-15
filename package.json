@@ -46,7 +46,7 @@
 		"vue-router": "^3.1.3",
 		"vue-tribute": "^1.0.3",
 		"vue-twemoji": "^1.0.1",
-		"vuex": "^3.1.1",
+		"vuex": "^3.1.3",
 		"vuetrend": "^0.3.4",
 		"vuex-router-sync": "^5.0.0"
 	},
