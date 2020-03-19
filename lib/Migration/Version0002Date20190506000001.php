@@ -619,11 +619,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createCacheDocuments(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_cache_documts')) {
+		if ($schema->hasTable('social_a2_cache_docum')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_cache_documts');
+		$table = $schema->createTable('social_a2_cache_docum');
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -716,11 +716,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createRequestQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_request_queue')) {
+		if ($schema->hasTable('social_a2_req_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_request_queue');
+		$table = $schema->createTable('social_a2_req_queue');
 		$table->addColumn(
 			'id', 'bigint',
 			[
@@ -796,11 +796,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreamActions(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_stream_action')) {
+		if ($schema->hasTable('social_a2_stream_act')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_stream_action');
+		$table = $schema->createTable('social_a2_stream_act');
 
 		$table->addColumn(
 			'id', Type::INTEGER,
@@ -1064,7 +1064,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillCacheDocuments(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_cache_documents', 'social_a2_cache_documts',
+			$schema, 'social_cache_documents', 'social_a2_cache_docum',
 			[
 				'id',
 				'id_prim',
@@ -1091,7 +1091,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillRequestQueue(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_request_queue', 'social_a2_request_queue',
+			$schema, 'social_request_queue', 'social_a2_req_queue',
 			[
 				'id',
 				'token',
@@ -1114,7 +1114,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 */
 	private function fillStreamActions(ISchemaWrapper $schema) {
 		$this->duplicateTable(
-			$schema, 'social_stream_actions', 'social_a2_stream_action',
+			$schema, 'social_stream_actions', 'social_a2_stream_act',
 			[
 				'id',
 				'actor_id',

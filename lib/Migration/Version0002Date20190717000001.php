@@ -73,11 +73,11 @@ class Version0002Date20190717000001 extends SimpleMigrationStep {
 	): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
-		if (!$schema->hasTable('social_a2_cache_documts')) {
+		if (!$schema->hasTable('social_a2_cache_docum')) {
 			return $schema;
 		}
 
-		$table = $schema->getTable('social_a2_cache_documts');
+		$table = $schema->getTable('social_a2_cache_docum');
 		if (!$table->hasColumn('resized_copy')) {
 			$table->addColumn(
 				'resized_copy', Type::TEXT,
