@@ -41,6 +41,7 @@ OC.L10N.register(
     "Posts from federated instances will show up here" : "Публикации от федерирани инстанции могат да бъдат открити тук",
     "Reply" : "Отговори",
     "More actions" : "Още действия",
+    "Hello" : "Здравейте",
     "Close" : "Затваряне",
     "Continue" : "Продължаване",
     "User not found" : "Потребителят не е открит",
