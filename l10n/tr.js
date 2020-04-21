@@ -12,7 +12,7 @@ OC.L10N.register(
     "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub kayıtların eşsiz olmasını sağlamak için sabit bir adres kullanmalıdır. Bu adresin sosyal ağ uygulaması sıfırlanmadan değiştirilemeyeceğini unutmayın.",
     "ActivityPub URL base" : "ActivityPub Adresi",
     "Finish setup" : "Kurulumu Bitir",
-    "The Social app needs to be set up by the server administrator." : "Sosyal ağ uygulamasının sunucu yöneticisi tarafından kurulması gereklidir.",
+    "The Social app needs to be set up by the server administrator." : "Sosyal ağ uygulamasının BT yöneticisi tarafından kurulması gereklidir.",
     "Home" : "Giriş",
     "Direct messages" : "Doğrudan iletiler",
     "Notifications" : "Bildirimler",
