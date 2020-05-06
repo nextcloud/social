@@ -120,7 +120,7 @@ class Version0002Date20190622000001 extends SimpleMigrationStep {
 			$schema, 'id', 'social_cache_actors', 'social_a2_cache_actors', 'local', 'boolean'
 		);
 		$this->check(
-			$schema, 'id', 'social_cache_documents', 'social_a2_cache_documts', 'public',
+			$schema, 'id', 'social_cache_documents', 'social_a2_cache_doc', 'public',
 			'boolean'
 		);
 
@@ -139,16 +139,16 @@ class Version0002Date20190622000001 extends SimpleMigrationStep {
 			'datetime'
 		);
 		$this->check(
-			$schema, 'id', 'social_cache_documents', 'social_a2_cache_documts', 'creation',
+			$schema, 'id', 'social_cache_documents', 'social_a2_cache_doc', 'creation',
 			'datetime'
 		);
 
 		$this->check(
-			$schema, 'id', 'social_cache_documents', 'social_a2_cache_documts', 'caching',
+			$schema, 'id', 'social_cache_documents', 'social_a2_cache_doc', 'caching',
 			'datetime'
 		);
 
-//		$this->check($schema, 'id', 'social_request_queue', 'social_a2_request_queue','last', 'datetime');
+//		$this->check($schema, 'id', 'social_request_queue', 'social_a2_req_que','last', 'datetime');
 //		$this->check($schema, 'id', 'social_queue_stream', 'social_a2_stream_queue', 'last', 'datetime');
 
 		$this->check(
