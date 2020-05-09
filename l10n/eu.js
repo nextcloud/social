@@ -39,6 +39,7 @@ OC.L10N.register(
     "Posts directed to you will show up here" : "Zuri zuzendutako mezuak hemen agertuko dira",
     "No local posts found" : "Ez da tokiko mezurik aurkitu",
     "Posts from other people on this instance will show up here" : "Instantzia honetako beste jendearen mezuak hemen agertuko dira",
+    "No notifications found" : "Ez da jakinarazpenik aurkitu",
     "No global posts found" : "Ez da mezu globalik aurkitu",
     "Posts from federated instances will show up here" : "Federatutako instantzien mezuak hemen agertuko dira",
     "No posts found for this tag" : "Ez da mezurik aurkitu etiketa honentzat",
