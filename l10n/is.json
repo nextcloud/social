@@ -30,6 +30,7 @@
     "Post to followers only" : "Senda einungis á fylgjendur",
     "Direct" : "Beint",
     "Post to mentioned users only" : "Senda einungis á notendur sem minnst er á",
+    "Error while trying to post your message: Could not find any valid recipients." : "Villa kom upp þegar reynt var að senda inn skilaboðin þín: Fann enga gilda viðtakendur.",
     "Unfollow" : "Hætta að fylgja",
     "Follow" : "Fylgja",
     "posts" : "færslur",
