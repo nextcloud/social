@@ -65,7 +65,7 @@ OC.L10N.register(
     "Follow on Nextcloud Social" : "Śledź w Nextcloud Social",
     "Hello" : "Witam",
     "Please confirm that you want to follow this account:" : "Potwierdź, że chcesz śledzić to konto:",
-    "You are following this account" : "Śledzisz to konto",
+    "You are following this account" : "Obserwujesz to konto",
     "Close" : "Zamknij ",
     "You are going to follow:" : "Będziesz śledzić:",
     "name@domain of your federation account" : "nazwa@domena twojego konta federacyjnego",

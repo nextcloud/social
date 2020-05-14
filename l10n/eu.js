@@ -1,8 +1,10 @@
 OC.L10N.register(
     "social",
     {
+    "Social" : "Soziala",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nexcloud federatutako sare sozialekin bat egiten du!",
     "Open documentation" : "Ireki dokumentazioa",
+    "Social app setup" : "Aplikazio sozialaren konfigurazioa",
     "ActivityPub URL base" : "ActivityPub URL oinarria",
     "Finish setup" : "Amaitu ezarpena",
     "Home" : "Hasiera",
