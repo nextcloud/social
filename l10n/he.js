@@ -2,6 +2,8 @@ OC.L10N.register(
     "social",
     {
     "Social" : "חברתי",
+    "Follow %s on Social" : "לעקוב אחר %s ברשתות החברתיות",
+    ".well-known/webfinger isn't properly set up!" : "‎.well-known/webfinger לא מוגדר כראוי!",
     "Open documentation" : "פתיחת תיעוד",
     "Finish setup" : "סיום התקנה",
     "Home" : "בית",
