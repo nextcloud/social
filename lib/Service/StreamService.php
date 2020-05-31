@@ -32,9 +32,11 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\RequestContentException;
@@ -74,6 +76,9 @@ class StreamService {
 	/** @var CacheActorService */
 	private $cacheActorService;
 
+	/** @var CurlService */
+	private $curlService;
+
 	/** @var ConfigService */
 	private $configService;
 
@@ -94,6 +99,7 @@ class StreamService {
 	 * @param SignatureService $signatureService
 	 * @param StreamQueueService $streamQueueService
 	 * @param CacheActorService $cacheActorService
+	 * @param CurlService $curlService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
@@ -101,7 +107,7 @@ class StreamService {
 		StreamRequest $streamRequest, ActivityService $activityService,
 		AccountService $accountService, SignatureService $signatureService,
 		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		CurlService $curlService, ConfigService $configService, MiscService $miscService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
@@ -109,6 +115,7 @@ class StreamService {
 		$this->signatureService = $signatureService;
 		$this->streamQueueService = $streamQueueService;
 		$this->cacheActorService = $cacheActorService;
+		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -381,13 +388,83 @@ class StreamService {
 	/**
 	 * @param string $id
 	 * @param bool $asViewer
+	 * @param bool $retrieve
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
-	 * @throws SocialAppConfigException
+	 * @throws Exception
 	 */
-	public function getStreamById(string $id, bool $asViewer = false): Stream {
-		return $this->streamRequest->getStreamById($id, $asViewer);
+	public function getStreamById(string $id, bool $asViewer = false, bool $retrieve = false): Stream {
+		try {
+			return $this->streamRequest->getStreamById($id, $asViewer);
+		} catch (StreamNotFoundException $e) {
+			if (!$retrieve) {
+				throw $e;
+			}
+
+			if ($asViewer) {
+				try {
+					$this->streamRequest->getStreamById($id, false);
+					throw $e;
+				} catch (StreamNotFoundException $e) {
+				}
+			}
+		}
+
+		return $this->retrieveStream($id);
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return Stream
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws ItemUnknownException
+	 * @throws MalformedArrayException
+	 * @throws RedundancyLimitException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
+	 * @throws StreamNotFoundException
+	 */
+	public function retrieveStream(string $id) {
+		$data = $this->curlService->retrieveObject($id);
+		$object = AP::$activityPub->getItemFromData($data);
+
+		$origin = parse_url($id, PHP_URL_HOST);
+		$object->setOrigin($origin, SignatureService::ORIGIN_REQUEST, time());
+
+		if ($object->getId() !== $id) {
+			throw new InvalidOriginException(
+				'StreamServiceStreamQueueService::getStreamById - objectId: ' . $object->getId() . ' - id: '
+				. $id
+			);
+		}
+
+		if ($object->getType() !== Note::TYPE
+			// do we also retrieve Announce ?
+			//|| $object->getType() !== Announce:TYPE
+		) {
+			throw new InvalidResourceException();
+		}
+
+		/** @var Stream $object */
+		$this->cacheActorService->getFromId($object->getAttributedTo());
+
+		$interface = AP::$activityPub->getInterfaceForItem($object);
+		try {
+			$interface->save($object);
+		} catch (ItemAlreadyExistsException $e) {
+		}
+
+
+		return $this->streamRequest->getStreamById($id);
 	}
 
 
@@ -400,7 +477,8 @@ class StreamService {
 	 * @return Stream[]
 	 * @throws StreamNotFoundException
 	 */
-	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false): array {
+	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false
+	): array {
 		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
 

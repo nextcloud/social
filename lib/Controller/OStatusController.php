@@ -36,14 +36,18 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
 
@@ -55,8 +59,17 @@ class OStatusController extends Controller {
 	use TArrayTools;
 
 
+	/** @var IUserManager */
+	private $userSession;
+
+	/** @var IURLGenerator */
+	private $urlGenerator;
+
 	/** @var CacheActorService */
 	private $cacheActorService;
+
+	/** @var StreamService */
+	private $streamService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -67,31 +80,33 @@ class OStatusController extends Controller {
 	/** @var MiscService */
 	private $miscService;
 
-	/** @var IUserManager */
-	private $userSession;
-
 
 	/**
 	 * OStatusController constructor.
 	 *
+	 * @param IUserSession $userSession
 	 * @param IRequest $request
+	 * @param IURLGenerator $urlGenerator
+	 * @param StreamService $streamService
 	 * @param CacheActorService $cacheActorService
 	 * @param AccountService $accountService
 	 * @param CurlService $curlService
 	 * @param MiscService $miscService
-	 * @param IUserSession $userSession
 	 */
 	public function __construct(
-		IRequest $request, CacheActorService $cacheActorService, AccountService $accountService,
-		CurlService $curlService, MiscService $miscService, IUserSession $userSession
+		IUserSession $userSession, IRequest $request, IURLGenerator $urlGenerator,
+		StreamService $streamService, CacheActorService $cacheActorService, AccountService $accountService,
+		CurlService $curlService, MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
+		$this->userSession = $userSession;
+		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorService = $cacheActorService;
+		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->curlService = $curlService;
 		$this->miscService = $miscService;
-		$this->userSession = $userSession;
 	}
 
 
@@ -103,25 +118,65 @@ class OStatusController extends Controller {
 	 *
 	 * @return Response
 	 */
-	public function subscribe(string $uri): Response {
+	public function subscribeOld(string $uri): Response {
+		return $this->subscribe($uri);
+	}
 
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 *
+	 * @param string $uri
+	 *
+	 * @return Response
+	 * @throws Exception
+	 */
+	public function subscribe(string $uri): Response {
 		try {
 			$actor = $this->cacheActorService->getFromAccount($uri);
 
+			return $this->subscribeLocalAccount($actor);
+		} catch (Exception $e) {
+		}
+
+		try {
+			$this->streamService->getStreamById($uri, true, true);
+
+			$link = $this->urlGenerator->linkToRouteAbsolute('social.SocialPub.displayRemotePost')
+					. '?id=' . $uri . '&type=' . $this->parseRefererType();
+
+			return new RedirectResponse($link);
+		} catch (Exception $e) {
+		}
+
+		return $this->fail(new Exception('unknown protocol'));
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return Response
+	 */
+	private function subscribeLocalAccount(Person $actor): Response {
+		try {
 			$user = $this->userSession->getUser();
 			if ($user === null) {
 				throw new Exception('Failed to retrieve current user');
 			}
 
-			return new TemplateResponse('social', 'ostatus', [
+			return new TemplateResponse(
+				'social', 'ostatus', [
 				'serverData' => [
-					'account' => $actor->getAccount(),
+					'account'     => $actor->getAccount(),
 					'currentUser' => [
-						'uid' => $user->getUID(),
+						'uid'         => $user->getUID(),
 						'displayName' => $user->getDisplayName(),
 					]
 				]
-			], 'guest');
+			], 'guest'
+			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -134,18 +189,21 @@ class OStatusController extends Controller {
 	 * @PublicPage
 	 *
 	 * @param string $local
+	 *
 	 * @return Response
 	 */
 	public function followRemote(string $local): Response {
 		try {
 			$following = $this->accountService->getActor($local);
 
-			return new TemplateResponse('social', 'ostatus', [
+			return new TemplateResponse(
+				'social', 'ostatus', [
 				'serverData' => [
-					'local' => $local,
+					'local'   => $local,
 					'account' => $following->getAccount()
 				]
-			], 'guest');
+			], 'guest'
+			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -183,6 +241,41 @@ class OStatusController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+	}
+
+
+	/**
+	 * @return string
+	 */
+	private function parseRefererType(): string {
+		$type = '';
+
+		$referer = $this->request->getHeader('Referer');
+		$query = parse_url($referer, PHP_URL_QUERY);
+		if ($query === null) {
+			return $type;
+		}
+		
+		$params = explode('&', parse_url($referer, PHP_URL_QUERY));
+		foreach ($params as $param) {
+			list($key, $value) = explode('=', $param);
+			if ($key === 'type') {
+				$type = $value;
+			}
+		}
+
+		switch ($type) {
+			case 'reblog':
+				return 'boost';
+
+			case 'favourite':
+				return 'like';
+
+			case 'reply':
+				return 'reply';
+		}
+
+		return '';
 	}
 
 }

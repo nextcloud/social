@@ -46,7 +46,7 @@ export default {
 	},
 	computed: {
 		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.actor.id)
 		}
 	}
 }

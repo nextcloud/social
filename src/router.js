@@ -67,6 +67,14 @@ export default new Router({
 			name: 'single-post'
 		},
 		{
+			path: '/:index(index.php/)?apps/social/post',
+			components: {
+				default: TimelineSinglePost
+			},
+			props: true,
+			name: 'interact-remote'
+		},
+		{
 			path: '/:index(index.php/)?apps/social/@:account',
 			components: {
 				default: Profile,
