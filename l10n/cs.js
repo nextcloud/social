@@ -52,7 +52,7 @@ OC.L10N.register(
     "No notifications found" : "Nenalezena žádná upozornění",
     "You haven't receive any notifications yet" : "Doposud jste neobdrželi žádná upozornění",
     "No global posts found" : "Nebyly nalezeny žádné globální zprávy.",
-    "Posts from federated instances will show up here" : "Zprávy z jiných serverů se objeví zde.",
+    "Posts from federated instances will show up here" : "Zprávy z ostatních federovaných instancí se objeví zde.",
     "No liked posts found" : "Nenalezeny žádné příspěvky, které by se líbily",
     "You haven't tooted yet" : "Zatím jste nic nenapsali",
     "No posts found for this tag" : "Nenalezeny žádné příspěvky s tímto štítkem",
@@ -74,7 +74,7 @@ OC.L10N.register(
     "User not found" : "Uživatel nenalezen",
     "Sorry, we could not find the account of {userId}" : "Je nám líto, nepodařilo se nalézt účet {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud se stává součástí federované sociální sítě!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Automaticky jsme vám založili účet na Socia. Vaše Social ID je stejné jako vaše ID ve fedderované síti.",
+    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Automaticky pro vás byl vytvořen účet v Social. Váš identifikátor v rámci Social je stejný jako ten ve federovaném cloudu.",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Protože jste na Social noví, začněte sledováním oficiálního účtu Nextcloudu, aby vám nic neušlo.",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nexcloud na mastodon.xyz"
 },
