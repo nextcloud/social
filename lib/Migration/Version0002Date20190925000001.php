@@ -74,7 +74,7 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$table = $schema->getTable('social_a2_stream_action');
+		$table = $schema->getTable('social_a2_stream_act');
 		if (!$table->hasColumn('liked')) {
 			$table->addColumn('liked', 'boolean');
 		}
@@ -113,7 +113,7 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 		while (true) {
 			$qb = $this->connection->getQueryBuilder();
 			$qb->select('id', 'actor_id', 'stream_id', 'values')
-			   ->from('social_a2_stream_action')
+			   ->from('social_a2_stream_act')
 			   ->setMaxResults(1000)
 			   ->setFirstResult($start);
 
@@ -139,7 +139,7 @@ class Version0002Date20190925000001 extends SimpleMigrationStep {
 	 */
 	private function updateStreamActions(array $data) {
 		$update = $this->connection->getQueryBuilder();
-		$update->update('social_a2_stream_action');
+		$update->update('social_a2_stream_act');
 
 		$id = $data['id'];
 		$actorId = $data['actor_id'];

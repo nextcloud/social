@@ -176,7 +176,7 @@ class Version0002Date20191010000001 extends SimpleMigrationStep {
 		}
 
 
-		$table = $schema->getTable('social_a2_stream_action');
+		$table = $schema->getTable('social_a2_stream_act');
 		if (!$table->hasColumn('actor_id_prim')) {
 			$table->addColumn(
 				'actor_id_prim', 'string',
@@ -263,13 +263,13 @@ class Version0002Date20191010000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function updateTableStreamActions(ISchemaWrapper $schema) {
-		if (!$schema->hasTable('social_a2_stream_action')) {
+		if (!$schema->hasTable('social_a2_stream_act')) {
 			return;
 		}
 
 		$qb = $this->connection->getQueryBuilder();
 		$qb->select('*')
-		   ->from('social_a2_stream_action');
+		   ->from('social_a2_stream_act');
 
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {
@@ -288,7 +288,7 @@ class Version0002Date20191010000001 extends SimpleMigrationStep {
 		}
 
 		$update = $this->connection->getQueryBuilder();
-		$update->update('social_a2_stream_action');
+		$update->update('social_a2_stream_act');
 		$update->set('stream_id_prim', $update->createNamedParameter(hash('sha512', $data['stream_id'])));
 		$update->set('actor_id_prim', $update->createNamedParameter(hash('sha512', $data['actor_id'])));
 

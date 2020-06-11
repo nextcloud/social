@@ -60,21 +60,21 @@ use OCP\ILogger;
 class CoreRequestBuilder {
 
 
-	const TABLE_REQUEST_QUEUE = 'social_a2_request_queue';
+	const TABLE_REQUEST_QUEUE = 'social_a2_req_queue';
 
 	const TABLE_ACTORS = 'social_a2_actors';
 	const TABLE_STREAM = 'social_a2_stream';
 	const TABLE_STREAM_DEST = 'social_a2_stream_dest';
 	const TABLE_STREAM_TAGS = 'social_a2_stream_tags';
 	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
-	const TABLE_STREAM_ACTIONS = 'social_a2_stream_action';
+	const TABLE_STREAM_ACTIONS = 'social_a2_stream_act';
 
 	const TABLE_HASHTAGS = 'social_a2_hashtags';
 	const TABLE_FOLLOWS = 'social_a2_follows';
 	const TABLE_ACTIONS = 'social_a2_actions';
 
 	const TABLE_CACHE_ACTORS = 'social_a2_cache_actors';
-	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_documts';
+	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_docum';
 
 	/** @var array */
 	private $tables = [
