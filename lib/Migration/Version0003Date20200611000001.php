@@ -32,31 +32,20 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use DateTime;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Types\Type;
 use Exception;
 use OCP\DB\ISchemaWrapper;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 
-// notes on migration for A3:
-//
-// 'details' in _stream
-// 'hidden_on_timeline' in _stream should be replaced by '
-//filter_duplicate'
-//
-//
-
 /**
- * Class Version0002Date20190226000001
+ * Class Version0003Date20200611000001
  *
  * @package OCA\Social\Migration
  */
-class Version0002Date20190506000001 extends SimpleMigrationStep {
+class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -83,15 +72,18 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
+		$this->createActions($schema);
 		$this->createActors($schema);
-		$this->createFollows($schema);
-		$this->createHashtags($schema);
-		$this->createStreams($schema);
 		$this->createCacheActors($schema);
 		$this->createCacheDocuments($schema);
+		$this->createFollows($schema);
+		$this->createHashtags($schema);
 		$this->createRequestQueue($schema);
+		$this->createStreams($schema);
 		$this->createStreamActions($schema);
+		$this->createStreamDest($schema);
 		$this->createStreamQueue($schema);
+		$this->createStreamTags($schema);
 
 		return $schema;
 	}
@@ -105,19 +97,76 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @throws Exception
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
+	}
 
-		/** @var ISchemaWrapper $schema */
-		$schema = $schemaClosure();
 
-		$this->fillActors($schema);
-		$this->fillFollows($schema);
-		$this->fillHashtags($schema);
-		$this->fillStreams($schema);
-		$this->fillCacheActors($schema);
-		$this->fillCacheDocuments($schema);
-		$this->fillRequestQueue($schema);
-		$this->fillStreamActions($schema);
-		$this->fillStreamQueue($schema);
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function createActions(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_action')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_action');
+		$table->addColumn(
+			'id', 'string',
+			[
+				'notnull' => false,
+				'length'  => 1000
+			]
+		);
+		$table->addColumn(
+			'id_prim', 'string',
+			[
+				'notnull' => false,
+				'length'  => 128
+			]
+		);
+		$table->addColumn(
+			'type', 'string',
+			[
+				'notnull' => false,
+				'length'  => 31,
+			]
+		);
+		$table->addColumn(
+			'actor_id', 'string',
+			[
+				'notnull' => true,
+				'length'  => 1000,
+			]
+		);
+		$table->addColumn(
+			'actor_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
+			'object_id', 'string',
+			[
+				'notnull' => true,
+				'length'  => 1000,
+			]
+		);
+		$table->addColumn(
+			'object_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['actor_id_prim', 'object_id_prim', 'type'], 'aot');
 	}
 
 
@@ -125,11 +174,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createActors(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_actors')) {
+		if ($schema->hasTable('social_3_actor')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_actors');
+		$table = $schema->createTable('social_3_actor');
 
 		$table->addColumn(
 			'id', 'string',
@@ -206,13 +255,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createFollows(ISchemaWrapper $schema) {
-
-		if ($schema->hasTable('social_a2_follows')) {
+		if ($schema->hasTable('social_3_follow')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_follows');
-
+		$table = $schema->createTable('social_3_follow');
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -242,6 +289,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'actor_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
 			'object_id', 'string',
 			[
 				'notnull' => true,
@@ -249,10 +303,24 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'object_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
 			'follow_id', 'string',
 			[
 				'notnull' => true,
 				'length'  => 1000,
+			]
+		);
+		$table->addColumn(
+			'follow_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
 			]
 		);
 		$table->addColumn(
@@ -270,6 +338,8 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['accepted', 'follow_id_prim', 'object_id_prim', 'actor_id_prim'], 'afoa');
+		$table->addUniqueIndex(['accepted', 'object_id_prim', 'actor_id_prim'], 'aoa');
 	}
 
 
@@ -277,11 +347,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createHashtags(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_hashtags')) {
+		if ($schema->hasTable('social_3_hashtag')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_hashtags');
+		$table = $schema->createTable('social_3_hashtag');
 		$table->addColumn(
 			'hashtag', 'string',
 			[
@@ -305,11 +375,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreams(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_stream')) {
+		if ($schema->hasTable('social_3_stream')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_stream');
+		$table = $schema->createTable('social_3_stream');
 
 		$table->addColumn(
 			'id', 'string',
@@ -327,6 +397,13 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		);
 		$table->addColumn(
 			'type', 'string',
+			[
+				'notnull' => true,
+				'length'  => 31,
+			]
+		);
+		$table->addColumn(
+			'subtype', Type::STRING,
 			[
 				'notnull' => true,
 				'length'  => 31,
@@ -390,10 +467,24 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'attributed_to_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
 			'in_reply_to', 'string',
 			[
 				'notnull' => false,
 				'length'  => 1000,
+			]
+		);
+		$table->addColumn(
+			'in_reply_to_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
 			]
 		);
 		$table->addColumn(
@@ -411,10 +502,23 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'object_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
 			'hashtags', 'string',
 			[
 				'notnull' => false,
 				'length'  => 1000,
+			]
+		);
+		$table->addColumn(
+			'details', Type::TEXT,
+			[
+				'notnull' => true
 			]
 		);
 		$table->addColumn(
@@ -455,7 +559,7 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'hidden_on_timeline', 'boolean',
+			'filter_duplicate', 'boolean',
 			[
 				'notnull' => true,
 				'default' => false
@@ -463,6 +567,19 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(
+			[
+				'id_prim',
+				'published_time',
+				'object_id_prim',
+				'filter_duplicate',
+				'attributed_to_prim'
+			],
+			'ipoha'
+		);
+		$table->addIndex(['object_id_prim'], 'object_id_prim');
+		$table->addIndex(['in_reply_to_prim'], 'in_reply_to_prim');
+		$table->addIndex(['attributed_to_prim'], 'attributed_to_prim');
 	}
 
 
@@ -470,11 +587,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createCacheActors(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_cache_actors')) {
+		if ($schema->hasTable('social_3_cache_actor')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_cache_actors');
+		$table = $schema->createTable('social_3_cache_actor');
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -619,11 +736,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createCacheDocuments(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_cache_docum')) {
+		if ($schema->hasTable('social_3_cache_doc')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_cache_docum');
+		$table = $schema->createTable('social_3_cache_doc');
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -681,6 +798,12 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'resized_copy', Type::TEXT,
+			[
+				'notnull' => true
+			]
+		);
+		$table->addColumn(
 			'public', 'boolean',
 			[
 				'notnull' => true,
@@ -716,11 +839,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createRequestQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_req_queue')) {
+		if ($schema->hasTable('social_3_req_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_req_queue');
+		$table = $schema->createTable('social_3_req_queue');
 		$table->addColumn(
 			'id', 'bigint',
 			[
@@ -796,11 +919,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreamActions(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_stream_act')) {
+		if ($schema->hasTable('social_3_stream_act')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_stream_act');
+		$table = $schema->createTable('social_3_stream_act');
 
 		$table->addColumn(
 			'id', Type::INTEGER,
@@ -819,12 +942,29 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'actor_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
 			'stream_id', 'string',
 			[
 				'notnull' => true,
 				'length'  => 1000,
 			]
 		);
+		$table->addColumn(
+			'stream_id_prim', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn('liked', 'boolean');
+		$table->addColumn('boosted', 'boolean');
+		$table->addColumn('replied', 'boolean');
 		$table->addColumn(
 			'values', Type::TEXT,
 			[
@@ -833,6 +973,50 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id']);
+		$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function createStreamDest(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_stream_dest')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_stream_dest');
+		$table->addColumn(
+			'stream_id', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
+			'actor_id', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
+			'type', 'string',
+			[
+				'notnull' => false,
+				'length'  => 15,
+			]
+		);
+		$table->addColumn(
+			'subtype', 'string',
+			[
+				'notnull' => false,
+				'length'  => 7,
+			]
+		);
+
+		$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
+		$table->addIndex(['type', 'subtype'], 'ts');
 	}
 
 
@@ -840,11 +1024,11 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreamQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_a2_stream_queue')) {
+		if ($schema->hasTable('social_3_stream_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_a2_stream_queue');
+		$table = $schema->createTable('social_3_stream_queue');
 		$table->addColumn(
 			'id', 'bigint',
 			[
@@ -903,370 +1087,31 @@ class Version0002Date20190506000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
 	 */
-	private function fillActors(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_server_actors', 'social_a2_actors',
-			[
-				'id',
-				'id_prim',
-				'user_id',
-				'preferred_username',
-				'name',
-				'summary',
-				'public_key',
-				'private_key',
-				'avatar_version',
-				'creation'
-			]
-		);
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillFollows(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_server_follows', 'social_a2_follows',
-			[
-				'id',
-				'id_prim',
-				'type',
-				'actor_id',
-				'object_id',
-				'follow_id',
-				'accepted',
-				'creation'
-			]
-		);
-	}
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillHashtags(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_server_hashtags', 'social_a2_hashtags',
-			[
-				'hashtag',
-				'trend'
-			]
-		);
-
-
-//		if (!$schema->hasTable('social_server_hashtags')) {
-//			return;
-//		}
-//
-//		$qb = $this->connection->getQueryBuilder();
-//		$qb->select('*')
-//		   ->from('social_server_hashtags');
-//
-//		$cursor = $qb->execute();
-//		while ($data = $cursor->fetch()) {
-//			$insert = $this->connection->getQueryBuilder();
-//			$insert->insert('social_a2_hashtags');
-//
-//			$insert->setValue(
-//				'hashtag', $insert->createNamedParameter($this->get('hashtag', $data, ''))
-//			)
-//				   ->setValue(
-//					   'trend', $insert->createNamedParameter($this->get('trend', $data, ''))
-//				   );
-//
-//			$insert->execute();
-//		}
-//
-//		$cursor->closeCursor();
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillStreams(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_server_notes', 'social_a2_stream',
-			[
-				'id',
-				'id_prim',
-				'type',
-				'to',
-				'to_array',
-				'cc',
-				'bcc',
-				'content',
-				'summary',
-				'published',
-				'published_time',
-				'attributed_to',
-				'in_reply_to',
-				'activity_id',
-				'object_id',
-				'hashtags',
-				'source',
-				'instances',
-				'attachments',
-				'cache',
-				'creation',
-				'local'
-			]
-		);
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillCacheActors(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_cache_actors', 'social_a2_cache_actors',
-			[
-				'id',
-				'id_prim',
-				'type',
-				'account',
-				'local',
-				'following',
-				'followers',
-				'inbox',
-				'shared_inbox',
-				'outbox',
-				'featured',
-				'url',
-				'preferred_username',
-				'name',
-				'icon_id',
-				'summary',
-				'public_key',
-				'source',
-				'details',
-				'creation'
-			]
-		);
-	}
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillCacheDocuments(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_cache_documents', 'social_a2_cache_docum',
-			[
-				'id',
-				'id_prim',
-				'type',
-				'parent_id',
-				'media_type',
-				'mime_type',
-				'url',
-				'local_copy',
-				'public',
-				'error',
-				'creation',
-				'caching'
-			]
-		);
-
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillRequestQueue(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_request_queue', 'social_a2_req_queue',
-			[
-				'id',
-				'token',
-				'author',
-				'activity',
-				'instance',
-				'priority',
-				'status',
-				'tries',
-				'last'
-			]
-		);
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillStreamActions(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_stream_actions', 'social_a2_stream_act',
-			[
-				'id',
-				'actor_id',
-				'stream_id',
-				'values'
-			]
-		);
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 *
-	 * @throws Exception
-	 */
-	private function fillStreamQueue(ISchemaWrapper $schema) {
-		$this->duplicateTable(
-			$schema, 'social_queue_stream', 'social_a2_stream_queue',
-			[
-				'id',
-				'token',
-				'stream_id',
-				'type',
-				'status',
-				'tries',
-				'last'
-			]
-		);
-	}
-
-
-	/**
-	 * @param string $k
-	 * @param array $arr
-	 * @param string $default
-	 *
-	 * @return string
-	 */
-	private function get(string $k, array $arr, string $default = ''): string {
-		if ($arr === null) {
-			return $default;
-		}
-
-		if (!array_key_exists($k, $arr)) {
-			$subs = explode('.', $k, 2);
-			if (sizeof($subs) > 1) {
-				if (!array_key_exists($subs[0], $arr)) {
-					return $default;
-				}
-
-				$r = $arr[$subs[0]];
-				if (!is_array($r)) {
-					return $default;
-				}
-
-				return $this->get($subs[1], $r, $default);
-			} else {
-				return $default;
-			}
-		}
-
-		if ($arr[$k] === null || !is_string($arr[$k]) && (!is_int($arr[$k]))) {
-			return $default;
-		}
-
-		return (string)$arr[$k];
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 * @param string $source
-	 * @param string $dest
-	 * @param array $fields
-	 *
-	 * @throws Exception
-	 */
-	private function duplicateTable(
-		ISchemaWrapper $schema, string $source, string $dest, array $fields
-	) {
-		if (!$schema->hasTable($source)) {
+	private function createStreamTags(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_stream_tag')) {
 			return;
 		}
 
-		$qb = $this->connection->getQueryBuilder();
-		$qb->select('*')
-		   ->from($source);
+		$table = $schema->createTable('social_3_stream_tag');
 
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$this->insertInto($dest, $fields, $data);
-		}
+		$table->addColumn(
+			'stream_id', 'string',
+			[
+				'notnull' => true,
+				'length'  => 128,
+			]
+		);
+		$table->addColumn(
+			'hashtag', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+			]
+		);
 
-		$cursor->closeCursor();
+		$table->addUniqueIndex(['stream_id', 'hashtag'], 'sh');
 	}
-
-
-	/**
-	 * @param string $table
-	 * @param array $fields
-	 * @param array $data
-	 *
-	 * @throws Exception
-	 */
-	private function insertInto(string $table, array $fields, array $data) {
-		$insert = $this->connection->getQueryBuilder();
-		$insert->insert($table);
-
-		$datetimeFields = [
-			'creation',
-			'last',
-			'caching',
-			'published_time'
-		];
-
-		$booleanFields = [
-			'local',
-			'public',
-			'accepted',
-			'hidden_on_timeline'
-		];
-
-		foreach ($fields as $field) {
-			$value = $this->get($field, $data, '');
-			if ($field === 'id_prim'
-				&& $value === ''
-				&& $this->get('id', $data, '') !== '') {
-				$value = hash('sha512', $this->get('id', $data, ''));
-			}
-
-			if (in_array($field, $datetimeFields) && $value === '') {
-				$insert->setValue(
-					$field,
-					$insert->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-				);
-			} else if (in_array($field, $booleanFields) && $value === '') {
-				$insert->setValue(
-					$field, $insert->createNamedParameter('0')
-				);
-			} else {
-				$insert->setValue(
-					$field, $insert->createNamedParameter($value)
-				);
-			}
-		}
-
-		try {
-			$insert->execute();
-		} catch (UniqueConstraintViolationException $e) {
-		}
-	}
-
 
 }
 

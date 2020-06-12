@@ -18,7 +18,7 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.2.101</version>
+	<version>0.3</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
@@ -32,7 +32,7 @@
 	<repository type="git">https://github.com/nextcloud/social.git</repository>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
-		<nextcloud min-version="15" max-version="17"/>
+		<nextcloud min-version="15" max-version="19"/>
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>

@@ -177,7 +177,8 @@ class CheckInstall extends Base {
 			throw new Exception('unknown user');
 		}
 
-		$wrapper = $this->pushService->testOnAccount($userId);
+		// push was not implemented on 18
+//		$wrapper = $this->pushService->testOnAccount($userId);
 
 		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
 

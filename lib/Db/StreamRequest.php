@@ -666,6 +666,7 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
 		   ->setValue('attributed_to_prim', $qb->createNamedParameter($qb->prim($attributedTo)))
 		   ->setValue('in_reply_to', $qb->createNamedParameter($stream->getInReplyTo()))
+		   ->setValue('in_reply_to_prim', $qb->createNamedParameter($qb->prim($stream->getInReplyTo())))
 		   ->setValue('source', $qb->createNamedParameter($stream->getSource()))
 		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
 		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
@@ -673,8 +674,8 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
 		   ->setValue(
-			   'hidden_on_timeline',
-			   $qb->createNamedParameter(($stream->isHiddenOnTimeline()) ? '1' : '0')
+			   'filter_duplicate',
+			   $qb->createNamedParameter(($stream->isFilterDuplicate()) ? '1' : '0')
 		   )
 		   ->setValue(
 			   'instances', $qb->createNamedParameter(
