@@ -30,18 +30,19 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -81,10 +82,6 @@ class StreamService {
 	private $miscService;
 
 
-	/** @var Person */
-	private $viewer = null;
-
-
 	/**
 	 * NoteService constructor.
 	 *
@@ -118,7 +115,6 @@ class StreamService {
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
-		$this->viewer = $viewer;
 		$this->streamRequest->setViewer($viewer);
 	}
 
@@ -149,7 +145,7 @@ class StreamService {
 	 *
 	 * @throws Exception
 	 */
-	public function assignStream(Stream &$stream) {
+	public function assignStream(Stream $stream) {
 		$stream->convertPublished();
 	}
 
@@ -384,7 +380,6 @@ class StreamService {
 	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
-	 * @throws SocialAppConfigException
 	 */
 	public function getStreamById(string $id, bool $asViewer = false): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer);
@@ -399,14 +394,15 @@ class StreamService {
 	 *
 	 * @return Stream[]
 	 * @throws StreamNotFoundException
+	 * @throws DateTimeException
 	 */
-	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false): array {
+	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false
+	): array {
 		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
 
 
 	/**
-	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
@@ -419,15 +415,14 @@ class StreamService {
 
 
 	/**
-	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Note[]
 	 * @throws Exception
 	 */
-	public function getStreamNotifications(Person $actor, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineNotifications($actor, $since, $limit);
+	public function getStreamNotifications(int $since = 0, int $limit = 5): array {
+		return $this->streamRequest->getTimelineNotifications($since, $limit);
 	}
 
 
@@ -445,7 +440,6 @@ class StreamService {
 
 
 	/**
-	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
@@ -470,7 +464,6 @@ class StreamService {
 
 
 	/**
-	 * @param Person $actor
 	 * @param string $hashtag
 	 * @param int $since
 	 * @param int $limit

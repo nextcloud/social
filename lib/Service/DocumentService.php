@@ -32,6 +32,11 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
@@ -42,11 +47,6 @@ use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -122,7 +122,6 @@ class DocumentService {
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
-	 * @throws RequestResultNotJsonException
 	 * @throws SocialAppConfigException
 	 */
 	public function cacheRemoteDocument(string $id, bool $public = false) {
@@ -217,10 +216,9 @@ class DocumentService {
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
 	 * @throws MalformedArrayException
-	 * @throws RequestResultNotJsonException
 	 * @throws SocialAppConfigException
 	 */
-	public function getFromCache(string $id, string &$mimeType = '', bool $public = false) {
+	public function getFromCache(string $id, string &$mimeType = '', bool $public = false): ISimpleFile {
 		$document = $this->cacheRemoteDocument($id, $public);
 		$mimeType = $document->getMimeType();
 

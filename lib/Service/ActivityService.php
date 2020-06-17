@@ -30,6 +30,11 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -43,11 +48,6 @@ use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
 use OCA\Social\Exceptions\QueueStatusException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -284,41 +284,20 @@ class ActivityService {
 
 		try {
 			$this->signatureService->signRequest($request, $queue);
-			$this->curlService->request($request);
+			$this->curlService->retrieveJson($request);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException $e) {
+		} catch (UnauthorizedFediverseException | RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (RequestResultNotJsonException $e) {
-			$this->requestQueueService->endRequest($queue, true);
-		} catch (ActorDoesNotExistException $e) {
+		} catch (ActorDoesNotExistException | RequestContentException | RequestResultSizeException $e) {
 			$this->miscService->log(
-				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
-			);
-			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestContentException $e) {
-			$this->miscService->log(
-				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
-			);
-			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestResultSizeException $e) {
-			$this->miscService->log(
-				'Error while managing request: ' . json_encode($request) . ' ' . $e->getMessage(), 1
-			);
-			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestServerException $e) {
-			$this->miscService->log(
-				'Temporary error while managing request: RequestServerException - ' . json_encode(
-					$request
-				) . ' - '
+				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
 				. $e->getMessage(), 1
 			);
-			$this->requestQueueService->endRequest($queue, false);
-			$this->failInstances[] = $host;
-		} catch (RequestNetworkException $e) {
+			$this->requestQueueService->deleteRequest($queue);
+		} catch (RequestNetworkException | RequestServerException $e) {
 			$this->miscService->log(
-				'Temporary error while managing request: RequestNetworkException - ' . json_encode(
-					$request
-				) . ' - ' . $e->getMessage(), 1
+				'Temporary error while managing request: RequestServerException - ' . json_encode($request)
+				. ' - ' . get_class($e) . ': ' . $e->getMessage(), 1
 			);
 			$this->requestQueueService->endRequest($queue, false);
 			$this->failInstances[] = $host;

@@ -138,7 +138,7 @@ class StreamDetails extends ExtendedBase {
 
 		$this->output->writeln('* <info>Direct</info>: ' . json_encode($direct, JSON_PRETTY_PRINT));
 		$this->output->writeln('* <info>Public</info>: ' . ($details->isPublic() ? 'true' : 'false'));
-		$this->output->writeln('* <info>Federated</info>: ' . ($details->isFederated() ? 'true' : 'true'));
+		$this->output->writeln('* <info>Federated</info>: ' . ($details->isFederated() ? 'true' : 'false'));
 	}
 
 }

@@ -31,6 +31,11 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
@@ -41,11 +46,6 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -71,10 +71,6 @@ class CacheActorService {
 	private $miscService;
 
 
-	/** @var Person */
-	private $viewer = null;
-
-
 	/**
 	 * CacheService constructor.
 	 *
@@ -98,7 +94,6 @@ class CacheActorService {
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
-		$this->viewer = $viewer;
 		$this->cacheActorsRequest->setViewer($viewer);
 	}
 

@@ -396,15 +396,16 @@ class StreamRequest extends StreamRequestBuilder {
 	 *    - someone wants to follow you (not yet)
 	 *    - someone is following you (not yet)
 	 *
-	 * @param Person $actor
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineNotifications(Person $actor, int $since = 0, int $limit = 5): array {
+	public function getTimelineNotifications(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
+
+		$actor = $qb->getViewer();
 
 		$qb->limitPaginate($since, $limit);
 

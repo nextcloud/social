@@ -400,7 +400,7 @@ class LocalController extends Controller {
 	public function streamNotifications($since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
-			$posts = $this->streamService->getStreamNotifications($this->viewer, $since, $limit);
+			$posts = $this->streamService->getStreamNotifications($since, $limit);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
