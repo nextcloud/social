@@ -105,7 +105,7 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return Document
 	 */
-	protected function parseCacheDocumentsSelectSql(array $data): Document {
+	public function parseCacheDocumentsSelectSql(array $data): Document {
 		$document = new Document();
 		$document->importFromDatabase($data);
 

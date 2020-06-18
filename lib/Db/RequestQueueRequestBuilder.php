@@ -105,7 +105,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return RequestQueue
 	 */
-	protected function parseRequestQueueSelectSql($data): RequestQueue {
+	public function parseRequestQueueSelectSql($data): RequestQueue {
 		$queue = new RequestQueue();
 		$queue->importFromDatabase($data);
 

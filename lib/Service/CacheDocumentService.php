@@ -236,6 +236,13 @@ class CacheDocumentService {
 			throw new CacheDocumentDoesNotExistException();
 		}
 
+		// right now, we do not handle cache for local avatar, we need to change this
+		// so the current avatar is cached, or a new avatar is uploaded
+		if ($path === 'avatar') {
+			throw new CacheContentException();
+		}
+
+
 		$pos = strrpos($path, '/');
 		$dir = substr($path, 0, $pos);
 		$filename = substr($path, $pos + 1);

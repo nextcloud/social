@@ -158,7 +158,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return ACore
 	 */
-	protected function parseActionsSelectSql($data): ACore {
+	public function parseActionsSelectSql($data): ACore {
 		$item = new ACore();
 		$item->importFromDatabase($data);
 

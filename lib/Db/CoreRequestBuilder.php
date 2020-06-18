@@ -913,7 +913,7 @@ class CoreRequestBuilder {
 	 * @return Person
 	 * @throws InvalidResourceException
 	 */
-	protected function parseCacheActorsLeftJoin(array $data): Person {
+	public function parseCacheActorsLeftJoin(array $data): Person {
 		$new = [];
 
 		foreach ($data as $k => $v) {
