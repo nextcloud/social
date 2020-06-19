@@ -55,7 +55,7 @@
 </template>
 
 <script>
-import Avatar from 'nextcloud-vue/dist/Components/Avatar'
+import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import * as linkify from 'linkifyjs'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'

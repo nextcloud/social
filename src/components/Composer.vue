@@ -388,14 +388,14 @@
 </style>
 <script>
 
-import Avatar from 'nextcloud-vue/dist/Components/Avatar'
-import PopoverMenu from 'nextcloud-vue/dist/Components/PopoverMenu'
+import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
 import EmojiPicker from 'vue-emoji-picker'
 import VueTribute from 'vue-tribute'
 import he from 'he'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
-import axios from 'nextcloud-axios'
+import axios from '@nextcloud/axios'
 import ActorAvatar from './ActorAvatar.vue'
 
 export default {

@@ -20,7 +20,7 @@
  *
  */
 
-import PopoverMenu from 'nextcloud-vue/dist/Components/PopoverMenu'
+import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
 
 export default {
 	components: {

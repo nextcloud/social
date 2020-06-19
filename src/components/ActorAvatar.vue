@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import Avatar from 'nextcloud-vue/dist/Components/Avatar'
+import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 
 export default {
 	name: 'ActorAvatar',

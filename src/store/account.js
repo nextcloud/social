@@ -20,7 +20,7 @@
  *
  */
 
-import axios from 'nextcloud-axios'
+import axios from '@nextcloud/axios'
 import Vue from 'vue'
 
 const state = {
