@@ -37,6 +37,7 @@ use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RealTokenException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -351,8 +352,14 @@ class ActivityPubController extends Controller {
 	 * @return Response
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
+	 * @throws UrlCloudException
 	 */
 	public function displayPost(string $username, string $token): Response {
+		try {
+			return $this->fixToken($username, $token);
+		} catch (RealTokenException $e) {
+		}
+
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->displayPost($username, $token);
 		}
@@ -366,6 +373,32 @@ class ActivityPubController extends Controller {
 		return $this->directSuccess($stream);
 	}
 
+
+	/**
+	 * @param string $username
+	 * @param string $token
+	 *
+	 * @return Response
+	 * @throws RealTokenException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 */
+	private function fixToken(string $username, string $token): Response {
+		$t = strtolower($token);
+		if ($t === 'outbox') {
+			return $this->outbox($username);
+		}
+
+		if ($t === 'followers') {
+			return $this->followers($username);
+		}
+
+		if ($t === 'following') {
+			return $this->following($username);
+		}
+
+		throw new RealTokenException();
+	}
 
 	/**
 	 * Check that the request comes from an ActivityPub server, based on the header.

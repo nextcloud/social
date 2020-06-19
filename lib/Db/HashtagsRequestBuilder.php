@@ -108,7 +108,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return array
 	 */
-	protected function parseHashtagsSelectSql($data): array {
+	public function parseHashtagsSelectSql($data): array {
 		return [
 			'hashtag' => $this->get('hashtag', $data, ''),
 			'trend'   => $this->getArray('trend', $data, [])

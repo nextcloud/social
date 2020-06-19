@@ -60,21 +60,21 @@ use OCP\ILogger;
 class CoreRequestBuilder {
 
 
-	const TABLE_REQUEST_QUEUE = 'social_a2_req_queue';
+	const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
 
-	const TABLE_ACTORS = 'social_a2_actors';
-	const TABLE_STREAM = 'social_a2_stream';
-	const TABLE_STREAM_DEST = 'social_a2_stream_dest';
-	const TABLE_STREAM_TAGS = 'social_a2_stream_tags';
-	const TABLE_STREAM_QUEUE = 'social_a2_stream_queue';
-	const TABLE_STREAM_ACTIONS = 'social_a2_stream_act';
+	const TABLE_ACTORS = 'social_3_actor';
+	const TABLE_STREAM = 'social_3_stream';
+	const TABLE_STREAM_DEST = 'social_3_stream_dest';
+	const TABLE_STREAM_TAGS = 'social_3_stream_tag';
+	const TABLE_STREAM_QUEUE = 'social_3_stream_queue';
+	const TABLE_STREAM_ACTIONS = 'social_3_stream_act';
 
-	const TABLE_HASHTAGS = 'social_a2_hashtags';
-	const TABLE_FOLLOWS = 'social_a2_follows';
-	const TABLE_ACTIONS = 'social_a2_actions';
+	const TABLE_HASHTAGS = 'social_3_hashtag';
+	const TABLE_FOLLOWS = 'social_3_follow';
+	const TABLE_ACTIONS = 'social_3_action';
 
-	const TABLE_CACHE_ACTORS = 'social_a2_cache_actors';
-	const TABLE_CACHE_DOCUMENTS = 'social_a2_cache_docum';
+	const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
+	const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
 
 	/** @var array */
 	private $tables = [
@@ -103,7 +103,6 @@ class CoreRequestBuilder {
 
 	/** @var MiscService */
 	protected $miscService;
-
 
 	/** @var Person */
 	protected $viewer = null;
@@ -192,9 +191,11 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id
-	 * @deprecated
+	 *
 	 * @param IQueryBuilder $qb
 	 * @param int $id
+	 *
+	 * @deprecated
 	 */
 	protected function limitToId(IQueryBuilder &$qb, int $id) {
 		$this->limitToDBFieldInt($qb, 'id', $id);
@@ -203,10 +204,12 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id (string)
-	 * @deprecated
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
+	 *
+	 * @deprecated
+	 *
 	 */
 	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
 		$this->limitToDBField($qb, 'id', $id, false);
@@ -215,10 +218,12 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the UserId
-	 * @deprecated
 	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $userId
+	 *
+	 * @deprecated
+	 *
 	 */
 	protected function limitToUserId(IQueryBuilder &$qb, string $userId) {
 		$this->limitToDBField($qb, 'user_id', $userId, false);
@@ -238,9 +243,11 @@ class CoreRequestBuilder {
 
 	/**
 	 * Limit the request to the Id (string)
-	 * @deprecated
+	 *
 	 * @param IQueryBuilder $qb
 	 * @param string $id
+	 *
+	 * @deprecated
 	 */
 	protected function limitToInReplyTo(IQueryBuilder &$qb, string $id) {
 		$this->limitToDBField($qb, 'in_reply_to', $id, false);
@@ -774,9 +781,10 @@ class CoreRequestBuilder {
 
 
 	/**
-	 * @deprecated
 	 * @param IQueryBuilder $qb
 	 * @param string $alias
+	 *
+	 * @deprecated
 	 */
 	protected function selectCacheActors(IQueryBuilder &$qb, string $alias = 'ca') {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
@@ -905,7 +913,7 @@ class CoreRequestBuilder {
 	 * @return Person
 	 * @throws InvalidResourceException
 	 */
-	protected function parseCacheActorsLeftJoin(array $data): Person {
+	public function parseCacheActorsLeftJoin(array $data): Person {
 		$new = [];
 
 		foreach ($data as $k => $v) {

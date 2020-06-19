@@ -307,7 +307,7 @@ class AP {
 
 			case Announce::TYPE:
 				$item = new Announce();
-				$item->setHiddenOnTimeline(true);
+				$item->setFilterDuplicate(true);
 				break;
 
 			case Block::TYPE:

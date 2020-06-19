@@ -31,10 +31,11 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
@@ -51,10 +52,10 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActionsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_ACTIONS);
 
 		return $qb;
@@ -64,10 +65,10 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActionsUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_ACTIONS);
 
 		return $qb;
@@ -77,10 +78,10 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActionsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('a.id', 'a.type', 'a.actor_id', 'a.object_id', 'a.creation')
@@ -95,10 +96,10 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function countActionsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function countActionsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 		   ->from(self::TABLE_ACTIONS, 'a');
 
@@ -111,13 +112,44 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActionsDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_ACTIONS);
 
 		return $qb;
+	}
+
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return ACore
+	 * @throws ActionDoesNotExistException
+	 */
+	protected function getActionFromRequest(SocialQueryBuilder $qb): ACore {
+		/** @var ACore $result */
+		try {
+			$result = $qb->getRow([$this, 'parseActionsSelectSql']);
+		} catch (RowNotFoundException $e) {
+			throw new ActionDoesNotExistException($e->getMessage());
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return ACore[]
+	 */
+	public function getActionsFromRequest(SocialQueryBuilder $qb): array {
+		/** @var ACore[] $result */
+		$result = $qb->getRows([$this, 'parseActionsSelectSql']);
+
+		return $result;
 	}
 
 
@@ -126,7 +158,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return ACore
 	 */
-	protected function parseActionsSelectSql($data): ACore {
+	public function parseActionsSelectSql($data): ACore {
 		$item = new ACore();
 		$item->importFromDatabase($data);
 

@@ -139,7 +139,6 @@ class Timeline extends ExtendedBase {
 	}
 
 
-
 	/**
 	 * @param Person $actor
 	 * @param string $timeline
@@ -147,19 +146,25 @@ class Timeline extends ExtendedBase {
 	 * @throws Exception
 	 */
 	private function displayStream(Person $actor, string $timeline) {
+		$this->streamRequest->setViewer($actor);
 		switch ($timeline) {
 			case 'home':
-				$stream = $this->streamRequest->getTimelineHome($actor, 0, $this->count);
+				$stream = $this->streamRequest->getTimelineHome(0, $this->count);
 				$this->outputStreams($stream);
 				break;
 
 			case 'direct':
-				$stream = $this->streamRequest->getTimelineDirect($actor, 0, $this->count);
+				$stream = $this->streamRequest->getTimelineDirect(0, $this->count);
 				$this->outputStreams($stream);
 				break;
 
 			case 'notifications':
-				$stream = $this->streamRequest->getTimelineNotifications($actor, 0, $this->count);
+				$stream = $this->streamRequest->getTimelineNotifications(0, $this->count);
+				$this->outputStreams($stream);
+				break;
+
+			case 'liked':
+				$stream = $this->streamRequest->getTimelineLiked(0, $this->count);
 				$this->outputStreams($stream);
 				break;
 
@@ -175,7 +180,7 @@ class Timeline extends ExtendedBase {
 
 			default:
 				throw new Exception(
-					'Unknown timeline. Try home, direct, local, global, notification.'
+					'Unknown timeline. Try home, direct, notifications, liked, local, global.'
 				);
 		}
 	}

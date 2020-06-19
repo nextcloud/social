@@ -128,7 +128,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return Follow
 	 */
-	protected function parseFollowsSelectSql($data): Follow {
+	public function parseFollowsSelectSql($data): Follow {
 		$follow = new Follow();
 		$follow->importFromDatabase($data);
 

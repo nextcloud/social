@@ -32,9 +32,15 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
+use daita\MySmallPhpTools\Traits\TRequest;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -42,11 +48,6 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\RequestContentException;
-use OCA\Social\Exceptions\RequestNetworkException;
-use OCA\Social\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Exceptions\RequestResultSizeException;
-use OCA\Social\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -57,6 +58,12 @@ class CurlService {
 
 	use TArrayTools;
 	use TPathTools;
+	use TRequest {
+		initRequestPost as initRequestPostOrig;
+		initRequestGet as initRequestGetOrig;
+		retrieveJson as retrieveJsonOrig;
+		doRequest as doRequestOrig;
+	}
 
 
 	const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
@@ -73,13 +80,6 @@ class CurlService {
 	private $miscService;
 
 
-	/** @var int */
-	private $maxDownloadSize = 0;
-
-	/** @var bool */
-	private $maxDownloadSizeReached = false;
-
-
 	/**
 	 * CurlService constructor.
 	 *
@@ -93,6 +93,9 @@ class CurlService {
 		$this->configService = $configService;
 		$this->fediverseService = $fediverseService;
 		$this->miscService = $miscService;
+
+		$maxDlSize = $this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * (1024 * 1024);
+		$this->setMaxDownloadSize($maxDlSize);
 	}
 
 
@@ -131,15 +134,8 @@ class CurlService {
 		$request = new Request($path);
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
-
-		try {
-			$result = $this->request($request);
-		} catch (RequestNetworkException $e) {
-			if ($e->getCode() === CURLE_COULDNT_CONNECT) {
-				$request->setProtocol('http');
-				$result = $this->request($request);
-			} else throw $e;
-		}
+		$request->setProtocols(['https', 'http']);
+		$result = $this->retrieveJson($request);
 
 		$subject = $this->get('subject', $result, '');
 		list($type, $temp) = explode(':', $subject, 2);
@@ -162,7 +158,7 @@ class CurlService {
 		$request->setAddress($host);
 
 		try {
-			$result = $this->request($request);
+			$result = $this->retrieveJson($request);
 		} catch (Exception $e) {
 			$this->miscService->log(
 				'hostMeta Exception - ' . get_class($e) . ' - ' . $e->getMessage(), 0
@@ -237,14 +233,13 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveObject($id): array {
-
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new Request($url['path'], Request::TYPE_GET);
 		$request->setAddress($url['host']);
 		$request->setProtocol($url['scheme']);
 
-		$result = $this->request($request);
+		$result = $this->retrieveJson($request);
 		if (is_array($result)) {
 			$result['_host'] = $request->getAddress();
 		}
@@ -256,60 +251,46 @@ class CurlService {
 	/**
 	 * @param Request $request
 	 *
-	 * @return mixed
+	 * @return array
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 */
+	public function retrieveJson(Request $request): array {
+		try {
+			$result = $this->retrieveJsonOrig($request);
+		} catch (RequestResultSizeException | RequestResultNotJsonException $e) {
+			$this->miscService->log(
+				'[!!] request: ' . json_encode($request) . ' - content-type: '
+				. $request->getContentType() . ' - ' . $e->getMessage(), 1
+			);
+			throw $e;
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @param Request $request
+	 *
+	 * @return mixed
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 */
-	public function request(Request $request) {
+	public function doRequest(Request $request) {
 		$this->fediverseService->authorized($request->getAddress());
-
-		$this->maxDownloadSizeReached = false;
 		$this->assignUserAgent($request);
 
-		$curl = $this->initRequest($request);
-
-		$this->initRequestGet($request);
-		$this->initRequestPost($curl, $request);
-		$this->initRequestPut($curl, $request);
-		$this->initRequestDelete($curl, $request);
-
-		$this->initRequestHeaders($curl, $request);
-
-		$result = curl_exec($curl);
-
-		if ($this->maxDownloadSizeReached === true) {
-			throw new RequestResultSizeException();
-		}
-		$this->parseRequestResult($curl, $request);
-
-		if ($request->isBinary()) {
-			$this->miscService->log('[>>] request (binary): ' . json_encode($request), 1);
-
-			return $result;
-		}
-
-		$this->miscService->log(
-			'[>>] request: ' . json_encode($request) . ' - content-type: '
-			. $request->getContentType() . ' - result: ' . $result, 1
-		);
-
-		if (strpos($request->getContentType(), 'application/xrd') === 0) {
-			$xml = simplexml_load_string($result);
-			$result = json_encode($xml, JSON_UNESCAPED_SLASHES);
-			$this->miscService->log('XRD conversion to JSON: ' . $result, 1);
-		}
-
-		$result = json_decode((string)$result, true);
-		if (is_array($result)) {
-			return $result;
-		}
-
-		throw new RequestResultNotJsonException();
+		return $this->doRequestOrig($request);
 	}
 
 
@@ -340,7 +321,7 @@ class CurlService {
 		$request->setProtocol(parse_url($address, PHP_URL_SCHEME));
 
 		try {
-			$this->request($request);
+			$this->retrieveJson($request);
 		} catch (RequestResultNotJsonException $e) {
 		} catch (Exception $e) {
 			$this->miscService->log(
@@ -353,73 +334,8 @@ class CurlService {
 
 	/**
 	 * @param Request $request
-	 *
-	 * @return resource
 	 */
-	private function initRequest(Request $request) {
-
-		$curl = $this->generateCurlRequest($request);
-
-		curl_setopt($curl, CURLOPT_USERAGENT, $request->getUserAgent());
-		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, $request->getTimeout());
-		curl_setopt($curl, CURLOPT_TIMEOUT, $request->getTimeout());
-
-		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
-
-		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-
-		$this->maxDownloadSize =
-			$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * (1024 * 1024);
-		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
-		curl_setopt($curl, CURLOPT_NOPROGRESS, false);
-		curl_setopt(
-		/**
-		 * @param $downloadSize
-		 * @param int $downloaded
-		 * @param $uploadSize
-		 * @param int $uploaded
-		 *
-		 * @return int
-		 */
-			$curl, CURLOPT_PROGRESSFUNCTION,
-			function($downloadSize, int $downloaded, $uploadSize, int $uploaded) {
-				if ($downloaded > $this->maxDownloadSize) {
-					$this->maxDownloadSizeReached = true;
-
-					return 1;
-				}
-
-				return 0;
-			}
-		);
-
-		return $curl;
-	}
-
-
-	/**
-	 * @param Request $request
-	 *
-	 * @return resource
-	 */
-	private function generateCurlRequest(Request $request) {
-		$url = $request->getProtocol() . '://' . $request->getAddress() . $request->getParsedUrl();
-		if ($request->getType() !== Request::TYPE_GET) {
-			$curl = curl_init($url);
-		} else {
-			$curl = curl_init($url . '?' . $request->getUrlData());
-		}
-
-		return $curl;
-	}
-
-
-	/**
-	 * @param Request $request
-	 */
-	private function initRequestGet(Request $request) {
+	protected function initRequestGet(Request $request) {
 		if ($request->getType() !== Request::TYPE_GET) {
 			return;
 		}
@@ -430,6 +346,8 @@ class CurlService {
 		$request->addHeader(
 			'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 		);
+
+		$this->initRequestGetOrig($request);
 	}
 
 
@@ -437,7 +355,7 @@ class CurlService {
 	 * @param resource $curl
 	 * @param Request $request
 	 */
-	private function initRequestPost($curl, Request $request) {
+	protected function initRequestPost($curl, Request $request) {
 		if ($request->getType() !== Request::TYPE_POST) {
 			return;
 		}
@@ -446,132 +364,7 @@ class CurlService {
 			'Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 		);
 
-		curl_setopt($curl, CURLOPT_POST, true);
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	private function initRequestPut($curl, Request $request) {
-		if ($request->getType() !== Request::TYPE_PUT) {
-			return;
-		}
-
-		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	private function initRequestDelete($curl, Request $request) {
-		if ($request->getType() !== Request::TYPE_DELETE) {
-			return;
-		}
-
-		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	private function initRequestHeaders($curl, Request $request) {
-		$headers = $request->getHeaders();
-
-		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 *
-	 * @throws RequestContentException
-	 * @throws RequestServerException
-	 * @throws RequestNetworkException
-	 */
-	private function parseRequestResult($curl, Request &$request) {
-		$this->parseRequestResultCurl($curl, $request);
-
-		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-		$type = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
-		$request->setContentType((is_null($type) || is_bool($type)) ? '' : $type);
-		$request->setResultCode($code);
-
-		$this->parseRequestResultCode301($code, $request);
-		$this->parseRequestResultCode4xx($code, $request);
-		$this->parseRequestResultCode5xx($code, $request);
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 *
-	 * @throws RequestNetworkException
-	 */
-	private function parseRequestResultCurl($curl, Request $request) {
-		$errno = curl_errno($curl);
-		if ($errno > 0) {
-			throw new RequestNetworkException(
-				$errno . ' - ' . curl_error($curl) . ' - ' . json_encode(
-					$request, JSON_UNESCAPED_SLASHES
-				), $errno
-			);
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 * @param Request $request
-	 *
-	 * @throws RequestContentException
-	 */
-	private function parseRequestResultCode301($code, Request $request) {
-		if ($code === 301) {
-			throw new RequestContentException(
-				'301 - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
-			);
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 * @param Request $request
-	 *
-	 * @throws RequestContentException
-	 */
-	private function parseRequestResultCode4xx(int $code, Request $request) {
-		if ($code === 404 || $code === 410) {
-			throw new RequestContentException(
-				$code . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
-			);
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 * @param Request $request
-	 *
-	 * @throws RequestServerException
-	 */
-	private function parseRequestResultCode5xx(int $code, Request $request) {
-		if ($code === 500) {
-			throw new RequestServerException(
-				$code . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
-			);
-		}
+		$this->initRequestPostOrig($curl, $request);
 	}
 
 }

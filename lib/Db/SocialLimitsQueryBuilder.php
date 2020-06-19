@@ -165,6 +165,17 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param string $actorId
+	 * @param string $alias
+	 */
+	public function limitToActorIdPrim(string $actorId, string $alias = '') {
+		$this->limitToDBField('actor_id', $actorId, false, $alias);
+	}
+
+
+	/**
 	 * Limit the request to the FollowId
 	 *
 	 * @param string $followId
@@ -192,6 +203,17 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 */
 	public function limitToObjectId(string $objectId) {
 		$this->limitToDBField('object_id', $objectId, false);
+	}
+
+
+	/**
+	 * Limit the request to the ActorId
+	 *
+	 * @param string $actorId
+	 * @param string $alias
+	 */
+	public function limitToObjectIdPrim(string $actorId, string $alias = '') {
+		$this->limitToDBField('object_id_prim', $actorId, false, $alias);
 	}
 
 

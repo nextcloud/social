@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -104,24 +105,30 @@ class OStatusController extends Controller {
 	 * @return Response
 	 */
 	public function subscribe(string $uri): Response {
-
 		try {
-			$actor = $this->cacheActorService->getFromAccount($uri);
+
+			try {
+				$actor = $this->cacheActorService->getFromAccount($uri);
+			} catch (InvalidResourceException $e) {
+				$actor = $this->cacheActorService->getFromId($uri);
+			}
 
 			$user = $this->userSession->getUser();
 			if ($user === null) {
 				throw new Exception('Failed to retrieve current user');
 			}
 
-			return new TemplateResponse('social', 'ostatus', [
+			return new TemplateResponse(
+				'social', 'ostatus', [
 				'serverData' => [
-					'account' => $actor->getAccount(),
+					'account'     => $actor->getAccount(),
 					'currentUser' => [
-						'uid' => $user->getUID(),
+						'uid'         => $user->getUID(),
 						'displayName' => $user->getDisplayName(),
 					]
 				]
-			], 'guest');
+			], 'guest'
+			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -134,18 +141,21 @@ class OStatusController extends Controller {
 	 * @PublicPage
 	 *
 	 * @param string $local
+	 *
 	 * @return Response
 	 */
 	public function followRemote(string $local): Response {
 		try {
 			$following = $this->accountService->getActor($local);
 
-			return new TemplateResponse('social', 'ostatus', [
+			return new TemplateResponse(
+				'social', 'ostatus', [
 				'serverData' => [
-					'local' => $local,
+					'local'   => $local,
 					'account' => $following->getAccount()
 				]
-			], 'guest');
+			], 'guest'
+			);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

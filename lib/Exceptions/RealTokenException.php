@@ -33,7 +33,7 @@ namespace OCA\Social\Exceptions;
 use Exception;
 
 
-class RequestServerException extends Exception {
+class RealTokenException extends Exception {
 
 }
 

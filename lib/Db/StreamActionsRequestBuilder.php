@@ -108,7 +108,7 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return StreamAction
 	 */
-	protected function parseStreamActionsSelectSql($data): StreamAction {
+	public function parseStreamActionsSelectSql($data): StreamAction {
 		$action = new StreamAction();
 		$action->importFromDatabase($data);
 

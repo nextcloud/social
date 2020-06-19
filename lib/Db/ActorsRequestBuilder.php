@@ -107,7 +107,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 * @return Person
 	 * @throws SocialAppConfigException
 	 */
-	protected function parseActorsSelectSql($data): Person {
+	public function parseActorsSelectSql($data): Person {
 		$root = $this->configService->getSocialUrl();
 
 		$actor = new Person();

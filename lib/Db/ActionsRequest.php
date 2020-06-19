@@ -60,8 +60,10 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb = $this->getActionsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
+		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
 		   ->setValue('type', $qb->createNamedParameter($like->getType()))
-		   ->setValue('object_id', $qb->createNamedParameter($like->getObjectId()));
+		   ->setValue('object_id', $qb->createNamedParameter($like->getObjectId()))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($like->getObjectId())));
 
 		try {
 			$qb->setValue(
@@ -88,18 +90,11 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function getAction(string $actorId, string $objectId, string $type): ACore {
 		$qb = $this->getActionsSelectSql();
-		$this->limitToActorId($qb, $actorId);
-		$this->limitToObjectId($qb, $objectId);
-		$this->limitToType($qb, $type);
+		$qb->limitToActorIdPrim($qb->prim($actorId));
+		$qb->limitToObjectIdPrim($qb->prim($objectId));
+		$qb->limitToType($type);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-		if ($data === false) {
-			throw new ActionDoesNotExistException();
-		}
-
-		return $this->parseActionsSelectSql($data);
+		return $this->getActionFromRequest($qb);
 	}
 
 
@@ -111,18 +106,12 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function getActionFromItem(ACore $item): ACore {
 		$qb = $this->getActionsSelectSql();
-		$this->limitToActorId($qb, $item->getActorId());
-		$this->limitToObjectId($qb, $item->getObjectId());
-		$this->limitToType($qb, $item->getType());
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-		if ($data === false) {
-			throw new ActionDoesNotExistException();
-		}
+		$qb->limitToActorIdPrim($qb->prim($item->getActorId()));
+		$qb->limitToObjectIdPrim($qb->prim($item->getObjectId()));
+		$qb->limitToType($item->getType());
 
-		return $this->parseActionsSelectSql($data);
+		return $this->getActionFromRequest($qb);
 	}
 
 
@@ -134,8 +123,8 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function countActions(string $objectId, string $type): int {
 		$qb = $this->countActionsSelectSql();
-		$this->limitToObjectId($qb, $objectId);
-		$this->limitToType($qb, $type);
+		$qb->limitToObjectIdPrim($qb->prim($objectId));
+		$qb->limitToType($type);
 
 		$cursor = $qb->execute();
 		$data = $cursor->fetch();
@@ -152,17 +141,10 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function getByObjectId(string $objectId): array {
 		$qb = $this->getActionsSelectSql();
-		$this->limitToObjectId($qb, $objectId);
+		$qb->limitToObjectIdPrim($qb->prim($objectId));
 		$this->leftJoinCacheActors($qb, 'actor_id');
 
-		$likes = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$likes[] = $this->parseActionsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $likes;
+		return $this->getActionsFromRequest($qb);
 	}
 
 
@@ -178,15 +160,15 @@ class ActionsRequest extends ActionsRequestBuilder {
 	}
 
 
-	/**
-	 * @param string $objectId
-	 */
-	public function deleteLikes(string $objectId) {
-		$qb = $this->getActionsDeleteSql();
-		$this->limitToObjectId($qb, $objectId);
-
-		$qb->execute();
-	}
+//	/**
+//	 * @param string $objectId
+//	 */
+//	public function deleteLikes(string $objectId) {
+//		$qb = $this->getActionsDeleteSql();
+//		$this->limitToObjectId($qb, $objectId);
+//
+//		$qb->execute();
+//	}
 
 }
 

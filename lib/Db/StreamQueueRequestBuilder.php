@@ -104,7 +104,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return StreamQueue
 	 */
-	protected function parseStreamQueueSelectSql($data): StreamQueue {
+	public function parseStreamQueueSelectSql($data): StreamQueue {
 		$queue = new StreamQueue();
 		$queue->importFromDatabase($data);
 

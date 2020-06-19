@@ -92,7 +92,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private $timeline = '';
 
 	/** @var bool */
-	private $hiddenOnTimeline = false;
+	private $filterDuplicate = false;
 
 
 	/**
@@ -335,17 +335,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return bool
 	 */
-	public function isHiddenOnTimeline(): bool {
-		return $this->hiddenOnTimeline;
+	public function isFilterDuplicate(): bool {
+		return $this->filterDuplicate;
 	}
 
 	/**
-	 * @param bool $hiddenOnTimeline
+	 * @param bool $filterDuplicate
 	 *
 	 * @return Stream
 	 */
-	public function setHiddenOnTimeline(bool $hiddenOnTimeline): Stream {
-		$this->hiddenOnTimeline = $hiddenOnTimeline;
+	public function setFilterDuplicate(bool $filterDuplicate): Stream {
+		$this->filterDuplicate = $filterDuplicate;
 
 		return $this;
 	}
@@ -385,7 +385,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 		$this->setDetailsAll($this->getArray('details', $data, []));
-		$this->setHiddenOnTimeline($this->getBool('hidden_on_timeline', $data, false));
+		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
 
 		$cache = new Cache();
 		$cache->import($this->getArray('cache', $data, []));
