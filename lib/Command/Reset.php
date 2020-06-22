@@ -47,6 +47,7 @@ use Symfony\Component\Console\Question\Question;
 class Reset extends Base {
 
 
+	/** @var CoreRequestBuilder */
 	private $coreRequestBuilder;
 
 	/** @var CheckService */

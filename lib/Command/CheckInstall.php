@@ -124,11 +124,11 @@ class CheckInstall extends Base {
 		parent::configure();
 		$this->setName('social:check:install')
 			 ->addOption('index', '', InputOption::VALUE_NONE, 'regenerate your index')
-			 ->addOption(
-				 'push', '', InputOption::VALUE_REQUIRED,
-				 'a local account used to test integration to Nextcloud Push',
-				 ''
-			 )
+//			 ->addOption(
+//				 'push', '', InputOption::VALUE_REQUIRED,
+//				 'a local account used to test integration to Nextcloud Push',
+//				 ''
+//			 )
 			 ->setDescription('Check the integrity of the installation');
 	}
 
@@ -144,9 +144,9 @@ class CheckInstall extends Base {
 			return;
 		}
 
-		if ($this->checkPushApp($input, $output)) {
-			return;
-		}
+//		if ($this->checkPushApp($input, $output)) {
+//			return;
+//		}
 
 		$result = $this->checkService->checkInstallationStatus();
 
@@ -180,7 +180,7 @@ class CheckInstall extends Base {
 		// push was not implemented on 18
 //		$wrapper = $this->pushService->testOnAccount($userId);
 
-		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
+//		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
 
 		return true;
 	}
@@ -213,17 +213,16 @@ class CheckInstall extends Base {
 
 		$this->streamDestRequest->emptyStreamDest();
 		$this->streamTagsRequest->emptyStreamTags();
-		$this->regenerateIndex($input, $output);
+		$this->regenerateIndex($output);
 
 		return true;
 	}
 
 
 	/**
-	 * @param InputInterface $input
 	 * @param OutputInterface $output
 	 */
-	private function regenerateIndex(InputInterface $input, OutputInterface $output) {
+	private function regenerateIndex(OutputInterface $output) {
 		$streams = $this->streamRequest->getAll();
 		$progressBar = new ProgressBar($output, count($streams));
 		$progressBar->start();

@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 
 
@@ -51,19 +52,17 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 	 * @param Stream $stream
 	 */
 	public function generateStreamTags(Stream $stream) {
-		$hashtags = $stream->getTags();
+		if ($stream->getType() !== Note::TYPE) {
+			return;
+		}
 
-		foreach ($hashtags as $hashtag) {
-			$tag = $this->get('name', $hashtag);
-			if ($this->get('type', $hashtag) !== 'Hashtag' || $tag === '') {
-				continue;
-			}
+		/** @var Note $stream */
+		foreach ($stream->getHashTags() as $hashtag) {
 
-			$tag = substr($tag, 1);
 			$qb = $this->getStreamTagsInsertSql();
 			$streamId = $qb->prim($stream->getId());
 			$qb->setValue('stream_id', $qb->createNamedParameter($streamId));
-			$qb->setValue('hashtag', $qb->createNamedParameter($tag));
+			$qb->setValue('hashtag', $qb->createNamedParameter($hashtag));
 			try {
 				$qb->execute();
 			} catch (UniqueConstraintViolationException $e) {
