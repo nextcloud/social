@@ -1,6 +1,13 @@
 # Changelog
 
 
+## 0.3.0 (alpha 3.0)
+
+- [setup] fully indexed database structure.
+- [global] fixing issue with hashtags.
+- [global] compat nc19.
+
+
 ## 0.2.101
 
 - [setup] fixing an issue with migration on pgsql

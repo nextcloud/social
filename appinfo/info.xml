@@ -18,9 +18,9 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.3</version>
+	<version>0.3.0</version>
 	<licence>agpl</licence>
-	<author mail="maxence@artificial-owl.com">Maxence Lange</author>
+	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
 	<author mail="jonas@violoncello.ch" homepage="https://violoncello.ch">Jonas Sulzer</author>
 	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph Borchardt</author>
