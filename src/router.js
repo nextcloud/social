@@ -25,11 +25,11 @@ import Vue from 'vue'
 import Router from 'vue-router'
 
 // Dynamic loading
-const Timeline = () => import('./views/Timeline')
-const TimelineSinglePost = () => import('./views/TimelineSinglePost')
-const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile')
-const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline')
-const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers')
+const Timeline = () => import('./views/Timeline.vue')
+const TimelineSinglePost = () => import('./views/TimelineSinglePost.vue')
+const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile.vue')
+const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline.vue')
+const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 
 Vue.use(Router)
 

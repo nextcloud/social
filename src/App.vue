@@ -2,7 +2,10 @@
 	<div v-if="!serverData.setup" id="app-social" :class="{public: serverData.public}">
 		<app-navigation v-if="!serverData.public" id="app-navigation">
 			<ul id="app-social-navigation">
-				<app-navigation-item v-for="item in menu.items" :key="item.key" :to="item.to" :title="item.title" :icon="item.icon" :exact="true" />
+				<app-navigation-item v-for="item in menu.items" :key="item.key" :to="item.to"
+					:title="item.title"
+					:icon="item.icon"
+					:exact="true" />
 			</ul>
 		</app-navigation>
 		<div id="app-content">
@@ -72,7 +75,7 @@
 	}
 
 	.setup {
-		margin:	auto;
+		margin: auto;
 		width: 700px;
 	}
 
@@ -84,6 +87,7 @@
 	#social-spacer a:focus {
 		border: none !important;
 	}
+
 	a.external_link {
 		text-decoration: underline;
 	}
