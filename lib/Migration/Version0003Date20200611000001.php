@@ -128,34 +128,39 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'actor_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'actor_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'object_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'object_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -197,28 +202,30 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'user_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 63,
 			]
 		);
 		$table->addColumn(
 			'preferred_username', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 127,
 			]
 		);
 		$table->addColumn(
 			'name', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 127,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'summary', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -279,48 +286,55 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'actor_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'actor_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'object_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'object_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'follow_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'follow_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -363,7 +377,8 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			'trend', 'string',
 			[
 				'notnull' => false,
-				'length'  => 500
+				'length'  => 500,
+				'default' => ''
 			]
 		);
 
@@ -398,59 +413,68 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'type', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'subtype', Type::STRING,
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'to', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'to_array', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'cc', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'bcc', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'content', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'summary', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'published', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -464,13 +488,15 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'attributed_to_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -478,13 +504,15 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'in_reply_to_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -492,6 +520,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -499,50 +528,57 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'object_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'hashtags', 'string',
+			'hashtags', Type::TEXT,
 			[
 				'notnull' => false,
-				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'details', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'source', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'instances', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'attachments', Type::TEXT,
 			[
-				'notnull' => false
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'cache', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -554,14 +590,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'local', 'boolean',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'default' => false
 			]
 		);
 		$table->addColumn(
 			'filter_duplicate', 'boolean',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'default' => false
 			]
 		);
@@ -609,15 +645,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'type', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'account', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 127,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -630,89 +668,102 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'following', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'followers', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'inbox', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'shared_inbox', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'outbox', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'featured', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'url', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'preferred_username', 'string',
 			[
-				'notnull' => true,
-				'length'  => 127
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'name', 'string',
 			[
-				'notnull' => true,
-				'length'  => 127
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'icon_id', 'string',
 			[
 				'notnull' => false,
-				'length'  => 1000
+				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'summary', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'public_key', Type::TEXT,
 			[
-				'notnull' => false
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'source', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -751,69 +802,76 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128
 			]
 		);
 		$table->addColumn(
 			'type', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'parent_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => '',
 			]
 		);
 		$table->addColumn(
 			'media_type', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 63,
+				'default' => '',
 			]
 		);
 		$table->addColumn(
 			'mime_type', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 63,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'url', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'local_copy', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'resized_copy', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'public', 'boolean',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'default' => false
 			]
 		);
 		$table->addColumn(
 			'error', 'smallint',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1,
 			]
 		);
@@ -856,28 +914,31 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'token', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 63,
 			]
 		);
 		$table->addColumn(
 			'author', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'activity', Type::TEXT,
 			[
-				'notnull' => true
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'instance', Type::TEXT,
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 500,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -937,38 +998,43 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'actor_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'actor_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'stream_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 1000,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'stream_id_prim', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
-		$table->addColumn('liked', 'boolean');
-		$table->addColumn('boosted', 'boolean');
-		$table->addColumn('replied', 'boolean');
+		$table->addColumn('liked', 'boolean', ['default' => false]);
+		$table->addColumn('boosted', 'boolean', ['default' => false]);
+		$table->addColumn('replied', 'boolean', ['default' => false]);
 		$table->addColumn(
 			'values', Type::TEXT,
 			[
-				'notnull' => false
+				'notnull' => false,
+				'default' => ''
 			]
 		);
 
@@ -989,15 +1055,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'stream_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'actor_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -1005,6 +1073,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 15,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -1012,6 +1081,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 7,
+				'default' => ''
 			]
 		);
 
@@ -1041,22 +1111,24 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'token', 'string',
 			[
-				'notnull' => true,
-				'length'  => 63,
+				'notnull' => false,
+				'length'  => 63
 			]
 		);
 		$table->addColumn(
 			'stream_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 255,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
 			'type', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 31,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -1098,8 +1170,9 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'stream_id', 'string',
 			[
-				'notnull' => true,
+				'notnull' => false,
 				'length'  => 128,
+				'default' => ''
 			]
 		);
 		$table->addColumn(
@@ -1107,6 +1180,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			[
 				'notnull' => false,
 				'length'  => 127,
+				'default' => ''
 			]
 		);
 

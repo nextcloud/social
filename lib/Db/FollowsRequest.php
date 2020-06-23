@@ -76,8 +76,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$this->generatePrimaryKey($qb, $follow->getId());
-
+		$qb->generatePrimaryKey($follow->getId());
 		$qb->execute();
 	}
 
@@ -102,8 +101,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$this->generatePrimaryKey($qb, $actor->getId());
-
+		$qb->generatePrimaryKey($actor->getId());
 		$qb->execute();
 	}
 
