@@ -13,14 +13,6 @@ class SocialTest extends \PHPUnit\Framework\TestCase {
 		/**
 		 * Dummy test to check if phpunit is working properly
 		 */
-		$socialPub = new SocialPubController(
-			'admin',
-			$this->createMock(IRequest::class),
-			$this->createMock(IL10N::class),
-			$this->createMock(CacheActorService::class),
-			$this->createMock(NavigationController::class)
-		);
-		$socialPub->actor('123');
 		$this->assertTrue(true);
 	}
 
