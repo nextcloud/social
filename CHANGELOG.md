@@ -1,7 +1,13 @@
 # Changelog
 
 
-## 0.3.0 (alpha 3.0)
+## 0.3.1
+
+- [setup] notification during update.
+- [setup] fixing some requests. 
+
+
+## 0.3.0 (alpha 3-0)
 
 - [setup] fully indexed database structure.
 - [global] fixing issue with hashtags.
