@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Pomoć",
     "Home" : "Почетна",
     "Notifications" : "Obaveštenja",
     "Reply" : "Odgovori",

@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "Sosiaalinen",
+    "Help" : "Ohje",
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger ei ole asetettu oikein!",
     "Open documentation" : "Avaa dokumentaatio",
     "Social app setup" : "Sosiaalinen -sovelluksen asennus",

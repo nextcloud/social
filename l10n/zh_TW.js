@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "說明",
     "Open documentation" : "開啟說明文件",
     "Finish setup" : "完成設定",
     "Home" : "家",

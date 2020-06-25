@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Help",
     "Open documentation" : "Abrir documentación",
     "Finish setup" : "Finar la configuración ",
     "Home" : "Aniciu",

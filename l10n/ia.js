@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Adjuta",
     "Open documentation" : "Aperir documentation",
     "Home" : "Initio",
     "Notifications" : "Notificationes",

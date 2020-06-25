@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Hjelp",
     "Finish setup" : "Fullfør oppsettet",
     "Home" : "Heim",
     "Notifications" : "Meldingar",

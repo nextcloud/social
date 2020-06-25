@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Допомога",
     "Open documentation" : "Відкрити документацію",
     "Finish setup" : "Завершити встановлення",
     "Home" : "Домашній",

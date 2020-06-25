@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Туслах",
     "Open documentation" : "бичиг баримт нээх",
     "Home" : "Нүүр",
     "Notifications" : "Мэдэгдэл",
