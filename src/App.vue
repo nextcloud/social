@@ -1,26 +1,24 @@
 <template>
 	<div v-if="!serverData.setup" id="app-social" :class="{public: serverData.public}">
-		<app-navigation v-if="!serverData.public" id="app-navigation">
-			<ul id="app-social-navigation">
-				<app-navigation-item v-for="item in menu.items" :key="item.key" :to="item.to"
-					:title="item.title"
-					:icon="item.icon"
-					:exact="true" />
-			</ul>
-		</app-navigation>
+		<AppNavigation v-if="!serverData.public" id="app-navigation">
+			<AppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
+				:title="item.title" :icon="item.icon" :exact="true" />
+		</AppNavigation>
 		<div id="app-content">
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
 					{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
 				</h3>
 				<p v-if="!serverData.checks.checks.wellknown">
-					{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+					{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link"
+						href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL"
+						target="_blank"
 						rel="noreferrer noopener">
 						{{ t('social', 'Open documentation') }} ↗
 					</a>
 				</p>
 			</div>
-			<search v-if="searchTerm !== ''" :term="searchTerm" />
+			<Search v-if="searchTerm !== ''" :term="searchTerm" />
 			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
 		</div>
 	</div>
@@ -33,7 +31,9 @@
 					<label class="hidden">
 						{{ t('social', 'ActivityPub URL base') }}
 					</label>
-					<input v-model="cloudAddress" :placeholder="serverData.cliUrl" type="url"
+					<input v-model="cloudAddress"
+						:placeholder="serverData.cliUrl"
+						type="url"
 						required>
 					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
 				</p>
@@ -42,7 +42,9 @@
 						{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
 					</h3>
 					<p v-if="!serverData.checks.checks.wellknown">
-						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link" href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL" target="_blank"
+						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can\'t configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: ') }}<a class="external_link"
+							href="https://docs.nextcloud.com/server/15/go.php?to=admin-setup-well-known-URL"
+							target="_blank"
 							rel="noreferrer noopener">
 							{{ t('social', 'Open documentation') }} ↗
 						</a>
@@ -95,8 +97,8 @@
 </style>
 
 <script>
-import { AppNavigation } from '@nextcloud/vue/dist/Components/AppNavigation'
-import { AppNavigationItem } from '@nextcloud/vue/dist/Components/AppNavigationItem'
+import { AppNavigation, AppNavigationItem } from '@nextcloud/vue'
+
 import axios from '@nextcloud/axios'
 import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
@@ -122,7 +124,7 @@ export default {
 			return this.$store.getters.getTimeline
 		},
 		menu: function() {
-			let defaultCategories = [
+			const defaultCategories = [
 				{
 					id: 'social-timeline',
 					icon: 'icon-home',

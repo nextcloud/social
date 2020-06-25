@@ -16,3 +16,9 @@ img.emoji {
   width: 16px;
   vertical-align: text-bottom;
 }
+
+
+// quick fix - TODO - remove this and fix the left panel
+ul.app-navigation__list {
+  display: none !important;
+}
