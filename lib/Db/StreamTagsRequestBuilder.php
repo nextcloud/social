@@ -84,6 +84,7 @@ class StreamTagsRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_STREAM_TAGS, 'st');
 
 		$this->defaultSelectAlias = 'st';
+		$qb->setDefaultSelectAlias('st');
 
 		return $qb;
 	}

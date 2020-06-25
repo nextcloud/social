@@ -77,10 +77,10 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getFollowsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getFollowsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
@@ -89,6 +89,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
+		$qb->setDefaultSelectAlias('f');
 
 		return $qb;
 	}
@@ -104,6 +105,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 		   ->from(self::TABLE_FOLLOWS, 'f');
 
+		$qb->setDefaultSelectAlias('f');
 		$this->defaultSelectAlias = 'f';
 
 		return $qb;

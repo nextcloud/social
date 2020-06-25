@@ -33,3 +33,9 @@ namespace OCA\Social\AppInfo;
 require_once __DIR__ . '/autoload.php';
 
 
+/** @var Application $app */
+$app = \OC::$server->query(Application::class);
+
+$app->checkUpgradeStatus();
+
+

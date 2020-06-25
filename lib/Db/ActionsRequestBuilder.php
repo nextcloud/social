@@ -88,6 +88,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_ACTIONS, 'a');
 
 		$this->defaultSelectAlias = 'a';
+		$qb->setDefaultSelectAlias('a');
 
 		return $qb;
 	}
@@ -104,6 +105,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_ACTIONS, 'a');
 
 		$this->defaultSelectAlias = 'a';
+		$qb->setDefaultSelectAlias('a');
 
 		return $qb;
 	}

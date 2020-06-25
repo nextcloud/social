@@ -72,7 +72,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getRequestQueueSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
@@ -82,6 +82,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_REQUEST_QUEUE, 'rq');
 
 		$this->defaultSelectAlias = 'rq';
+		$qb->setDefaultSelectAlias('rq');
 
 		return $qb;
 	}

@@ -75,16 +75,17 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getHashtagsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getHashtagsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('h.hashtag', 'h.trend')
 		   ->from(self::TABLE_HASHTAGS, 'h');
 
 		$this->defaultSelectAlias = 'h';
+		$qb->setDefaultSelectAlias('h');
 
 		return $qb;
 	}

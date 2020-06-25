@@ -70,10 +70,10 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getActorsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActorsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
@@ -83,6 +83,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_ACTORS, 'a');
 
 		$this->defaultSelectAlias = 'a';
+		$qb->setDefaultSelectAlias('a');
 
 		return $qb;
 	}

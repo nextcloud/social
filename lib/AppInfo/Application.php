@@ -31,13 +31,34 @@ declare(strict_types=1);
 namespace OCA\Social\AppInfo;
 
 
+use OC\DB\SchemaWrapper;
+use OCA\Social\Notification\Notifier;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\UpdateService;
 use OCP\AppFramework\App;
+use OCP\AppFramework\IAppContainer;
+use OCP\AppFramework\QueryException;
 
 
+/**
+ * Class Application
+ *
+ * @package OCA\Social\AppInfo
+ */
 class Application extends App {
 
 
 	const APP_NAME = 'social';
+
+
+	/** @var ConfigService */
+	private $configService;
+
+	/** @var UpdateService */
+	private $updateService;
+
+	/** @var IAppContainer */
+	private $container;
 
 
 	/**
@@ -47,6 +68,41 @@ class Application extends App {
 	 */
 	public function __construct(array $params = []) {
 		parent::__construct(self::APP_NAME, $params);
+
+		$this->container = $this->getContainer();
+
+		$manager = $this->container->getServer()
+								   ->getNotificationManager();
+		$manager->registerNotifierService(Notifier::class);
+	}
+
+
+	/**
+	 *
+	 */
+	public function checkUpgradeStatus() {
+		$upgradeChecked = $this->container->getServer()
+										  ->getConfig()
+										  ->getAppValue(Application::APP_NAME, 'update_checked', '');
+
+		if ($upgradeChecked === '0.3') {
+			return;
+		}
+
+		try {
+			$this->configService = $this->container->query(ConfigService::class);
+			$this->updateService = $this->container->query(UpdateService::class);
+		} catch (QueryException $e) {
+			return;
+		}
+
+		$server = $this->container->getServer();
+		$schema = new SchemaWrapper($server->getDatabaseConnection());
+		if ($schema->hasTable('social_a2_stream')) {
+			$this->updateService->checkUpdateStatus();
+		}
+
+		$this->configService->setAppValue('update_checked', '0.3');
 	}
 
 }

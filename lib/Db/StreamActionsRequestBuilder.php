@@ -75,16 +75,17 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamActionSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamActionSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('sa.id', 'sa.actor_id', 'sa.stream_id', 'sa.values')
 		   ->from(self::TABLE_STREAM_ACTIONS, 'sa');
 
 		$this->defaultSelectAlias = 'sa';
+		$qb->setDefaultSelectAlias('sa');
 
 		return $qb;
 	}

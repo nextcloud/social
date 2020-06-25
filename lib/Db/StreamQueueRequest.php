@@ -91,7 +91,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	 */
 	public function getFromToken(string $token): array {
 		$qb = $this->getStreamQueueSelectSql();
-		$this->limitToToken($qb, $token);
+		$qb->limitToToken($token);
 
 		$queue = [];
 		$cursor = $qb->execute();
