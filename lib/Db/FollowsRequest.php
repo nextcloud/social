@@ -167,7 +167,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function countFollowers(string $actorId): int {
 		$qb = $this->countFollowsSelectSql();
-		$qb->limitToObjectId($actorId);
+		$qb->limitToObjectIdPrim($qb->prim($actorId));
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(true);
 
@@ -186,7 +186,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function countFollowing(string $actorId): int {
 		$qb = $this->countFollowsSelectSql();
-		$qb->limitToActorId($actorId);
+		$qb->limitToActorIdPrim($qb->prim($actorId));
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(true);
 

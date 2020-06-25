@@ -74,9 +74,9 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamDestSelectSql(): IQueryBuilder {
+	protected function getStreamDestSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
@@ -84,6 +84,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_STREAM_DEST, 'sd');
 
 		$this->defaultSelectAlias = 'sd';
+		$qb->setDefaultSelectAlias('sd');
 
 		return $qb;
 	}
@@ -105,14 +106,15 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function countStreamDestSelectSql(): IQueryBuilder {
+	protected function countStreamDestSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
 		   ->from(self::TABLE_STREAM_DEST, 'sd');
 
 		$this->defaultSelectAlias = 'sd';
+		$qb->setDefaultSelectAlias('sd');
 
 		return $qb;
 	}

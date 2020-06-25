@@ -90,7 +90,8 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @deprecated */
 		$this->defaultSelectAlias = 'ca';
-
+		$qb->setDefaultSelectAlias('ca');
+		
 		return $qb;
 	}
 

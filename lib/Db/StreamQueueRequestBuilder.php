@@ -69,10 +69,10 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamQueueSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamQueueSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
@@ -81,6 +81,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_STREAM_QUEUE, 'qs');
 
 		$this->defaultSelectAlias = 'qs';
+		$qb->setDefaultSelectAlias('qs');
 
 		return $qb;
 	}

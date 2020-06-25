@@ -69,10 +69,10 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheDocumentsSelectSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getCacheDocumentsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
@@ -82,6 +82,7 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 
 		$this->defaultSelectAlias = 'cd';
+		$qb->setDefaultSelectAlias('cd');
 
 		return $qb;
 	}
