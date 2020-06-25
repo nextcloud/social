@@ -273,7 +273,7 @@ class MigrateAlpha3 extends Base {
 		$output->write('Found ' . count($fullContent) . ' entries');
 		$m = $copied = 0;
 		foreach ($fullContent as $entry) {
-			if ($m % 50 == 0) {
+			if ($m % 50 === 0) {
 				$output->write('.');
 			}
 
