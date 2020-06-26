@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Abiinfo",
     "Open documentation" : "Ava dokumentatsioon",
     "Finish setup" : "Lõpeta seadistamine",
     "Home" : "Avaleht",

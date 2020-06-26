@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Ajutor",
     "Open documentation" : "Deschide documentația",
     "Finish setup" : "Finalizează instalarea",
     "Home" : "Acasă",

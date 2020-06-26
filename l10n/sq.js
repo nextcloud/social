@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Ndihmë",
     "Open documentation" : "Dokumentacion i hapur",
     "Finish setup" : "Përfundoje rregullimin",
     "Home" : "Kryefaqja",

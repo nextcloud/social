@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "Soziala",
+    "Help" : "Laguntza",
     "Follow %s on Social" : "Jarraitu %s Social-en",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nexcloud federatutako sare sozialekin bat egiten du!",
     "Open documentation" : "Ireki dokumentazioa",

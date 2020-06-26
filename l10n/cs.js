@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "Social",
+    "Help" : "Nápověda",
     "Follow %s on Social" : "Následujte %s na Social",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud se stává součástí federované sociální sítě!",
     "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** Varování: toto je ALFA verze **\n\n**🎉 Nextcloud se stává součástí federované sociální sítě!**\n\n**🙋 Spojte se s přáteli:** Nehledě na to jestli používají  Nextcloud, 🐘 Mastodon, 🇫 Friendica, a brzo i ✱ Diaspora, 👹 MediaGoblin a další – můžete s nimi nyní komunikovat a sledovat je!\n\n**📜 Profil:** Už není potřeba vyplňovat další a další profily – informace z Nextcloudu budou použity tak kde budete chtít.\n\n**👐 Vlastněte svoje příspěvky:** Vše co posíláte zůstane na vámi využívané instanci Nextcloud!\n\n**🕸 Otevřené standardy:** Používáme široce přijatý ActivityPub standard!",

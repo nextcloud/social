@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Trợ giúp",
     "Open documentation" : "Mở tài liệu",
     "Finish setup" : "Cài đặt hoàn tất",
     "Home" : "Trang nhất",

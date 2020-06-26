@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "الإجتماعي",
+    "Help" : "المساعدة",
     "Open documentation" : "فتح الدليل",
     "Finish setup" : "إنهاء الإعداد",
     "Home" : "الرئيسية",

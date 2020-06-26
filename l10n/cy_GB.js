@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Cymorth",
     "Finish setup" : "Gorffen sefydlu",
     "Home" : "Cartref",
     "Notifications" : "Hysbysiadau",

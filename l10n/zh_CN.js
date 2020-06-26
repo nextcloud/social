@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "社交",
+    "Help" : "帮助",
     "Follow %s on Social" : "在社交媒体上关注%s",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud已经成为联合社交网络的一部分！",
     "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** 声明：这是一个ALPHA版本 **\n\n**🎉 Nextcloud已经成为联合社交网络的一部分！\n\n**🙋 找到您的朋友：** 无论他们使用的是 Nextcloud, 🐘 Mastodon, 🇫 Friendica, 还是 ✱ Diaspora, 👹 MediaGoblin 还有更多 – 您都可以关注他们！\n\n**📜 简介信息：** 没有必要再填写更多信息 – 您来自Nextcloud的信息将被使用和扩展。\n\n**👐 保有您自己的帖子：** 您发布的所有东西都保存在Nextcloud上！\n\n**🕸 开放标准：** 我们使用成熟的 ActivityPub 标准！",

@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Hëllef",
     "Open documentation" : "Dokumentatioun opmaachen",
     "Finish setup" : "Installatioun ofschléissen",
     "Home" : "Doheem",

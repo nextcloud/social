@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "幫助",
     "Home" : "主頁",
     "Notifications" : "通知",
     "Reply" : "回覆",

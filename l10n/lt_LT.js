@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Pagalba",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud tampa federacinių socialinių tinklų dalimi!",
     "Open documentation" : "Atverti dokumentaciją",
     "Finish setup" : "Užbaigti sąranką",

@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Help" : "Hulp",
     "Open documentation" : "Open dokumentasie",
     "Finish setup" : "Voltooi opstelling",
     "Home" : "Tuis",

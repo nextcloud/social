@@ -1,5 +1,6 @@
 { "translations": {
     "Social" : "Socialt",
+    "Help" : "Hjälp",
     "Follow %s on Social" : "Följ %s på Socialt",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud deltar i det federerade sociala nätverket!",
     "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** Det här är en mycket tidig version **\n\n**🙋 Hitta dina vänner:** Oavsett om de använder Nextcloud, 🐘 Mastodon, 🇫 Friendica, eller snart ✱ Diaspora, 👹 MediaGoblin och fler – kan du följa dem!\n\n**📜 Profilinfo:** Du behöver inte fylla i fler användarprofiler – informationen från Nextcloud används och kan utökas.\n\n**👐 Äg dina postningar:** Allt du postar stannar i Nextcloud!\n\n**🕸 Öppna standarder:** Vi använder den etablerade ActivityPub-standarden!",

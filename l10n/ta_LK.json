@@ -1,0 +1,7 @@
+{ "translations": {
+    "Help" : "உதவி",
+    "Finish setup" : "அமைப்பை முடிக்க",
+    "Home" : "அகம்",
+    "Close" : "மூடுக"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}
