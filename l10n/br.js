@@ -2,8 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Skoazell",
+    "Open documentation" : "Digeriñ an dielvadur",
     "Finish setup" : "Stalian echu",
     "Home" : "Degemer",
+    "Reply" : "Respont",
     "Close" : "Serriñ",
     "Continue" : "Kendec'hel"
 },
