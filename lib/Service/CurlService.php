@@ -252,8 +252,6 @@ class CurlService {
 	 * @param Request $request
 	 *
 	 * @return array
-	 * @throws SocialAppConfigException
-	 * @throws UnauthorizedFediverseException
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultNotJsonException
@@ -261,6 +259,9 @@ class CurlService {
 	 * @throws RequestServerException
 	 */
 	public function retrieveJson(Request $request): array {
+		$this->configService->configureRequest($request);
+		$this->assignUserAgent($request);
+
 		try {
 			$result = $this->retrieveJsonOrig($request);
 		} catch (RequestResultSizeException | RequestResultNotJsonException $e) {
@@ -288,6 +289,7 @@ class CurlService {
 	 */
 	public function doRequest(Request $request) {
 		$this->fediverseService->authorized($request->getAddress());
+		$this->configService->configureRequest($request);
 		$this->assignUserAgent($request);
 
 		return $this->doRequestOrig($request);

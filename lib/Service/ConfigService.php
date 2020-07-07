@@ -30,6 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use OCA\Social\AppInfo\Application;
@@ -61,6 +62,8 @@ class ConfigService {
 	const SOCIAL_ACCESS_TYPE = 'access_type';
 	const SOCIAL_ACCESS_LIST = 'access_list';
 
+	const SOCIAL_SELF_SIGNED = 'allow_self_signed';
+
 	const BACKGROUND_CRON = 1;
 	const BACKGROUND_ASYNC = 2;
 	const BACKGROUND_SERVICE = 3;
@@ -74,7 +77,8 @@ class ConfigService {
 		self::SOCIAL_SERVICE     => 1,
 		self::SOCIAL_MAX_SIZE    => 10,
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
-		self::SOCIAL_ACCESS_LIST => '[]'
+		self::SOCIAL_ACCESS_LIST => '[]',
+		self::SOCIAL_SELF_SIGNED => '0'
 	];
 
 	/** @var array */
@@ -425,6 +429,14 @@ class ConfigService {
 		}
 
 		return $id;
+	}
+
+
+	/**
+	 * @param Request $request
+	 */
+	public function configureRequest(Request $request) {
+		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
 	}
 
 
