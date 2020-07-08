@@ -5,6 +5,7 @@ OC.L10N.register(
     "Open documentation" : "Digeriñ an dielvadur",
     "Finish setup" : "Stalian echu",
     "Home" : "Degemer",
+    "Notifications" : "Kemenadenoù",
     "Reply" : "Respont",
     "Close" : "Serriñ",
     "Continue" : "Kendec'hel"
