@@ -26,6 +26,7 @@ OC.L10N.register(
     "following" : "sledenje",
     "followers" : "sledilci",
     "No results found" : "Ni najdenih zadetkov",
+    "No posts found for this tag" : "Ni objav, skladnih s podano oznako",
     "Reply" : "Odgovori",
     "More actions" : "Več možnosti",
     "Hello" : "Pozdravljeni",
