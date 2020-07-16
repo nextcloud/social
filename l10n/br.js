@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Stalian echu",
     "Home" : "Degemer",
     "Notifications" : "Kemenadenoù",
+    "Public" : "Publik",
     "Reply" : "Respont",
     "Close" : "Serriñ",
     "Continue" : "Kendec'hel"
