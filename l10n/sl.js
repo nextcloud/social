@@ -1,8 +1,12 @@
 OC.L10N.register(
     "social",
     {
+    "Social" : "Social",
     "Help" : "Pomoč",
+    "Follow %s on Social" : "Sledi %s na družbenem omrežju Social",
+    ".well-known/webfinger isn't properly set up!" : "Prstni odtis .well-known/webfinger ni pravilno nastavljen!",
     "Open documentation" : "Odpri dokumentacijo",
+    "Social app setup" : "Nastavitev programa Social",
     "Finish setup" : "Končaj nastavitev",
     "Home" : "Začetni pogled",
     "Direct messages" : "Neposredna sporočila",
@@ -26,6 +30,8 @@ OC.L10N.register(
     "following" : "sledenje",
     "followers" : "sledilci",
     "No results found" : "Ni najdenih zadetkov",
+    "No posts found" : "Ni najdenih objav",
+    "No direct messages found" : "Ni najdenih neposrednih sporočil",
     "No posts found for this tag" : "Ni objav, skladnih s podano oznako",
     "Reply" : "Odgovori",
     "More actions" : "Več možnosti",
