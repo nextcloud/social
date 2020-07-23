@@ -31,7 +31,6 @@ namespace OCA\Social\Notification;
 
 
 use InvalidArgumentException;
-use OC;
 use OCA\Social\AppInfo\Application;
 use OCP\Contacts\IManager;
 use OCP\Federation\ICloudIdManager;
@@ -109,7 +108,7 @@ class Notifier implements INotifier {
 			throw new InvalidArgumentException();
 		}
 
-		$l10n = OC::$server->getL10N(Application::APP_NAME, $languageCode);
+		$l10n = $this->factory->get(Application::APP_NAME, $languageCode);
 
 		$notification->setIcon(
 			$this->url->getAbsoluteURL($this->url->imagePath('social', 'social_dark.svg'))
@@ -118,12 +117,11 @@ class Notifier implements INotifier {
 
 		switch ($notification->getSubject()) {
 			case 'update_alpha3':
-				$notification->setParsedSubject('The Social App have been updated to alpha3.');
+				$notification->setParsedSubject('The Social App has been updated to alpha3.');
 				$notification->setParsedMessage(
 					$l10n->t(
 						'Please note that the data from alpha2 can only be migrated manually.
-						A detailed documentation to guide you during this process is available using the button below.',
-						$params
+						A detailed documentation to guide you during this process is available using the button below.'
 					)
 				);
 				break;
@@ -136,7 +134,7 @@ class Notifier implements INotifier {
 		foreach ($notification->getActions() as $action) {
 			switch ($action->getLabel()) {
 				case 'help':
-					$action->setParsedLabel((string)$l10n->t('Help'))
+					$action->setParsedLabel($l10n->t('Help'))
 						   ->setPrimary(true);
 					break;
 			}
