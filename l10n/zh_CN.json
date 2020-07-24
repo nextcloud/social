@@ -1,5 +1,6 @@
 { "translations": {
     "Social" : "社交",
+    "Please note that the data from alpha2 can only be migrated manually.\n\t\t\t\t\t\tA detailed documentation to guide you during this process is available using the button below." : "请注意，对于来自alpha2的数据只能进行手动迁移\t\t\t\t\t\t使用下面的按钮可以获得在此过程中对你进行指导的的详细文档",
     "Help" : "帮助",
     "Follow %s on Social" : "在社交媒体上关注%s",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud已经成为联合社交网络的一部分！",
