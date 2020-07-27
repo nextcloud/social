@@ -358,8 +358,8 @@ class ActivityPubController extends Controller {
 	 *
 	 * @return Response
 	 * @throws SocialAppConfigException
-	 * @throws StreamNotFoundException
 	 * @throws UrlCloudException
+	 * @throws StreamNotFoundException
 	 */
 	public function displayPost(string $username, string $token): Response {
 		try {
@@ -378,7 +378,11 @@ class ActivityPubController extends Controller {
 		}
 
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
-		$stream = $this->streamService->getStreamById($postId, true);
+		try {
+			$stream = $this->streamService->getStreamById($postId, true);
+		} catch (StreamNotFoundException $e) {
+			return $this->fail($e, ['stream' => $postId], Http::STATUS_NOT_FOUND);
+		}
 
 		$stream->setCompleteDetails(false);
 

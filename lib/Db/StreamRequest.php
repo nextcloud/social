@@ -254,9 +254,7 @@ class StreamRequest extends StreamRequestBuilder {
 		} catch (ItemUnknownException $e) {
 			throw new StreamNotFoundException('Malformed Stream');
 		} catch (StreamNotFoundException $e) {
-			throw new StreamNotFoundException(
-				'Stream (ById) not found - ' . $id . ' (asViewer: ' . $asViewer . ')'
-			);
+			throw new StreamNotFoundException('Stream not found');
 		}
 	}
 
