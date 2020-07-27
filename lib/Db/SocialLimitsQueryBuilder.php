@@ -381,9 +381,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	/**
 	 * @param string $aliasDest
 	 * @param string $aliasFollowing
-	 * @param bool $public
+	 * @param bool $allowPublic
+	 * @param bool $allowDirect
 	 */
-	public function limitToViewer(string $aliasDest = 'sd', string $aliasFollowing = 'f', bool $public = false
+	public function limitToViewer(
+		string $aliasDest = 'sd', string $aliasFollowing = 'f', bool $allowPublic = false,
+		bool $allowDirect = false
 	) {
 		if (!$this->hasViewer()) {
 			$this->selectDestFollowing($aliasDest);
@@ -403,8 +406,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		);
 		$orX->add($following);
 
-		if ($public) {
+		if ($allowPublic) {
 			$orX->add($this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest));
+		}
+
+		if ($allowDirect) {
+			$orX->add($this->exprLimitToDest($actor->getId(), 'dm', '', $aliasDest));
 		}
 
 		$this->andWhere($orX);

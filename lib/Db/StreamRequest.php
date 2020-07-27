@@ -241,13 +241,11 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
-		$expr = $qb->expr();
-
 		$qb->limitToIdPrim($qb->prim($id));
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		if ($asViewer) {
-			$qb->limitToViewer('sd', 'f', true);
+			$qb->limitToViewer('sd', 'f', true, true);
 			$qb->leftJoinStreamAction('sa');
 		}
 
@@ -256,9 +254,7 @@ class StreamRequest extends StreamRequestBuilder {
 		} catch (ItemUnknownException $e) {
 			throw new StreamNotFoundException('Malformed Stream');
 		} catch (StreamNotFoundException $e) {
-			throw new StreamNotFoundException(
-				'Stream (ById) not found - ' . $id . ' (asViewer: ' . $asViewer . ')'
-			);
+			throw new StreamNotFoundException('Stream not found');
 		}
 	}
 

@@ -37,6 +37,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -45,6 +46,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\Accounts\IAccountManager;
 use OCP\IUserManager;
+use OCP\IUserSession;
 
 
 /**
@@ -63,6 +65,9 @@ class AccountService {
 
 	/** @var IUserManager */
 	private $userManager;
+
+	/** @var IUserSession */
+	private $userSession;
 
 	/** @var IAccountManager */
 	private $accountManager;
@@ -96,6 +101,7 @@ class AccountService {
 	 * ActorService constructor.
 	 *
 	 * @param IUserManager $userManager
+	 * @param IUserSession $userSession
 	 * @param IAccountManager $accountManager
 	 * @param ActorsRequest $actorsRequest
 	 * @param FollowsRequest $followsRequest
@@ -107,12 +113,14 @@ class AccountService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IUserManager $userManager, IAccountManager $accountManager, ActorsRequest $actorsRequest,
+		IUserManager $userManager, IUserSession $userSession, IAccountManager $accountManager,
+		ActorsRequest $actorsRequest,
 		FollowsRequest $followsRequest, StreamRequest $streamRequest, ActorService $actorService,
 		DocumentService $documentService, SignatureService $signatureService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		$this->userManager = $userManager;
+		$this->userSession = $userSession;
 		$this->accountManager = $accountManager;
 		$this->actorsRequest = $actorsRequest;
 		$this->followsRequest = $followsRequest;
@@ -149,6 +157,24 @@ class AccountService {
 		$actor = $this->actorsRequest->getFromId($id);
 
 		return $actor;
+	}
+
+
+	/**
+	 * @return Person
+	 * @throws AccountDoesNotExistException
+	 */
+	public function getCurrentViewer(): Person {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			throw new AccountDoesNotExistException();
+		}
+
+		try {
+			return $this->getActorFromUserId($user->getUID());
+		} catch (Exception $e) {
+			throw new AccountDoesNotExistException();
+		}
 	}
 
 
