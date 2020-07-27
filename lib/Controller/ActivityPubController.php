@@ -36,12 +36,14 @@ use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OC\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RealTokenException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -82,6 +84,9 @@ class ActivityPubController extends Controller {
 	/** @var ImportService */
 	private $importService;
 
+	/** @var AccountService */
+	private $accountService;
+
 	/** @var FollowService */
 	private $followService;
 
@@ -105,17 +110,18 @@ class ActivityPubController extends Controller {
 	 * @param SignatureService $signatureService
 	 * @param StreamQueueService $streamQueueService
 	 * @param ImportService $importService
+	 * @param AccountService $accountService
 	 * @param FollowService $followService
 	 * @param StreamService $streamService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, SocialPubController $socialPubController,
-		FediverseService $fediverseService, CacheActorService $cacheActorService,
-		SignatureService $signatureService, StreamQueueService $streamQueueService,
-		ImportService $importService, FollowService $followService, StreamService $streamService,
-		ConfigService $configService, MiscService $miscService
+		IRequest $request, SocialPubController $socialPubController, FediverseService $fediverseService,
+		CacheActorService $cacheActorService, SignatureService $signatureService,
+		StreamQueueService $streamQueueService, ImportService $importService, AccountService $accountService,
+		FollowService $followService, StreamService $streamService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -125,6 +131,7 @@ class ActivityPubController extends Controller {
 		$this->signatureService = $signatureService;
 		$this->streamQueueService = $streamQueueService;
 		$this->importService = $importService;
+		$this->accountService = $accountService;
 		$this->followService = $followService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
@@ -364,9 +371,14 @@ class ActivityPubController extends Controller {
 			return $this->socialPubController->displayPost($username, $token);
 		}
 
-		// TODO - check viewer rights !
+		try {
+			$viewer = $this->accountService->getCurrentViewer();
+			$this->streamService->setViewer($viewer);
+		} catch (AccountDoesNotExistException $e) {
+		}
+
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
-		$stream = $this->streamService->getStreamById($postId, false);
+		$stream = $this->streamService->getStreamById($postId, true);
 
 		$stream->setCompleteDetails(false);
 

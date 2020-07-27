@@ -241,13 +241,11 @@ class StreamRequest extends StreamRequestBuilder {
 		};
 
 		$qb = $this->getStreamSelectSql();
-		$expr = $qb->expr();
-
 		$qb->limitToIdPrim($qb->prim($id));
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		if ($asViewer) {
-			$qb->limitToViewer('sd', 'f', true);
+			$qb->limitToViewer('sd', 'f', true, true);
 			$qb->leftJoinStreamAction('sa');
 		}
 

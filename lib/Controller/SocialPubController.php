@@ -33,10 +33,12 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -212,19 +214,17 @@ class SocialPubController extends Controller {
 	 * @param string $token
 	 *
 	 * @return TemplateResponse
-	 * @throws StreamNotFoundException
 	 * @throws SocialAppConfigException
+	 * @throws StreamNotFoundException
 	 */
 	public function displayPost(string $username, string $token): TemplateResponse {
-		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
-
-		if (isset($this->userId)) {
-			try {
-				$viewer = $this->accountService->getActorFromUserId($this->userId, true);
-				$this->streamService->setViewer($viewer);
-			} catch (Exception $e) {
-			}
+		try {
+			$viewer = $this->accountService->getCurrentViewer();
+			$this->streamService->setViewer($viewer);
+		} catch (AccountDoesNotExistException $e) {
 		}
+
+		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
 		$stream = $this->streamService->getStreamById($postId, true);
 		$data = [
