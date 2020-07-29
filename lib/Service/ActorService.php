@@ -36,6 +36,7 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
@@ -92,6 +93,8 @@ class ActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function cacheLocalActor(Person $actor) {
 		$actor->setLocal(true);
@@ -108,6 +111,8 @@ class ActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function save(Person $actor) {
 		$this->cacheDocumentIfNeeded($actor);
@@ -119,6 +124,7 @@ class ActorService {
 	 * @param Person $actor
 	 *
 	 * @return int
+	 * @throws ItemAlreadyExistsException
 	 */
 	public function update(Person $actor): int {
 		$this->cacheDocumentIfNeeded($actor);
@@ -129,6 +135,8 @@ class ActorService {
 
 	/**
 	 * @param Person $actor
+	 *
+	 * @throws ItemAlreadyExistsException
 	 */
 	private function cacheDocumentIfNeeded(Person $actor) {
 		if ($actor->hasIcon()) {

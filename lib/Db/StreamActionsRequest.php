@@ -96,9 +96,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$this->limitToActorId($qb, $action->getActorId());
 		$this->limitToStreamId($qb, $action->getStreamId());
 
-		$count = $qb->execute();
-
-		return $count;
+		return $qb->execute();
 	}
 
 

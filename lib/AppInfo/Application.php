@@ -32,12 +32,16 @@ namespace OCA\Social\AppInfo;
 
 
 use OC\DB\SchemaWrapper;
+use OC\Webfinger\Event\WebfingerEvent;
+use OC\Webfinger\Model\WebfingerObject;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
+use OCA\Social\Service\WebfingerService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\IAppContainer;
 use OCP\AppFramework\QueryException;
+use OCP\EventDispatcher\IEventDispatcher;
 
 
 /**
@@ -74,6 +78,26 @@ class Application extends App {
 		$manager = $this->container->getServer()
 								   ->getNotificationManager();
 		$manager->registerNotifierService(Notifier::class);
+	}
+
+
+	/**
+	 *
+	 */
+	public function registerWebfinger() {
+		/** @var IEventDispatcher $eventDispatcher */
+		$eventDispatcher = \OC::$server->query(IEventDispatcher::class);
+		$eventDispatcher->addListener(
+			'\OC\Webfinger::onRequest',
+			function(WebfingerEvent $e) {
+				/** @var WebfingerService $webfingerService */
+				$webfingerService = $this->container->query(WebfingerService::class);
+				try {
+					$webfingerService->webfinger($e);
+				} catch (\Exception $e) {
+				}
+			}
+		);
 	}
 
 
