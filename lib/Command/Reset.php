@@ -121,19 +121,28 @@ class Reset extends Base {
 			return;
 		}
 
+
+		if ($input->getOption('uninstall')) {
+			try {
+				$output->writeln('');
+				$output->write('Uninstalling Social App...');
+				$this->fullUninstall($output);
+				$output->writeln('<info>uninstalled</info>');
+			} catch (Exception $e) {
+				$output->writeln('<error>' . $e->getMessage() . '</error>');
+			}
+
+			return;
+		}
+
+
 		$output->writeln('');
 		$output->write('flushing data... ');
 		try {
 			$this->coreRequestBuilder->emptyAll();
 			$output->writeln('<info>done</info>');
 		} catch (Exception $e) {
-			$output->writeln('<error>fail</error>');
-
-			return;
-		}
-
-		if ($input->getOption('uninstall')) {
-			$this->fullUninstall($output);
+			$output->writeln('<error>' . $e->getMessage() . '</error>');
 
 			return;
 		}
@@ -170,8 +179,6 @@ class Reset extends Base {
 		$this->coreRequestBuilder->uninstallFromJobs();
 		$this->uninstallWellKnown();
 		$this->configService->unsetAppConfig();
-
-		$output->writeln('Nextcloud Social App <info>uninstalled</info>');
 	}
 
 
