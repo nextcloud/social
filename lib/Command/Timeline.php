@@ -130,7 +130,7 @@ class Timeline extends ExtendedBase {
 			throw new Exception('Unknown user');
 		}
 
-		$actor = $this->accountService->getActor($userId);
+		$actor = $this->accountService->getActorFromUserId($userId);
 
 		if (!$this->asJson) {
 			$this->outputActor($actor);
