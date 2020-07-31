@@ -55,6 +55,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		if ($aliasDest !== '') {
 			$this->from(CoreRequestBuilder::TABLE_STREAM_DEST, $aliasDest);
+//			$this->inChunk($aliasDest);
 		}
 		if ($aliasFollowing !== '') {
 			$this->from(CoreRequestBuilder::TABLE_FOLLOWS, $aliasFollowing);
@@ -178,13 +179,16 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim'));
 
 		$on = $expr->andX();
+//		$this->inChunk('sa', $on);
 		$viewer = $this->getViewer();
 		$idPrim = $this->prim($viewer->getId());
 
 		$on->add($expr->eq($alias . '.actor_id_prim', $this->createNamedParameter($idPrim)));
 		$on->add($orX);
 
-		$this->leftJoin($this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa', $on);
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_STREAM_ACTIONS, $alias, $on
+		);
 	}
 
 

@@ -33,6 +33,7 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Db\ExtendedQueryBuilder;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 
 
 /**
@@ -45,6 +46,49 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 
 	/** @var Person */
 	private $viewer = null;
+
+
+	/** @var int */
+	private $chunk = 0;
+
+
+	/**
+	 * @param int $chunk
+	 *
+	 * @return $this
+	 */
+	public function setChunk(int $chunk): self {
+		$this->chunk = $chunk;
+		$this->inChunk();
+
+		return $this;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getChunk(): int {
+		return $this->chunk;
+	}
+
+	/**
+	 * Limit the request to a chunk
+	 *
+	 * @param string $alias
+	 * @param ICompositeExpression|null $expr
+	 */
+	public function inChunk(string $alias = '', ICompositeExpression $expr = null) {
+		if ($this->getChunk() === 0) {
+			return;
+		}
+
+		if ($expr !== null) {
+			$expr->add($this->exprLimitToDBFieldInt('chunk', $this->getChunk(), $alias));
+
+			return;
+		}
+		$this->limitToDBFieldInt('chunk', $this->getChunk(), $alias);
+	}
 
 
 	/**

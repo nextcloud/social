@@ -404,6 +404,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'chunk', Type::SMALLINT,
+			[
+				'default'  => 1,
+				'length'   => 1,
+				'unsigned' => true
+			]
+		);
+		$table->addColumn(
 			'id_prim', 'string',
 			[
 				'notnull' => false,
@@ -603,6 +611,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(
 			[
 				'id_prim',
@@ -996,6 +1005,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'chunk', Type::SMALLINT,
+			[
+				'default'  => 1,
+				'length'   => 1,
+				'unsigned' => true
+			]
+		);
+		$table->addColumn(
 			'actor_id', 'string',
 			[
 				'notnull' => false,
@@ -1039,6 +1056,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id']);
+		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
 	}
 
@@ -1052,6 +1070,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->createTable('social_3_stream_dest');
+		$table->addColumn(
+			'chunk', Type::SMALLINT,
+			[
+				'default'  => 1,
+				'length'   => 1,
+				'unsigned' => true
+			]
+		);
 		$table->addColumn(
 			'stream_id', 'string',
 			[
@@ -1085,6 +1111,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 
+		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
 		$table->addIndex(['type', 'subtype'], 'ts');
 	}

@@ -370,6 +370,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimelineHome(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
+		$qb->setChunk(1);
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitPaginate($since, $limit);
