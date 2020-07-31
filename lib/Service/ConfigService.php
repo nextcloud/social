@@ -56,6 +56,7 @@ class ConfigService {
 	const CLOUD_URL = 'cloud_url';
 	const SOCIAL_URL = 'social_url';
 	const SOCIAL_ADDRESS = 'social_address';
+	const DATABASE_CHUNK_SIZE = 'db_chunk_size';
 
 	const SOCIAL_SERVICE = 'service';
 	const SOCIAL_MAX_SIZE = 'max_size';
@@ -64,6 +65,7 @@ class ConfigService {
 
 	const SOCIAL_SELF_SIGNED = 'allow_self_signed';
 
+
 	const BACKGROUND_CRON = 1;
 	const BACKGROUND_ASYNC = 2;
 	const BACKGROUND_SERVICE = 3;
@@ -71,14 +73,15 @@ class ConfigService {
 
 	/** @var array */
 	public $defaults = [
-		self::CLOUD_URL          => '',
-		self::SOCIAL_URL         => '',
-		self::SOCIAL_ADDRESS     => '',
-		self::SOCIAL_SERVICE     => 1,
-		self::SOCIAL_MAX_SIZE    => 10,
-		self::SOCIAL_ACCESS_TYPE => 'all_but',
-		self::SOCIAL_ACCESS_LIST => '[]',
-		self::SOCIAL_SELF_SIGNED => '0'
+		self::CLOUD_URL           => '',
+		self::SOCIAL_URL          => '',
+		self::SOCIAL_ADDRESS      => '',
+		self::SOCIAL_SERVICE      => 1,
+		self::SOCIAL_MAX_SIZE     => 10,
+		self::SOCIAL_ACCESS_TYPE  => 'all_but',
+		self::SOCIAL_ACCESS_LIST  => '[]',
+		self::SOCIAL_SELF_SIGNED  => '0',
+		self::DATABASE_CHUNK_SIZE => 10000
 	];
 
 	/** @var array */

@@ -46,6 +46,7 @@ use OCP\DB\QueryBuilder\ICompositeExpression;
  */
 class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
+
 	/**
 	 * Limit the request to the Type
 	 *
