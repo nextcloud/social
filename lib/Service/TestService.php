@@ -127,6 +127,7 @@ class TestService {
 		$tests->aObj('tests', $testWebfinger);
 
 		$testActorLink = new Test('actor-link', Test::SEVERITY_MANDATORY);
+		$link = [];
 		try {
 			$links = $this->getArray('links', $result);
 			$link = $this->extractArray('rel', 'self', $links);
@@ -175,7 +176,6 @@ class TestService {
 			$testActor->setSuccess(true);
 			$testActor->sObj('actor', $actor);
 		} catch (Exception $e) {
-			echo $e->getTraceAsString();
 			$testActor->addMessage(get_class($e));
 			$testActor->addMessage($e->getMessage());
 		}
