@@ -308,11 +308,11 @@ class ACore extends Item implements JsonSerializable {
 
 
 	/**
-	 * @param $id
+	 * @param string $id
 	 *
 	 * @throws InvalidOriginException
 	 */
-	public function checkOrigin($id) {
+	public function checkOrigin(string $id) {
 		$host = parse_url($id, PHP_URL_HOST);
 		$origin = $this->getRoot()
 					   ->getOrigin();

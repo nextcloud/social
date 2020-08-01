@@ -39,7 +39,6 @@ use OCP\AppFramework\QueryException;
 
 require_once(__DIR__ . '/../appinfo/autoload.php');
 
-
 if (!array_key_exists('resource', $_GET)) {
 	echo 'missing resource';
 	exit();
@@ -74,17 +73,6 @@ try {
 
 try {
 	$fediverseService->jailed();
-
-	if ($configService->getSocialAddress() !== $instance) {
-		if ($configService->getCloudHost() === $instance) {
-			$instance = $configService->getSocialAddress();
-		} else {
-			throw new Exception(
-				'instance is ' . $instance . ', expected ' . $configService->getSocialAddress()
-				. ' or ' . $configService->getCloudHost()
-			);
-		}
-	}
 
 	$cacheActorService->getFromLocalAccount($username);
 } catch (Exception $e) {

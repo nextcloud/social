@@ -252,7 +252,8 @@ class Document extends ACore implements JsonSerializable {
 		if ($this->getId() === '') {
 			$this->generateUniqueId('/documents/g');
 		} else {
-			$this->checkOrigin($this->getId());
+			// TODO: question if we need this, and why during the import ?
+			//			$this->checkOrigin($this->getId());
 		}
 	}
 

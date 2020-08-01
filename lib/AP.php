@@ -41,19 +41,19 @@ use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
-use OCA\Social\Interfaces\Actor\ServiceInterface;
-use OCA\Social\Interfaces\Object\FollowInterface;
-use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\PersonInterface;
+use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
-use OCA\Social\Interfaces\Object\DocumentInterface;
-use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
+use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FollowInterface;
+use OCA\Social\Interfaces\Object\ImageInterface;
+use OCA\Social\Interfaces\Object\LikeInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
@@ -61,19 +61,19 @@ use OCA\Social\Model\ActivityPub\Activity\Add;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
-use OCA\Social\Model\ActivityPub\Actor\Service;
-use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Actor\Service;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
@@ -208,7 +208,7 @@ class AP {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 */
-	public function getItemFromData(array $data, $parent = null, int $level = 0): ACore {
+	public function getItemFromData(array $data, ACore $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
 			throw new RedundancyLimitException($level);
 		}

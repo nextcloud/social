@@ -49,7 +49,7 @@ try {
 	exit;
 }
 
-header('Content-type: application/xdr+xml');
+header('Content-type: application/xrd+xml');
 
 try {
 	$url = $configService->getCloudUrl(true) . '/.well-known/webfinger?resource={uri}';

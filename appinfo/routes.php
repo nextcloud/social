@@ -37,9 +37,10 @@ use OCA\Social\Service\CurlService;
 return [
 	'routes' => [
 		['name' => 'Navigation#navigate', 'url' => '/', 'verb' => 'GET'],
-		['name' => 'Navigation#test', 'url' => '/test', 'verb' => 'GET'],
+		['name' => 'Config#remote', 'url' => '/test/{account}/', 'verb' => 'GET'],
+		['name' => 'Config#local', 'url' => '/local/', 'verb' => 'GET'],
 		[
-			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
+			'name' => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
 			'requirements' => ['path' => '.+'],
 			'defaults' => ['path' => '']
 		],
@@ -92,8 +93,14 @@ return [
 		['name' => 'Local#currentFollowing', 'url' => '/api/v1/current/following', 'verb' => 'GET'],
 
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/{username}/info', 'verb' => 'GET'],
-		['name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers', 'verb' => 'GET'],
-		['name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following', 'verb' => 'GET'],
+		[
+			'name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers',
+			'verb' => 'GET'
+		],
+		[
+			'name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following',
+			'verb' => 'GET'
+		],
 
 		['name' => 'Local#globalAccountInfo', 'url' => '/api/v1/global/account/info', 'verb' => 'GET'],
 		['name' => 'Local#globalActorInfo', 'url' => '/api/v1/global/actor/info', 'verb' => 'GET'],
@@ -101,9 +108,9 @@ return [
 		['name' => 'Local#globalAccountsSearch', 'url' => '/api/v1/global/accounts/search', 'verb' => 'GET'],
 		['name' => 'Local#globalTagsSearch', 'url' => '/api/v1/global/tags/search', 'verb' => 'GET'],
 
-//		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
+		//		['name' => 'Local#documentsCache', 'url' => '/api/v1/documents/cache', 'verb' => 'POST'],
 
-    ['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
+		['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
 
 		['name' => 'Queue#asyncForRequest', 'url' => CurlService::ASYNC_REQUEST_TOKEN, 'verb' => 'POST'],
 
