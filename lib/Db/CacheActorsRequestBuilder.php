@@ -91,7 +91,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		/** @deprecated */
 		$this->defaultSelectAlias = 'ca';
 		$qb->setDefaultSelectAlias('ca');
-		
+
 		return $qb;
 	}
 
@@ -120,7 +120,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		try {
 			$result = $qb->getRow([$this, 'parseCacheActorsSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new CacheActorDoesNotExistException($e->getMessage());
+			throw new CacheActorDoesNotExistException('Actor is not known');
 		}
 
 		return $result;

@@ -46,7 +46,6 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -230,31 +229,6 @@ class NavigationController extends Controller {
 		}
 
 		return $url;
-	}
-
-	/**
-	 * Display the navigation page of the Social app.
-	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 *
-	 * @return DataResponse
-	 */
-	public function test(): DataResponse {
-
-		$setup = false;
-		try {
-			$this->configService->getCloudUrl();
-			$setup = true;
-		} catch (SocialAppConfigException $e) {
-		}
-
-		return $this->success(
-			[
-				'version' => $this->configService->getAppValue('installed_version'),
-				'setup'   => $setup
-			]
-		);
 	}
 
 

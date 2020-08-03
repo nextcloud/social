@@ -125,8 +125,9 @@ class CurlService {
 			throw new InvalidResourceException();
 		}
 
+		$protocols = ['https', 'http'];
 		try {
-			$path = $this->hostMeta($host);
+			$path = $this->hostMeta($host, $protocols);
 		} catch (HostMetaException $e) {
 			$path = '/.well-known/webfinger';
 		}
@@ -134,7 +135,7 @@ class CurlService {
 		$request = new Request($path);
 		$request->addData('resource', 'acct:' . $account);
 		$request->setAddress($host);
-		$request->setProtocols(['https', 'http']);
+		$request->setProtocols($protocols);
 		$result = $this->retrieveJson($request);
 
 		$subject = $this->get('subject', $result, '');
@@ -149,25 +150,26 @@ class CurlService {
 
 	/**
 	 * @param string $host
+	 * @param array $protocols
 	 *
 	 * @return string
 	 * @throws HostMetaException
 	 */
-	public function hostMeta(string &$host): string {
+	public function hostMeta(string &$host, array &$protocols): string {
 		$request = new Request('/.well-known/host-meta');
 		$request->setAddress($host);
+		$request->setProtocols($protocols);
 
 		try {
 			$result = $this->retrieveJson($request);
 		} catch (Exception $e) {
-			$this->miscService->log(
-				'hostMeta Exception - ' . get_class($e) . ' - ' . $e->getMessage(), 0
-			);
-			throw new HostMetaException($e->getMessage());
+			$this->miscService->log('hostMeta Exception - ' . get_class($e) . ' - ' . $e->getMessage(), 0);
+			throw new HostMetaException(get_class($e) . ' - ' . $e->getMessage());
 		}
 
 		$url = $this->get('Link.@attributes.template', $result, '');
 		$host = parse_url($url, PHP_URL_HOST);
+		$protocols = [parse_url($url, PHP_URL_SCHEME)];
 
 		return parse_url($url, PHP_URL_PATH);
 	}

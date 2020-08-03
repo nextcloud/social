@@ -176,7 +176,7 @@ class CacheActorService {
 			return $this->cacheActorsRequest->getFromLocalAccount($account);
 		}
 
-		throw new CacheActorDoesNotExistException();
+		throw new CacheActorDoesNotExistException('Address does is not local');
 	}
 
 	/**
