@@ -1,0 +1,161 @@
+{
+  "result": [
+    {
+      "account": "cult@test.artificial-owl.com",
+      "endpoint": "test@social.artificial-owl.com",
+      "tests": [
+        {
+          "name": "host-meta",
+          "severity": "optional",
+          "details": {
+            "host": "test.artificial-owl.com",
+            "path": "/.well-known/webfinger",
+            "protocol": [
+              "https"
+            ]
+          },
+          "success": true
+        },
+        {
+          "name": "webfinger",
+          "severity": "mandatory",
+          "details": {
+            "request": {
+              "protocols": [
+                "https"
+              ],
+              "used_protocol": "https",
+              "host": "test.artificial-owl.com",
+              "url": "/.well-known/webfinger",
+              "timeout": 10,
+              "type": 0,
+              "data": {
+                "resource": "acct:cult@test.artificial-owl.com"
+              }
+            },
+            "result": {
+              "subject": "acct:cult@test.artificial-owl.com",
+              "links": [
+                {
+                  "rel": "self",
+                  "type": "application/activity+json",
+                  "href": "https://test.artificial-owl.com/index.php/apps/social/@cult"
+                },
+                {
+                  "rel": "http://ostatus.org/schema/1.0/subscribe",
+                  "template": "https://test.artificial-owl.com/index.php/apps/social/ostatus/follow/?uri={uri}"
+                }
+              ]
+            }
+          },
+          "success": true
+        },
+        {
+          "name": "actor-link",
+          "severity": "mandatory",
+          "details": {
+            "link": {
+              "rel": "self",
+              "type": "application/activity+json",
+              "href": "https://test.artificial-owl.com/index.php/apps/social/@cult"
+            }
+          },
+          "success": true
+        },
+        {
+          "name": "actor-data",
+          "severity": "mandatory",
+          "details": {
+            "id": [
+              "https://test.artificial-owl.com/index.php/apps/social/@cult"
+            ],
+            "data": {
+              "@context": [
+                "https://www.w3.org/ns/activitystreams",
+                "https://w3id.org/security/v1"
+              ],
+              "id": "https://test.artificial-owl.com/index.php/apps/social/@cult",
+              "type": "Person",
+              "url": "https://test.artificial-owl.com/index.php/apps/social/@cult",
+              "icon": {
+                "id": "https://test.artificial-owl.com/index.php/documents/avatar/c7ad599c-499a-4680-9f01-e7f57fbea631",
+                "type": "Image",
+                "url": "https://test.artificial-owl.com/index.php/avatar/cult/128",
+                "mediaType": "",
+                "mimeType": "",
+                "localCopy": "avatar",
+                "resizedCopy": ""
+              },
+              "local": true,
+              "aliases": [
+                "@cult",
+                "users/cult"
+              ],
+              "preferredUsername": "cult",
+              "name": "",
+              "inbox": "https://test.artificial-owl.com/index.php/apps/social/@cult/inbox",
+              "outbox": "https://test.artificial-owl.com/index.php/apps/social/@cult/outbox",
+              "account": "cult@test.artificial-owl.com",
+              "following": "https://test.artificial-owl.com/index.php/apps/social/@cult/following",
+              "followers": "https://test.artificial-owl.com/index.php/apps/social/@cult/followers",
+              "endpoints": {
+                "sharedInbox": "https://test.artificial-owl.com/index.php/apps/social/inbox"
+              },
+              "publicKey": {
+                "id": "https://test.artificial-owl.com/index.php/apps/social/@cult#main-key",
+                "owner": "https://test.artificial-owl.com/index.php/apps/social/@cult",
+                "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwz9YTXDH2IJS/zfITuFF\n/tjUbdxK0LzzcvpFKWeaXH3ybQbjw3AjRIn4PPXCtzuBqUK54yI52gxT7DR98r21\nG0q6/ifucoZV6zb2Af5T+BiHKwhV4/HY9XAgQf6GR1bpP0Qxdf1g/ZuCu5tEdjB4\ncu+/WX7rDZ2hf2ahaHAJC4Nw4CxjF6H6t8ng53dbLTzzFMeGU3nyJmW2I31Pe7r4\n2RfOhe1RwI4t24a/ls/ZVucSuaMm9pFTtfSDao111lZH6CXmo1wFYnCalPSnF1kh\ncviKyPpxJXaAYggM24IkYJpwbH8JWoSMk8UebSN9sgM5QfsLK7bMKXazB829RxoM\n/wIDAQAB\n-----END PUBLIC KEY-----\n"
+              },
+              "_host": "test.artificial-owl.com"
+            }
+          },
+          "success": true
+        },
+        {
+          "name": "actor",
+          "severity": "mandatory",
+          "details": {
+            "actor": {
+              "@context": [
+                "https://www.w3.org/ns/activitystreams"
+              ],
+              "id": "https://test.artificial-owl.com/index.php/apps/social/@cult",
+              "type": "Person",
+              "url": "https://test.artificial-owl.com/index.php/apps/social/@cult",
+              "icon": {
+                "id": "https://test.artificial-owl.com/index.php/documents/avatar/c7ad599c-499a-4680-9f01-e7f57fbea631",
+                "type": "Image",
+                "url": "https://test.artificial-owl.com/index.php/avatar/cult/128",
+                "mediaType": "",
+                "mimeType": "",
+                "localCopy": "",
+                "resizedCopy": ""
+              },
+              "aliases": [
+                "@cult",
+                "users/cult"
+              ],
+              "preferredUsername": "cult",
+              "name": "",
+              "inbox": "https://test.artificial-owl.com/index.php/apps/social/@cult/inbox",
+              "outbox": "https://test.artificial-owl.com/index.php/apps/social/@cult/outbox",
+              "account": "cult@test.artificial-owl.com",
+              "following": "https://test.artificial-owl.com/index.php/apps/social/@cult/following",
+              "followers": "https://test.artificial-owl.com/index.php/apps/social/@cult/followers",
+              "endpoints": {
+                "sharedInbox": "https://test.artificial-owl.com/index.php/apps/social/inbox"
+              },
+              "publicKey": {
+                "id": "https://test.artificial-owl.com/index.php/apps/social/@cult#main-key",
+                "owner": "https://test.artificial-owl.com/index.php/apps/social/@cult",
+                "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwz9YTXDH2IJS/zfITuFF\n/tjUbdxK0LzzcvpFKWeaXH3ybQbjw3AjRIn4PPXCtzuBqUK54yI52gxT7DR98r21\nG0q6/ifucoZV6zb2Af5T+BiHKwhV4/HY9XAgQf6GR1bpP0Qxdf1g/ZuCu5tEdjB4\ncu+/WX7rDZ2hf2ahaHAJC4Nw4CxjF6H6t8ng53dbLTzzFMeGU3nyJmW2I31Pe7r4\n2RfOhe1RwI4t24a/ls/ZVucSuaMm9pFTtfSDao111lZH6CXmo1wFYnCalPSnF1kh\ncviKyPpxJXaAYggM24IkYJpwbH8JWoSMk8UebSN9sgM5QfsLK7bMKXazB829RxoM\n/wIDAQAB\n-----END PUBLIC KEY-----\n"
+              }
+            }
+          },
+          "success": true
+        }
+      ]
+    }
+  ],
+  "status": 1
+}

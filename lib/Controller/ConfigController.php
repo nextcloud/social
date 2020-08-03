@@ -113,13 +113,22 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function remote(string $account): DataResponse {
+		if ($account === '' || $this->configService->getSystemValue('social.tests') === '') {
+			return $this->local();
+		}
+
 		try {
 			$this->configService->getCloudUrl();
 		} catch (SocialAppConfigException $e) {
 			return $this->success(['error' => 'error on my side: my own Social App is not configured']);
 		}
 
-		$tests = new SimpleDataStore(['account' => $account]);
+		$tests = new SimpleDataStore(
+			[
+				'account'  => $account,
+				'endpoint' => $this->configService->getSystemValue('social.tests')
+			]
+		);
 		try {
 			$this->testService->testWebfinger($tests);
 		} catch (Exception $e) {
