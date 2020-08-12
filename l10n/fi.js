@@ -44,6 +44,8 @@ OC.L10N.register(
     "Posts directed to you will show up here" : "Sinulle osoitetut julkaisut näkyvät täällä",
     "No local posts found" : "Ei paikallisia julkaisuja",
     "Posts from other people on this instance will show up here" : "Muiden ihmisten tähän asennukseen kirjoitetut julkaisut näkyvät täällä",
+    "No notifications found" : "Ilmoituksia ei löytynyt",
+    "You haven't receive any notifications yet" : "Et ole vielä saanut yhtäkään ilmoitusta",
     "No global posts found" : "Yleisiä julkaisuja ei löytynyt",
     "Posts from federated instances will show up here" : "Yhteenliitettyihin asennuksiin tehdyt julkaisut näkyvät täällä",
     "Reply" : "Vastaa",
