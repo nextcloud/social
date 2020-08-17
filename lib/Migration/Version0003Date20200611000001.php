@@ -1056,7 +1056,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id']);
-		$table->addIndex(['chunk'], 'chunk');
+		$table->addIndex(['chunk'], 'chunk_act');
 		$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
 	}
 
@@ -1111,7 +1111,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 
-		$table->addIndex(['chunk'], 'chunk');
+		$table->addIndex(['chunk'], 'chunk_dest');
 		$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
 		$table->addIndex(['type', 'subtype'], 'ts');
 	}

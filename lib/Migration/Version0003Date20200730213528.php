@@ -73,9 +73,9 @@ class Version0003Date20200730213528 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$this->addChunkToTable($schema, 'social_3_stream');
-		$this->addChunkToTable($schema, 'social_3_stream_act');
-		$this->addChunkToTable($schema, 'social_3_stream_dest');
+		$this->addChunkToTable($schema, 'social_3_stream', '');
+		$this->addChunkToTable($schema, 'social_3_stream_act', '_act');
+		$this->addChunkToTable($schema, 'social_3_stream_dest', '_dest');
 
 		return $schema;
 	}
@@ -87,7 +87,7 @@ class Version0003Date20200730213528 extends SimpleMigrationStep {
 	 *
 	 * @throws SchemaException
 	 */
-	private function addChunkToTable(ISchemaWrapper $schema, string $tableName) {
+	private function addChunkToTable(ISchemaWrapper $schema, string $tableName, string $indexName) {
 		if (!$schema->hasTable($tableName)) {
 			return;
 		}
@@ -105,8 +105,9 @@ class Version0003Date20200730213528 extends SimpleMigrationStep {
 				'unsigned' => true
 			]
 		);
-
-		$table->addIndex(['chunk'], 'chunk');
+		if (!$table->hasIndex('chunk' . $indexName)) {
+			$table->addIndex(['chunk'], 'chunk' . $indexName);
+		}
 	}
 
 
