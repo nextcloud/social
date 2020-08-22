@@ -138,6 +138,9 @@ export default {
 	.timeline-entry:hover {
 		background-color: #F5F5F5;
 	}
+	body.dark .timeline-entry:hover {
+		background-color: #202020;
+	}
 
 	.container-icon-boost {
 		display: inline-block;
