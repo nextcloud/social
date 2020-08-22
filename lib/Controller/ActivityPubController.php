@@ -54,6 +54,7 @@ use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
@@ -205,7 +206,7 @@ class ActivityPubController extends Controller {
 
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('[<<] shared-inbox: ' . $body, 1);
+			$this->miscService->log('[<<] sharedInbox: ' . $body, 1);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
@@ -255,8 +256,7 @@ class ActivityPubController extends Controller {
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
 
-			// TODO - check the recipient <-> username
-//			$actor = $this->actorService->getActor($username);
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {

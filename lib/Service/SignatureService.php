@@ -316,7 +316,7 @@ class SignatureService {
 			return true;
 		} catch (LinkedDataSignatureMissingException $e) {
 			$this->miscService->log(
-				'LinkedDataSignatureMissingException while checkObject : ' . $e->getMessage()
+				'Notice: LinkedDataSignatureMissingException while checkObject : ' . $e->getMessage()
 				. ' --- ' . json_encode($object), 1
 			);
 		}

@@ -34,7 +34,6 @@ namespace OCA\Social\Model;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
-use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\SignatureService;
 
 

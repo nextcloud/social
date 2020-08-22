@@ -805,10 +805,10 @@ export default {
 			}
 
 			// Abort if the post is a direct message and no valid mentions were found
-			if (this.type === 'direct' && postData.to.length === 0) {
-				OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
-				return
-			}
+			// if (this.type === 'direct' && postData.to.length === 0) {
+			// 	OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
+			// 	return
+			// }
 
 			// Post message
 			this.loading = true
