@@ -113,7 +113,7 @@ class Note extends Stream implements JsonSerializable {
 			if (substr($hashtag, 0, 1) === '#') {
 				$hashtag = substr($hashtag, 1);
 			}
-			$hashtags[] = $hashtag;
+			$hashtags[] = trim($hashtag);
 		}
 
 		$this->setHashtags($hashtags);

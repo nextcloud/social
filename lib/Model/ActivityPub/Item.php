@@ -411,7 +411,9 @@ class Item {
 	 * @return Item
 	 */
 	public function addToArray(string $to): Item {
-		$this->toArray[] = $to;
+		if (!in_array($to, $this->toArray)) {
+			$this->toArray[] = $to;
+		}
 
 		return $this;
 	}

@@ -242,7 +242,7 @@ class StreamService {
 		}
 
 		try {
-			$actor = $this->cacheActorService->getFromAccount($account);
+			$actor = $this->cacheActorService->getFromAccount($account, true);
 		} catch (Exception $e) {
 			return;
 		}
@@ -253,7 +253,7 @@ class StreamService {
 		if ($type === Stream::TYPE_DIRECT) {
 			$instancePath->setPriority(InstancePath::PRIORITY_HIGH);
 			$stream->addToArray($actor->getId());
-			$stream->setFilterDuplicate(true);
+			$stream->setFilterDuplicate(true); // TODO: really needed ?
 		} else {
 			$stream->addCc($actor->getId());
 		}

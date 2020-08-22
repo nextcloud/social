@@ -31,6 +31,11 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
@@ -38,11 +43,6 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -119,6 +119,8 @@ class PostService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function createPost(Post $post, &$token = ''): ACore {
+		$this->fixRecipientAndHashtags($post);
+
 		$note = new Note();
 		$actor = $post->getActor();
 		$this->streamService->assignItem($note, $actor, $post->getType());
@@ -191,6 +193,23 @@ class PostService {
 		return $document;
 	}
 
+
+	/**
+	 * @param Post $post
+	 */
+	public function fixRecipientAndHashtags(Post $post) {
+		preg_match_all('/(?!\b)@([^\s]+)/', $post->getContent(), $matchesTo);
+		preg_match_all('/(?!\b)#([^\s]+)/', $post->getContent(), $matchesHash);
+
+		foreach ($matchesTo[1] as $to) {
+			$post->addTo($to);
+		}
+
+		foreach ($matchesHash[1] as $hash) {
+			$post->addHashtag($hash);
+		}
+
+	}
 
 }
 
