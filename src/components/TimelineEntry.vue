@@ -134,9 +134,9 @@ export default {
 	.timeline-entry {
 		padding: 10px;
 		margin-bottom: 10px;
-	}
-	.timeline-entry:hover {
-		background-color: #F5F5F5;
+		&:hover {
+			background-color: var(--color-background-hover);
+		}
 	}
 
 	.container-icon-boost {
