@@ -52,6 +52,7 @@ return [
 		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
 		['name' => 'ActivityPub#actorAlias', 'url' => '/@{username}/', 'verb' => 'GET'],
 		['name' => 'ActivityPub#inbox', 'url' => '/@{username}/inbox', 'verb' => 'POST'],
+		['name' => 'ActivityPub#getInbox', 'url' => '/@{username}/inbox', 'verb' => 'GET'],
 		['name' => 'ActivityPub#sharedInbox', 'url' => '/inbox', 'verb' => 'POST'],
 
 		['name' => 'ActivityPub#outbox', 'url' => '/@{username}/outbox', 'verb' => 'GET'],
@@ -64,6 +65,17 @@ return [
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/', 'verb' => 'GET'],
 		['name' => 'OStatus#followRemote', 'url' => '/api/v1/ostatus/followRemote/{local}', 'verb' => 'GET'],
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
+
+		// OAuth
+		['name' => 'ActivityStream#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
+		['name' => 'ActivityStream#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
+		['name' => 'ActivityStream#token', 'url' => '/oauth/token', 'verb' => 'POST'],
+		['name' => 'ActivityStream#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
+		['name' => 'ActivityStream#accountsCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
+
+		// New Local
+		['name' => 'ActivityStream#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
+
 
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
 		['name' => 'Local#streamNotifications', 'url' => '/api/v1/stream/notifications', 'verb' => 'GET'],

@@ -84,10 +84,13 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
+	 * @param int $format
+	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamSelectSql(): SocialQueryBuilder {
+	protected function getStreamSelectSql(int $format = Stream::FORMAT_ACTIVITYPUB): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
+		$qb->setFormat($format);
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
@@ -195,17 +198,19 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
+	 * @param SocialQueryBuilder $qb
+	 *
 	 * @return Stream
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	public function parseStreamSelectSql(array $data): Stream {
+	public function parseStreamSelectSql(array $data, SocialQueryBuilder $qb): Stream {
 		$as = $this->get('type', $data, Stream::TYPE);
 
 		/** @var Stream $item */
 		$item = AP::$activityPub->getItemFromType($as);
 		$item->importFromDatabase($data);
-
+		$item->setExportFormat($qb->getFormat());
 		$instances = json_decode($this->get('instances', $data, '[]'), true);
 		if (is_array($instances)) {
 			foreach ($instances as $instance) {

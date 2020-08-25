@@ -76,6 +76,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$this->createActors($schema);
 		$this->createCacheActors($schema);
 		$this->createCacheDocuments($schema);
+		$this->createClientOauth($schema);
 		$this->createFollows($schema);
 		$this->createHashtags($schema);
 		$this->createRequestQueue($schema);
@@ -84,6 +85,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$this->createStreamDest($schema);
 		$this->createStreamQueue($schema);
 		$this->createStreamTags($schema);
+
 
 		return $schema;
 	}
@@ -899,6 +901,75 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['id_prim']);
 //		$table->addUniqueIndex(['url'], 'unique_url');
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function createClientOauth(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_client_app')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_client_app');
+		$table->addColumn(
+			'id', 'integer',
+			[
+				'autoincrement' => true,
+				'notnull'       => true,
+				'length'        => 7,
+				'unsigned'      => true,
+			]
+		);
+		$table->addColumn(
+			'name', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'website', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'redirect_uri', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'client_id', 'string',
+			[
+				'notnull' => false,
+				'length'  => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'client_secret', 'string',
+			[
+				'notnull' => false,
+				'length'  => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['id']);
 	}
 
 

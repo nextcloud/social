@@ -76,6 +76,9 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
 	const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
 
+	const TABLE_CLIENT_APP = 'social_3_client_app';
+
+
 	/** @var array */
 	private $tables = [
 		self::TABLE_REQUEST_QUEUE,
@@ -89,8 +92,10 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_QUEUE,
 		self::TABLE_STREAM_DEST,
 		self::TABLE_STREAM_TAGS,
-		self::TABLE_STREAM_ACTIONS
+		self::TABLE_STREAM_ACTIONS,
+		self::TABLE_CLIENT_APP
 	];
+
 
 	/** @var ILogger */
 	protected $logger;

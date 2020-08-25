@@ -39,6 +39,25 @@ namespace OCA\Social\Db;
 class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 
 
+	/** @var int */
+	private $format = 1;
+
+
+	/**
+	 * @param int $format
+	 */
+	public function setFormat(int $format) {
+		$this->format = $format;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getFormat(): int {
+		return $this->format;
+	}
+
+
 	/**
 	 * @param string $id
 	 * @param string $field

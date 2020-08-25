@@ -364,12 +364,13 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @param int $since
 	 * @param int $limit
+	 * @param int $format
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineHome(int $since = 0, int $limit = 5): array {
-		$qb = $this->getStreamSelectSql();
+	public function getTimelineHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB): array {
+		$qb = $this->getStreamSelectSql($format);
 		$qb->setChunk(1);
 
 		$qb->filterType(SocialAppNotification::TYPE);

@@ -92,6 +92,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * Limit the request to clientId
+	 *
+	 * @param string $clientId
+	 */
+	public function limitToClientId(string $clientId) {
+		$this->limitToDBField('client_id', $clientId);
+	}
+
+
+	/**
 	 * @param string $type
 	 */
 	public function filterType(string $type) {

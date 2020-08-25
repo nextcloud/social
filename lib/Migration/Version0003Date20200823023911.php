@@ -45,7 +45,7 @@ use OCP\Migration\SimpleMigrationStep;
  *
  * @package OCA\Social\Migration
  */
-class Version0003Date20200730213528 extends SimpleMigrationStep {
+class Version0003Date20200823023911 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -73,6 +73,8 @@ class Version0003Date20200730213528 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
+		$this->createClientOauth($schema);
+
 		$this->addChunkToTable($schema, 'social_3_stream', '');
 		$this->addChunkToTable($schema, 'social_3_stream_act', '_act');
 		$this->addChunkToTable($schema, 'social_3_stream_dest', '_dest');
@@ -83,7 +85,77 @@ class Version0003Date20200730213528 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 */
+	private function createClientOauth(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_client_app')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_client_app');
+		$table->addColumn(
+			'id', 'integer',
+			[
+				'autoincrement' => true,
+				'notnull'       => true,
+				'length'        => 7,
+				'unsigned'      => true,
+			]
+		);
+		$table->addColumn(
+			'name', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'website', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'redirect_uri', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'client_id', 'string',
+			[
+				'notnull' => false,
+				'length'  => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'client_secret', 'string',
+			[
+				'notnull' => false,
+				'length'  => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['id']);
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
 	 * @param string $tableName
+	 * @param string $indexName
 	 *
 	 * @throws SchemaException
 	 */

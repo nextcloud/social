@@ -396,9 +396,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
-	public function jsonSerialize(): array {
+	public function exportAsActivityPub(): array {
 		$result = array_merge(
-			parent::jsonSerialize(),
+			parent::exportAsActivityPub(),
 			[
 				'content'      => $this->getContent(),
 				'attributedTo' => ($this->getAttributedTo() !== '') ? $this->getUrlSocial()
@@ -409,6 +409,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			]
 		);
 
+		// TODO: use exportFormat
 		if ($this->isCompleteDetails()) {
 			$result = array_merge(
 				$result,
@@ -430,5 +431,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $result;
 	}
 
-}
 
+	/**
+	 * @return array
+	 */
+	public function exportAsLocal(): array {
+		$result = array_merge(
+			parent::exportAsLocal(),
+			[]);
+
+		return $result;
+	}
+
+}
