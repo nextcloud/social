@@ -45,6 +45,7 @@ OC.L10N.register(
     "No local posts found" : "Ez da tokiko mezurik aurkitu",
     "Posts from other people on this instance will show up here" : "Instantzia honetako beste jendearen mezuak hemen agertuko dira",
     "No notifications found" : "Ez da jakinarazpenik aurkitu",
+    "You haven't receive any notifications yet" : "Ez da jakinarazpenik jaso oraindik",
     "No global posts found" : "Ez da mezu globalik aurkitu",
     "Posts from federated instances will show up here" : "Federatutako instantzien mezuak hemen agertuko dira",
     "No liked posts found" : "Ez da gustuko mezurik aurkitu",
