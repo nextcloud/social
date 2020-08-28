@@ -285,10 +285,6 @@ class StreamService {
 					'name' => '#' . $hashtag
 				]
 			);
-			\OC::$server->getLogger()
-						->log(
-							3, '___' . $this->configService->getSocialUrl() . 'tag/' . strtolower($hashtag)
-						);
 		} catch (SocialAppConfigException $e) {
 		}
 	}
@@ -414,7 +410,8 @@ class StreamService {
 	 * @return Note[]
 	 * @throws DateTimeException
 	 */
-	public function getStreamHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB): array {
+	public function getStreamHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+	): array {
 		return $this->streamRequest->getTimelineHome($since, $limit, $format);
 	}
 

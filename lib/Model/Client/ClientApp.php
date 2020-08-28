@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 
-namespace OCA\Social\Model\ActivityStream;
+namespace OCA\Social\Model\Client;
 
 
 use daita\MySmallPhpTools\IQueryRow;
@@ -39,7 +39,7 @@ use JsonSerializable;
 /**
  * Class ClientApp
  *
- * @package OCA\Social\Model\ActivityStream
+ * @package OCA\Social\Model\Client
  */
 class ClientApp implements IQueryRow, JsonSerializable {
 
@@ -56,8 +56,8 @@ class ClientApp implements IQueryRow, JsonSerializable {
 	/** @var string */
 	private $website = '';
 
-	/** @var string */
-	private $redirectUri = '';
+	/** @var array */
+	private $redirectUris = [];
 
 	/** @var array */
 	private $scopes = [];
@@ -134,19 +134,19 @@ class ClientApp implements IQueryRow, JsonSerializable {
 
 
 	/**
-	 * @return string
+	 * @return array
 	 */
-	public function getRedirectUri(): string {
-		return $this->redirectUri;
+	public function getRedirectUris(): array {
+		return $this->redirectUris;
 	}
 
 	/**
-	 * @param string $redirectUri
+	 * @param array $redirectUris
 	 *
 	 * @return ClientApp
 	 */
-	public function setRedirectUri(string $redirectUri): self {
-		$this->redirectUri = $redirectUri;
+	public function setRedirectUris(array $redirectUris): self {
+		$this->redirectUris = $redirectUris;
 
 		return $this;
 	}
@@ -229,7 +229,8 @@ class ClientApp implements IQueryRow, JsonSerializable {
 		$this->setId($this->getInt('id', $data));
 		$this->setName($this->get('name', $data));
 		$this->setWebsite($this->get('website', $data));
-		$this->setRedirectUri($this->get('redirect_uri', $data));
+		$this->setRedirectUris($this->getArray('redirect_uris', $data));
+		$this->setScopes($this->getArray('scopes', $data));
 		$this->setClientId($this->get('client_id', $data));
 		$this->setClientSecret($this->get('client_secret', $data));
 
@@ -245,7 +246,8 @@ class ClientApp implements IQueryRow, JsonSerializable {
 			'id'            => $this->getId(),
 			'name'          => $this->getName(),
 			'website'       => $this->getWebsite(),
-			'redirect_uri'  => $this->getRedirectUri(),
+			'redirect_uri'  => $this->getRedirectUris(),
+			'scopes'        => implode(' ', $this->getScopes()),
 			'client_id'     => $this->getClientId(),
 			'client_secret' => $this->getClientSecret()
 		];

@@ -31,37 +31,40 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
-use Exception;
-use OC\AppFramework\Http;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
-use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\ClientAppDoesNotExistException;
+use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
+use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\ActivityStream\ClientApp;
+use OCA\Social\Model\Client\ClientApp;
+use OCA\Social\Model\Client\ClientAuth;
+use OCA\Social\Model\Client\ClientToken;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use OCP\IUserSession;
 
 
-class ActivityStreamController extends Controller {
+class OAuthController extends Controller {
 
 
 	use TNCDataResponse;
 
+
+	/** @var IUserSession */
+	private $userSession;
 
 	/** @var AccountService */
 	private $accountService;
@@ -72,12 +75,6 @@ class ActivityStreamController extends Controller {
 	/** @var ClientService */
 	private $clientService;
 
-	/** @var FollowService */
-	private $followService;
-
-	/** @var StreamService */
-	private $streamService;
-
 	/** @var ConfigService */
 	private $configService;
 
@@ -85,46 +82,33 @@ class ActivityStreamController extends Controller {
 	private $miscService;
 
 
-	/** @var string */
-	private $bearer = '';
-
-	/** @var Person */
-	private $viewer;
-
-
 	/**
 	 * ActivityStreamController constructor.
 	 *
 	 * @param IRequest $request
+	 * @param IUserSession $userSession
 	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
 	 * @param ClientService $clientService
-	 * @param FollowService $followService
-	 * @param StreamService $streamService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, AccountService $accountService, CacheActorService $cacheActorService,
-		ClientService $clientService, FollowService $followService, StreamService $streamService,
-		ConfigService $configService,
+		IRequest $request, IUserSession $userSession, AccountService $accountService,
+		CacheActorService $cacheActorService, ClientService $clientService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
+		$this->userSession = $userSession;
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->clientService = $clientService;
-		$this->followService = $followService;
-		$this->streamService = $streamService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 
-		$authHeader = trim($this->request->getHeader('Authorization'));
-		list($authType, $authToken) = explode(' ', $authHeader);
-		if (strtolower($authType) === 'bearer') {
-			$this->bearer = $authToken;
-		}
+		$body = file_get_contents('php://input');
+		$this->miscService->log('[ClientService] input: ' . $body, 1);
 	}
 
 
@@ -138,64 +122,88 @@ class ActivityStreamController extends Controller {
 	 * @param string $client_name
 	 *
 	 * @return Response
+	 * @throws ClientException
 	 */
 	public function apps(
-		string $website = '', string $redirect_uris = '', string $scopes = '', string $client_name = ''
+		string $client_name, string $redirect_uris, string $website = '', string $scopes = 'read'
 	): Response {
+		// TODO: manage array from request
+		if (!is_array($redirect_uris)) {
+			$redirect_uris = [$redirect_uris];
+		}
+
 		$clientApp = new ClientApp();
 		$clientApp->setWebsite($website);
-		$clientApp->setRedirectUri($redirect_uris);
+		$clientApp->setRedirectUris($redirect_uris);
 		$clientApp->setScopesFromString($scopes);
 		$clientApp->setName($client_name);
 
 		$this->clientService->createClient($clientApp);
-		$this->miscService->log('### ' . json_encode($clientApp));
 
-		return $this->directSuccess($clientApp);
+		return new DataResponse($clientApp, Http::STATUS_OK);
 	}
 
 
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 * @PublicPage
+	 *
+	 * @param string $client_id
+	 * @param string $redirect_uri
+	 * @param string $response_type
+	 * @param string $scope
 	 *
 	 * @return DataResponse
-	 * @throws SocialAppConfigException
 	 * @throws AccountAlreadyExistsException
 	 * @throws ActorDoesNotExistException
+	 * @throws ClientAppDoesNotExistException
+	 * @throws ClientException
 	 * @throws ItemAlreadyExistsException
-	 * @throws UrlCloudException
 	 * @throws NoUserException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
 	 */
-	public function authorize(): DataResponse {
-		$userId = 'cult';
+	public function authorize(
+		string $client_id, string $redirect_uri, string $response_type, string $scope = 'read'
+	): DataResponse {
+		$user = $this->userSession->getUser();
+		$account = $this->accountService->getActorFromUserId($user->getUID());
 
-		$account = $this->accountService->getActorFromUserId($userId);
-		$clientId = (string)$this->request->getParam('client_id', '');
-		$responseType = (string)$this->request->getParam('response_type', '');
-		$redirectUri = (string)$this->request->getParam('redirect_uri', '');
-
-		if ($responseType !== 'code') {
+		if ($response_type !== 'code') {
 			return new DataResponse(['error' => 'invalid_type'], Http::STATUS_BAD_REQUEST);
 		}
 
-//		$this->clientService->assignAccount($clientId, $account);
-		$code = 'test1234';
+		$clientApp = $this->clientService->getClientByClientId($client_id);
+		$this->clientService->confirmData(
+			$clientApp,
+			[
+				'scopes' => $scope,
+			]
+		);
 
-		if ($redirectUri !== '') {
-			header('Location: ' . $redirectUri . '?code=' . $code);
+		$clientAuth = new ClientAuth();
+		$clientAuth->setRedirectUri($redirect_uri);
+		$clientAuth->setScopes(explode(' ', $scope));
+		$clientAuth->setAccount($account->getPreferredUsername());
+		$clientAuth->setUserId($user->getUID());
+
+		$this->clientService->authClient($clientApp, $clientAuth);
+		$code = $clientAuth->getCode();
+
+		if ($redirect_uri !== 'urn:ietf:wg:oauth:2.0:oob') {
+			header('Location: ' . $redirect_uri . '?code=' . $code);
 			exit();
 		}
 
-//		return new DataResponse(
-//			[
+		// TODO : finalize result if no redirect_url
+		return new DataResponse(
+			[
 //				'access_token' => '',
 //				"token_type"   => "Bearer",
 //				"scope"        => "read write follow push",
 //				"created_at"   => 1573979017
-//			], Http::STATUS_OK
-//		);
+			], Http::STATUS_OK
+		);
 
 	}
 
@@ -205,21 +213,60 @@ class ActivityStreamController extends Controller {
 	 * @NoAdminRequired
 	 * @PublicPage
 	 *
+	 * @param string $client_id
+	 * @param string $client_secret
+	 * @param string $redirect_uri
+	 * @param string $grant_type
+	 * @param string $scope
+	 * @param string $code
+	 *
 	 * @return DataResponse
+	 * @throws ClientAppDoesNotExistException
+	 * @throws ClientException
+	 * @throws ClientAuthDoesNotExistException
 	 */
-	public function token() {
-		$body = file_get_contents('php://input');
-		$this->miscService->log('[<<] : ' . $body, 1);
-////code=test1234&grant_type=authorization_code&
-//client_secret=amJWTrlnZEhe44aXHsW2xlsTLD8g0DqabDDJ7jdp&
-//redirect_uri=https%3A%2F%2Forg.mariotaku.twidere%2Fauth%2Fcallback%2Fmastodon&
-//client_id=ihyiNapjftENlY2dZCbbfLHYoloB1HbpWQyLGtvr
+	public function token(
+		string $client_id, string $client_secret, string $redirect_uri, string $grant_type,
+		string $scope = 'read', string $code = ''
+	) {
+		$clientApp = $this->clientService->getClientByClientId($client_id);
+		$this->clientService->confirmData(
+			$clientApp,
+			[
+				'client_secret' => $client_secret,
+				'redirect_uri'  => $redirect_uri,
+				'scopes'        => $scope
+			]
+		);
+
+		$clientToken = new ClientToken();
+		$clientToken->setScopes(explode(' ', $scope));
+
+		if ($grant_type === 'authorization_code') {
+			if ($code === '') {
+				return new DataResponse(['error' => 'missing code'], Http::STATUS_BAD_REQUEST);
+			}
+
+			$clientAuth = $this->clientService->getAuthByCode($code);
+
+			$this->clientService->generateToken($clientApp, $clientAuth, $clientToken);
+
+		} else if ($grant_type === 'client_credentials') {
+			// TODO: manage client_credentials
+		} else {
+			return new DataResponse(['error' => 'invalid value for grant_type'], Http::STATUS_BAD_REQUEST);
+		}
+
+		if ($clientToken->getToken() === '') {
+			return new DataResponse(['error' => 'issue generating access_token'], Http::STATUS_BAD_REQUEST);
+		}
+
 		return new DataResponse(
 			[
-				"access_token" => "ZA-Yj3aBD8U8Cm7lKUp-lm9O9BmDgdhHzDeqsY8tlL0",
-				"token_type"   => "Bearer",
-				"scope"        => "read write follow push",
-				"created_at"   => time()
+				"access_token" => $clientToken->getToken(),
+				"token_type"   => 'Bearer',
+				"scope"        => $scope,
+				"created_at"   => $clientToken->getCreation()
 			], 200
 		);
 	}
@@ -285,63 +332,6 @@ class ActivityStreamController extends Controller {
 		);
 	}
 
-
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
-	 *
-	 * @param string $timeline
-	 * @param int $limit
-	 *
-	 * @return DataResponse
-	 */
-	public function timelines(string $timeline, int $limit = 20): DataResponse {
-		try {
-			$this->initViewer(true);
-			$posts = $this->streamService->getStreamHome(0, $limit, Stream::FORMAT_LOCAL);
-
-			return new DataResponse($posts, 200);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-
-	/**
-	 *
-	 * @param bool $exception
-	 *
-	 * @return bool
-	 * @throws AccountDoesNotExistException
-	 */
-	private function initViewer(bool $exception = false): bool {
-		if ($this->bearer === '') {
-//			if ($exception) {
-//				throw new AccountDoesNotExistException('userId not defined');
-//			}
-//
-//			return false;
-		}
-
-		try {
-			$this->viewer = $this->cacheActorService->getFromLocalAccount('cult');
-
-			$this->streamService->setViewer($this->viewer);
-			$this->followService->setViewer($this->viewer);
-			$this->cacheActorService->setViewer($this->viewer);
-		} catch (Exception $e) {
-			if ($exception) {
-				throw new AccountDoesNotExistException(
-					'unable to initViewer - ' . get_class($e) . ' - ' . $e->getMessage()
-				);
-			}
-
-			return false;
-		}
-
-		return true;
-	}
 
 }
 

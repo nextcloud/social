@@ -32,8 +32,9 @@ namespace OCA\Social\Db;
 
 
 use Doctrine\DBAL\Query\QueryBuilder;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\Client\ClientToken;
 use OCP\DB\QueryBuilder\ICompositeExpression;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
@@ -141,10 +142,9 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 
 	/**
-	 * @param IQueryBuilder $qb
 	 * @param string $alias
 	 */
-	public function selectStreamActions(string $alias = 'sa') {
+	public function selectStreamActions(string $alias = 'sa'): void {
 		if ($this->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -161,7 +161,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	/**
 	 * @param string $alias
 	 */
-	public function leftJoinStreamAction(string $alias = 'sa') {
+	public function leftJoinStreamAction(string $alias = 'sa'): void {
 		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
 			return;
 		}
@@ -193,6 +193,56 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 
 	/**
+	 * @param string $alias
+	 */
+	public function leftJoinClientToken(string $alias = 'clt') {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = $this->getDefaultSelectAlias();
+		$expr = $this->expr();
+
+		$this->selectAlias($alias . '.id', 'clienttoken_id')
+			 ->selectAlias($alias . '.auth_id', 'clienttoken_auth_id')
+			 ->selectAlias($alias . '.token', 'clienttoken_token')
+			 ->selectAlias($alias . '.scopes', 'clienttoken_scopes')
+			 ->selectAlias($alias . '.last_update', 'clienttoken_last_update')
+			 ->selectAlias($alias . '.creation', 'clienttoken_creation');
+
+		$on = $expr->andX();
+		$on->add($expr->eq($alias . '.auth_id', $pf . '.id'));
+
+		$this->leftJoin($this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CLIENT_TOKEN, $alias, $on);
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return ClientToken
+	 * @throws InvalidResourceException
+	 */
+	public function parseLeftJoinClientToken(array $data): ClientToken {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 12) === 'clienttoken_') {
+				$new[substr($k, 12)] = $v;
+			}
+		}
+
+		if (empty($new)) {
+			throw new InvalidResourceException();
+		}
+
+		$clientToken = new ClientToken();
+		$clientToken->importFromDatabase($new);
+
+		return $clientToken;
+	}
+
+
+	/**
 	 * @param string $type
 	 * @param string $field
 	 * @param string $aliasDest
@@ -207,7 +257,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 	/**
 	 * @param string $type
-	 * @param string $subType
 	 * @param string $field
 	 * @param string $aliasDest
 	 * @param string $alias

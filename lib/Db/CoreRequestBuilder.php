@@ -76,7 +76,9 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
 	const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
 
-	const TABLE_CLIENT_APP = 'social_3_client_app';
+	const TABLE_CLIENT = 'social_3_client';
+	const TABLE_CLIENT_AUTH = 'social_3_client_auth';
+	const TABLE_CLIENT_TOKEN = 'social_3_client_token';
 
 
 	/** @var array */
@@ -93,7 +95,9 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_DEST,
 		self::TABLE_STREAM_TAGS,
 		self::TABLE_STREAM_ACTIONS,
-		self::TABLE_CLIENT_APP
+		self::TABLE_CLIENT,
+		self::TABLE_CLIENT_AUTH,
+		self::TABLE_CLIENT_TOKEN
 	];
 
 

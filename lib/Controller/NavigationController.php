@@ -34,7 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC;
-use OC\AppFramework\Http;
+use OCP\AppFramework\Http;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;

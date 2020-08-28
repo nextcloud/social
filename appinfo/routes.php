@@ -40,9 +40,9 @@ return [
 		['name' => 'Config#local', 'url' => '/local/', 'verb' => 'GET'],
 		['name' => 'Config#remote', 'url' => '/test/{account}/', 'verb' => 'GET'],
 		[
-			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
+			'name' => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
 			'requirements' => ['path' => '.+'],
-			'defaults'     => ['path' => '']
+			'defaults' => ['path' => '']
 		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
@@ -62,21 +62,26 @@ return [
 
 		['name' => 'ActivityPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
 
+		// OStatus
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/', 'verb' => 'GET'],
 		['name' => 'OStatus#followRemote', 'url' => '/api/v1/ostatus/followRemote/{local}', 'verb' => 'GET'],
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
 		// OAuth
-		['name' => 'ActivityStream#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
-		['name' => 'ActivityStream#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
-		['name' => 'ActivityStream#token', 'url' => '/oauth/token', 'verb' => 'POST'],
-		['name' => 'ActivityStream#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
-		['name' => 'ActivityStream#accountsCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
+		['name' => 'OAuth#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
+		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
+		['name' => 'OAuth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
+		['name' => 'OAuth#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
+		[
+			'name' => 'OAuth#accountsCredentials', 'url' => '/api/v1/accounts/verify_credentials',
+			'verb' => 'GET'
+		],
 
-		// New Local
-		['name' => 'ActivityStream#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
+		// Api for 3rd party
+		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 
-
+		// Api for local front-end
+		// TODO: front-end should be using the new ApiController
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
 		['name' => 'Local#streamNotifications', 'url' => '/api/v1/stream/notifications', 'verb' => 'GET'],
 		['name' => 'Local#streamTimeline', 'url' => '/api/v1/stream/timeline', 'verb' => 'GET'],

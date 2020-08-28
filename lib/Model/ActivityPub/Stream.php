@@ -68,6 +68,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private $content = '';
 
 	/** @var string */
+	private $spoilerText = '';
+
+	/** @var string */
+	private $language = 'en';
+
+	/** @var string */
 	private $attributedTo = '';
 
 	/** @var string */
@@ -138,6 +144,44 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setContent(string $content): Stream {
 		$this->content = $content;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getSpoilerText(): string {
+		return $this->spoilerText;
+	}
+
+	/**
+	 * @param string $text
+	 *
+	 * @return Stream
+	 */
+	public function setSpoilerText(string $text): self {
+		$this->spoilerText = $text;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getLanguage(): string {
+		return $this->language;
+	}
+
+	/**
+	 * @param string $language
+	 *
+	 * @return $this
+	 */
+	public function setLanguage(string $language): self {
+		$this->language = $language;
 
 		return $this;
 	}
@@ -436,11 +480,32 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
-		$result = array_merge(
-			parent::exportAsLocal(),
-			[]);
+		$result = [
+			"content"                => $this->getContent(),
+			"sensitive"              => $this->isSensitive(),
+			"spoiler_text"           => $this->getSpoilerText(),
+			"visibility"             => 'unlisted',
+			"language"               => $this->getLanguage(),
+			"in_reply_to_id"         => null,
+			"in_reply_to_account_id" => null,
+			'replies_count'          => 0,
+			'reblogs_count'          => 0,
+			'favourites_count'       => 0,
+			'favourited'             => false,
+			'reblogged'              => false,
+			'muted'                  => false,
+			'bookmarked'             => false,
+			"reblog"                 => null,
+			"created_at"             => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
+		];
 
-		return $result;
+		// TODO - store created_at full string with milliseconds ?
+		if ($this->hasActor()) {
+			$actor = $this->getActor();
+			$result['account'] = $actor;
+		}
+
+		return array_merge(parent::exportAsLocal(), $result);
 	}
 
 }

@@ -34,7 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TAsync;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
-use OC\AppFramework\Http;
+use OCP\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;

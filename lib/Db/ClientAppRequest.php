@@ -35,12 +35,12 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\ClientAppDoesNotExistException;
-use OCA\Social\Model\ActivityStream\ClientApp;
+use OCA\Social\Model\Client\ClientApp;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 
 /**
- * Class ActionsRequest
+ * Class ClientAppRequest
  *
  * @package OCA\Social\Db
  */
@@ -59,9 +59,10 @@ class ClientAppRequest extends ClientAppRequestBuilder {
 		$qb = $this->getClientAppInsertSql();
 		$qb->setValue('name', $qb->createNamedParameter($clientApp->getName()))
 		   ->setValue('website', $qb->createNamedParameter($clientApp->getWebsite()))
-		   ->setValue('redirect_uri', $qb->createNamedParameter($clientApp->getRedirectUri()))
+		   ->setValue('redirect_uris', $qb->createNamedParameter(json_encode($clientApp->getRedirectUris())))
 		   ->setValue('client_id', $qb->createNamedParameter($clientApp->getClientId()))
-		   ->setValue('client_secret', $qb->createNamedParameter($clientApp->getClientSecret()));
+		   ->setValue('client_secret', $qb->createNamedParameter($clientApp->getClientSecret()))
+		   ->setValue('scopes', $qb->createNamedParameter(json_encode($clientApp->getScopes())));
 
 		try {
 			$qb->setValue(
@@ -100,7 +101,6 @@ class ClientAppRequest extends ClientAppRequestBuilder {
 	 */
 	public function getByClientId(string $clientId): ClientApp {
 		$qb = $this->getClientAppSelectSql();
-
 		$qb->limitToClientId($clientId);
 
 		return $this->getClientAppFromRequest($qb);

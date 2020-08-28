@@ -139,10 +139,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * Limit the request to the token
 	 *
 	 * @param string $token
+	 * @param string $alias
 	 */
-	public function limitToToken(string $token) {
-		$this->limitToDBField('token', $token);
+	public function limitToToken(string $token, string $alias = '') {
+		$this->limitToDBField('token', $token, true, $alias);
 	}
+
 
 	/**
 	 * Limit the results to a given number

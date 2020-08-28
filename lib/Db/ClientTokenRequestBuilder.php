@@ -33,8 +33,9 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\ClientAppDoesNotExistException;
-use OCA\Social\Model\Client\ClientApp;
+use OCA\Social\Exceptions\ClientTokenDoesNotExistException;
+use OCA\Social\Model\ActivityStream\ClientApp;
+use OCA\Social\Model\Client\ClientToken;
 
 
 /**
@@ -42,7 +43,7 @@ use OCA\Social\Model\Client\ClientApp;
  *
  * @package OCA\Social\Db
  */
-class ClientAppRequestBuilder extends CoreRequestBuilder {
+class ClientTokenRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -53,9 +54,9 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAppInsertSql(): SocialQueryBuilder {
+	protected function getClientTokenInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_CLIENT);
+		$qb->insert(self::TABLE_CLIENT_TOKEN);
 
 		return $qb;
 	}
@@ -66,9 +67,9 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAppUpdateSql(): SocialQueryBuilder {
+	protected function getClientTokenUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_CLIENT);
+		$qb->update(self::TABLE_CLIENT_TOKEN);
 
 		return $qb;
 	}
@@ -79,18 +80,15 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAppSelectSql(): SocialQueryBuilder {
+	protected function getClientTokenSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select(
-			'cl.id', 'cl.name', 'cl.website', 'cl.redirect_uris', 'cl.client_id', 'cl.client_secret',
-			'cl.scopes', 'cl.creation'
-		)
-		   ->from(self::TABLE_CLIENT, 'cl');
+		$qb->select('clt.id', 'clt.client_id', 'clt.client_auth_id', 'clt.token', 'clt.creation')
+		   ->from(self::TABLE_CLIENT_TOKEN, 'clt');
 
-		$this->defaultSelectAlias = 'cl';
-		$qb->setDefaultSelectAlias('cl');
+		$this->defaultSelectAlias = 'clt';
+		$qb->setDefaultSelectAlias('clt');
 
 		return $qb;
 	}
@@ -101,9 +99,9 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAppDeleteSql(): SocialQueryBuilder {
+	protected function getClientTokenDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_CLIENT);
+		$qb->delete(self::TABLE_CLIENT_TOKEN);
 
 		return $qb;
 	}
@@ -112,15 +110,15 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ClientApp
-	 * @throws ClientAppDoesNotExistException
+	 * @return ClientToken
+	 * @throws ClientTokenDoesNotExistException
 	 */
-	public function getClientAppFromRequest(SocialQueryBuilder $qb): ClientApp {
-		/** @var ClientApp $result */
+	public function getClientTokenFromRequest(SocialQueryBuilder $qb): ClientToken {
+		/** @var ClientToken $result */
 		try {
-			$result = $qb->getRow([$this, 'parseClientAppSelectSql']);
+			$result = $qb->getRow([$this, 'parseClientTokenSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new ClientAppDoesNotExistException($e->getMessage());
+			throw new ClientTokenDoesNotExistException($e->getMessage());
 		}
 
 		return $result;
@@ -130,11 +128,11 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ClientApp[]
+	 * @return ClientToken[]
 	 */
-	public function getClientAppsFromRequest(SocialQueryBuilder $qb): array {
-		/** @var ClientApp[] $result */
-		$result = $qb->getRows([$this, 'parseClientAppSelectSql']);
+	public function getClientTokensFromRequest(SocialQueryBuilder $qb): array {
+		/** @var ClientToken[] $result */
+		$result = $qb->getRows([$this, 'parseClientTokenSelectSql']);
 
 		return $result;
 	}
@@ -143,10 +141,10 @@ class ClientAppRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @return ClientApp
+	 * @return ClientToken
 	 */
-	public function parseClientAppSelectSql($data): ClientApp {
-		$item = new ClientApp();
+	public function parseClientTokenSelectSql($data): ClientToken {
+		$item = new ClientToken();
 		$item->importFromDatabase($data);
 
 		return $item;

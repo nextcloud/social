@@ -32,9 +32,14 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TStringTools;
 use OCA\Social\Db\ClientAppRequest;
+use OCA\Social\Db\ClientAuthRequest;
+use OCA\Social\Db\ClientTokenRequest;
 use OCA\Social\Exceptions\ClientAppDoesNotExistException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityStream\ClientApp;
+use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
+use OCA\Social\Exceptions\ClientException;
+use OCA\Social\Model\Client\ClientApp;
+use OCA\Social\Model\Client\ClientAuth;
+use OCA\Social\Model\Client\ClientToken;
 
 
 /**
@@ -51,26 +56,49 @@ class ClientService {
 	/** @var ClientAppRequest */
 	private $clientAppRequest;
 
+	/** @var ClientAuthRequest */
+	private $clientAuthRequest;
+
+	/** @var ClientTokenRequest */
+	private $clientTokenRequest;
+
 	/** @var MiscService */
 	private $miscService;
 
 
 	/**
-	 * BoostService constructor.
+	 * ClientService constructor.
 	 *
 	 * @param ClientAppRequest $clientAppRequest
+	 * @param ClientAuthRequest $clientAuthRequest
+	 * @param ClientTokenRequest $clientTokenRequest
 	 * @param MiscService $miscService
 	 */
-	public function __construct(ClientAppRequest $clientAppRequest, MiscService $miscService) {
+	public function __construct(
+		ClientAppRequest $clientAppRequest, ClientAuthRequest $clientAuthRequest,
+		ClientTokenRequest $clientTokenRequest, MiscService $miscService
+	) {
 		$this->clientAppRequest = $clientAppRequest;
+		$this->clientAuthRequest = $clientAuthRequest;
+		$this->clientTokenRequest = $clientTokenRequest;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
 	 * @param ClientApp $clientApp
+	 *
+	 * @throws ClientException
 	 */
 	public function createClient(ClientApp $clientApp): void {
+		if ($clientApp->getName() === '') {
+			throw new ClientException('missing client_name');
+		}
+
+		if (empty($clientApp->getRedirectUris())) {
+			throw new ClientException('missing redirect_uris');
+		}
+
 		$clientApp->setClientId($this->token(40));
 		$clientApp->setClientSecret($this->token(40));
 
@@ -79,11 +107,32 @@ class ClientService {
 
 
 	/**
-	 * @param string $clientId
-	 * @param Person $account
+	 * @param ClientAuth $clientAuth
+	 * @param ClientApp $clientApp
+	 *
+	 * @throws ClientException
 	 */
-	public function assignAccount(string $clientId, Person $account) {
-		$this->clientAppRequest->assignAccount($clientId, $account->getPreferredUsername());
+	public function authClient(ClientApp $clientApp, ClientAuth $clientAuth) {
+		$this->confirmData($clientApp, ['redirect_uri' => $clientAuth->getRedirectUri()]);
+
+		$clientAuth->setCode($this->token(60));
+		$clientAuth->setClientId($clientApp->getId());
+
+		$this->clientAuthRequest->save($clientAuth);
+	}
+
+
+	/**
+	 * @param ClientApp $clientApp
+	 * @param ClientAuth $clientAuth
+	 * @param ClientToken $clientToken
+	 */
+	public function generateToken(ClientApp $clientApp, ClientAuth $clientAuth, ClientToken $clientToken
+	): void {
+		$clientToken->setAuthId($clientAuth->getId());
+		$clientToken->setToken($this->token(80));
+
+		$this->clientTokenRequest->save($clientToken);
 	}
 
 
@@ -93,9 +142,64 @@ class ClientService {
 	 * @return ClientApp
 	 * @throws ClientAppDoesNotExistException
 	 */
-	public function getByClientId(string $clientId): ClientApp {
+	public function getClientByClientId(string $clientId): ClientApp {
 		return $this->clientAppRequest->getByClientId($clientId);
 	}
+
+	/**
+	 * @param string $code
+	 *
+	 * @return ClientAuth
+	 * @throws ClientAuthDoesNotExistException
+	 */
+	public function getAuthByCode(string $code): ClientAuth {
+		return $this->clientAuthRequest->getByCode($code);
+	}
+
+
+	/**
+	 * @param string $token
+	 *
+	 * @return ClientAuth
+	 * @throws ClientAuthDoesNotExistException
+	 */
+	public function getAuthFromToken(string $token): ClientAuth {
+		return $this->clientAuthRequest->getByToken($token);
+	}
+
+
+	/**
+	 * @param ClientApp $clientApp
+	 * @param array $data
+	 *
+	 * @throws ClientException
+	 */
+	public function confirmData(ClientApp $clientApp, array $data) {
+		if (array_key_exists('redirect_uri', $data)
+			&& !in_array($data['redirect_uri'], $clientApp->getRedirectUris())) {
+			throw new ClientException('unknown redirect_uri');
+		}
+
+		if (array_key_exists('client_secret', $data)
+			&& $data['client_secret'] !== $clientApp->getClientSecret()) {
+			throw new ClientException('wrong client_secret');
+		}
+
+		if (array_key_exists('scopes', $data)) {
+			$scopes = $data['scopes'];
+			if (!is_array($scopes)) {
+				$scopes = explode(' ', $scopes);
+			}
+
+			foreach ($scopes as $scope) {
+				if (!in_array($scope, $clientApp->getScopes())) {
+					throw new ClientException('invalid scope');
+				}
+			}
+		}
+
+	}
+
 
 }
 

@@ -74,6 +74,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private $preferredUsername = '';
 
 	/** @var string */
+	private $displayName = '';
+
+	/** @var string */
+	private $description = '';
+
+	/** @var string */
 	private $publicKey = '';
 
 	/** @var string */
@@ -103,12 +109,20 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/** @var string */
 	private $featured = '';
 
+	/** @var bool */
+	private $locked = false;
+
+	/** @var bool */
+	private $bot = false;
+
+	/** @var bool */
+	private $discoverable = false;
+
 	/** @var int */
 	private $avatarVersion = -1;
 
 	/** @var string */
 	private $viewerLink = '';
-
 
 	/**
 	 * Person constructor.
@@ -134,7 +148,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setUserId(string $userId): Person {
+	public function setUserId(string $userId): self {
 		$this->userId = $userId;
 
 		return $this;
@@ -153,8 +167,44 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setPreferredUsername(string $preferredUsername): Person {
+	public function setPreferredUsername(string $preferredUsername): self {
 		$this->preferredUsername = $preferredUsername;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getDisplayName(): string {
+		if ($this->displayName === '') {
+			return $this->getPreferredUsername();
+		}
+
+		return $this->displayName;
+	}
+
+
+	public function setDisplayName(string $displayName): string {
+		$this->displayName = $displayName;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getDescription(): string {
+		return $this->description;
+	}
+
+	/**
+	 * @param string $description
+	 *
+	 * @return Person
+	 */
+	public function setDescription(string $description): self {
+		$this->description = $description;
 
 		return $this;
 	}
@@ -172,7 +222,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setPublicKey(string $publicKey): Person {
+	public function setPublicKey(string $publicKey): self {
 		$this->publicKey = $publicKey;
 
 		return $this;
@@ -191,7 +241,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setPrivateKey(string $privateKey): Person {
+	public function setPrivateKey(string $privateKey): self {
 		$this->privateKey = $privateKey;
 
 		return $this;
@@ -210,7 +260,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setCreation(int $creation): Person {
+	public function setCreation(int $creation): self {
 		$this->creation = $creation;
 
 		return $this;
@@ -229,7 +279,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setFollowing(string $following): Person {
+	public function setFollowing(string $following): self {
 		$this->following = $following;
 
 		return $this;
@@ -247,7 +297,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setFollowers(string $followers): Person {
+	public function setFollowers(string $followers): self {
 		$this->followers = $followers;
 
 		return $this;
@@ -265,7 +315,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setAccount(string $account): Person {
+	public function setAccount(string $account): self {
 		if ($account !== '' && substr($account, 0, 1) === '@') {
 			$account = substr($account, 1);
 		}
@@ -288,7 +338,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setInbox(string $inbox): Person {
+	public function setInbox(string $inbox): self {
 		$this->inbox = $inbox;
 
 		return $this;
@@ -306,7 +356,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setOutbox(string $outbox): Person {
+	public function setOutbox(string $outbox): self {
 		$this->outbox = $outbox;
 
 		return $this;
@@ -324,7 +374,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setSharedInbox(string $sharedInbox): Person {
+	public function setSharedInbox(string $sharedInbox): self {
 		$this->sharedInbox = $sharedInbox;
 
 		return $this;
@@ -342,7 +392,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setName(string $name): Person {
+	public function setName(string $name): self {
 		$this->name = $name;
 
 		return $this;
@@ -361,8 +411,65 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setFeatured(string $featured): Person {
+	public function setFeatured(string $featured): self {
 		$this->featured = $featured;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isLocked(): bool {
+		return $this->locked;
+	}
+
+	/**
+	 * @param bool $locked
+	 *
+	 * @return Person
+	 */
+	public function setLocked(bool $locked): self {
+		$this->locked = $locked;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isBot(): bool {
+		return $this->bot;
+	}
+
+	/**
+	 * @param bool $bot
+	 *
+	 * @return Person
+	 */
+	public function setBot(bool $bot): self {
+		$this->bot = $bot;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isDiscoverable(): bool {
+		return $this->discoverable;
+	}
+
+	/**
+	 * @param bool $discoverable
+	 *
+	 * @return Person
+	 */
+	public function setDiscoverable(bool $discoverable): self {
+		$this->discoverable = $discoverable;
 
 		return $this;
 	}
@@ -380,7 +487,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setAvatarVersion(int $avatarVersion): Person {
+	public function setAvatarVersion(int $avatarVersion): self {
 		$this->avatarVersion = $avatarVersion;
 
 		return $this;
@@ -399,7 +506,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 *
 	 * @return Person
 	 */
-	public function setViewerLink(string $viewerLink): Person {
+	public function setViewerLink(string $viewerLink): self {
 		$this->viewerLink = $viewerLink;
 
 		return $this;
@@ -468,9 +575,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return array
 	 */
-	public function jsonSerialize(): array {
+	public function exportAsActivityPub(): array {
 		$result = array_merge(
-			parent::jsonSerialize(),
+			parent::exportAsActivityPub(),
 			[
 				'aliases'           => [
 					$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
@@ -483,8 +590,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'account'           => $this->getAccount(),
 				'following'         => $this->getFollowing(),
 				'followers'         => $this->getFollowers(),
-				'endpoints'         =>
-					['sharedInbox' => $this->getSharedInbox()],
+				'endpoints'         => ['sharedInbox' => $this->getSharedInbox()],
 				'publicKey'         => [
 					'id'           => $this->getId() . '#main-key',
 					'owner'        => $this->getId(),
@@ -500,5 +606,37 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $result;
 	}
+
+
+	/**
+	 * @return array
+	 */
+	public function exportAsLocal(): array {
+		$result =
+			[
+				"username"        => $this->getPreferredUsername(),
+				"acct"            => $this->getAccount(),
+				"display_name"    => $this->getDisplayName(),
+				"locked"          => $this->isLocked(),
+				"bot"             => $this->isBot(),
+				"discoverable"    => $this->isDiscoverable(),
+				"group"           => false,
+				"created_at"      => "2017-05-02T09=>56=>41.951Z",
+				"note"            => $this->getDescription(),
+				"url"             => $this->getId(),
+				"avatar"          => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
+				"avatar_static"   => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
+				"header"          => "https://files.mastodon.social/accounts/headers/000/126/222/original/6d7b41fdd92cfd6f.jpeg",
+				"header_static"   => "https://files.mastodon.social/accounts/headers/000/126/222/original/6d7b41fdd92cfd6f.jpeg",
+				"followers_count" => 9451,
+				"following_count" => 132,
+				"statuses_count"  => 3020,
+				"last_status_at"  => "2020-08-24",
+				"emojis"          => ''
+			];
+
+		return array_merge(parent::exportAsLocal(), $result);
+	}
+
 
 }
