@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\Accounts\IAccountManager;
@@ -309,12 +310,20 @@ class AccountService {
 	 * @param Person $actor
 	 */
 	public function addLocalActorDetailCount(Person &$actor) {
+		$lastPostCreation = '';
+		try {
+			$lastPost = $this->streamRequest->lastNoteFromActorId($actor->getId());
+			$lastPostCreation = date('y-m-d', $lastPost->getPublishedTime());
+		} catch (StreamNotFoundException $e) {
+		}
+
 		$count = [
 			'followers' => $this->followsRequest->countFollowers($actor->getId()),
 			'following' => $this->followsRequest->countFollowing($actor->getId()),
 			'post'      => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
 		$actor->setDetailArray('count', $count);
+		$actor->setDetail('last_post_creation', $lastPostCreation);
 	}
 
 

@@ -32,7 +32,11 @@ namespace OCA\Social\Db;
 
 
 use Doctrine\DBAL\Query\QueryBuilder;
+use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\Client\ClientToken;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 
@@ -91,7 +95,17 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		}
 
 		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
-		$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
+
+		$expr = $this->expr();
+		if ($link !== '') {
+			$this->innerJoin(
+				$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf,
+				$expr->eq('ca.id_prim', $link)
+			);
+		} else {
+			$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
+		}
+
 		$this->selectAlias($pf . '.id', 'cacheactor_id')
 			 ->selectAlias($pf . '.type', 'cacheactor_type')
 			 ->selectAlias($pf . '.account', 'cacheactor_account')
@@ -107,14 +121,89 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias($pf . '.summary', 'cacheactor_summary')
 			 ->selectAlias($pf . '.public_key', 'cacheactor_public_key')
 			 ->selectAlias($pf . '.source', 'cacheactor_source')
+			 ->selectAlias($pf . '.details', 'cacheactor_details')
 			 ->selectAlias($pf . '.creation', 'cacheactor_creation')
 			 ->selectAlias($pf . '.local', 'cacheactor_local');
+	}
 
-		if ($link !== '') {
-			$expr = $this->expr();
-			$this->andWhere($expr->eq('ca.id_prim', $link));
+
+	/**
+	 * @param array $data
+	 *
+	 * @return Person
+	 * @throws InvalidResourceException
+	 */
+	public function parseLeftJoinCacheActors(array $data): Person {
+		$new = [];
+
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 11) === 'cacheactor_') {
+				$new[substr($k, 11)] = $v;
+			}
 		}
 
+		$actor = new Person();
+		$actor->importFromDatabase($new);
+		if (!AP::$activityPub->isActor($actor)) {
+			throw new InvalidResourceException();
+		}
+
+		return $actor;
+	}
+
+
+	/**
+	 * @param string $fieldDocumentId
+	 * @param string $alias
+	 */
+	public function leftJoinCacheDocuments(string $fieldDocumentId, string $alias = '') {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$expr = $this->expr();
+		$func = $this->func();
+
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
+		$this->selectAlias('cd.id', 'cachedocument_id')
+			 ->selectAlias('cd.type', 'cachedocument_type')
+			 ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
+			 ->selectAlias('cd.media_type', 'cachedocument_media_type')
+			 ->selectAlias('cd.url', 'cachedocument_url')
+			 ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
+			 ->selectAlias('cd.caching', 'cachedocument_caching')
+			 ->selectAlias('cd.public', 'cachedocument_public')
+			 ->selectAlias('cd.error', 'cachedocument_error')
+			 ->selectAlias('cd.creation', 'cachedocument_creation')
+			 ->leftJoin(
+				 $this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
+				 $expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
+			 );
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return Document
+	 * @throws InvalidResourceException
+	 */
+	public function parseLeftJoinCacheDocuments(array $data): Document {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (substr($k, 0, 14) === 'cachedocument_') {
+				$new[substr($k, 14)] = $v;
+			}
+		}
+
+		$document = new Document();
+		$document->importFromDatabase($new);
+
+		if ($document->getType() !== Image::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		return $document;
 	}
 
 

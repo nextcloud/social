@@ -38,6 +38,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientAppDoesNotExistException;
 use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
+use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -48,12 +49,14 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 use OCP\IUserSession;
 
 
@@ -65,6 +68,12 @@ class OAuthController extends Controller {
 
 	/** @var IUserSession */
 	private $userSession;
+
+	/** @var IURLGenerator */
+	private $urlGenerator;
+
+	/** @var InstanceService */
+	private $instanceService;
 
 	/** @var AccountService */
 	private $accountService;
@@ -87,6 +96,8 @@ class OAuthController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param IUserSession $userSession
+	 * @param IURLGenerator $urlGenerator
+	 * @param InstanceService $instanceService
 	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
 	 * @param ClientService $clientService
@@ -94,13 +105,16 @@ class OAuthController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, IUserSession $userSession, AccountService $accountService,
+		IRequest $request, IUserSession $userSession, IURLGenerator $urlGenerator,
+		InstanceService $instanceService, AccountService $accountService,
 		CacheActorService $cacheActorService, ClientService $clientService, ConfigService $configService,
 		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userSession = $userSession;
+		$this->urlGenerator = $urlGenerator;
+		$this->instanceService = $instanceService;
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->clientService = $clientService;
@@ -108,7 +122,63 @@ class OAuthController extends Controller {
 		$this->miscService = $miscService;
 
 		$body = file_get_contents('php://input');
-		$this->miscService->log('[ClientService] input: ' . $body, 1);
+		$this->miscService->log('[OAuthController] input: ' . $body, 2);
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return Response
+	 */
+	public function nodeinfo(): Response {
+		$nodeInfo = [
+			'links' => [
+				'rel'  => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+				'href' => $this->urlGenerator->linkToRouteAbsolute('social.OAuth.nodeinfo2')
+			]
+		];
+
+		return new DataResponse($nodeInfo, Http::STATUS_OK);
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return Response
+	 */
+	public function nodeinfo2() {
+		try {
+			$local = $this->instanceService->getLocal();
+			$name = $local->getTitle();
+
+			$version = $local->getVersion();
+			$usage = $local->getUsage();
+			$openReg = $local->isRegistrations();
+		} catch (InstanceDoesNotExistException $e) {
+			$name = 'Nextcloud Social';
+			$version = $this->configService->getAppValue('installed_version');
+			$usage = [];
+			$openReg = false;
+		}
+
+		$nodeInfo = [
+			"version"           => "2.0",
+			"software"          => [
+				"name"    => $name,
+				"version" => $version
+			],
+			"protocols"         => [
+				"activitypub"
+			],
+			"usage"             => $usage,
+			"openRegistrations" => $openReg
+		];
+
+		return new DataResponse($nodeInfo, Http::STATUS_OK);
 	}
 
 
@@ -125,7 +195,7 @@ class OAuthController extends Controller {
 	 * @throws ClientException
 	 */
 	public function apps(
-		string $client_name, string $redirect_uris, string $website = '', string $scopes = 'read'
+		string $client_name = '', string $redirect_uris = '', string $website = '', string $scopes = 'read'
 	): Response {
 		// TODO: manage array from request
 		if (!is_array($redirect_uris)) {
@@ -287,51 +357,6 @@ class OAuthController extends Controller {
 			], 200
 		);
 	}
-
-
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
-	 *
-	 * @return DataResponse
-	 */
-	public function accountsCredentials() {
-		return new DataResponse(
-			[
-				"id"              => "137148",
-				"username"        => "cult",
-				"acct"            => "cult",
-				"display_name"    => "Maxence Lange",
-				"locked"          => false,
-				"bot"             => false,
-				"discoverable"    => null,
-				"group"           => false,
-				"created_at"      => "2017-05-11T09=>20=>28.055Z",
-				"note"            => "\u003cp\u003e\u003c/p\u003e",
-				"url"             => "https://test.artificial-owl.com/index.php/apps/social/@cult",
-				"avatar"          => "https://mastodon.social/avatars/original/missing.png",
-				"avatar_static"   => "https://mastodon.social/avatars/original/missing.png",
-				"header"          => "https://mastodon.social/headers/original/missing.png",
-				"header_static"   => "https://mastodon.social/headers/original/missing.png",
-				"followers_count" => 9,
-				"following_count" => 5,
-				"statuses_count"  => 13,
-				"last_status_at"  => "2019-09-15",
-				"source"          => [
-					"privacy"               => "public",
-					"sensitive"             => false,
-					"language"              => null,
-					"note"                  => "",
-					"fields"                => [],
-					"follow_requests_count" => 0
-				],
-				"emojis"          => [],
-				"fields"          => []
-			], 200
-		);
-	}
-
 
 }
 

@@ -41,9 +41,7 @@ use OC\DB\SchemaWrapper;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
@@ -61,6 +59,7 @@ class CoreRequestBuilder {
 
 
 	const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
+	const TABLE_INSTANCE = 'social_3_instance';
 
 	const TABLE_ACTORS = 'social_3_actor';
 	const TABLE_STREAM = 'social_3_stream';
@@ -1079,61 +1078,6 @@ class CoreRequestBuilder {
 //		$action->importFromDatabase($new);
 
 //		return $action;
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $fieldDocumentId
-	 */
-	protected function leftJoinCacheDocuments(IQueryBuilder &$qb, string $fieldDocumentId) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$expr = $qb->expr();
-		$func = $qb->func();
-		$pf = $this->defaultSelectAlias;
-
-		$qb->selectAlias('cd.id', 'cachedocument_id')
-		   ->selectAlias('cd.type', 'cachedocument_type')
-		   ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
-		   ->selectAlias('cd.media_type', 'cachedocument_media_type')
-		   ->selectAlias('cd.url', 'cachedocument_url')
-		   ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
-		   ->selectAlias('cd.caching', 'cachedocument_caching')
-		   ->selectAlias('cd.public', 'cachedocument_public')
-		   ->selectAlias('cd.error', 'cachedocument_error')
-		   ->selectAlias('ca.creation', 'cachedocument_creation')
-		   ->leftJoin(
-			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
-			   $expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
-		   );
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Document
-	 * @throws InvalidResourceException
-	 */
-	protected function parseCacheDocumentsLeftJoin(array $data): Document {
-		$new = [];
-		foreach ($data as $k => $v) {
-			if (substr($k, 0, 14) === 'cachedocument_') {
-				$new[substr($k, 14)] = $v;
-			}
-		}
-
-		$document = new Document();
-		$document->importFromDatabase($new);
-
-		if ($document->getType() !== Image::TYPE) {
-			throw new InvalidResourceException();
-		}
-
-		return $document;
 	}
 
 

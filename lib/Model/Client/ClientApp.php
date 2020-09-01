@@ -246,11 +246,17 @@ class ClientApp implements IQueryRow, JsonSerializable {
 			'id'            => $this->getId(),
 			'name'          => $this->getName(),
 			'website'       => $this->getWebsite(),
-			'redirect_uri'  => $this->getRedirectUris(),
 			'scopes'        => implode(' ', $this->getScopes()),
 			'client_id'     => $this->getClientId(),
 			'client_secret' => $this->getClientSecret()
 		];
+
+		$uris = $this->getRedirectUris();
+		if (sizeof($uris) > 1) {
+			$arr['redirect_uris'] = $uris;
+		} else {
+			$arr['redirect_uri'] = $uris[0];
+		}
 
 		return array_filter($arr);
 	}

@@ -35,6 +35,8 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
+use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
@@ -42,6 +44,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
@@ -59,6 +62,9 @@ class ApiController extends Controller {
 
 	/** @var IUserSession */
 	private $userSession;
+
+	/** @var InstanceService */
+	private $instanceService;
 
 	/** @var ClientService */
 	private $clientService;
@@ -94,6 +100,7 @@ class ApiController extends Controller {
 	 *
 	 * @param IRequest $request
 	 * @param IUserSession $userSession
+	 * @param InstanceService $instanceService
 	 * @param ClientService $clientService
 	 * @param AccountService $accountService
 	 * @param CacheActorService $cacheActorService
@@ -103,14 +110,15 @@ class ApiController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IRequest $request, IUserSession $userSession, ClientService $clientService,
-		AccountService $accountService,
-		CacheActorService $cacheActorService, FollowService $followService, StreamService $streamService,
-		ConfigService $configService, MiscService $miscService
+		IRequest $request, IUserSession $userSession, InstanceService $instanceService,
+		ClientService $clientService, AccountService $accountService, CacheActorService $cacheActorService,
+		FollowService $followService, StreamService $streamService, ConfigService $configService,
+		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userSession = $userSession;
+		$this->instanceService = $instanceService;
 		$this->clientService = $clientService;
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
@@ -120,9 +128,12 @@ class ApiController extends Controller {
 		$this->miscService = $miscService;
 
 		$authHeader = trim($this->request->getHeader('Authorization'));
-		list($authType, $authToken) = explode(' ', $authHeader);
-		if (strtolower($authType) === 'bearer') {
-			$this->bearer = $authToken;
+
+		if (strpos($authHeader, ' ')) {
+			list($authType, $authToken) = explode(' ', $authHeader);
+			if (strtolower($authType) === 'bearer') {
+				$this->bearer = $authToken;
+			}
 		}
 	}
 
@@ -130,6 +141,37 @@ class ApiController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 */
+	public function verifyCredentials() {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse($this->viewer, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 * @throws InstanceDoesNotExistException
+	 */
+	public function instance(): DataResponse {
+		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
+
+		return new DataResponse($local, Http::STATUS_OK);
+	}
+
+
+	/**
+	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
 	 * @param string $timeline
@@ -154,38 +196,36 @@ class ApiController extends Controller {
 	 * @param bool $exception
 	 *
 	 * @return bool
-	 * @throws AccountDoesNotExistException
+	 * @throws Exception
 	 */
 	private function initViewer(bool $exception = false): bool {
-		$userId = $this->currentSession($exception);
-
 		try {
-			$this->viewer = $this->accountService->getActorFromUserId($userId);
+			$userId = $this->currentSession();
+
+			$account = $this->accountService->getActorFromUserId($userId);
+			$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);
 			$this->cacheActorService->setViewer($this->viewer);
+
+			return true;
 		} catch (Exception $e) {
 			if ($exception) {
-				throw new AccountDoesNotExistException(
-					'unable to initViewer - ' . get_class($e) . ' - ' . $e->getMessage()
-				);
+				throw $e;
 			}
-
-			return false;
 		}
 
-		return true;
+		return false;
 	}
 
 
 	/**
-	 * @param bool $exception
-	 *
 	 * @return string
 	 * @throws AccountDoesNotExistException
 	 */
-	private function currentSession(bool $exception): string {
+	private function currentSession(): string {
 		$user = $this->userSession->getUser();
 		if ($user !== null) {
 			return $user->getUID();

@@ -79,9 +79,8 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
-			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url', 'ca.type',
-			'ca.preferred_username', 'ca.name', 'ca.summary',
+			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox', 'ca.outbox',
+			'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username', 'ca.name', 'ca.summary',
 			'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
@@ -154,7 +153,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		$this->assignViewerLink($qb, $actor);
 
 		try {
-			$icon = $this->parseCacheDocumentsLeftJoin($data);
+			$icon = $qb->parseLeftJoinCacheDocuments($data);
 			$actor->setIcon($icon);
 		} catch (InvalidResourceException $e) {
 		}

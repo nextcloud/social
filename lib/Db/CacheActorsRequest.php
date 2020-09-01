@@ -170,7 +170,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getFromId(string $id): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->limitToIdString($id);
-		$this->leftJoinCacheDocuments($qb, 'icon_id');
+		$qb->leftJoinCacheDocuments('icon_id');
 
 		return $this->getCacheActorFromRequest($qb);
 	}
@@ -187,7 +187,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getFromAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->limitToAccount($account);
-		$this->leftJoinCacheDocuments($qb, 'icon_id');
+		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 
 		return $this->getCacheActorFromRequest($qb);
@@ -206,7 +206,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToPreferredUsername($qb, $account);
 		$this->limitToLocal($qb, true);
-		$this->leftJoinCacheDocuments($qb, 'icon_id');
+		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 
 		return $this->getCacheActorFromRequest($qb);
@@ -221,7 +221,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->searchInAccount($qb, $search);
-		$this->leftJoinCacheDocuments($qb, 'icon_id');
+		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 		$this->limitResults($qb, 25);
 

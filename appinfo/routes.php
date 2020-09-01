@@ -68,16 +68,19 @@ return [
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
 		// OAuth
+		['name' => 'OAuth#nodeinfo', 'url' => '/.well-known/nodeinfo', 'verb' => 'GET'],
+		['name' => 'OAuth#nodeinfo2', 'url' => '/nodeinfo/2.0', 'verb' => 'GET'],
 		['name' => 'OAuth#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
 		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
 		['name' => 'OAuth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
 		['name' => 'OAuth#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
-		[
-			'name' => 'OAuth#accountsCredentials', 'url' => '/api/v1/accounts/verify_credentials',
-			'verb' => 'GET'
-		],
 
 		// Api for 3rd party
+		[
+			'name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials',
+			'verb' => 'GET'
+		],
+		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 
 		// Api for local front-end

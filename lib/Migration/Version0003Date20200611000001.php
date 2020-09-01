@@ -81,6 +81,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$this->createClientToken($schema);
 		$this->createFollows($schema);
 		$this->createHashtags($schema);
+		$this->createInstance($schema);
 		$this->createRequestQueue($schema);
 		$this->createStreams($schema);
 		$this->createStreamActions($schema);
@@ -387,6 +388,133 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['hashtag']);
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function createInstance(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_instance')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_instance');
+		$table->addColumn(
+			'local', 'smallint',
+			[
+				'notnull'  => false,
+				'length'   => 1,
+				'default'  => 0,
+				'unsigned' => true
+			]
+		);
+		$table->addColumn(
+			'uri', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+			]
+		);
+		$table->addColumn(
+			'title', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'version', 'string',
+			[
+				'notnull' => false,
+				'length'  => 31,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'short_description', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'description', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'email', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'urls', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'stats', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'usage', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'image', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'languages', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'contact', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'account_prim', 'string',
+			[
+				'notnull' => false,
+				'length'  => 128,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['uri']);
+		$table->addIndex(['local', 'uri', 'account_prim']);
 	}
 
 

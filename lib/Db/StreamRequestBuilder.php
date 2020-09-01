@@ -197,7 +197,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
-	 *
 	 * @param SocialQueryBuilder $qb
 	 *
 	 * @return Stream

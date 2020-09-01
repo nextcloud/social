@@ -41,7 +41,7 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0003Date20200611000001
+ * Class Version0003Date20200823023911
  *
  * @package OCA\Social\Migration
  */
@@ -76,6 +76,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$this->createClient($schema);
 		$this->createClientAuth($schema);
 		$this->createClientToken($schema);
+		$this->createInstance($schema);
 
 		$this->addChunkToTable($schema, 'social_3_stream', '');
 		$this->addChunkToTable($schema, 'social_3_stream_act', '_act');
@@ -231,6 +232,133 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['id']);
 		$table->addIndex(['client_id']);
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function createInstance(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_instance')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_instance');
+		$table->addColumn(
+			'local', 'smallint',
+			[
+				'notnull'  => false,
+				'length'   => 1,
+				'default'  => 0,
+				'unsigned' => true
+			]
+		);
+		$table->addColumn(
+			'uri', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+			]
+		);
+		$table->addColumn(
+			'title', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'version', 'string',
+			[
+				'notnull' => false,
+				'length'  => 31,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'short_description', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'description', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'email', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'urls', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'stats', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'usage', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'image', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'languages', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'contact', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'account_prim', 'string',
+			[
+				'notnull' => false,
+				'length'  => 128,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['uri']);
+		$table->addIndex(['local', 'uri', 'account_prim']);
 	}
 
 

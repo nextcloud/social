@@ -109,6 +109,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/** @var string */
 	private $featured = '';
 
+	/** @var string */
+	private $header = '';
+
 	/** @var bool */
 	private $locked = false;
 
@@ -117,6 +120,15 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 	/** @var bool */
 	private $discoverable = false;
+
+	/** @var string */
+	private $privacy = 'public';
+
+	/** @var bool */
+	private $sensitive = false;
+
+	/** @var string */
+	private $language = 'en';
 
 	/** @var int */
 	private $avatarVersion = -1;
@@ -185,9 +197,15 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this->displayName;
 	}
 
-
-	public function setDisplayName(string $displayName): string {
+	/**
+	 * @param string $displayName
+	 *
+	 * @return $this
+	 */
+	public function setDisplayName(string $displayName): self {
 		$this->displayName = $displayName;
+
+		return $this;
 	}
 
 
@@ -205,6 +223,42 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setDescription(string $description): self {
 		$this->description = $description;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getAvatar(): string {
+		if ($this->hasIcon()) {
+			return $this->getIcon()
+						->getId();
+		}
+
+		return '';
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getHeader(): string {
+		if ($this->header === '') {
+			return $this->getAvatar();
+		}
+
+		return $this->header;
+	}
+
+	/**
+	 * @param string $header
+	 *
+	 * @return $this
+	 */
+	public function setHeader(string $header): self {
+		$this->header = $header;
 
 		return $this;
 	}
@@ -476,6 +530,63 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 
 	/**
+	 * @return string
+	 */
+	public function getPrivacy(): string {
+		return $this->privacy;
+	}
+
+	/**
+	 * @param string $privacy
+	 *
+	 * @return Person
+	 */
+	public function setPrivacy(string $privacy): self {
+		$this->privacy = $privacy;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function isSensitive(): bool {
+		return $this->sensitive;
+	}
+
+	/**
+	 * @param bool $sensitive
+	 *
+	 * @return Person
+	 */
+	public function setSensitive(bool $sensitive): self {
+		$this->sensitive = $sensitive;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getLanguage(): string {
+		return $this->language;
+	}
+
+	/**
+	 * @param string $language
+	 *
+	 * @return $this
+	 */
+	public function setLanguage(string $language): self {
+		$this->language = $language;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return int
 	 */
 	public function getAvatarVersion(): int {
@@ -612,31 +723,42 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
+		$details = $this->getDetailsAll();
 		$result =
 			[
+				"id"              => $this->getId(),
 				"username"        => $this->getPreferredUsername(),
-				"acct"            => $this->getAccount(),
+				"acct"            => $this->getPreferredUsername(),
 				"display_name"    => $this->getDisplayName(),
 				"locked"          => $this->isLocked(),
 				"bot"             => $this->isBot(),
 				"discoverable"    => $this->isDiscoverable(),
 				"group"           => false,
-				"created_at"      => "2017-05-02T09=>56=>41.951Z",
+				"created_at"      => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				"note"            => $this->getDescription(),
 				"url"             => $this->getId(),
-				"avatar"          => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
-				"avatar_static"   => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
-				"header"          => "https://files.mastodon.social/accounts/headers/000/126/222/original/6d7b41fdd92cfd6f.jpeg",
-				"header_static"   => "https://files.mastodon.social/accounts/headers/000/126/222/original/6d7b41fdd92cfd6f.jpeg",
-				"followers_count" => 9451,
-				"following_count" => 132,
-				"statuses_count"  => 3020,
-				"last_status_at"  => "2020-08-24",
-				"emojis"          => ''
+				"avatar"          => $this->getAvatar(),
+				//				"avatar_static"   => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
+				"avatar_static"   => $this->getAvatar(),
+				"header"          => $this->getHeader(),
+				"header_static"   => $this->getHeader(),
+				"followers_count" => $this->getInt('count.followers', $details),
+				"following_count" => $this->getInt('count.following', $details),
+				"statuses_count"  => $this->getInt('count.post', $details),
+				"last_status_at"  => $this->get('last_post_creation', $details),
+				"source"          => [
+					"privacy"               => $this->getPrivacy(),
+					"sensitive"             => $this->isSensitive(),
+					"language"              => $this->getLanguage(),
+					"note"                  => $this->getDescription(),
+					"fields"                => [],
+					"follow_requests_count" => 0
+				],
+				"emojis"          => [],
+				"fields"          => []
 			];
 
 		return array_merge(parent::exportAsLocal(), $result);
 	}
-
 
 }

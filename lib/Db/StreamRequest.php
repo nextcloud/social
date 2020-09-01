@@ -358,6 +358,32 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $actorId
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function lastNoteFromActorId(string $actorId): Stream {
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToAttributedTo($actorId, true);
+		$qb->limitToType(Note::TYPE);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$qb->orderBy('id', 'desc');
+		$qb->setMaxResults(1);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getStreamFromRequest($qb);
+	}
+
+
+	/**
 	 * Should returns:
 	 *  * Own posts,
 	 *  * Followed accounts
