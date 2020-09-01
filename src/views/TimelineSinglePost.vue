@@ -22,6 +22,7 @@
 import Logger from '../logger'
 import TimelineEntry from './../components/TimelineEntry.vue'
 import TimelineList from './../components/TimelineList.vue'
+import { loadState } from '@nextcloud/initial-state'
 
 export default {
 	name: 'TimelineSinglePost',
@@ -43,7 +44,7 @@ export default {
 		// Get data of post clicked on
 		if (typeof this.$route.params.id === 'undefined') {
 			Logger.debug('displaying the single post timeline for a non logged-in user')
-			this.mainPost = JSON.parse(document.getElementById('postData').dataset.server)
+			this.mainPost = loadState('social', 'item')
 		} else {
 			this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id)
 		}

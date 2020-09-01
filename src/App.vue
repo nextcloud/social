@@ -1,10 +1,10 @@
 <template>
-	<div v-if="!serverData.setup" id="app-social" :class="{public: serverData.public}">
-		<AppNavigation v-if="!serverData.public" id="app-navigation">
+	<Content v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
+		<AppNavigation v-if="!serverData.public">
 			<AppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
 				:title="item.title" :icon="item.icon" :exact="true" />
 		</AppNavigation>
-		<div id="app-content">
+		<AppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
 					{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
@@ -20,10 +20,10 @@
 			</div>
 			<Search v-if="searchTerm !== ''" :term="searchTerm" />
 			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
-		</div>
-	</div>
-	<div v-else class="setup">
-		<template v-if="serverData.isAdmin">
+		</AppContent>
+	</Content>
+	<Content v-else app-name="social">
+		<AppContent v-if="serverData.isAdmin" class="setup">
 			<h2>{{ t('social', 'Social app setup') }}</h2>
 			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
@@ -51,38 +51,29 @@
 					</p>
 				</template>
 			</form>
-		</template>
-		<template v-else>
+		</AppContent>
+		<AppContent v-else class="setup">
 			<p>{{ t('social', 'The Social app needs to be set up by the server administrator.') }}</p>
-		</template>
-	</div>
+		</AppContent>
+	</Content>
 </template>
 
 <style scoped>
-	#app-social {
-		width: 100%;
-	}
-
-	#app-content .social__wrapper {
+	#app-content-vue .social__wrapper {
 		padding: 15px;
-		max-width: 600px;
+		max-width: 630px;
 		margin: auto;
-	}
-
-	@media (min-width: 1200px) {
-		#app-social:not(.public) #app-content .social__wrapper {
-			margin: 15px calc(50% - 350px - 75px);
-			max-width: 600px;
-		}
 	}
 
 	.setup {
-		margin: auto;
-		width: 700px;
+		margin: 0 auto !important;
+		padding: 15px;
+		max-width: 630px;
 	}
 
 	.setup input[type=url] {
 		width: 300px;
+		max-width: 100%;
 	}
 
 	#social-spacer a:hover,
@@ -97,15 +88,21 @@
 </style>
 
 <script>
-import { AppNavigation, AppNavigationItem } from '@nextcloud/vue'
+import Content from '@nextcloud/vue/dist/Components/Content'
+import AppContent from '@nextcloud/vue/dist/Components/AppContent'
+import AppNavigation from '@nextcloud/vue/dist/Components/AppNavigation'
+import AppNavigationItem from '@nextcloud/vue/dist/Components/AppNavigationItem'
 
 import axios from '@nextcloud/axios'
 import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
+import { loadState } from '@nextcloud/initial-state'
 
 export default {
 	name: 'App',
 	components: {
+		Content,
+		AppContent,
 		AppNavigation,
 		AppNavigationItem,
 		Search
@@ -201,10 +198,7 @@ export default {
 	},
 	beforeMount: function() {
 		// importing server data into the store
-		const serverDataElmt = document.getElementById('serverData')
-		if (serverDataElmt !== null) {
-			this.$store.commit('setServerData', JSON.parse(serverDataElmt.dataset.server))
-		}
+		this.$store.commit('setServerData', loadState('social', 'serverData'))
 
 		if (!this.serverData.public) {
 			this.search = new OCA.Search(this.search, this.resetSearch)

@@ -8,6 +8,7 @@ declare(strict_types=1);
  * This file is licensed under the Affero General Public License version 3 or
  * later. See the COPYING file.
  *
+ * @author Jonas Sulzer <jonas@violoncello.ch>
  * @author Maxence Lange <maxence@artificial-owl.com>
  * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
@@ -48,6 +49,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 
@@ -98,13 +100,14 @@ class SocialPubController extends Controller {
 	 * @param ConfigService $configService
 	 */
 	public function __construct(
-		$userId, IRequest $request, IL10N $l10n, NavigationController $navigationController,
+		$userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,
 		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
 		ConfigService $configService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userId = $userId;
+		$this->initialStateService = $initialStateService;
 		$this->l10n = $l10n;
 		$this->navigationController = $navigationController;
 		$this->accountService = $accountService;
@@ -126,9 +129,6 @@ class SocialPubController extends Controller {
 			return $this->navigationController->navigate('');
 		}
 		$data = [
-			'serverData'  => [
-				'public' => true,
-			],
 			'application' => 'Social'
 		];
 
@@ -142,6 +142,10 @@ class SocialPubController extends Controller {
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+
+		$this->initialStateService->provideInitialState('social', 'serverData', [
+			'public' => true,
+		]);
 		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
 		$page->setStatus($status);
 		$page->setHeaderTitle($this->l10n->t('Social'));
@@ -229,14 +233,14 @@ class SocialPubController extends Controller {
 		$stream = $this->streamService->getStreamById($postId, true);
 		$data = [
 			'id'          => $postId,
-			'item'        => $stream,
-			'serverData'  => [
-				'public' => ($this->userId === null),
-			],
 			'application' => 'Social'
 		];
 
-		return new TemplateResponse(Application::APP_NAME, 'stream', $data);
+		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream );
+		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', [
+			'public' => ($this->userId === null),
+		]);
+		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
 
 

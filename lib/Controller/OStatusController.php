@@ -8,6 +8,7 @@ declare(strict_types=1);
  * This file is licensed under the Affero General Public License version 3 or
  * later. See the COPYING file.
  *
+ * @author Jonas Sulzer <jonas@violoncello.ch>
  * @author Maxence Lange <maxence@artificial-owl.com>
  * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
@@ -44,6 +45,7 @@ use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IInitialStateService;
 use OCP\IRequest;
 use OCP\IUserManager;
 use OCP\IUserSession;
@@ -83,11 +85,12 @@ class OStatusController extends Controller {
 	 * @param IUserSession $userSession
 	 */
 	public function __construct(
-		IRequest $request, CacheActorService $cacheActorService, AccountService $accountService,
+		IRequest $request, IInitialStateService $initialStateService, CacheActorService $cacheActorService, AccountService $accountService,
 		CurlService $curlService, MiscService $miscService, IUserSession $userSession
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
+		$this->initialStateService = $initialStateService;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->curlService = $curlService;
@@ -118,16 +121,15 @@ class OStatusController extends Controller {
 				throw new Exception('Failed to retrieve current user');
 			}
 
-			return new TemplateResponse(
-				'social', 'ostatus', [
-				'serverData' => [
-					'account'     => $actor->getAccount(),
-					'currentUser' => [
-						'uid'         => $user->getUID(),
-						'displayName' => $user->getDisplayName(),
-					]
+			$this->initialStateService->provideInitialState('social', 'serverData', [
+				'account'     => $actor->getAccount(),
+				'currentUser' => [
+					'uid'         => $user->getUID(),
+					'displayName' => $user->getDisplayName(),
 				]
-			], 'guest'
+			]);
+			return new TemplateResponse(
+				'social', 'main', 'guest'
 			);
 		} catch (Exception $e) {
 			return $this->fail($e);
@@ -148,13 +150,12 @@ class OStatusController extends Controller {
 		try {
 			$following = $this->accountService->getActor($local);
 
+			$this->initialStateService->provideInitialState('social', 'serverData', [
+				'local'   => $local,
+				'account' => $following->getAccount()
+			]);
 			return new TemplateResponse(
-				'social', 'ostatus', [
-				'serverData' => [
-					'local'   => $local,
-					'account' => $following->getAccount()
-				]
-			], 'guest'
+				'social', 'main', 'guest'
 			);
 		} catch (Exception $e) {
 			return $this->fail($e);

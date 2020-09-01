@@ -38,4 +38,4 @@ Vue.prototype.OCA = OCA
 new Vue({
 	render: h => h(OStatus),
 	store: store
-}).$mount('#vue-content')
+}).$mount('#content')

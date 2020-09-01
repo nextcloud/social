@@ -8,6 +8,7 @@ declare(strict_types=1);
  * This file is licensed under the Affero General Public License version 3 or
  * later. See the COPYING file.
  *
+ * @author Jonas Sulzer <jonas@violoncello.ch>
  * @author Maxence Lange <maxence@artificial-owl.com>
  * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
@@ -50,6 +51,7 @@ use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
+use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -109,7 +111,7 @@ class NavigationController extends Controller {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IL10N $l10n, IRequest $request, $userId, IConfig $config, IURLGenerator $urlGenerator,
+		IL10N $l10n, IRequest $request, $userId, IConfig $config, IInitialStateService $initialStateService, IURLGenerator $urlGenerator,
 		AccountService $accountService, DocumentService $documentService,
 		ConfigService $configService, CheckService $checkService, MiscService $miscService
 	) {
@@ -118,6 +120,7 @@ class NavigationController extends Controller {
 		$this->userId = $userId;
 		$this->l10n = $l10n;
 		$this->config = $config;
+		$this->initialStateService = $initialStateService;
 
 		$this->urlGenerator = $urlGenerator;
 		$this->checkService = $checkService;
@@ -141,33 +144,32 @@ class NavigationController extends Controller {
 	 * @throws SocialAppConfigException
 	 */
 	public function navigate(string $path = ''): TemplateResponse {
-		$data = [
-			'serverData' => [
-				'public'   => false,
-				'firstrun' => false,
-				'setup'    => false,
-				'isAdmin'  => OC::$server->getGroupManager()
-										 ->isAdmin($this->userId),
-				'cliUrl'   => $this->getCliUrl()
-			]
+		$serverData = [
+			'public'   => false,
+			'firstrun' => false,
+			'setup'    => false,
+			'isAdmin'  => OC::$server->getGroupManager()
+									 ->isAdmin($this->userId),
+			'cliUrl'   => $this->getCliUrl()
 		];
 
 		try {
-			$data['serverData']['cloudAddress'] = $this->configService->getCloudUrl();
+			$serverData['cloudAddress'] = $this->configService->getCloudUrl();
 		} catch (SocialAppConfigException $e) {
 			$this->checkService->checkInstallationStatus(true);
 			$cloudAddress = $this->setupCloudAddress();
 			if ($cloudAddress !== '') {
-				$data['serverData']['cloudAddress'] = $cloudAddress;
+				$serverData['cloudAddress'] = $cloudAddress;
 			} else {
-				$data['serverData']['setup'] = true;
+				$serverData['setup'] = true;
 
-				if ($data['serverData']['isAdmin']) {
+				if ($serverData['isAdmin']) {
 					$cloudAddress = $this->request->getParam('cloudAddress');
 					if ($cloudAddress !== null) {
 						$this->configService->setCloudUrl($cloudAddress);
 					} else {
-						return new TemplateResponse(Application::APP_NAME, 'main', $data);
+						$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
+						return new TemplateResponse(Application::APP_NAME, 'main');
 					}
 				}
 			}
@@ -179,9 +181,9 @@ class NavigationController extends Controller {
 			$this->configService->setSocialUrl();
 		}
 
-		if ($data['serverData']['isAdmin']) {
+		if ($serverData['isAdmin']) {
 			$checks = $this->checkService->checkDefault();
-			$data['serverData']['checks'] = $checks;
+			$serverData['checks'] = $checks;
 		}
 
 		/*
@@ -189,7 +191,7 @@ class NavigationController extends Controller {
 		 */
 		try {
 			$this->accountService->createActor($this->userId, $this->userId);
-			$data['serverData']['firstrun'] = true;
+			$serverData['firstrun'] = true;
 		} catch (AccountAlreadyExistsException $e) {
 			// we do nothing
 		} catch (NoUserException $e) {
@@ -198,7 +200,8 @@ class NavigationController extends Controller {
 			// neither.
 		}
 
-		return new TemplateResponse(Application::APP_NAME, 'main', $data);
+		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
+		return new TemplateResponse(Application::APP_NAME, 'main');
 	}
 
 	private function setupCloudAddress(): string {
