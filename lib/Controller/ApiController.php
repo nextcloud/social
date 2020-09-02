@@ -202,6 +202,10 @@ class ApiController extends Controller {
 		try {
 			$userId = $this->currentSession();
 
+			$this->miscService->log(
+				'[ApiController] initViewer: ' . $userId . ' (bearer=' . $this->bearer . ')', 0
+			);
+
 			$account = $this->accountService->getActorFromUserId($userId);
 			$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
 			$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);

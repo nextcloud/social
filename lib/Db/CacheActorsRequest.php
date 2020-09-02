@@ -94,8 +94,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		}
 
 		$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
-
-		$this->generatePrimaryKey($qb, $actor->getId());
+		$qb->generatePrimaryKey($actor->getId());
 
 		try {
 			$qb->execute();

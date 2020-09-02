@@ -73,6 +73,9 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
+		$this->fixStreamNid($schema);
+		$this->fixCacheActorNid($schema);
+
 		$this->createClient($schema);
 		$this->createClientAuth($schema);
 		$this->createClientToken($schema);
@@ -83,6 +86,62 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$this->addChunkToTable($schema, 'social_3_stream_dest', '_dest');
 
 		return $schema;
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function fixStreamNid(ISchemaWrapper $schema) {
+		try {
+			$table = $schema->getTable('social_3_stream');
+		} catch (SchemaException $e) {
+			return;
+		}
+
+		if ($table->hasColumn('nid')) {
+			return;
+		}
+
+		$table->addColumn(
+			'nid', 'bigint',
+			[
+				'autoincrement'       => true,
+				'length'              => 11,
+				'unsigned'            => true,
+				'customSchemaOptions' => [
+					'unique' => true
+				]
+			]
+		);
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function fixCacheActorNid(ISchemaWrapper $schema) {
+		try {
+			$table = $schema->getTable('social_3_cache_actor');
+		} catch (SchemaException $e) {
+			return;
+		}
+
+		if ($table->hasColumn('nid')) {
+			return;
+		}
+
+		$table->addColumn(
+			'nid', 'bigint',
+			[
+				'autoincrement'       => true,
+				'length'              => 11,
+				'unsigned'            => true,
+				'customSchemaOptions' => [
+					'unique' => true
+				]
+			]
+		);
 	}
 
 

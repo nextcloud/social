@@ -46,10 +46,10 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheActorsInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getCacheActorsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_CACHE_ACTORS);
 
 		return $qb;
@@ -62,7 +62,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getCacheActorsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_ACTORS);
 
 		return $qb;
@@ -79,8 +79,8 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox', 'ca.outbox',
-			'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username', 'ca.name', 'ca.summary',
+			'ca.nid', 'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox',
+			'ca.outbox', 'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username', 'ca.name', 'ca.summary',
 			'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
@@ -101,7 +101,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getCacheActorsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_CACHE_ACTORS);
 
 		return $qb;

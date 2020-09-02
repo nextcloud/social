@@ -95,7 +95,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
 		   ->addSelect(
-			   's.type', 's.subtype', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
+			   's.nid', 's.type', 's.subtype', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
 			   's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 			   's.instances', 's.creation', 's.filter_duplicate', 's.details', 's.hashtags'

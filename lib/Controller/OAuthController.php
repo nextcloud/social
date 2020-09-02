@@ -122,7 +122,7 @@ class OAuthController extends Controller {
 		$this->miscService = $miscService;
 
 		$body = file_get_contents('php://input');
-		$this->miscService->log('[OAuthController] input: ' . $body, 2);
+		$this->miscService->log('[OAuthController] input: ' . $body, 0);
 	}
 
 

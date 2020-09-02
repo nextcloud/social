@@ -636,6 +636,8 @@ class ACore extends Item implements JsonSerializable {
 	 * @param array $data
 	 */
 	public function importFromDatabase(array $data) {
+		// TODO: check if validate is needed when importing from database;
+		$this->setNid($this->getInt('nid', $data));
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
 		$this->setSubType($this->validate(self::AS_TYPE, 'subtype', $data, ''));
@@ -756,9 +758,15 @@ class ACore extends Item implements JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
-		return [
-			"id"                     => $this->getId(),
+		$result = [
+			'id' => $this->getId(),
 		];
+
+		if ($this->getNid() > 0) {
+			$result['id'] = $this->getNid();
+		}
+
+		return $result;
 	}
 
 }

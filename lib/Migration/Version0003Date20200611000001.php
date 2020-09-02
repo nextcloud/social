@@ -529,6 +529,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table = $schema->createTable('social_3_stream');
 
 		$table->addColumn(
+			'nid', 'bigint',
+			[
+				'autoincrement' => true,
+				'length'        => 11,
+				'unsigned'      => true,
+			]
+		);
+		$table->addColumn(
 			'id', 'string',
 			[
 				'notnull' => false,
@@ -743,6 +751,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['nid']);
 		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(
 			[
@@ -769,6 +778,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->createTable('social_3_cache_actor');
+		$table->addColumn(
+			'nid', 'bigint',
+			[
+				'autoincrement' => true,
+				'length'        => 11,
+				'unsigned'      => true,
+			]
+		);
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -921,6 +938,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['nid']);
 	}
 
 

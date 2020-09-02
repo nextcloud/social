@@ -726,7 +726,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$details = $this->getDetailsAll();
 		$result =
 			[
-				"id"              => $this->getId(),
 				"username"        => $this->getPreferredUsername(),
 				"acct"            => $this->getPreferredUsername(),
 				"display_name"    => $this->getDisplayName(),

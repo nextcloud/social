@@ -801,7 +801,8 @@ class CoreRequestBuilder {
 
 		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
 		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
-		$qb->selectAlias($pf . '.id', 'cacheactor_id')
+		$qb->selectAlias($pf . '.nid', 'cacheactor_nid')
+		   ->selectAlias($pf . '.id', 'cacheactor_id')
 		   ->selectAlias($pf . '.type', 'cacheactor_type')
 		   ->selectAlias($pf . '.account', 'cacheactor_account')
 		   ->selectAlias($pf . '.following', 'cacheactor_following')
@@ -841,7 +842,8 @@ class CoreRequestBuilder {
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
-		$qb->selectAlias('ca.id', 'cacheactor_id')
+		$qb->selectAlias('ca.nid', 'cacheactor_nid')
+		   ->selectAlias('ca.id', 'cacheactor_id')
 		   ->selectAlias('ca.type', 'cacheactor_type')
 		   ->selectAlias('ca.account', 'cacheactor_account')
 		   ->selectAlias('ca.following', 'cacheactor_following')
