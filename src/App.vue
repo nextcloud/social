@@ -1,10 +1,21 @@
 <template>
 	<Content v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<AppNavigation v-if="!serverData.public">
+			<AppNavigationNew
+				:text="t('social', 'New post')"
+				:disabled="false"
+				button-id="new-socialpost-button"
+				button-class="icon-add" 
+				@click="showNewPostModal" />
 			<AppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
 				:title="item.title" :icon="item.icon" :exact="true" />
 		</AppNavigation>
 		<AppContent>
+			<Modal v-if="newPostModal" @close="closeNewPostModal">
+				<div class="composer-in-modal">
+					<Composer />
+				</div>
+			</Modal>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
 					{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
@@ -85,6 +96,10 @@
 		text-decoration: underline;
 	}
 
+	.composer-in-modal {
+		width: 600px;
+		max-width: 100%;
+	}
 </style>
 
 <script>
@@ -92,8 +107,11 @@ import Content from '@nextcloud/vue/dist/Components/Content'
 import AppContent from '@nextcloud/vue/dist/Components/AppContent'
 import AppNavigation from '@nextcloud/vue/dist/Components/AppNavigation'
 import AppNavigationItem from '@nextcloud/vue/dist/Components/AppNavigationItem'
+import AppNavigationNew from '@nextcloud/vue/dist/Components/AppNavigationNew'
+import Modal from '@nextcloud/vue/dist/Components/Modal'
 
 import axios from '@nextcloud/axios'
+import Composer from './components/Composer.vue'
 import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
 import { loadState } from '@nextcloud/initial-state'
@@ -106,6 +124,9 @@ export default {
 		AppContent,
 		AppNavigation,
 		AppNavigationItem,
+		AppNavigationNew,
+		Modal,
+		Composer,
 		Search
 	},
 	mixins: [currentuserMixin],
@@ -118,6 +139,9 @@ export default {
 		}
 	},
 	computed: {
+		newPostModal() {
+			return this.$store.getters.getComposerModalState
+		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
 		},
@@ -242,6 +266,12 @@ export default {
 			if (data.source === 'timeline.direct' && timeline === 'direct') {
 				this.$store.dispatch('addToTimeline', [data.payload])
 			}
+		},
+		showNewPostModal() {
+			this.$store.commit('openComposerModal')
+		},
+		closeNewPostModal() {
+			this.$store.commit('closeComposerModal')
 		}
 	}
 }

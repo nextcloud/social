@@ -144,7 +144,8 @@ export default {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
 		reply() {
-			this.$root.$emit('composer-reply', this.item)
+			this.$store.commit('setComposerReply', this.item)
+			this.$store.commit('openComposerModal')
 		},
 		boost() {
 			let params = {
