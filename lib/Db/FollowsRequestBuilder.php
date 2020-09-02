@@ -127,15 +127,16 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
+	 * @param SocialQueryBuilder $qb
 	 *
 	 * @return Follow
 	 */
-	public function parseFollowsSelectSql($data): Follow {
+	public function parseFollowsSelectSql($data, SocialQueryBuilder $qb): Follow {
 		$follow = new Follow();
 		$follow->importFromDatabase($data);
 
 		try {
-			$actor = $this->parseCacheActorsLeftJoin($data);
+			$actor = $qb->parseLeftJoinCacheActors($data);
 			$actor->setCompleteDetails(true);
 			$this->assignDetails($actor, $data);
 

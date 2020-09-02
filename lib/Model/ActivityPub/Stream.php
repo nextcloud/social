@@ -495,6 +495,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'reblogged'              => false,
 			'muted'                  => false,
 			'bookmarked'             => false,
+			'uri'                    => $this->getId(),
+			'url'                    => $this->getId(),
 			"reblog"                 => null,
 			"created_at"             => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
 		];

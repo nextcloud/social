@@ -110,6 +110,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private $featured = '';
 
 	/** @var string */
+	private $avatar = '';
+
+	/** @var string */
 	private $header = '';
 
 	/** @var bool */
@@ -237,7 +240,18 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 						->getId();
 		}
 
-		return '';
+		return $this->avatar;
+	}
+
+	/**
+	 * @param string $avatar
+	 *
+	 * @return $this
+	 */
+	public function setAvatar(string $avatar): self {
+		$this->avatar = $avatar;
+
+		return $this;
 	}
 
 

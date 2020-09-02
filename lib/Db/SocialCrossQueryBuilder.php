@@ -145,6 +145,11 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$actor = new Person();
 		$actor->importFromDatabase($new);
+		$actor->setAvatar(
+			$this->urlGenerator->linkToRouteAbsolute('social.Local.globalActorAvatar') . '?id='
+			. $actor->getId()
+		);
+
 		if (!AP::$activityPub->isActor($actor)) {
 			throw new InvalidResourceException();
 		}

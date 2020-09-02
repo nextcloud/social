@@ -38,7 +38,6 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
 use OC\DB\SchemaWrapper;
-use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -914,32 +913,6 @@ class CoreRequestBuilder {
 		$qb->leftJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTORS, 'lja', $on
 		);
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Person
-	 * @throws InvalidResourceException
-	 */
-	public function parseCacheActorsLeftJoin(array $data): Person {
-		$new = [];
-
-		foreach ($data as $k => $v) {
-			if (substr($k, 0, 11) === 'cacheactor_') {
-				$new[substr($k, 11)] = $v;
-			}
-		}
-
-		$actor = new Person();
-		$actor->importFromDatabase($new);
-
-		if (!AP::$activityPub->isActor($actor)) {
-			throw new InvalidResourceException();
-		}
-
-		return $actor;
 	}
 
 

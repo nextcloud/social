@@ -32,8 +32,12 @@ namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Db\ExtendedQueryBuilder;
+use OC\SystemConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\ICompositeExpression;
+use OCP\IDBConnection;
+use OCP\ILogger;
+use OCP\IURLGenerator;
 
 
 /**
@@ -44,12 +48,24 @@ use OCP\DB\QueryBuilder\ICompositeExpression;
 class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 
 
+	/** @var IURLGenerator */
+	protected $urlGenerator;
+
 	/** @var Person */
 	private $viewer = null;
 
 
 	/** @var int */
 	private $chunk = 0;
+
+
+	public function __construct(
+		IDBConnection $connection, SystemConfig $systemConfig, ILogger $logger, IURLGenerator $urlGenerator
+	) {
+		parent::__construct($connection, $systemConfig, $logger);
+
+		$this->urlGenerator = $urlGenerator;
+	}
 
 
 	/**

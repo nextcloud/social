@@ -157,15 +157,16 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
+	 * @param SocialQueryBuilder $qb
 	 *
 	 * @return ACore
 	 */
-	public function parseActionsSelectSql($data): ACore {
+	public function parseActionsSelectSql($data, SocialQueryBuilder $qb): ACore {
 		$item = new ACore();
 		$item->importFromDatabase($data);
 
 		try {
-			$actor = $this->parseCacheActorsLeftJoin($data);
+			$actor = $qb->parseLeftJoinCacheActors($data);
 			$actor->setCompleteDetails(true);
 
 			$item->setActor($actor);

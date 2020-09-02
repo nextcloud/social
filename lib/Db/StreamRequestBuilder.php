@@ -220,7 +220,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $this->parseCacheActorsLeftJoin($data);
+			$actor = $qb->parseLeftJoinCacheActors($data);
 			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);

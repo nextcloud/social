@@ -140,7 +140,6 @@ class ApiController extends Controller {
 
 	/**
 	 * @NoCSRFRequired
-	 * @NoAdminRequired
 	 * @PublicPage
 	 *
 	 * @return DataResponse

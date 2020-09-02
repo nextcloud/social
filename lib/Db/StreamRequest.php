@@ -44,7 +44,6 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -60,9 +59,6 @@ use OCP\ILogger;
 class StreamRequest extends StreamRequestBuilder {
 
 
-	/** @var CacheActorService */
-	private $cacheActorService;
-
 	/** @var StreamDestRequest */
 	private $streamDestRequest;
 
@@ -75,20 +71,17 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
-	 * @param CacheActorService $cacheActorService
 	 * @param StreamDestRequest $streamDestRequest
 	 * @param StreamTagsRequest $streamTagsRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, CacheActorService $cacheActorService,
-		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
-		ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, StreamDestRequest $streamDestRequest,
+		StreamTagsRequest $streamTagsRequest, ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct($connection, $logger, $configService, $miscService);
 
-		$this->cacheActorService = $cacheActorService;
 		$this->streamDestRequest = $streamDestRequest;
 		$this->streamTagsRequest = $streamTagsRequest;
 	}
@@ -395,7 +388,8 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB): array {
+	public function getTimelineHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+	): array {
 		$qb = $this->getStreamSelectSql($format);
 		$qb->setChunk(1);
 
