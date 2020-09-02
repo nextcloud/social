@@ -64,4 +64,4 @@ new Vue({
 	router: router,
 	render: h => h(App),
 	store: store
-}).$mount('#vue-content')
+}).$mount('#content')

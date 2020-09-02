@@ -63,6 +63,7 @@
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import axios from '@nextcloud/axios'
 import currentuserMixin from './../mixins/currentUserMixin'
+import { loadState } from '@nextcloud/initial-state'
 
 export default {
 	name: 'App',
@@ -100,9 +101,8 @@ export default {
 	},
 	beforeMount: function() {
 		// importing server data into the store
-		const serverDataElmt = document.getElementById('serverData')
-		if (serverDataElmt !== null) {
-			const serverData = JSON.parse(document.getElementById('serverData').dataset.server)
+		try {
+			const serverData = loadState('social', 'serverData')
 			if (serverData.currentUser) {
 				window.oc_current_user = JSON.parse(JSON.stringify(serverData.currentUser))
 			}
@@ -113,7 +113,8 @@ export default {
 			if (this.serverData.local) {
 				this.$store.dispatch('fetchPublicAccountInfo', this.serverData.local)
 			}
-
+		} catch {
+			/* empty */
 		}
 	},
 	methods: {
