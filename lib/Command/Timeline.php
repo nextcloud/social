@@ -149,7 +149,7 @@ class Timeline extends ExtendedBase {
 		$this->streamRequest->setViewer($actor);
 		switch ($timeline) {
 			case 'home':
-				$stream = $this->streamRequest->getTimelineHome(0, $this->count);
+				$stream = $this->streamRequest->getTimelineHome_dep(0, $this->count);
 				$this->outputStreams($stream);
 				break;
 

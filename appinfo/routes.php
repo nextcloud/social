@@ -40,9 +40,9 @@ return [
 		['name' => 'Config#local', 'url' => '/local/', 'verb' => 'GET'],
 		['name' => 'Config#remote', 'url' => '/test/{account}/', 'verb' => 'GET'],
 		[
-			'name' => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
+			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
 			'requirements' => ['path' => '.+'],
-			'defaults' => ['path' => '']
+			'defaults'     => ['path' => '']
 		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
@@ -76,12 +76,12 @@ return [
 		['name' => 'OAuth#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
 
 		// Api for 3rd party
-		[
-			'name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials',
-			'verb' => 'GET'
-		],
+		['name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
+		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
+		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
+		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController

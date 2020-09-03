@@ -42,6 +42,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -382,6 +383,38 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	public function getTimelineHome(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->setChunk(1);
+
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->paginate($options);
+
+		$qb->limitToViewer('sd', 'f', false);
+		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
+
+		$qb->leftJoinStreamAction('sa');
+		$qb->filterDuplicate();
+
+		$result = $this->getStreamsFromRequest($qb);
+		if ($options->isInverted()) {
+			$result = array_reverse($result);
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * Should returns:
+	 *  * Own posts,
+	 *  * Followed accounts
+	 *
+	 * @deprecated - use GetTimeline()
 	 * @param int $since
 	 * @param int $limit
 	 * @param int $format
@@ -389,7 +422,8 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+	public function getTimelineHome_dep(
+		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
 	): array {
 		$qb = $this->getStreamSelectSql($format);
 		$qb->setChunk(1);

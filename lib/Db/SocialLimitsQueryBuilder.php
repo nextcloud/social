@@ -36,6 +36,7 @@ use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 
 
@@ -323,10 +324,40 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * @param TimelineOptions $options
+	 *
+	 */
+	public function paginate(TimelineOptions $options) {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		if ($options->getSinceId() > 0) {
+			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getSinceId())));
+		}
+
+		$options->setMinId(16000);
+		if ($options->getMaxId() > 0) {
+			$this->andWhere($expr->lt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
+		}
+
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
+		}
+
+
+		//TODO : manage min_id: Return results immediately newer than id
+		$this->setMaxResults($options->getLimit());
+		$this->orderBy($pf . '.nid', ($options->isInverted()) ? 'asc' : 'desc');
+	}
+
+
+	/**
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @throws DateTimeException
+	 * @deprecated - use paginate()
 	 */
 	public function limitPaginate(int $since = 0, int $limit = 5) {
 		try {

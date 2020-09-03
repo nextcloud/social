@@ -39,6 +39,7 @@ use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -165,6 +166,51 @@ class ApiController extends Controller {
 	 * @PublicPage
 	 *
 	 * @return DataResponse
+	 */
+	public function customEmojis(): DataResponse {
+		return new DataResponse([], Http::STATUS_OK);
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 */
+	public function savedSearches(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 */
+	public function notifications(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
 	 * @throws InstanceDoesNotExistException
 	 */
 	public function instance(): DataResponse {
@@ -184,9 +230,13 @@ class ApiController extends Controller {
 	 * @return DataResponse
 	 */
 	public function timelines(string $timeline, int $limit = 20): DataResponse {
+		$options = new TimelineOptions($this->request);
+		$options->setFormat(Stream::FORMAT_LOCAL);
+		$options->setTimeline($timeline);
+
 		try {
 			$this->initViewer(true);
-			$posts = $this->streamService->getStreamHome(0, $limit, Stream::FORMAT_LOCAL);
+			$posts = $this->streamService->getTimeline($options);
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Exception $e) {
