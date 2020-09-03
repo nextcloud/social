@@ -34,12 +34,10 @@ use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -49,6 +47,7 @@ use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\ILogger;
+use OCP\IURLGenerator;
 
 
 /**
@@ -71,16 +70,18 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
+	 * @param IURLGenerator $urlGenerator
 	 * @param StreamDestRequest $streamDestRequest
 	 * @param StreamTagsRequest $streamTagsRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, StreamDestRequest $streamDestRequest,
-		StreamTagsRequest $streamTagsRequest, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator,
+		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
+		ConfigService $configService, MiscService $miscService
 	) {
-		parent::__construct($connection, $logger, $configService, $miscService);
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
 		$this->streamDestRequest = $streamDestRequest;
 		$this->streamTagsRequest = $streamTagsRequest;
@@ -719,29 +720,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->generatePrimaryKey($stream->getId(), 'id_prim');
 
 		return $qb;
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param Person $actor
-	 *
-	 * @deprecated
-	 */
-	private function leftJoinFollowStatus(IQueryBuilder $qb, Person $actor) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$expr = $qb->expr();
-		$pf = $qb->getDefaultSelectAlias() . '.';
-
-		$on = $expr->andX();
-		$on->add($qb->exprLimitToDBFieldInt('accepted', 1, 'fs'));
-		$on->add($qb->exprLimitToDBField('actor_id_prim', $qb->prim($actor->getId()), true, true, 'fs'));
-		$on->add($expr->eq($pf . 'attributed_to_prim', 'fs.object_id_prim'));
-
-		$qb->leftJoin($qb->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, 'fs', $on);
 	}
 
 }

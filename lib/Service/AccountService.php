@@ -313,7 +313,7 @@ class AccountService {
 		$lastPostCreation = '';
 		try {
 			$lastPost = $this->streamRequest->lastNoteFromActorId($actor->getId());
-			$lastPostCreation = date('y-m-d', $lastPost->getPublishedTime());
+			$lastPostCreation = date('Y-m-d', $lastPost->getPublishedTime());
 		} catch (StreamNotFoundException $e) {
 		}
 

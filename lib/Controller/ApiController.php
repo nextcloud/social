@@ -54,6 +54,11 @@ use OCP\IRequest;
 use OCP\IUserSession;
 
 
+/**
+ * Class ApiController
+ *
+ * @package OCA\Social\Controller
+ */
 class ApiController extends Controller {
 
 

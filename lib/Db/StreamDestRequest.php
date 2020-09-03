@@ -41,6 +41,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
 use OCP\ILogger;
+use OCP\IURLGenerator;
 
 
 /**
@@ -63,15 +64,16 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
+	 * @param IURLGenerator $urlGenerator
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, CacheActorService $cacheActorService,
+		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator, CacheActorService $cacheActorService,
 		ConfigService $configService, MiscService $miscService
 	) {
-		parent::__construct($connection, $logger, $configService, $miscService);
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
 		$this->cacheActorService = $cacheActorService;
 	}

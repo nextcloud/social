@@ -47,6 +47,7 @@ use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\ILogger;
+use OCP\IURLGenerator;
 
 
 /**
@@ -102,6 +103,9 @@ class CoreRequestBuilder {
 	/** @var ILogger */
 	protected $logger;
 
+	/** @var IURLGenerator */
+	protected $urlGenerator;
+
 	/** @var IDBConnection */
 	protected $dbConnection;
 
@@ -123,14 +127,17 @@ class CoreRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
+	 * @param IURLGenerator $urlGenerator
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->dbConnection = $connection;
 		$this->logger = $logger;
+		$this->urlGenerator = $urlGenerator;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -143,7 +150,8 @@ class CoreRequestBuilder {
 		$qb = new SocialQueryBuilder(
 			$this->dbConnection,
 			OC::$server->getSystemConfig(),
-			$this->logger
+			$this->logger,
+			$this->urlGenerator
 		);
 
 		if ($this->viewer !== null) {

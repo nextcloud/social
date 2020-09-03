@@ -763,12 +763,10 @@ class ACore extends Item implements JsonSerializable {
 		];
 
 		if ($this->getNid() > 0) {
-			$result['id'] = $this->getNid();
+			$result['id'] = (string)$this->getNid();
 		}
 
 		return $result;
 	}
 
 }
-
-
