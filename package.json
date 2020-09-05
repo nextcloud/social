@@ -97,7 +97,7 @@
 		"vue-template-compiler": "^2.6.10",
 		"webpack": "^4.44.1",
 		"webpack-cli": "^3.3.11",
-		"webpack-merge": "^5.1.2"
+		"webpack-merge": "^5.1.3"
 	},
 	"jest": {
 		"moduleFileExtensions": [
