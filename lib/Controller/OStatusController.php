@@ -72,12 +72,15 @@ class OStatusController extends Controller {
 
 	/** @var IUserManager */
 	private $userSession;
+	/** @var IInitialStateService */
+	private $initialStateService;
 
 
 	/**
 	 * OStatusController constructor.
 	 *
 	 * @param IRequest $request
+	 * @param IInitialStateService $initialStateService
 	 * @param CacheActorService $cacheActorService
 	 * @param AccountService $accountService
 	 * @param CurlService $curlService
@@ -122,14 +125,14 @@ class OStatusController extends Controller {
 			}
 
 			$this->initialStateService->provideInitialState('social', 'serverData', [
-				'account'     => $actor->getAccount(),
+				'account' => $actor->getAccount(),
 				'currentUser' => [
-					'uid'         => $user->getUID(),
+					'uid' => $user->getUID(),
 					'displayName' => $user->getDisplayName(),
-				]
+				],
 			]);
 			return new TemplateResponse(
-				'social', 'main', 'guest'
+				'social', 'main', []
 			);
 		} catch (Exception $e) {
 			return $this->fail($e);
@@ -151,11 +154,11 @@ class OStatusController extends Controller {
 			$following = $this->accountService->getActor($local);
 
 			$this->initialStateService->provideInitialState('social', 'serverData', [
-				'local'   => $local,
-				'account' => $following->getAccount()
+				'local' => $local,
+				'account' => $following->getAccount(),
 			]);
 			return new TemplateResponse(
-				'social', 'main', 'guest'
+				'social', 'main', [], 'guest'
 			);
 		} catch (Exception $e) {
 			return $this->fail($e);
