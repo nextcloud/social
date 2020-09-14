@@ -557,10 +557,14 @@ class ACore extends Item implements JsonSerializable {
 				return $value;
 
 			case self::AS_STRING:
+				// try to preserve some whitespace from the html tags
+				$value = preg_replace("/\<br *\/?\>/", "\n", $value);
+				$value = preg_replace("/\<\/?p>/", "\n", $value);
+
 				$value = strip_tags($value);
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
 
-				return $value;
+				return trim($value);
 
 			case self::AS_USERNAME:
 				$value = strip_tags($value);
