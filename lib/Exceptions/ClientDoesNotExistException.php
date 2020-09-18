@@ -33,7 +33,7 @@ namespace OCA\Social\Exceptions;
 use Exception;
 
 
-class ClientTokenDoesNotExistException extends Exception {
+class ClientDoesNotExistException extends Exception {
 
 }
 

@@ -31,15 +31,11 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Traits\TStringTools;
-use OCA\Social\Db\ClientAppRequest;
-use OCA\Social\Db\ClientAuthRequest;
-use OCA\Social\Db\ClientTokenRequest;
-use OCA\Social\Exceptions\ClientAppDoesNotExistException;
-use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
+use Exception;
+use OCA\Social\Db\ClientRequest;
+use OCA\Social\Exceptions\ClientDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
-use OCA\Social\Model\Client\ClientApp;
-use OCA\Social\Model\Client\ClientAuth;
-use OCA\Social\Model\Client\ClientToken;
+use OCA\Social\Model\Client\SocialClient;
 
 
 /**
@@ -50,17 +46,19 @@ use OCA\Social\Model\Client\ClientToken;
 class ClientService {
 
 
+	const TIME_TOKEN_REFRESH = 300; // 5m
+//	const TIME_TOKEN_TTL = 21600; // 6h
+//	const TIME_AUTH_TTL = 30672000; // 1y
+
+// looks like there is no token refresh. token must have been updated in the last year.
+	const TIME_TOKEN_TTL = 30672000; // 1y
+
+
 	use TStringTools;
 
 
-	/** @var ClientAppRequest */
-	private $clientAppRequest;
-
-	/** @var ClientAuthRequest */
-	private $clientAuthRequest;
-
-	/** @var ClientTokenRequest */
-	private $clientTokenRequest;
+	/** @var ClientRequest */
+	private $clientRequest;
 
 	/** @var MiscService */
 	private $miscService;
@@ -69,137 +67,143 @@ class ClientService {
 	/**
 	 * ClientService constructor.
 	 *
-	 * @param ClientAppRequest $clientAppRequest
-	 * @param ClientAuthRequest $clientAuthRequest
-	 * @param ClientTokenRequest $clientTokenRequest
+	 * @param ClientRequest $clientRequest
 	 * @param MiscService $miscService
 	 */
-	public function __construct(
-		ClientAppRequest $clientAppRequest, ClientAuthRequest $clientAuthRequest,
-		ClientTokenRequest $clientTokenRequest, MiscService $miscService
-	) {
-		$this->clientAppRequest = $clientAppRequest;
-		$this->clientAuthRequest = $clientAuthRequest;
-		$this->clientTokenRequest = $clientTokenRequest;
+	public function __construct(ClientRequest $clientRequest, MiscService $miscService) {
+		$this->clientRequest = $clientRequest;
 		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param ClientApp $clientApp
+	 * @param SocialClient $client
 	 *
 	 * @throws ClientException
 	 */
-	public function createClient(ClientApp $clientApp): void {
-		if ($clientApp->getName() === '') {
+	public function createApp(SocialClient $client): void {
+		if ($client->getAppName() === '') {
 			throw new ClientException('missing client_name');
 		}
 
-		if (empty($clientApp->getRedirectUris())) {
+		if (empty($client->getAppRedirectUris())) {
 			throw new ClientException('missing redirect_uris');
 		}
 
-		$clientApp->setClientId($this->token(40));
-		$clientApp->setClientSecret($this->token(40));
+		$client->setAppClientId($this->token(40));
+		$client->setAppClientSecret($this->token(40));
 
-		$this->clientAppRequest->save($clientApp);
+		$this->clientRequest->saveApp($client);
 	}
 
 
 	/**
-	 * @param ClientAuth $clientAuth
-	 * @param ClientApp $clientApp
-	 *
-	 * @throws ClientException
+	 * @param SocialClient $client
 	 */
-	public function authClient(ClientApp $clientApp, ClientAuth $clientAuth) {
-		$this->confirmData($clientApp, ['redirect_uri' => $clientAuth->getRedirectUri()]);
+	public function authClient(SocialClient $client) {
+		$client->setAuthCode($this->token(60));
+//		$clientAuth->setClientId($client->getId());
 
-		$clientAuth->setCode($this->token(60));
-		$clientAuth->setClientId($clientApp->getId());
-
-		$this->clientAuthRequest->save($clientAuth);
+		$this->clientRequest->authClient($client);
 	}
 
 
 	/**
-	 * @param ClientApp $clientApp
-	 * @param ClientAuth $clientAuth
-	 * @param ClientToken $clientToken
+	 * @param SocialClient $client
 	 */
-	public function generateToken(ClientApp $clientApp, ClientAuth $clientAuth, ClientToken $clientToken
-	): void {
-		$clientToken->setAuthId($clientAuth->getId());
-		$clientToken->setToken($this->token(80));
+	public function generateToken(SocialClient $client): void {
+		$client->setToken($this->token(80));
 
-		$this->clientTokenRequest->save($clientToken);
+		$this->clientRequest->updateToken($client);
 	}
 
 
 	/**
 	 * @param string $clientId
 	 *
-	 * @return ClientApp
-	 * @throws ClientAppDoesNotExistException
+	 * @return SocialClient
+	 * @throws ClientDoesNotExistException
 	 */
-	public function getClientByClientId(string $clientId): ClientApp {
-		return $this->clientAppRequest->getByClientId($clientId);
-	}
-
-	/**
-	 * @param string $code
-	 *
-	 * @return ClientAuth
-	 * @throws ClientAuthDoesNotExistException
-	 */
-	public function getAuthByCode(string $code): ClientAuth {
-		return $this->clientAuthRequest->getByCode($code);
+	public function getFromClientId(string $clientId): SocialClient {
+		return $this->clientRequest->getFromClientId($clientId);
 	}
 
 
 	/**
 	 * @param string $token
+	 * @param bool $refresh
 	 *
-	 * @return ClientAuth
-	 * @throws ClientAuthDoesNotExistException
+	 * @return SocialClient
+	 * @throws ClientDoesNotExistException
 	 */
-	public function getAuthFromToken(string $token): ClientAuth {
-		return $this->clientAuthRequest->getByToken($token);
+	public function getFromToken(string $token, bool $refresh = true): SocialClient {
+		$client = $this->clientRequest->getFromToken($token);
+
+		if ($client->getLastUpdate() + self::TIME_TOKEN_TTL < time()) {
+			try {
+				$this->clientRequest->deprecateToken();
+			} catch (Exception $e) {
+			}
+
+			throw new ClientDoesNotExistException();
+		}
+
+		if ($client->getLastUpdate() + self::TIME_TOKEN_REFRESH > time()) {
+			$this->miscService->log('__updating ' . $client->getLastUpdate());
+			$this->clientRequest->updateTime($client);
+		}
+
+		return $client;
 	}
 
 
 	/**
-	 * @param ClientApp $clientApp
+	 * @param SocialClient $client
 	 * @param array $data
 	 *
 	 * @throws ClientException
 	 */
-	public function confirmData(ClientApp $clientApp, array $data) {
+	public function confirmData(SocialClient $client, array $data) {
 		if (array_key_exists('redirect_uri', $data)
-			&& !in_array($data['redirect_uri'], $clientApp->getRedirectUris())) {
+			&& !in_array($data['redirect_uri'], $client->getAppRedirectUris())) {
 			throw new ClientException('unknown redirect_uri');
 		}
 
 		if (array_key_exists('client_secret', $data)
-			&& $data['client_secret'] !== $clientApp->getClientSecret()) {
+			&& $data['client_secret'] !== $client->getAppClientSecret()) {
 			throw new ClientException('wrong client_secret');
 		}
 
-		if (array_key_exists('scopes', $data)) {
-			$scopes = $data['scopes'];
+		if (array_key_exists('app_scopes', $data)) {
+			$scopes = $data['app_scopes'];
 			if (!is_array($scopes)) {
-				$scopes = explode(' ', $scopes);
+				$scopes = $client->getScopesFromString($scopes);
 			}
 
 			foreach ($scopes as $scope) {
-				if (!in_array($scope, $clientApp->getScopes())) {
+				if (!in_array($scope, $client->getAppScopes())) {
 					throw new ClientException('invalid scope');
 				}
 			}
 		}
 
-	}
+		if (array_key_exists('auth_scopes', $data)) {
+			$scopes = $data['auth_scopes'];
+			if (!is_array($scopes)) {
+				$scopes = $client->getScopesFromString($scopes);
+			}
 
+			foreach ($scopes as $scope) {
+				if (!in_array($scope, $client->getAuthScopes())) {
+					throw new ClientException('invalid scope');
+				}
+			}
+		}
+
+		if (array_key_exists('code', $data) && $data['code'] !== $client->getAuthCode()) {
+			throw new ClientException('unknown code');
+		}
+	}
 
 }
 

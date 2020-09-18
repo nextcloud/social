@@ -34,12 +34,13 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
-use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
+use OCA\Social\Exceptions\ClientDoesNotExistException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -97,6 +98,9 @@ class ApiController extends Controller {
 	/** @var string */
 	private $bearer = '';
 
+	/** @var SocialClient */
+	private $client;
+
 	/** @var Person */
 	private $viewer;
 
@@ -134,7 +138,6 @@ class ApiController extends Controller {
 		$this->miscService = $miscService;
 
 		$authHeader = trim($this->request->getHeader('Authorization'));
-
 		if (strpos($authHeader, ' ')) {
 			list($authType, $authToken) = explode(' ', $authHeader);
 			if (strtolower($authType) === 'bearer') {
@@ -150,13 +153,47 @@ class ApiController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
+	public function appsCredentials() {
+		try {
+			$this->initViewer(true);
+
+			if ($this->client === null) {
+				return new DataResponse(
+					[
+						'name'    => 'Nextcloud Social',
+						'website' => 'https://github.com/nextcloud/social/'
+					], Http::STATUS_OK
+				);
+			} else {
+				return new DataResponse(
+					[
+						'name'    => $this->client->getAppName(),
+						'website' => $this->client->getAppWebsite()
+					], Http::STATUS_OK
+				);
+			}
+
+		} catch (Exception $e) {
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+		}
+
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 */
 	public function verifyCredentials() {
 		try {
 			$this->initViewer(true);
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+
 		}
 	}
 
@@ -184,7 +221,7 @@ class ApiController extends Controller {
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		}
 	}
 
@@ -201,7 +238,7 @@ class ApiController extends Controller {
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
 		}
 	}
 
@@ -240,7 +277,11 @@ class ApiController extends Controller {
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return new DataResponse(
+				[
+					'error' => 'The access token was revoked'
+				], Http::STATUS_UNAUTHORIZED
+			);
 		}
 	}
 
@@ -282,6 +323,7 @@ class ApiController extends Controller {
 	/**
 	 * @return string
 	 * @throws AccountDoesNotExistException
+	 * @throws ClientDoesNotExistException
 	 */
 	private function currentSession(): string {
 		$user = $this->userSession->getUser();
@@ -290,12 +332,9 @@ class ApiController extends Controller {
 		}
 
 		if ($this->bearer !== '') {
-			try {
-				$clientAuth = $this->clientService->getAuthFromToken($this->bearer);
+			$this->client = $this->clientService->getFromToken($this->bearer);
 
-				return $clientAuth->getUserId();
-			} catch (ClientAuthDoesNotExistException $e) {
-			}
+			return $this->client->getAuthUserId();
 		}
 
 		throw new AccountDoesNotExistException('userId not defined');

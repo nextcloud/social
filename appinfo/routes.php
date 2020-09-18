@@ -73,9 +73,9 @@ return [
 		['name' => 'OAuth#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
 		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
 		['name' => 'OAuth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
-		['name' => 'OAuth#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
 
 		// Api for 3rd party
+		['name' => 'Api#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],

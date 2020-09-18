@@ -97,8 +97,8 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 *
 	 * @param string $clientId
 	 */
-	public function limitToClientId(string $clientId) {
-		$this->limitToDBField('client_id', $clientId);
+	public function limitToAppClientId(string $clientId) {
+		$this->limitToDBField('app_client_id', $clientId);
 	}
 
 
@@ -335,7 +335,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getSinceId())));
 		}
 
-		$options->setMinId(16000);
 		if ($options->getMaxId() > 0) {
 			$this->andWhere($expr->lt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
 		}
@@ -345,8 +344,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
 		}
 
-
-		//TODO : manage min_id: Return results immediately newer than id
 		$this->setMaxResults($options->getLimit());
 		$this->orderBy($pf . '.nid', ($options->isInverted()) ? 'asc' : 'desc');
 	}

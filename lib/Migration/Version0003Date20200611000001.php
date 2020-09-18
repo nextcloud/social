@@ -76,9 +76,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$this->createActors($schema);
 		$this->createCacheActors($schema);
 		$this->createCacheDocuments($schema);
-		$this->createClient($schema);
-		$this->createClientAuth($schema);
-		$this->createClientToken($schema);
+		$this->createClients($schema);
 		$this->createFollows($schema);
 		$this->createHashtags($schema);
 		$this->createInstance($schema);
@@ -1051,16 +1049,15 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 //		$table->addUniqueIndex(['url'], 'unique_url');
 	}
 
-
 	/**
 	 * @param ISchemaWrapper $schema
 	 */
-	private function createClient(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_client')) {
+	private function createClients(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_clients')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_client');
+		$table = $schema->createTable('social_3_clients');
 		$table->addColumn(
 			'id', 'integer',
 			[
@@ -1071,7 +1068,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'name', 'string',
+			'app_name', 'string',
 			[
 				'notnull' => false,
 				'length'  => 127,
@@ -1079,7 +1076,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'website', 'string',
+			'app_website', 'string',
 			[
 				'notnull' => false,
 				'length'  => 255,
@@ -1087,21 +1084,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'scopes', 'string',
-			[
-				'notnull' => false,
-				'default' => '255'
-			]
-		);
-		$table->addColumn(
-			'redirect_uris', 'text',
+			'app_redirect_uris', 'text',
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'client_id', 'string',
+			'app_client_id', 'string',
 			[
 				'notnull' => false,
 				'length'  => 63,
@@ -1109,7 +1099,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'client_secret', 'string',
+			'app_client_secret', 'string',
 			[
 				'notnull' => false,
 				'length'  => 63,
@@ -1117,50 +1107,20 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'app_scopes', 'text',
 			[
-				'notnull' => false,
+				'notnull' => false
 			]
 		);
 
-		$table->setPrimaryKey(['id']);
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 */
-	private function createClientAuth(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_client_auth')) {
-			return;
-		}
-
-		$table = $schema->createTable('social_3_client_auth');
 		$table->addColumn(
-			'id', 'integer',
-			[
-				'autoincrement' => true,
-				'notnull'       => true,
-				'length'        => 7,
-				'unsigned'      => true,
-			]
-		);
-		$table->addColumn(
-			'client_id', 'integer',
-			[
-				'notnull'  => false,
-				'length'   => 7,
-				'unsigned' => true
-			]
-		);
-		$table->addColumn(
-			'scopes', 'text',
+			'auth_scopes', 'text',
 			[
 				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'account', 'string',
+			'auth_account', 'string',
 			[
 				'notnull' => false,
 				'length'  => 127,
@@ -1168,7 +1128,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'user_id', 'string',
+			'auth_user_id', 'string',
 			[
 				'notnull' => false,
 				'length'  => 127,
@@ -1176,55 +1136,11 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'code', 'string',
+			'auth_code', 'string',
 			[
 				'notnull' => false,
 				'length'  => 127,
 				'default' => ''
-			]
-		);
-		$table->addColumn(
-			'last_update', 'datetime',
-			[
-				'notnull' => false,
-			]
-		);
-		$table->addColumn(
-			'creation', 'datetime',
-			[
-				'notnull' => false,
-			]
-		);
-
-		$table->setPrimaryKey(['id']);
-		$table->addIndex(['client_id']);
-	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 */
-	private function createClientToken(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_client_token')) {
-			return;
-		}
-
-		$table = $schema->createTable('social_3_client_token');
-		$table->addColumn(
-			'id', 'integer',
-			[
-				'autoincrement' => true,
-				'notnull'       => true,
-				'length'        => 11,
-				'unsigned'      => true
-			]
-		);
-		$table->addColumn(
-			'auth_id', 'integer',
-			[
-				'notnull'  => false,
-				'length'   => 7,
-				'unsigned' => true
 			]
 		);
 		$table->addColumn(
@@ -1236,12 +1152,6 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'scopes', 'text',
-			[
-				'notnull' => false
-			]
-		);
-		$table->addColumn(
 			'last_update', 'datetime',
 			[
 				'notnull' => false,
@@ -1255,7 +1165,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id']);
-		$table->addIndex(['token', 'auth_id']);
+		$table->addUniqueIndex(['auth_code', 'token', 'app_client_id', 'app_client_secret']);
 	}
 
 

@@ -34,7 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
-use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -126,14 +126,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function getAll(): array {
 		$qb = $this->getFollowsSelectSql();
 
-		$follows = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$follows[] = $this->parseFollowsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $follows;
+		return $this->getFollowsFromRequest($qb);
 	}
 
 
@@ -142,21 +135,14 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * @param string $remoteActorId
 	 *
 	 * @return Follow
-	 * @throws FollowDoesNotExistException
+	 * @throws FollowNotFoundException
 	 */
 	public function getByPersons(string $actorId, string $remoteActorId): Follow {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToActorId($qb, $actorId);
 		$this->limitToObjectId($qb, $remoteActorId);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-		if ($data === false) {
-			throw new FollowDoesNotExistException();
-		}
-
-		return $this->parseFollowsSelectSql($data);
+		return $this->getFollowFromRequest($qb);
 	}
 
 
@@ -219,18 +205,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getByFollowId(string $followId): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToFollowId($qb, $followId);
-		$this->limitToAccepted($qb, true);
+		$qb->limitToFollowId($followId);
+		$qb->limitToAccepted(true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 
-		$follows = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$follows[] = $this->parseFollowsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $follows;
+		return $this->getFollowsFromRequest($qb);
 	}
 
 
@@ -247,14 +226,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
 
-		$follows = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$follows[] = $this->parseFollowsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $follows;
+		return $this->getFollowsFromRequest($qb);
 	}
 
 
@@ -271,14 +243,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
 
-		$follows = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$follows[] = $this->parseFollowsSelectSql($data);
-		}
-		$cursor->closeCursor();
-
-		return $follows;
+		return $this->getFollowsFromRequest($qb);
 	}
 
 
@@ -293,14 +258,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->limitToAccepted($qb, true);
 		$this->leftJoinAccounts($qb, 'actor_id');
 
-		$follows = [];
-		$cursor = $qb->execute();
-		while ($data = $cursor->fetch()) {
-			$follows[] = $this->parseFollowsSelectSql($data);
-		}
-		$cursor->closeCursor();
+		return $this->getFollowsFromRequest($qb);
 
-		return $follows;
 	}
 
 

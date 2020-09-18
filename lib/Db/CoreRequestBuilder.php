@@ -75,7 +75,7 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
 	const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
 
-	const TABLE_CLIENT = 'social_3_client';
+	const TABLE_CLIENT = 'social_3_clients';
 	const TABLE_CLIENT_AUTH = 'social_3_client_auth';
 	const TABLE_CLIENT_TOKEN = 'social_3_client_token';
 

@@ -31,20 +31,11 @@ namespace OCA\Social\Controller;
 
 
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
-use OC\User\NoUserException;
+use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\AccountAlreadyExistsException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\ClientAppDoesNotExistException;
-use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
-use OCA\Social\Exceptions\ItemAlreadyExistsException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\Client\ClientApp;
-use OCA\Social\Model\Client\ClientAuth;
-use OCA\Social\Model\Client\ClientToken;
+use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -202,15 +193,24 @@ class OAuthController extends Controller {
 			$redirect_uris = [$redirect_uris];
 		}
 
-		$clientApp = new ClientApp();
-		$clientApp->setWebsite($website);
-		$clientApp->setRedirectUris($redirect_uris);
-		$clientApp->setScopesFromString($scopes);
-		$clientApp->setName($client_name);
+		$client = new SocialClient();
+		$client->setAppWebsite($website);
+		$client->setAppRedirectUris($redirect_uris);
+		$client->setAppScopes($client->getScopesFromString($scopes));
+		$client->setAppName($client_name);
 
-		$this->clientService->createClient($clientApp);
+		$this->clientService->createApp($client);
 
-		return new DataResponse($clientApp, Http::STATUS_OK);
+		return new DataResponse(
+			[
+				'id'            => $client->getId(),
+				'name'          => $client->getAppName(),
+				'website'       => $client->getAppWebsite(),
+				'scopes'        => implode(' ', $client->getAppScopes()),
+				'client_id'     => $client->getAppClientId(),
+				'client_secret' => $client->getAppClientSecret()
+			], Http::STATUS_OK
+		);
 	}
 
 
@@ -224,57 +224,52 @@ class OAuthController extends Controller {
 	 * @param string $scope
 	 *
 	 * @return DataResponse
-	 * @throws AccountAlreadyExistsException
-	 * @throws ActorDoesNotExistException
-	 * @throws ClientAppDoesNotExistException
-	 * @throws ClientException
-	 * @throws ItemAlreadyExistsException
-	 * @throws NoUserException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
 	 */
 	public function authorize(
 		string $client_id, string $redirect_uri, string $response_type, string $scope = 'read'
 	): DataResponse {
-		$user = $this->userSession->getUser();
-		$account = $this->accountService->getActorFromUserId($user->getUID());
+		try {
+			$user = $this->userSession->getUser();
+			$account = $this->accountService->getActorFromUserId($user->getUID());
 
-		if ($response_type !== 'code') {
-			return new DataResponse(['error' => 'invalid_type'], Http::STATUS_BAD_REQUEST);
-		}
+			if ($response_type !== 'code') {
+				return new DataResponse(['error' => 'invalid_type'], Http::STATUS_BAD_REQUEST);
+			}
 
-		$clientApp = $this->clientService->getClientByClientId($client_id);
-		$this->clientService->confirmData(
-			$clientApp,
-			[
-				'scopes' => $scope,
-			]
-		);
+			$client = $this->clientService->getFromClientId($client_id);
+			$this->clientService->confirmData(
+				$client,
+				[
+					'app_scopes' => $scope,
+					'redirect_uri', $redirect_uri
+				]
+			);
 
-		$clientAuth = new ClientAuth();
-		$clientAuth->setRedirectUri($redirect_uri);
-		$clientAuth->setScopes(explode(' ', $scope));
-		$clientAuth->setAccount($account->getPreferredUsername());
-		$clientAuth->setUserId($user->getUID());
+			$client->setAuthScopes($client->getScopesFromString($scope));
+			$client->setAuthAccount($account->getPreferredUsername());
+			$client->setAuthUserId($user->getUID());
 
-		$this->clientService->authClient($clientApp, $clientAuth);
-		$code = $clientAuth->getCode();
+			$this->clientService->authClient($client);
+			$code = $client->getAuthCode();
 
-		if ($redirect_uri !== 'urn:ietf:wg:oauth:2.0:oob') {
-			header('Location: ' . $redirect_uri . '?code=' . $code);
-			exit();
-		}
+			if ($redirect_uri !== 'urn:ietf:wg:oauth:2.0:oob') {
+				header('Location: ' . $redirect_uri . '?code=' . $code);
+				exit();
+			}
 
-		// TODO : finalize result if no redirect_url
-		return new DataResponse(
-			[
+			// TODO : finalize result if no redirect_url
+			return new DataResponse(
+				[
 //				'access_token' => '',
 //				"token_type"   => "Bearer",
 //				"scope"        => "read write follow push",
 //				"created_at"   => 1573979017
-			], Http::STATUS_OK
-		);
+				], Http::STATUS_OK
+			);
 
+		} catch (Exception $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+		}
 	}
 
 
@@ -291,71 +286,54 @@ class OAuthController extends Controller {
 	 * @param string $code
 	 *
 	 * @return DataResponse
-	 * @throws ClientAppDoesNotExistException
-	 * @throws ClientException
-	 * @throws ClientAuthDoesNotExistException
 	 */
 	public function token(
 		string $client_id, string $client_secret, string $redirect_uri, string $grant_type,
 		string $scope = 'read', string $code = ''
 	) {
-		$clientApp = $this->clientService->getClientByClientId($client_id);
-		$this->clientService->confirmData(
-			$clientApp,
-			[
-				'client_secret' => $client_secret,
-				'redirect_uri'  => $redirect_uri,
-				'scopes'        => $scope
-			]
-		);
+		try {
+			$client = $this->clientService->getFromClientId($client_id);
+			$this->clientService->confirmData(
+				$client,
+				[
+					'client_secret' => $client_secret,
+					'redirect_uri'  => $redirect_uri,
+					'auth_scopes'   => $scope
+				]
+			);
 
-		$clientToken = new ClientToken();
-		$clientToken->setScopes(explode(' ', $scope));
+			if ($grant_type === 'authorization_code') {
+				if ($code === '') {
+					return new DataResponse(['error' => 'missing code'], Http::STATUS_BAD_REQUEST);
+				}
 
-		if ($grant_type === 'authorization_code') {
-			if ($code === '') {
-				return new DataResponse(['error' => 'missing code'], Http::STATUS_BAD_REQUEST);
+				$this->clientService->confirmData($client, ['code' => $code]);
+				$this->clientService->generateToken($client);
+			} else if ($grant_type === 'client_credentials') {
+				// TODO: manage client_credentials
+			} else {
+				return new DataResponse(
+					['error' => 'invalid value for grant_type'], Http::STATUS_BAD_REQUEST
+				);
 			}
 
-			$clientAuth = $this->clientService->getAuthByCode($code);
+			if ($client->getToken() === '') {
+				return new DataResponse(
+					['error' => 'issue generating access_token'], Http::STATUS_BAD_REQUEST
+				);
+			}
 
-			$this->clientService->generateToken($clientApp, $clientAuth, $clientToken);
-
-		} else if ($grant_type === 'client_credentials') {
-			// TODO: manage client_credentials
-		} else {
-			return new DataResponse(['error' => 'invalid value for grant_type'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(
+				[
+					"access_token" => $client->getToken(),
+					"token_type"   => 'Bearer',
+					"scope"        => $scope,
+					"created_at"   => $client->getCreation()
+				], Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
-
-		if ($clientToken->getToken() === '') {
-			return new DataResponse(['error' => 'issue generating access_token'], Http::STATUS_BAD_REQUEST);
-		}
-
-		return new DataResponse(
-			[
-				"access_token" => $clientToken->getToken(),
-				"token_type"   => 'Bearer',
-				"scope"        => $scope,
-				"created_at"   => $clientToken->getCreation()
-			], 200
-		);
-	}
-
-
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
-	 *
-	 * @return DataResponse
-	 */
-	public function appsCredentials() {
-		return new DataResponse(
-			[
-				'name'    => 'Twidere for Android',
-				'website' => 'https://github.com/TwidereProject/'
-			], 200
-		);
 	}
 
 }

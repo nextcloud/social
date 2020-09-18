@@ -31,7 +31,9 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 
+use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -67,7 +69,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getFollowsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_FOLLOWS);
 
 		return $qb;
@@ -118,10 +120,40 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	protected function getFollowsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_FOLLOWS);
 
 		return $qb;
+	}
+
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return Follow
+	 * @throws FollowNotFoundException
+	 */
+	protected function getFollowFromRequest(SocialQueryBuilder $qb): Follow {
+		/** @var Follow $result */
+		try {
+			$result = $qb->getRow([$this, 'parseFollowsSelectSql']);
+		} catch (RowNotFoundException $e) {
+			throw new FollowNotFoundException($e->getMessage());
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollowsFromRequest(SocialQueryBuilder $qb): array {
+		/** @var Follow[] $result */
+		$result = $qb->getRows([$this, 'parseFollowsSelectSql']);
+
+		return $result;
 	}
 
 
@@ -131,7 +163,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return Follow
 	 */
-	public function parseFollowsSelectSql($data, SocialQueryBuilder $qb): Follow {
+	public function parseFollowsSelectSql(array $data, SocialQueryBuilder $qb): Follow {
 		$follow = new Follow();
 		$follow->importFromDatabase($data);
 

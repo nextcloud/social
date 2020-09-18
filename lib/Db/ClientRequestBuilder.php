@@ -33,18 +33,17 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\ClientAuthDoesNotExistException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityStream\ClientApp;
-use OCA\Social\Model\Client\ClientAuth;
+use Exception;
+use OCA\Social\Exceptions\ClientDoesNotExistException;
+use OCA\Social\Model\Client\SocialClient;
 
 
 /**
- * Class ClientAppRequestBuilder
+ * Class ClientRequestBuilder
  *
  * @package OCA\Social\Db
  */
-class ClientAuthRequestBuilder extends CoreRequestBuilder {
+class ClientRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -55,9 +54,9 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAuthInsertSql(): SocialQueryBuilder {
+	protected function getClientInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_CLIENT_AUTH);
+		$qb->insert(self::TABLE_CLIENT);
 
 		return $qb;
 	}
@@ -68,9 +67,9 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAuthUpdateSql(): SocialQueryBuilder {
+	protected function getClientUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_CLIENT_AUTH);
+		$qb->update(self::TABLE_CLIENT);
 
 		return $qb;
 	}
@@ -81,15 +80,19 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAuthSelectSql(): SocialQueryBuilder {
+	protected function getClientSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('cla.id', 'cla.client_id', 'cla.account', 'cla.user_id', 'cla.code')
-		   ->from(self::TABLE_CLIENT_AUTH, 'cla');
+		$qb->select(
+			'cl.id', 'cl.app_name', 'cl.app_website', 'cl.app_redirect_uris', 'cl.app_client_id',
+			'cl.app_client_secret', 'cl.app_scopes', 'cl.auth_scopes', 'cl.auth_account', 'cl.auth_user_id',
+			'cl.auth_code', 'cl.token', 'cl.last_update', 'cl.creation'
+		)
+		   ->from(self::TABLE_CLIENT, 'cl');
 
-		$this->defaultSelectAlias = 'cla';
-		$qb->setDefaultSelectAlias('cla');
+		$this->defaultSelectAlias = 'cl';
+		$qb->setDefaultSelectAlias('cl');
 
 		return $qb;
 	}
@@ -100,9 +103,9 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getClientAuthDeleteSql(): SocialQueryBuilder {
+	protected function getClientDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_CLIENT_AUTH);
+		$qb->delete(self::TABLE_CLIENT);
 
 		return $qb;
 	}
@@ -111,15 +114,15 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ClientAuth
-	 * @throws ClientAuthDoesNotExistException
+	 * @return SocialClient
+	 * @throws ClientDoesNotExistException
 	 */
-	public function getClientAuthFromRequest(SocialQueryBuilder $qb): ClientAuth {
-		/** @var ClientAuth $result */
+	public function getClientFromRequest(SocialQueryBuilder $qb): SocialClient {
+		/** @var SocialClient $result */
 		try {
-			$result = $qb->getRow([$this, 'parseClientAuthSelectSql']);
+			$result = $qb->getRow([$this, 'parseClientSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new ClientAuthDoesNotExistException($e->getMessage());
+			throw new ClientDoesNotExistException($e->getMessage());
 		}
 
 		return $result;
@@ -129,11 +132,11 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ClientAuth[]
+	 * @return SocialClient[]
 	 */
-	public function getClientAuthsFromRequest(SocialQueryBuilder $qb): array {
-		/** @var ClientAuth[] $result */
-		$result = $qb->getRows([$this, 'parseClientAuthSelectSql']);
+	public function getClientsFromRequest(SocialQueryBuilder $qb): array {
+		/** @var SocialClient[] $result */
+		$result = $qb->getRows([$this, 'parseClientSelectSql']);
 
 		return $result;
 	}
@@ -142,18 +145,12 @@ class ClientAuthRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param array $data
 	 *
-	 * @param SocialQueryBuilder $qb
-	 *
-	 * @return ClientAuth
+	 * @return SocialClient
+	 * @throws Exception
 	 */
-	public function parseClientAuthSelectSql($data, SocialQueryBuilder $qb): ClientAuth {
-		$item = new ClientAuth();
+	public function parseClientSelectSql(array $data): SocialClient {
+		$item = new SocialClient();
 		$item->importFromDatabase($data);
-
-		try {
-			$item->setClientToken($qb->parseLeftJoinClientToken($data));
-		} catch (InvalidResourceException $e) {
-		}
 
 		return $item;
 	}

@@ -370,10 +370,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->orderBy('id', 'desc');
 		$qb->setMaxResults(1);
 
-		$cursor = $qb->execute();
-		$data = $cursor->fetch();
-		$cursor->closeCursor();
-
 		return $this->getStreamFromRequest($qb);
 	}
 
@@ -414,13 +410,13 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
-	 * @deprecated - use GetTimeline()
 	 * @param int $since
 	 * @param int $limit
 	 * @param int $format
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
+	 * @deprecated - use GetTimeline()
 	 */
 	public function getTimelineHome_dep(
 		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB

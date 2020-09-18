@@ -35,7 +35,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -148,7 +148,7 @@ class FollowService {
 
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
-		} catch (FollowDoesNotExistException $e) {
+		} catch (FollowNotFoundException $e) {
 			$this->followsRequest->save($follow);
 
 			$follow->addInstancePath(
@@ -200,7 +200,7 @@ class FollowService {
 				)
 			);
 			$this->activityService->request($undo);
-		} catch (FollowDoesNotExistException $e) {
+		} catch (FollowNotFoundException $e) {
 		}
 	}
 
@@ -221,13 +221,13 @@ class FollowService {
 		try {
 			$this->followsRequest->getByPersons($local->getId(), $actor->getId());
 			$links['following'] = true;
-		} catch (FollowDoesNotExistException $e) {
+		} catch (FollowNotFoundException $e) {
 		}
 
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $local->getId());
 			$links['follower'] = true;
-		} catch (FollowDoesNotExistException $e) {
+		} catch (FollowNotFoundException $e) {
 		}
 
 		return $links;
