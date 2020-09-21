@@ -11,7 +11,6 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-codecov_token_dir=$(HOME)/.nextcloud/codecov_token
 version+=0.3.1
 
 
