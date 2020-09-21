@@ -52,6 +52,7 @@ return [
 		['name' => 'ActivityPub#actor', 'url' => '/users/{username}', 'verb' => 'GET'],
 		['name' => 'ActivityPub#actorAlias', 'url' => '/@{username}/', 'verb' => 'GET'],
 		['name' => 'ActivityPub#inbox', 'url' => '/@{username}/inbox', 'verb' => 'POST'],
+		['name' => 'ActivityPub#getInbox', 'url' => '/@{username}/inbox', 'verb' => 'GET'],
 		['name' => 'ActivityPub#sharedInbox', 'url' => '/inbox', 'verb' => 'POST'],
 
 		['name' => 'ActivityPub#outbox', 'url' => '/@{username}/outbox', 'verb' => 'GET'],
@@ -61,10 +62,29 @@ return [
 
 		['name' => 'ActivityPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
 
+		// OStatus
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/', 'verb' => 'GET'],
 		['name' => 'OStatus#followRemote', 'url' => '/api/v1/ostatus/followRemote/{local}', 'verb' => 'GET'],
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
+		// OAuth
+		['name' => 'OAuth#nodeinfo', 'url' => '/.well-known/nodeinfo', 'verb' => 'GET'],
+		['name' => 'OAuth#nodeinfo2', 'url' => '/nodeinfo/2.0', 'verb' => 'GET'],
+		['name' => 'OAuth#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
+		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
+		['name' => 'OAuth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
+
+		// Api for 3rd party
+		['name' => 'Api#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
+		['name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
+		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
+		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
+		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
+		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
+		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
+
+		// Api for local front-end
+		// TODO: front-end should be using the new ApiController
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
 		['name' => 'Local#streamNotifications', 'url' => '/api/v1/stream/notifications', 'verb' => 'GET'],
 		['name' => 'Local#streamTimeline', 'url' => '/api/v1/stream/timeline', 'verb' => 'GET'],

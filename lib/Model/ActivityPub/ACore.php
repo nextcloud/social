@@ -63,6 +63,9 @@ class ACore extends Item implements JsonSerializable {
 	const AS_STRING = 7;
 	const AS_TAGS = 10;
 
+	const FORMAT_ACTIVITYPUB = 1;
+	const FORMAT_LOCAL = 2;
+
 
 	/** @var null Item */
 	private $parent = null;
@@ -84,6 +87,9 @@ class ACore extends Item implements JsonSerializable {
 
 	/** @var LinkedDataSignature */
 	private $signature = null;
+
+	/** @var int */
+	private $format = self::FORMAT_ACTIVITYPUB;
 
 
 	/**
@@ -630,6 +636,8 @@ class ACore extends Item implements JsonSerializable {
 	 * @param array $data
 	 */
 	public function importFromDatabase(array $data) {
+		// TODO: check if validate is needed when importing from database;
+		$this->setNid($this->getInt('nid', $data));
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
 		$this->setSubType($this->validate(self::AS_TYPE, 'subtype', $data, ''));
@@ -648,10 +656,40 @@ class ACore extends Item implements JsonSerializable {
 
 
 	/**
+	 * @param int $format
+	 *
+	 * @return $this
+	 */
+	public function setExportFormat(int $format): self {
+		$this->format = $format;
+
+		return $this;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getExportFormat(): int {
+		return $this->format;
+	}
+
+
+	/**
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
+		if ($this->getExportFormat() === self::FORMAT_LOCAL) {
+			return $this->exportAsLocal();
+		}
 
+		return $this->exportAsActivityPub();
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function exportAsActivityPub(): array {
 		if ($this->gotSignature()) {
 			$this->entries['signature'] = $this->getSignature();
 		}
@@ -715,6 +753,20 @@ class ACore extends Item implements JsonSerializable {
 		return $result;
 	}
 
+
+	/**
+	 * @return array
+	 */
+	public function exportAsLocal(): array {
+		$result = [
+			'id' => $this->getId(),
+		];
+
+		if ($this->getNid() > 0) {
+			$result['id'] = (string)$this->getNid();
+		}
+
+		return $result;
+	}
+
 }
-
-

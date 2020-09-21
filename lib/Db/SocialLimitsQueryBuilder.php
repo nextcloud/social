@@ -36,6 +36,7 @@ use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 
 
@@ -92,6 +93,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * Limit the request to clientId
+	 *
+	 * @param string $clientId
+	 */
+	public function limitToAppClientId(string $clientId) {
+		$this->limitToDBField('app_client_id', $clientId);
+	}
+
+
+	/**
 	 * @param string $type
 	 */
 	public function filterType(string $type) {
@@ -129,10 +140,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * Limit the request to the token
 	 *
 	 * @param string $token
+	 * @param string $alias
 	 */
-	public function limitToToken(string $token) {
-		$this->limitToDBField('token', $token);
+	public function limitToToken(string $token, string $alias = '') {
+		$this->limitToDBField('token', $token, true, $alias);
 	}
+
 
 	/**
 	 * Limit the results to a given number
@@ -311,10 +324,37 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * @param TimelineOptions $options
+	 *
+	 */
+	public function paginate(TimelineOptions $options) {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		if ($options->getSinceId() > 0) {
+			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getSinceId())));
+		}
+
+		if ($options->getMaxId() > 0) {
+			$this->andWhere($expr->lt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
+		}
+
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
+		}
+
+		$this->setMaxResults($options->getLimit());
+		$this->orderBy($pf . '.nid', ($options->isInverted()) ? 'asc' : 'desc');
+	}
+
+
+	/**
 	 * @param int $since
 	 * @param int $limit
 	 *
 	 * @throws DateTimeException
+	 * @deprecated - use paginate()
 	 */
 	public function limitPaginate(int $since = 0, int $limit = 5) {
 		try {

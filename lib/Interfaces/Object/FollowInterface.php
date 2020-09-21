@@ -35,7 +35,7 @@ use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Exceptions\FollowDoesNotExistException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -186,7 +186,7 @@ class FollowInterface implements IActivityPubInterface {
 			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
 				$this->confirmFollowRequest($follow);
 			}
-		} catch (FollowDoesNotExistException $e) {
+		} catch (FollowNotFoundException $e) {
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
 
 			if ($actor->isLocal()) {

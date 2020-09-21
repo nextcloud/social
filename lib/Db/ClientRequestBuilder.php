@@ -33,17 +33,17 @@ namespace OCA\Social\Db;
 
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\ActionDoesNotExistException;
-use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Model\ActivityPub\ACore;
+use Exception;
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Model\Client\SocialClient;
 
 
 /**
- * Class ActionsRequestBuilder
+ * Class ClientRequestBuilder
  *
  * @package OCA\Social\Db
  */
-class ActionsRequestBuilder extends CoreRequestBuilder {
+class ClientRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -54,9 +54,9 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsInsertSql(): SocialQueryBuilder {
+	protected function getClientInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_ACTIONS);
+		$qb->insert(self::TABLE_CLIENT);
 
 		return $qb;
 	}
@@ -67,9 +67,9 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsUpdateSql(): SocialQueryBuilder {
+	protected function getClientUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_ACTIONS);
+		$qb->update(self::TABLE_CLIENT);
 
 		return $qb;
 	}
@@ -80,32 +80,19 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsSelectSql(): SocialQueryBuilder {
+	protected function getClientSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('a.id', 'a.type', 'a.actor_id', 'a.object_id', 'a.creation')
-		   ->from(self::TABLE_ACTIONS, 'a');
+		$qb->select(
+			'cl.id', 'cl.app_name', 'cl.app_website', 'cl.app_redirect_uris', 'cl.app_client_id',
+			'cl.app_client_secret', 'cl.app_scopes', 'cl.auth_scopes', 'cl.auth_account', 'cl.auth_user_id',
+			'cl.auth_code', 'cl.token', 'cl.last_update', 'cl.creation'
+		)
+		   ->from(self::TABLE_CLIENT, 'cl');
 
-		$this->defaultSelectAlias = 'a';
-		$qb->setDefaultSelectAlias('a');
-
-		return $qb;
-	}
-
-
-	/**
-	 * Base of the Sql Select request for Shares
-	 *
-	 * @return SocialQueryBuilder
-	 */
-	protected function countActionsSelectSql(): SocialQueryBuilder {
-		$qb = $this->getQueryBuilder();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_ACTIONS, 'a');
-
-		$this->defaultSelectAlias = 'a';
-		$qb->setDefaultSelectAlias('a');
+		$this->defaultSelectAlias = 'cl';
+		$qb->setDefaultSelectAlias('cl');
 
 		return $qb;
 	}
@@ -116,9 +103,9 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsDeleteSql(): SocialQueryBuilder {
+	protected function getClientDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_ACTIONS);
+		$qb->delete(self::TABLE_CLIENT);
 
 		return $qb;
 	}
@@ -127,15 +114,15 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ACore
-	 * @throws ActionDoesNotExistException
+	 * @return SocialClient
+	 * @throws ClientNotFoundException
 	 */
-	protected function getActionFromRequest(SocialQueryBuilder $qb): ACore {
-		/** @var ACore $result */
+	public function getClientFromRequest(SocialQueryBuilder $qb): SocialClient {
+		/** @var SocialClient $result */
 		try {
-			$result = $qb->getRow([$this, 'parseActionsSelectSql']);
+			$result = $qb->getRow([$this, 'parseClientSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new ActionDoesNotExistException($e->getMessage());
+			throw new ClientNotFoundException($e->getMessage());
 		}
 
 		return $result;
@@ -145,11 +132,11 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ACore[]
+	 * @return SocialClient[]
 	 */
-	public function getActionsFromRequest(SocialQueryBuilder $qb): array {
-		/** @var ACore[] $result */
-		$result = $qb->getRows([$this, 'parseActionsSelectSql']);
+	public function getClientsFromRequest(SocialQueryBuilder $qb): array {
+		/** @var SocialClient[] $result */
+		$result = $qb->getRows([$this, 'parseClientSelectSql']);
 
 		return $result;
 	}
@@ -157,21 +144,13 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
-	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ACore
+	 * @return SocialClient
+	 * @throws Exception
 	 */
-	public function parseActionsSelectSql($data, SocialQueryBuilder $qb): ACore {
-		$item = new ACore();
+	public function parseClientSelectSql(array $data): SocialClient {
+		$item = new SocialClient();
 		$item->importFromDatabase($data);
-
-		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
-			$actor->setCompleteDetails(true);
-
-			$item->setActor($actor);
-		} catch (InvalidResourceException $e) {
-		}
 
 		return $item;
 	}

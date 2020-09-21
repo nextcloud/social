@@ -33,9 +33,11 @@ namespace OCA\Social\Interfaces\Object;
 
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\MiscService;
 
@@ -67,8 +69,13 @@ class DocumentInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $activity
 	 * @param ACore $item
+	 *
+	 * @throws InvalidOriginException
 	 */
 	public function activity(Acore $activity, ACore $item) {
+		if ($activity->getType() === Person::TYPE) {
+			$activity->checkOrigin($item->getId());
+		}
 	}
 
 

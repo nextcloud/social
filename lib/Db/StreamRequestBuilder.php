@@ -84,15 +84,18 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
+	 * @param int $format
+	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamSelectSql(): SocialQueryBuilder {
+	protected function getStreamSelectSql(int $format = Stream::FORMAT_ACTIVITYPUB): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
+		$qb->setFormat($format);
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
 		   ->addSelect(
-			   's.type', 's.subtype', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
+			   's.nid', 's.type', 's.subtype', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
 			   's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
 			   's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 			   's.instances', 's.creation', 's.filter_duplicate', 's.details', 's.hashtags'
@@ -194,18 +197,19 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * @param array $data
+	 * @param SocialQueryBuilder $qb
 	 *
 	 * @return Stream
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	public function parseStreamSelectSql(array $data): Stream {
+	public function parseStreamSelectSql(array $data, SocialQueryBuilder $qb): Stream {
 		$as = $this->get('type', $data, Stream::TYPE);
 
 		/** @var Stream $item */
 		$item = AP::$activityPub->getItemFromType($as);
 		$item->importFromDatabase($data);
-
+		$item->setExportFormat($qb->getFormat());
 		$instances = json_decode($this->get('instances', $data, '[]'), true);
 		if (is_array($instances)) {
 			foreach ($instances as $instance) {
@@ -216,7 +220,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $this->parseCacheActorsLeftJoin($data);
+			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);
 		} catch (InvalidResourceException $e) {

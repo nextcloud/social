@@ -34,7 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TAsync;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
-use OC\AppFramework\Http;
+use OCP\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -203,7 +203,6 @@ class ActivityPubController extends Controller {
 	 * @return Response
 	 */
 	public function sharedInbox(): Response {
-
 		try {
 			$body = file_get_contents('php://input');
 			$this->miscService->log('[<<] sharedInbox: ' . $body, 1);
@@ -277,6 +276,29 @@ class ActivityPubController extends Controller {
 			return $this->fail($e, [], Http::STATUS_GONE);
 		} catch (Exception $e) {
 			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * Method is called when a remote ActivityPub server wants to GET in the INBOX of a USER
+	 * Checking that the user exists, and that the header is properly signed.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param string $username
+	 *
+	 * @return Response
+	 */
+	public function getInbox(string $username): Response {
+		try {
+			$body = file_get_contents('php://input');
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+
+			return $this->success();
+		} catch (Exception $e) {
+			return new DataResponse([], Http::STATUS_NOT_FOUND);
 		}
 	}
 

@@ -33,7 +33,7 @@ namespace OCA\Social\Exceptions;
 use Exception;
 
 
-class FollowDoesNotExistException extends Exception {
+class ClientNotFoundException extends Exception {
 
 }
 

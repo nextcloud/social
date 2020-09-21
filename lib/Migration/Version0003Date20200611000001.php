@@ -76,14 +76,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$this->createActors($schema);
 		$this->createCacheActors($schema);
 		$this->createCacheDocuments($schema);
+		$this->createClient($schema);
 		$this->createFollows($schema);
 		$this->createHashtags($schema);
+		$this->createInstance($schema);
 		$this->createRequestQueue($schema);
 		$this->createStreams($schema);
 		$this->createStreamActions($schema);
 		$this->createStreamDest($schema);
 		$this->createStreamQueue($schema);
 		$this->createStreamTags($schema);
+
 
 		return $schema;
 	}
@@ -389,6 +392,133 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 	/**
 	 * @param ISchemaWrapper $schema
 	 */
+	private function createInstance(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_instance')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_instance');
+		$table->addColumn(
+			'local', 'smallint',
+			[
+				'notnull'  => false,
+				'length'   => 1,
+				'default'  => 0,
+				'unsigned' => true
+			]
+		);
+		$table->addColumn(
+			'uri', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+			]
+		);
+		$table->addColumn(
+			'title', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'version', 'string',
+			[
+				'notnull' => false,
+				'length'  => 31,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'short_description', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'description', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'email', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'urls', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'stats', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'usage', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'image', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'languages', 'text',
+			[
+				'notnull' => false,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'contact', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'account_prim', 'string',
+			[
+				'notnull' => false,
+				'length'  => 128,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['uri']);
+		$table->addIndex(['local', 'uri', 'account_prim']);
+	}
+
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
 	private function createStreams(ISchemaWrapper $schema) {
 		if ($schema->hasTable('social_3_stream')) {
 			return;
@@ -396,6 +526,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 		$table = $schema->createTable('social_3_stream');
 
+		$table->addColumn(
+			'nid', 'bigint',
+			[
+				'autoincrement' => true,
+				'length'        => 11,
+				'unsigned'      => true,
+			]
+		);
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -611,6 +749,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['nid']);
 		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(
 			[
@@ -637,6 +776,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->createTable('social_3_cache_actor');
+		$table->addColumn(
+			'nid', 'bigint',
+			[
+				'autoincrement' => true,
+				'length'        => 11,
+				'unsigned'      => true,
+			]
+		);
 		$table->addColumn(
 			'id', 'string',
 			[
@@ -789,6 +936,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['nid']);
 	}
 
 
@@ -899,6 +1047,125 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['id_prim']);
 //		$table->addUniqueIndex(['url'], 'unique_url');
+	}
+
+	/**
+	 * @param ISchemaWrapper $schema
+	 */
+	private function createClient(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_client')) {
+			return;
+		}
+
+		$table = $schema->createTable('social_3_client');
+		$table->addColumn(
+			'id', 'integer',
+			[
+				'autoincrement' => true,
+				'notnull'       => true,
+				'length'        => 7,
+				'unsigned'      => true,
+			]
+		);
+		$table->addColumn(
+			'app_name', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'app_website', 'string',
+			[
+				'notnull' => false,
+				'length'  => 255,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'app_redirect_uris', 'text',
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'app_client_id', 'string',
+			[
+				'notnull' => false,
+				'length'  => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'app_client_secret', 'string',
+			[
+				'notnull' => false,
+				'length'  => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'app_scopes', 'text',
+			[
+				'notnull' => false
+			]
+		);
+
+		$table->addColumn(
+			'auth_scopes', 'text',
+			[
+				'notnull' => false
+			]
+		);
+		$table->addColumn(
+			'auth_account', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'auth_user_id', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'auth_code', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'token', 'string',
+			[
+				'notnull' => false,
+				'length'  => 127,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'last_update', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+		$table->addColumn(
+			'creation', 'datetime',
+			[
+				'notnull' => false,
+			]
+		);
+
+		$table->setPrimaryKey(['id']);
+		$table->addUniqueIndex(['auth_code', 'token', 'app_client_id', 'app_client_secret']);
 	}
 
 

@@ -33,7 +33,6 @@ namespace OCA\Social\Migration;
 
 use Closure;
 use Doctrine\DBAL\Schema\SchemaException;
-use Doctrine\DBAL\Types\Type;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -41,11 +40,11 @@ use OCP\Migration\SimpleMigrationStep;
 
 
 /**
- * Class Version0003Date20200611000001
+ * Class Version0003Date20200921103342
  *
  * @package OCA\Social\Migration
  */
-class Version0003Date20200730213528 extends SimpleMigrationStep {
+class Version0003Date20200921103342 extends SimpleMigrationStep {
 
 
 	/** @var IDBConnection */
@@ -73,43 +72,21 @@ class Version0003Date20200730213528 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
-		$this->addChunkToTable($schema, 'social_3_stream', '');
-		$this->addChunkToTable($schema, 'social_3_stream_act', '_act');
-		$this->addChunkToTable($schema, 'social_3_stream_dest', '_dest');
+		$table = $schema->getTable('social_3_stream');
+
+		$column = $table->getColumn('nid');
+		if (!$column->getAutoincrement()) {
+			$table->changeColumn(
+				'nid', [
+						 'autoincrement' => true, 'customSchemaOptions' => [
+							 'unique' => true
+						 ]
+					 ]
+			);
+		}
 
 		return $schema;
 	}
-
-
-	/**
-	 * @param ISchemaWrapper $schema
-	 * @param string $tableName
-	 *
-	 * @throws SchemaException
-	 */
-	private function addChunkToTable(ISchemaWrapper $schema, string $tableName, string $indexName) {
-		if (!$schema->hasTable($tableName)) {
-			return;
-		}
-
-		$table = $schema->getTable($tableName);
-		if ($table->hasColumn('chunk')) {
-			return;
-		}
-
-		$table->addColumn(
-			'chunk', Type::SMALLINT,
-			[
-				'default'  => 1,
-				'length'   => 1,
-				'unsigned' => true
-			]
-		);
-		if (!$table->hasIndex('chunk' . $indexName)) {
-			$table->addIndex(['chunk'], 'chunk' . $indexName);
-		}
-	}
-
 
 }
 

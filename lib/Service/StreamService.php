@@ -51,6 +51,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Model\InstancePath;
 
 
@@ -405,14 +406,30 @@ class StreamService {
 	/**
 	 * @param int $since
 	 * @param int $limit
+	 * @param int $format
 	 *
 	 * @return Note[]
-	 * @throws Exception
+	 * @throws DateTimeException
+	 * @deprecated
 	 */
-	public function getStreamHome(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineHome($since, $limit);
+	public function getStreamHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+	): array {
+		return $this->streamRequest->getTimelineHome_dep($since, $limit, $format);
 	}
 
+
+	/**
+	 * @param TimelineOptions $options
+	 *
+	 * @return Note[]
+	 */
+	public function getTimeline(TimelineOptions $options): array {
+		if ($options->getTimeline() === 'home') {
+			return $this->streamRequest->getTimelineHome($options);
+		}
+
+
+	}
 
 	/**
 	 * @param int $since
@@ -420,6 +437,7 @@ class StreamService {
 	 *
 	 * @return Note[]
 	 * @throws Exception
+	 * @deprecated
 	 */
 	public function getStreamNotifications(int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineNotifications($since, $limit);
@@ -433,6 +451,7 @@ class StreamService {
 	 *
 	 * @return Note[]
 	 * @throws Exception
+	 * @deprecated
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineAccount($actorId, $since, $limit);
@@ -445,6 +464,7 @@ class StreamService {
 	 *
 	 * @return Note[]
 	 * @throws Exception
+	 * @deprecated
 	 */
 	public function getStreamDirect(int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineDirect($since, $limit);
@@ -457,6 +477,7 @@ class StreamService {
 	 *
 	 * @return Note[]
 	 * @throws Exception
+	 * @deprecated
 	 */
 	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineGlobal($since, $limit, true);

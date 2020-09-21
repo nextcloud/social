@@ -27,23 +27,18 @@ declare(strict_types=1);
  *
  */
 
-
 namespace OCA\Social\Db;
 
 
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OCA\Social\Exceptions\ActionDoesNotExistException;
+use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\Instance;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
-
-/**
- * Class ActionsRequestBuilder
- *
- * @package OCA\Social\Db
- */
-class ActionsRequestBuilder extends CoreRequestBuilder {
+class InstancesRequestBuilder extends CoreRequestBuilder {
 
 
 	use TArrayTools;
@@ -54,9 +49,9 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsInsertSql(): SocialQueryBuilder {
+	protected function getInstanceInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_ACTIONS);
+		$qb->insert(self::TABLE_INSTANCE);
 
 		return $qb;
 	}
@@ -65,11 +60,11 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return SocialQueryBuilder
+	 * @return IQueryBuilder
 	 */
-	protected function getActionsUpdateSql(): SocialQueryBuilder {
+	protected function getInstanceUpdateSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_ACTIONS);
+		$qb->update(self::TABLE_INSTANCE);
 
 		return $qb;
 	}
@@ -78,34 +73,22 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
+	 * @param int $format
+	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getActionsSelectSql(): SocialQueryBuilder {
+	protected function getInstanceSelectSql(int $format = ACore::FORMAT_ACTIVITYPUB): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
+		$qb->setFormat($format);
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('a.id', 'a.type', 'a.actor_id', 'a.object_id', 'a.creation')
-		   ->from(self::TABLE_ACTIONS, 'a');
+		$qb->select(
+			'i.local', 'i.uri', 'i.title', 'i.version', 'i.short_description', 'i.description', 'i.email',
+			'i.urls', 'i.stats', 'i.usage', 'i.image', 'i.languages', 'i.contact', 'i.account_prim'
+		)
+		   ->from(self::TABLE_INSTANCE, 'i');
 
-		$this->defaultSelectAlias = 'a';
-		$qb->setDefaultSelectAlias('a');
-
-		return $qb;
-	}
-
-
-	/**
-	 * Base of the Sql Select request for Shares
-	 *
-	 * @return SocialQueryBuilder
-	 */
-	protected function countActionsSelectSql(): SocialQueryBuilder {
-		$qb = $this->getQueryBuilder();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_ACTIONS, 'a');
-
-		$this->defaultSelectAlias = 'a';
-		$qb->setDefaultSelectAlias('a');
+		$qb->setDefaultSelectAlias('i');
 
 		return $qb;
 	}
@@ -114,11 +97,11 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return SocialQueryBuilder
+	 * @return IQueryBuilder
 	 */
-	protected function getActionsDeleteSql(): SocialQueryBuilder {
+	protected function getInstanceDeleteSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_ACTIONS);
+		$qb->delete(self::TABLE_INSTANCE);
 
 		return $qb;
 	}
@@ -127,15 +110,15 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ACore
-	 * @throws ActionDoesNotExistException
+	 * @return Instance
+	 * @throws InstanceDoesNotExistException
 	 */
-	protected function getActionFromRequest(SocialQueryBuilder $qb): ACore {
-		/** @var ACore $result */
+	protected function getInstanceFromRequest(SocialQueryBuilder $qb): Instance {
+		/** @var Instance $result */
 		try {
-			$result = $qb->getRow([$this, 'parseActionsSelectSql']);
+			$result = $qb->getRow([$this, 'parseInstanceSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new ActionDoesNotExistException($e->getMessage());
+			throw new InstanceDoesNotExistException($e->getMessage());
 		}
 
 		return $result;
@@ -147,9 +130,9 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return ACore[]
 	 */
-	public function getActionsFromRequest(SocialQueryBuilder $qb): array {
+	public function getInstancesFromRequest(SocialQueryBuilder $qb): array {
 		/** @var ACore[] $result */
-		$result = $qb->getRows([$this, 'parseActionsSelectSql']);
+		$result = $qb->getRows([$this, 'parseInstanceSelectSql']);
 
 		return $result;
 	}
@@ -159,21 +142,29 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 * @param array $data
 	 * @param SocialQueryBuilder $qb
 	 *
-	 * @return ACore
+	 * @return Instance
 	 */
-	public function parseActionsSelectSql($data, SocialQueryBuilder $qb): ACore {
-		$item = new ACore();
-		$item->importFromDatabase($data);
+	public function parseInstanceSelectSql($data, SocialQueryBuilder $qb): Instance {
+		$instance = new Instance();
+		$instance->importFromDatabase($data);
 
 		try {
 			$actor = $qb->parseLeftJoinCacheActors($data);
-			$actor->setCompleteDetails(true);
-
-			$item->setActor($actor);
+			$actor->setExportFormat($qb->getFormat());
+			try {
+				$icon = $qb->parseLeftJoinCacheDocuments($data);
+				$actor->setIcon($icon);
+			} catch (InvalidResourceException $e) {
+			}
+			$instance->setContactAccount($actor);
 		} catch (InvalidResourceException $e) {
 		}
 
-		return $item;
+		if ($instance->isLocal() && $instance->getVersion() === '%CURRENT%') {
+			$instance->setVersion($this->configService->getAppValue('installed_version'));
+		}
+
+		return $instance;
 	}
 
 }

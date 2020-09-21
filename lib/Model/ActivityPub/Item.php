@@ -53,6 +53,9 @@ class Item {
 	/** @var string */
 	private $id = '';
 
+	/** @var int */
+	private $nid = 0;
+
 	/** @var string */
 	private $type = '';
 
@@ -134,6 +137,25 @@ class Item {
 	 */
 	public function setId(string $id): Item {
 		$this->id = $id;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function getNid(): int {
+		return $this->nid;
+	}
+
+	/**
+	 * @param int $nid
+	 *
+	 * @return Item
+	 */
+	public function setNid(int $nid): self {
+		$this->nid = $nid;
 
 		return $this;
 	}

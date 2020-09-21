@@ -34,22 +34,21 @@ use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Service\CacheActorService;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\ILogger;
+use OCP\IURLGenerator;
 
 
 /**
@@ -59,9 +58,6 @@ use OCP\ILogger;
  */
 class StreamRequest extends StreamRequestBuilder {
 
-
-	/** @var CacheActorService */
-	private $cacheActorService;
 
 	/** @var StreamDestRequest */
 	private $streamDestRequest;
@@ -75,20 +71,19 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
-	 * @param CacheActorService $cacheActorService
+	 * @param IURLGenerator $urlGenerator
 	 * @param StreamDestRequest $streamDestRequest
 	 * @param StreamTagsRequest $streamTagsRequest
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, CacheActorService $cacheActorService,
+		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator,
 		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
 		ConfigService $configService, MiscService $miscService
 	) {
-		parent::__construct($connection, $logger, $configService, $miscService);
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
-		$this->cacheActorService = $cacheActorService;
 		$this->streamDestRequest = $streamDestRequest;
 		$this->streamTagsRequest = $streamTagsRequest;
 	}
@@ -358,18 +353,75 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $actorId
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function lastNoteFromActorId(string $actorId): Stream {
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToAttributedTo($actorId, true);
+		$qb->limitToType(Note::TYPE);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$qb->orderBy('id', 'desc');
+		$qb->setMaxResults(1);
+
+		return $this->getStreamFromRequest($qb);
+	}
+
+
+	/**
+	 * Should returns:
+	 *  * Own posts,
+	 *  * Followed accounts
+	 *
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	public function getTimelineHome(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->setChunk(1);
+
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->paginate($options);
+
+		$qb->limitToViewer('sd', 'f', false);
+		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
+
+		$qb->leftJoinStreamAction('sa');
+		$qb->filterDuplicate();
+
+		$result = $this->getStreamsFromRequest($qb);
+		if ($options->isInverted()) {
+			$result = array_reverse($result);
+		}
+
+		return $result;
+	}
+
+
+	/**
 	 * Should returns:
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
 	 * @param int $since
 	 * @param int $limit
+	 * @param int $format
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
+	 * @deprecated - use GetTimeline()
 	 */
-	public function getTimelineHome(int $since = 0, int $limit = 5): array {
-		$qb = $this->getStreamSelectSql();
+	public function getTimelineHome_dep(
+		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+	): array {
+		$qb = $this->getStreamSelectSql($format);
 		$qb->setChunk(1);
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -698,29 +750,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->generatePrimaryKey($stream->getId(), 'id_prim');
 
 		return $qb;
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param Person $actor
-	 *
-	 * @deprecated
-	 */
-	private function leftJoinFollowStatus(IQueryBuilder $qb, Person $actor) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$expr = $qb->expr();
-		$pf = $qb->getDefaultSelectAlias() . '.';
-
-		$on = $expr->andX();
-		$on->add($qb->exprLimitToDBFieldInt('accepted', 1, 'fs'));
-		$on->add($qb->exprLimitToDBField('actor_id_prim', $qb->prim($actor->getId()), true, true, 'fs'));
-		$on->add($expr->eq($pf . 'attributed_to_prim', 'fs.object_id_prim'));
-
-		$qb->leftJoin($qb->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, 'fs', $on);
 	}
 
 }

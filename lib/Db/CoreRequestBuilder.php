@@ -38,18 +38,16 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
 use OC\DB\SchemaWrapper;
-use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\ILogger;
+use OCP\IURLGenerator;
 
 
 /**
@@ -61,6 +59,7 @@ class CoreRequestBuilder {
 
 
 	const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
+	const TABLE_INSTANCE = 'social_3_instance';
 
 	const TABLE_ACTORS = 'social_3_actor';
 	const TABLE_STREAM = 'social_3_stream';
@@ -76,6 +75,11 @@ class CoreRequestBuilder {
 	const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
 	const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
 
+	const TABLE_CLIENT = 'social_3_client';
+	const TABLE_CLIENT_AUTH = 'social_3_client_auth';
+	const TABLE_CLIENT_TOKEN = 'social_3_client_token';
+
+
 	/** @var array */
 	private $tables = [
 		self::TABLE_REQUEST_QUEUE,
@@ -89,11 +93,18 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_QUEUE,
 		self::TABLE_STREAM_DEST,
 		self::TABLE_STREAM_TAGS,
-		self::TABLE_STREAM_ACTIONS
+		self::TABLE_STREAM_ACTIONS,
+		self::TABLE_CLIENT,
+		self::TABLE_CLIENT_AUTH,
+		self::TABLE_CLIENT_TOKEN
 	];
+
 
 	/** @var ILogger */
 	protected $logger;
+
+	/** @var IURLGenerator */
+	protected $urlGenerator;
 
 	/** @var IDBConnection */
 	protected $dbConnection;
@@ -116,14 +127,17 @@ class CoreRequestBuilder {
 	 *
 	 * @param IDBConnection $connection
 	 * @param ILogger $logger
+	 * @param IURLGenerator $urlGenerator
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, ConfigService $configService, MiscService $miscService
+		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator, ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->dbConnection = $connection;
 		$this->logger = $logger;
+		$this->urlGenerator = $urlGenerator;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -136,7 +150,8 @@ class CoreRequestBuilder {
 		$qb = new SocialQueryBuilder(
 			$this->dbConnection,
 			OC::$server->getSystemConfig(),
-			$this->logger
+			$this->logger,
+			$this->urlGenerator
 		);
 
 		if ($this->viewer !== null) {
@@ -793,7 +808,8 @@ class CoreRequestBuilder {
 
 		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
 		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
-		$qb->selectAlias($pf . '.id', 'cacheactor_id')
+		$qb->selectAlias($pf . '.nid', 'cacheactor_nid')
+		   ->selectAlias($pf . '.id', 'cacheactor_id')
 		   ->selectAlias($pf . '.type', 'cacheactor_type')
 		   ->selectAlias($pf . '.account', 'cacheactor_account')
 		   ->selectAlias($pf . '.following', 'cacheactor_following')
@@ -833,7 +849,8 @@ class CoreRequestBuilder {
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
-		$qb->selectAlias('ca.id', 'cacheactor_id')
+		$qb->selectAlias('ca.nid', 'cacheactor_nid')
+		   ->selectAlias('ca.id', 'cacheactor_id')
 		   ->selectAlias('ca.type', 'cacheactor_type')
 		   ->selectAlias('ca.account', 'cacheactor_account')
 		   ->selectAlias('ca.following', 'cacheactor_following')
@@ -904,32 +921,6 @@ class CoreRequestBuilder {
 		$qb->leftJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTORS, 'lja', $on
 		);
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Person
-	 * @throws InvalidResourceException
-	 */
-	public function parseCacheActorsLeftJoin(array $data): Person {
-		$new = [];
-
-		foreach ($data as $k => $v) {
-			if (substr($k, 0, 11) === 'cacheactor_') {
-				$new[substr($k, 11)] = $v;
-			}
-		}
-
-		$actor = new Person();
-		$actor->importFromDatabase($new);
-
-		if (!AP::$activityPub->isActor($actor)) {
-			throw new InvalidResourceException();
-		}
-
-		return $actor;
 	}
 
 
@@ -1070,61 +1061,6 @@ class CoreRequestBuilder {
 //		$action->importFromDatabase($new);
 
 //		return $action;
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $fieldDocumentId
-	 */
-	protected function leftJoinCacheDocuments(IQueryBuilder &$qb, string $fieldDocumentId) {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$expr = $qb->expr();
-		$func = $qb->func();
-		$pf = $this->defaultSelectAlias;
-
-		$qb->selectAlias('cd.id', 'cachedocument_id')
-		   ->selectAlias('cd.type', 'cachedocument_type')
-		   ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
-		   ->selectAlias('cd.media_type', 'cachedocument_media_type')
-		   ->selectAlias('cd.url', 'cachedocument_url')
-		   ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
-		   ->selectAlias('cd.caching', 'cachedocument_caching')
-		   ->selectAlias('cd.public', 'cachedocument_public')
-		   ->selectAlias('cd.error', 'cachedocument_error')
-		   ->selectAlias('ca.creation', 'cachedocument_creation')
-		   ->leftJoin(
-			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
-			   $expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
-		   );
-	}
-
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Document
-	 * @throws InvalidResourceException
-	 */
-	protected function parseCacheDocumentsLeftJoin(array $data): Document {
-		$new = [];
-		foreach ($data as $k => $v) {
-			if (substr($k, 0, 14) === 'cachedocument_') {
-				$new[substr($k, 14)] = $v;
-			}
-		}
-
-		$document = new Document();
-		$document->importFromDatabase($new);
-
-		if ($document->getType() !== Image::TYPE) {
-			throw new InvalidResourceException();
-		}
-
-		return $document;
 	}
 
 
