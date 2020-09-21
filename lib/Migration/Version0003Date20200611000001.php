@@ -76,7 +76,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$this->createActors($schema);
 		$this->createCacheActors($schema);
 		$this->createCacheDocuments($schema);
-		$this->createClients($schema);
+		$this->createClient($schema);
 		$this->createFollows($schema);
 		$this->createHashtags($schema);
 		$this->createInstance($schema);
@@ -1052,12 +1052,12 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 	/**
 	 * @param ISchemaWrapper $schema
 	 */
-	private function createClients(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_clients')) {
+	private function createClient(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_client')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_clients');
+		$table = $schema->createTable('social_3_client');
 		$table->addColumn(
 			'id', 'integer',
 			[

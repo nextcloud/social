@@ -34,6 +34,7 @@ namespace OCA\Social\Migration;
 use Closure;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Type;
+use Exception;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
@@ -76,7 +77,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$this->fixStreamNid($schema);
 		$this->fixCacheActorNid($schema);
 
-		$this->createClients($schema);
+		$this->createClient($schema);
 		$this->createInstance($schema);
 
 		$this->addChunkToTable($schema, 'social_3_stream', '');
@@ -84,6 +85,38 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$this->addChunkToTable($schema, 'social_3_stream_dest', '_dest');
 
 		return $schema;
+	}
+
+
+	/**
+	 * @param IOutput $output
+	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
+	 * @param array $options
+	 *
+	 * @throws Exception
+	 */
+	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
+		$qb = $this->connection->getQueryBuilder();
+
+		$qb->select('*')
+		   ->from('social_3_stream')
+		   ->orderBy('creation', 'asc');
+
+		$result = $qb->execute();
+		$nid = 0;
+		while ($row = $result->fetch()) {
+			$nid++;
+			if (is_int($row['nid']) and $row['nid'] > 0) {
+				continue;
+			}
+			$update = $this->connection->getQueryBuilder();
+			$expr = $update->expr();
+
+			$update->update('social_3_stream');
+			$update->set('nid', $update->createNamedParameter($nid));
+			$update->where($expr->eq('id_prim', $update->createNamedParameter($row['id_prim'])));
+			$update->execute();
+		}
 	}
 
 
@@ -104,12 +137,8 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$table->addColumn(
 			'nid', 'bigint',
 			[
-				'autoincrement'       => true,
-				'length'              => 11,
-				'unsigned'            => true,
-				'customSchemaOptions' => [
-					'unique' => true
-				]
+				'length'   => 11,
+				'unsigned' => true,
 			]
 		);
 	}
@@ -146,12 +175,12 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 	/**
 	 * @param ISchemaWrapper $schema
 	 */
-	private function createClients(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_clients')) {
+	private function createClient(ISchemaWrapper $schema) {
+		if ($schema->hasTable('social_3_client')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_clients');
+		$table = $schema->createTable('social_3_client');
 		$table->addColumn(
 			'id', 'integer',
 			[
