@@ -33,8 +33,8 @@ namespace OCA\Social\Service;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\Db\ClientRequest;
-use OCA\Social\Exceptions\ClientDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
+use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
 
 
@@ -122,7 +122,7 @@ class ClientService {
 	 * @param string $clientId
 	 *
 	 * @return SocialClient
-	 * @throws ClientDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
 	public function getFromClientId(string $clientId): SocialClient {
 		return $this->clientRequest->getFromClientId($clientId);
@@ -131,12 +131,11 @@ class ClientService {
 
 	/**
 	 * @param string $token
-	 * @param bool $refresh
 	 *
 	 * @return SocialClient
-	 * @throws ClientDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
-	public function getFromToken(string $token, bool $refresh = true): SocialClient {
+	public function getFromToken(string $token): SocialClient {
 		$client = $this->clientRequest->getFromToken($token);
 
 		if ($client->getLastUpdate() + self::TIME_TOKEN_TTL < time()) {
@@ -145,11 +144,10 @@ class ClientService {
 			} catch (Exception $e) {
 			}
 
-			throw new ClientDoesNotExistException();
+			throw new ClientNotFoundException();
 		}
 
 		if ($client->getLastUpdate() + self::TIME_TOKEN_REFRESH > time()) {
-			$this->miscService->log('__updating ' . $client->getLastUpdate());
 			$this->clientRequest->updateTime($client);
 		}
 

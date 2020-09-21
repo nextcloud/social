@@ -34,7 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
-use OCA\Social\Exceptions\ClientDoesNotExistException;
+use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\ClientService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -68,10 +68,9 @@ class ClientRequest extends ClientRequestBuilder {
 		   ->setValue('app_scopes', $qb->createNamedParameter(json_encode($client->getAppScopes())));
 
 		try {
-			$qb->setValue(
-				'creation',
-				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-			);
+			$dt = new DateTime('now');
+			$qb->setValue('last_update', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE));
+			$qb->setValue('creation', $qb->createNamedParameter($dt, IQueryBuilder::PARAM_DATE));
 		} catch (Exception $e) {
 		}
 
@@ -131,7 +130,7 @@ class ClientRequest extends ClientRequestBuilder {
 	 * @param string $clientId
 	 *
 	 * @return SocialClient
-	 * @throws ClientDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
 	public function getFromClientId(string $clientId): SocialClient {
 		$qb = $this->getClientSelectSql();
@@ -145,7 +144,7 @@ class ClientRequest extends ClientRequestBuilder {
 	 * @param string $token
 	 *
 	 * @return SocialClient
-	 * @throws ClientDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
 	public function getFromToken(string $token): SocialClient {
 		$qb = $this->getClientSelectSql();

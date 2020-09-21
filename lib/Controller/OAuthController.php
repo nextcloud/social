@@ -34,6 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ClientException;
+use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
@@ -266,7 +267,6 @@ class OAuthController extends Controller {
 //				"created_at"   => 1573979017
 				], Http::STATUS_OK
 			);
-
 		} catch (Exception $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
@@ -331,11 +331,12 @@ class OAuthController extends Controller {
 					"created_at"   => $client->getCreation()
 				], Http::STATUS_OK
 			);
+		} catch (ClientNotFoundException $e) {
+			return new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
 		} catch (Exception $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
 	}
 
 }
-
 

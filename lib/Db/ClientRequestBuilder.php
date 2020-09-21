@@ -34,7 +34,7 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
-use OCA\Social\Exceptions\ClientDoesNotExistException;
+use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
 
 
@@ -115,14 +115,14 @@ class ClientRequestBuilder extends CoreRequestBuilder {
 	 * @param SocialQueryBuilder $qb
 	 *
 	 * @return SocialClient
-	 * @throws ClientDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
 	public function getClientFromRequest(SocialQueryBuilder $qb): SocialClient {
 		/** @var SocialClient $result */
 		try {
 			$result = $qb->getRow([$this, 'parseClientSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new ClientDoesNotExistException($e->getMessage());
+			throw new ClientNotFoundException($e->getMessage());
 		}
 
 		return $result;

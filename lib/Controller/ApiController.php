@@ -34,7 +34,7 @@ use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
-use OCA\Social\Exceptions\ClientDoesNotExistException;
+use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -172,9 +172,8 @@ class ApiController extends Controller {
 					], Http::STATUS_OK
 				);
 			}
-
 		} catch (Exception $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+			return $this->error($e->getMessage());
 		}
 
 	}
@@ -192,8 +191,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
-
+			return $this->error($e->getMessage());
 		}
 	}
 
@@ -221,7 +219,7 @@ class ApiController extends Controller {
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+			return $this->error($e->getMessage());
 		}
 	}
 
@@ -238,7 +236,7 @@ class ApiController extends Controller {
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->fail($e, [], Http::STATUS_UNAUTHORIZED);
+			return $this->error($e->getMessage());
 		}
 	}
 
@@ -270,6 +268,7 @@ class ApiController extends Controller {
 		$options = new TimelineOptions($this->request);
 		$options->setFormat(Stream::FORMAT_LOCAL);
 		$options->setTimeline($timeline);
+		$options->setLimit($limit);
 
 		try {
 			$this->initViewer(true);
@@ -277,11 +276,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return new DataResponse(
-				[
-					'error' => 'The access token was revoked'
-				], Http::STATUS_UNAUTHORIZED
-			);
+			return $this->error($e->getMessage());
 		}
 	}
 
@@ -291,7 +286,7 @@ class ApiController extends Controller {
 	 * @param bool $exception
 	 *
 	 * @return bool
-	 * @throws Exception
+	 * @throws ClientNotFoundException
 	 */
 	private function initViewer(bool $exception = false): bool {
 		try {
@@ -312,7 +307,7 @@ class ApiController extends Controller {
 			return true;
 		} catch (Exception $e) {
 			if ($exception) {
-				throw $e;
+				throw new ClientNotFoundException('the access_token was revoked');
 			}
 		}
 
@@ -323,7 +318,7 @@ class ApiController extends Controller {
 	/**
 	 * @return string
 	 * @throws AccountDoesNotExistException
-	 * @throws ClientDoesNotExistException
+	 * @throws ClientNotFoundException
 	 */
 	private function currentSession(): string {
 		$user = $this->userSession->getUser();
@@ -338,6 +333,16 @@ class ApiController extends Controller {
 		}
 
 		throw new AccountDoesNotExistException('userId not defined');
+	}
+
+
+	/**
+	 * @param string $error
+	 *
+	 * @return DataResponse
+	 */
+	private function error(string $error): DataResponse {
+		return new DataResponse(['error' => $error], Http::STATUS_UNAUTHORIZED);
 	}
 
 }
