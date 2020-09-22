@@ -97,6 +97,14 @@ export default new Router({
 					}
 				}
 			]
+		},
+		{
+			path: '/:index(index.php/)?apps/social/ostatus/follow',
+			components: {
+				default: Profile,
+				details: ProfileTimeline
+			},
+			props: true,
 		}
 	]
 })

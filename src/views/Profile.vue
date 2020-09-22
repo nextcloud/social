@@ -81,7 +81,7 @@ export default {
 	beforeMount() {
 
 		let fetchMethod = ''
-		this.uid = this.$route.params.account
+		this.uid = this.$route.params.account || this.serverData.account
 
 		// Are we authenticated?
 		if (this.serverData.public) {
