@@ -3,3 +3,5 @@ js/
 node_modules/
 vendor/
 img/twemoji/
+
+composer/
