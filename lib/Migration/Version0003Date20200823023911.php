@@ -139,6 +139,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			[
 				'length'   => 11,
 				'unsigned' => true,
+				'notnull' => false,
 			]
 		);
 	}
