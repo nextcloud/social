@@ -50,6 +50,7 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCP\IURLGenerator;
 
 
 class CacheActorService {
@@ -58,11 +59,17 @@ class CacheActorService {
 	use TArrayTools;
 
 
+	/** @var IURLGenerator */
+	private $urlGenerator;
+
 	/** @var CacheActorsRequest */
 	private $cacheActorsRequest;
 
 	/** @var CurlService */
 	private $curlService;
+
+	/** @var FediverseService */
+	private $fediverseService;
 
 	/** @var ConfigService */
 	private $configService;
@@ -74,17 +81,21 @@ class CacheActorService {
 	/**
 	 * CacheService constructor.
 	 *
+	 * @param IUrlGenerator $urlGenerator
 	 * @param CacheActorsRequest $cacheActorsRequest
 	 * @param CurlService $curlService
+	 * @param FediverseService $fediverseService
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheActorsRequest $cacheActorsRequest, CurlService $curlService,
-		ConfigService $configService, MiscService $miscService
+		IUrlGenerator $urlGenerator, CacheActorsRequest $cacheActorsRequest, CurlService $curlService,
+		FediverseService $fediverseService, ConfigService $configService, MiscService $miscService
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->curlService = $curlService;
+		$this->fediverseService = $fediverseService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -166,8 +177,9 @@ class CacheActorService {
 	 */
 	public function getFromLocalAccount(string $account): Person {
 		$instance = '';
+		$account = ltrim($account, '@');
 		if (strrpos($account, '@')) {
-			list($account, $instance) = explode('@', $account);
+			list($account, $instance) = explode('@', $account, 2);
 		}
 
 		if ($instance === ''

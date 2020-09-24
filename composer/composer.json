@@ -12,6 +12,15 @@
   "config": {
     "platform": {
       "php": "7.0.0"
+    },
+    "vendor-dir": ".",
+    "optimize-autoloader": true,
+    "classmap-authoritative": true,
+    "autoloader-suffix": "Social"
+  },
+  "autoload": {
+    "psr-4": {
+      "OCA\\Social\\": "../lib/"
     }
   },
   "require": {
