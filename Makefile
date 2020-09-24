@@ -64,9 +64,9 @@ clean:
 clean-dev:
 	rm -rf node_modules
 
-# composer packages
-composer:
-	composer install --prefer-dist
+build-composer:
+	composer install --prefer-dist --working-dir composer
+	composer update --prefer-dist --working-dir composer
 
 # releasing to github
 release: appstore github-release github-upload
@@ -88,7 +88,7 @@ github-upload:
 		--file $(build_dir)/$(app_name)-$(version).tar.gz
 
 # creating .tar.gz + signature
-appstore: dev-setup lint build-js-production composer
+appstore: dev-setup lint build-js-production build-composer
 	mkdir -p $(sign_dir)
 	rsync -a \
 	--exclude=/build \
@@ -101,8 +101,8 @@ appstore: dev-setup lint build-js-production composer
 	--exclude=/.babelrc.js \
 	--exclude=/.drone.yml \
 	--exclude=/.eslintrc.js \
-	--exclude=/composer.json \
-	--exclude=/composer.lock \
+	--exclude=/composer/composer.json \
+	--exclude=/composer/composer.lock \
 	--exclude=/src \
 	--exclude=/node_modules \
 	--exclude=/webpack.*.js \

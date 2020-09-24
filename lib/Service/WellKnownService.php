@@ -37,8 +37,9 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\WebfingerLink;
 use OCP\IURLGenerator;
+use OCP\WellKnown\Model\IWellKnown;
 
-class WebfingerService {
+class WellKnownService {
 
 
 	/** @var IURLGenerator */
@@ -86,17 +87,16 @@ class WebfingerService {
 
 
 	/**
-	 * @param WebfingerEvent $event
+	 * @param IWellKnown $wellKnown
 	 *
 	 * @throws CacheActorDoesNotExistException
-	 * @throws UnauthorizedFediverseException
 	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
-	public function webfinger(WebfingerEvent $event) {
+	public function webfinger(IWellKnown $wellKnown) {
 		$this->fediverseService->jailed();
 
-		$subject = $event->getWebfinger()
-						 ->getSubject();
+		$subject = $wellKnown->getSubject();
 
 		if (strpos($subject, 'acct:') === 0) {
 			$subject = substr($subject, 5);
@@ -124,9 +124,8 @@ class WebfingerService {
 		$subscribe = $this->urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe') . '?uri={uri}';
 		$linkOstatus->setTemplate($subscribe);
 
-		$event->getWebfinger()
-			  ->addLinkSerialized($linkPerson)
-			  ->addLinkSerialized($linkOstatus);
+		$wellKnown->addLinkSerialized($linkPerson)
+				  ->addLinkSerialized($linkOstatus);
 	}
 
 }

@@ -31,17 +31,20 @@ declare(strict_types=1);
 namespace OCA\Social\AppInfo;
 
 
+use Closure;
 use OC\DB\SchemaWrapper;
-use OC\Webfinger\Event\WebfingerEvent;
-use OC\Webfinger\Model\WebfingerObject;
+use OC\WellKnown\Event\WellKnownEvent;
+use OCA\Social\Listeners\WellKnownListener;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
-use OCA\Social\Service\WebfingerService;
 use OCP\AppFramework\App;
-use OCP\AppFramework\IAppContainer;
+use OCP\AppFramework\Bootstrap\IBootContext;
+use OCP\AppFramework\Bootstrap\IBootstrap;
+use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\QueryException;
-use OCP\EventDispatcher\IEventDispatcher;
+use OCP\IServerContainer;
+use Throwable;
 
 
 /**
@@ -49,20 +52,10 @@ use OCP\EventDispatcher\IEventDispatcher;
  *
  * @package OCA\Social\AppInfo
  */
-class Application extends App {
+class Application extends App implements IBootstrap {
 
 
 	const APP_NAME = 'social';
-
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var UpdateService */
-	private $updateService;
-
-	/** @var IAppContainer */
-	private $container;
 
 
 	/**
@@ -72,61 +65,58 @@ class Application extends App {
 	 */
 	public function __construct(array $params = []) {
 		parent::__construct(self::APP_NAME, $params);
+	}
 
-		$this->container = $this->getContainer();
 
-		$manager = $this->container->getServer()
-								   ->getNotificationManager();
+	/**
+	 * @param IRegistrationContext $context
+	 */
+	public function register(IRegistrationContext $context): void {
+		$context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
+	}
+
+
+	/**
+	 * @param IBootContext $context
+	 */
+	public function boot(IBootContext $context): void {
+		$manager = $context->getServerContainer()
+						   ->getNotificationManager();
 		$manager->registerNotifierService(Notifier::class);
+
+		try {
+			$context->injectFn(Closure::fromCallable([$this, 'checkUpgradeStatus']));
+		} catch (Throwable $e) {
+		}
 	}
 
 
 	/**
+	 * Register Navigation Tab
 	 *
+	 * @param IServerContainer $container
 	 */
-	public function registerWebfinger() {
-		/** @var IEventDispatcher $eventDispatcher */
-		$eventDispatcher = \OC::$server->query(IEventDispatcher::class);
-		$eventDispatcher->addListener(
-			'\OC\Webfinger::onRequest',
-			function(WebfingerEvent $e) {
-				/** @var WebfingerService $webfingerService */
-				$webfingerService = $this->container->query(WebfingerService::class);
-				try {
-					$webfingerService->webfinger($e);
-				} catch (\Exception $e) {
-				}
-			}
-		);
-	}
-
-
-	/**
-	 *
-	 */
-	public function checkUpgradeStatus() {
-		$upgradeChecked = $this->container->getServer()
-										  ->getConfig()
-										  ->getAppValue(Application::APP_NAME, 'update_checked', '');
+	protected function checkUpgradeStatus(IServerContainer $container) {
+		$upgradeChecked = $container->getConfig()
+									->getAppValue(Application::APP_NAME, 'update_checked', '');
 
 		if ($upgradeChecked === '0.3') {
 			return;
 		}
 
 		try {
-			$this->configService = $this->container->query(ConfigService::class);
-			$this->updateService = $this->container->query(UpdateService::class);
+			$configService = $container->query(ConfigService::class);
+			$updateService = $container->query(UpdateService::class);
 		} catch (QueryException $e) {
 			return;
 		}
 
-		$server = $this->container->getServer();
-		$schema = new SchemaWrapper($server->getDatabaseConnection());
+		$schema = new SchemaWrapper($container->getDatabaseConnection());
 		if ($schema->hasTable('social_a2_stream')) {
-			$this->updateService->checkUpdateStatus();
+			$updateService->checkUpdateStatus();
 		}
 
-		$this->configService->setAppValue('update_checked', '0.3');
+		$configService->setAppValue('update_checked', '0.3');
 	}
 
 }
