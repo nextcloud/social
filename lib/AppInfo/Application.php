@@ -72,7 +72,8 @@ class Application extends App implements IBootstrap {
 	 * @param IRegistrationContext $context
 	 */
 	public function register(IRegistrationContext $context): void {
-		$context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
+		// TODO: nc21, uncomment
+		// $context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
 	}
 
 
