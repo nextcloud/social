@@ -31,7 +31,9 @@
 				</div>
 			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div v-if="item.content" class="post-message" v-html="formatedMessage" />
+			<div v-if="item.content" class="post-message">
+				<MessageContent :source="source" />
+			</div>
 			<!-- eslint-disable-next-line vue/no-v-html -->
 			<div v-else class="post-message" v-html="item.actor_info.summary" />
 			<div v-if="hasAttachments" class="post-attachments">
@@ -62,6 +64,7 @@ import 'linkifyjs/string'
 import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment.vue'
+import MessageContent from './MessageContent'
 
 pluginMention(linkify)
 
@@ -69,7 +72,8 @@ export default {
 	name: 'TimelinePost',
 	components: {
 		Avatar,
-		PostAttachment
+		PostAttachment,
+		MessageContent
 	},
 	mixins: [popoverMenu, currentUser],
 	props: {
@@ -104,24 +108,12 @@ export default {
 		timestamp() {
 			return Date.parse(this.item.published)
 		},
-		formatedMessage() {
+		source() {
 			let message = this.item.content
 			if (typeof message === 'undefined') {
-				return ''
+				return null
 			}
-			message = message.linkify({
-				formatHref: {
-					mention: function(href) {
-						return OC.generateUrl('/apps/social/@' + href.substring(1))
-					}
-				}
-			})
-			if (this.item.hashtags !== undefined) {
-				message = this.mangleHashtags(message)
-			}
-			message = message.replace(/(?:\r\n|\r|\n)/g, '<br>')
-			message = this.$twemoji.parse(message)
-			return message
+			return JSON.parse(this.item.source)
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
@@ -143,17 +135,6 @@ export default {
 		}
 	},
 	methods: {
-		mangleHashtags(msg) {
-			// Replace hashtag's href parameter with local ones
-			this.item.hashtags.forEach(tag => {
-				let patt = new RegExp('#' + tag, 'gi')
-				msg = msg.replace(patt, function(matched) {
-					var a = '<a href="' + OC.generateUrl('/apps/social/timeline/tags/' + matched.substring(1)) + '">' + matched + '</a>'
-					return a
-				})
-			})
-			return msg
-		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
