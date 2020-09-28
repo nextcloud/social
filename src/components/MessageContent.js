@@ -69,21 +69,39 @@ function cleanLink(createElement, node, context) {
 	case 'mention':
 		let tag = matchMention(context.mentions, node.getAttribute('href'), node.textContent)
 		if (tag) {
-			attributes['href'] = OC.generateUrl(`apps/social/${tag.name}`)
+			return createElement(
+				'router-link',
+				{ props: {
+						to: {
+							name: 'profile',
+							params: { account: tag.name.substr(1) }
+						}
+					}
+				},
+				[transformText(createElement, node.textContent)]
+			)
 		} else {
 			return transformText(createElement, node.textContent)
 		}
-		break
 	case 'hashtag':
-		attributes['href'] = OC.generateUrl(`apps/social/timeline/tags/${node.textContent}`)
-		break
+		return createElement(
+			'router-link',
+			{ props: {
+					to: {
+						name: 'tags',
+						params: { tag: node.textContent.substr(1) }
+					}
+				}
+			},
+			[transformText(createElement, node.textContent)]
+		)
 	default:
 		attributes['rel'] = 'nofollow noopener noreferrer'
 		attributes['target'] = '_blank'
 		attributes['href'] = node.getAttribute('href')
-	}
 
-	return createElement('a', { attrs: attributes }, [transformText(createElement, node.textContent)])
+		return createElement('a', { attrs: attributes }, [transformText(createElement, node.textContent)])
+	}
 }
 
 function getLinkType(className) {
