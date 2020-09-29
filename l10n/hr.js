@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "Aplikacija Social",
+    "Please note that the data from alpha2 can only be migrated manually.\n\t\t\t\t\t\tA detailed documentation to guide you during this process is available using the button below." : "Zapamtite da se podaci s alpha2 mogu migrirati isključivo ručno.\n\t\t\t\t\t\tKliknite na gumb u nastavku kako biste pristupili detaljnim informacijama o ovom postupku.",
     "Help" : "Pomoć",
     "Follow %s on Social" : "Prati %s na društvenim mrežama",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud postaje dio udruženih društvenih mreža!",
