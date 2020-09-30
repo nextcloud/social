@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f93a783c86bad53b0b8486db3fc61380",
+    "content-hash": "773474981fdf7ef0b2f1bcf58cf1b2ec",
     "packages": [
         {
             "name": "daita/my-small-php-tools",
@@ -88,16 +88,16 @@
         },
         {
             "name": "gumlet/php-image-resize",
-            "version": "1.9.2",
+            "version": "2.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/gumlet/php-image-resize.git",
-                "reference": "06339a9c1b167acd58173db226f57957a6617547"
+                "reference": "de6dc92d8ddf65e508b088202e5de6f3fb0621a2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/06339a9c1b167acd58173db226f57957a6617547",
-                "reference": "06339a9c1b167acd58173db226f57957a6617547",
+                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/de6dc92d8ddf65e508b088202e5de6f3fb0621a2",
+                "reference": "de6dc92d8ddf65e508b088202e5de6f3fb0621a2",
                 "shasum": ""
             },
             "require": {
@@ -139,7 +139,7 @@
                 "resize",
                 "scale"
             ],
-            "time": "2019-01-01T13:53:00+00:00"
+            "time": "2020-07-04T21:04:16+00:00"
         }
     ],
     "packages-dev": [

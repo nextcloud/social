@@ -25,7 +25,7 @@
   },
   "require": {
     "daita/my-small-php-tools": "dev-master",
-    "gumlet/php-image-resize": "1.9.*",
+    "gumlet/php-image-resize": "2.0.*",
     "friendica/json-ld": "^1.0"
   },
   "require-dev": {
