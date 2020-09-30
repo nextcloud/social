@@ -13,14 +13,14 @@
     "platform": {
       "php": "7.0.0"
     },
-    "vendor-dir": ".",
+    "vendor-dir": "composer/",
     "optimize-autoloader": true,
     "classmap-authoritative": true,
     "autoloader-suffix": "Social"
   },
   "autoload": {
     "psr-4": {
-      "OCA\\Social\\": "../lib/"
+      "OCA\\Social\\": "lib/"
     }
   },
   "require": {
