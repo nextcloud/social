@@ -104,7 +104,7 @@ export default new Router({
 				default: Profile,
 				details: ProfileTimeline
 			},
-			props: true,
+			props: true
 		}
 	]
 })
