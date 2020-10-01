@@ -748,7 +748,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 
-		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['id_prim']);
 		$table->addUniqueIndex(['nid']);
 		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(
@@ -935,7 +935,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 
-		$table->setPrimaryKey(['id_prim']);
+		$table->addUniqueIndex(['id_prim']);
 		$table->addUniqueIndex(['nid']);
 	}
 
@@ -1046,7 +1046,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
-//		$table->addUniqueIndex(['url'], 'unique_url');
+		$table->addUniqueIndex(['url'], 'unique_url');
 	}
 
 	/**
