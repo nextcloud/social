@@ -2,10 +2,10 @@ kind: pipeline
 name: compatibility
 steps:
   - name: compatibility
-    image: nextcloudci/php7.1:php7.1-15
+    image: nextcloudci/php7.3:php7.3-5
     environment:
       APP_NAME: social
-      CORE_BRANCH: stable17
+      CORE_BRANCH: stable20
       DB: sqlite
     commands:
       - composer install
@@ -23,18 +23,13 @@ trigger:
 kind: pipeline
 name: syntax
 steps:
-  - name: syntax-php7.1
-    image: nextcloudci/php7.1:php7.1-15
-    commands:
-      - composer install
-      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
   - name: syntax-php7.2
     image: nextcloudci/php7.2:php7.2-9
     commands:
       - composer install
       - ./vendor/bin/parallel-lint --exclude ./vendor/ .
   - name: syntax-php7.3
-    image: nextcloudci/php7.3:php7.3-2
+    image: nextcloudci/php7.3:php7.3-5
     commands:
       - composer install
       - ./vendor/bin/parallel-lint --exclude ./vendor/ .
@@ -46,13 +41,13 @@ trigger:
     - push
 ---
 kind: pipeline
-name: php7.1-sqlite
+name: php7.3-sqlite
 steps:
-- name: php7.1
-  image: nextcloudci/php7.1:php7.1-16
+- name: php7.3
+  image: nextcloudci/php7.3:php7.3-5
   environment:
     APP_NAME: social
-    CORE_BRANCH: stable17
+    CORE_BRANCH: stable20
     DB: sqlite
   commands:
     - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
@@ -67,13 +62,13 @@ trigger:
     - push
 ---
 kind: pipeline
-name: php7.1-mysql
+name: php7.3-mysql
 steps:
-- name: php7.1
-  image: nextcloudci/php7.1:php7.1-16
+- name: php7.3
+  image: nextcloudci/php7.3:php7.3-5
   environment:
     APP_NAME: social
-    CORE_BRANCH: stable17
+    CORE_BRANCH: stable20
     DB: mysql
   commands:
     - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
@@ -97,13 +92,13 @@ trigger:
     - push
 ---
 kind: pipeline
-name: php7.1-postgres
+name: php7.3-postgres
 steps:
-- name: php7.1
-  image: nextcloudci/php7.1:php7.1-16
+- name: php7.3
+  image: nextcloudci/php7.3:php7.3-5
   environment:
     APP_NAME: social
-    CORE_BRANCH: stable17
+    CORE_BRANCH: stable20
     DB: postgres
   commands:
     - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
