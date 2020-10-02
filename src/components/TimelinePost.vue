@@ -109,9 +109,12 @@ export default {
 			return Date.parse(this.item.published)
 		},
 		source() {
-			let message = this.item.content
-			if (typeof message === 'undefined') {
-				return null
+			if (!this.item.source && this.item.content) {
+				// local posts don't have a source json
+				return {
+					content: this.item.content,
+					tag: []
+				}
 			}
 			return JSON.parse(this.item.source)
 		},
