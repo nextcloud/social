@@ -65,7 +65,7 @@ function transformText(createElement, text) {
 							to: {
 								name: 'profile',
 								params: { account: match[2].substr(1) }
-							}
+							},
 						}
 					},
 					[match[3]]
@@ -120,18 +120,12 @@ function cleanLink(createElement, node, context) {
 	case 'mention':
 		var tag = matchMention(context.mentions, node.getAttribute('href'), node.textContent)
 		if (tag) {
-			return createElement(
-				'router-link',
-				{
-					props: {
-						to: {
-							name: 'profile',
-							params: { account: tag.name.substr(1) }
-						}
-					}
-				},
-				[node.textContent]
-			)
+			attributes['rel'] = 'nofollow noopener noreferrer'
+			attributes['target'] = '_blank'
+			attributes['href'] = node.getAttribute('href')
+			attributes['title'] = tag.name
+
+			return createElement('a', { attrs: attributes }, [transformText(createElement, node.textContent)])
 		} else {
 			return transformText(createElement, node.textContent)
 		}
