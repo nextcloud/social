@@ -6,21 +6,23 @@
 				{{ actionSummary }}
 			</span>
 		</template>
-		<template v-else-if="item.type === 'Announce'" class="boost">
-			<div class="container-icon-boost">
+		<template v-else-if="item.type === 'Announce'">
+			<div class="container-icon-boost boost">
 				<span class="icon-boost" />
 			</div>
-			<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-				<span v-tooltip.bottom="item.actor_info.account" class="post-author">
-					{{ userDisplayName(item.actor_info) }}
-				</span>
-			</router-link>
-			<a v-else :href="item.attributedTo">
-				<span class="post-author-id">
-					{{ item.attributedTo }}
-				</span>
-			</a>
-			{{ boosted }}
+			<div class="boost">
+				<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
+					<span v-tooltip.bottom="item.actor_info.account" class="post-author">
+						{{ userDisplayName(item.actor_info) }}
+					</span>
+				</router-link>
+				<a v-else :href="item.attributedTo">
+					<span class="post-author-id">
+						{{ item.attributedTo }}
+					</span>
+				</a>
+				{{ boosted }}
+			</div>
 		</template>
 		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 		<template v-else>
