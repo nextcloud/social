@@ -65,8 +65,8 @@ clean-dev:
 	rm -rf node_modules
 
 build-composer:
-	composer install --prefer-dist --working-dir composer
-	composer update --prefer-dist --working-dir composer
+	composer install --prefer-dist
+	composer update --prefer-dist
 
 # releasing to github
 release: appstore github-release github-upload
@@ -101,8 +101,8 @@ appstore: dev-setup lint build-js-production build-composer
 	--exclude=/.babelrc.js \
 	--exclude=/.drone.yml \
 	--exclude=/.eslintrc.js \
-	--exclude=/composer/composer.json \
-	--exclude=/composer/composer.lock \
+	--exclude=/composer.json \
+	--exclude=/composer.lock \
 	--exclude=/src \
 	--exclude=/node_modules \
 	--exclude=/webpack.*.js \

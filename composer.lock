@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "773474981fdf7ef0b2f1bcf58cf1b2ec",
+    "content-hash": "a5fe26ce64e01c6e8e2687e75ff674fb",
     "packages": [
         {
             "name": "daita/my-small-php-tools",
@@ -12,12 +12,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "4e602526c3afbba7255ae4764037562075ef030f"
+                "reference": "ca9c257dd640576c072cb50282e15ae51147cfc2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/4e602526c3afbba7255ae4764037562075ef030f",
-                "reference": "4e602526c3afbba7255ae4764037562075ef030f",
+                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/ca9c257dd640576c072cb50282e15ae51147cfc2",
+                "reference": "ca9c257dd640576c072cb50282e15ae51147cfc2",
                 "shasum": ""
             },
             "require": {
@@ -40,7 +40,7 @@
                 }
             ],
             "description": "My small PHP Tools",
-            "time": "2020-08-06T13:26:28+00:00"
+            "time": "2020-09-29T15:30:16+00:00"
         },
         {
             "name": "friendica/json-ld",
