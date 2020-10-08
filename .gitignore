@@ -4,3 +4,6 @@ node_modules/
 vendor/
 img/twemoji/
 vendor/
+
+cypress/screenshots
+cypress/snapshots

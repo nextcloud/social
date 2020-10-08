@@ -1,0 +1,26 @@
+describe('Social app setup', function() {
+
+	before(function() {
+		cy.login('admin', 'admin')
+	})
+
+	it('See the welcome message', function() {
+		cy.visit('/apps/social/')
+		cy.get('.social__welcome').should('contain', 'Nextcloud becomes part of the federated social networks!')
+		cy.get('.social__welcome').find('.icon-close').click()
+		cy.get('.social__welcome').should('not.exist')
+	})
+
+	it('See the home section in the sidebar', function() {
+		cy.get('.app-navigation').contains('Home').click()
+		cy.get('.emptycontent').should('be.visible')
+	})
+
+	it('See the empty content illustration', function() {
+		cy.get('.app-navigation').contains('Direct messages').click()
+		cy.get('.emptycontent').should('be.visible').contains('No direct messages found')
+		cy.get('.app-navigation').contains('Profile').click()
+		cy.get('.emptycontent').should('be.visible').contains('You haven\'t tooted yet')
+	})
+
+})
