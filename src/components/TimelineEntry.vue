@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-entry">
+	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']" @click="getSinglePostTimeline">
 		<template v-if="item.type === 'SocialAppNotification'">
 			<div class="notification-icon" :class="notificationIcon" />
 			<span class="notification-action">
@@ -69,6 +69,9 @@ export default {
 			}
 			return {}
 		},
+		hasHeader() {
+			return this.item.type === 'Announce' || this.item.type === 'SocialAppNotification'
+		},
 		boosted() {
 			return t('social', 'boosted')
 		},
@@ -112,10 +115,13 @@ export default {
 }
 </script>
 <style scoped lang="scss">
+  .timeline-entry.with-header {
+    grid-template-rows: 30px 1fr;
+  }
 	.timeline-entry {
 		display: grid;
     grid-template-columns: 44px 1fr;
-    grid-template-rows: 30px 1fr;
+    grid-template-rows: 1fr;
 		padding: 10px;
 		margin-bottom: 10px;
 		&:hover {

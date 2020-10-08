@@ -239,12 +239,6 @@ export default {
 		display: flex;
 	}
 
-	.post-content {
-		flex-grow: 1;
-    grid-column: 2;
-    grid-row: 2;
-	}
-
 	.post-header {
 		display: flex;
 		flex-direction: row;

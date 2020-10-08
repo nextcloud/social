@@ -38,9 +38,6 @@ export default {
     width: 32px;
     height: 32px;
     min-width: 32px;
-    flex-shrink: 0;
-    grid-column: 1;
-    grid-row: 2;
     align-self: start;
 }
 
