@@ -3,7 +3,7 @@ js/
 node_modules/
 vendor/
 img/twemoji/
-vendor/
+composer/
 
 cypress/screenshots
 cypress/snapshots
