@@ -27,12 +27,12 @@ steps:
     image: nextcloudci/php7.2:php7.2-9
     commands:
       - composer install
-      - ./composer/bin/parallel-lint --exclude ./composer/ .
+      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
   - name: syntax-php7.3
     image: nextcloudci/php7.3:php7.3-5
     commands:
       - composer install
-      - ./composer/bin/parallel-lint --exclude ./composer/ .
+      - ./vendor/bin/parallel-lint --exclude ./vendor/ .
 trigger:
   branch:
     - master
@@ -50,9 +50,9 @@ steps:
     CORE_BRANCH: stable20
     DB: sqlite
   commands:
+    - composer install
     - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
     - cd ../server/apps/$APP_NAME
-    - composer install
     - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
 trigger:
   branch:
@@ -71,9 +71,9 @@ steps:
     CORE_BRANCH: stable20
     DB: mysql
   commands:
+    - composer install
     - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
     - cd ../server/apps/$APP_NAME
-    - composer install
     - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
 services:
 - name: mysql
@@ -101,9 +101,9 @@ steps:
     CORE_BRANCH: stable20
     DB: postgres
   commands:
+    - composer install
     - bash ./tests/drone-server-setup.sh $APP_NAME $CORE_BRANCH $DB
     - cd ../server/apps/$APP_NAME
-    - composer install
     - phpunit -c tests/phpunit.xml --coverage-clover build/php-unit.coverage.xml
 services:
 - name: postgres

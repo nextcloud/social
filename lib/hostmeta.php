@@ -34,7 +34,7 @@ use OC;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 
-require_once(__DIR__ . '/../composer/autoload.php');
+require_once(__DIR__ . '/../vendor/autoload.php');
 
 try {
 	$fediverseService = OC::$server->query(FediverseService::class);
