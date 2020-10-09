@@ -20,15 +20,16 @@
  *
  */
 
+let userId = 'janedoe' + Date.now();
+
 describe('Create posts', function() {
 
 	before(function() {
-		cy.visit('/apps/social/')
-		cy.logout()
-		cy.login('admin', 'admin')
-		cy.nextcloudCreateUser('janedoe', 'p4ssw0rd')
-		cy.logout()
-		cy.login('janedoe', 'p4ssw0rd', '/apps/social/')
+		// ensure that the admin account is initialized for social
+		cy.login('admin', 'admin', '/apps/social/')
+		
+		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
+		cy.login(userId, 'p4ssw0rd', '/apps/social/')
 		cy.get('.app-content').should('be.visible')
 	})
 
@@ -36,7 +37,12 @@ describe('Create posts', function() {
 		cy.screenshot()
 	})
 
+	beforeEach(() => {
+		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
+	})
+
 	it('Write a post to followers', function() {
+		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 		cy.get('.new-post input[type=submit]')
@@ -51,6 +57,7 @@ describe('Create posts', function() {
 	})
 
 	it('Write a post to followers with shift enter', function() {
+		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 		cy.get('.new-post').find('[contenteditable]').type('Hello world 2{shift}{enter}')
@@ -59,6 +66,7 @@ describe('Create posts', function() {
 	})
 
 	it('Write a post to @admin', function() {
+		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
@@ -73,6 +81,10 @@ describe('Create posts', function() {
 	})
 
 	it('Opens the menu and shows that followers is selected by default', function() {
+		cy.visit('/apps/social/')
+		cy.server()
+		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
 		cy.get('.new-post').find('[contenteditable]').click({force: true}).type('@adm{enter} Hello world', {delay: 500, force: true})
 		cy.wait(500)
 		cy.get('.new-post input[type=submit]').should('not.be.disabled')
@@ -87,7 +99,8 @@ describe('Create posts', function() {
 
 		cy.get('.new-post input[type=submit]')
 			.click()
-		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello there').should('contain', '@admin')
+		cy.wait('@postMessage')
+		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world').should('contain', '@admin')
 
 	})
 

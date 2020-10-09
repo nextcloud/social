@@ -29,10 +29,7 @@ const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
 
 Cypress.Commands.add('login', (user, password, route = '/apps/files') => {
-	cy.clearCookies()
-	Cypress.Cookies.defaults({
-		preserve: /^(oc|nc)/,
-	})
+	cy.clearCookies();
 	cy.visit(route)
 	cy.get('input[name=user]').type(user)
 	cy.get('input[name=password]').type(password)
@@ -53,7 +50,7 @@ Cypress.Commands.add('logout', () => {
 })
 
 Cypress.Commands.add('nextcloudCreateUser', (user, password) => {
-	cy.clearCookies()
+	cy.clearCookies();
 	cy.request({
 		method: 'POST',
 		url: `${Cypress.env('baseUrl')}/ocs/v1.php/cloud/users?format=json`,
