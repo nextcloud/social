@@ -34,6 +34,7 @@
 		"@nextcloud/axios": "^1.4.0",
 		"@nextcloud/initial-state": "^1.1.2",
 		"@nextcloud/logger": "^1.1.2",
+		"@nextcloud/moment": "^1.1.1",
 		"@nextcloud/router": "^1.2.0",
 		"@nextcloud/vue": "^2.6.8",
 		"he": "^1.2.0",

@@ -59,6 +59,7 @@ import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import follow from '../mixins/follow'
 import currentUser from '../mixins/currentUserMixin'
 import FollowButton from './FollowButton.vue'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'UserEntry',
@@ -86,7 +87,7 @@ export default {
 			return this.item.id
 		},
 		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.id)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.id)
 		}
 	}
 }

@@ -24,6 +24,7 @@
 import Logger from '../logger'
 import axios from '@nextcloud/axios'
 import Vue from 'vue'
+import { generateUrl } from '@nextcloud/router'
 
 const state = {
 	timeline: {},
@@ -118,7 +119,7 @@ const actions = {
 	},
 	post(context, post) {
 		return new Promise((resolve, reject) => {
-			axios.post(OC.generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
+			axios.post(generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
 				// eslint-disable-next-line no-console
 				console.log('Post created with token ' + response.data.result.token)
 				resolve(response)
@@ -130,7 +131,7 @@ const actions = {
 		})
 	},
 	postDelete(context, post) {
-		return axios.delete(OC.generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
+		return axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
 			context.commit('removePost', post)
 			// eslint-disable-next-line no-console
 			console.log('Post deleted with token ' + response.data.result.token)
@@ -141,7 +142,7 @@ const actions = {
 	},
 	postLike(context, { post, parentAnnounce }) {
 		return new Promise((resolve, reject) => {
-			axios.post(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
+			axios.post(generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
 				context.commit('likePost', { post, parentAnnounce })
 				resolve(response)
 			}).catch((error) => {
@@ -152,7 +153,7 @@ const actions = {
 		})
 	},
 	postUnlike(context, { post, parentAnnounce }) {
-		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
+		return axios.delete(generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
 			context.commit('unlikePost', { post, parentAnnounce })
 			// Remove post from list if we are in the 'liked' timeline
 			if (state.type === 'liked') {
@@ -165,7 +166,7 @@ const actions = {
 	},
 	postBoost(context, { post, parentAnnounce }) {
 		return new Promise((resolve, reject) => {
-			axios.post(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
+			axios.post(generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 				context.commit('boostPost', { post, parentAnnounce })
 				// eslint-disable-next-line no-console
 				console.log('Post boosted with token ' + response.data.result.token)
@@ -178,7 +179,7 @@ const actions = {
 		})
 	},
 	postUnBoost(context, { post, parentAnnounce }) {
-		return axios.delete(OC.generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
+		return axios.delete(generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 			context.commit('unboostPost', { post, parentAnnounce })
 			// eslint-disable-next-line no-console
 			console.log('Boost deleted with token ' + response.data.result.token)
@@ -199,13 +200,13 @@ const actions = {
 		// Compute URl to get the data
 		let url = ''
 		if (state.type === 'account') {
-			url = OC.generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
+			url = generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
 		} else if (state.type === 'tags') {
-			url = OC.generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
+			url = generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
 		} else if (state.type === 'single-post') {
-			url = OC.generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=` + sinceTimestamp)
+			url = generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=` + sinceTimestamp)
 		} else {
-			url = OC.generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
+			url = generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
 		}
 
 		// Get the data and add them to the timeline
@@ -220,7 +221,7 @@ const actions = {
 			// Also load replies when displaying a single post timeline
 			if (state.type === 'single-post') {
 				result.push(response.data)
-				// axios.get(OC.generateUrl(``)).then((response) => {
+				// axios.get(generateUrl(``)).then((response) => {
 				// 	if (response.status !== -1) {
 				// 		result.concat(response.data.result)
 				// 	}

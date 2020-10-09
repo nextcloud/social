@@ -29,6 +29,7 @@
 
 <script>
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'ActorAvatar',
@@ -46,7 +47,7 @@ export default {
 	},
 	computed: {
 		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
 		}
 	}
 }

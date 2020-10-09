@@ -397,6 +397,7 @@ import CurrentUserMixin from './../mixins/currentUserMixin'
 import FocusOnCreate from '../directives/focusOnCreate'
 import axios from '@nextcloud/axios'
 import ActorAvatar from './ActorAvatar.vue'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'Composer',
@@ -453,7 +454,7 @@ export default {
 										key: user.preferredUsername,
 										value: user.account,
 										url: user.url,
-										avatar: user.local ? OC.generateUrl(`/avatar/${user.preferredUsername}/32`) : OC.generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
+										avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
 									})
 								}
 								cb(users)
@@ -474,7 +475,7 @@ export default {
 								tag = item.original.value
 							}
 							return '<span class="hashtag" contenteditable="false">'
-								+ '<a href="' + OC.generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
+								+ '<a href="' + generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
 						},
 						values: (text, cb) => {
 							let tags = []
@@ -691,7 +692,7 @@ export default {
 				if (e.target.result.startsWith('data:image')) {
 					img.src = e.target.result
 				} else {
-					img.src = OC.generateUrl('svg/core/filetypes/x-office-document?color=d8d8d8')
+					img.src = generateUrl('svg/core/filetypes/x-office-document?color=d8d8d8')
 				}
 			}
 
@@ -824,10 +825,10 @@ export default {
 
 		},
 		remoteSearchAccounts(text) {
-			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
+			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
 		},
 		remoteSearchHashtags(text) {
-			return axios.get(OC.generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
+			return axios.get(generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
 		}
 	}
 }

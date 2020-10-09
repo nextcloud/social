@@ -81,6 +81,7 @@
 import UserEntry from './UserEntry.vue'
 import axios from '@nextcloud/axios'
 import Trend from 'vuetrend'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'Search',
@@ -153,14 +154,14 @@ export default {
 		},
 		accountSearch(term) {
 			this.loading = true
-			return axios.get(OC.generateUrl('apps/social/api/v1/global/accounts/search?search=' + term))
+			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search?search=' + term))
 		},
 		searchQuery(term) {
 			this.loading = true
-			return axios.get(OC.generateUrl('apps/social/api/v1/search?search=' + term))
+			return axios.get(generateUrl('apps/social/api/v1/search?search=' + term))
 		},
 		remoteSearch(term) {
-			return axios.get(OC.generateUrl('apps/social/api/v1/global/account/info?account=' + term))
+			return axios.get(generateUrl('apps/social/api/v1/global/account/info?account=' + term))
 		}
 	}
 }

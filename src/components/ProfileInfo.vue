@@ -101,6 +101,7 @@ import serverData from '../mixins/serverData'
 import currentUser from '../mixins/currentUserMixin'
 import follow from '../mixins/follow'
 import FollowButton from './FollowButton.vue'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'ProfileInfo',
@@ -145,12 +146,12 @@ export default {
 			return (field) => this.accountInfo.details.count ? this.accountInfo.details.count[field] : ''
 		},
 		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
 		}
 	},
 	methods: {
 		followRemote() {
-			window.open(OC.generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
+			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		}
 	}
 }

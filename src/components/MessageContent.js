@@ -65,7 +65,7 @@ function transformText(createElement, text) {
 							to: {
 								name: 'profile',
 								params: { account: match[2].substr(1) }
-							},
+							}
 						}
 					},
 					[match[3]]
