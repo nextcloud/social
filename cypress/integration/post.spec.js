@@ -61,6 +61,7 @@ describe('Create posts', function() {
 	it('Write a post to @admin', function() {
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
 		cy.get('.new-post').find('[contenteditable]').type('@adm', {delay: 500})
 		cy.get('.tribute-container').should('be.visible')
 		cy.get('.tribute-container ul li:first').contains('admin')
@@ -68,7 +69,7 @@ describe('Create posts', function() {
 		cy.get('.new-post input[type=submit]')
 			.click()
 		cy.wait('@postMessage')
-		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'admin@localhost')
+		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', '@admin')
 	})
 
 	it('Opens the menu and shows that followers is selected by default', function() {
@@ -86,7 +87,7 @@ describe('Create posts', function() {
 
 		cy.get('.new-post input[type=submit]')
 			.click()
-		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello there').should('contain', 'admin@localhost')
+		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello there').should('contain', '@admin')
 
 	})
 
