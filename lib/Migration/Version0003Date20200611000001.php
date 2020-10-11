@@ -1046,7 +1046,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
-		$table->addUniqueIndex(['url'], 'unique_url');
+//		$table->addUniqueIndex(['url'], 'unique_url');
 	}
 
 	/**
