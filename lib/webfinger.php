@@ -37,7 +37,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCP\AppFramework\QueryException;
 
-require_once(__DIR__ . '/../composer/autoload.php');
+require_once(__DIR__ . '/../vendor/autoload.php');
 
 if (!array_key_exists('resource', $_GET)) {
 	echo 'missing resource';

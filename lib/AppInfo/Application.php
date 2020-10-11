@@ -46,6 +46,7 @@ use OCP\AppFramework\QueryException;
 use OCP\IServerContainer;
 use Throwable;
 
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 /**
  * Class Application

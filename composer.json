@@ -13,7 +13,6 @@
     "platform": {
       "php": "7.0.0"
     },
-    "vendor-dir": "composer/",
     "optimize-autoloader": true,
     "classmap-authoritative": true,
     "autoloader-suffix": "Social"
