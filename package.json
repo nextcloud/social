@@ -35,7 +35,7 @@
 		"@nextcloud/initial-state": "^1.1.2",
 		"@nextcloud/logger": "^1.1.2",
 		"@nextcloud/router": "^1.2.0",
-		"@nextcloud/vue": "^2.6.8",
+		"@nextcloud/vue": "^2.7.0",
 		"he": "^1.2.0",
 		"linkifyjs": "^2.1.8",
 		"tributejs": "^3.7.3",
