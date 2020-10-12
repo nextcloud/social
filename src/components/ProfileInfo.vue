@@ -137,6 +137,9 @@ export default {
 			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
 				return this.accountInfo.name
 			}
+			if (typeof this.accountInfo.preferredUsername !== 'undefined' && this.accountInfo.preferredUsername !== '') {
+				return this.accountInfo.preferredUsername
+			}
 			return this.account
 		},
 		accountInfo: function() {
