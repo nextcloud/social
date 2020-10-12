@@ -22,6 +22,7 @@
 
 import axios from '@nextcloud/axios'
 import Vue from 'vue'
+import { generateUrl } from '@nextcloud/router'
 
 const state = {
 	currentAccount: {},
@@ -108,7 +109,7 @@ const getters = {
 
 const actions = {
 	fetchAccountInfo(context, account) {
-		return axios.get(OC.generateUrl(`apps/social/api/v1/global/account/info?account=${account}`)).then((response) => {
+		return axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`)).then((response) => {
 			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
 			return response.data.result.account
 		}).catch(() => {
@@ -116,7 +117,7 @@ const actions = {
 		})
 	},
 	fetchPublicAccountInfo(context, uid) {
-		return axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
+		return axios.get(generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
 			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
 			return response.data.result.account
 		}).catch(() => {
@@ -128,7 +129,7 @@ const actions = {
 		dispatch('fetchAccountInfo', account)
 	},
 	followAccount(context, { currentAccount, accountToFollow }) {
-		return axios.put(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow)).then((response) => {
+		return axios.put(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow)).then((response) => {
 			if (response.data.status === -1) {
 				return Promise.reject(response)
 			}
@@ -141,7 +142,7 @@ const actions = {
 
 	},
 	unfollowAccount(context, { currentAccount, accountToUnfollow }) {
-		return axios.delete(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow)).then((response) => {
+		return axios.delete(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow)).then((response) => {
 			if (response.data.status === -1) {
 				return Promise.reject(response)
 			}
@@ -157,7 +158,7 @@ const actions = {
 		// TODO: fetching followers/following information of remotes is currently not supported
 		const parts = account.split('@')
 		const uid = (parts.length === 2 ? parts[0] : account)
-		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/followers`)).then((response) => {
+		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/followers`)).then((response) => {
 			context.commit('addFollowers', { account, data: response.data.result })
 		})
 	},
@@ -165,7 +166,7 @@ const actions = {
 		// TODO: fetching followers/following information of remotes is currently not supported
 		const parts = account.split('@')
 		const uid = (parts.length === 2 ? parts[0] : account)
-		axios.get(OC.generateUrl(`apps/social/api/v1/account/${uid}/following`)).then((response) => {
+		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/following`)).then((response) => {
 			context.commit('addFollowing', { account, data: response.data.result })
 		})
 	}

@@ -97,6 +97,7 @@ import axios from '@nextcloud/axios'
 import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
 import { loadState } from '@nextcloud/initial-state'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'App',
@@ -214,7 +215,7 @@ export default {
 			this.infoHidden = true
 		},
 		setCloudAddress() {
-			axios.post(OC.generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
+			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
 				this.$store.commit('setServerDataEntry', 'setup', false)
 				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
 			})

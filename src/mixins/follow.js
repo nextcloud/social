@@ -21,6 +21,7 @@
  */
 
 import axios from '@nextcloud/axios'
+import { generateUrl } from '@nextcloud/router'
 
 class FollowException {
 
@@ -39,7 +40,7 @@ export default {
 	methods: {
 		follow() {
 			this.followLoading = true
-			return axios.put(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account)).then((response) => {
+			return axios.put(generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account)).then((response) => {
 				this.followLoading = false
 				if (response.data.status === -1) {
 					throw new FollowException()
@@ -54,7 +55,7 @@ export default {
 		},
 		unfollow() {
 			this.followLoading = true
-			return axios.delete(OC.generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account)).then((response) => {
+			return axios.delete(generateUrl('/apps/social/api/v1/current/follow?account=' + this.item.account)).then((response) => {
 				this.followLoading = false
 				if (response.data.status === -1) {
 					throw new UnfollowException()

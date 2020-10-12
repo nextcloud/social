@@ -64,6 +64,7 @@ import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import axios from '@nextcloud/axios'
 import currentuserMixin from './../mixins/currentUserMixin'
 import { loadState } from '@nextcloud/initial-state'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'App',
@@ -84,7 +85,7 @@ export default {
 			return this.serverData.account
 		},
 		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
 		},
 		accountInfo: function() {
 			return this.$store.getters.getAccount(this.serverData.account)
@@ -124,7 +125,7 @@ export default {
 			})
 		},
 		followRemote() {
-			axios.get(OC.generateUrl(`/apps/social/api/v1/ostatus/link/${this.serverData.local}/` + encodeURI(this.remote))).then((a) => {
+			axios.get(generateUrl(`/apps/social/api/v1/ostatus/link/${this.serverData.local}/` + encodeURI(this.remote))).then((a) => {
 				window.location = a.data.result.url
 			})
 		},

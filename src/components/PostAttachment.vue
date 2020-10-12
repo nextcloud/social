@@ -1,7 +1,7 @@
 <template>
 	<masonry>
 		<div v-for="(item, index) in attachments" :key="index">
-			<img :src="OC.generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal(index)">
+			<img :src="generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal(index)">
 		</div>
 		<modal v-show="modal" :has-previous="current > 0" :has-next="current < (attachments.length - 1)"
 			size="full" @close="closeModal" @previous="showPrevious"
@@ -16,6 +16,7 @@
 <script>
 
 import Modal from '@nextcloud/vue/dist/Components/Modal'
+import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'PostAttachment',
@@ -55,7 +56,7 @@ export default {
 				canvas.height = height
 				ctx.drawImage(img, 0, 0, width, height)
 			}
-			img.src = OC.generateUrl('/apps/social/document/get?id=' + this.attachments[this.current].id)
+			img.src = generateUrl('/apps/social/document/get?id=' + this.attachments[this.current].id)
 		},
 		showModal(idx) {
 			this.current = idx

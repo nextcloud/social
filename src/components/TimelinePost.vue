@@ -65,6 +65,8 @@ import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment.vue'
 import MessageContent from './MessageContent'
+import moment from '@nextcloud/moment'
+import { generateUrl } from '@nextcloud/router'
 
 pluginMention(linkify)
 
@@ -103,7 +105,7 @@ export default {
 			return actions
 		},
 		relativeTimestamp() {
-			return OC.Util.relativeModifiedDate(this.item.published)
+			return moment(this.item.published).fromNow()
 		},
 		timestamp() {
 			return Date.parse(this.item.published)
@@ -119,7 +121,7 @@ export default {
 			return JSON.parse(this.item.source)
 		},
 		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
 		},
 		hasAttachments() {
 			return (typeof this.item.attachment !== 'undefined')
