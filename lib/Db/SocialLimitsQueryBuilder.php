@@ -408,7 +408,9 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$andX = $expr->andX();
 
 		$andX->add($expr->eq($alias . '.stream_id', $this->getDefaultSelectAlias() . '.id_prim'));
-		$andX->add($this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias));
+		if ($actorId) {
+			$andX->add($this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias));
+		}
 		$andX->add($this->exprLimitToDBField('type', $type, true, true, $alias));
 
 		if ($subType !== '') {

@@ -489,7 +489,8 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
-		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+		$accountIsViewer = ($qb->hasViewer()) ? ($qb->getViewer()->getId() === $actorId) : false;
+		$qb->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
