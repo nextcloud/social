@@ -64,7 +64,7 @@ clean:
 clean-dev:
 	rm -rf node_modules
 
-build-composer:
+composer:
 	composer install --prefer-dist
 	composer update --prefer-dist
 
@@ -88,7 +88,7 @@ github-upload:
 		--file $(build_dir)/$(app_name)-$(version).tar.gz
 
 # creating .tar.gz + signature
-appstore: dev-setup lint build-js-production build-composer
+appstore: dev-setup lint build-js-production composer
 	mkdir -p $(sign_dir)
 	rsync -a \
 	--exclude=/build \
