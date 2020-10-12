@@ -106,8 +106,5 @@ export default {
 </script>
 
 <style>
-	/* Show main post with a bigger font */
-        .main-post {
-                font-size: 150%;
-        }
+
 </style>

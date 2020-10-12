@@ -141,31 +141,31 @@ export default {
 		}
 	},
 	methods: {
-    /**
+		/**
      * @function getSinglePostTimeline
      * @description Opens the timeline of the post clicked
      */
-    getSinglePostTimeline(e) {
-      // Display internal or external post
-      if (!this.item.local) {
-        if (this.item.type === 'Note') {
-          window.open(this.item.id)
-        } else if (this.item.type === 'Announce') {
-          window.open(this.item.object)
-        } else {
-          Logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
-        }
-      } else {
-        this.$router.push({ name: 'single-post',
-          params: {
-            account: this.item.actor_info.preferredUsername,
-            id: this.item.id,
-            localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
-            type: 'single-post'
-          }
-        })
-      }
-    },
+		getSinglePostTimeline(e) {
+			// Display internal or external post
+			if (!this.item.local) {
+				if (this.item.type === 'Note') {
+					window.open(this.item.id)
+				} else if (this.item.type === 'Announce') {
+					window.open(this.item.object)
+				} else {
+					Logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
+				}
+			} else {
+				this.$router.push({ name: 'single-post',
+					params: {
+						account: this.item.actor_info.preferredUsername,
+						id: this.item.id,
+						localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
+						type: 'single-post'
+					}
+				})
+			}
+		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
 		},
