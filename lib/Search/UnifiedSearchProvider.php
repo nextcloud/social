@@ -91,8 +91,10 @@ class UnifiedSearchProvider implements IProvider {
 	/** @var MiscService */
 	private $miscService;
 
+
 	/** @var Person */
 	private $viewer;
+
 
 	/**
 	 * UnifiedSearchProvider constructor.
@@ -117,7 +119,6 @@ class UnifiedSearchProvider implements IProvider {
 		$this->streamService = $streamService;
 		$this->followService = $followService;
 		$this->cacheActorService = $cacheActorService;
-
 		$this->accountService = $accountService;
 		$this->searchService = $searchService;
 		$this->configService = $configService;

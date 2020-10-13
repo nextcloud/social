@@ -153,11 +153,9 @@ class SearchService {
 		switch ($char) {
 			case '@':
 				return self::SEARCH_ACCOUNTS;
-				break;
 
 			case '#':
 				return self::SEARCH_HASHTAGS;
-				break;
 
 			default:
 				return self::SEARCH_ALL;
