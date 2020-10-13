@@ -210,11 +210,7 @@ class ACore extends Item implements JsonSerializable {
 	 * @return bool
 	 */
 	public function hasIcon(): bool {
-		if ($this->icon === null) {
-			return false;
-		}
-
-		return true;
+		return ($this->icon !== null);
 	}
 
 	/**

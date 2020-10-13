@@ -217,12 +217,13 @@ class UnifiedSearchProvider implements IProvider {
 	private function convertAccounts(array $accounts): array {
 		$result = [];
 		foreach ($accounts as $account) {
+			$icon = ($account->hasIcon()) ? $account->getIcon()->getUrl() : '';
 			$result[] = new UnifiedSearchResult(
-				$account->getAvatar(),
+				$icon,
 				$account->getPreferredUsername(),
 				'@' . $account->getAccount(),
 				$account->getUrl(),
-				$account->getAvatar()
+				$icon
 			);
 		}
 
