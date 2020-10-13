@@ -1,8 +1,7 @@
 /*
- * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
+ * @copyright Copyright (c) 2030 Jonas Sulzer <jonas@violoncello.ch>
  *
- * @author John Molakvoæ <skjnldsv@protonmail.com>
- * @author Julius Härtl <jus@bitgrid.net>
+ * @author Jonas Sulzer <jonas@violoncello.ch>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -21,23 +20,32 @@
  *
  */
 
-import Vue from 'vue'
-import Vuex from 'vuex'
-import timeline from './timeline'
-import composer from './composer'
-import account from './account'
-import settings from './settings'
-
-Vue.use(Vuex)
-
-const debug = process.env.NODE_ENV !== 'production'
-
-export default new Vuex.Store({
-	modules: {
-		timeline,
-		composer,
-		account,
-		settings
+const state = {
+	openInModal: false,
+	reply: null
+}
+const mutations = {
+	openComposerModal(state) {
+		state.openInModal = true
 	},
-	strict: debug
-})
+	closeComposerModal(state) {
+		state.openInModal = false
+	},
+	setComposerReply(state, data) {
+		state.reply = data
+	},
+	removeComposerReply(state) {
+		state.reply = null
+	}
+}
+const getters = {
+	getComposerModalState(state) {
+		return state.openInModal
+	},
+	getReply(state) {
+		return state.reply
+	}
+}
+const actions = {}
+
+export default { state, mutations, getters, actions }

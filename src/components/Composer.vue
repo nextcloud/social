@@ -36,10 +36,10 @@
 		</div>
 		<div v-if="replyTo" class="reply-to">
 			<p>
-				<span>In reply to</span>
+				<span>{{ t('social', 'In reply to') }}</span>
 				<actor-avatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
-				<a class="icon-close" @click="replyTo=null" />
+				<a class="icon-close" @click="$store.commit('removeComposerReply')" />
 			</p>
 			<div class="reply-to-preview">
 				{{ replyTo.content }}
@@ -111,10 +111,6 @@
 	.new-post {
 		padding: 10px;
 		background-color: var(--color-main-background);
-		position: sticky;
-		top: 47px;
-		z-index: 100;
-		margin-bottom: 10px;
 	}
 
 	.new-post-author {
@@ -422,7 +418,6 @@ export default {
 			postAttachments: [],	// The toot's attachments
 			canType: true,
 			search: '',
-			replyTo: null,
 			tributeOptions: {
 				spaceSelectsMatch: true,
 				collection: [
@@ -517,6 +512,9 @@ export default {
 		}
 	},
 	computed: {
+		replyTo() {
+			return this.$store.getters.getReply
+		},
 		currentVisibilityIconClass() {
 			return this.visibilityIconClass(this.type)
 		},
@@ -606,11 +604,6 @@ export default {
 				}
 			]
 		}
-	},
-	mounted() {
-		this.$root.$on('composer-reply', (data) => {
-			this.replyTo = data
-		})
 	},
 	methods: {
 		AddAttachment() {
@@ -815,7 +808,7 @@ export default {
 			this.loading = true
 			this.$store.dispatch('post', postData).then((response) => {
 				this.loading = false
-				this.replyTo = null
+				this.$store.commit('removeComposerReply')
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
 				this.postAttachments = []
