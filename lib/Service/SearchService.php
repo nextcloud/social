@@ -33,6 +33,7 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
 class SearchService {
@@ -82,14 +83,10 @@ class SearchService {
 	/**
 	 * @param string $search
 	 *
-	 * @return array
+	 * @return Person[]
 	 */
 	public function searchAccounts(string $search): array {
-		$result = [
-			'exact'  => null,
-			'result' => []
-		];
-
+		$result = [];
 		$type = $this->getTypeFromSearch($search);
 		if ($search === '' || !$type & self::SEARCH_ACCOUNTS) {
 			return $result;
@@ -100,19 +97,11 @@ class SearchService {
 		}
 
 		try {
-			$exact = $this->cacheActorService->getFromAccount($search);
-			$exact->setCompleteDetails(true);
-			$result['exact'] = $exact;
+			$this->cacheActorService->getFromAccount($search);
 		} catch (Exception $e) {
 		}
 
-		try {
-			$accounts = $this->cacheActorService->searchCachedAccounts($search);
-			$result['result'] = $accounts;
-		} catch (Exception $e) {
-		}
-
-		return $result;
+		return $this->cacheActorService->searchCachedAccounts($search);
 	}
 
 
@@ -122,11 +111,7 @@ class SearchService {
 	 * @return array
 	 */
 	public function searchHashtags(string $search): array {
-		$result = [
-			'exact'  => null,
-			'result' => []
-		];
-
+		$result = [];
 		$type = $this->getTypeFromSearch($search);
 		if ($search === '' || !$type & self::SEARCH_HASHTAGS) {
 			return $result;
@@ -136,19 +121,7 @@ class SearchService {
 			$search = substr($search, 1);
 		}
 
-		try {
-			$exact = $this->hashtagService->getHashtag($search);
-			$result['exact'] = $exact;
-		} catch (Exception $e) {
-		}
-
-		try {
-			$hashtags = $this->hashtagService->searchHashtags($search, true);
-			$result['result'] = $hashtags;
-		} catch (Exception $e) {
-		}
-
-		return $result;
+		return $this->hashtagService->searchHashtags($search, true);
 	}
 
 
