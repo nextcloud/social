@@ -1,7 +1,7 @@
 <template>
 	<masonry>
 		<div v-for="(item, index) in attachments" :key="index">
-			<img :src="generateUrl('/apps/social/document/get/resized?id=' + item.id)" @click="showModal(index)">
+			<img :src="imageUrl(item)" @click="showModal(index)">
 		</div>
 		<modal v-show="modal" :has-previous="current > 0" :has-next="current < (attachments.length - 1)"
 			size="full" @close="closeModal" @previous="showPrevious"
@@ -15,6 +15,7 @@
 
 <script>
 
+import serverData from '../mixins/serverData'
 import Modal from '@nextcloud/vue/dist/Components/Modal'
 import { generateUrl } from '@nextcloud/router'
 
@@ -23,7 +24,9 @@ export default {
 	components: {
 		Modal
 	},
-	mixins: [],
+	mixins: [
+		serverData
+	],
 	props: {
 		attachments: {
 			type: Array,
@@ -37,7 +40,24 @@ export default {
 		}
 	},
 	methods: {
-		displayResizedImage() {
+		/**
+		 * @function imageUrl
+		 * @description Returns the URL where to get a resized version of the attachement
+		 * @param {object} item - The attachment
+		 * @returns {string} The URL
+		 */
+		imageUrl(item) {
+			if (this.serverData.public) {
+				return generateUrl('/apps/social/document/public/resized?id=' + item.id)
+			} else {
+				return generateUrl('/apps/social/document/get/resized?id=' + item.id)
+			}
+		},
+		/**
+		 * @function displayImage
+		 * @description Displays the currently selected attachment's image
+		 */
+		displayImage() {
 			var canvas = this.$refs.modalCanvas
 			var ctx = canvas.getContext('2d')
 			var img = new Image()
@@ -60,7 +80,7 @@ export default {
 		},
 		showModal(idx) {
 			this.current = idx
-			this.displayResizedImage()
+			this.displayImage()
 			this.modal = true
 		},
 		closeModal() {
@@ -68,11 +88,11 @@ export default {
 		},
 		showPrevious() {
 			this.current--
-			this.displayResizedImage()
+			this.displayImage()
 		},
 		showNext() {
 			this.current++
-			this.displayResizedImage()
+			this.displayImage()
 		}
 	}
 }

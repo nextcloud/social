@@ -274,11 +274,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToInReplyTo($id);
 		$qb->limitPaginate($since, $limit);
 
-		$expr = $qb->expr();
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-
-		$qb->andWhere($expr->eq('s.attributed_to', 'ca.id_prim'));
-
 		if ($asViewer) {
 			$qb->limitToViewer('sd', 'f', true);
 			$qb->leftJoinStreamAction();

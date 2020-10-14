@@ -40,6 +40,7 @@
 <script>
 import ProfileInfo from './../components/ProfileInfo.vue'
 import EmptyContent from '../components/EmptyContent.vue'
+import accountMixins from '../mixins/accountMixins'
 import serverData from '../mixins/serverData'
 
 export default {
@@ -49,6 +50,7 @@ export default {
 		ProfileInfo
 	},
 	mixins: [
+		accountMixins,
 		serverData
 	],
 	data() {
@@ -58,17 +60,8 @@ export default {
 		}
 	},
 	computed: {
-		profileAccount() {
-			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
-		},
 		timeline: function() {
 			return this.$store.getters.getTimeline
-		},
-		accountInfo: function() {
-			return this.$store.getters.getAccount(this.profileAccount)
-		},
-		accountLoaded() {
-			return this.$store.getters.accountLoaded(this.profileAccount)
 		},
 		emptyContentData() {
 			return {
@@ -78,12 +71,12 @@ export default {
 			}
 		}
 	},
+	// Start fetching account information before mounting the component
 	beforeMount() {
-
-		let fetchMethod = ''
 		this.uid = this.$route.params.account || this.serverData.account
 
 		// Are we authenticated?
+		let fetchMethod = ''
 		if (this.serverData.public) {
 			fetchMethod = 'fetchPublicAccountInfo'
 		} else {
@@ -95,8 +88,6 @@ export default {
 		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
 			this.uid = response.account
 		})
-	},
-	methods: {
 	}
 }
 </script>

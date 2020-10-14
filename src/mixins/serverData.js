@@ -1,6 +1,10 @@
 /*
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
+ * @file Provides global methods for using the serverData structure.
+ *
+ * @mixin
+ *
  * @author Julius Härtl <jus@bitgrid.net>
  *
  * @license GNU AGPL version 3 or any later version
@@ -22,7 +26,17 @@
 
 export default {
 	computed: {
-		serverData: function() {
+		/** @description Returns the serverData object
+		 * @property {String}	account - The account that the user wants to follow (Only in 'OStatus.vue')
+		 * @property cliUrl
+		 * @property cloudAddress
+		 * @property firstrun
+		 * @property isAdmin
+		 * @property {String}	local	- The local part of the account that the user wants to follow
+		 * @property {boolean}	public	- False when the page is accessed by an authenticated user. True otherwise
+		 * @property 		setup
+		 */
+		serverData() {
 			return this.$store.getters.getServerData
 		},
 		hostname() {

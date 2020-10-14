@@ -21,7 +21,7 @@
   -->
 
 <template>
-	<div v-if="account && accountInfo" class="user-profile">
+	<div v-if="profileAccount && accountInfo" class="user-profile">
 		<div>
 			<avatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
 				:size="128" />
@@ -34,7 +34,7 @@
 					{{ accountInfo.website.value }}
 				</a>
 			</p>
-			<follow-button :account="accountInfo.account" />
+			<follow-button :account="accountInfo.account" :uid="uid" />
 			<button v-if="serverData.public" class="primary" @click="followRemote">
 				{{ t('social', 'Follow') }}
 			</button>
@@ -97,6 +97,7 @@
 </style>
 <script>
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import accountMixins from '../mixins/accountMixins'
 import serverData from '../mixins/serverData'
 import currentUser from '../mixins/currentUserMixin'
 import follow from '../mixins/follow'
@@ -110,8 +111,9 @@ export default {
 		Avatar
 	},
 	mixins: [
-		serverData,
+		accountMixins,
 		currentUser,
+		serverData,
 		follow
 	],
 	props: {
@@ -130,9 +132,6 @@ export default {
 			// Returns only the local part of a username
 			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.substr(0, this.uid.indexOf('@'))
 		},
-		account() {
-			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
-		},
 		displayName() {
 			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
 				return this.accountInfo.name
@@ -140,13 +139,11 @@ export default {
 			if (typeof this.accountInfo.preferredUsername !== 'undefined' && this.accountInfo.preferredUsername !== '') {
 				return this.accountInfo.preferredUsername
 			}
-			return this.account
-		},
-		accountInfo: function() {
-			return this.$store.getters.getAccount(this.account)
+			return this.profileAccount
 		},
 		getCount() {
-			return (field) => this.accountInfo.details.count ? this.accountInfo.details.count[field] : ''
+			let account = this.accountInfo
+			return (field) => account.details.count ? account.details.count[field] : ''
 		},
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)

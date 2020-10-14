@@ -1,5 +1,5 @@
 <template>
-	<div v-if="accountInfo">
+	<div v-if="account">
 		<div v-if="!serverData.local">
 			<h2>{{ t('social', 'Follow on Nextcloud Social') }}</h2>
 			<p>{{ t('social', 'Hello') }} <avatar :user="currentUser.uid" :size="16" />{{ currentUser.displayName }}</p>
@@ -23,6 +23,7 @@
 				</button>
 			</div>
 		</div>
+		<!-- Some unauthenticated user wants to follow a local account -->
 		<div v-if="serverData.local">
 			<p>{{ t('social', 'You are going to follow:') }}</p>
 			<avatar :user="serverData.local" :disable-tooltip="true" :size="128" />
@@ -34,7 +35,7 @@
 			<p>{{ t('social', 'This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account.') }}</p>
 		</div>
 	</div>
-	<div v-else :class="{ 'icon-loading-dark': !accountInfo }" />
+	<div v-else :class="{ 'icon-loading-dark': !account }" />
 </template>
 
 <style scoped>
@@ -62,7 +63,8 @@
 <script>
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import axios from '@nextcloud/axios'
-import currentuserMixin from './../mixins/currentUserMixin'
+import accountMixins from '../mixins/accountMixins'
+import currentuserMixin from '../mixins/currentUserMixin'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
@@ -71,37 +73,36 @@ export default {
 	components: {
 		Avatar
 	},
-	mixins: [currentuserMixin],
+	mixins: [
+		accountMixins,
+		currentuserMixin
+	],
 	data() {
 		return {
-			remote: ''
+			remote: '',
+			account: {}
 		}
 	},
 	computed: {
 		isFollowing() {
-			return this.$store.getters.isFollowingUser(this.account)
-		},
-		account() {
-			return this.serverData.account
+			return this.$store.getters.isFollowingUser(this.account.id)
 		},
 		avatarUrl() {
-			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
-		},
-		accountInfo: function() {
-			return this.$store.getters.getAccount(this.serverData.account)
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.account.id)
 		},
 		currentUser() {
 			return window.oc_current_user
 		},
 		displayName() {
-			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
-				return this.accountInfo.name
+			if (typeof this.account.id === 'undefined') {
+				return (this.serverData.account ? this.serverData.account : this.serverData.local)
 			}
-			return this.account
+
+			return (this.account.name ? this.account.name : this.account.preferredUsername)
 		}
 	},
 	beforeMount: function() {
-		// importing server data into the store
+		// importing server data into the store and fetching viewed account's information
 		try {
 			const serverData = loadState('social', 'serverData')
 			if (serverData.currentUser) {
@@ -109,10 +110,14 @@ export default {
 			}
 			this.$store.commit('setServerData', serverData)
 			if (this.serverData.account && !this.serverData.local) {
-				this.$store.dispatch('fetchAccountInfo', this.serverData.account)
+				this.$store.dispatch('fetchAccountInfo', this.serverData.account).then((result) => {
+					this.account = result
+				})
 			}
 			if (this.serverData.local) {
-				this.$store.dispatch('fetchPublicAccountInfo', this.serverData.local)
+				this.$store.dispatch('fetchPublicAccountInfo', this.serverData.local).then((result) => {
+					this.account = result
+				})
 			}
 		} catch {
 			/* empty */
@@ -120,7 +125,7 @@ export default {
 	},
 	methods: {
 		follow() {
-			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account }).then(() => {
+			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account.account }).then(() => {
 
 			})
 		},

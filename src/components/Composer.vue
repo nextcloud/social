@@ -39,7 +39,7 @@
 				<span>In reply to</span>
 				<actor-avatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
-				<a class="icon-close" @click="replyTo=null" />
+				<a class="icon-close" @click="closeReply()" />
 			</p>
 			<div class="reply-to-preview">
 				{{ replyTo.content }}
@@ -610,6 +610,7 @@ export default {
 	mounted() {
 		this.$root.$on('composer-reply', (data) => {
 			this.replyTo = data
+			this.type = 'direct'
 		})
 	},
 	methods: {
@@ -737,7 +738,7 @@ export default {
 
 			let contentHtml = element.innerHTML
 
-			// Extract mentions from content and create an array ot of them
+			// Extract mentions from content and create an array out of them
 			let to = []
 			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
 			let match = null
@@ -747,6 +748,11 @@ export default {
 					to.push(match[1])
 				}
 			} while (match)
+
+			// Add author of original post in case of reply
+			if (this.replyTo !== null) {
+				to.push(this.replyTo.actor_info.account)
+			}
 
 			// Extract hashtags from content and create an array ot of them
 			const hashtagRegex = />#([^<]+)</g
@@ -823,6 +829,11 @@ export default {
 				this.$store.dispatch('refreshTimeline')
 			})
 
+		},
+		closeReply() {
+			this.replyTo = null
+			// View may want to hide the composer
+			this.$store.commit('setComposerDisplayStatus', false)
 		},
 		remoteSearchAccounts(text) {
 			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
