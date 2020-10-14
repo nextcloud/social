@@ -11,7 +11,7 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-version+=0.3.1
+version+=0.4.0
 
 
 
