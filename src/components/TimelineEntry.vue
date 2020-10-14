@@ -1,5 +1,5 @@
 <template>
-	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']" @click="getSinglePostTimeline">
+	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']">
 		<template v-if="item.type === 'SocialAppNotification'">
 			<div class="notification-icon" :class="notificationIcon" />
 			<span class="notification-action">

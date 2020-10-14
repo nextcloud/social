@@ -24,6 +24,9 @@ export default Vue.component('MessageContent', {
  * All attributes other than `href` for links are stripped from the source
  */
 export function formatMessage(createElement, source) {
+	if (!source.tag) {
+		source.tag = []
+	}
 	let mentions = source.tag.filter(tag => tag.type === 'Mention')
 	let hashtags = source.tag.filter(tag => tag.type === 'Hashtag')
 
