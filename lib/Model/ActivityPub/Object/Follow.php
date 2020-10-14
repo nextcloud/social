@@ -31,6 +31,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Object;
 
 
+use daita\MySmallPhpTools\IQueryRow;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 
@@ -40,7 +41,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  *
  * @package OCA\Social\Model\ActivityPub\Object
  */
-class Follow extends ACore implements JsonSerializable {
+class Follow extends ACore implements JsonSerializable, IQueryRow {
 
 
 	const TYPE = 'Follow';
