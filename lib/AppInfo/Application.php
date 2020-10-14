@@ -33,9 +33,8 @@ namespace OCA\Social\AppInfo;
 
 use Closure;
 use OC\DB\SchemaWrapper;
-use OC\WellKnown\Event\WellKnownEvent;
-use OCA\Social\Listeners\WellKnownListener;
 use OCA\Social\Notification\Notifier;
+use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
 use OCP\AppFramework\App;
@@ -73,6 +72,8 @@ class Application extends App implements IBootstrap {
 	 * @param IRegistrationContext $context
 	 */
 	public function register(IRegistrationContext $context): void {
+		$context->registerSearchProvider(UnifiedSearchProvider::class);
+
 		// TODO: nc21, uncomment
 		// $context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
 	}

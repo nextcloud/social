@@ -317,8 +317,9 @@ class CheckService {
 	private function requestWellKnown(string $base) {
 		try {
 			$url = $base . '/.well-known/webfinger';
+			$options['nextcloud']['allow_local_address'] = true;
 			$response = $this->clientService->newClient()
-											->get($url);
+											->get($url, $options);
 			if ($response->getStatusCode() === Http::STATUS_OK) {
 				$this->cache->set(self::CACHE_PREFIX . 'wellknown', 'true', 3600);
 
