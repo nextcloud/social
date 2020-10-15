@@ -40,13 +40,13 @@
 				<post-attachment :attachments="item.attachment" />
 			</div>
 			<div v-if="this.$route.params.type!=='notifications' && !serverData.public" v-click-outside="hidePopoverMenu" class="post-actions">
-				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
+				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" tabindex="0" />
 				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
 					:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
 					@click.prevent="boost" />
-				<a v-tooltip.bottom="t('social', 'Like')" :class="(isLiked) ? 'icon-starred' : 'icon-favorite'" @click.prevent="like" />
+				<a v-tooltip.bottom="t('social', 'Like')" :class="(isLiked) ? 'icon-starred' : 'icon-favorite'" @click.prevent="like" tabindex="0" />
 				<div v-if="popoverMenu.length > 0" v-tooltip.bottom="menuOpened ? '' : t('social', 'More actions')" class="post-actions-more">
-					<a class="icon-more" @click.prevent="togglePopoverMenu" />
+					<a class="icon-more" @click.prevent="togglePopoverMenu" tabindex="0" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">
 						<popover-menu :menu="popoverMenu" />
 					</div>
@@ -253,7 +253,7 @@ export default {
 			.post-actions-more {
 				position: relative;
 				width: 44px;
-				height: 34px;
+				height: 44px;
 				display: inline-block;
 			}
 
@@ -265,16 +265,24 @@ export default {
 			.icon-more {
 				display: inline-block;
 				width: 44px;
-				height: 34px;
+				height: 44px;
+				border-radius: var(--border-radius-pill);
 				opacity: .5;
 
 				&:hover,
 				&:focus {
 					opacity: 1;
+					background-color:var(--color-main-background);
+				}
+
+				&:focus {
+					// Needs to be different because keyboard doesn’t trigger the whole entry background change
+					background-color:var(--color-background-hover);
 				}
 			}
 
-			.icon-boosted {
+			.icon-boosted,
+			.icon-starred {
 				opacity: 1;
 			}
 		}
