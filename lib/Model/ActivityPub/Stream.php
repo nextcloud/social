@@ -480,6 +480,21 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
+		$actions = ($this->hasAction()) ? $this->getAction()->getValues() : [];
+		$favorited = false;
+		$reblogged = false;
+		foreach ($actions as $action => $value) {
+			if ($value) {
+				switch ($action) {
+					case StreamAction::BOOSTED:
+						$reblogged = true;
+						break;
+					case StreamAction::LIKED:
+						$favorited = true;
+						break;
+				}
+			}
+		}
 		$result = [
 			"content"                => $this->getContent(),
 			"sensitive"              => $this->isSensitive(),
@@ -491,8 +506,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'replies_count'          => 0,
 			'reblogs_count'          => 0,
 			'favourites_count'       => 0,
-			'favourited'             => false,
-			'reblogged'              => false,
+			'favourited'             => $favorited,
+			'reblogged'              => $reblogged,
 			'muted'                  => false,
 			'bookmarked'             => false,
 			'uri'                    => $this->getId(),
