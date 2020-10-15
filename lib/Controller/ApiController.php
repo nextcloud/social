@@ -261,14 +261,17 @@ class ApiController extends Controller {
 	 *
 	 * @param string $timeline
 	 * @param int $limit
-	 *
+	 * @param int $max_id
+	 * @param int $min_id
 	 * @return DataResponse
 	 */
-	public function timelines(string $timeline, int $limit = 20): DataResponse {
+	public function timelines(string $timeline, int $limit = 20, int $max_id = 0, int $min_id = 0): DataResponse {
 		$options = new TimelineOptions($this->request);
 		$options->setFormat(Stream::FORMAT_LOCAL);
 		$options->setTimeline($timeline);
 		$options->setLimit($limit);
+		$options->setMaxId($max_id);
+		$options->setMinId($min_id);
 
 		try {
 			$this->initViewer(true);
