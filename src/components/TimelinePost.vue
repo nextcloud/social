@@ -200,81 +200,79 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.post-author {
-	font-weight: bold;
-}
-
-.post-author-id {
-	opacity: .7;
-}
-
-.post-avatar {
-	margin: 5px;
-	margin-right: 10px;
-	border-radius: 50%;
-	overflow: hidden;
-	width: 32px;
-	height: 32px;
-	min-width: 32px;
-	flex-shrink: 0;
-}
-
-.post-timestamp {
-	width: 120px;
-	text-align: right;
-	flex-shrink: 0;
-}
-
-.post-actions {
-	margin-left: -13px;
-	height: 44px;
-
-	.post-actions-more {
-		position: relative;
-		width: 44px;
-		height: 34px;
-		display: inline-block;
-	}
-	.icon-reply,
-	.icon-boost,
-	.icon-boosted,
-	.icon-starred,
-	.icon-favorite,
-	.icon-more {
-		display: inline-block;
-		width: 44px;
-		height: 34px;
-		opacity: .5;
-		&:hover, &:focus {
-			opacity: 1;
-		}
-	}
-	.icon-boosted {
-		opacity: 1;
-	}
-}
-
-span {
-	/* opacity: 0.5; */
-}
 .entry-content {
 	display: flex;
-}
 
-.post-content {
-	flex-grow: 1;
-}
+	.post-avatar {
+		margin: 5px;
+		margin-right: 10px;
+		border-radius: 50%;
+		overflow: hidden;
+		width: 32px;
+		height: 32px;
+		min-width: 32px;
+		flex-shrink: 0;
+	}
 
-.post-header {
-	display: flex;
-	flex-direction: row;
-	justify-content: space-between;
-}
+	.post-content {
+		flex-grow: 1;
 
-.post-timestamp {
-	opacity: .7;
+		.post-header {
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+
+			.post-author {
+				font-weight: bold;
+			}
+
+			.post-author-id {
+				opacity: .7;
+			}
+
+			.post-timestamp {
+				width: 120px;
+				text-align: right;
+				flex-shrink: 0;
+			}
+		}
+
+		.post-actions {
+			margin-left: -13px;
+			height: 44px;
+
+			.post-actions-more {
+				position: relative;
+				width: 44px;
+				height: 34px;
+				display: inline-block;
+			}
+
+			.icon-reply,
+			.icon-boost,
+			.icon-boosted,
+			.icon-starred,
+			.icon-favorite,
+			.icon-more {
+				display: inline-block;
+				width: 44px;
+				height: 34px;
+				opacity: .5;
+
+				&:hover,
+				&:focus {
+					opacity: 1;
+				}
+			}
+
+			.icon-boosted {
+				opacity: 1;
+			}
+		}
+	}
 }
 </style>
+
 <style>
 .post-message a {
 	text-decoration: underline;
