@@ -33,7 +33,7 @@
 				<div class="list-end" />
 			</div>
 			<div slot="no-results">
-				<empty-content :item="emptyContentData" />
+				<empty-content v-if="timeline.length === 0" :item="emptyContentData" />
 			</div>
 		</infinite-loading>
 	</div>

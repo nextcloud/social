@@ -41,6 +41,10 @@ describe('Create posts', function() {
 		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
 	})
 
+	it('See the empty content illustration', function() {
+		cy.get('.emptycontent').should('be.visible').contains('No posts found')
+	})
+
 	it('Write a post to followers', function() {
 		cy.visit('/apps/social/')
 		cy.server()
@@ -54,6 +58,10 @@ describe('Create posts', function() {
 			.click()
 		cy.wait('@postMessage')
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world')
+	})
+
+	it('No longer see the empty content illustration', function() {
+		cy.get('.emptycontent').should('not.be.visible')
 	})
 
 	it('Write a post to followers with shift enter', function() {
