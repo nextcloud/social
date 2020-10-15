@@ -1,9 +1,9 @@
 <template>
 	<article class="entry-content">
 		<div v-if="item.actor_info" class="post-avatar">
-			<avatar v-if="item.local && item.type!=='SocialAppNotification'" :size="32" :user="item.actor_info.preferredUsername"
-				:display-name="item.actor_info.account" :disable-tooltip="true" />
-			<avatar v-else :size="32" :url="avatarUrl"
+			<avatar v-if="item.local && item.type!=='SocialAppNotification'" :size="44" :user="item.actor_info.preferredUsername"
+				:display-name="item.actor_info.account" :disable-tooltip="true" :showUserStatus="false" />
+			<avatar v-else :size="44" :url="avatarUrl"
 				:disable-tooltip="true" />
 		</div>
 		<div class="post-content">
@@ -204,13 +204,10 @@ export default {
 	display: flex;
 
 	.post-avatar {
-		margin: 5px;
-		margin-right: 10px;
-		border-radius: 50%;
-		overflow: hidden;
-		width: 32px;
-		height: 32px;
-		min-width: 32px;
+		margin: 2px;
+		margin-right: 12px;
+		width: 44px;
+		height: 44px;
 		flex-shrink: 0;
 	}
 

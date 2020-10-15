@@ -568,21 +568,15 @@ export default {
 
 <style scoped lang="scss">
 .new-post {
-	padding: 10px;
-	background-color: var(--color-main-background);
-	position: sticky;
-	top: 47px;
-	z-index: 100;
-	margin-bottom: 10px;
+	padding: 16px;
 }
 
 .new-post-author {
-	padding: 5px;
 	display: flex;
 	flex-wrap: wrap;
 
 	.post-author {
-		padding: 6px;
+		padding: 10px;
 
 		.post-author-name {
 			font-weight: bold;
@@ -618,7 +612,7 @@ export default {
 	flex-grow: 1;
 	position: relative;
 	top: -10px;
-	margin-left: 39px;
+	margin-left: 47px;
 }
 
 .message {
