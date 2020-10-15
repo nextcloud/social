@@ -1,5 +1,5 @@
 <template>
-	<div class="entry-content">
+	<article class="entry-content">
 		<div v-if="item.actor_info" class="post-avatar">
 			<avatar v-if="item.local && item.type!=='SocialAppNotification'" :size="32" :user="item.actor_info.preferredUsername"
 				:display-name="item.actor_info.account" :disable-tooltip="true" />
@@ -53,7 +53,7 @@
 				</div>
 			</div>
 		</div>
-	</div>
+	</article>
 </template>
 
 <script>

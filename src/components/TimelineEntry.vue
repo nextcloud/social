@@ -101,29 +101,30 @@ export default {
 }
 </script>
 <style scoped lang="scss">
-	.timeline-entry {
-		padding: 10px;
-		margin-bottom: 10px;
-		&:hover {
-			background-color: var(--color-background-hover);
-		}
-	}
+.timeline-entry {
+	padding: 16px;
+	border-radius: var(--border-radius-large);
 
-	.container-icon-boost {
-		display: inline-block;
-		padding-right: 6px;
+	&:hover {
+		background-color: var(--color-background-hover);
 	}
+}
 
-	.icon-boost {
-		display: inline-block;
-		width: 38px;
-		height: 17px;
-		opacity: .5;
-		background-position: right center;
-		vertical-align: middle;
-	}
+.container-icon-boost {
+	display: inline-block;
+	padding-right: 6px;
+}
 
-	.boost {
-		opacity: .5;
-	}
+.icon-boost {
+	display: inline-block;
+	width: 38px;
+	height: 17px;
+	opacity: .5;
+	background-position: right center;
+	vertical-align: middle;
+}
+
+.boost {
+	opacity: .5;
+}
 </style>
