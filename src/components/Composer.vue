@@ -24,7 +24,7 @@
 	<div class="new-post" data-id="">
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
-				:size="32" />
+				:showUserStatus="false" :size="44" />
 			<div class="post-author">
 				<span class="post-author-name">
 					{{ currentUser.displayName }}
@@ -106,288 +106,8 @@
 		</form>
 	</div>
 </template>
-<style scoped lang="scss">
 
-	.new-post {
-		padding: 10px;
-		background-color: var(--color-main-background);
-		position: sticky;
-		top: 47px;
-		z-index: 100;
-		margin-bottom: 10px;
-	}
-
-	.new-post-author {
-		padding: 5px;
-		display: flex;
-		flex-wrap: wrap;
-
-		.post-author {
-			padding: 6px;
-
-			.post-author-name {
-				font-weight: bold;
-			}
-
-			.post-author-id {
-				opacity: .7;
-			}
-		}
-	}
-
-	.reply-to {
-		background-image: url(../../img/reply.svg);
-		background-position: 5px 5px;
-		background-repeat: no-repeat;
-		margin-left: 39px;
-		margin-bottom: 20px;
-		overflow: hidden;
-		background-color: #fafafa;
-		border-radius: 3px;
-		padding: 5px;
-		padding-left: 30px;
-
-		.icon-close {
-			display: inline-block;
-			float: right;
-			opacity: .7;
-			padding: 3px;
-		}
-	}
-
-	.new-post-form {
-		flex-grow: 1;
-		position: relative;
-		top: -10px;
-		margin-left: 39px;
-	}
-
-	.message {
-		width: 100%;
-		padding-right: 44px;
-		min-height: 70px;
-		min-width: 2px;
-		display: block;
-	}
-
-	[contenteditable=true]:empty:before {
-		content: attr(placeholder);
-		display: block; /* For Firefox */
-		opacity: .5;
-	}
-
-	input[type=submit].inline {
-		width: 44px;
-		height: 44px;
-		margin: 0;
-		padding: 13px;
-		background-color: transparent;
-		border: none;
-		opacity: 0.3;
-		position: absolute;
-		bottom: 0;
-		right: 0;
-	}
-
-	.options {
-		display: flex;
-		align-items: flex-end;
-		width: 100%;
-		flex-direction: row-reverse;
-	}
-
-	.options > div {
-		position: relative;
-	}
-
-	.options button {
-		width: 34px;
-		height: 34px;
-	}
-
-	.emptySpace {
-		flex-grow:1;
-	}
-
-	.icon-upload {
-		width: 34px;
-		height: 34px;
-	}
-
-	.upload-button {
-		display: none;
-	}
-
-	.emoji-invoker {
-		background-image: var(--icon-social-emoji-000);
-		background-position: center center;
-		background-repeat: no-repeat;
-		width: 38px;
-		opacity: 0.5;
-		background-size: 16px 16px;
-		height: 38px;
-		cursor: pointer;
-		display: block;
-	}
-
-	.emoji-invoker:focus,
-	.emoji-invoker:hover {
-		opacity: 1;
-	}
-
-	.emoji-picker-wrapper {
-		position: absolute;
-		right: 0;
-		top: 0;
-	}
-
-	.emoji-picker.popovermenu {
-		display: block;
-		padding: 5px;
-		width: 200px;
-		height: 200px;
-		top: 44px;
-	}
-
-	.emoji-picker > div {
-		overflow: hidden;
-		overflow-y: scroll;
-		height: 190px;
-	}
-
-	.emoji-picker input {
-		width: 100%;
-	}
-
-	.emoji-picker span.emoji {
-		padding: 3px;
-	}
-
-	.emoji-picker span.emoji:focus {
-		background-color: var(--color-background-dark);
-	}
-
-	.emoji-picker .emoji img {
-		width: 16px;
-	}
-
-	.popovermenu {
-		top: 55px;
-	}
-
-	.attachment-picker-wrapper {
-		position: absolute;
-		right: 0;
-		top: 2;
-	}
-</style>
-<style>
-	/* Tribute-specific styles TODO: properly scope component css */
-	.tribute-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		height: auto;
-		max-height: 300px;
-		max-width: 500px;
-		min-width: 200px;
-		overflow: auto;
-		display: block;
-		z-index: 999999;
-		border-radius: 4px;
-		box-shadow: 0 1px 3px var(--color-box-shadow);
-	}
-
-	.tribute-container ul {
-		margin: 0;
-		margin-top: 2px;
-		padding: 0;
-		list-style: none;
-		background: var(--color-main-background);
-		border-radius: 4px;
-		background-clip: padding-box;
-		overflow: hidden;
-	}
-
-	.tribute-container li {
-		color: var(--color-text);
-		padding: 5px 10px;
-		cursor: pointer;
-		font-size: 14px;
-		display: flex;
-	}
-
-	.tribute-container li span {
-		display: block;
-	}
-
-	.tribute-container li.highlight,
-	.tribute-container li:hover {
-		background: var(--color-primary);
-		color: var(--color-primary-text);
-	}
-
-	.tribute-container li img {
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		overflow: hidden;
-		margin-right: 10px;
-		margin-left: -3px;
-		margin-top: 3px;
-	}
-
-	.tribute-container li span {
-		font-weight: bold;
-	}
-
-	.tribute-container li.no-match {
-		cursor: default;
-	}
-
-	.tribute-container .menu-highlighted {
-		font-weight: bold;
-	}
-
-	.tribute-container .account,
-	.tribute-container li.highlight .account,
-	.tribute-container li:hover .account {
-		font-weight: normal;
-		color: var(--color-text-light);
-		opacity: 0.5;
-	}
-
-	.tribute-container li.highlight .account,
-	.tribute-container li:hover .account {
-		color: var(--color-primary-text) !important;
-		opacity: .6;
-	}
-
-	.message .mention {
-		color: var(--color-primary-element);
-		background-color: var(--color-background-dark);
-		border-radius: 5px;
-		padding-top: 1px;
-		padding-left: 2px;
-		padding-bottom: 1px;
-		padding-right: 5px;
-	}
-
-	.mention img {
-		width: 16px;
-		border-radius: 50%;
-		overflow: hidden;
-		margin-right: 3px;
-		vertical-align: middle;
-		margin-top: -1px;
-	}
-
-	.hashtag {
-		text-decoration: underline;
-	}
-</style>
 <script>
-
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
 import EmojiPicker from 'vue-emoji-picker'
@@ -845,3 +565,284 @@ export default {
 }
 
 </script>
+
+<style scoped lang="scss">
+.new-post {
+	padding: 10px;
+	background-color: var(--color-main-background);
+	position: sticky;
+	top: 47px;
+	z-index: 100;
+	margin-bottom: 10px;
+}
+
+.new-post-author {
+	padding: 5px;
+	display: flex;
+	flex-wrap: wrap;
+
+	.post-author {
+		padding: 6px;
+
+		.post-author-name {
+			font-weight: bold;
+		}
+
+		.post-author-id {
+			opacity: .7;
+		}
+	}
+}
+
+.reply-to {
+	background-image: url(../../img/reply.svg);
+	background-position: 5px 5px;
+	background-repeat: no-repeat;
+	margin-left: 39px;
+	margin-bottom: 20px;
+	overflow: hidden;
+	background-color: #fafafa;
+	border-radius: 3px;
+	padding: 5px;
+	padding-left: 30px;
+
+	.icon-close {
+		display: inline-block;
+		float: right;
+		opacity: .7;
+		padding: 3px;
+	}
+}
+
+.new-post-form {
+	flex-grow: 1;
+	position: relative;
+	top: -10px;
+	margin-left: 39px;
+}
+
+.message {
+	width: 100%;
+	padding-right: 44px;
+	min-height: 70px;
+	min-width: 2px;
+	display: block;
+}
+
+[contenteditable=true]:empty:before {
+	content: attr(placeholder);
+	display: block; /* For Firefox */
+	opacity: .5;
+}
+
+input[type=submit].inline {
+	width: 44px;
+	height: 44px;
+	margin: 0;
+	padding: 13px;
+	background-color: transparent;
+	border: none;
+	opacity: 0.3;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+}
+
+.options {
+	display: flex;
+	align-items: flex-end;
+	width: 100%;
+	flex-direction: row-reverse;
+}
+
+.options > div {
+	position: relative;
+}
+
+.options button {
+	width: 34px;
+	height: 34px;
+}
+
+.emptySpace {
+	flex-grow:1;
+}
+
+.icon-upload {
+	width: 34px;
+	height: 34px;
+}
+
+.upload-button {
+	display: none;
+}
+
+.emoji-invoker {
+	background-image: var(--icon-social-emoji-000);
+	background-position: center center;
+	background-repeat: no-repeat;
+	width: 38px;
+	opacity: 0.5;
+	background-size: 16px 16px;
+	height: 38px;
+	cursor: pointer;
+	display: block;
+}
+
+.emoji-invoker:focus,
+.emoji-invoker:hover {
+	opacity: 1;
+}
+
+.emoji-picker-wrapper {
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.emoji-picker.popovermenu {
+	display: block;
+	padding: 5px;
+	width: 200px;
+	height: 200px;
+	top: 44px;
+}
+
+.emoji-picker > div {
+	overflow: hidden;
+	overflow-y: scroll;
+	height: 190px;
+}
+
+.emoji-picker input {
+	width: 100%;
+}
+
+.emoji-picker span.emoji {
+	padding: 3px;
+}
+
+.emoji-picker span.emoji:focus {
+	background-color: var(--color-background-dark);
+}
+
+.emoji-picker .emoji img {
+	width: 16px;
+}
+
+.popovermenu {
+	top: 55px;
+}
+
+.attachment-picker-wrapper {
+	position: absolute;
+	right: 0;
+	top: 2;
+}
+</style>
+
+<style>
+/* Tribute-specific styles TODO: properly scope component css */
+.tribute-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: auto;
+	max-height: 300px;
+	max-width: 500px;
+	min-width: 200px;
+	overflow: auto;
+	display: block;
+	z-index: 999999;
+	border-radius: 4px;
+	box-shadow: 0 1px 3px var(--color-box-shadow);
+}
+
+.tribute-container ul {
+	margin: 0;
+	margin-top: 2px;
+	padding: 0;
+	list-style: none;
+	background: var(--color-main-background);
+	border-radius: 4px;
+	background-clip: padding-box;
+	overflow: hidden;
+}
+
+.tribute-container li {
+	color: var(--color-text);
+	padding: 5px 10px;
+	cursor: pointer;
+	font-size: 14px;
+	display: flex;
+}
+
+.tribute-container li span {
+	display: block;
+}
+
+.tribute-container li.highlight,
+.tribute-container li:hover {
+	background: var(--color-primary);
+	color: var(--color-primary-text);
+}
+
+.tribute-container li img {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	overflow: hidden;
+	margin-right: 10px;
+	margin-left: -3px;
+	margin-top: 3px;
+}
+
+.tribute-container li span {
+	font-weight: bold;
+}
+
+.tribute-container li.no-match {
+	cursor: default;
+}
+
+.tribute-container .menu-highlighted {
+	font-weight: bold;
+}
+
+.tribute-container .account,
+.tribute-container li.highlight .account,
+.tribute-container li:hover .account {
+	font-weight: normal;
+	color: var(--color-text-light);
+	opacity: 0.5;
+}
+
+.tribute-container li.highlight .account,
+.tribute-container li:hover .account {
+	color: var(--color-primary-text) !important;
+	opacity: .6;
+}
+
+.message .mention {
+	color: var(--color-primary-element);
+	background-color: var(--color-background-dark);
+	border-radius: 5px;
+	padding-top: 1px;
+	padding-left: 2px;
+	padding-bottom: 1px;
+	padding-right: 5px;
+}
+
+.mention img {
+	width: 16px;
+	border-radius: 50%;
+	overflow: hidden;
+	margin-right: 3px;
+	vertical-align: middle;
+	margin-top: -1px;
+}
+
+.hashtag {
+	text-decoration: underline;
+}
+</style>
