@@ -231,9 +231,13 @@ export default {
 			}
 
 			.post-timestamp {
-				width: 120px;
+				color: var(--color-text-maxcontrast);
+				max-width: 120px;
 				text-align: right;
 				flex-shrink: 0;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
 			}
 		}
 
