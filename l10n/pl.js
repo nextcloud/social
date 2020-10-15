@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Nie znaleziono polubionych postów",
     "You haven't tooted yet" : "Jeszcze nie brałeś udziału",
     "No posts found for this tag" : "Nie znaleziono wpisów dla tej etykiety",
+    "No replies found" : "Nie znaleziono odpowiedzi",
     "hasn't tooted yet" : "Nie ma jeszcze udziału",
     "Reply" : "Odpowiedź",
     "Boost" : "Podbić",

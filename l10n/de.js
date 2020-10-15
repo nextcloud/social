@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Keine gelikten Posts gefunden",
     "You haven't tooted yet" : "Du hast bisher noch nicht getootet",
     "No posts found for this tag" : "Keine Posts für dieses Schlagwort gefunden",
+    "No replies found" : "Keine Antworten gefunden",
     "hasn't tooted yet" : "hat bislang noch nicht getootet",
     "Reply" : "Antworten",
     "Boost" : "Verstärken",

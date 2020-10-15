@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Beğenilmiş bir ileti bulunamadı",
     "You haven't tooted yet" : "Henüz uyarılmamışsınız",
     "No posts found for this tag" : "Bu etiketi taşıyan bir ileti bulunamadı",
+    "No replies found" : "Herhangi bir yanıt bulunamadı",
     "hasn't tooted yet" : "henüz uyarılmamış",
     "Reply" : "Yanıtla",
     "Boost" : "Yükselt",
