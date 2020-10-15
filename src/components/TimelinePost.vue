@@ -222,12 +222,17 @@ export default {
 			flex-direction: row;
 			justify-content: space-between;
 
-			.post-author {
-				font-weight: bold;
-			}
+			.post-author-wrapper a {
+				padding: 13px 8px;
+				margin-left: -8px;
 
-			.post-author-id {
-				opacity: .7;
+				.post-author {
+					font-weight: bold;
+				}
+
+				.post-author-id {
+					color: var(--color-text-maxcontrast);
+				}
 			}
 
 			.post-timestamp {
