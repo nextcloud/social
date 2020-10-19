@@ -11,7 +11,7 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-version+=0.4.0
+version+=0.4.1
 
 
 
@@ -88,7 +88,7 @@ github-upload:
 		--file $(build_dir)/$(app_name)-$(version).tar.gz
 
 # creating .tar.gz + signature
-appstore: dev-setup lint build-js-production composer
+appstore: dev-setup lint build-js-production
 	mkdir -p $(sign_dir)
 	rsync -a \
 	--exclude=/build \

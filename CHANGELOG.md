@@ -1,6 +1,11 @@
 # Changelog
 
 
+## 0.4.1
+
+- fixing an issue with primary key.
+
+
 ## 0.4.0 (alpha 3.2)
 
 - [global] compat nc20
