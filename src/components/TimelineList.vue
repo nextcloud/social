@@ -96,7 +96,7 @@ export default {
 				notifications: {
 					image: 'img/undraw/notifications.svg',
 					title: t('social', 'No notifications found'),
-					description: t('social', 'You haven\'t receive any notifications yet')
+					description: t('social', 'You haven\'t received any notifications yet')
 				},
 				federated: {
 					image: 'img/undraw/global.svg',

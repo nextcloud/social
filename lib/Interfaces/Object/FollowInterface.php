@@ -302,7 +302,7 @@ class FollowInterface implements IActivityPubInterface {
 					 ->setId($follow->getId() . '/notification')
 					 ->setSubType(Follow::TYPE)
 					 ->setActorId($follower->getId())
-					 ->setSummary('{account} is following you')
+					 ->setSummary('{account} followed you')
 					 ->setTo($follow->getObjectId())
 					 ->setLocal(true);
 
@@ -310,4 +310,3 @@ class FollowInterface implements IActivityPubInterface {
 	}
 
 }
-

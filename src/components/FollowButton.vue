@@ -110,6 +110,7 @@ export default {
 
 	button {
 		min-width: 110px;
+		margin: 3px 0 3px 0;
 	}
 
 	button * {
