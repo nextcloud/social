@@ -496,6 +496,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			}
 		}
 		$result = [
+			"local"                  => $this->isLocal(),
 			"content"                => $this->getContent(),
 			"sensitive"              => $this->isSensitive(),
 			"spoiler_text"           => $this->getSpoilerText(),
