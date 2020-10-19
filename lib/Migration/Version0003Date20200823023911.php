@@ -170,6 +170,8 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 				]
 			]
 		);
+
+		$table->addUniqueIndex(['id_prim']);
 	}
 
 
