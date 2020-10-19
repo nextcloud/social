@@ -1,55 +1,47 @@
 <template>
-	<div class="entry-content">
-		<div v-if="item.actor_info" class="post-avatar">
-			<avatar v-if="item.local && item.type!=='SocialAppNotification'" :size="32" :user="item.actor_info.preferredUsername"
-				:display-name="item.actor_info.account" :disable-tooltip="true" />
-			<avatar v-else :size="32" :url="avatarUrl"
-				:disable-tooltip="true" />
-		</div>
-		<div class="post-content">
-			<div class="post-header">
-				<div class="post-author-wrapper">
-					<router-link v-if="item.actor_info"
-						:to="{ name: 'profile',
-							params: { account: (item.local && item.type!=='SocialAppNotification') ? item.actor_info.preferredUsername : item.actor_info.account }
-						}">
-						<span class="post-author">
-							{{ userDisplayName(item.actor_info) }}
-						</span>
-						<span class="post-author-id">
-							@{{ item.actor_info.account }}
-						</span>
-					</router-link>
-					<a v-else :href="item.attributedTo">
-						<span class="post-author-id">
-							{{ item.attributedTo }}
-						</span>
-					</a>
-				</div>
-				<a :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp" @click="getSinglePostTimeline">
-					{{ relativeTimestamp }}
+	<div class="post-content">
+		<div class="post-header">
+			<div class="post-author-wrapper">
+				<router-link v-if="item.actor_info"
+					:to="{ name: 'profile',
+						params: { account: (item.local && item.type!=='SocialAppNotification') ? item.actor_info.preferredUsername : item.actor_info.account }
+					}">
+					<span class="post-author">
+						{{ userDisplayName(item.actor_info) }}
+					</span>
+					<span class="post-author-id">
+						@{{ item.actor_info.account }}
+					</span>
+				</router-link>
+				<a v-else :href="item.attributedTo">
+					<span class="post-author-id">
+						{{ item.attributedTo }}
+					</span>
 				</a>
 			</div>
-			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div v-if="item.content" class="post-message">
-				<MessageContent :source="source" />
-			</div>
-			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div v-else class="post-message" v-html="item.actor_info.summary" />
-			<div v-if="hasAttachments" class="post-attachments">
-				<post-attachment :attachments="item.attachment" />
-			</div>
-			<div v-if="this.$route.params.type!=='notifications' && !serverData.public" v-click-outside="hidePopoverMenu" class="post-actions">
-				<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
-				<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
-					:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
-					@click.prevent="boost" />
-				<a v-tooltip.bottom="t('social', 'Like')" :class="(isLiked) ? 'icon-starred' : 'icon-favorite'" @click.prevent="like" />
-				<div v-if="popoverMenu.length > 0" v-tooltip.bottom="menuOpened ? '' : t('social', 'More actions')" class="post-actions-more">
-					<a class="icon-more" @click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu menu-center">
-						<popover-menu :menu="popoverMenu" />
-					</div>
+			<a :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp" @click="getSinglePostTimeline">
+				{{ relativeTimestamp }}
+			</a>
+		</div>
+		<!-- eslint-disable-next-line vue/no-v-html -->
+		<div v-if="item.content" class="post-message">
+			<MessageContent :source="source" />
+		</div>
+		<!-- eslint-disable-next-line vue/no-v-html -->
+		<div v-else class="post-message" v-html="item.actor_info.summary" />
+		<div v-if="hasAttachments" class="post-attachments">
+			<post-attachment :attachments="item.attachment" />
+		</div>
+		<div v-if="this.$route.params.type!=='notifications' && !serverData.public" v-click-outside="hidePopoverMenu" class="post-actions">
+			<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
+			<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
+				:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
+				@click.prevent="boost" />
+			<a v-tooltip.bottom="t('social', 'Like')" :class="(isLiked) ? 'icon-starred' : 'icon-favorite'" @click.prevent="like" />
+			<div v-if="popoverMenu.length > 0" v-tooltip.bottom="menuOpened ? '' : t('social', 'More actions')" class="post-actions-more">
+				<a class="icon-more" @click.prevent="togglePopoverMenu" />
+				<div :class="{open: menuOpened}" class="popovermenu menu-center">
+					<popover-menu :menu="popoverMenu" />
 				</div>
 			</div>
 		</div>
@@ -57,7 +49,6 @@
 </template>
 
 <script>
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 import * as linkify from 'linkifyjs'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
@@ -74,7 +65,6 @@ pluginMention(linkify)
 export default {
 	name: 'TimelinePost',
 	components: {
-		Avatar,
 		PostAttachment,
 		MessageContent
 	},
@@ -207,17 +197,6 @@ export default {
 		opacity: .7;
 	}
 
-	.post-avatar {
-		margin: 5px;
-		margin-right: 10px;
-		border-radius: 50%;
-		overflow: hidden;
-		width: 32px;
-		height: 32px;
-		min-width: 32px;
-		flex-shrink: 0;
-	}
-
 	.post-timestamp {
 		width: 120px;
 		text-align: right;
@@ -258,10 +237,6 @@ export default {
 	}
 	.entry-content {
 		display: flex;
-	}
-
-	.post-content {
-		flex-grow: 1;
 	}
 
 	.post-header {
