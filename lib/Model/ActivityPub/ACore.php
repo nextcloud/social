@@ -657,6 +657,12 @@ class ACore extends Item implements JsonSerializable {
 		$this->setLocal(($this->getInt('local', $data, 0) === 1));
 	}
 
+	/**
+	 * @param array $data
+	 */
+	public function importFromCache(array $data) {
+		$this->import($data);
+	}
 
 	/**
 	 * @param int $format

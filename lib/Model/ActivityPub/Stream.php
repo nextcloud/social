@@ -36,6 +36,7 @@ use daita\MySmallPhpTools\Model\CacheItem;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Traits\TDetails;
 
@@ -436,6 +437,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setCache($cache);
 	}
 
+	public function importFromCache(array $data) {
+		parent::importFromCache($data);
+
+		$actor = new Person();
+		$actor->importFromCache($data['actor_info']);
+		$this->setActor($actor);
+		$this->setCompleteDetails(true);
+	}
+
 
 	/**
 	 * @return array
@@ -520,7 +530,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// TODO - store created_at full string with milliseconds ?
 		if ($this->hasActor()) {
 			$actor = $this->getActor();
-			$result['account'] = $actor;
+			$result['account'] = $actor->exportAsLocal();
 		}
 
 		return array_merge(parent::exportAsLocal(), $result);
