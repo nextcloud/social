@@ -412,7 +412,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
-	 * @deprecated - use GetTimeline()
+	 * @deprecated - use getTimelineHome()
 	 */
 	public function getTimelineHome_dep(
 		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
@@ -521,6 +521,37 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
+	/**
+	 * Should returns:
+	 *  * All local public/federated posts
+	 *
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 * @throws DateTimeException
+	 */
+	public function getTimelinePublic(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->paginate($options);
+
+		$qb->limitToLocal($options->isLocal());
+		$qb->limitToType(Note::TYPE);
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
+
+		$result = $this->getStreamsFromRequest($qb);
+		if ($options->isInverted()) {
+			$result = array_reverse($result);
+		}
+
+		return $result;
+	}
+
 
 	/**
 	 * Should returns:
@@ -532,8 +563,9 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
+	 * @deprecated - use getTimelinePublic()
 	 */
-	public function getTimelineGlobal(int $since = 0, int $limit = 5, bool $localOnly = true
+	public function getTimelineGlobal_dep(int $since = 0, int $limit = 5, bool $localOnly = true
 	): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitPaginate($since, $limit);

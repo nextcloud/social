@@ -426,9 +426,9 @@ class StreamService {
 	public function getTimeline(TimelineOptions $options): array {
 		if ($options->getTimeline() === 'home') {
 			return $this->streamRequest->getTimelineHome($options);
+		} else if ($options->getTimeline() === 'public') {
+			return $this->streamRequest->getTimelinePublic($options);
 		}
-
-
 	}
 
 	/**
@@ -480,7 +480,7 @@ class StreamService {
 	 * @deprecated
 	 */
 	public function getStreamLocalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineGlobal($since, $limit, true);
+		return $this->streamRequest->getTimelineGlobal_dep($since, $limit, true);
 	}
 
 
@@ -518,7 +518,7 @@ class StreamService {
 	 * @throws Exception
 	 */
 	public function getStreamGlobalTimeline(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineGlobal($since, $limit, false);
+		return $this->streamRequest->getTimelineGlobal_dep($since, $limit, false);
 	}
 
 
