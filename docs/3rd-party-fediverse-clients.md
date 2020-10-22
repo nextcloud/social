@@ -25,11 +25,16 @@ A decent number of clients for Mastodon and other Fediverse network are availabl
 | Twidere | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:
 ||
 | **iOS** |
-| Amaroq |
-| iMast |
+| Amaroq | :heavy_check_mark: | :negative_squared_cross_mark:
+| Fedi | :negative_squared_cross_mark:
+| iMast | :negative_squared_cross_mark:
+| Librem Social | :heavy_check_mark: | :heavy_check_mark: |  :heavy_check_mark:
 | Mast |
-| Mercury |
+| Mercury | :negative_squared_cross_mark:
+| Oyakodon | :negative_squared_cross_mark:
+| Roma | :negative_squared_cross_mark:
 | Toot! |
+| Tootle | :negative_squared_cross_mark:
 ||
 | **Web** |
 | Cuckoo+ | :negative_squared_cross_mark:
