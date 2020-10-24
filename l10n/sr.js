@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Нема лајкованих објава",
     "You haven't tooted yet" : "Ништа још нисте тутнули",
     "No posts found for this tag" : "Нема нађених објава за ову ознаку",
+    "No replies found" : "Нема нађених одговора",
     "hasn't tooted yet" : "није ништа тутнуо",
     "Reply" : "Одговори",
     "Boost" : "Подржи",
