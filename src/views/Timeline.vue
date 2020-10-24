@@ -9,7 +9,7 @@
 				</a>
 				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
 				<p>
-					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:') }}
+					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:') }}
 					<span class="social-id">
 						{{ socialId }}
 					</span>
