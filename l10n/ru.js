@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Связанных публикаций не найдено",
     "You haven't tooted yet" : "Вы ещё ничего не опубликовали",
     "No posts found for this tag" : "Публикаций с этой меткой не найдено",
+    "No replies found" : "Ответов не найдено",
     "hasn't tooted yet" : "ещё не опубликовано",
     "Reply" : "Ответить",
     "Boost" : "Продвинуть",
