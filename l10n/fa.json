@@ -73,7 +73,6 @@
     "User not found" : "کاربر یافت نشد",
     "Sorry, we could not find the account of {userId}" : "متأسفیم ، نتوانستیم حساب {userId} را پیدا کنیم",
     "Nextcloud becomes part of the federated social networks!" : "نکست کلود به بخشی از شبکه های اجتماعی فدراسیون تبدیل می شود!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "ما بطور خودکار یک حساب اجتماعی برای شما ایجاد کردیم. شناسه اجتماعی شما همان شناسه نکست کلود شماست:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "از آنجا که تازه وارد Social شده اید ، با دنبال کردن حساب رسمی نکست کلود شروع کنید تا هیچ خبری از دست ندهید",
     "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید"
 },"pluralForm" :"nplurals=2; plural=(n > 1);"

@@ -56,7 +56,6 @@
     "Continue" : "Jatka",
     "User not found" : "Käyttäjää ei löydy",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudista tulee yhteenliitettyjen sosiaalisten verkostojen osa!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Loimme sinulle automaattisesti Sosiaalinen -tilin. Sinun Social ID on sama kun yhteenliitettyjen pilvien ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Koska olet uusi käyttäjä, aloita seuraamalla virallista Nextcloud -tiliä ettet jää uutisista paitsi",
     "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"

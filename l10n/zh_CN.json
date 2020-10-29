@@ -74,7 +74,6 @@
     "User not found" : "未找到用户",
     "Sorry, we could not find the account of {userId}" : "非常抱歉，我们无法查找到 {userid} 对应的账号",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud已经成为联合社交网络的一部分！",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "我们会自动为您创建一个社交账号。您的社交ID与您的联合云ID相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鉴于您刚来到社交应用，请先关注 Nextcloud 官方账号，这样您将不会错过任何新闻",
     "Follow Nextcloud on mastodon.xyz" : "在mastodon.xyz上关注Nextcloud"
 },"pluralForm" :"nplurals=1; plural=0;"

@@ -75,7 +75,6 @@
     "User not found" : "Корисник није нађен",
     "Sorry, we could not find the account of {userId}" : "Нажалост, не можемо да нађемо налог корисника {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Некстклауд је постао део федерисаних друштвених мрежа!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "За Вас је аутоматски направљен друштвени налог. Ваша друштвена идентификација је иста као и идентификација за здружени облак:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Пошто сте нови на Друштвеној апликацији, почните тако што ћете запратити званични Некстклауд налог да не бисте пропустили ниједну новост",
     "Follow Nextcloud on mastodon.xyz" : "Запратите Некстклауд на mastodon.xyz инстанци"
 },"pluralForm" :"nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);"

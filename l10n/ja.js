@@ -75,7 +75,6 @@ OC.L10N.register(
     "User not found" : "ユーザーが見つかりません",
     "Sorry, we could not find the account of {userId}" : "残念ながら、アカウント {userId} は見つかりませんでした",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudは分散ソーシャルネットワークの一部になります！",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "自動的にソーシャルアカウントを作成します。ソーシャルIDは、クラウド連携IDと同じです:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Socialは初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする"
 },

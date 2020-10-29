@@ -75,7 +75,6 @@
     "User not found" : "Nie znaleziono użytkownika",
     "Sorry, we could not find the account of {userId}" : "Nie udało się odnaleźć konta {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud staje się częścią federacyjnych sieci społecznościowych!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Automatycznie utworzyliśmy dla Ciebie konto w Social. Twoje ID Social jest takie same, jak ID Chmury Federacyjnej:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ponieważ jesteś nowym użytkownikiem Social, zacznij od oficjalnego konta Nextcloud, aby nie przeoczyć żadnych wiadomości",
     "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz"
 },"pluralForm" :"nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);"

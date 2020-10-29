@@ -75,7 +75,6 @@ OC.L10N.register(
     "User not found" : "Användaren hittades inte",
     "Sorry, we could not find the account of {userId}" : "Tyvärr, vi kunde inte hitta kontot för {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud blir en del av federerade sociala nätverk!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "Vi skapade automatiskt ett socialt konto för dig. Ditt sociala ID är detsamma som ditt federerade moln-ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Eftersom du är ny här kan du börja med att följa det officiella Nextcloud-kontot så att du inte missar några nyheter",
     "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz"
 },

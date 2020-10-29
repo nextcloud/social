@@ -77,7 +77,6 @@ OC.L10N.register(
     "User not found" : "Корисник није нађен",
     "Sorry, we could not find the account of {userId}" : "Нажалост, не можемо да нађемо налог корисника {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Некстклауд је постао део федерисаних друштвених мрежа!",
-    "We automatically created a Social account for you. Your Social ID is the same as your federated cloud ID:" : "За Вас је аутоматски направљен друштвени налог. Ваша друштвена идентификација је иста као и идентификација за здружени облак:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Пошто сте нови на Друштвеној апликацији, почните тако што ћете запратити званични Некстклауд налог да не бисте пропустили ниједну новост",
     "Follow Nextcloud on mastodon.xyz" : "Запратите Некстклауд на mastodon.xyz инстанци"
 },
