@@ -75,6 +75,7 @@
     "User not found" : "Usuario no encontrado",
     "Sorry, we could not find the account of {userId}" : "Lo sentimos, no hemos podido encontrar la cuenta de {userId}",
     "Nextcloud becomes part of the federated social networks!" : "¡Nextcloud pasa a ser parte de las redes sociales federadas!",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Hemos creado automáticamente una cuenta en Social para ti. Tu ID en Social es la misma que tu ID de nube federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dado que es eres nuevo en Social, empieza siguiendo la cuenta oficial de Nextcloud para no perderte ninguna noticia",
     "Follow Nextcloud on mastodon.xyz" : "Seguir a Nextcloud en mastodon.xyz"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
