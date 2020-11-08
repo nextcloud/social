@@ -62,7 +62,7 @@ OC.L10N.register(
     "Boost" : "Puffa",
     "Like" : "Gilla",
     "More actions" : "Fler händelser",
-    "Delete post" : "Radera inlägg",
+    "Delete post" : "Ta bort inlägg",
     "Follow on Nextcloud Social" : "Följ på Nextcloud Social",
     "Hello" : "Hej",
     "Please confirm that you want to follow this account:" : "Bekräfta att du vill följa detta konto:",
