@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Nenašli sa žiadne príspevky, ktoré by sa páčili",
     "You haven't tooted yet" : "Zatiaľ ste nič nenapísali",
     "No posts found for this tag" : "Pre tento štítok sa nenašli žiadne príspevky",
+    "No replies found" : "Nenašli sa žiadne odpovede",
     "hasn't tooted yet" : "zatiaľ nič nenapísal(a)",
     "Reply" : "Odpoveď",
     "Boost" : "Preposlať",
@@ -76,6 +77,7 @@ OC.L10N.register(
     "User not found" : "Používateľ nenájdený",
     "Sorry, we could not find the account of {userId}" : "Ľutujeme, nepodarilo sa nám nájsť účet {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud sa stáva súčasťou združených sociálnych sietí!",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automaticky sme pre vás vytvorili účet na Social. Vaše ID v Social je rovnaké ako vaše ID združeného cloudu:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Preto, že ste nový na Social, začnite sledovať oficiálny účet Nextcloud, aby vám nič neušlo",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz"
 },
