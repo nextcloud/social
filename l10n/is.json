@@ -54,6 +54,7 @@
     "No liked posts found" : "Engar líkaðar færslur fundust",
     "You haven't tooted yet" : "Þú hefur ekki tíst neitt ennþá",
     "No posts found for this tag" : "Engar færslur fundust fyrir þetta merki",
+    "No replies found" : "Engin svör fundust",
     "hasn't tooted yet" : "hefur ekki tíst neitt ennþá",
     "Reply" : "Svara",
     "Boost" : "Endurbirta",
@@ -68,9 +69,11 @@
     "You are going to follow:" : "Þú ert að fara að fylgjast með:",
     "name@domain of your federation account" : "nafn@lén á sambandstengda aðganginum þínum",
     "Continue" : "Halda áfram",
+    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Þetta skref er nauðsynlegt þar sem notandinn er líklega ekki skráður á sama netþjóni og þú. Við endurbeinum þér á heimanetþjóninn þinn til að fylgja þessum aðgangi.",
     "User not found" : "Notandi fannst ekki",
     "Sorry, we could not find the account of {userId}" : "Því miður, við gátum ekki fundið notandaaðganginn {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud verður hluti af samfélagsnetum í skýjasambandi!",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Við útbjuggum sjálfvirkt samfélagsnetsaðgang fyrir þíg. Samfélagsnetsauðkennið þitt er það sama og skýjasambandsauðkennið þitt (Federated Cloud ID):",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Þar sem þú ert nýr á samfélagsnetinu, byrjaðu þá á því að fylgjast með opinbera Nextcloud aðgangnum svo þú missir ekki af neinu fréttnæmu",
     "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz"
 },"pluralForm" :"nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);"

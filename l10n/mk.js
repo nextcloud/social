@@ -6,8 +6,10 @@ OC.L10N.register(
     "Finish setup" : "Заврши го подесувањето",
     "Home" : "Дома",
     "Notifications" : "Известувања",
+    "Profile" : "Профил",
     "Public" : "Јавна",
     "Reply" : "Одговор",
+    "Hello" : "Здраво",
     "Close" : "Затвори",
     "Continue" : "Продолжи",
     "User not found" : "Корисникот не е пронајден"
