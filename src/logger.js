@@ -20,9 +20,8 @@
  */
 
 import { getLoggerBuilder } from '@nextcloud/logger'
-import { getCurrentUser } from '@nextcloud/auth'
 
 export default getLoggerBuilder()
 	.setApp('social')
-	.setUid(getCurrentUser().uid)
+	.detectUser()
 	.build()
