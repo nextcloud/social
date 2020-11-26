@@ -8,6 +8,8 @@ OC.L10N.register(
     "Notifications" : "Известувања",
     "Profile" : "Профил",
     "Public" : "Јавна",
+    "posts" : "објави",
+    "No results found" : "Нема пронајдено резултати",
     "Reply" : "Одговор",
     "Hello" : "Здраво",
     "Close" : "Затвори",
