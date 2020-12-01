@@ -31,15 +31,22 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 
+use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 
+/**
+ * Class SearchService
+ *
+ * @package OCA\Social\Service
+ */
 class SearchService {
 
 
 	use TArrayTools;
+	use TNC20Logger;
 
 
 	const SEARCH_ACCOUNTS = 1;
@@ -88,6 +95,7 @@ class SearchService {
 	public function searchAccounts(string $search): array {
 		$result = [];
 		$type = $this->getTypeFromSearch($search);
+
 		if ($search === '' || !$type & self::SEARCH_ACCOUNTS) {
 			return $result;
 		}
@@ -99,6 +107,7 @@ class SearchService {
 		try {
 			$this->cacheActorService->getFromAccount($search);
 		} catch (Exception $e) {
+			$this->exception($e, self::$NOTICE, ['search' => $search]);
 		}
 
 		return $this->cacheActorService->searchCachedAccounts($search);

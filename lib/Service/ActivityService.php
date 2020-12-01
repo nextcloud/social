@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
 use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
 use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
 use daita\MySmallPhpTools\Exceptions\RequestServerException;
+use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -365,9 +366,9 @@ class ActivityService {
 	/**
 	 * @param RequestQueue $queue
 	 *
-	 * @return Request
+	 * @return NC20Request
 	 */
-	private function generateRequestFromQueue(RequestQueue $queue): Request {
+	private function generateRequestFromQueue(RequestQueue $queue): NC20Request {
 		$path = $queue->getInstance();
 
 		$requestType = Request::TYPE_GET;
@@ -377,10 +378,10 @@ class ActivityService {
 			$requestType = Request::TYPE_POST;
 		}
 
-		$request = new Request($path->getPath(), $requestType);
+		$request = new NC20Request($path->getPath(), $requestType);
 		$request->setTimeout($queue->getTimeout());
 		$request->setDataJson($queue->getActivity());
-		$request->setAddress($path->getAddress());
+		$request->setHost($path->getAddress());
 		$request->setProtocol($path->getProtocol());
 
 		return $request;

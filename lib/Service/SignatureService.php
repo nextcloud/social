@@ -32,7 +32,12 @@ namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
-use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Exceptions\RequestContentException;
+use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
+use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
+use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
+use daita\MySmallPhpTools\Exceptions\RequestServerException;
+use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
@@ -46,11 +51,6 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -142,13 +142,13 @@ class SignatureService {
 
 
 	/**
-	 * @param Request $request
+	 * @param NC20Request $request
 	 * @param RequestQueue $queue
 	 *
 	 * @throws ActorDoesNotExistException
-	 * @throws SocialAppConfigException
+	 * @throws SocialAppConfigException // TODO: implement in TNC20Request ?
 	 */
-	public function signRequest(Request $request, RequestQueue $queue) {
+	public function signRequest(NC20Request $request, RequestQueue $queue) {
 		$date = gmdate(self::DATE_HEADER);
 		$path = $queue->getInstance();
 
@@ -169,22 +169,22 @@ class SignatureService {
 		$signed = base64_encode($signed);
 		$signature = $this->generateSignature($headersElements, $localActor->getId(), $signed);
 
-		$request->addHeader('Signature: ' . $signature);
+		$request->addHeader('Signature', $signature);
 	}
 
 
 	/**
 	 * @param array $elements
 	 * @param array $data
-	 * @param Request $request
+	 * @param NC20Request $request
 	 *
 	 * @return string
 	 */
-	private function generateHeaders(array $elements, array $data, Request $request): string {
+	private function generateHeaders(array $elements, array $data, NC20Request $request): string {
 		$signingElements = [];
 		foreach ($elements as $element) {
 			$signingElements[] = $element . ': ' . $data[$element];
-			$request->addHeader($element . ': ' . $data[$element]);
+			$request->addHeader($element, $data[$element]);
 		}
 
 		return implode("\n", $signingElements);
@@ -196,7 +196,7 @@ class SignatureService {
 	 * @param string $actorId
 	 * @param string $signed
 	 *
-	 * @return array
+	 * @return string
 	 */
 	private function generateSignature(array $elements, string $actorId, string $signed): string {
 		$signatureElements[] = 'keyId="' . $actorId . '#main-key"';

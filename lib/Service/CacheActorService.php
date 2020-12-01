@@ -36,6 +36,7 @@ use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
 use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
 use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
 use daita\MySmallPhpTools\Exceptions\RequestServerException;
+use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
@@ -53,10 +54,16 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\IURLGenerator;
 
 
+/**
+ * Class CacheActorService
+ *
+ * @package OCA\Social\Service
+ */
 class CacheActorService {
 
 
 	use TArrayTools;
+	use TNC20Logger;
 
 
 	/** @var IURLGenerator */
@@ -129,7 +136,6 @@ class CacheActorService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function getFromId(string $id, bool $refresh = false): Person {
-
 		$posAnchor = strpos($id, '#');
 		if ($posAnchor !== false) {
 			$id = substr($id, 0, $posAnchor);
@@ -143,6 +149,8 @@ class CacheActorService {
 			$actor = $this->cacheActorsRequest->getFromId($id);
 		} catch (CacheActorDoesNotExistException $e) {
 			$object = $this->curlService->retrieveObject($id);
+
+			$this->debug('object retrieved', ['id' => $id, 'object' => $object]);
 
 			/** @var Person $actor */
 			$actor = AP::$activityPub->getItemFromData($object);
@@ -220,9 +228,15 @@ class CacheActorService {
 		} catch (CacheActorDoesNotExistException $e) {
 		}
 
+		$this->debug('getFromAccount', ['account' => $account, 'retrieve' => $retrieve]);
+
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
+
+			$this->debug('Found Actor', ['account' => $account, 'actor' => $actor]);
 		} catch (CacheActorDoesNotExistException $e) {
+			$this->debug('Actor not found', ['account' => $account]);
+
 			if (!$retrieve) {
 				throw new CacheActorDoesNotExistException();
 			}
@@ -230,6 +244,8 @@ class CacheActorService {
 			$actor = $this->curlService->retrieveAccount($account);
 			$actor->setAccount($account);
 			try {
+				$this->warning('Saving Actor', false, ['actor' => $actor]);
+
 				$this->save($actor);
 			} catch (Exception $e) {
 				throw new InvalidResourceException($e->getMessage());

@@ -268,6 +268,7 @@ class OAuthController extends Controller {
 				], Http::STATUS_OK
 			);
 		} catch (Exception $e) {
+			$this->miscService->log($e->getMessage() . ' ' . get_class($e));
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
 	}

@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 
+use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TAsync;
 use daita\MySmallPhpTools\Traits\TStringTools;
@@ -65,6 +66,7 @@ class ActivityPubController extends Controller {
 	use TNCDataResponse;
 	use TStringTools;
 	use TAsync;
+use TNC20Logger;
 
 
 	/** @var SocialPubController */
@@ -246,10 +248,9 @@ class ActivityPubController extends Controller {
 	 * @return Response
 	 */
 	public function inbox(string $username): Response {
-
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('[<<] inbox: ' . $body, 1);
+			$this->debug('[<<] inbox', ['body' => $body]);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);

@@ -37,10 +37,11 @@ use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
 use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
 use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
 use daita\MySmallPhpTools\Exceptions\RequestServerException;
+use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
-use daita\MySmallPhpTools\Traits\TRequest;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -58,13 +59,10 @@ class CurlService {
 
 	use TArrayTools;
 	use TPathTools;
-	use TRequest {
-		initRequestPost as initRequestPostOrig;
-		initRequestGet as initRequestGetOrig;
+	use TNC20Request {
 		retrieveJson as retrieveJsonOrig;
 		doRequest as doRequestOrig;
 	}
-
 
 	const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
 	const USER_AGENT = 'Nextcloud Social';
@@ -96,6 +94,7 @@ class CurlService {
 
 		$maxDlSize = $this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * (1024 * 1024);
 		$this->setMaxDownloadSize($maxDlSize);
+		$this->setup('app', 'social');
 	}
 
 
@@ -113,6 +112,7 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function webfingerAccount(string &$account): array {
+		$this->debug('webfingerAccount', ['account' => $account]);
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
@@ -132,11 +132,13 @@ class CurlService {
 			$path = '/.well-known/webfinger';
 		}
 
-		$request = new Request($path);
-		$request->addData('resource', 'acct:' . $account);
-		$request->setAddress($host);
+		$request = new NC20Request($path);
+		$request->addParam('resource', 'acct:' . $account);
+		$request->setHost($host);
 		$request->setProtocols($protocols);
 		$result = $this->retrieveJson($request);
+
+		$this->notice('webfingerAccount, request result', false, ['request' => $request]);
 
 		$subject = $this->get('subject', $result, '');
 		list($type, $temp) = explode(':', $subject, 2);
@@ -156,14 +158,17 @@ class CurlService {
 	 * @throws HostMetaException
 	 */
 	public function hostMeta(string &$host, array &$protocols): string {
-		$request = new Request('/.well-known/host-meta');
-		$request->setAddress($host);
+		$request = new NC20Request('/.well-known/host-meta');
+		$request->setHost($host);
 		$request->setProtocols($protocols);
+
+		$this->debug('hostMeta', ['host' => $host, 'protocols' => $protocols]);
 
 		try {
 			$result = $this->retrieveJson($request);
 		} catch (Exception $e) {
-			$this->miscService->log('hostMeta Exception - ' . get_class($e) . ' - ' . $e->getMessage(), 0);
+			$this->exception($e, self::$NOTICE, ['request' => $request]);
+
 			throw new HostMetaException(get_class($e) . ' - ' . $e->getMessage());
 		}
 
@@ -194,6 +199,7 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveAccount(string &$account): Person {
+		$this->debug('retrieveAccount', ['account' => $account]);
 		$result = $this->webfingerAccount($account);
 
 		try {
@@ -205,10 +211,12 @@ class CurlService {
 		$id = $this->get('href', $link, '');
 		$data = $this->retrieveObject($id);
 
+		$this->debug('retrieveAccount, details', ['link' => $link, 'data' => $data, 'account' => $account]);
+
 		/** @var Person $actor */
 		$actor = AP::$activityPub->getItemFromData($data);
 		if (!AP::$activityPub->isActor($actor)) {
-			throw new ItemUnknownException();
+			throw new ItemUnknownException(json_encode($actor) . ' is not an Actor');
 		}
 
 		if (strtolower($actor->getId()) !== strtolower($id)) {
@@ -235,15 +243,20 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveObject($id): array {
+		$this->debug('retrieveObject', ['id' => $id]);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
-		$request = new Request($url['path'], Request::TYPE_GET);
-		$request->setAddress($url['host']);
+		$request = new NC20Request($url['path'], Request::TYPE_GET);
+		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
 
+		$this->debug('retrieveObject', ['request' => $request]);
+
 		$result = $this->retrieveJson($request);
+		$this->notice('retrieveObject, request result', false, ['request' => $request]);
+
 		if (is_array($result)) {
-			$result['_host'] = $request->getAddress();
+			$result['_host'] = $request->getHost();
 		}
 
 		return $result;
@@ -251,35 +264,24 @@ class CurlService {
 
 
 	/**
-	 * @param Request $request
+	 * @param NC20Request $request
 	 *
 	 * @return array
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
-	 * @throws RequestResultNotJsonException
-	 * @throws RequestResultSizeException
-	 * @throws RequestServerException
 	 */
-	public function retrieveJson(Request $request): array {
-		$this->configService->configureRequest($request);
-		$this->assignUserAgent($request);
-
+	public function retrieveJson(NC20Request $request): array {
 		try {
-			$result = $this->retrieveJsonOrig($request);
-		} catch (RequestResultSizeException | RequestResultNotJsonException $e) {
-			$this->miscService->log(
-				'[!!] request: ' . json_encode($request) . ' - content-type: '
-				. $request->getContentType() . ' - ' . $e->getMessage(), 1
-			);
+			return $this->retrieveJsonOrig($request);
+		} catch (RequestNetworkException | RequestContentException $e) {
+			$this->exception($e, self::$NOTICE, ['request' => $request]);
 			throw $e;
 		}
-
-		return $result;
 	}
 
 
 	/**
-	 * @param Request $request
+	 * @param NC20Request $request
 	 *
 	 * @return mixed
 	 * @throws SocialAppConfigException
@@ -289,7 +291,8 @@ class CurlService {
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 */
-	public function doRequest(Request $request) {
+	// migration ?
+	public function doRequest(NC20Request $request) {
 		$this->fediverseService->authorized($request->getAddress());
 		$this->configService->configureRequest($request);
 		$this->assignUserAgent($request);
@@ -299,9 +302,9 @@ class CurlService {
 
 
 	/**
-	 * @param Request $request
+	 * @param NC20Request $request
 	 */
-	public function assignUserAgent(Request $request) {
+	public function assignUserAgent(NC20Request $request) {
 		$request->setUserAgent(
 			self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version')
 		);
@@ -320,8 +323,8 @@ class CurlService {
 		$path .= $this->withoutBeginSlash(self::ASYNC_REQUEST_TOKEN);
 		$path = str_replace('{token}', $token, $path);
 
-		$request = new Request($path, Request::TYPE_POST);
-		$request->setAddress($this->configService->getCloudHost());
+		$request = new NC20Request($path, Request::TYPE_POST);
+		$request->setHost($this->configService->getCloudHost());
 		$request->setProtocol(parse_url($address, PHP_URL_SCHEME));
 
 		try {
@@ -335,41 +338,6 @@ class CurlService {
 		}
 	}
 
-
-	/**
-	 * @param Request $request
-	 */
-	protected function initRequestGet(Request $request) {
-		if ($request->getType() !== Request::TYPE_GET) {
-			return;
-		}
-
-		$request->addHeader(
-			'Accept: application/json; profile="https://www.w3.org/ns/activitystreams"'
-		);
-		$request->addHeader(
-			'Accept: application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-		);
-
-		$this->initRequestGetOrig($request);
-	}
-
-
-	/**
-	 * @param resource $curl
-	 * @param Request $request
-	 */
-	protected function initRequestPost($curl, Request $request) {
-		if ($request->getType() !== Request::TYPE_POST) {
-			return;
-		}
-
-		$request->addHeader(
-			'Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-		);
-
-		$this->initRequestPostOrig($curl, $request);
-	}
 
 }
 

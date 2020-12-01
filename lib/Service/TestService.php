@@ -31,7 +31,7 @@ namespace OCA\Social\Service;
 
 
 use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
-use daita\MySmallPhpTools\Model\Request;
+use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Model\SimpleDataStore;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -108,9 +108,9 @@ class TestService {
 		$tests->aObj('tests', $testHostMeta);
 
 
-		$request = new Request($path);
-		$request->addData('resource', 'acct:' . $account);
-		$request->setAddress($host);
+		$request = new NC20Request($path);
+		$request->addParam('resource', 'acct:' . $account);
+		$request->setHost($host);
 		$request->setProtocols($protocols);
 
 		$testWebfinger = new Test('webfinger', Test::SEVERITY_MANDATORY);

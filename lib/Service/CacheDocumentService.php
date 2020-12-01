@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Exceptions\RequestContentException;
 use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
 use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
 use daita\MySmallPhpTools\Exceptions\RequestServerException;
+use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
@@ -270,16 +271,14 @@ class CacheDocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveContent(string $url) {
+	public function retrieveContent(string $url): string {
 		$url = parse_url($url);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
-		$request = new Request($url['path'], Request::TYPE_GET, true);
-		$request->setAddress($url['host']);
+		$request = new NC20Request($url['path'], Request::TYPE_GET, true);
+		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
 
-		$content = $this->curlService->doRequest($request);
-
-		return $content;
+		return $this->curlService->doRequest($request);
 	}
 
 }

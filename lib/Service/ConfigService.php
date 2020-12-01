@@ -30,6 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Model\Request;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
@@ -436,10 +437,25 @@ class ConfigService {
 
 
 	/**
-	 * @param Request $request
+	 * @param NC20Request $request
 	 */
-	public function configureRequest(Request $request) {
+	public function configureRequest(NC20Request $request) {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
+
+		if ($request->getType() === Request::TYPE_GET) {
+			$request->addHeader(
+				'Accept', 'application/json; profile="https://www.w3.org/ns/activitystreams"'
+			);
+		}
+
+		if ($request->getType() === Request::TYPE_POST) {
+			$request->addHeader(
+				'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+			);
+		}
+
+		$request->setLocalAddressAllowed(true);
+		$request->setFollowLocation(true);
 	}
 
 
