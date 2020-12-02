@@ -22,23 +22,11 @@
 
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<div>
-			<avatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
-				:size="128" />
-			<avatar v-else :url="avatarUrl" :disable-tooltip="true"
-				:size="128" />
-			<h2>{{ displayName }}</h2>
-			<p>@{{ accountInfo.account }}</p>
-			<p v-if="accountInfo.website">
-				Website: <a :href="accountInfo.website.value">
-					{{ accountInfo.website.value }}
-				</a>
-			</p>
-			<follow-button :account="accountInfo.account" :uid="uid" />
-			<button v-if="serverData.public" class="primary" @click="followRemote">
-				{{ t('social', 'Follow') }}
-			</button>
-		</div>
+		<avatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
+			:size="128" />
+		<avatar v-else :url="avatarUrl" :disable-tooltip="true"
+			:size="128" />
+		<h2>{{ displayName }}</h2>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile--sections">
 			<li>
@@ -57,17 +45,28 @@
 				</router-link>
 			</li>
 		</ul>
+		<p>@{{ accountInfo.account }}</p>
+		<p v-if="accountInfo.website">
+			Website: <a :href="accountInfo.website.value">
+				{{ accountInfo.website.value }}
+			</a>
+		</p>
+		<follow-button :account="accountInfo.account" :uid="uid" />
+		<button v-if="serverData.public" class="primary" @click="followRemote">
+			{{ t('social', 'Follow') }}
+		</button>
 	</div>
 </template>
 <style scoped>
 	.user-profile {
 		display: flex;
 		flex-wrap: wrap;
+    flex-direction: column;
 		justify-content: space-between;
 		width: 100%;
 		text-align: center;
 		padding-top: 20px;
-		align-items: flex-end;
+		align-items: center;
 		margin-bottom: 20px;
 	}
 	h2 {
@@ -76,7 +75,6 @@
 
 	.user-profile--sections {
 		display: flex;
-		margin-bottom: 30px;
 	}
 	.user-profile--sections li {
 		flex-grow: 1;
