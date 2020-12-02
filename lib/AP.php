@@ -47,6 +47,9 @@ use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
 use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Interfaces\Actor\ServiceInterface;
+use OCA\Social\Interfaces\Actor\GroupInterface;
+use OCA\Social\Interfaces\Actor\OrganizationInterface;
+use OCA\Social\Interfaces\Actor\ApplicationInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
@@ -67,6 +70,9 @@ use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Actor\Service;
+use OCA\Social\Model\ActivityPub\Actor\Group;
+use OCA\Social\Model\ActivityPub\Actor\Organization;
+use OCA\Social\Model\ActivityPub\Actor\Application;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -183,6 +189,9 @@ class AP {
 			$ap->notificationInterface = OC::$server->query(SocialAppNotificationInterface::class);
 			$ap->personInterface = OC::$server->query(PersonInterface::class);
 			$ap->serviceInterface = OC::$server->query(ServiceInterface::class);
+			$ap->groupInterface = OC::$server->query(GroupInterface::class);
+			$ap->groupInterface = OC::$server->query(OrganizationInterface::class);
+			$ap->groupInterface = OC::$server->query(ApplicationInterface::class);
 			$ap->rejectInterface = OC::$server->query(RejectInterface::class);
 			$ap->removeInterface = OC::$server->query(RemoveInterface::class);
 			$ap->undoInterface = OC::$server->query(UndoInterface::class);
@@ -366,6 +375,18 @@ class AP {
 				$item = new Service();
 				break;
 
+			case Group::TYPE:
+				$item = new Group();
+				break;
+
+			case Organization::TYPE:
+				$item = new Organization();
+				break;
+
+			case Application::TYPE:
+				$item = new Application();
+				break;
+
 			case Tombstone::TYPE:
 				$item = new Tombstone();
 				break;
@@ -496,7 +517,10 @@ class AP {
 		$types =
 			[
 				Person::TYPE,
-				Service::TYPE
+				Service::TYPE,
+				Group::TYPE,
+				Organization::TYPE,
+				Application::TYPE
 			];
 
 		return (in_array($item->getType(), $types));
