@@ -33,6 +33,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use Exception;
 use JsonSerializable;
+use OCA\Social\AP;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 
@@ -72,26 +73,25 @@ class Announce extends Stream implements JsonSerializable {
 		$this->setAttributedTo($this->getActorId());
 	}
 
-
-	/**
-	 * @param array $data
-	 *
-	 * @throws Exception
-	 */
-	public function importFromDatabase(array $data) {
-		parent::importFromDatabase($data);
-	}
-
-
 	/**
 	 * @return array
 	 */
-	public function jsonSerialize(): array {
-		$result = parent::jsonSerialize();
-		//$result['actor'] = $this->getAttributedTo();
+	public function exportAsLocal(): array {
+		$result = parent::exportAsLocal();
+
+		if ($this->hasCache()) {
+			$cache = $this->getCache();
+			if ($object = $cache->getItem($this->getObjectId())) {
+				$object = $object->getObject();
+				/** @var Stream $item */
+				$item = AP::$activityPub->getItemFromType($this->get('type', $object, Stream::TYPE));
+				$item->importFromCache($object);
+				$result['reblog'] = $item->exportAsLocal();
+				$result['content'] = $item->getContent();
+			}
+		}
 
 		return $result;
 	}
-
 }
 

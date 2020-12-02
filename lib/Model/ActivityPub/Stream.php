@@ -36,6 +36,7 @@ use daita\MySmallPhpTools\Model\CacheItem;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Traits\TDetails;
 
@@ -424,7 +425,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
-		$this->setContent($this->validate(self::AS_STRING, 'content', $data, ''));
+		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
@@ -434,6 +435,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$cache = new Cache();
 		$cache->import($this->getArray('cache', $data, []));
 		$this->setCache($cache);
+	}
+
+	public function importFromCache(array $data) {
+		parent::importFromCache($data);
+
+		$actor = new Person();
+		$actor->importFromCache($data['actor_info']);
+		$this->setActor($actor);
+		$this->setCompleteDetails(true);
 	}
 
 
@@ -480,7 +490,23 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
+		$actions = ($this->hasAction()) ? $this->getAction()->getValues() : [];
+		$favorited = false;
+		$reblogged = false;
+		foreach ($actions as $action => $value) {
+			if ($value) {
+				switch ($action) {
+					case StreamAction::BOOSTED:
+						$reblogged = true;
+						break;
+					case StreamAction::LIKED:
+						$favorited = true;
+						break;
+				}
+			}
+		}
 		$result = [
+			"local"                  => $this->isLocal(),
 			"content"                => $this->getContent(),
 			"sensitive"              => $this->isSensitive(),
 			"spoiler_text"           => $this->getSpoilerText(),
@@ -491,8 +517,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'replies_count'          => 0,
 			'reblogs_count'          => 0,
 			'favourites_count'       => 0,
-			'favourited'             => false,
-			'reblogged'              => false,
+			'favourited'             => $favorited,
+			'reblogged'              => $reblogged,
 			'muted'                  => false,
 			'bookmarked'             => false,
 			'uri'                    => $this->getId(),
@@ -504,7 +530,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// TODO - store created_at full string with milliseconds ?
 		if ($this->hasActor()) {
 			$actor = $this->getActor();
-			$result['account'] = $actor;
+			$result['account'] = $actor->exportAsLocal();
 		}
 
 		return array_merge(parent::exportAsLocal(), $result);

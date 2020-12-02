@@ -61,6 +61,7 @@ class ACore extends Item implements JsonSerializable {
 	const AS_USERNAME = 5;
 	const AS_ACCOUNT = 6;
 	const AS_STRING = 7;
+	const AS_CONTENT = 8;
 	const AS_TAGS = 10;
 
 	const FORMAT_ACTIVITYPUB = 1;
@@ -559,14 +560,16 @@ class ACore extends Item implements JsonSerializable {
 				return $value;
 
 			case self::AS_STRING:
-				// try to preserve some whitespace from the html tags
-				$value = preg_replace("/\<br *\/?\>/", "\n", $value);
-				$value = preg_replace("/\<\/?p>/", "\n", $value);
-
 				$value = strip_tags($value);
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
 
-				return trim($value);
+				return $value;
+
+			case self::AS_CONTENT:
+				$value = strip_tags($value, ['a', 'p', 'span', 'br']);
+				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
+
+				return $value;
 
 			case self::AS_USERNAME:
 				$value = strip_tags($value);
@@ -654,6 +657,12 @@ class ACore extends Item implements JsonSerializable {
 		$this->setLocal(($this->getInt('local', $data, 0) === 1));
 	}
 
+	/**
+	 * @param array $data
+	 */
+	public function importFromCache(array $data) {
+		$this->import($data);
+	}
 
 	/**
 	 * @param int $format

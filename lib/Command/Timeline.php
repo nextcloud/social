@@ -169,12 +169,12 @@ class Timeline extends ExtendedBase {
 				break;
 
 			case 'local':
-				$stream = $this->streamRequest->getTimelineGlobal(0, $this->count, true);
+				$stream = $this->streamRequest->getTimelineGlobal_dep(0, $this->count, true);
 				$this->outputStreams($stream);
 				break;
 
 			case 'global':
-				$stream = $this->streamRequest->getTimelineGlobal(0, $this->count, false);
+				$stream = $this->streamRequest->getTimelineGlobal_dep(0, $this->count, false);
 				$this->outputStreams($stream);
 				break;
 
