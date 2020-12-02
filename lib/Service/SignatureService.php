@@ -468,8 +468,9 @@ class SignatureService {
 
 			list($k, $v) = explode('=', $entry, 2);
 			preg_match('/"([^"]+)"/', $v, $varr);
-			$v = trim($varr[0], '"');
-
+			if ($varr[0] !== null) {
+				$v = trim($varr[0], '"');
+			}
 			$sign[$k] = $v;
 		}
 
