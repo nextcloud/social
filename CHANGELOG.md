@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+- using IClient, to use local nextcloud network configuration.
+- rework on the API.
+- some compat with ActivityPub,
+- and small bugfixes.
+
 
 ## 0.4.1
 
