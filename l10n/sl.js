@@ -57,6 +57,7 @@ OC.L10N.register(
     "No liked posts found" : "Ni še priljubljenih objav",
     "You haven't tooted yet" : "Niste še začeli z objavami",
     "No posts found for this tag" : "Ni objav, skladnih s podano oznako",
+    "No replies found" : "Ni najdenih odgovorov",
     "hasn't tooted yet" : "še ne pošilja objav",
     "Reply" : "Odgovori",
     "More actions" : "Več možnosti",
