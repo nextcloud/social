@@ -58,6 +58,7 @@ OC.L10N.register(
     "No liked posts found" : "Nije pronađena nijedna objava označena kao „sviđa mi se“",
     "You haven't tooted yet" : "Niste se još uspostavili",
     "No posts found for this tag" : "Nije pronađena nijedna objava za ovu oznaku",
+    "No replies found" : "Nije pronađen nijedan odgovor",
     "hasn't tooted yet" : "nije se još uspostavio",
     "Reply" : "Odgovori",
     "Boost" : "Pojačaj",
