@@ -12,11 +12,10 @@
  */
 
 import Vue from 'vue'
-import { translate, translatePlural } from '@nextcloud/l10n'
-import Dashboard from './views/Dashboard'
+import Dashboard from './views/Dashboard.vue'
 
-Vue.prototype.t = translate
-Vue.prototype.n = translatePlural
+Vue.prototype.t = t
+Vue.prototype.n = n
 Vue.prototype.OC = window.OC
 Vue.prototype.OCA = window.OCA
 
@@ -25,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	OCA.Dashboard.register('social_notifications', (el, { widget }) => {
 		const View = Vue.extend(Dashboard)
 		new View({
-			propsData: { title: widget.title },
+			propsData: { title: widget.title }
 		}).$mount(el)
 	})
 

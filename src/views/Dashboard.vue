@@ -23,8 +23,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { showError, showSuccess } from '@nextcloud/dialogs'
-import moment from '@nextcloud/moment'
+import { showError } from '@nextcloud/dialogs'
 import { DashboardWidget } from '@nextcloud/vue-dashboard'
 import EmptyContent from '@nextcloud/vue/dist/Components/EmptyContent'
 
@@ -33,14 +32,14 @@ export default {
 
 	components: {
 		DashboardWidget,
-		EmptyContent,
+		EmptyContent
 	},
 
 	props: {
 		title: {
 			type: String,
-			required: true,
-		},
+			required: true
+		}
 	},
 
 	data() {
@@ -50,7 +49,7 @@ export default {
 			showMoreText: t('social', 'Social notifications'),
 			loop: null,
 			state: 'loading',
-			appUrl: generateUrl('/apps/social'),
+			appUrl: generateUrl('/apps/social')
 		}
 	},
 
@@ -64,7 +63,7 @@ export default {
 					avatarUsername: this.getActorName(n),
 					overlayIconUrl: this.getNotificationTypeImage(n),
 					mainText: this.getMainText(n),
-					subText: this.getSubline(n),
+					subText: this.getSubline(n)
 				}
 			})
 		},
@@ -88,7 +87,7 @@ export default {
 				return 'icon-checkmark'
 			}
 			return 'icon-checkmark'
-		},
+		}
 	},
 
 	beforeMount() {
@@ -100,8 +99,8 @@ export default {
 		fetchNotifications() {
 			const req = {
 				params: {
-					limit: 10,
-				},
+					limit: 10
+				}
 			}
 			const url = generateUrl('/apps/social/api/v1/stream/notifications')
 			// TODO check why 'since' param is in fact 'until'
@@ -188,8 +187,8 @@ export default {
 				return generateUrl('/svg/social/add_user')
 			}
 			return ''
-		},
-	},
+		}
+	}
 }
 </script>
 
