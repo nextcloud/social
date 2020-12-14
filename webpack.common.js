@@ -8,6 +8,5 @@ webpackConfig.entry = {
 	social: path.join(__dirname, 'src', 'main.js'),
 	ostatus: path.join(__dirname, 'src', 'ostatus.js'),
 	profilePage: path.join(__dirname, 'src', 'profile.js'),
+    dashboard: path.join(__dirname, 'src', 'dashboard.js'),
 }
-
-module.exports = webpackConfig
