@@ -37,6 +37,7 @@ use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
+use OCA\Social\WellKnown\WebFingerHandler;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -73,9 +74,7 @@ class Application extends App implements IBootstrap {
 	 */
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
-
-		// TODO: nc21, uncomment
-		// $context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
+		$context->registerWellKnownHandler(WebFingerHandler::class);
 	}
 
 
