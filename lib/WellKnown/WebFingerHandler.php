@@ -27,6 +27,7 @@ namespace OCA\Social\WellKnown;
 
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -97,6 +98,10 @@ class WebFingerHandler implements IHandler {
 
 				return $previousResponse;
 			}
+		} catch (SocialAppConfigException $e) {
+			// Something isn't right, we can't answer the request at the moment
+
+			return $previousResponse;
 		}
 
 		$href = rtrim($this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername(), '/');
