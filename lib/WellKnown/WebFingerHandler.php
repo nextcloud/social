@@ -105,7 +105,7 @@ class WebFingerHandler implements IHandler {
 		$response = $previousResponse;
 		if (!($response instanceof JrdResponse)) {
 			// We override null or any other types
-			$response = new JrdResponse($service);
+			$response = new JrdResponse($subject);
 		}
 
 		return $response
