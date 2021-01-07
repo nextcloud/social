@@ -66,7 +66,7 @@ OC.L10N.register(
     "More actions" : "Więcej akcji",
     "Delete post" : "Usuń wpis",
     "Follow on Nextcloud Social" : "Śledź w Nextcloud Social",
-    "Hello" : "Witam",
+    "Hello" : "Witaj",
     "Please confirm that you want to follow this account:" : "Potwierdź, że chcesz śledzić to konto:",
     "You are following this account" : "Obserwujesz to konto",
     "Close" : "Zamknij",
