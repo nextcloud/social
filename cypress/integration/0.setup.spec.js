@@ -1,5 +1,3 @@
-let userId = 'janedoe' + Date.now();
-
 describe('Social app setup', function() {
 
 	beforeEach(() => {

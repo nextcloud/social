@@ -18,6 +18,7 @@ import './commands'
 
 // Alternatively you can use CommonJS syntax:
 // require('./commands')
+let userId = 'janedoe' + Date.now();
 
 before(function() {
     cy.login('admin', 'admin', '/apps/social/')
