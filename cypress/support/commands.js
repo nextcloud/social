@@ -22,6 +22,7 @@
 
 import { addMatchImageSnapshotCommand } from 'cypress-image-snapshot/command'
 import axios from '@nextcloud/axios'
+import { Cypress, cy } from '@testing-library/cypress/add-commands'
 
 addMatchImageSnapshotCommand()
 
