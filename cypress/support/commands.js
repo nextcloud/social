@@ -157,3 +157,7 @@ Cypress.Commands.overwrite('matchImageSnapshot', (originalFn, subject, name, opt
 	})
 	return originalFn(subject, name, options)
 })
+
+Cypress.Cookies.defaults({
+    whitelist: 'SESSION'
+})

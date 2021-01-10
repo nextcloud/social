@@ -4,8 +4,6 @@ describe('Social app setup', function() {
 
 	beforeEach(() => {
 		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
-		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
-		cy.login(userId, 'p4ssw0rd')
 	})
 
 	it('See the welcome message', function() {
