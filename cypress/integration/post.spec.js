@@ -24,14 +24,6 @@ let userId = 'janedoe' + Date.now();
 
 describe('Create posts', function() {
 
-	before(function() {
-		// ensure that the admin account is initialized for social
-		cy.login('admin', 'admin', '/apps/social/')
-		
-		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
-		cy.login(userId, 'p4ssw0rd', '/apps/social/')
-		cy.get('.app-content').should('be.visible')
-	})
 
 	afterEach(function() {
 		cy.screenshot()
@@ -39,6 +31,12 @@ describe('Create posts', function() {
 
 	beforeEach(() => {
 		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
+		// ensure that the admin account is initialized for social
+		cy.login('admin', 'admin', '/apps/social/')
+		
+		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
+		cy.login(userId, 'p4ssw0rd', '/apps/social/')
+		cy.get('.app-content').should('be.visible')
 	})
 
 	it('See the empty content illustration', function() {
