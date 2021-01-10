@@ -154,7 +154,7 @@ class SignatureService {
 
 		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
 
-		$headersElements = ['content-length', 'date', 'host', 'digest'];
+		$headersElements = ['(request-target)', 'content-length', 'date', 'host', 'digest'];
 		$allElements = [
 			'(request-target)' => 'post ' . $path->getPath(),
 			'date'             => $date,
