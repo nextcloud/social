@@ -13,13 +13,13 @@ before(function() {
 
 describe('Social app setup', function() {
 
-	beforeEach(() => {
+	beforeEach(function() {
 		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
 	})
 
 	it('See the welcome message', function() {
 		cy.visit('/apps/social/')
-		cy.get('.social__welcome').should('contains', 'Nextcloud becomes part of the federated social networks!')
+		cy.get('.social__welcome').should('contain', 'Nextcloud becomes part of the federated social networks!')
 		cy.get('.social__welcome').find('.icon-close').click()
 		cy.get('.social__welcome').should('not.exist')
 	})

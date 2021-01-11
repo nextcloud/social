@@ -39,7 +39,7 @@ describe('Create posts', function() {
 		cy.screenshot()
 	})
 
-	beforeEach(() => {
+	beforeEach(function() {
 		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
 	})
 
