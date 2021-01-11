@@ -1,3 +1,5 @@
+/// <reference types="cypress" />
+
 describe('Social app setup', function() {
 
 	beforeEach(() => {

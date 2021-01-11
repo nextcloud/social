@@ -1,3 +1,4 @@
+/// <reference types="cypress" />
 /*
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
@@ -19,8 +20,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
-let userId = 'janedoe' + Date.now();
 
 describe('Create posts', function() {
 
