@@ -23,6 +23,11 @@ const { afterEach, describe, beforeEach, context, it } = require("mocha");
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+Cypress.on('fail', (err, runnable) => {
+	debugger
+  })
+  
 describe('Social posting Init', () => {
 	beforeEach(() => {
 		cy.log('Global init completed.')

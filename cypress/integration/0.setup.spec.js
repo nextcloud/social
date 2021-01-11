@@ -1,5 +1,9 @@
 /// <reference types="cypress" />
 
+Cypress.on('fail', (err, runnable) => {
+	debugger
+  })
+
 const { afterEach, describe, beforeEach, context, it } = require("mocha");
 
 describe('Social app init', () => {
