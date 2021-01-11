@@ -77,6 +77,7 @@ OC.L10N.register(
     "User not found" : "Ο χρήστης δεν βρέθηκε",
     "Sorry, we could not find the account of {userId}" : "Συγνώμη, δεν μπορέσαμε να βρούμε τον λαγαριασμό του {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Το Nextcloud γίνεται μέρος των ομοσπονδιακών κοινωνικών δικτύων!",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Δημιουργήσαμε αυτόματα έναν λογαριασμό κοινωνικής δικτύωσης για εσάς. Το Social ID σας είναι το ίδιο με το Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Καθως είστε νέοι στο Social, ξεκινήστε ακολουθώντας τον επίσημο λογαριασμό του Nextcloud για να μην χάσετε καμιά είδηση",
     "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz"
 },
