@@ -25,8 +25,8 @@ describe('Social app init', () => {
 
 		describe('Social app setup', () => {
 			beforeEach(() => {
-				cy.log('Social app test-setup started.')
-				Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
+				cy.log('Social app setup started.')
+				cy.clearCookies()
 				cy.log('Social app test-setup success.')
 			})
 		

@@ -49,7 +49,9 @@ describe('Social posting Init', () => {
 			})
 		
 			beforeEach(() => {
-				Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
+				cy.log('Social posting test-setup started.')
+				cy.clearCookies()
+				cy.log('Social posting test-setup success.')
 			})
 		
 			it('See the empty content illustration', () => {

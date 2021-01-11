@@ -159,5 +159,5 @@ Cypress.Commands.overwrite('matchImageSnapshot', (originalFn, subject, name, opt
 })
 
 Cypress.Cookies.defaults({
-    preserve: 'SESSION'
+    preserve: ['nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase']
 })
