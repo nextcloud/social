@@ -1,13 +1,12 @@
 /// <reference types="cypress" />
-// Alternatively you can use CommonJS syntax:
-// require('./commands')
+
 let userId = 'janedoe' + Date.now();
 
 describe('Social app setup', () => {
 	before(() => {
 		cy.login('admin', 'admin', '/apps/social/')
 		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
-		cy.login(userId, 'p4ssw0rd')
+		cy.login(userId, 'p4ssw0rd', '/apps/social/')
 		cy.get('.app-content').should('be.visible')
 	})
 
