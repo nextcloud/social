@@ -24,30 +24,28 @@
 // require('./commands')
 let userId = 'janedoe' + Date.now();
 
-before(function() {
-    cy.login('admin', 'admin', '/apps/social/')
-    cy.nextcloudCreateUser(userId, 'p4ssw0rd')
-    cy.login(userId, 'p4ssw0rd')
-    cy.get('.app-content').should('be.visible')
-})
 
+describe('Create posts', () => {
+	before(() => {
+		cy.login('admin', 'admin', '/apps/social/')
+		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
+		cy.login(userId, 'p4ssw0rd')
+		cy.get('.app-content').should('be.visible')
+	})
 
-describe('Create posts', function() {
-
-
-	afterEach(function() {
+	afterEach(() => {
 		cy.screenshot()
 	})
 
-	beforeEach(function() {
+	beforeEach(() => {
 		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
 	})
 
-	it('See the empty content illustration', function() {
+	it('See the empty content illustration', () => {
 		cy.get('.emptycontent').should('be.visible').contains('No posts found')
 	})
 
-	it('Write a post to followers', function() {
+	it('Write a post to followers', () => {
 		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
@@ -62,11 +60,11 @@ describe('Create posts', function() {
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world')
 	})
 
-	it('No longer see the empty content illustration', function() {
+	it('No longer see the empty content illustration', () => {
 		cy.get('.emptycontent').should('not.be.visible')
 	})
 
-	it('Write a post to followers with shift enter', function() {
+	it('Write a post to followers with shift enter', () => {
 		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
@@ -75,7 +73,7 @@ describe('Create posts', function() {
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world 2')
 	})
 
-	it('Write a post to @admin', function() {
+	it('Write a post to @admin', () => {
 		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
@@ -90,7 +88,7 @@ describe('Create posts', function() {
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', '@admin')
 	})
 
-	it('Opens the menu and shows that followers is selected by default', function() {
+	it('Opens the menu and shows that followers is selected by default', () => {
 		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
