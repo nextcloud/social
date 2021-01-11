@@ -50,7 +50,7 @@ describe('Social posting Init', () => {
 		
 			beforeEach(() => {
 				cy.log('Social posting test-setup started.')
-				cy.clearCookies()
+				//cy.clearCookies()
 				cy.log('Social posting test-setup success.')
 			})
 		

@@ -26,7 +26,7 @@ describe('Social app init', () => {
 		describe('Social app setup', () => {
 			beforeEach(() => {
 				cy.log('Social app setup started.')
-				cy.clearCookies()
+				//cy.clearCookies()
 				cy.log('Social app test-setup success.')
 			})
 		
