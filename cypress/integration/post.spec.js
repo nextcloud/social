@@ -21,7 +21,7 @@
  *
  */
 
-context('Social posting Init', function() {
+context('Social posting Init', () => {
 	let userId = 'janedoe' + Date.now();
 
 	before(() => {
@@ -50,8 +50,7 @@ context('Social posting Init', function() {
 	
 		it('Write a post to followers', () => {
 			cy.visit('/apps/social/')
-			cy.server()
-			cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+			cy.intercept('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 			cy.get('.new-post input[type=submit]')
 				.should('be.disabled')
 			cy.get('.new-post').find('[contenteditable]').type('Hello world')
@@ -69,8 +68,7 @@ context('Social posting Init', function() {
 	
 		it('Write a post to followers with shift enter', () => {
 			cy.visit('/apps/social/')
-			cy.server()
-			cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+			cy.intercept('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 			cy.get('.new-post').find('[contenteditable]').type('Hello world 2{shift}{enter}')
 			cy.wait('@postMessage')
 			cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world 2')
@@ -78,9 +76,8 @@ context('Social posting Init', function() {
 	
 		it('Write a post to @admin', () => {
 			cy.visit('/apps/social/')
-			cy.server()
-			cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
-			cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
+			cy.intercept('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+			cy.intercept('GET', '/index.php/apps/social/api/v1/global/accounts/search')
 			cy.get('.new-post').find('[contenteditable]').type('@adm', {delay: 500})
 			cy.get('.tribute-container').should('be.visible')
 			cy.get('.tribute-container ul li:first').contains('admin')
@@ -93,9 +90,8 @@ context('Social posting Init', function() {
 	
 		it('Opens the menu and shows that followers is selected by default', () => {
 			cy.visit('/apps/social/')
-			cy.server()
-			cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
-			cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
+			cy.intercept('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+			cy.intercept('GET', '/index.php/apps/social/api/v1/global/accounts/search')
 			cy.get('.new-post').find('[contenteditable]').click({force: true}).type('@adm{enter} Hello world', {delay: 500, force: true})
 			cy.wait(500)
 			cy.get('.new-post input[type=submit]').should('not.be.disabled')

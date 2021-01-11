@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 
-context('Social app init'), function() {
+context('Social app init', () => {
 	let userId = 'janedoe' + Date.now();
 
 	before(() => {
@@ -40,5 +40,4 @@ context('Social app init'), function() {
 	
 	})
 	
-}
-
+})
