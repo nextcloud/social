@@ -21,16 +21,17 @@
  *
  */
 
-context('Social posting Init', () => {
+context('Social posting Init', function() {
 	let userId = 'janedoe' + Date.now();
-	beforeEach(() => {
+
+	before(() => {
 		cy.login('admin', 'admin', '/apps/social/')
 		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
 		cy.login(userId, 'p4ssw0rd')
 		cy.get('.app-content').should('be.visible')
 	})
 
-	afterEach(() => {
+	after(() => {
 		cy.logout()
 	})
 
