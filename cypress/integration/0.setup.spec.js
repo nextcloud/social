@@ -1,4 +1,15 @@
 /// <reference types="cypress" />
+// Alternatively you can use CommonJS syntax:
+// require('./commands')
+let userId = 'janedoe' + Date.now();
+
+before(function() {
+    cy.login('admin', 'admin', '/apps/social/')
+    cy.nextcloudCreateUser(userId, 'p4ssw0rd')
+    cy.login(userId, 'p4ssw0rd')
+    cy.get('.app-content').should('be.visible')
+})
+
 
 describe('Social app setup', function() {
 
@@ -8,7 +19,7 @@ describe('Social app setup', function() {
 
 	it('See the welcome message', function() {
 		cy.visit('/apps/social/')
-		cy.get('.social__welcome').should('contain', 'Nextcloud becomes part of the federated social networks!')
+		cy.get('.social__welcome').should('contains', 'Nextcloud becomes part of the federated social networks!')
 		cy.get('.social__welcome').find('.icon-close').click()
 		cy.get('.social__welcome').should('not.exist')
 	})
