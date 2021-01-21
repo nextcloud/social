@@ -48,7 +48,7 @@ OC.L10N.register(
     "Posts from people you follow will show up here" : "Objave oseb, ki jim sledite, bodo prikazane na tem mestu",
     "No direct messages found" : "Ni najdenih neposrednih sporočil",
     "Posts directed to you will show up here" : "Objave namenjene vam, bodo prikazane na tem mestu",
-    "No local posts found" : "Ni najdenih krajevnih objav",
+    "No local posts found" : "Ni še krajevnih objav",
     "Posts from other people on this instance will show up here" : "Objave drugih uporabnikov tega oblaka, bodo prikazane na tem mestu",
     "No notifications found" : "Ni najdenih obvestil",
     "You haven't receive any notifications yet" : "Niste prejeli še nobenega obvestila",
@@ -60,6 +60,7 @@ OC.L10N.register(
     "No replies found" : "Ni najdenih odgovorov",
     "hasn't tooted yet" : "še ne pošilja objav",
     "Reply" : "Odgovori",
+    "Like" : "Priljubljeno",
     "More actions" : "Več možnosti",
     "Delete post" : "Izbriši objavo",
     "Follow on Nextcloud Social" : "Sledi na Nextcloud Social",
@@ -70,9 +71,12 @@ OC.L10N.register(
     "You are going to follow:" : "Sledili boste:",
     "name@domain of your federation account" : "ime@domena zveznega računa oblaka",
     "Continue" : "Nadaljuj",
+    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Ta korak je obvezen, saj uporabnik verjetno ni vpisan na istem strežniku kot vi. Če želite temu računu slediti, sledite preusmeritvi na domači strežnik.",
     "User not found" : "Uporabnika ni mogoče najti",
     "Sorry, we could not find the account of {userId}" : "Računa {userId} ni mogoče najti ",
     "Nextcloud becomes part of the federated social networks!" : "Oblak Nextcloud je prek zvezne povezave postal del družbenih omrežij!",
-    "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ker ste še novi na družbenem omrežju Social, začnite s sledenjem uradnega računa Nextcloud, da ne zamudite novosti in sporočil."
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Za vas smo samodejno ustvarili račun Social. Določilo ID za Social je enako kot vaše določilo zveznega oblaka: ",
+    "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ker ste še novi na družbenem omrežju Social, začnite s sledenjem uradnega računa Nextcloud, da ne zamudite novosti in sporočil.",
+    "Follow Nextcloud on mastodon.xyz" : "Sledi Nextcloud na mastodon.xyz"
 },
 "nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);");
