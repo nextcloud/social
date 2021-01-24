@@ -21,7 +21,7 @@ jobs:
       matrix:
         # run 2 copies of the current job in parallel
         containers: [1, 2]
-        node-version: ['12']
+        node-version: ['12', '14']
         php-versions: ['7.4']
 
     name: Runner ${{ matrix.containers }}
@@ -54,7 +54,7 @@ jobs:
           cd cypress
           docker-compose exec --env APP_NAME=${{ env.APP_NAME }} -T nextcloud bash /initserver.sh
       - name: Cypress run
-        uses: cypress-io/github-action@v1
+        uses: cypress-io/github-action@v2
         with:
           record: true
           parallel: true
