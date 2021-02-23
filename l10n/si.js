@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "උපකාර",
     "Home" : "මුල් පිටුව",
     "Notifications" : "දැනුම්දීම්",
+    "Public" : "පොදු",
     "Reply" : "පිළිතුර",
     "Close" : "වසන්න"
 },
