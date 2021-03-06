@@ -29,7 +29,7 @@
 		"cypress:gui": "cypress open"
 	},
 	"dependencies": {
-		"@babel/runtime": "^7.12.5",
+		"@babel/runtime": "^7.13.9",
 		"@nextcloud/auth": "^1.3.0",
 		"@nextcloud/axios": "^1.5.0",
 		"@nextcloud/initial-state": "^1.2.0",
