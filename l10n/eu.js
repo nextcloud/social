@@ -57,6 +57,7 @@ OC.L10N.register(
     "Posts from federated instances will show up here" : "Federatutako instantzien mezuak hemen agertuko dira",
     "No liked posts found" : "Ez da gustuko mezurik aurkitu",
     "No posts found for this tag" : "Ez da mezurik aurkitu etiketa honentzat",
+    "No replies found" : "Ez da erantzunik aurkitu",
     "Reply" : "Erantzun",
     "Boost" : "Bultzada",
     "Like" : "Gogokoa",
@@ -74,6 +75,7 @@ OC.L10N.register(
     "User not found" : "Ez da erabiltzailea aurkitu",
     "Sorry, we could not find the account of {userId}" : "Sentitzen dugu, ezin izan dugu {userId} erabiltzailearen kontua aurkitu",
     "Nextcloud becomes part of the federated social networks!" : "Nexcloud federatutako sare sozialekin bat egiten du!",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Kontu sozial bat sortu dugu automatikoki zuretzat. Zure ID soziala federatutako Cloud IDaren berdina da:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Social-era iritsi berria zarenez, hasi Nextcloud kontu ofiziala jarraituz berririk ez galtzeko",
     "Follow Nextcloud on mastodon.xyz" : "Jarraitu Nextcloud mastodon.xyz zerbitzarian"
 },
