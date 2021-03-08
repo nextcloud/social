@@ -37,6 +37,8 @@
 		"@nextcloud/moment": "^1.1.1",
 		"@nextcloud/router": "^1.2.0",
 		"@nextcloud/vue": "^2.7.0",
+		"@nextcloud/vue-dashboard": "^1.0.1",
+		"@nextcloud/dialogs": "^3.1.1",
 		"he": "^1.2.0",
 		"linkifyjs": "^2.1.8",
 		"tributejs": "^3.7.3",

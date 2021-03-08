@@ -1,0 +1,7 @@
+.icon-social {
+	background-image: url('../img/social-dark.svg');
+}
+
+body.theme--dark .icon-social {
+	background-image: url('../img/social.svg');
+}
