@@ -427,9 +427,14 @@ class SignatureService {
 	 *
 	 * @return string
 	 * @throws SocialAppConfigException
+	 * @throws SignatureException
 	 */
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
+
+		if (!empty(array_diff(['(request-target)', 'date', 'digest', 'host'], $keys))) {
+			throw new SignatureException('missing elements in \'headers\'');
+		}
 
 		$target = '';
 		try {
