@@ -200,7 +200,7 @@ class CheckService {
 	 * @return array
 	 */
 	public function checkInstallationStatus(bool $light = false): array {
-		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
+//		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 
 		$result = [];

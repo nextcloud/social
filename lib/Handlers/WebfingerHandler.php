@@ -1,4 +1,6 @@
 <?php
+
+
 declare(strict_types=1);
 
 
@@ -9,7 +11,7 @@ declare(strict_types=1);
  * later. See the COPYING file.
  *
  * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
+ * @copyright 2021, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,19 +29,34 @@ declare(strict_types=1);
  *
  */
 
-namespace OCA\Social\Service;
+
+namespace OCA\Social\Handlers;
 
 
-use OC\Webfinger\Event\WebfingerEvent;
+use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
-use OCA\Social\Model\WebfingerLink;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FediverseService;
+use OCP\Http\WellKnown\IHandler;
+use OCP\Http\WellKnown\IRequestContext;
+use OCP\Http\WellKnown\IResponse;
+use OCP\Http\WellKnown\JrdResponse;
 use OCP\IURLGenerator;
-use OCP\WellKnown\Model\IWellKnown;
 
-class WellKnownService {
+
+/**
+ * Class WebfingerHandler
+ *
+ * @package OCA\Social\Handlers
+ */
+class WebfingerHandler implements IHandler {
+
+
+	use TArrayTools;
 
 
 	/** @var IURLGenerator */
@@ -48,55 +65,57 @@ class WellKnownService {
 	/** @var CacheActorsRequest */
 	private $cacheActorsRequest;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
-
 	/** @var FediverseService */
 	private $fediverseService;
+
+	/** @var CacheActorService */
+	private $cacheActorService;
 
 	/** @var ConfigService */
 	private $configService;
 
-	/** @var MiscService */
-	private $miscService;
-
 
 	/**
-	 * WebfingerService constructor.
+	 * WebfingerHandler constructor.
 	 *
 	 * @param IURLGenerator $urlGenerator
 	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param CacheActorService $cacheActorService
 	 * @param FediverseService $fediverseService
+	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
-	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IURLGenerator $urlGenerator, CacheActorsRequest $cacheActorsRequest,
-		CacheActorService $cacheActorService, FediverseService $fediverseService,
-		ConfigService $configService, MiscService $miscService
+		FediverseService $fediverseService, CacheActorService $cacheActorService, ConfigService $configService
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->cacheActorService = $cacheActorService;
 		$this->fediverseService = $fediverseService;
+		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
-
 	}
 
 
 	/**
-	 * @param IWellKnown $wellKnown
+	 * @param string $service
+	 * @param IRequestContext $context
+	 * @param IResponse|null $response
 	 *
+	 * @return IResponse|null
 	 * @throws CacheActorDoesNotExistException
-	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
+	 * @throws SocialAppConfigException
 	 */
-	public function webfinger(IWellKnown $wellKnown) {
+	public function handle(string $service, IRequestContext $context, ?IResponse $response): ?IResponse {
 		$this->fediverseService->jailed();
+		if ($service !== 'webfinger') {
+			return $response;
+		}
 
-		$subject = $wellKnown->getSubject();
+		$subject = $this->get('resource', $context->getHttpRequest()->getParams());
+		if (!($response instanceof JrdResponse)) {
+			$response = new JrdResponse($subject);
+		}
 
 		if (strpos($subject, 'acct:') === 0) {
 			$subject = substr($subject, 5);
@@ -114,18 +133,20 @@ class WellKnownService {
 		$href = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
 		$href = rtrim($href, '/');
 
-		$linkPerson = new WebfingerLink();
-		$linkPerson->setRel('self');
-		$linkPerson->setType('application/activity+json');
-		$linkPerson->setHref($href);
+		$response->addLink('self', 'application/activity+json', $href, []);
 
-		$linkOstatus = new WebfingerLink();
-		$linkOstatus->setRel('http://ostatus.org/schema/1.0/subscribe');
-		$subscribe = $this->urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe') . '?uri={uri}';
-		$linkOstatus->setTemplate($subscribe);
+// not supported ?
+//		$subscribe = $this->urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe') . '?uri={uri}';
+//		$response->addLink(
+//			'http://ostatus.org/schema/1.0/subscribe',
+//			'',
+//			'',
+//			null,
+//			null,
+//			['template' => $subscribe]
+//		);
 
-		$wellKnown->addLinkSerialized($linkPerson)
-				  ->addLinkSerialized($linkOstatus);
+		return $response;
 	}
 
 }

@@ -39,7 +39,6 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -71,6 +70,9 @@ class SocialPubController extends Controller {
 	/** @var IL10N */
 	private $l10n;
 
+	/** @var IInitialStateService */
+	private $initialStateService;
+
 	/** @var NavigationController */
 	private $navigationController;
 
@@ -91,6 +93,7 @@ class SocialPubController extends Controller {
 	 * SocialPubController constructor.
 	 *
 	 * @param $userId
+	 * @param IInitialStateService $initialStateService
 	 * @param IRequest $request
 	 * @param IL10N $l10n
 	 * @param NavigationController $navigationController
@@ -100,9 +103,9 @@ class SocialPubController extends Controller {
 	 * @param ConfigService $configService
 	 */
 	public function __construct(
-		$userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,
-		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
-		ConfigService $configService
+		$userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n,
+		NavigationController $navigationController, CacheActorService $cacheActorService,
+		AccountService $accountService, StreamService $streamService, ConfigService $configService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -143,9 +146,11 @@ class SocialPubController extends Controller {
 			return $this->fail($e);
 		}
 
-		$this->initialStateService->provideInitialState('social', 'serverData', [
-			'public' => true,
-		]);
+		$this->initialStateService->provideInitialState(
+			'social', 'serverData', [
+						'public' => true,
+					]
+		);
 		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
 		$page->setStatus($status);
 		$page->setHeaderTitle($this->l10n->t('Social'));
@@ -236,10 +241,13 @@ class SocialPubController extends Controller {
 			'application' => 'Social'
 		];
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream );
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', [
-			'public' => ($this->userId === null),
-		]);
+		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream);
+		$this->initialStateService->provideInitialState(
+			Application::APP_NAME, 'serverData', [
+									 'public' => ($this->userId === null),
+								 ]
+		);
+
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
 

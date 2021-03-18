@@ -33,6 +33,7 @@ namespace OCA\Social\AppInfo;
 
 use Closure;
 use OC\DB\SchemaWrapper;
+use OCA\Social\Handlers\WebfingerHandler;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Service\ConfigService;
@@ -73,9 +74,7 @@ class Application extends App implements IBootstrap {
 	 */
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
-
-		// TODO: nc21, uncomment
-		// $context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
+		$context->registerWellKnownHandler(WebfingerHandler::class);
 	}
 
 
@@ -86,40 +85,6 @@ class Application extends App implements IBootstrap {
 		$manager = $context->getServerContainer()
 						   ->getNotificationManager();
 		$manager->registerNotifierService(Notifier::class);
-
-		try {
-			$context->injectFn(Closure::fromCallable([$this, 'checkUpgradeStatus']));
-		} catch (Throwable $e) {
-		}
-	}
-
-
-	/**
-	 * Register Navigation Tab
-	 *
-	 * @param IServerContainer $container
-	 */
-	protected function checkUpgradeStatus(IServerContainer $container) {
-		$upgradeChecked = $container->getConfig()
-									->getAppValue(Application::APP_NAME, 'update_checked', '');
-
-		if ($upgradeChecked === '0.3') {
-			return;
-		}
-
-		try {
-			$configService = $container->query(ConfigService::class);
-			$updateService = $container->query(UpdateService::class);
-		} catch (QueryException $e) {
-			return;
-		}
-
-		$schema = new SchemaWrapper($container->getDatabaseConnection());
-		if ($schema->hasTable('social_a2_stream')) {
-			$updateService->checkUpdateStatus();
-		}
-
-		$configService->setAppValue('update_checked', '0.3');
 	}
 
 }

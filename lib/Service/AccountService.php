@@ -245,7 +245,7 @@ class AccountService {
 			/* we do nohtin */
 		}
 
-		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
+//		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 
 		$actor = new Person();
