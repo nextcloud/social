@@ -131,10 +131,7 @@ class WebfingerHandler implements IHandler {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
 		} catch (CacheActorDoesNotExistException $e) {
-			$actor = $this->cacheActorsRequest->getFromId($subject);
-			if (!$actor->isLocal()) {
-				throw new CacheActorDoesNotExistException();
-			}
+			return $response;
 		}
 
 		$href = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
