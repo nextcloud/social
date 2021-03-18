@@ -126,7 +126,7 @@ use TNC20Logger;
 		FollowService $followService, StreamService $streamService, ConfigService $configService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->socialPubController = $socialPubController;
 		$this->fediverseService = $fediverseService;

@@ -91,7 +91,7 @@ class OStatusController extends Controller {
 		IRequest $request, IInitialStateService $initialStateService, CacheActorService $cacheActorService, AccountService $accountService,
 		CurlService $curlService, MiscService $miscService, IUserSession $userSession
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->initialStateService = $initialStateService;
 		$this->cacheActorService = $cacheActorService;

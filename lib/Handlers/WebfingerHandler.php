@@ -34,6 +34,7 @@ namespace OCA\Social\Handlers;
 
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -117,6 +118,12 @@ class WebfingerHandler implements IHandler {
 			$response = new JrdResponse($subject);
 		}
 
+		if ($subject === Application::NEXTCLOUD_SUBJECT) {
+			$this->manageNextcloudSubject($response);
+
+			return $response;
+		}
+
 		if (strpos($subject, 'acct:') === 0) {
 			$subject = substr($subject, 5);
 		}
@@ -147,6 +154,20 @@ class WebfingerHandler implements IHandler {
 //		);
 
 		return $response;
+	}
+
+
+	/**
+	 * @param JrdResponse $response
+	 */
+	private function manageNextcloudSubject(JrdResponse $response) {
+		$info = [
+			'app'     => Application::APP_ID,
+			'name'    => Application::APP_NAME,
+			'version' => $this->configService->getAppValue('installed_version')
+		];
+
+		$response->addLink(Application::APP_REL, '', '', [], $info);
 	}
 
 }

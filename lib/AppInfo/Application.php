@@ -31,20 +31,13 @@ declare(strict_types=1);
 namespace OCA\Social\AppInfo;
 
 
-use Closure;
-use OC\DB\SchemaWrapper;
 use OCA\Social\Handlers\WebfingerHandler;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\UpdateService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
-use OCP\AppFramework\QueryException;
-use OCP\IServerContainer;
-use Throwable;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -56,8 +49,10 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 class Application extends App implements IBootstrap {
 
 
-	const APP_NAME = 'social';
-
+	const APP_ID = 'social';
+	const APP_NAME = 'Social';
+	const APP_REL = 'https://apps.nextcloud.com/apps/social';
+	const NEXTCLOUD_SUBJECT = 'http://nextcloud.com/';
 
 	/**
 	 * Application constructor.
@@ -65,7 +60,7 @@ class Application extends App implements IBootstrap {
 	 * @param array $params
 	 */
 	public function __construct(array $params = []) {
-		parent::__construct(self::APP_NAME, $params);
+		parent::__construct(self::APP_ID, $params);
 	}
 
 
