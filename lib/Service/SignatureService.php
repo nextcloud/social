@@ -256,6 +256,14 @@ class SignatureService {
 			throw new SignatureException('object is too old');
 		}
 
+		if (strlen($data) !== (int)$request->getHeader('content-length')) {
+			throw new SignatureException('issue with content-length');
+		}
+
+		if ($this->generateDigest($data) !== $request->getHeader('digest')) {
+			throw new SignatureException('issue with digest');
+		}
+
 		try {
 			return $this->checkRequestSignature($request, $data);
 		} catch (RequestContentException $e) {
@@ -379,9 +387,6 @@ class SignatureService {
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
-		// TODO: check digest
-		//	$this->generateDigest($data);
-
 		try {
 			$publicKey = $this->retrieveKey($keyId);
 			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
@@ -422,9 +427,14 @@ class SignatureService {
 	 *
 	 * @return string
 	 * @throws SocialAppConfigException
+	 * @throws SignatureException
 	 */
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
+
+		if (!empty(array_diff(['(request-target)', 'date', 'digest', 'host'], $keys))) {
+			throw new SignatureException('missing elements in \'headers\'');
+		}
 
 		$target = '';
 		try {
