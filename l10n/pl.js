@@ -38,7 +38,7 @@ OC.L10N.register(
     "Error while trying to post your message: Could not find any valid recipients." : "Błąd podczas próby opublikowania wiadomości: Nie można znaleźć żadnych prawidłowych odbiorców.",
     "Unfollow" : "Przestań obserwować",
     "Follow" : "Obserwuj",
-    "posts" : "wpisy",
+    "posts" : "posty",
     "following" : "śledzeni",
     "followers" : "śledzący",
     "No results found" : "Nie znaleziono wyników",
