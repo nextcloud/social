@@ -33,7 +33,7 @@ namespace OCA\Social\Migration;
 
 use Closure;
 use Doctrine\DBAL\Schema\SchemaException;
-use Doctrine\DBAL\Types\Type;
+use Doctrine\DBAL\Types\Types;
 use Exception;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
@@ -440,7 +440,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		}
 
 		$table->addColumn(
-			'chunk', Type::SMALLINT,
+			'chunk', Types::SMALLINT,
 			[
 				'default'  => 1,
 				'length'   => 1,

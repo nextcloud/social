@@ -32,7 +32,7 @@ namespace OCA\Social\Migration;
 
 
 use Closure;
-use Doctrine\DBAL\Types\Type;
+use Doctrine\DBAL\Types\Types;
 use Exception;
 use OCP\DB\ISchemaWrapper;
 use OCP\IDBConnection;
@@ -225,20 +225,20 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'summary', Type::TEXT,
+			'summary', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'public_key', Type::TEXT,
+			'public_key', Types::TEXT,
 			[
 				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'private_key', Type::TEXT,
+			'private_key', Types::TEXT,
 			[
 				'notnull' => false
 			]
@@ -542,7 +542,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'chunk', Type::SMALLINT,
+			'chunk', Types::SMALLINT,
 			[
 				'default'  => 1,
 				'length'   => 1,
@@ -565,7 +565,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'subtype', Type::STRING,
+			'subtype', Types::STRING,
 			[
 				'notnull' => false,
 				'length'  => 31,
@@ -581,35 +581,35 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'to_array', Type::TEXT,
+			'to_array', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'cc', Type::TEXT,
+			'cc', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'bcc', Type::TEXT,
+			'bcc', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'content', Type::TEXT,
+			'content', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'summary', Type::TEXT,
+			'summary', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
@@ -686,42 +686,42 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'hashtags', Type::TEXT,
+			'hashtags', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'details', Type::TEXT,
+			'details', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'source', Type::TEXT,
+			'source', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'instances', Type::TEXT,
+			'instances', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'attachments', Type::TEXT,
+			'attachments', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'cache', Type::TEXT,
+			'cache', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
@@ -902,28 +902,28 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'summary', Type::TEXT,
+			'summary', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'public_key', Type::TEXT,
+			'public_key', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'source', Type::TEXT,
+			'source', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'details', Type::TEXT,
+			'details', Types::TEXT,
 			[
 				'notnull' => false
 			]
@@ -1012,7 +1012,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'resized_copy', Type::TEXT,
+			'resized_copy', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
@@ -1203,14 +1203,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'activity', Type::TEXT,
+			'activity', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'instance', Type::TEXT,
+			'instance', Types::TEXT,
 			[
 				'notnull' => false,
 				'length'  => 500,
@@ -1263,7 +1263,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table = $schema->createTable('social_3_stream_act');
 
 		$table->addColumn(
-			'id', Type::INTEGER,
+			'id', Types::INTEGER,
 			[
 				'autoincrement' => true,
 				'notnull'       => true,
@@ -1272,7 +1272,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'chunk', Type::SMALLINT,
+			'chunk', Types::SMALLINT,
 			[
 				'default'  => 1,
 				'length'   => 1,
@@ -1315,7 +1315,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn('boosted', 'boolean', ['default' => false]);
 		$table->addColumn('replied', 'boolean', ['default' => false]);
 		$table->addColumn(
-			'values', Type::TEXT,
+			'values', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
@@ -1338,7 +1338,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 		$table = $schema->createTable('social_3_stream_dest');
 		$table->addColumn(
-			'chunk', Type::SMALLINT,
+			'chunk', Types::SMALLINT,
 			[
 				'default'  => 1,
 				'length'   => 1,
