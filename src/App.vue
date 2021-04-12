@@ -25,7 +25,7 @@
 	<Content v-else app-name="social">
 		<AppContent v-if="serverData.isAdmin" class="setup">
 			<h2>{{ t('social', 'Social app setup') }}</h2>
-			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app.') }}</p>
+			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
 				<p>
 					<label class="hidden">
