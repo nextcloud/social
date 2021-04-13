@@ -11,7 +11,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Sociale richiede che il rilevamento automatico di .well-known sia configurato correttamente. Se Nextcloud non è installato nella radice del dominio, è spesso il caso in cui Nextcloud non può configurarlo automaticamente. Per utilizzare Sociale, l'amministratore di questa istanza di Nextcloud deve configurare manualmente le redirezioni .well-known:",
     "Open documentation" : "Apri documentazione",
     "Social app setup" : "Configurazione applicazione Sociale",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub richiede un URL fisso per rendere le voci univoche. Nota che questo non può essere cambiato successivamente senza ripristinare l'applicazione Sociale.",
     "ActivityPub URL base" : "Base URL di ActivityPub",
     "Finish setup" : "Termina configurazione",
     "The Social app needs to be set up by the server administrator." : "L'applicazione Sociale deve essere configurata dall'amministratore del server.",
@@ -79,6 +78,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud diventa parte delle reti sociali federate!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Abbiamo creato automaticamente un account di Sociale per te. Il tuo ID di Sociale è lo stesso ID del cloud federata:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Poiché sei nuovo di Sociale, inizia seguendo l'account ufficiale di Nextcloud in modo da non perdere le novità",
-    "Follow Nextcloud on mastodon.xyz" : "Segui Nextcloud su mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Segui Nextcloud su mastodon.xyz",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub richiede un URL fisso per rendere le voci univoche. Nota che questo non può essere cambiato successivamente senza ripristinare l'applicazione Sociale."
 },
 "nplurals=2; plural=(n != 1);");

@@ -11,7 +11,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "社交应用需要 .well-known 自动发现被正确配置。如果Nextcloud没有安装在此域名的根目录上，Nextcloud 将可能无法自动配置。若要使用社交应用，此 Nextcloud 实例的管理员需要手动配置 .well-known 的重定向。",
     "Open documentation" : "打开文档",
     "Social app setup" : "社交应用安装",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub 需要一个固定的 URL 以使条目保持唯一。请注意此设置以后不能更改，除非重置社交应用。",
     "ActivityPub URL base" : "ActivityPub URL base",
     "Finish setup" : "完成安装",
     "The Social app needs to be set up by the server administrator." : "社交应用需要服务器管理员进行配置。",
@@ -79,6 +78,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 已经成为联合云社交网络的一部分！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我们会自动为您创建一个社交账号。您的社交 ID 与您的联合云 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鉴于您刚来到社交应用，请先关注 Nextcloud 官方账号，这样您将不会错过任何新闻",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud"
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub 需要一个固定的 URL 以使条目保持唯一。请注意此设置以后不能更改，除非重置社交应用。"
 },
 "nplurals=1; plural=0;");

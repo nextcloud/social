@@ -11,7 +11,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "A Közösségi alklamazásnak szüksége van a .well-known automatikus felfedezésre a megfelelő beállításhoz.  Gyakran előfordul, hogy a Nextcloud nem tudja ezt automatikusan konfigurálni, ha a Nextcloud nem a tartomány gyökerébe van telelpítve. A Social használatához a Nextcloud-példány rendszergazdájának manuálisan kell konfigurálnia a .well-known átirányításokat: ",
     "Open documentation" : "Dokumentáció megnyitása",
     "Social app setup" : "Közösség alkalmazás beállítás",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Az ActivityPub rögzített URL-t igényel a bejegyzések egyedivé tételéhez. Ne feledje, hogy ezt később nem lehet megváltoztatni a Közösségi alkalmazás visszaállítása nélkül.",
     "ActivityPub URL base" : "ActivityPub URL alapja",
     "Finish setup" : "Beállítások befejezése",
     "The Social app needs to be set up by the server administrator." : "A Közösség alkalmazást a kiszolgáló rendszergazdájának kell beállítania.",
@@ -79,6 +78,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "A Nextcloud az összevont közösségi hálózatok részévé válik!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automatikusan létrehoztunk egy közösségi fiókot az Ön számára. Közösségi azonosítója megegyezik az összevont felhő azonosítójával:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Mivel Ön még nem ismeri a Közösség alkalmazást, kezdje el a hivatalos Nextcloud-fiók követésével, hogy ne maradjon le egyetlen hírről sem",
-    "Follow Nextcloud on mastodon.xyz" : "Kövesd a Nextcloudot a mastodon.xyz-on"
+    "Follow Nextcloud on mastodon.xyz" : "Kövesd a Nextcloudot a mastodon.xyz-on",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Az ActivityPub rögzített URL-t igényel a bejegyzések egyedivé tételéhez. Ne feledje, hogy ezt később nem lehet megváltoztatni a Közösségi alkalmazás visszaállítása nélkül."
 },
 "nplurals=2; plural=(n != 1);");

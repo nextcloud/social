@@ -9,7 +9,6 @@
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Το Social χρειάζεται την .γνωστή αυτόματη αναζήτηση να είναι σωστά ρυθμισμένη. Εάν το Nextcloud δεν είναι εγκατεστημένο στη ρίζα του τομέα, είναι πιθανό ότι δεν μπορεί να το ρυθμίσει αυτόματα. Για να χρησιμοποιήσετε το Social, ο διαχειριστής του Nextcloud πρέπει να ρυθμίσει με μη αυτόματο τρόπο τις .γνωστές δρομολογήσεις: ",
     "Open documentation" : "Άνοιγμα τεκμηρίωσης",
     "Social app setup" : "Εγκατάσταση εφαρμογής Social",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Το ActivityPub απαιτεί μια σταθερή διεύθυνση URL για να κάνει τις καταχωρίσεις μοναδικές. Σημειώστε ότι αυτό δεν μπορεί να αλλάξει αργότερα χωρίς την επαναφορά της εφαρμογής Social.",
     "ActivityPub URL base" : "Βασική διεύθυνση URL ActivityPub",
     "Finish setup" : "Ολοκλήρωση ρύθμισης",
     "The Social app needs to be set up by the server administrator." : "Η εφαρμογή Social πρέπει να εγκατασταθεί από τον διαχειριστή του διακομιστή.",
@@ -77,6 +76,7 @@
     "Nextcloud becomes part of the federated social networks!" : "Το Nextcloud γίνεται μέρος των ομοσπονδιακών κοινωνικών δικτύων!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Δημιουργήσαμε αυτόματα έναν λογαριασμό κοινωνικής δικτύωσης για εσάς. Το Social ID σας είναι το ίδιο με το Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Καθως είστε νέοι στο Social, ξεκινήστε ακολουθώντας τον επίσημο λογαριασμό του Nextcloud για να μην χάσετε καμιά είδηση",
-    "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Το ActivityPub απαιτεί μια σταθερή διεύθυνση URL για να κάνει τις καταχωρίσεις μοναδικές. Σημειώστε ότι αυτό δεν μπορεί να αλλάξει αργότερα χωρίς την επαναφορά της εφαρμογής Social."
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

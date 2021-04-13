@@ -11,7 +11,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Друштвеним мрежама је потребно подешено .well-known аутоматско откривање. Ако Некстклауд није инсталиран у кореном домену, често Некстклауд ово не може да подеси сам. Да бисте користили Друштвене мреже, администратор ове Некстклауд инстанце треба да ручно подеси .well-known редирекције:",
     "Open documentation" : "Отвори документацију",
     "Social app setup" : "Поставке друштвене апликације",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub захтева фиксан URL да би сви уноси били јединствени. Ово се не може изменити накнадно, без да се ресетује цела апликација Друштвених мрежа.",
     "ActivityPub URL base" : "ActivityPub URL основа",
     "Finish setup" : "Заврши подешавање",
     "The Social app needs to be set up by the server administrator." : "Друштвену апликацију мора да подеси администратор сервера.",
@@ -78,6 +77,7 @@ OC.L10N.register(
     "Sorry, we could not find the account of {userId}" : "Нажалост, не можемо да нађемо налог корисника {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Некстклауд је постао део федерисаних друштвених мрежа!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Пошто сте нови на Друштвеној апликацији, почните тако што ћете запратити званични Некстклауд налог да не бисте пропустили ниједну новост",
-    "Follow Nextcloud on mastodon.xyz" : "Запратите Некстклауд на mastodon.xyz инстанци"
+    "Follow Nextcloud on mastodon.xyz" : "Запратите Некстклауд на mastodon.xyz инстанци",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub захтева фиксан URL да би сви уноси били јединствени. Ово се не може изменити накнадно, без да се ресетује цела апликација Друштвених мрежа."
 },
 "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");

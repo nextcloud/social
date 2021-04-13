@@ -10,7 +10,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "「ソーシャル」が適切に設定されるためには、.well-knownの自動検出が必要です。 Nextcloudがドメインのルートにインストールされていない場合、Nextcloudがこれを自動的に設定できないことがよくあります。 「ソーシャル」を使用するには、このNextcloudインスタンスの管理者は手動で.well-knownリダイレクトを設定する必要があります。",
     "Open documentation" : "ドキュメントを開く",
     "Social app setup" : "「ソーシャル」アプリのセットアップ",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPubでは、エントリを一意にするために固定のURLが必要です。 これは、「ソーシャル」アプリをリセットせずに後で変更することはできません。",
     "ActivityPub URL base" : "ActivityPub URLベース",
     "Finish setup" : "セットアップを終了",
     "The Social app needs to be set up by the server administrator." : "「ソーシャル」アプリはサーバー管理者が設定する必要があります。",
@@ -57,6 +56,7 @@ OC.L10N.register(
     "No liked posts found" : "お気に入りの投稿は見つかりませんでした",
     "You haven't tooted yet" : "あなたはまだtootしていません",
     "No posts found for this tag" : "このタグの投稿はありません",
+    "No replies found" : "返信が見つかりません",
     "hasn't tooted yet" : "はまだtootしていません",
     "Reply" : "返信",
     "Boost" : "ブースト",
@@ -77,6 +77,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudは分散SNSの一部になります！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "「ソーシャル」アカウントが自動に作成してあげました。あなたの「ソーシャル」IDクはラウド連携IDと同じです：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "「ソーシャル」は初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
-    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする"
+    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPubでは、エントリを一意にするために固定のURLが必要です。 これは、「ソーシャル」アプリをリセットせずに後で変更することはできません。"
 },
 "nplurals=1; plural=0;");
