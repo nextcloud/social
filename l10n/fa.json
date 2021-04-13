@@ -8,7 +8,6 @@
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "اجتماعی نیاز به کشف خودکار مشهور شناخته شده دارد تا به درستی تنظیم شود. اگر نکست کلود در ریشه دامنه نصب نشده باشد ، اغلب به این صورت است که نکست کلود نمی تواند این کار را بطور خودکار پیکربندی کند. برای استفاده از شبکه های اجتماعی، مدیر این مثال نکست کلود باید به صورت دستی پیکربندیهای شناخته شده خوب را پیکربندی کند:",
     "Open documentation" : "مستندات باز",
     "Social app setup" : "راه اندازی برنامه شبکه اجتماعی",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub برای منحصر به فرد بودن ورودی ها به یک URL ثابت نیاز دارد. توجه داشته باشید که این کار بعداً بدون بازنشانی برنامه اجتماعی قابل تغییر نیست.",
     "ActivityPub URL base" : "پایگاه اینترنتی ActivityPub",
     "Finish setup" : "اتمام نصب",
     "The Social app needs to be set up by the server administrator." : "برنامه اجتماعی باید توسط مدیر سرور تنظیم شود.",
@@ -74,6 +73,7 @@
     "Sorry, we could not find the account of {userId}" : "متأسفیم ، نتوانستیم حساب {userId} را پیدا کنیم",
     "Nextcloud becomes part of the federated social networks!" : "نکست کلود به بخشی از شبکه های اجتماعی فدراسیون تبدیل می شود!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "از آنجا که تازه وارد Social شده اید ، با دنبال کردن حساب رسمی نکست کلود شروع کنید تا هیچ خبری از دست ندهید",
-    "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید"
+    "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub برای منحصر به فرد بودن ورودی ها به یک URL ثابت نیاز دارد. توجه داشته باشید که این کار بعداً بدون بازنشانی برنامه اجتماعی قابل تغییر نیست."
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }

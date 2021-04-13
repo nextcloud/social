@@ -11,7 +11,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social-ek .well-known detekzio automatikoa behar du behar bezala konfiguratzeko. Nextcloud domeinuaren erroan instalatuta ez badago, Nextcloud-ek automatikoki ezin du hau automatikoki konfiguratu. Social erabiltzeko, Nextcloud instantzia honen administratzaileak .well-known  birbideratzeak eskuz konfiguratu behar ditu:",
     "Open documentation" : "Ireki dokumentazioa",
     "Social app setup" : "Aplikazio sozialaren konfigurazioa",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub-ek URL finkoa behar du sarrerak esklusiboak izan daitezen. Kontuan izan hau ezin dela aldatu geroago Social aplikazioa berrabiarazi gabe.",
     "ActivityPub URL base" : "ActivityPub URL oinarria",
     "Finish setup" : "Amaitu ezarpena",
     "The Social app needs to be set up by the server administrator." : "Social aplikazioa zerbitzari-administratzaileak konfiguratu behar du.",
@@ -79,6 +78,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nexcloud federatutako sare sozialekin bat egiten du!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Kontu sozial bat sortu dugu automatikoki zuretzat. Zure ID soziala federatutako Cloud IDaren berdina da:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Social-era iritsi berria zarenez, hasi Nextcloud kontu ofiziala jarraituz berririk ez galtzeko",
-    "Follow Nextcloud on mastodon.xyz" : "Jarraitu Nextcloud mastodon.xyz zerbitzarian"
+    "Follow Nextcloud on mastodon.xyz" : "Jarraitu Nextcloud mastodon.xyz zerbitzarian",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub-ek URL finkoa behar du sarrerak esklusiboak izan daitezen. Kontuan izan hau ezin dela aldatu geroago Social aplikazioa berrabiarazi gabe."
 },
 "nplurals=2; plural=(n != 1);");

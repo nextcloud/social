@@ -9,7 +9,6 @@ OC.L10N.register(
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger er ekki rétt uppsett!",
     "Open documentation" : "Opna hjálparskjöl",
     "Social app setup" : "Uppsetning forrits fyrir samfélagsnet",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub þarf að nota fastar URL-slóðir til að færslur verði einstakar. Athugaðu að þessu er ekki hægt að breyta síðar nema að samfélagsnetsforritið sé frumstillt.",
     "ActivityPub URL base" : "Grunnslóð ActivityPub",
     "Finish setup" : "Ljúka uppsetningu",
     "The Social app needs to be set up by the server administrator." : "Samfélagsnetsforritið verður að vera sett upp af kerfisstjóra.",
@@ -77,6 +76,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud verður hluti af samfélagsnetum í skýjasambandi!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Við útbjuggum sjálfvirkt samfélagsnetsaðgang fyrir þíg. Samfélagsnetsauðkennið þitt er það sama og skýjasambandsauðkennið þitt (Federated Cloud ID):",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Þar sem þú ert nýr á samfélagsnetinu, byrjaðu þá á því að fylgjast með opinbera Nextcloud aðgangnum svo þú missir ekki af neinu fréttnæmu",
-    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub þarf að nota fastar URL-slóðir til að færslur verði einstakar. Athugaðu að þessu er ekki hægt að breyta síðar nema að samfélagsnetsforritið sé frumstillt."
 },
 "nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);");

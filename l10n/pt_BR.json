@@ -9,7 +9,6 @@
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social precisa que a descoberta automática do .well-known seja configurada adequadamente. Se o Nextcloud não estiver instalado na raiz do domínio, geralmente o Nextcloud não poderá configurá-lo automaticamente. Para usar o Social, o administrador precisa configurar manualmente os redirecionamentos .well-known:",
     "Open documentation" : "Abrir documentação",
     "Social app setup" : "Configuração do social",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "O ActivityPub requer uma URL fixa para tornar as entradas exclusivas. Observe que isso não pode ser alterado mais tarde sem redefinir o aplicativo Social.",
     "ActivityPub URL base" : "URL base do ActivityPub",
     "Finish setup" : "Concluir configuração",
     "The Social app needs to be set up by the server administrator." : "O aplicativo Social precisa ser configurado pelo administrador do servidor.",
@@ -77,6 +76,7 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud torna-se parte das redes sociais federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Criamos automaticamente uma conta social para você. Seu ID Social é o mesmo que seu ID da Nuvem Federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Como você é novo no Social, comece seguindo a conta oficial do Nextcloud para não perder nenhuma novidade",
-    "Follow Nextcloud on mastodon.xyz" : "Seguir Nextcloud em mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Seguir Nextcloud em mastodon.xyz",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "O ActivityPub requer uma URL fixa para tornar as entradas exclusivas. Observe que isso não pode ser alterado mais tarde sem redefinir o aplicativo Social."
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }

@@ -10,7 +10,6 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social behöver en inställning för .well-known-omdirigering för automatisk upptäckt satt. Om Nextcloud inte är installerat i roten av domänen kan det vara så att det inte kan konfigureras automatiskt. För att använda Social behöver administratören av den här instansen ställa in .well-known-omdirigeringen:",
     "Open documentation" : "Öppna dokumentation",
     "Social app setup" : "Social appinstallation",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub kräver en fast webbadress för att göra poster unika. Observera att detta inte kan ändras senare utan att återställa den sociala appen.",
     "ActivityPub URL base" : "ActivityPub webbadressbas",
     "Finish setup" : "Slutför installationen",
     "The Social app needs to be set up by the server administrator." : "Den sociala appen måste konfigureras av serverns administratör.",
@@ -76,6 +75,7 @@ OC.L10N.register(
     "Sorry, we could not find the account of {userId}" : "Tyvärr, vi kunde inte hitta kontot för {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud blir en del av federerade sociala nätverk!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Eftersom du är ny här kan du börja med att följa det officiella Nextcloud-kontot så att du inte missar några nyheter",
-    "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub kräver en fast webbadress för att göra poster unika. Observera att detta inte kan ändras senare utan att återställa den sociala appen."
 },
 "nplurals=2; plural=(n != 1);");

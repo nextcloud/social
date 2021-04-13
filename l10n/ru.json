@@ -9,7 +9,6 @@
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Приложению требуется работающий  параметр автоматической настройки .well-known. Если сервер Nextcloud установлен не в корне домена, то для использования приложения Social может потребоваться ручная настройка перенаправления .well-known:",
     "Open documentation" : "Открыть документацию",
     "Social app setup" : "Настройка приложения соцсети",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Для работы протокола ActivityPub требуются неизменные адреса записей. Обратите внимание, этот параметр не может быть изменён позднее без повторной перенастройки приложения Социальные сети.",
     "ActivityPub URL base" : "Основной путь для протокола ActivityPub",
     "Finish setup" : "Завершить настройку",
     "The Social app needs to be set up by the server administrator." : "Приложение Социальные сети требует настройки администратором сервера.",
@@ -77,6 +76,7 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud становится частью Федерации Социальных Сетей!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Мы автоматически создали для вас учетную запись в Social. Ваш Social ID совпадает с вашим ID Federated Cloud:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Начните с подписки на официальный аккаунт Nextcloud чтобы не пропустить ничего",
-    "Follow Nextcloud on mastodon.xyz" : "Следите за Nextcloud на сайте mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Следите за Nextcloud на сайте mastodon.xyz",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Для работы протокола ActivityPub требуются неизменные адреса записей. Обратите внимание, этот параметр не может быть изменён позднее без повторной перенастройки приложения Социальные сети."
 },"pluralForm" :"nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || (n%100>=11 && n%100<=14)? 2 : 3);"
 }
