@@ -11,6 +11,7 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social necesita que el descubrimiento automático de .well-known esté bien configurado. Si Nextcloud no está instalado en la raíz del dominio, a menudo se da el caso de que Nextcloud no puede configurarlo automáticamente. Para usar Social, el administrador de esta instancia de Netcloud debe configurar manualmente las redirecciones .well-known:",
     "Open documentation" : "Abrir la documentación",
     "Social app setup" : "Configuración de la app Social",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "ActivityPub necesita una URL fija para hacer únicas las entradas. Nota: esto no puede cambiarse más tarde sin reiniciar la app Social.",
     "ActivityPub URL base" : "URL base de ActivityPub",
     "Finish setup" : "Completar configuración",
     "The Social app needs to be set up by the server administrator." : "La app Social necesita ser configurada por el administrador del servidor.",
