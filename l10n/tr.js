@@ -11,6 +11,7 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Sosyal ağ için .well-known otomatik keşif özelliği doğru şekilde kurulmuş olmalıdır. Sık sık karşılaşıldığı gibi, Nextcloud etki alanının kök klasöründe kurulu değil ise bu kurulum otomatik olarak yapılamaz. Sosyal Ağ özelliğini kullanabilmek için bu Nextcloud kopyasının yöneticisinin .well-known yönlendirmelerini el ile yapılandırması gerekir:",
     "Open documentation" : "Belgelere bakın",
     "Social app setup" : "Sosyal ağ uygulaması kurulumu",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "ActivityPub kayıtların eşsiz olmasını sağlamak için sabit bir adres kullanmalıdır. Bu adresin sosyal ağ uygulaması sıfırlanmadan değiştirilemeyeceğini unutmayın.",
     "ActivityPub URL base" : "ActivityPub Adresi",
     "Finish setup" : "Kurulumu Bitir",
     "The Social app needs to be set up by the server administrator." : "Sosyal ağ uygulamasının BT yöneticisi tarafından kurulması gereklidir.",
