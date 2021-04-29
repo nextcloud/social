@@ -173,6 +173,9 @@ class CurlService {
 		}
 
 		$url = $this->get('Link.@attributes.template', $result, '');
+		if ($url === '') {
+			throw new HostMetaException('Failed to get URL');
+		}
 		$host = parse_url($url, PHP_URL_HOST);
 		$protocols = [parse_url($url, PHP_URL_SCHEME)];
 
