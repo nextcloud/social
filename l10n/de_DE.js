@@ -54,7 +54,7 @@ OC.L10N.register(
     "No notifications found" : "Keine Benachrichtigungen gefunden",
     "You haven't receive any notifications yet" : "Sie haben bisher noch keine Benachrichtigung erhalten",
     "No global posts found" : "Keine globalen Posts gefunden",
-    "Posts from federated instances will show up here" : "Beiträge von föderierten Instanzen werden hier angezeigt",
+    "Posts from federated instances will show up here" : "Beiträge von cloud übergreifenden Instanzen werden hier angezeigt",
     "No liked posts found" : "Keine gelikten Posts gefunden",
     "You haven't tooted yet" : "Sie haben bisher noch nicht getootet",
     "No posts found for this tag" : "Keine Posts für dieses Schlagwort gefunden",
