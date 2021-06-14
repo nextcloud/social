@@ -766,7 +766,7 @@ export default {
 			} while (match)
 
 			// Remove all html tags but </div> (wich we turn in newlines) and decode the remaining html entities
-			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
+			let content = contentHtml.replace(/<div/, '\n<div').replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
 			content = he.decode(content)
 
 			let data = {
