@@ -158,7 +158,7 @@ class OStatusController extends Controller {
 				'account' => $following->getAccount(),
 			]);
 			return new TemplateResponse(
-				'social', 'main', [], 'guest'
+				'social', 'ostatus', [], 'guest'
 			);
 		} catch (Exception $e) {
 			return $this->fail($e);
