@@ -442,13 +442,7 @@ class ConfigService {
 	public function configureRequest(NC20Request $request) {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
 
-		if ($request->getType() === Request::TYPE_GET) {
-			$request->addHeader(
-				'Accept', 'application/json; profile="https://www.w3.org/ns/activitystreams"'
-			);
-		}
-
-		if ($request->getType() === Request::TYPE_POST) {
+		if ($request->getType() === Request::TYPE_GET) || $request->getType() === Request::TYPE_POST) {
 			$request->addHeader(
 				'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 			);
