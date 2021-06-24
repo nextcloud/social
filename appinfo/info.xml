@@ -35,7 +35,7 @@
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="20" max-version="21"/>
+		<nextcloud min-version="20" max-version="22"/>
 	</dependencies>
 
 	<background-jobs>
