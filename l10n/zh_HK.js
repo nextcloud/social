@@ -7,7 +7,7 @@ OC.L10N.register(
     "Follow %s on Social" : "在 Social 上關注 %s",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud 變成聯盟式社群網路的一部分！",
     "** Disclaimer: this is an ALPHA version **\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** 聲明：這是一個 ALPHA 版本 **\n\n**🎉 Nextcloud 已經成為聯合雲社交網絡的一部分！\n\n**🙋 找到您的朋友：** 無論他們使用的是 Nextcloud， 🐘 Mastodon， 🇫 Friendica， 還是 ✱ Diaspora， 👹 MediaGoblin 還有更多 – 您都可以關注他們！\n\n**📜 簡介信息：** 沒有必要再填寫更多信息 – 您來自 Nextcloud 的信息將被使用和擴展。\n\n**👐 保有您自己的帖子：** 您發佈的所有東西都保存在 Nextcloud 上！\n\n**🕸 開放標準：** 我們使用成熟的 ActivityPub 標準！",
-    ".well-known/webfinger isn't properly set up!" : "。well-known/webfinger 沒有正確配置！",
+    ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger 沒有正確配置！",
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "社交應用需要 。well-known 自動發現被正確配置。如果Nextcloud沒有安裝在此域名的根目錄上，Nextcloud 將可能無法自動配置。若要使用社交應用，此 Nextcloud 實例的管理員需要手動配置 。well-known 的重定向。",
     "Open documentation" : "打開文檔",
     "Social app setup" : "Social app 安裝",
@@ -79,7 +79,7 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 成為聯盟社交網絡的一部分！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我們會自動為您創建一個社交賬戶。您的 Social ID 與您的聯盟式雲端 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鑑於您剛來到 Social，請先關注 Nextcloud 官方賬戶，這樣您將不會錯過任何新聞",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon。xyz 上關注 Nextcloud",
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud",
     "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub 需要一個固定的 URL 以使條目保持唯一。請注意此設置以後不能更改，除非重置社交應用。"
 },
 "nplurals=1; plural=0;");
