@@ -725,19 +725,14 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
 		   ->setValue(
-			   'to_array', $qb->createNamedParameter(
-			   json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES)
-		   )
-		   )
-		   ->setValue(
-			   'cc', $qb->createNamedParameter(
-			   json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-		   )
+			   'to_array',
+			   $qb->createNamedParameter(json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES))
 		   )
 		   ->setValue(
-			   'bcc', $qb->createNamedParameter(
-			   json_encode($stream->getBccArray()), JSON_UNESCAPED_SLASHES
+			   'cc', $qb->createNamedParameter(json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES))
 		   )
+		   ->setValue(
+			   'bcc', $qb->createNamedParameter(json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES))
 		   )
 		   ->setValue('content', $qb->createNamedParameter($stream->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))

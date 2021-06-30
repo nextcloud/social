@@ -72,7 +72,7 @@ class MiscService {
 	 */
 	public function log($message, $level = 2) {
 		$data = array(
-			'app'   => Application::APP_NAME,
+			'app'   => Application::APP_ID,
 			'level' => $level
 		);
 

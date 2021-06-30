@@ -102,7 +102,7 @@ class OAuthController extends Controller {
 		CacheActorService $cacheActorService, ClientService $clientService, ConfigService $configService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userSession = $userSession;
 		$this->urlGenerator = $urlGenerator;

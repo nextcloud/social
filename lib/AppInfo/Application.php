@@ -31,19 +31,13 @@ declare(strict_types=1);
 namespace OCA\Social\AppInfo;
 
 
-use Closure;
-use OC\DB\SchemaWrapper;
+use OCA\Social\Handlers\WebfingerHandler;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\UpdateService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
-use OCP\AppFramework\QueryException;
-use OCP\IServerContainer;
-use Throwable;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -55,8 +49,10 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 class Application extends App implements IBootstrap {
 
 
-	const APP_NAME = 'social';
-
+	const APP_ID = 'social';
+	const APP_NAME = 'Social';
+	const APP_REL = 'https://apps.nextcloud.com/apps/social';
+	const NEXTCLOUD_SUBJECT = 'http://nextcloud.com/';
 
 	/**
 	 * Application constructor.
@@ -64,7 +60,7 @@ class Application extends App implements IBootstrap {
 	 * @param array $params
 	 */
 	public function __construct(array $params = []) {
-		parent::__construct(self::APP_NAME, $params);
+		parent::__construct(self::APP_ID, $params);
 	}
 
 
@@ -73,9 +69,7 @@ class Application extends App implements IBootstrap {
 	 */
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
-
-		// TODO: nc21, uncomment
-		// $context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
+		$context->registerWellKnownHandler(WebfingerHandler::class);
 	}
 
 
@@ -86,40 +80,6 @@ class Application extends App implements IBootstrap {
 		$manager = $context->getServerContainer()
 						   ->getNotificationManager();
 		$manager->registerNotifierService(Notifier::class);
-
-		try {
-			$context->injectFn(Closure::fromCallable([$this, 'checkUpgradeStatus']));
-		} catch (Throwable $e) {
-		}
-	}
-
-
-	/**
-	 * Register Navigation Tab
-	 *
-	 * @param IServerContainer $container
-	 */
-	protected function checkUpgradeStatus(IServerContainer $container) {
-		$upgradeChecked = $container->getConfig()
-									->getAppValue(Application::APP_NAME, 'update_checked', '');
-
-		if ($upgradeChecked === '0.3') {
-			return;
-		}
-
-		try {
-			$configService = $container->query(ConfigService::class);
-			$updateService = $container->query(UpdateService::class);
-		} catch (QueryException $e) {
-			return;
-		}
-
-		$schema = new SchemaWrapper($container->getDatabaseConnection());
-		if ($schema->hasTable('social_a2_stream')) {
-			$updateService->checkUpdateStatus();
-		}
-
-		$configService->setAppValue('update_checked', '0.3');
 	}
 
 }

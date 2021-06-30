@@ -29,6 +29,7 @@ use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
 use OC\User\NoUserException;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -200,7 +201,7 @@ class CheckService {
 	 * @return array
 	 */
 	public function checkInstallationStatus(bool $light = false): array {
-		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
+//		$this->configService->setCoreValue('public_webfinger', 'social/lib/webfinger.php');
 		$this->configService->setCoreValue('public_host-meta', 'social/lib/hostmeta.php');
 
 		$result = [];
@@ -315,8 +316,9 @@ class CheckService {
 	 * @return bool
 	 */
 	private function requestWellKnown(string $base) {
+
 		try {
-			$url = $base . '/.well-known/webfinger';
+			$url = $base . '/.well-known/webfinger?resource=' . Application::NEXTCLOUD_SUBJECT;
 			$options['nextcloud']['allow_local_address'] = true;
 			$response = $this->clientService->newClient()
 											->get($url, $options);

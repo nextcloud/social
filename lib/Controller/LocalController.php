@@ -138,7 +138,7 @@ class LocalController extends Controller {
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->cacheActorService = $cacheActorService;
