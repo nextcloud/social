@@ -11,6 +11,7 @@ OC.L10N.register(
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Aby bolo Social správne nastavené potrebuje automatické zisťovanie .well-known. Automatické nastavenie Nextcloudu sa často nepodarí vtedy, keď nie je nainštalovaný k koreňovom priečinku domény. V takomto prípade, aby bolo možné používať Social, musí správca nastaviť presmerovania .well-known:",
     "Open documentation" : "Otvoriť dokumentáciu",
     "Social app setup" : "Nastavenie aplikácie Social",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "ActivityPub vyžaduje pevnú adresu URL, aby boli položky jedinečné. Pamätajte, že neskôr to nebude možné zmeniť bez resetovania aplikácie Social.",
     "ActivityPub URL base" : "Základ URL ActivityPub",
     "Finish setup" : "Dokončiť inštaláciu",
     "The Social app needs to be set up by the server administrator." : "Aplikáciu Social musí nastaviť správca servera.",
