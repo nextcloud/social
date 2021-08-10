@@ -9,6 +9,7 @@
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Aplikacija Social zahtijeva pravilno postavljen mehanizam za automatsko otkrivanje .well-known. Ako Nextcloud nije instaliran u korijenu domene, često se događa da ga Nextcloud ne može automatski konfigurirati. Kako bi omogućio korištenje aplikacije Social, administrator ove Nextcloudove instance mora ručno konfigurirati .well-known preusmjeravanja: ",
     "Open documentation" : "Otvori dokumentaciju",
     "Social app setup" : "Postavljanje aplikacije Social",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "ActivityPub zahtijeva fiksni URL kako bi unosi bili jedinstveni. Imajte na umu da se to kasnije ne može promijeniti bez resetiranja aplikacije Social.",
     "ActivityPub URL base" : "Baza URL-ova standarda ActivityPub",
     "Finish setup" : "Završite postavljanje",
     "The Social app needs to be set up by the server administrator." : "Aplikaciju Social treba postaviti administrator poslužitelja.",
