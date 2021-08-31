@@ -71,7 +71,7 @@
     "You are going to follow:" : "Będziesz śledzić:",
     "name@domain of your federation account" : "nazwa@domena twojego konta federacyjnego",
     "Continue" : "Kontynuuj",
-    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Ten krok jest potrzebny, ponieważ użytkownik prawdopodobnie nie jest zarejestrowany na tym samym serwerze, co Ty. Przekierujemy Cię do twojego serwera domowego, aby śledzić to konto.",
+    "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Ten krok jest potrzebny, ponieważ użytkownik prawdopodobnie nie jest zarejestrowany na tym samym serwerze, co Ty. Przekierujemy Ciebie do Twojego serwera domowego, aby śledzić to konto.",
     "User not found" : "Nie znaleziono użytkownika",
     "Sorry, we could not find the account of {userId}" : "Nie udało się odnaleźć konta {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud staje się częścią federacyjnych sieci społecznościowych!",
