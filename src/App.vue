@@ -42,7 +42,7 @@
 						{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
 					</h3>
 					<p v-if="!serverData.checks.checks.wellknown">
-						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud cannot configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects:') }} <a class="external_link"
+						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud cannot configure this automatically. To use Social, the administrator of this Nextcloud instance needs to manually configure the .well-known redirects:') }} <a class="external_link"
 							href="https://docs.nextcloud.com/server/latest/go.php?to=admin-setup-well-known-URL"
 							target="_blank"
 							rel="noreferrer noopener">
