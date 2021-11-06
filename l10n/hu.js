@@ -13,7 +13,7 @@ OC.L10N.register(
     "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "Az ActivityPub rögzített URL-t igényel a bejegyzések egyedivé tételéhez. Ne feledje, hogy ezt később nem lehet megváltoztatni a Közösségi alkalmazás visszaállítása nélkül.",
     "ActivityPub URL base" : "ActivityPub URL alapja",
     "Finish setup" : "Beállítások befejezése",
-    "The Social app needs to be set up by the server administrator." : "A Közösség alkalmazást a kiszolgáló rendszergazdájának kell beállítania.",
+    "The Social app needs to be set up by the server administrator." : "A Közösség alkalmazást az adminisztrátornak kell beállítania.",
     "Home" : "Otthoni",
     "Direct messages" : "Közvetlen üzenetek",
     "Notifications" : "Értesítések",
