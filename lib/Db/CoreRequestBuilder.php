@@ -1201,10 +1201,11 @@ class CoreRequestBuilder {
 	 */
 	public function emptyAll() {
 		foreach ($this->tables as $table) {
-			$qb = $this->dbConnection->getQueryBuilder();
-			$qb->delete($table);
-
-			$qb->execute();
+			if ($schema->hasTable($table)) {
+				$qb = $this->dbConnection->getQueryBuilder();
+				$qb->delete($table);
+				$qb->execute();
+			}
 		}
 	}
 
