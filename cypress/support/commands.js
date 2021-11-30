@@ -22,6 +22,7 @@
 
 import { addMatchImageSnapshotCommand } from 'cypress-image-snapshot/command'
 import axios from '@nextcloud/axios'
+import '@testing-library/cypress/add-commands'
 
 addMatchImageSnapshotCommand()
 
@@ -155,4 +156,8 @@ Cypress.Commands.overwrite('matchImageSnapshot', (originalFn, subject, name, opt
 		}
 	})
 	return originalFn(subject, name, options)
+})
+
+Cypress.Cookies.defaults({
+    preserve: ['nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase']
 })
