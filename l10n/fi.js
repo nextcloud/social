@@ -6,7 +6,6 @@ OC.L10N.register(
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger ei ole asetettu oikein!",
     "Open documentation" : "Avaa dokumentaatio",
     "Social app setup" : "Sosiaalinen -sovelluksen asennus",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub vaatii kiinteän URL -osoitteen, jotta julkaisuista tulee yksilöllisiä. Huomaa, ettei tätä voi myöhemmin muuttaa nollamatta koko sovellusta.",
     "ActivityPub URL base" : "ActivityPub URL:n alkuosa",
     "Finish setup" : "Viimeistele asennus",
     "The Social app needs to be set up by the server administrator." : "Sosiaalinen -sovellus täytyy asentaa pääkäyttäjän toimesta.",
@@ -48,7 +47,9 @@ OC.L10N.register(
     "You haven't receive any notifications yet" : "Et ole vielä saanut yhtäkään ilmoitusta",
     "No global posts found" : "Yleisiä julkaisuja ei löytynyt",
     "Posts from federated instances will show up here" : "Yhteenliitettyihin asennuksiin tehdyt julkaisut näkyvät täällä",
+    "No replies found" : "Vastauksia ei löytynyt",
     "Reply" : "Vastaa",
+    "Like" : "Tykkää",
     "More actions" : "Lisää toimintoja",
     "Delete post" : "Poista viesti",
     "Hello" : "Hei",
@@ -59,6 +60,7 @@ OC.L10N.register(
     "User not found" : "Käyttäjää ei löydy",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudista tulee yhteenliitettyjen sosiaalisten verkostojen osa!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Koska olet uusi käyttäjä, aloita seuraamalla virallista Nextcloud -tiliä ettet jää uutisista paitsi",
-    "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa"
+    "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa",
+    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub vaatii kiinteän URL -osoitteen, jotta julkaisuista tulee yksilöllisiä. Huomaa, ettei tätä voi myöhemmin muuttaa nollamatta koko sovellusta."
 },
 "nplurals=2; plural=(n != 1);");
