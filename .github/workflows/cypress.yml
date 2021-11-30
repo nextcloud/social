@@ -21,7 +21,7 @@ jobs:
       matrix:
         # run 2 copies of the current job in parallel
         containers: [1, 2]
-        node-version: ['14', '16', '17']
+        node-version: ['16', '17']
         php-versions: ['7.4', '8.0']
 
     name: Runner ${{ matrix.containers }}
