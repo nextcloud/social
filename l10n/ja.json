@@ -74,8 +74,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudは分散SNSの一部になります！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "「ソーシャル」アカウントが自動に作成してあげました。あなたの「ソーシャル」IDクはラウド連携IDと同じです：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "「ソーシャル」は初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
-    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
-    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "「ソーシャル」が適切に設定されるためには、.well-knownの自動検出が必要です。 Nextcloudがドメインのルートにインストールされていない場合、Nextcloudがこれを自動的に設定できないことがよくあります。 「ソーシャル」を使用するには、このNextcloudインスタンスの管理者は手動で.well-knownリダイレクトを設定する必要があります。",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPubでは、エントリを一意にするために固定のURLが必要です。 これは、「ソーシャル」アプリをリセットせずに後で変更することはできません。"
+    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

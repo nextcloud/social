@@ -77,8 +77,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud е вече част от федерираните социални мрежи!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Ние автоматично създадохме Social профил за вас. Вашият  идентификатор за Social е същият като вашия Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Понеже си нов потребител в Social, последвай официялният акаунт на  Nextcloud account, за да не пропуснеш новини от развитието на проекта",
-    "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz",
-    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social се нуждае от .добре познатото автоматично откриване, за да бъде правилно настроено. Ако Nextcloud не е инсталиран в корена на домейна, често се случва Nextcloud да не може да конфигурира това автоматично. За да използва Social, администраторът на този екземпляр на Nextcloud трябва ръчно да конфигурира .well-known пренасочванията:",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub изисква постояннен URL, за да може да генерира еднозначни имена. Ако желаете да промените постоянният URL е нужно след това да нулирате апликацията  Social."
+    "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

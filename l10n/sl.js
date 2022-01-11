@@ -78,8 +78,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Oblak Nextcloud je prek zvezne povezave postal del družbenih omrežij!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Za vas smo samodejno ustvarili račun Social. Določilo ID za Social je enako kot vaše določilo zveznega oblaka: ",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ker ste še novi na družbenem omrežju Social, začnite s sledenjem uradnega računa Nextcloud, da ne zamudite novosti in sporočil.",
-    "Follow Nextcloud on mastodon.xyz" : "Sledi Nextcloud na mastodon.xyz",
-    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Program Social zahteva pravilno nastavljeno samodejno odkrivanje podatkov .well-known. Če oblak Nextcloud ni nameščen v korenski mapi domene, se pogosto zgodi, da samodejna nastavitev ni mogoča. Za uporabo programa je treba skrbniško ročno nastaviti preusmeritve.",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "Standard ActivityPub zahteva stalni naslov URL za ustvarjanje enoznačnih vnosov. Tega ni mogoče nastaviti kasneje brez ustreznega ponastavljanja programa Social."
+    "Follow Nextcloud on mastodon.xyz" : "Sledi Nextcloud na mastodon.xyz"
 },
 "nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);");

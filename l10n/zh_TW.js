@@ -79,8 +79,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 變成聯盟式社群網路的一部分了！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我們會自動為您建立「社交」的帳號。您的「社交」ID 與您的雲端聯盟 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "因為您是「社交」新手，因此請先追蹤官方的 Nextcloud 帳號，這樣您就不會漏掉任何新聞",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上追蹤 Nextcloud",
-    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "「社交」需要正確設定 .well-known 自動探索。如果 Nextcloud 未安裝在網域的根目錄中，通常的情況是 Nextcloud 會無法自動設定好。要使用「社交」，此 Nextcloud 站台的管理員必須手動設定 .well-known 重新導向：",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub 需要固定的 URL 才能讓項目唯一。請注意，除非重設「社交」應用程式，否則將無法變更。"
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上追蹤 Nextcloud"
 },
 "nplurals=1; plural=0;");

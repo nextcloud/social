@@ -77,8 +77,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud staje się częścią federacyjnych sieci społecznościowych!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automatycznie utworzyliśmy dla Ciebie konto społecznościowe. Twój ID społecznościowy jest taki sam, jak ID Chmury Federacyjnej:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ponieważ jesteś nowym użytkownikiem Social, zacznij od oficjalnego konta Nextcloud, aby nie przeoczyć żadnych wiadomości",
-    "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz",
-    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social musi być poprawnie skonfigurowany przez automatyczne wykrywanie .well-known. Jeśli Nextcloud nie jest zainstalowany w katalogu głównym domeny, często jest tak, że Nextcloud nie może skonfigurować tego automatycznie. Aby użyć funkcji Social, administrator tej instancji Nextcloud musi ręcznie skonfigurować przekierowanie do .well-known: ",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub wymaga stałego adresu URL, aby wpisy były unikalne. Pamiętaj, że nie można tego zmienić później bez zresetowania aplikacji Social."
+    "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz"
 },"pluralForm" :"nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);"
 }

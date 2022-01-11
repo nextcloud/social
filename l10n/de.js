@@ -79,8 +79,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud wird Teil des Verbundes sozialer Netzwerke!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Wir erstellen automatisch ein Social-Konto für Dich. Deine Social-ID ist die gleiche wie Deine Federated-Cloud-ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Du bist neu bei Social, von daher empfehlen wir Dir dem Nextcloud-Konto zu folgen und so keine Neuigkeiten zu verpassen",
-    "Follow Nextcloud on mastodon.xyz" : "Nextcloud auf mastodon.xyz folgen",
-    "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud can't configure this automatically. To use Social, the admin of this Nextcloud instance needs to manually configure the .well-known redirects: " : "Social benötigt die korrekte Einrichtung von .well-known für die automatische Entdeckung. Wenn Nextcloud nicht im Wurzelverzeichnis der Domain installiert ist, kann Nextcloud dies oft nicht automatisch einrichten. Um Social zu nutzen, muss der Administrator dieser Nextcloud-Instanz die .well-known Weiterleitung manuell einrichten: ",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub benötigt eine feste URL um Einträge eindeutig zu machen. Beachte, dass dies später nicht geändert werden kann, ohne die Social-App zurückzusetzen."
+    "Follow Nextcloud on mastodon.xyz" : "Nextcloud auf mastodon.xyz folgen"
 },
 "nplurals=2; plural=(n != 1);");

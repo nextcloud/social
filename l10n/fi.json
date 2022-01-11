@@ -58,7 +58,6 @@
     "User not found" : "Käyttäjää ei löydy",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudista tulee yhteenliitettyjen sosiaalisten verkostojen osa!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Koska olet uusi käyttäjä, aloita seuraamalla virallista Nextcloud -tiliä ettet jää uutisista paitsi",
-    "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa",
-    "ActivityPub requires a fixed URL to make entries unique. Note that this can not be changed later without resetting the Social app." : "ActivityPub vaatii kiinteän URL -osoitteen, jotta julkaisuista tulee yksilöllisiä. Huomaa, ettei tätä voi myöhemmin muuttaa nollamatta koko sovellusta."
+    "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
