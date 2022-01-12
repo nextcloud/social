@@ -22,6 +22,8 @@
  *
  */
 
-script('social', 'social');
+script('social', 'ostatus');
 style('social', 'style');
 ?>
+
+<div id="content"></div>
