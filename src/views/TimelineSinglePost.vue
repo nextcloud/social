@@ -62,7 +62,7 @@ export default {
 		 * @returns {String}
 		 */
 		account() {
-			return window.location.href.split('/')[window.location.href.split('/').length - 2].substr(1)
+			return window.location.href.split('/')[window.location.href.split('/').length - 2].slice(1)
 		},
 		/**
 		 * @description Returns the timeline currently loaded in the store

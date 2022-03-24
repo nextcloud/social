@@ -128,7 +128,7 @@ export default {
 	computed: {
 		localUid() {
 			// Returns only the local part of a username
-			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.substr(0, this.uid.indexOf('@'))
+			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.slice(0, this.uid.indexOf('@'))
 		},
 		displayName() {
 			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
