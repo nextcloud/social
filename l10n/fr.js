@@ -79,4 +79,4 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Comme vous êtes nouveau dans Social, commencez par suivre le compte officiel de Nextcloud afin de ne manquer aucune nouvelle",
     "Follow Nextcloud on mastodon.xyz" : "Suivre Nextcloud sur mastodon.xyz"
 },
-"nplurals=3; plural=(n==0 || n==1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
+"nplurals=2; plural=(n > 1);");
