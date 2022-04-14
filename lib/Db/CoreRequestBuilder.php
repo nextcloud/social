@@ -112,7 +112,7 @@ class CoreRequestBuilder {
 	) {
 		$this->dbConnection = $connection;
 		$this->logger = $logger;
-		$this->loggerInterface = $loggerInterface;
+		$this->loggerInterface = $logger;
 		$this->urlGenerator = $urlGenerator;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
