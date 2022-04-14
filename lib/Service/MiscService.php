@@ -33,11 +33,10 @@ namespace OCA\Social\Service;
 
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
-use OCP\ILogger;
 use OCP\IUser;
 use OCP\IUserManager;
 use OCP\Util;
-
+use Psr\Log\LoggerInterface;
 
 /**
  * Class MiscService
@@ -46,21 +45,11 @@ use OCP\Util;
  */
 class MiscService {
 
-
-	/** @var ILogger */
-	private $logger;
-
-	/** @var IUserManager */
-	private $userManager;
+	private LoggerInterface $logger;
+	private IUserManager $userManager;
 
 
-	/**
-	 * MiscService constructor.
-	 *
-	 * @param ILogger $logger
-	 * @param IUserManager $userManager
-	 */
-	public function __construct(ILogger $logger, IUserManager $userManager) {
+	public function __construct(LoggerInterface $logger, IUserManager $userManager) {
 		$this->logger = $logger;
 		$this->userManager = $userManager;
 	}

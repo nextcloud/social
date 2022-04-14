@@ -63,57 +63,31 @@ use OCP\IURLGenerator;
  * @package OCA\Social\Controller
  */
 class NavigationController extends Controller {
-
-
 	use TArrayTools;
 	use TNCDataResponse;
 
+	private ?string $userId = null;
+	private IConfig $config;
+	private IURLGenerator $urlGenerator;
+	private AccountService $accountService;
+	private DocumentService $documentService;
+	private ConfigService $configService;
+	private MiscService $miscService;
+	private IL10N $l10n;
+	private CheckService $checkService;
 
-	/** @var string */
-	private $userId;
-
-	/** @var IConfig */
-	private $config;
-
-	/** @var IURLGenerator */
-	private $urlGenerator;
-
-	/** @var AccountService */
-	private $accountService;
-
-	private $documentService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-	/** @var IL10N */
-	private $l10n;
-
-	/** @var CheckService */
-	private $checkService;
-
-
-	/**
-	 * NavigationController constructor.
-	 *
-	 * @param IL10N $l10n
-	 * @param IRequest $request
-	 * @param string $userId
-	 * @param IConfig $config
-	 * @param IURLGenerator $urlGenerator
-	 * @param AccountService $accountService
-	 * @param DocumentService $documentService
-	 * @param ConfigService $configService
-	 * @param CheckService $checkService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IL10N $l10n, IRequest $request, $userId, IConfig $config, IInitialStateService $initialStateService, IURLGenerator $urlGenerator,
-		AccountService $accountService, DocumentService $documentService,
-		ConfigService $configService, CheckService $checkService, MiscService $miscService
+		IL10N $l10n,
+		IRequest $request,
+		?string $userId,
+		IConfig $config,
+		IInitialStateService $initialStateService,
+		IURLGenerator $urlGenerator,
+		AccountService $accountService,
+		DocumentService $documentService,
+		ConfigService $configService,
+		CheckService $checkService,
+		MiscService $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -137,9 +111,6 @@ class NavigationController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
-	 * @param string $path
-	 *
-	 * @return TemplateResponse
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
@@ -241,9 +212,6 @@ class NavigationController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 *
-	 * @param string $path
-	 *
-	 * @return TemplateResponse
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */

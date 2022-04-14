@@ -40,8 +40,8 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
-use OCP\ILogger;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 
 /**
@@ -50,27 +50,12 @@ use OCP\IURLGenerator;
  * @package OCA\Social\Db
  */
 class StreamDestRequest extends StreamDestRequestBuilder {
-
-
 	use TStringTools;
 
+	private CacheActorService $cacheActorService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-
-	/**
-	 * StreamDestRequest constructor.
-	 *
-	 * @param IDBConnection $connection
-	 * @param ILogger $logger
-	 * @param IURLGenerator $urlGenerator
-	 * @param CacheActorService $cacheActorService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator, CacheActorService $cacheActorService,
+		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator, CacheActorService $cacheActorService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
@@ -78,13 +63,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		$this->cacheActorService = $cacheActorService;
 	}
 
-
-	/**
-	 * @param string $streamId
-	 * @param string $actorId
-	 * @param string $type
-	 * @param string $subType
-	 */
 	public function create(string $streamId, string $actorId, string $type, string $subType = '') {
 		$qb = $this->getStreamDestInsertSql();
 

@@ -56,63 +56,22 @@ use OCP\IUserSession;
  * @package OCA\Social\Service
  */
 class AccountService {
-
-
 	const KEY_PAIR_LIFESPAN = 7;
-
 
 	use TArrayTools;
 
+	private IUserManager $userManager;
+	private IUserSession $userSession;
+	private IAccountManager $accountManager;
+	private ActorsRequest $actorsRequest;
+	private FollowsRequest $followsRequest;
+	private StreamRequest $streamRequest;
+	private ActorService $actorService;
+	private SignatureService $signatureService;
+	private DocumentService $documentService;
+	private ConfigService $configService;
+	private MiscService $miscService;
 
-	/** @var IUserManager */
-	private $userManager;
-
-	/** @var IUserSession */
-	private $userSession;
-
-	/** @var IAccountManager */
-	private $accountManager;
-
-	/** @var ActorsRequest */
-	private $actorsRequest;
-
-	/** @var FollowsRequest */
-	private $followsRequest;
-
-	/** @var StreamRequest */
-	private $streamRequest;
-
-	/** @var ActorService */
-	private $actorService;
-
-	/** @var SignatureService */
-	private $signatureService;
-
-	/** @var DocumentService */
-	private $documentService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * ActorService constructor.
-	 *
-	 * @param IUserManager $userManager
-	 * @param IUserSession $userSession
-	 * @param IAccountManager $accountManager
-	 * @param ActorsRequest $actorsRequest
-	 * @param FollowsRequest $followsRequest
-	 * @param StreamRequest $streamRequest
-	 * @param ActorService $actorService
-	 * @param DocumentService $documentService
-	 * @param SignatureService $signatureService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IUserManager $userManager, IUserSession $userSession, IAccountManager $accountManager,
 		ActorsRequest $actorsRequest,
