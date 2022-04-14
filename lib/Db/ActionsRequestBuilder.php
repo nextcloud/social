@@ -45,15 +45,8 @@ use OCA\Social\Model\ActivityPub\ACore;
  */
 class ActionsRequestBuilder extends CoreRequestBuilder {
 
-
 	use TArrayTools;
 
-
-	/**
-	 * Base of the Sql Insert request
-	 *
-	 * @return SocialQueryBuilder
-	 */
 	protected function getActionsInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_ACTIONS);
@@ -64,8 +57,6 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * Base of the Sql Update request
-	 *
-	 * @return SocialQueryBuilder
 	 */
 	protected function getActionsUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -77,8 +68,6 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * Base of the Sql Select request for Shares
-	 *
-	 * @return SocialQueryBuilder
 	 */
 	protected function getActionsSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();

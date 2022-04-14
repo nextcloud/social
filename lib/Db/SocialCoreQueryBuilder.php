@@ -36,8 +36,8 @@ use OC\SystemConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\IDBConnection;
-use OCP\ILogger;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 
 /**
@@ -46,33 +46,18 @@ use OCP\IURLGenerator;
  * @package OCA\Social\Db
  */
 class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
-
-
-	/** @var IURLGenerator */
-	protected $urlGenerator;
-
-	/** @var Person */
-	private $viewer = null;
-
-
-	/** @var int */
-	private $chunk = 0;
-
+	protected IURLGenerator $urlGenerator;
+	private ?Person $viewer = null;
+	private int $chunk = 0;
 
 	public function __construct(
-		IDBConnection $connection, SystemConfig $systemConfig, ILogger $logger, IURLGenerator $urlGenerator
+		IDBConnection $connection, SystemConfig $systemConfig, LoggerInterface $logger, IURLGenerator $urlGenerator
 	) {
 		parent::__construct($connection, $systemConfig, $logger);
 
 		$this->urlGenerator = $urlGenerator;
 	}
 
-
-	/**
-	 * @param int $chunk
-	 *
-	 * @return $this
-	 */
 	public function setChunk(int $chunk): self {
 		$this->chunk = $chunk;
 		$this->inChunk();
@@ -80,20 +65,14 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 		return $this;
 	}
 
-	/**
-	 * @return int
-	 */
 	public function getChunk(): int {
 		return $this->chunk;
 	}
 
 	/**
 	 * Limit the request to a chunk
-	 *
-	 * @param string $alias
-	 * @param ICompositeExpression|null $expr
 	 */
-	public function inChunk(string $alias = '', ICompositeExpression $expr = null) {
+	public function inChunk(string $alias = '', ?ICompositeExpression $expr = null): void {
 		if ($this->getChunk() === 0) {
 			return;
 		}
@@ -106,34 +85,18 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 		$this->limitToDBFieldInt('chunk', $this->getChunk(), $alias);
 	}
 
-
-	/**
-	 * @return bool
-	 */
 	public function hasViewer(): bool {
 		return ($this->viewer !== null);
 	}
 
-	/**
-	 * @param Person $viewer
-	 */
 	public function setViewer(Person $viewer): void {
 		$this->viewer = $viewer;
 	}
 
-	/**
-	 * @return Person
-	 */
 	public function getViewer(): Person {
 		return $this->viewer;
 	}
 
-
-	/**
-	 * @param string $id
-	 *
-	 * @return string
-	 */
 	public function prim(string $id): string {
 		if ($id === '') {
 			return '';
@@ -141,6 +104,5 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 
 		return hash('sha512', $id);
 	}
-
 }
 

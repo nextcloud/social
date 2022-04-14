@@ -46,8 +46,8 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
-use OCP\ILogger;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 
 /**
@@ -56,7 +56,6 @@ use OCP\IURLGenerator;
  * @package OCA\Social\Db
  */
 class CoreRequestBuilder {
-
 
 	const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
 	const TABLE_INSTANCE = 'social_3_instance';
@@ -99,44 +98,21 @@ class CoreRequestBuilder {
 		self::TABLE_CLIENT_TOKEN
 	];
 
+	protected LoggerInterface $logger;
+	protected IURLGenerator $urlGenerator;
+	protected IDBConnection $dbConnection;
+	protected ConfigService $configService;
+	protected MiscService $miscService;
+	protected ?Person $viewer = null;
+	protected ?string $defaultSelectAlias = null;
 
-	/** @var ILogger */
-	protected $logger;
-
-	/** @var IURLGenerator */
-	protected $urlGenerator;
-
-	/** @var IDBConnection */
-	protected $dbConnection;
-
-	/** @var ConfigService */
-	protected $configService;
-
-	/** @var MiscService */
-	protected $miscService;
-
-	/** @var Person */
-	protected $viewer = null;
-
-	/** @var string */
-	protected $defaultSelectAlias;
-
-
-	/**
-	 * CoreRequestBuilder constructor.
-	 *
-	 * @param IDBConnection $connection
-	 * @param ILogger $logger
-	 * @param IURLGenerator $urlGenerator
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator, ConfigService $configService,
+		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator, ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->dbConnection = $connection;
 		$this->logger = $logger;
+		$this->loggerInterface = $loggerInterface;
 		$this->urlGenerator = $urlGenerator;
 		$this->configService = $configService;
 		$this->miscService = $miscService;

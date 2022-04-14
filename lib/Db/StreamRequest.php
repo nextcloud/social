@@ -47,8 +47,8 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
-use OCP\ILogger;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 
 /**
@@ -57,28 +57,11 @@ use OCP\IURLGenerator;
  * @package OCA\Social\Db
  */
 class StreamRequest extends StreamRequestBuilder {
+	private StreamDestRequest $streamDestRequest;
+	private StreamTagsRequest $streamTagsRequest;
 
-
-	/** @var StreamDestRequest */
-	private $streamDestRequest;
-
-	/** @var StreamTagsRequest */
-	private $streamTagsRequest;
-
-
-	/**
-	 * StreamRequest constructor.
-	 *
-	 * @param IDBConnection $connection
-	 * @param ILogger $logger
-	 * @param IURLGenerator $urlGenerator
-	 * @param StreamDestRequest $streamDestRequest
-	 * @param StreamTagsRequest $streamTagsRequest
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IDBConnection $connection, ILogger $logger, IURLGenerator $urlGenerator,
+		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
 		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
 		ConfigService $configService, MiscService $miscService
 	) {
