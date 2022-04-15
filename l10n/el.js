@@ -51,11 +51,9 @@ OC.L10N.register(
     "No local posts found" : "Δεν βρέθηκαν τοπικές δημοσιεύσεις",
     "Posts from other people on this instance will show up here" : "Οι δημοσιεύσεις από άτομα αυτού του θέματος θα εμφανίζονται εδώ",
     "No notifications found" : "Δεν βρέθηκαν ειδοποιήσεις",
-    "You haven't receive any notifications yet" : "Δεν λάβατε ειδοποιήσεις ακόμη",
     "No global posts found" : "Δεν βρέθηκαν δημόσιες καταχωρήσεις",
     "Posts from federated instances will show up here" : "Δημοσιέυσεις από ομόσπονδους συνδέσμους θα εμφανίζονται εδώ",
     "No liked posts found" : "Δεν βρέθηκαν δημοσιεύσεις με μ'αρέσει",
-    "You haven't tooted yet" : "Δεν έχετε επισημανθεί ακόμη",
     "No posts found for this tag" : "Δεν βρέθηκαν αναρτήσεις για αυτήν την ετικέτα",
     "No replies found" : "Δεν βρέθηκαν απαντήσεις",
     "hasn't tooted yet" : "δεν έχει δημοσιεύσει ακόμα",
@@ -78,6 +76,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Το Nextcloud γίνεται μέρος των ομοσπονδιακών κοινωνικών δικτύων!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Δημιουργήσαμε αυτόματα έναν λογαριασμό κοινωνικής δικτύωσης για εσάς. Το Social ID σας είναι το ίδιο με το Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Καθως είστε νέοι στο Social, ξεκινήστε ακολουθώντας τον επίσημο λογαριασμό του Nextcloud για να μην χάσετε καμιά είδηση",
-    "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz",
+    "You haven't receive any notifications yet" : "Δεν λάβατε ειδοποιήσεις ακόμη",
+    "You haven't tooted yet" : "Δεν έχετε επισημανθεί ακόμη"
 },
 "nplurals=2; plural=(n != 1);");

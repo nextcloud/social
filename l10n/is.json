@@ -47,11 +47,9 @@
     "No local posts found" : "Engar staðværar færslur fundust",
     "Posts from other people on this instance will show up here" : "Færslur frá fólki á þessu tilviki þjóns munu birtast hér",
     "No notifications found" : "Engar tilkynningar fundust",
-    "You haven't receive any notifications yet" : "Þú hefur ennþá ekki fengið neinar tilkynningar",
     "No global posts found" : "Engar víðværar færslur fundust",
     "Posts from federated instances will show up here" : "Færslur frá fólki á tilvikum þjóna í skýjasambandi munu birtast hér",
     "No liked posts found" : "Engar líkaðar færslur fundust",
-    "You haven't tooted yet" : "Þú hefur ekki tíst neitt ennþá",
     "No posts found for this tag" : "Engar færslur fundust fyrir þetta merki",
     "No replies found" : "Engin svör fundust",
     "hasn't tooted yet" : "hefur ekki tíst neitt ennþá",
@@ -74,6 +72,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud verður hluti af samfélagsnetum í skýjasambandi!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Við útbjuggum sjálfvirkt samfélagsnetsaðgang fyrir þíg. Samfélagsnetsauðkennið þitt er það sama og skýjasambandsauðkennið þitt (Federated Cloud ID):",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Þar sem þú ert nýr á samfélagsnetinu, byrjaðu þá á því að fylgjast með opinbera Nextcloud aðgangnum svo þú missir ekki af neinu fréttnæmu",
-    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz",
+    "You haven't receive any notifications yet" : "Þú hefur ennþá ekki fengið neinar tilkynningar",
+    "You haven't tooted yet" : "Þú hefur ekki tíst neitt ennþá"
 },"pluralForm" :"nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);"
 }

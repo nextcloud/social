@@ -49,11 +49,9 @@ OC.L10N.register(
     "No local posts found" : "ローカルの投稿が見つかりません",
     "Posts from other people on this instance will show up here" : "このインスタンスの他の人からの投稿がここに表示されます",
     "No notifications found" : "通知はありません",
-    "You haven't receive any notifications yet" : "受信された通知はありません",
     "No global posts found" : "グローバルの投稿が見つかりません",
     "Posts from federated instances will show up here" : "連携したインスタンスからの投稿がここに表示されます",
     "No liked posts found" : "お気に入りの投稿は見つかりませんでした",
-    "You haven't tooted yet" : "あなたはまだtootしていません",
     "No posts found for this tag" : "このタグの投稿はありません",
     "No replies found" : "返信が見つかりません",
     "hasn't tooted yet" : "はまだtootしていません",
@@ -76,6 +74,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudは分散SNSの一部になります！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "「ソーシャル」アカウントが自動に作成してあげました。あなたの「ソーシャル」IDクはラウド連携IDと同じです：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "「ソーシャル」は初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
-    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする"
+    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
+    "You haven't receive any notifications yet" : "受信された通知はありません",
+    "You haven't tooted yet" : "あなたはまだtootしていません"
 },
 "nplurals=1; plural=0;");

@@ -49,11 +49,9 @@ OC.L10N.register(
     "No local posts found" : "Inga lokala inlägg hittade",
     "Posts from other people on this instance will show up here" : "Inlägg från andra personer i denna instans visas här",
     "No notifications found" : "Inga aviseringar hittades",
-    "You haven't receive any notifications yet" : "Du har inte fått några aviseringar än",
     "No global posts found" : "Inga globala inlägg hittade",
     "Posts from federated instances will show up here" : "Inlägg från federerade instanser visas här",
     "No liked posts found" : "Inga gillade inlägg hittades",
-    "You haven't tooted yet" : "Du har inte tutat än",
     "No posts found for this tag" : "Inga inlägg funna för denna tagg",
     "hasn't tooted yet" : "har inte tutat än",
     "Reply" : "Svara",
@@ -74,6 +72,8 @@ OC.L10N.register(
     "Sorry, we could not find the account of {userId}" : "Tyvärr, vi kunde inte hitta kontot för {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud blir en del av federerade sociala nätverk!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Eftersom du är ny här kan du börja med att följa det officiella Nextcloud-kontot så att du inte missar några nyheter",
-    "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz",
+    "You haven't receive any notifications yet" : "Du har inte fått några aviseringar än",
+    "You haven't tooted yet" : "Du har inte tutat än"
 },
 "nplurals=2; plural=(n != 1);");
