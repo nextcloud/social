@@ -47,13 +47,11 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class ClientRequest extends ClientRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Insert a new OAuth client in the database.
-	 *
-	 * @param SocialClient $client
+	 * @throws \OCP\DB\Exception
 	 */
-	public function saveApp(SocialClient $client) {
+	public function saveApp(SocialClient $client): void {
 		$qb = $this->getClientInsertSql();
 		$qb->setValue('app_name', $qb->createNamedParameter($client->getAppName()))
 		   ->setValue('app_website', $qb->createNamedParameter($client->getAppWebsite()))
@@ -71,7 +69,7 @@ class ClientRequest extends ClientRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$qb->execute();
+		$qb->executeStatement();
 
 		$client->setId($qb->getLastInsertId());
 	}
@@ -80,7 +78,7 @@ class ClientRequest extends ClientRequestBuilder {
 	/**
 	 * @param SocialClient $client
 	 */
-	public function authClient(SocialClient $client) {
+	public function authClient(SocialClient $client): void {
 		$qb = $this->getClientUpdateSql();
 		$qb->set('auth_code', $qb->createNamedParameter($client->getAuthCode()));
 		$qb->set('auth_scopes', $qb->createNamedParameter(json_encode($client->getAuthScopes())));
@@ -89,14 +87,14 @@ class ClientRequest extends ClientRequestBuilder {
 
 		$qb->limitToId($client->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
 	/**
 	 * @param SocialClient $client
 	 */
-	public function updateToken(SocialClient $client) {
+	public function updateToken(SocialClient $client): void {
 		$qb = $this->getClientUpdateSql();
 		$qb->set('token', $qb->createNamedParameter($client->getToken()));
 		$qb->set('auth_code', $qb->createNamedParameter(''));
@@ -110,7 +108,7 @@ class ClientRequest extends ClientRequestBuilder {
 	/**
 	 * @param SocialClient $client
 	 */
-	public function updateTime(SocialClient $client) {
+	public function updateTime(SocialClient $client): void {
 		$now = new DateTime('now');
 		$client->setLastUpdate($now->getTimestamp());
 

@@ -33,6 +33,7 @@ namespace OCA\Social\Interfaces\Internal;
 
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
@@ -41,79 +42,16 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 
-class SocialAppNotificationInterface implements IActivityPubInterface {
+class SocialAppNotificationInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private StreamRequest $streamRequest;
-
-	private CurlService $curlService;
-
-	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * NoteInterface constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
-	public function __construct(
-		StreamRequest $streamRequest, CurlService $curlService, ConfigService $configService,
-		MiscService $miscService
-	) {
+	public function __construct(StreamRequest $streamRequest, MiscService $miscService) {
 		$this->streamRequest = $streamRequest;
-		$this->curlService = $curlService;
-		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 * @param ACore $note
-	 */
-	public function processIncomingRequest(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItem(ACore $item): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param string $id
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 */
-	public function activity(Acore $activity, ACore $item) {
-	}
-
-	public function save(ACore $item) {
+	public function save(ACore $item): void {
 		/** @var SocialAppNotification $notification */
 		$notification = $item;
 		if ($notification->getId() === '') {
@@ -129,7 +67,7 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 		$this->streamRequest->save($notification);
 	}
 
-	public function update(ACore $item) {
+	public function update(ACore $item): void {
 		/** @var SocialAppNotification $notification */
 		$notification = $item;
 		$this->miscService->log(
@@ -138,20 +76,8 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 		$this->streamRequest->update($notification);
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
+	public function delete(ACore $item): void {
 		/** @var Stream $item */
 		$this->streamRequest->deleteById($item->getId(), SocialAppNotification::TYPE);
-	}
-
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
 	}
 }

@@ -37,12 +37,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
-	/**
-	 * Base of the Sql Insert request
-	 *
-	 * @return IQueryBuilder
-	 */
 	protected function getCacheDocumentsInsertSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->insert(self::TABLE_CACHE_DOCUMENTS);
@@ -50,11 +44,8 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
-	 *
-	 * @return IQueryBuilder
 	 */
 	protected function getCacheDocumentsUpdateSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
@@ -63,16 +54,12 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Select request for Shares
-	 *
-	 * @return SocialQueryBuilder
 	 */
 	protected function getCacheDocumentsSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 
-		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'cd.id', 'cd.type', 'cd.parent_id', 'cd.media_type', 'cd.mime_type', 'cd.url',
 			'cd.local_copy', 'cd.public', 'cd.error', 'cd.creation', 'cd.caching', 'cd.resized_copy'
@@ -88,8 +75,6 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * Base of the Sql Delete request
-	 *
-	 * @return IQueryBuilder
 	 */
 	protected function getCacheDocumentsDeleteSql(): IQueryBuilder {
 		$qb = $this->dbConnection->getQueryBuilder();
@@ -98,12 +83,6 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Document
-	 */
 	public function parseCacheDocumentsSelectSql(array $data): Document {
 		$document = new Document();
 		$document->importFromDatabase($data);

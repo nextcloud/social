@@ -75,11 +75,9 @@ class StreamRequest extends StreamRequestBuilder {
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
-			   ->setValue(
-				   'attachments', $qb->createNamedParameter(
+			   ->setValue('attachments', $qb->createNamedParameter(
 				   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
-			   )
-			   );
+			   ));
 		}
 
 		try {
@@ -88,6 +86,11 @@ class StreamRequest extends StreamRequestBuilder {
 			$this->streamDestRequest->generateStreamDest($stream);
 			$this->streamTagsRequest->generateStreamTags($stream);
 		} catch (DBException $e) {
+			if ($e->getReason() !== DBException::REASON_CONSTRAINT_VIOLATION) {
+				$this->logger->error("Couldn't save stream: " . $e->getMessage(), [
+					'exception' => $e,
+				]);
+			}
 		}
 	}
 
@@ -95,11 +98,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamUpdateSql();
 
 		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
-		$qb->set(
-			'cc', $qb->createNamedParameter(
+		$qb->set('cc', $qb->createNamedParameter(
 			json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-		)
-		);
+		));
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 		$qb->executeStatement();
 
@@ -182,9 +183,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param string $id
-	 * @param bool $asViewer
-	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
@@ -693,8 +691,8 @@ class StreamRequest extends StreamRequestBuilder {
 		   )
 		   ->setValue(
 			   'bcc', $qb->createNamedParameter(
-			   json_encode($stream->getBccArray()), JSON_UNESCAPED_SLASHES
-		   )
+				   json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES)
+			   )
 		   )
 		   ->setValue('content', $qb->createNamedParameter($stream->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))

@@ -8,8 +8,7 @@ declare(strict_types=1);
  * This file is licensed under the Affero General Public License version 3 or
  * later. See the COPYING file.
  *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
+ * @copyright 2022 Carl Schwan <carl@carlschwan.eu>
  * @license GNU AGPL version 3 or any later version
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,27 +26,45 @@ declare(strict_types=1);
  *
  */
 
-
 namespace OCA\Social\Interfaces\Activity;
 
-use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\MiscService;
 
-class RemoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+class AbstractActivityPubInterface implements IActivityPubInterface {
 	public function processIncomingRequest(ACore $item): void {
-		if (!$item->hasObject()) {
-			return;
-		}
-		$object = $item->getObject();
+	}
 
-		try {
-			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
-			$service->activity($item, $object);
-		} catch (ItemUnknownException $e) {
-		}
+	public function processResult(ACore $item): void {
+	}
+
+	/**
+	 * @throws ItemNotFoundException
+	 */
+	public function getItem(ACore $item): ACore {
+		throw new ItemNotFoundException();
+	}
+
+	/**
+	 * @throws ItemNotFoundException
+	 */
+	public function getItemById(string $id): ACore {
+		throw new ItemNotFoundException();
+	}
+
+	public function save(ACore $item): void {
+	}
+
+	public function update(ACore $item): void {
+	}
+
+	public function delete(ACore $item): void {
+	}
+
+	public function event(ACore $item, string $source): void {
+	}
+
+	public function activity(ACore $activity, ACore $item): void {
 	}
 }

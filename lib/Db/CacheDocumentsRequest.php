@@ -39,13 +39,12 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public const CACHING_TIMEOUT = 5; // 5 min
 
-
 	/**
-	 * insert cache about an Actor in database.
+	 * Insert cache about an Actor in database.
 	 *
 	 * @param Document $document
 	 */
-	public function save(Document $document) {
+	public function save(Document $document): void {
 		$qb = $this->getCacheDocumentsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($document->getId()))
 		   ->setValue('type', $qb->createNamedParameter($document->getType()))
@@ -68,16 +67,14 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$this->generatePrimaryKey($qb, $document->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
 	/**
-	 * insert cache about an Actor in database.
-	 *
-	 * @param Document $document
+	 * Insert cache about an Actor in database.
 	 */
-	public function update(Document $document) {
+	public function update(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->set('type', $qb->createNamedParameter($document->getType()))
 		   ->set('url', $qb->createNamedParameter($document->getUrl()))
@@ -98,14 +95,14 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		}
 
 		$this->limitToIdString($qb, $document->getId());
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
 	/**
-	 * @param Document $document
+	 * @throws \OCP\DB\Exception
 	 */
-	public function initCaching(Document $document) {
+	public function initCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$this->limitToIdString($qb, $document->getId());
 
@@ -116,21 +113,21 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
 	/**
-	 * @param Document $document
+	 * @throws \OCP\DB\Exception
 	 */
-	public function endCaching(Document $document) {
+	public function endCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$this->limitToIdString($qb, $document->getId());
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
 		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
 		$qb->set('error', $qb->createNamedParameter($document->getError()));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 

@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -58,41 +59,25 @@ use OCA\Social\Service\MiscService;
  *
  * @package OCA\Social\Interfaces\Object
  */
-class LikeInterface implements IActivityPubInterface {
+class LikeInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private ActionsRequest $actionsRequest;
-
 	private StreamRequest $streamRequest;
-
 	private CacheActorService $cacheActorService;
 
-	private MiscService $miscService;
-
-
-	/**
-	 * LikeService constructor.
-	 *
-	 * @param ActionsRequest $actionsRequest
-	 * @param StreamRequest $streamRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		ActionsRequest $actionsRequest, StreamRequest $streamRequest,
-		CacheActorService $cacheActorService, MiscService $miscService
+		CacheActorService $cacheActorService
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorService = $cacheActorService;
-		$this->miscService = $miscService;
 	}
 
 
 	/**
-	 * @param ACore $item
-	 *
 	 * @throws InvalidOriginException
 	 */
-	public function processIncomingRequest(ACore $item) {
+	public function processIncomingRequest(ACore $item): void {
 		/** @var Like $like */
 		$like = $item;
 		$like->checkOrigin($like->getId());
@@ -106,12 +91,9 @@ class LikeInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $activity
-	 * @param ACore $like
-	 *
 	 * @throws InvalidOriginException
 	 */
-	public function activity(ACore $activity, ACore $item) {
+	public function activity(ACore $activity, ACore $item): void {
 		/** @var Like $like */
 		$like = $item;
 		if ($activity->getType() === Undo::TYPE) {
@@ -122,18 +104,7 @@ class LikeInterface implements IActivityPubInterface {
 		}
 	}
 
-
 	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore {
@@ -147,24 +118,10 @@ class LikeInterface implements IActivityPubInterface {
 		throw new ItemNotFoundException();
 	}
 
-
 	/**
-	 * @param string $id
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
 	 * @throws ItemAlreadyExistsException
 	 */
-	public function save(ACore $item) {
+	public function save(ACore $item): void {
 		try {
 			$this->actionsRequest->getActionFromItem($item);
 			throw new ItemAlreadyExistsException();
@@ -186,35 +143,12 @@ class LikeInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
+	public function delete(ACore $item): void {
 		$this->actionsRequest->delete($item);
 		$this->undoLikeAction($item);
 	}
 
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
-	}
-
-
-	/**
-	 * @param ACore $like
-	 */
-	private function undoLikeAction(ACore $item) {
+	private function undoLikeAction(ACore $item): void {
 		/** @var Like $like */
 		$like = $item;
 		try {
@@ -231,11 +165,7 @@ class LikeInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param Stream $post
-	 */
-	private function updateDetails(Stream $post) {
+	private function updateDetails(Stream $post): void {
 //		if (!$post->isLocal()) {
 //			return;
 //		}
@@ -249,13 +179,12 @@ class LikeInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param Stream $post
-	 * @param Person $author
-	 *
+	 * @throws ItemAlreadyExistsException
+	 * @throws ItemNotFoundException
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	private function generateNotification(Stream $post, Person $author) {
+	private function generateNotification(Stream $post, Person $author): void {
 		if (!$post->isLocal()) {
 			return;
 		}
@@ -292,13 +221,10 @@ class LikeInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param Stream $post
-	 * @param Person $author
-	 *
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	private function cancelNotification(Stream $post, Person $author) {
+	private function cancelNotification(Stream $post, Person $author): void {
 		if (!$post->isLocal()) {
 			return;
 		}

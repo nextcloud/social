@@ -33,8 +33,10 @@ namespace OCA\Social\Interfaces\Object;
 
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
@@ -45,35 +47,13 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
 
-class NoteInterface implements IActivityPubInterface {
+class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private StreamRequest $streamRequest;
-	private CurlService $curlService;
 	private PushService $pushService;
-	private ConfigService $configService;
-	private MiscService $miscService;
 
-	public function __construct(
-		StreamRequest $streamRequest, CurlService $curlService, PushService $pushService,
-		ConfigService $configService, MiscService $miscService
-	) {
+	public function __construct(StreamRequest $streamRequest, PushService $pushService) {
 		$this->streamRequest = $streamRequest;
-		$this->curlService = $curlService;
 		$this->pushService = $pushService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
-	}
-
-	public function processIncomingRequest(ACore $item) {
-	}
-
-	public function processResult(ACore $item) {
-	}
-
-	/**
-	 * @throws ItemNotFoundException
-	 */
-	public function getItem(ACore $item): ACore {
-		throw new ItemNotFoundException();
 	}
 
 	/**
@@ -89,14 +69,10 @@ class NoteInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 *
-	 * @throws InvalidOriginException
+	 * @throws InvalidOriginException|ItemAlreadyExistsException
 	 */
-	public function activity(Acore $activity, ACore $item) {
+	public function activity(Acore $activity, ACore $item): void {
 		/** @var Note $item */
-
 		if ($activity->getType() === Create::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getAttributedTo());
@@ -110,7 +86,7 @@ class NoteInterface implements IActivityPubInterface {
 		}
 	}
 
-	public function save(ACore $item) {
+	public function save(ACore $item): void {
 		/** @var Note $note */
 		$note = $item;
 		try {
@@ -121,27 +97,8 @@ class NoteInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
+	public function delete(ACore $item): void {
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
-	}
-
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
 	}
 }

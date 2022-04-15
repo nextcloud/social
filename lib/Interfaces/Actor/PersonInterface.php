@@ -38,6 +38,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Update;
@@ -51,7 +52,7 @@ use OCA\Social\Service\MiscService;
  *
  * @package OCA\Social\Service\ActivityPub
  */
-class PersonInterface implements IActivityPubInterface {
+class PersonInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
 	private CacheActorsRequest $cacheActorsRequest;
@@ -74,14 +75,6 @@ class PersonInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-	public function processIncomingRequest(ACore $item) {
-	}
-
-
-	public function processResult(ACore $item) {
-	}
-
-
 	/**
 	 * @throws ItemNotFoundException
 	 */
@@ -89,11 +82,7 @@ class PersonInterface implements IActivityPubInterface {
 		throw new ItemNotFoundException();
 	}
 
-
 	/**
-	 * @param string $id
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
@@ -106,14 +95,10 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 *
 	 * @throws InvalidOriginException
 	 */
-	public function activity(Acore $activity, ACore $item) {
+	public function activity(Acore $activity, ACore $item): void {
 		/** @var Person $item */
 		$activity->checkOrigin($item->getId());
 
@@ -122,7 +107,7 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-	public function save(ACore $item) {
+	public function save(ACore $item): void {
 		/** @var Person $person */
 		$person = $item;
 		try {
@@ -133,17 +118,11 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-	public function update(ACore $item) {
-	}
-
-	public function delete(ACore $item) {
+	public function delete(ACore $item): void {
 		/** @var Person $item */
 		$this->cacheActorsRequest->deleteCacheById($item->getId());
 		$this->streamRequest->deleteByAuthor($item->getId());
 		$this->followsRequest->deleteRelatedId($item->getId());
-	}
-
-	public function event(ACore $item, string $source) {
 	}
 
 	private function updateActor(Person $actor, ACore $activity) {

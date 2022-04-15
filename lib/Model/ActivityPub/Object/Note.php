@@ -42,65 +42,36 @@ use OCA\Social\Model\ActivityPub\Stream;
 class Note extends Stream implements JsonSerializable {
 	public const TYPE = 'Note';
 
-
 	private array $attachments = [];
-
 	private array $hashtags = [];
 
-
-	/**
-	 * Note constructor.
-	 *
-	 * @param ACore $parent
-	 */
-	public function __construct($parent = null) {
+	public function __construct(ACore $parent = null) {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function getAttachments(): array {
 		return $this->attachments;
 	}
 
-	/**
-	 * @param array $attachments
-	 *
-	 * @return Note
-	 */
 	public function setAttachments(array $attachments): Note {
 		$this->attachments = $attachments;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function getHashtags(): array {
 		return $this->hashtags;
 	}
 
-	/**
-	 * @param array $hashtags
-	 *
-	 * @return Note
-	 */
 	public function setHashtags(array $hashtags): Note {
 		$this->hashtags = $hashtags;
 
 		return $this;
 	}
 
-	/**
-	 *
-	 */
-	public function fillHashtags() {
+	public function fillHashtags(): void {
 		$tags = $this->getTags('Hashtag');
 		$hashtags = [];
 		foreach ($tags as $tag) {
@@ -116,11 +87,9 @@ class Note extends Stream implements JsonSerializable {
 
 
 	/**
-	 * @param array $data
-	 *
 	 * @throws ItemAlreadyExistsException
 	 */
-	public function import(array $data) {
+	public function import(array $data): void {
 		parent::import($data);
 
 		$this->importAttachments($this->getArray('attachment', $data, []));
@@ -129,11 +98,9 @@ class Note extends Stream implements JsonSerializable {
 
 
 	/**
-	 * @param array $list
-	 *
 	 * @throws ItemAlreadyExistsException
 	 */
-	public function importAttachments(array $list) {
+	public function importAttachments(array $list): void {
 		$new = [];
 		foreach ($list as $item) {
 			try {
@@ -172,21 +139,13 @@ class Note extends Stream implements JsonSerializable {
 		$this->setAttachments($new);
 	}
 
-
-	/**
-	 * @param array $data
-	 */
-	public function importFromDatabase(array $data) {
+	public function importFromDatabase(array $data): void {
 		parent::importFromDatabase($data);
 
 		$this->setAttachments($this->getArray('attachments', $data, []));
 		$this->setHashtags($this->getArray('hashtags', $data, []));
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
