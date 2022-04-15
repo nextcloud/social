@@ -37,7 +37,6 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\MiscService;
 
 class DeleteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	/**

@@ -52,7 +52,6 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\MiscService;
 
 /**
  * Class LikeInterface

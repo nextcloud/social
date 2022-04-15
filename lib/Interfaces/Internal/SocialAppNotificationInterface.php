@@ -32,14 +32,11 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Internal;
 
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 
 class SocialAppNotificationInterface extends AbstractActivityPubInterface implements IActivityPubInterface {

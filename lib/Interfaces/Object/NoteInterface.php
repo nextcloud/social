@@ -42,9 +42,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\CurlService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
 
 class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
