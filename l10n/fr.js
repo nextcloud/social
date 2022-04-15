@@ -50,11 +50,9 @@ OC.L10N.register(
     "No local posts found" : "Aucun message local trouvé",
     "Posts from other people on this instance will show up here" : "Les messages d'autres personnes de cette instance apparaîtront ici",
     "No notifications found" : "Aucune notification",
-    "You haven't receive any notifications yet" : "Vous n'avez pas encore reçu de notification",
     "No global posts found" : "Aucun message global trouvé",
     "Posts from federated instances will show up here" : "Les messages des instances fédérées apparaîtront ici",
     "No liked posts found" : "Aucun message aimé trouvé",
-    "You haven't tooted yet" : "Vous n'avez pas encore envoyé de pouet",
     "No posts found for this tag" : "Aucun message trouvé avec cette étiquette",
     "No replies found" : "Aucune réponse trouvée",
     "hasn't tooted yet" : "n'a pas encore envoyer de pouet",
@@ -77,6 +75,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud fait maintenant partie des réseaux sociaux fédérés !",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Nous avons automatiquement créé un compte social pour vous. Votre identifiant social est le même que votre identifiant de cloud fédéré :",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Comme vous êtes nouveau dans Social, commencez par suivre le compte officiel de Nextcloud afin de ne manquer aucune nouvelle",
-    "Follow Nextcloud on mastodon.xyz" : "Suivre Nextcloud sur mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Suivre Nextcloud sur mastodon.xyz",
+    "You haven't receive any notifications yet" : "Vous n'avez pas encore reçu de notification",
+    "You haven't tooted yet" : "Vous n'avez pas encore envoyé de pouet"
 },
 "nplurals=2; plural=(n > 1);");

@@ -52,11 +52,9 @@ OC.L10N.register(
     "No local posts found" : "Nenašli sa žiadne miestne príspevky",
     "Posts from other people on this instance will show up here" : "Tu sa zobrazia príspevky ostatných ľudí tejto inštancie",
     "No notifications found" : "Žiadne upozornenia",
-    "You haven't receive any notifications yet" : "Zatiaľ ste nedostali žiadne upozornenia",
     "No global posts found" : "Neboli nájdené žiadne globálne príspevky",
     "Posts from federated instances will show up here" : "Tu sa zobrazia príspevky zo združených inštancií",
     "No liked posts found" : "Nenašli sa žiadne príspevky, ktoré by sa páčili",
-    "You haven't tooted yet" : "Zatiaľ ste nič nenapísali",
     "No posts found for this tag" : "Pre tento štítok sa nenašli žiadne príspevky",
     "No replies found" : "Nenašli sa žiadne odpovede",
     "hasn't tooted yet" : "zatiaľ nič nenapísal(a)",
@@ -79,6 +77,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud sa stáva súčasťou združených sociálnych sietí!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automaticky sme pre vás vytvorili účet na Social. Vaše ID v Social je rovnaké ako vaše ID združeného cloudu:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Preto, že ste nový na Social, začnite sledovať oficiálny účet Nextcloud, aby vám nič neušlo",
-    "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz",
+    "You haven't receive any notifications yet" : "Zatiaľ ste nedostali žiadne upozornenia",
+    "You haven't tooted yet" : "Zatiaľ ste nič nenapísali"
 },
 "nplurals=4; plural=(n % 1 == 0 && n == 1 ? 0 : n % 1 == 0 && n >= 2 && n <= 4 ? 1 : n % 1 != 0 ? 2: 3);");

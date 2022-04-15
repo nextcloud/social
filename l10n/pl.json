@@ -50,11 +50,9 @@
     "No local posts found" : "Nie znaleziono lokalnych wpisów",
     "Posts from other people on this instance will show up here" : "Tutaj będą pojawiać się wpisy innych użytkowników tej instancji",
     "No notifications found" : "Nie znaleziono powiadomień",
-    "You haven't receive any notifications yet" : "Nie otrzymałeś jeszcze żadnych powiadomień",
     "No global posts found" : "Nie znaleziono globalnych wpisów",
     "Posts from federated instances will show up here" : "Tutaj będą pojawiać się wpisy z instancji federacyjnych",
     "No liked posts found" : "Nie znaleziono polubionych postów",
-    "You haven't tooted yet" : "Jeszcze nie napisałeś niczego",
     "No posts found for this tag" : "Nie znaleziono wpisów dla tej etykiety",
     "No replies found" : "Nie znaleziono odpowiedzi",
     "hasn't tooted yet" : "nie napisał jeszcze niczego",
@@ -77,6 +75,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud staje się częścią federacyjnych sieci społecznościowych!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automatycznie utworzyliśmy dla Ciebie konto społecznościowe. Twój ID społecznościowy jest taki sam, jak ID Chmury Federacyjnej:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ponieważ jesteś nowym użytkownikiem Social, zacznij od oficjalnego konta Nextcloud, aby nie przeoczyć żadnych wiadomości",
-    "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz",
+    "You haven't receive any notifications yet" : "Nie otrzymałeś jeszcze żadnych powiadomień",
+    "You haven't tooted yet" : "Jeszcze nie napisałeś niczego"
 },"pluralForm" :"nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);"
 }

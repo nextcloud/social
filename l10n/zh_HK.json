@@ -50,11 +50,9 @@
     "No local posts found" : "未找到本地帖子",
     "Posts from other people on this instance will show up here" : "此實例上來自其他人的帖子將在此處顯示",
     "No notifications found" : "未找到通知",
-    "You haven't receive any notifications yet" : "您還沒有收到任何通知",
     "No global posts found" : "未找到跨站帖子",
     "Posts from federated instances will show up here" : "來自其他聯合雲實例的帖子將在此處顯示",
     "No liked posts found" : "未找到已點讚的文章",
-    "You haven't tooted yet" : "您還沒有發貼過",
     "No posts found for this tag" : "未找到帶有此標籤的帖子",
     "No replies found" : "未找到回复",
     "hasn't tooted yet" : "還沒有發帖過",
@@ -77,6 +75,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 成為聯盟社交網絡的一部分！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我們會自動為您創建一個社交賬戶。您的 Social ID 與您的聯盟式雲端 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鑑於您剛來到 Social，請先關注 Nextcloud 官方賬戶，這樣您將不會錯過任何新聞",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud"
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud",
+    "You haven't receive any notifications yet" : "您還沒有收到任何通知",
+    "You haven't tooted yet" : "您還沒有發貼過"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

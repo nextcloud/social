@@ -50,11 +50,9 @@
     "No local posts found" : "Не са открите локални публикации",
     "Posts from other people on this instance will show up here" : "Публикации от други хора на тази инстанция ще откриеш тук.",
     "No notifications found" : "Няма намерени известия",
-    "You haven't receive any notifications yet" : "Все още не сте получили никакви известия",
     "No global posts found" : "Не са открити глобални публикации",
     "Posts from federated instances will show up here" : "Публикации от федерирани инстанции могат да бъдат открити тук",
     "No liked posts found" : "Няма намерени харесани публикации",
-    "You haven't tooted yet" : "Все още не сте тутвали /публикували/",
     "No posts found for this tag" : "Няма намерени публикации за този етикет",
     "No replies found" : "Няма намерени отговори",
     "hasn't tooted yet" : "все още не е тутвал /публикувал/",
@@ -77,6 +75,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud е вече част от федерираните социални мрежи!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Ние автоматично създадохме Social профил за вас. Вашият  идентификатор за Social е същият като вашия Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Понеже си нов потребител в Social, последвай официялният акаунт на  Nextcloud account, за да не пропуснеш новини от развитието на проекта",
-    "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz",
+    "You haven't receive any notifications yet" : "Все още не сте получили никакви известия",
+    "You haven't tooted yet" : "Все още не сте тутвали /публикували/"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

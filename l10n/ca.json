@@ -50,11 +50,9 @@
     "No local posts found" : "No s'han trobat publicacions locals",
     "Posts from other people on this instance will show up here" : "Aquí es mostraran les publicacions d'altres usuaris d'aquesta instáncia",
     "No notifications found" : "No s'ha trobat cap notificació",
-    "You haven't receive any notifications yet" : "Encara no heu rebut cap notificació",
     "No global posts found" : "No s'han trobat publicacions globals",
     "Posts from federated instances will show up here" : "Aquí es mostraran publicacions que provinguin d'instàncies federades",
     "No liked posts found" : "No s'han trobat publicacions agradades",
-    "You haven't tooted yet" : "Encara no heu fet res",
     "No posts found for this tag" : "No s'han trobat publicacions per a aquesta etiqueta",
     "No replies found" : "No s'ha trobat cap resposta",
     "hasn't tooted yet" : "encara no s'ha fet res",
@@ -77,6 +75,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud ha passat a formar part de les xarxes socials federades!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Us hem creat automàticament un compte Social. El vostre ID Social és el mateix que el vostre ID del núvol federat:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Donat que sou nou a Social, comenceu seguint el compte oficial de Nextcloud i així no us perdreu cap notícia",
-    "Follow Nextcloud on mastodon.xyz" : "Segueix a Nextcloud a mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Segueix a Nextcloud a mastodon.xyz",
+    "You haven't receive any notifications yet" : "Encara no heu rebut cap notificació",
+    "You haven't tooted yet" : "Encara no heu fet res"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

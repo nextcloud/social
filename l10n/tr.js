@@ -52,11 +52,9 @@ OC.L10N.register(
     "No local posts found" : "Herhangi bir yerel ileti bulunamadı",
     "Posts from other people on this instance will show up here" : "Bu sunucuyu kullanan diğer kişilerin gönderdiği iletiler burada görüntülenir",
     "No notifications found" : "Herhangi bir bildirim yok",
-    "You haven't receive any notifications yet" : "Henüz size bir bildirim gönderilmemiş",
     "No global posts found" : "Herhangi bir genel ileti bulunamadı",
     "Posts from federated instances will show up here" : "Birleşik sunuculara gönderilmiş iletiler burada görüntülenir",
     "No liked posts found" : "Beğenilmiş bir ileti bulunamadı",
-    "You haven't tooted yet" : "Henüz uyarılmamışsınız",
     "No posts found for this tag" : "Bu etiketi taşıyan bir ileti bulunamadı",
     "No replies found" : "Herhangi bir yanıt bulunamadı",
     "hasn't tooted yet" : "henüz uyarılmamış",
@@ -79,6 +77,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud birleşik sosyal ağların bir parçası haline geliyor!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Sizin için otomatik olarak bir sosyal ağ hesabı oluşturduk. Sosyal Ağ Kodunuz Birleşik Bulut Kodunuz ile aynıdır:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Sosyal ağ kullanmaya yeni başladığınızdan, haberleri kaçırmamak için resmi Nextcloud hesabını takibe başlayın",
-    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et"
+    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et",
+    "You haven't receive any notifications yet" : "Henüz size bir bildirim gönderilmemiş",
+    "You haven't tooted yet" : "Henüz uyarılmamışsınız"
 },
 "nplurals=2; plural=(n > 1);");

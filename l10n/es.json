@@ -50,11 +50,9 @@
     "No local posts found" : "No se han encontrado entradas locales",
     "Posts from other people on this instance will show up here" : "Las entradas de otras personas en esta instancia aparecerán aquí",
     "No notifications found" : "No hay notificaciones",
-    "You haven't receive any notifications yet" : "Todavía no has recibido ninguna notificación",
     "No global posts found" : "No se han encontrado entradas globales",
     "Posts from federated instances will show up here" : "Las entradas de instancias federadas aparecerán aquí",
     "No liked posts found" : "No se han encontrado entradas con Me gusta",
-    "You haven't tooted yet" : "Todavía no has hecho toots",
     "No posts found for this tag" : "No se han encontrado post para este tag",
     "No replies found" : "No se han encontrado respuestas",
     "hasn't tooted yet" : "no ha escrito ningún toot todavía",
@@ -77,6 +75,8 @@
     "Nextcloud becomes part of the federated social networks!" : "¡Nextcloud pasa a ser parte de las redes sociales federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Hemos creado automáticamente una cuenta en Social para ti. Tu ID en Social es la misma que tu ID de nube federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dado que es eres nuevo en Social, empieza siguiendo la cuenta oficial de Nextcloud para no perderte ninguna noticia",
-    "Follow Nextcloud on mastodon.xyz" : "Seguir a Nextcloud en mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Seguir a Nextcloud en mastodon.xyz",
+    "You haven't receive any notifications yet" : "Todavía no has recibido ninguna notificación",
+    "You haven't tooted yet" : "Todavía no has hecho toots"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

@@ -42,7 +42,6 @@
     "No local posts found" : "Ei paikallisia julkaisuja",
     "Posts from other people on this instance will show up here" : "Muiden ihmisten tähän asennukseen kirjoitetut julkaisut näkyvät täällä",
     "No notifications found" : "Ilmoituksia ei löytynyt",
-    "You haven't receive any notifications yet" : "Et ole vielä saanut yhtäkään ilmoitusta",
     "No global posts found" : "Yleisiä julkaisuja ei löytynyt",
     "Posts from federated instances will show up here" : "Yhteenliitettyihin asennuksiin tehdyt julkaisut näkyvät täällä",
     "No replies found" : "Vastauksia ei löytynyt",
@@ -58,6 +57,7 @@
     "User not found" : "Käyttäjää ei löydy",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudista tulee yhteenliitettyjen sosiaalisten verkostojen osa!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Koska olet uusi käyttäjä, aloita seuraamalla virallista Nextcloud -tiliä ettet jää uutisista paitsi",
-    "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa"
+    "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa",
+    "You haven't receive any notifications yet" : "Et ole vielä saanut yhtäkään ilmoitusta"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
