@@ -67,7 +67,7 @@ function transformText(createElement, text) {
 						props: {
 							to: {
 								name: 'profile',
-								params: { account: match[2].substr(1) }
+								params: { account: match[2].slice(1) }
 							}
 						}
 					},
@@ -85,7 +85,7 @@ function transformText(createElement, text) {
 						props: {
 							to: {
 								name: 'tags',
-								params: { tag: match[2].substr(1) }
+								params: { tag: match[2].slice(1) }
 							}
 						}
 					},
@@ -139,7 +139,7 @@ function cleanLink(createElement, node, context) {
 				props: {
 					to: {
 						name: 'tags',
-						params: { tag: node.textContent.substr(1) }
+						params: { tag: node.textContent.slice(1) }
 					}
 				}
 			},

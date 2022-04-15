@@ -30,6 +30,6 @@ const getSearchParams = url => {
 		}, {})
 }
 
-const randHash = () => Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10)
+const randHash = () => Math.random().toString(36).replace(/[^a-z]+/g, '').slice(0, 10)
 
 export default { getSearchParams, randHash }
