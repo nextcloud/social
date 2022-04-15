@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
@@ -45,15 +45,12 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamAction;
 
-
 /**
  * Class BoostService
  *
  * @package OCA\Social\Service
  */
 class BoostService {
-
-
 	use TStringTools;
 
 
@@ -202,6 +199,4 @@ class BoostService {
 
 		return $undo;
 	}
-
 }
-

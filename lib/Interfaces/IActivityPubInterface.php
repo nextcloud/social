@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces;
 
-
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Interface ICoreService
@@ -134,6 +133,4 @@ interface IActivityPubInterface {
 	 * @param ACore $item
 	 */
 	public function delete(ACore $item);
-
 }
-

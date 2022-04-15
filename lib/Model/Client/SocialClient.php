@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client;
 
-
 use daita\MySmallPhpTools\IQueryRow;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
-
 
 /**
  * Class ClientApp
@@ -44,8 +43,6 @@ use JsonSerializable;
  * @package OCA\Social\Model\Client
  */
 class SocialClient implements IQueryRow, JsonSerializable {
-
-
 	use TArrayTools;
 
 
@@ -71,7 +68,7 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 	private string $authCode = '';
 
-private int $lastUpdate = -1;
+	private int $lastUpdate = -1;
 
 	private string $token = '';
 
@@ -431,22 +428,20 @@ private int $lastUpdate = -1;
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'                => $this->getId(),
-			'app_name'          => $this->getAppName(),
-			'app_website'       => $this->getAppWebsite(),
-			'app_scopes'        => $this->getAppScopes(),
-			'app_client_id'     => $this->getAppClientId(),
+			'id' => $this->getId(),
+			'app_name' => $this->getAppName(),
+			'app_website' => $this->getAppWebsite(),
+			'app_scopes' => $this->getAppScopes(),
+			'app_client_id' => $this->getAppClientId(),
 			'app_client_secret' => $this->getAppClientSecret(),
 			'app_redirect_uris' => $this->getAppRedirectUris(),
-			'auth_scopes'       => $this->getAuthScopes(),
-			'auth_account'      => $this->getAuthAccount(),
-			'auth_user_id'      => $this->getAuthUserId(),
-			'auth_code'         => $this->getAuthCode(),
-			'token'             => $this->getToken(),
-			'last_update'       => $this->getLastUpdate(),
-			'creation'          => $this->getCreation()
+			'auth_scopes' => $this->getAuthScopes(),
+			'auth_account' => $this->getAuthAccount(),
+			'auth_user_id' => $this->getAuthUserId(),
+			'auth_code' => $this->getAuthCode(),
+			'token' => $this->getToken(),
+			'last_update' => $this->getLastUpdate(),
+			'creation' => $this->getCreation()
 		];
 	}
-
 }
-

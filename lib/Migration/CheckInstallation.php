@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Migration;
 
-
 use OCA\Social\Service\CheckService;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
-
 
 /**
  * Class CheckInstallation
@@ -42,8 +41,6 @@ use OCP\Migration\IRepairStep;
  * @package OCA\Social\Migration
  */
 class CheckInstallation implements IRepairStep {
-
-
 	protected CheckService $checkService;
 
 
@@ -74,6 +71,4 @@ class CheckInstallation implements IRepairStep {
 	public function run(IOutput $output) {
 		$this->checkService->checkInstallationStatus(true);
 	}
-
-
 }

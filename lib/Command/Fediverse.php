@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,18 +31,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
-use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-
 
 /**
  * Class Fediverse
@@ -49,40 +46,14 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @package OCA\Social\Command
  */
 class Fediverse extends Base {
-
-
 	private FediverseService $fediverseService;
-
-	private ConfigService $configService;
-
-	private MiscService $miscService;
-
-
 	private ?OutputInterface $output = null;
 
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param FediverseService $fediverseService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
-	public function __construct(
-		FediverseService $fediverseService, ConfigService $configService,
-		MiscService $miscService
-	) {
+	public function __construct(FediverseService $fediverseService) {
 		parent::__construct();
-
 		$this->fediverseService = $fediverseService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 *
-	 */
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:fediverse')
@@ -95,11 +66,7 @@ class Fediverse extends Base {
 			 ->setDescription('Allow or deny access to the fediverse');
 	}
 
-
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
@@ -143,14 +110,10 @@ class Fediverse extends Base {
 		}
 	}
 
-
 	/**
-	 * @param string $type
-	 *
-	 * @return bool
 	 * @throws Exception
 	 */
-	private function typeAccess(string $type) {
+	private function typeAccess(string $type): bool {
 		if ($type === '') {
 			return false;
 		}
@@ -160,12 +123,7 @@ class Fediverse extends Base {
 		return true;
 	}
 
-
-	/**
-	 * @param bool $allKnownAddress
-	 */
-	private function listAddresses(bool $allKnownAddress = false) {
-
+	private function listAddresses(bool $allKnownAddress = false): void {
 		if ($allKnownAddress) {
 			$this->output->writeln('- Known address:');
 			foreach ($this->fediverseService->getKnownAddresses() as $address) {
@@ -177,35 +135,26 @@ class Fediverse extends Base {
 		foreach ($this->fediverseService->getListedAddresses() as $address) {
 			$this->output->writeln('  <info>' . $address . '</info>');
 		}
-
 	}
 
 
 	/**
-	 * @param string $address
-	 *
 	 * @throws Exception
 	 */
-	private function addAddress(string $address) {
+	private function addAddress(string $address): void {
 		$this->fediverseService->addAddress($address);
 		$this->output->writeln('<info>' . $address . '</info> added to the list');
 	}
 
-
 	/**
-	 * @param string $address
-	 *
 	 * @throws Exception
 	 */
-	private function removeAddress(string $address) {
+	private function removeAddress(string $address): void {
 		$this->fediverseService->removeAddress($address);
 		$this->output->writeln('<info>' . $address . '</info> removed from the list');
 	}
 
-
 	/**
-	 * @param string $address
-	 *
 	 * @throws SocialAppConfigException
 	 */
 	private function testAddress(string $address) {
@@ -217,15 +166,8 @@ class Fediverse extends Base {
 		}
 	}
 
-
-	/**
-	 *
-	 */
 	private function resetAddresses() {
 		$this->fediverseService->resetAddresses();
 		$this->output->writeln('list is now empty');
 	}
-
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
 use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
@@ -53,16 +53,13 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 
-
 class CacheDocumentService {
-
-
 	use TArrayTools;
 	use TStringTools;
 
 
-	const RESIZED_WIDTH = 280;
-	const RESIZED_HEIGHT = 180;
+	public const RESIZED_WIDTH = 280;
+	public const RESIZED_HEIGHT = 180;
 
 	private IAppData $appData;
 
@@ -165,7 +162,6 @@ class CacheDocumentService {
 	 * @throws NotFoundException
 	 */
 	private function generateFileFromContent(string $content): string {
-
 		$filename = $this->uuid();
 		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
 		$path = chunk_split(substr($filename, 0, 8), 2, '/');
@@ -190,7 +186,6 @@ class CacheDocumentService {
 	 * @throws CacheContentMimeTypeException
 	 */
 	public function filterMimeTypes(string $mime) {
-
 		$allowedMimeType = [
 			'image/jpeg',
 			'image/gif',
@@ -276,6 +271,4 @@ class CacheDocumentService {
 
 		return $this->curlService->doRequest($request);
 	}
-
 }
-

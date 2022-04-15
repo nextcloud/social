@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class ActionsRequestBuilder
@@ -44,7 +43,6 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Db
  */
 class ActionsRequestBuilder extends CoreRequestBuilder {
-
 	use TArrayTools;
 
 	protected function getActionsInsertSql(): SocialQueryBuilder {
@@ -164,6 +162,4 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 		return $item;
 	}
-
 }
-

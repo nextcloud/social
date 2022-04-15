@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\StreamAction;
-
 
 /**
  * Class StreamActionsRequest
@@ -133,6 +132,4 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

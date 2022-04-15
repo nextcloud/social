@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class Tombstone
@@ -41,9 +40,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\ActivityPub\Activity
  */
 class Tombstone extends ACore implements JsonSerializable {
-
-
-	const TYPE = 'Tombstone';
+	public const TYPE = 'Tombstone';
 
 
 
@@ -73,6 +70,4 @@ class Tombstone extends ACore implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Migration;
 
-
 use Closure;
 use Doctrine\DBAL\Schema\SchemaException;
 use OCP\DB\ISchemaWrapper;
@@ -38,15 +38,12 @@ use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
-
 /**
  * Class Version0003Date20200921103342
  *
  * @package OCA\Social\Migration
  */
 class Version0003Date20200921103342 extends SimpleMigrationStep {
-
-
 	private IDBConnection $connection;
 
 
@@ -77,15 +74,13 @@ class Version0003Date20200921103342 extends SimpleMigrationStep {
 		if (!$column->getAutoincrement()) {
 			$table->changeColumn(
 				'nid', [
-						 'autoincrement' => true, 'customSchemaOptions' => [
-							 'unique' => true
-						 ]
-					 ]
+					'autoincrement' => true, 'customSchemaOptions' => [
+						'unique' => true
+					]
+				]
 			);
 		}
 
 		return $schema;
 	}
-
 }
-

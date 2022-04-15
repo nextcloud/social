@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
 use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
@@ -53,15 +53,12 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\IURLGenerator;
 
-
 /**
  * Class CacheActorService
  *
  * @package OCA\Social\Service
  */
 class CacheActorService {
-
-
 	use TArrayTools;
 	use TNC20Logger;
 
@@ -309,6 +306,4 @@ class CacheActorService {
 		} catch (ItemUnknownException $e) {
 		}
 	}
-
 }
-

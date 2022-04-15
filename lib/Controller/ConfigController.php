@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -37,19 +38,12 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
-
 class ConfigController extends Controller {
-
-
 	use TNCDataResponse;
 
-
 	private TestService $testService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
-
 
 	public function __construct(
 		string $appName, IRequest $request, TestService $testService,
@@ -62,11 +56,6 @@ class ConfigController extends Controller {
 		$this->miscService = $miscService;
 	}
 
-	/**
-	 * @param string $cloudAddress
-	 *
-	 * @return DataResponse
-	 */
 	public function setCloudAddress(string $cloudAddress): DataResponse {
 		$this->configService->setCloudUrl($cloudAddress);
 
@@ -79,8 +68,6 @@ class ConfigController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @return DataResponse
 	 */
 	public function local(): DataResponse {
 		$setup = false;
@@ -93,7 +80,7 @@ class ConfigController extends Controller {
 		return $this->success(
 			[
 				'version' => $this->configService->getAppValue('installed_version'),
-				'setup'   => $setup
+				'setup' => $setup
 			]
 		);
 	}
@@ -104,10 +91,6 @@ class ConfigController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @param string $account
-	 *
-	 * @return DataResponse
 	 */
 	public function remote(string $account): DataResponse {
 		if ($account === '' || $this->configService->getSystemValue('social.tests') === '') {
@@ -122,7 +105,7 @@ class ConfigController extends Controller {
 
 		$tests = new SimpleDataStore(
 			[
-				'account'  => $account,
+				'account' => $account,
 				'endpoint' => $this->configService->getSystemValue('social.tests')
 			]
 		);
@@ -134,6 +117,4 @@ class ConfigController extends Controller {
 
 		return $this->success([$tests]);
 	}
-
 }
-

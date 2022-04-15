@@ -23,7 +23,6 @@
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
@@ -49,20 +48,17 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 
-
 /**
  * Class CheckService
  *
  * @package OCA\Social\Service
  */
 class CheckService {
-
-
 	use TArrayTools;
 	use TStringTools;
 
 
-	const CACHE_PREFIX = 'social_check_';
+	public const CACHE_PREFIX = 'social_check_';
 
 	private IUserManager $userManager;
 
@@ -147,7 +143,7 @@ class CheckService {
 
 		return [
 			'success' => $success,
-			'checks'  => $checks
+			'checks' => $checks
 		];
 	}
 
@@ -194,7 +190,7 @@ class CheckService {
 		if (!$light) {
 			$result = [
 				'invalidFollows' => $this->removeInvalidFollows(),
-				'invalidNotes'   => $this->removeInvalidNotes()
+				'invalidNotes' => $this->removeInvalidNotes()
 			];
 		}
 
@@ -318,5 +314,4 @@ class CheckService {
 
 		return false;
 	}
-
 }

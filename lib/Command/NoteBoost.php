@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
@@ -42,14 +42,12 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 /**
  * Class NoteBoost
  *
  * @package OCA\Social\Command
  */
 class NoteBoost extends Base {
-
 	private StreamService $streamService;
 
 	private AccountService $accountService;
@@ -115,6 +113,4 @@ class NoteBoost extends Base {
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";
 	}
-
 }
-

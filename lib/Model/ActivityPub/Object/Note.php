@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
@@ -39,11 +39,8 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 
-
 class Note extends Stream implements JsonSerializable {
-
-
-	const TYPE = 'Note';
+	public const TYPE = 'Note';
 
 
 	private array $attachments = [];
@@ -202,6 +199,4 @@ class Note extends Stream implements JsonSerializable {
 
 		return $result;
 	}
-
 }
-

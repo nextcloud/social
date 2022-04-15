@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use Doctrine\DBAL\Query\QueryBuilder;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -38,7 +38,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCP\DB\QueryBuilder\ICompositeExpression;
-
 
 /**
  * Class SocialCrossQueryBuilder
@@ -368,6 +367,4 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		return $andX;
 	}
-
 }
-

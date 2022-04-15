@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
-
 
 /**
  * Class StreamQueue
@@ -43,17 +42,15 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class StreamQueue implements JsonSerializable {
-
-
 	use TArrayTools;
 
 
-	const TYPE_CACHE = 'Cache';
-	const TYPE_VERIFY = 'Signature';
+	public const TYPE_CACHE = 'Cache';
+	public const TYPE_VERIFY = 'Signature';
 
-	const STATUS_STANDBY = 0;
-	const STATUS_RUNNING = 1;
-	const STATUS_SUCCESS = 9;
+	public const STATUS_STANDBY = 0;
+	public const STATUS_RUNNING = 1;
+	public const STATUS_SUCCESS = 9;
 
 
 	private int $id = 0;
@@ -247,15 +244,13 @@ class StreamQueue implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'       => $this->getId(),
-			'token'    => $this->getToken(),
+			'id' => $this->getId(),
+			'token' => $this->getToken(),
 			'streamId' => $this->getStreamId(),
-			'type'     => $this->getType(),
-			'status'   => $this->getStatus(),
-			'tries'    => $this->getTries(),
-			'last'     => $this->getLast()
+			'type' => $this->getType(),
+			'status' => $this->getStatus(),
+			'tries' => $this->getTries(),
+			'last' => $this->getLast()
 		];
 	}
-
 }
-

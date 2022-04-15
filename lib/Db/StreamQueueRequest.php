@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use DateTime;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\StreamQueue;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-
 
 /**
  * Class StreamQueueRequest
@@ -184,6 +183,4 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

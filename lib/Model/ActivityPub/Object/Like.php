@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class Like
@@ -41,9 +40,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\ActivityPub\Object
  */
 class Like extends ACore implements JsonSerializable {
-
-
-	const TYPE = 'Like';
+	public const TYPE = 'Like';
 
 
 	/**
@@ -76,6 +73,4 @@ class Like extends ACore implements JsonSerializable {
 			]
 		);
 	}
-
 }
-

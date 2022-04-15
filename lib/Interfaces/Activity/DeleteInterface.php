@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
-
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -40,8 +40,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\MiscService;
 
 class DeleteInterface implements IActivityPubInterface {
-
-
 	private MiscService $miscService;
 
 
@@ -154,7 +152,4 @@ class DeleteInterface implements IActivityPubInterface {
 	 */
 	public function event(ACore $item, string $source) {
 	}
-
-
 }
-

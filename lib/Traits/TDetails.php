@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 
 namespace OCA\Social\Traits;
-
 
 use OCA\Social\Model\ActivityPub\Item;
 
@@ -122,7 +122,7 @@ trait TDetails {
 	public function addDetail(string $detail, string $value) {
 		if (!array_key_exists($detail, $this->details) || !is_array($this->details[$detail])) {
 			$this->details[$detail] = [];
-		} else if (in_array($value, $this->details[$detail])) {
+		} elseif (in_array($value, $this->details[$detail])) {
 			return;
 		}
 
@@ -213,6 +213,4 @@ trait TDetails {
 
 		$this->details[$detail] = array_diff($this->details, [$value]);
 	}
-
 }
-

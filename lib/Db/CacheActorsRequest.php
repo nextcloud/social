@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use DateTime;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
@@ -38,9 +38,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
-
-
-	const CACHE_TTL = 60 * 24; // 1d
+	public const CACHE_TTL = 60 * 24; // 1d
 
 
 	/**
@@ -111,7 +109,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @return int
 	 */
 	public function update(Person $actor): int {
-
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
 		   ->set('followers', $qb->createNamedParameter($actor->getFollowers()))
@@ -252,6 +249,4 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

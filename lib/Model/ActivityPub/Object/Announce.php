@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
-
 
 /**
  * Class Follow
@@ -44,9 +43,7 @@ use OCA\Social\Model\ActivityPub\Stream;
  * @package OCA\Social\Model\ActivityPub\Object
  */
 class Announce extends Stream implements JsonSerializable {
-
-
-	const TYPE = 'Announce';
+	public const TYPE = 'Announce';
 
 
 	/**
@@ -94,4 +91,3 @@ class Announce extends Stream implements JsonSerializable {
 		return $result;
 	}
 }
-

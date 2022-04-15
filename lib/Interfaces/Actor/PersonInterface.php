@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Actor;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -46,15 +46,12 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 
-
 /**
  * Class PersonService
  *
  * @package OCA\Social\Service\ActivityPub
  */
 class PersonInterface implements IActivityPubInterface {
-
-
 	use TArrayTools;
 
 
@@ -209,6 +206,4 @@ class PersonInterface implements IActivityPubInterface {
 			$this->cacheActorsRequest->save($actor);
 		}
 	}
-
 }
-

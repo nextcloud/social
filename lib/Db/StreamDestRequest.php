@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
@@ -42,7 +42,6 @@ use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
-
 
 /**
  * Class StreamDestRequest
@@ -185,6 +184,4 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

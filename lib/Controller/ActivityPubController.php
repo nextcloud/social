@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TAsync;
@@ -59,55 +59,24 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
-
 class ActivityPubController extends Controller {
-
-
 	use TNCDataResponse;
 	use TStringTools;
 	use TAsync;
-use TNC20Logger;
-
+	use TNC20Logger;
 
 	private SocialPubController $socialPubController;
-
 	private FediverseService $fediverseService;
-
 	private CacheActorService $cacheActorService;
-
 	private SignatureService $signatureService;
-
 	private StreamQueueService $streamQueueService;
-
 	private ImportService $importService;
-
 	private AccountService $accountService;
-
 	private FollowService $followService;
-
 	private StreamService $streamService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * ActivityPubController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param SocialPubController $socialPubController
-	 * @param FediverseService $fediverseService
-	 * @param CacheActorService $cacheActorService
-	 * @param SignatureService $signatureService
-	 * @param StreamQueueService $streamQueueService
-	 * @param ImportService $importService
-	 * @param AccountService $accountService
-	 * @param FollowService $followService
-	 * @param StreamService $streamService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController, FediverseService $fediverseService,
 		CacheActorService $cacheActorService, SignatureService $signatureService,
@@ -465,5 +434,3 @@ use TNC20Logger;
 		return substr($header, 0, $pos);
 	}
 }
-
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use daita\MySmallPhpTools\IQueryRow;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class Follow
@@ -42,9 +41,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\ActivityPub\Object
  */
 class Follow extends ACore implements JsonSerializable, IQueryRow {
-
-
-	const TYPE = 'Follow';
+	public const TYPE = 'Follow';
 
 
 	private string $followId = '';
@@ -153,15 +150,13 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 			$result = array_merge(
 				$result,
 				[
-					'follow_id'      => $this->getFollowId(),
+					'follow_id' => $this->getFollowId(),
 					'follow_id_prim' => $this->getFollowIdPrim(),
-					'accepted'       => $this->isAccepted()
+					'accepted' => $this->isAccepted()
 				]
 			);
 		}
 
 		return $result;
 	}
-
 }
-

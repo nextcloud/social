@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
-
 
 /**
  * Class ClientRequestBuilder
@@ -44,8 +43,6 @@ use OCA\Social\Model\Client\SocialClient;
  * @package OCA\Social\Db
  */
 class ClientRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -154,6 +151,4 @@ class ClientRequestBuilder extends CoreRequestBuilder {
 
 		return $item;
 	}
-
 }
-

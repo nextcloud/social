@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
-
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -38,10 +38,7 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\MiscService;
 
-
 class UpdateInterface implements IActivityPubInterface {
-
-
 	private MiscService $miscService;
 
 
@@ -137,4 +134,3 @@ class UpdateInterface implements IActivityPubInterface {
 	public function activity(ACore $activity, ACore $item) {
 	}
 }
-

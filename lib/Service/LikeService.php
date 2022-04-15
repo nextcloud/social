@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
@@ -48,15 +48,12 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 
-
 /**
  * Class LikeService
  *
  * @package OCA\Social\Service
  */
 class LikeService {
-
-
 	use TStringTools;
 
 
@@ -214,6 +211,4 @@ class LikeService {
 			)
 		);
 	}
-
 }
-

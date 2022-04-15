@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
@@ -43,15 +43,12 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 
-
 /**
  * Class StreamRequestBuilder
  *
  * @package OCA\Social\Db
  */
 class StreamRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -247,6 +244,4 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		return $item;
 	}
-
 }
-

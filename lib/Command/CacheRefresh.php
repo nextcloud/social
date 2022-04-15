@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,18 +31,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
-use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-
 
 class CacheRefresh extends Base {
 	private AccountService $accountService;
@@ -71,7 +68,6 @@ class CacheRefresh extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$result = $this->accountService->blindKeyRotation();
 		$output->writeLn($result . ' key pairs refreshed');
 
@@ -91,4 +87,3 @@ class CacheRefresh extends Base {
 		$output->writeLn($result . ' hashtags updated');
 	}
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 
 namespace OCA\Social\Interfaces\Object;
-
 
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
@@ -62,15 +62,12 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 
-
 /**
  * Class FollowInterface
  *
  * @package OCA\Social\Interfaces\Object
  */
 class FollowInterface implements IActivityPubInterface {
-
-
 	private FollowsRequest $followsRequest;
 
 	private CacheActorService $cacheActorService;
@@ -147,7 +144,6 @@ class FollowInterface implements IActivityPubInterface {
 				2
 			);
 		}
-
 	}
 
 
@@ -189,7 +185,6 @@ class FollowInterface implements IActivityPubInterface {
 				$this->confirmFollowRequest($follow);
 			}
 		}
-
 	}
 
 
@@ -302,6 +297,4 @@ class FollowInterface implements IActivityPubInterface {
 
 		$notificationInterface->save($notification);
 	}
-
 }
-

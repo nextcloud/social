@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
@@ -39,15 +39,12 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\ClientService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-
 /**
  * Class ClientAppRequest
  *
  * @package OCA\Social\Db
  */
 class ClientRequest extends ClientRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -166,6 +163,4 @@ class ClientRequest extends ClientRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

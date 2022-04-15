@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
@@ -53,14 +53,12 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 
-
 /**
  * Class LikeInterface
  *
  * @package OCA\Social\Interfaces\Object
  */
 class LikeInterface implements IActivityPubInterface {
-
 	private ActionsRequest $actionsRequest;
 
 	private StreamRequest $streamRequest;
@@ -320,4 +318,3 @@ class LikeInterface implements IActivityPubInterface {
 		}
 	}
 }
-

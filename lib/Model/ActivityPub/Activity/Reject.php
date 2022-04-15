@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Activity;
 
-
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class Reject
@@ -41,9 +40,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\ActivityPub\Activity
  */
 class Reject extends ACore implements JsonSerializable {
-
-
-	const TYPE = 'Reject';
+	public const TYPE = 'Reject';
 
 
 
@@ -73,6 +70,4 @@ class Reject extends ACore implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}
-
 }
-

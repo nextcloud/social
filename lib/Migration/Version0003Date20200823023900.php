@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Migration;
 
-
 use Closure;
 use Doctrine\DBAL\DBALException;
 use Doctrine\DBAL\Schema\SchemaException;
@@ -40,15 +40,12 @@ use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
-
 /**
  * Class Version0003Date20200823023910
  *
  * @package OCA\Social\Migration
  */
 class Version0003Date20200823023900 extends SimpleMigrationStep {
-
-
 	private IDBConnection $connection;
 
 
@@ -96,7 +93,4 @@ class Version0003Date20200823023900 extends SimpleMigrationStep {
 	 */
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
 	}
-
-
 }
-

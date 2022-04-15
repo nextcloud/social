@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
-
 use OCA\Social\Service\CurlService;
-
 
 return [
 	'routes' => [
@@ -40,9 +39,9 @@ return [
 		['name' => 'Config#local', 'url' => '/local/', 'verb' => 'GET'],
 		['name' => 'Config#remote', 'url' => '/test/{account}/', 'verb' => 'GET'],
 		[
-			'name'         => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
+			'name' => 'Navigation#timeline', 'url' => '/timeline/{path}', 'verb' => 'GET',
 			'requirements' => ['path' => '.+'],
-			'defaults'     => ['path' => '']
+			'defaults' => ['path' => '']
 		],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
@@ -49,7 +49,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
-
 
 /**
  * Class StreamRequest
@@ -684,7 +683,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	public function saveStream(Stream $stream): IQueryBuilder {
-
 		try {
 			$dTime = new DateTime();
 			$dTime->setTimestamp($stream->getPublishedTime());
@@ -763,6 +761,4 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $qb;
 	}
-
 }
-

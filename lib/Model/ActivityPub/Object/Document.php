@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use DateTime;
 use Exception;
 use JsonSerializable;
@@ -38,16 +38,13 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 
-
 /**
  * Class Document
  *
  * @package OCA\Social\Model\ActivityPub
  */
 class Document extends ACore implements JsonSerializable {
-
-
-	const TYPE = 'Document';
+	public const TYPE = 'Document';
 
 
 	private string $mediaType = '';
@@ -282,9 +279,9 @@ class Document extends ACore implements JsonSerializable {
 		$result = array_merge(
 			parent::jsonSerialize(),
 			[
-				'mediaType'   => $this->getMediaType(),
-				'mimeType'    => $this->getMimeType(),
-				'localCopy'   => $this->getLocalCopy(),
+				'mediaType' => $this->getMediaType(),
+				'mimeType' => $this->getMimeType(),
+				'localCopy' => $this->getLocalCopy(),
 				'resizedCopy' => $this->getResizedCopy()
 			]
 		);
@@ -295,6 +292,4 @@ class Document extends ACore implements JsonSerializable {
 
 		return $result;
 	}
-
 }
-

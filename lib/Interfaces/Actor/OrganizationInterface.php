@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Actor;
 
-
 use OCA\Social\Interfaces\IActivityPubInterface;
-
 
 /**
  * Class OrganizationInterface
@@ -40,7 +39,4 @@ use OCA\Social\Interfaces\IActivityPubInterface;
  * @package OCA\Social\Service\ActivityPub
  */
 class OrganizationInterface extends PersonInterface implements IActivityPubInterface {
-
 }
-
-

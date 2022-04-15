@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Search;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -49,17 +49,14 @@ use OCP\Search\IProvider;
 use OCP\Search\ISearchQuery;
 use OCP\Search\SearchResult;
 
-
 /**
  * Class UnifiedSearchProvider
  *
  * @package OCA\Social\Search
  */
 class UnifiedSearchProvider implements IProvider {
-
-
-	const PROVIDER_ID = 'social';
-	const ORDER = 12;
+	public const PROVIDER_ID = 'social';
+	public const ORDER = 12;
 
 
 	use TArrayTools;
@@ -246,6 +243,4 @@ class UnifiedSearchProvider implements IProvider {
 
 		return $result;
 	}
-
 }
-

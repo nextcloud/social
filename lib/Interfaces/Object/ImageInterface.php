@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\MiscService;
-
 
 class ImageInterface extends DocumentInterface implements IActivityPubInterface {
 
@@ -131,7 +130,4 @@ class ImageInterface extends DocumentInterface implements IActivityPubInterface 
 	public function event(ACore $item, string $source) {
 		parent::event($item, $source);
 	}
-
-
 }
-

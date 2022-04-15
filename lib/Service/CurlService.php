@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
@@ -55,8 +55,6 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
 class CurlService {
-
-
 	use TArrayTools;
 	use TPathTools;
 	use TNC20Request {
@@ -64,8 +62,8 @@ class CurlService {
 		doRequest as doRequestOrig;
 	}
 
-	const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
-	const USER_AGENT = 'Nextcloud Social';
+	public const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
+	public const USER_AGENT = 'Nextcloud Social';
 
 
 	private ConfigService $configService;
@@ -334,7 +332,4 @@ class CurlService {
 			);
 		}
 	}
-
-
 }
-

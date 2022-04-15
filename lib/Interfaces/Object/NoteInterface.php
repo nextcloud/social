@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -45,10 +45,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
 
-
 class NoteInterface implements IActivityPubInterface {
-
-
 	private StreamRequest $streamRequest;
 
 	private CurlService $curlService;
@@ -181,7 +178,4 @@ class NoteInterface implements IActivityPubInterface {
 	 */
 	public function event(ACore $item, string $source) {
 	}
-
-
 }
-

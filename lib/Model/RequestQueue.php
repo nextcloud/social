@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
-
 
 /**
  * Class RequestQueue
@@ -44,45 +43,24 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class RequestQueue implements JsonSerializable {
-
-
 	use TArrayTools;
 	use TStringTools;
 
-
-	const STATUS_STANDBY = 0;
-	const STATUS_RUNNING = 1;
-	const STATUS_SUCCESS = 9;
-
+	public const STATUS_STANDBY = 0;
+	public const STATUS_RUNNING = 1;
+	public const STATUS_SUCCESS = 9;
 
 	private int $id = 0;
-
 	private string $token = '';
-
 	private string $author = '';
-
 	private string $activity = '';
-
 	private ?InstancePath $instance = null;
-
 	private int $priority = 0;
-
 	private int $status = 0;
-
 	private int $tries = 0;
-
 	private int $last = 0;
-
 	private int $timeout = 5;
 
-
-	/**
-	 * RequestQueue constructor.
-	 *
-	 * @param string $activity
-	 * @param InstancePath $instance
-	 * @param string $author
-	 */
 	public function __construct(string $activity = '', $instance = null, string $author = '') {
 		$this->setActivity($activity);
 		if ($instance instanceof InstancePath) {
@@ -327,16 +305,14 @@ class RequestQueue implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'       => $this->getId(),
-			'token'    => $this->getToken(),
-			'author'   => $this->getAuthor(),
+			'id' => $this->getId(),
+			'token' => $this->getToken(),
+			'author' => $this->getAuthor(),
 			'instance' => $this->getInstance(),
 			'priority' => $this->getPriority(),
-			'status'   => $this->getStatus(),
-			'tries'    => $this->getTries(),
-			'last'     => $this->getLast()
+			'status' => $this->getStatus(),
+			'tries' => $this->getTries(),
+			'last' => $this->getLast()
 		];
 	}
-
 }
-

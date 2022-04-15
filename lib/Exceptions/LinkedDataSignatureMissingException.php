@@ -29,11 +29,7 @@
 
 namespace OCA\Social\Exceptions;
 
-
 use Exception;
 
-
 class LinkedDataSignatureMissingException extends Exception {
-
 }
-

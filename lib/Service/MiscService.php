@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCP\IUser;
@@ -44,7 +44,6 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Service
  */
 class MiscService {
-
 	private LoggerInterface $logger;
 	private IUserManager $userManager;
 
@@ -61,7 +60,7 @@ class MiscService {
 	 */
 	public function log($message, $level = 2) {
 		$data = array(
-			'app'   => Application::APP_NAME,
+			'app' => Application::APP_NAME,
 			'level' => $level
 		);
 
@@ -96,6 +95,4 @@ class MiscService {
 
 		return $user;
 	}
-
 }
-

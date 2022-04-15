@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,11 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Model\SimpleDataStore;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
-
 
 /**
  * Class Test
@@ -41,14 +40,12 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class Test extends SimpleDataStore implements JsonSerializable {
-
-
 	use TArrayTools;
 
 
-	const SEVERITY_USELESS = 'useless';
-	const SEVERITY_OPTIONAL = 'optional';
-	const SEVERITY_MANDATORY = 'mandatory';
+	public const SEVERITY_USELESS = 'useless';
+	public const SEVERITY_OPTIONAL = 'optional';
+	public const SEVERITY_MANDATORY = 'mandatory';
 
 
 	private string $name;
@@ -132,10 +129,10 @@ class Test extends SimpleDataStore implements JsonSerializable {
 	public function jsonSerialize(): array {
 		$result = array_filter(
 			[
-				'name'     => $this->getName(),
+				'name' => $this->getName(),
 				'severity' => $this->getSeverity(),
-				'details'  => $this->gAll(),
-				'message'  => $this->getMessages()
+				'details' => $this->gAll(),
+				'message' => $this->getMessages()
 			]
 		);
 
@@ -143,6 +140,4 @@ class Test extends SimpleDataStore implements JsonSerializable {
 
 		return $result;
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\TAsync;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -40,32 +40,18 @@ use OCA\Social\Service\RequestQueueService;
 use OCP\AppFramework\Controller;
 use OCP\IRequest;
 
-
 /**
  * Class QueueController
  *
  * @package OCA\Social\Controller
  */
 class QueueController extends Controller {
-
-
 	use TAsync;
 
 	private RequestQueueService $requestQueueService;
-
 	private ActivityService $activityService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * QueueController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param RequestQueueService $requestQueueService
-	 * @param ActivityService $activityService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IRequest $request, RequestQueueService $requestQueueService, ActivityService $activityService,
 		MiscService $miscService
@@ -81,8 +67,6 @@ class QueueController extends Controller {
 	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 *
-	 * @param string $token
 	 */
 	public function asyncForRequest(string $token) {
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
@@ -102,6 +86,4 @@ class QueueController extends Controller {
 		// or it will feed the logs.
 		exit();
 	}
-
 }
-

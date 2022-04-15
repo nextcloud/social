@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -28,7 +29,6 @@ declare(strict_types=1);
  */
 
 namespace OCA\Social\Service;
-
 
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
@@ -67,20 +67,18 @@ use OCP\IRequest;
 use stdClass;
 
 class SignatureService {
-
-
 	use TArrayTools;
 
 
-	const ORIGIN_HEADER = 1;
-	const ORIGIN_SIGNATURE = 2;
-	const ORIGIN_REQUEST = 3;
+	public const ORIGIN_HEADER = 1;
+	public const ORIGIN_SIGNATURE = 2;
+	public const ORIGIN_REQUEST = 3;
 
 
-	const DATE_HEADER = 'D, d M Y H:i:s T';
-	const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
+	public const DATE_HEADER = 'D, d M Y H:i:s T';
+	public const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
-	const DATE_DELAY = 300;
+	public const DATE_DELAY = 300;
 
 
 	private CacheActorService $cacheActorService;
@@ -122,7 +120,7 @@ class SignatureService {
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				"digest_alg"       => "rsa",
+				"digest_alg" => "rsa",
 				"private_key_bits" => 2048,
 				"private_key_type" => OPENSSL_KEYTYPE_RSA,
 			]
@@ -152,10 +150,10 @@ class SignatureService {
 		$headersElements = ['content-length', 'date', 'host', 'digest'];
 		$allElements = [
 			'(request-target)' => 'post ' . $path->getPath(),
-			'date'             => $date,
-			'host'             => $path->getAddress(),
-			'digest'           => $this->generateDigest($request->getDataBody()),
-			'content-length'   => strlen($request->getDataBody())
+			'date' => $date,
+			'host' => $path->getAddress(),
+			'digest' => $this->generateDigest($request->getDataBody()),
+			'content-length' => strlen($request->getDataBody())
 		];
 
 		$signing = $this->generateHeaders($headersElements, $allElements, $request);
@@ -617,7 +615,6 @@ class SignatureService {
 	private static function generateContextCacheDocument(
 		ISimpleFolder $folder, string $filename, string $url
 	): stdClass {
-
 		try {
 			$data = jsonld_default_document_loader($url);
 			$content = json_encode($data);
@@ -654,6 +651,4 @@ class SignatureService {
 			}
 		}
 	}
-
 }
-

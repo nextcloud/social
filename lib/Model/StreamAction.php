@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use JsonSerializable;
-
 
 /**
  * Class StreamAction
@@ -42,15 +41,13 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class StreamAction implements JsonSerializable {
-
-
 	use TArrayTools;
 	use TStringTools;
 
 
-	const LIKED = 'liked';
-	const BOOSTED = 'boosted';
-	const REPLIED = 'replied';
+	public const LIKED = 'liked';
+	public const BOOSTED = 'boosted';
+	public const REPLIED = 'replied';
 
 
 	private int $id = 0;
@@ -243,12 +240,10 @@ class StreamAction implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'       => $this->getId(),
-			'actorId'  => $this->getActorId(),
+			'id' => $this->getId(),
+			'actorId' => $this->getActorId(),
 			'streamId' => $this->getStreamId(),
-			'values'   => $this->getValues(),
+			'values' => $this->getValues(),
 		];
 	}
-
 }
-

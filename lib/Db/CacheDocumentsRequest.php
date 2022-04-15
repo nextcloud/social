@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -37,9 +37,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
-
-
-	const CACHING_TIMEOUT = 5; // 5 min
+	public const CACHING_TIMEOUT = 5; // 5 min
 
 
 	/**
@@ -245,7 +243,4 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->execute();
 	}
-
-
 }
-

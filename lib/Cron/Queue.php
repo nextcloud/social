@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,8 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Cron;
 
-
-use OC\BackgroundJob\TimedJob;
+use OC\AppFramework\Utility\TimeFactory;
+use OCP\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
@@ -40,28 +41,22 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\StreamQueueService;
 use OCP\AppFramework\QueryException;
 
-
 /**
  * Class Queue
  *
  * @package OCA\Social\Cron
  */
 class Queue extends TimedJob {
-
-
 	private ?ActivityService $activityService = null;
-
 	private ?RequestQueueService $requestQueueService = null;
-
 	private ?StreamQueueService $streamQueueService = null;
-
-	private ?MiscService $miscService = null;
 
 
 	/**
 	 * Cache constructor.
 	 */
-	public function __construct() {
+	public function __construct(TimeFactory $time) {
+		parent::__construct($time);
 		$this->setInterval(12 * 60); // 12 minutes
 	}
 
@@ -72,13 +67,14 @@ class Queue extends TimedJob {
 	 * @throws QueryException
 	 */
 	protected function run($argument) {
-		$app = \OC::$server->query(Application::class);
+		/** @var Application $app */
+		$app = \OC::$server->get(Application::class);
 		$c = $app->getContainer();
 
-		$this->requestQueueService = $c->query(RequestQueueService::class);
-		$this->streamQueueService = $c->query(StreamQueueService::class);
-		$this->activityService = $c->query(ActivityService::class);
-		$this->miscService = $c->query(MiscService::class);
+		$this->requestQueueService = $c->get(RequestQueueService::class);
+		$this->streamQueueService = $c->get(StreamQueueService::class);
+		$this->activityService = $c->get(ActivityService::class);
+		$this->miscService = $c->get(MiscService::class);
 
 		$this->manageRequestQueue();
 		$this->manageStreamQueue();
@@ -98,7 +94,6 @@ class Queue extends TimedJob {
 			} catch (SocialAppConfigException $e) {
 			}
 		}
-
 	}
 
 
@@ -110,7 +105,4 @@ class Queue extends TimedJob {
 			$this->streamQueueService->manageStreamQueue($item);
 		}
 	}
-
-
 }
-

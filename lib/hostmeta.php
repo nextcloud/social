@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -28,7 +29,6 @@ declare(strict_types=1);
 
 namespace OCA\Social;
 
-
 use OCA\Social\Exceptions\SocialAppConfigException;
 use Exception;
 use OC;
@@ -42,7 +42,6 @@ try {
 	/** @var ConfigService $configService */
 	$configService = OC::$server->query(ConfigService::class);
 	$fediverseService->jailed();
-
 } catch (Exception $e) {
 	OC::$server->getLogger()
 			   ->log(1, 'Exception on hostmeta - ' . $e->getMessage());

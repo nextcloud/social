@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,12 +30,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
-
 
 /**
  * Class Post
@@ -42,21 +41,13 @@ use OCA\Social\Model\ActivityPub\Object\Document;
  * @package OCA\Social\Model
  */
 class Post implements JsonSerializable {
-
-
 	use TArrayTools;
 
-
 	private Person $actor;
-
 	private array $to = [];
-
 	private string $replyTo = '';
-
 	private string $content = '';
-
 	private string $type = '';
-
 	private array $hashtags = [];
 
 	/** @var string[] */
@@ -237,16 +228,13 @@ class Post implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'actor'       => $this->getActor(),
-			'to'          => $this->getTo(),
-			'replyTo'     => $this->getReplyTo(),
-			'content'     => $this->getContent(),
+			'actor' => $this->getActor(),
+			'to' => $this->getTo(),
+			'replyTo' => $this->getReplyTo(),
+			'content' => $this->getContent(),
 			'attachments' => $this->getAttachments(),
-			'hashtags'    => $this->getHashtags(),
-			'type'        => $this->getType()
+			'hashtags' => $this->getHashtags(),
+			'type' => $this->getType()
 		];
 	}
-
-
 }
-

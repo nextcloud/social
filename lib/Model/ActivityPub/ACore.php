@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TPathTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
@@ -41,31 +41,28 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
 
-
 class ACore extends Item implements JsonSerializable {
-
-
 	use TArrayTools;
 	use TStringTools;
 	use TPathTools;
 
 
-	const CONTEXT_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
-	const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
-	const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
+	public const CONTEXT_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
+	public const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
+	public const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
-	const AS_ID = 1;
-	const AS_TYPE = 2;
-	const AS_URL = 3;
-	const AS_DATE = 4;
-	const AS_USERNAME = 5;
-	const AS_ACCOUNT = 6;
-	const AS_STRING = 7;
-	const AS_CONTENT = 8;
-	const AS_TAGS = 10;
+	public const AS_ID = 1;
+	public const AS_TYPE = 2;
+	public const AS_URL = 3;
+	public const AS_DATE = 4;
+	public const AS_USERNAME = 5;
+	public const AS_ACCOUNT = 6;
+	public const AS_STRING = 7;
+	public const AS_CONTENT = 8;
+	public const AS_TAGS = 10;
 
-	const FORMAT_ACTIVITYPUB = 1;
-	const FORMAT_LOCAL = 2;
+	public const FORMAT_ACTIVITYPUB = 1;
+	public const FORMAT_LOCAL = 2;
 
 
 	/** @var null Item */
@@ -770,5 +767,4 @@ class ACore extends Item implements JsonSerializable {
 
 		return $result;
 	}
-
 }

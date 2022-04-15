@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
@@ -39,15 +39,12 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-
 /**
  * Class FollowsRequest
  *
  * @package OCA\Social\Db
  */
 class FollowsRequest extends FollowsRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -259,7 +256,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinAccounts($qb, 'actor_id');
 
 		return $this->getFollowsFromRequest($qb);
-
 	}
 
 
@@ -308,6 +304,4 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

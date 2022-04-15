@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Search;
 
-
 use OCP\Search\SearchResultEntry;
-
 
 /**
  * Class SearchResultEntry
@@ -173,6 +172,4 @@ class UnifiedSearchResult extends SearchResultEntry {
 
 		return $this;
 	}
-
 }
-

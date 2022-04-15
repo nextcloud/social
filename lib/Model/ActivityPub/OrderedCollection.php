@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-
 use JsonSerializable;
-
 
 /**
  * Class OrderedCollection
@@ -40,9 +39,7 @@ use JsonSerializable;
  * @package OCA\Social\Model\ActivityPub
  */
 class OrderedCollection extends ACore implements JsonSerializable {
-
-
-	const TYPE = 'OrderedCollection';
+	public const TYPE = 'OrderedCollection';
 
 
 	private int $totalItems = 0;
@@ -104,10 +101,10 @@ class OrderedCollection extends ACore implements JsonSerializable {
 
 
 
-//"id": "https://pub.pontapreta.net/users/admin/following",
-//"type": "OrderedCollection",
-//"totalItems": 1,
-//"first": "https://pub.pontapreta.net/users/admin/following?page=1"
+	//"id": "https://pub.pontapreta.net/users/admin/following",
+	//"type": "OrderedCollection",
+	//"totalItems": 1,
+	//"first": "https://pub.pontapreta.net/users/admin/following?page=1"
 
 
 	/**
@@ -126,10 +123,8 @@ class OrderedCollection extends ACore implements JsonSerializable {
 			parent::jsonSerialize(),
 			[
 				'totalItems' => $this->getTotalItems(),
-				'first'      => $this->getFirst()
+				'first' => $this->getFirst()
 			]
 		);
 	}
-
 }
-

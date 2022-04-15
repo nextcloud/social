@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
@@ -47,40 +47,19 @@ use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IInitialStateService;
 use OCP\IRequest;
-use OCP\IUserManager;
 use OCP\IUserSession;
 
-
 class OStatusController extends Controller {
-
-
 	use TNCDataResponse;
 	use TArrayTools;
 
-
 	private CacheActorService $cacheActorService;
-
 	private AccountService $accountService;
-
 	private CurlService $curlService;
-
 	private MiscService $miscService;
-
-	private IUserManager $userSession;
+	private IUserSession $userSession;
 	private IInitialStateService $initialStateService;
 
-
-	/**
-	 * OStatusController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param IInitialStateService $initialStateService
-	 * @param CacheActorService $cacheActorService
-	 * @param AccountService $accountService
-	 * @param CurlService $curlService
-	 * @param MiscService $miscService
-	 * @param IUserSession $userSession
-	 */
 	public function __construct(
 		IRequest $request, IInitialStateService $initialStateService, CacheActorService $cacheActorService, AccountService $accountService,
 		CurlService $curlService, MiscService $miscService, IUserSession $userSession
@@ -99,14 +78,9 @@ class OStatusController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 *
-	 * @param string $uri
-	 *
-	 * @return Response
 	 */
 	public function subscribe(string $uri): Response {
 		try {
-
 			try {
 				$actor = $this->cacheActorService->getFromAccount($uri);
 			} catch (InvalidResourceException $e) {
@@ -138,10 +112,6 @@ class OStatusController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $local
-	 *
-	 * @return Response
 	 */
 	public function followRemote(string $local): Response {
 		try {
@@ -163,14 +133,8 @@ class OStatusController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $local
-	 * @param string $account
-	 *
-	 * @return Response
 	 */
 	public function getLink(string $local, string $account): Response {
-
 		try {
 			$following = $this->accountService->getActor($local);
 			$result = $this->curlService->webfingerAccount($account);
@@ -192,6 +156,4 @@ class OStatusController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 }
-

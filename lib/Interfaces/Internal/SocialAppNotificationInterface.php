@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Internal;
 
-
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -41,10 +41,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 
-
 class SocialAppNotificationInterface implements IActivityPubInterface {
-
-
 	private StreamRequest $streamRequest;
 
 	private CurlService $curlService;
@@ -163,7 +160,4 @@ class SocialAppNotificationInterface implements IActivityPubInterface {
 	 */
 	public function event(ACore $item, string $source) {
 	}
-
-
 }
-

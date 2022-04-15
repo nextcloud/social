@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Actor;
 
-
 use JsonSerializable;
-
 
 /**
  * Class Service
@@ -40,10 +39,5 @@ use JsonSerializable;
  * @package OCA\Social\Model\ActivityPub
  */
 class Service extends Person implements JsonSerializable {
-
-
-	const TYPE = 'Service';
-
-
+	public const TYPE = 'Service';
 }
-

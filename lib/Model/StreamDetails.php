@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
-
 
 /**
  * Class StreamDetails
@@ -43,8 +42,6 @@ use OCA\Social\Model\ActivityPub\Stream;
  * @package OCA\Social\Model
  */
 class StreamDetails implements JsonSerializable {
-
-
 	use TArrayTools;
 
 
@@ -193,13 +190,11 @@ class StreamDetails implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'stream'        => $this->getStream(),
-			'homeViewers'   => $this->getHomeViewers(),
+			'stream' => $this->getStream(),
+			'homeViewers' => $this->getHomeViewers(),
 			'directViewers' => $this->getDirectViewers(),
-			'public'        => $this->isPublic(),
-			'federated'     => $this->isFederated()
+			'public' => $this->isPublic(),
+			'federated' => $this->isFederated()
 		];
 	}
-
 }
-

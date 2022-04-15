@@ -23,13 +23,11 @@
 
 namespace OCA\Social\Service;
 
-
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IGroupManager;
 use OCP\IUserManager;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\Notification\INotification;
-
 
 /**
  * Class UpdateService
@@ -37,8 +35,6 @@ use OCP\Notification\INotification;
  * @package OCA\Social\Service
  */
 class UpdateService {
-
-
 	private IUserManager $userManager;
 
 	private IGroupManager $groupManager;
@@ -131,6 +127,4 @@ class UpdateService {
 
 		return $notification;
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
@@ -42,7 +42,6 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-
 
 class AccountCreate extends Base {
 	private IUserManager $userManager;
@@ -90,4 +89,3 @@ class AccountCreate extends Base {
 		$this->accountService->createActor($userId, $handle);
 	}
 }
-

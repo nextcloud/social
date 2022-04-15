@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -41,10 +41,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\MiscService;
 
-
 class DocumentInterface implements IActivityPubInterface {
-
-
 	protected CacheDocumentsRequest $cacheDocumentsRequest;
 
 	protected MiscService $miscService;
@@ -156,7 +153,4 @@ class DocumentInterface implements IActivityPubInterface {
 	 */
 	public function event(ACore $item, string $source) {
 	}
-
-
 }
-

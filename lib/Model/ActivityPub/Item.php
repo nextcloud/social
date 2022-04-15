@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,15 +30,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
 
-
 class Item {
-
-
 	use TArrayTools;
 
 
@@ -697,8 +694,4 @@ class Item {
 
 		return $this;
 	}
-
-
 }
-
-

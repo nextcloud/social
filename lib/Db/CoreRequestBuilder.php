@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
@@ -49,34 +49,32 @@ use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
-
 /**
  * Class CoreRequestBuilder
  *
  * @package OCA\Social\Db
  */
 class CoreRequestBuilder {
+	public const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
+	public const TABLE_INSTANCE = 'social_3_instance';
 
-	const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
-	const TABLE_INSTANCE = 'social_3_instance';
+	public const TABLE_ACTORS = 'social_3_actor';
+	public const TABLE_STREAM = 'social_3_stream';
+	public const TABLE_STREAM_DEST = 'social_3_stream_dest';
+	public const TABLE_STREAM_TAGS = 'social_3_stream_tag';
+	public const TABLE_STREAM_QUEUE = 'social_3_stream_queue';
+	public const TABLE_STREAM_ACTIONS = 'social_3_stream_act';
 
-	const TABLE_ACTORS = 'social_3_actor';
-	const TABLE_STREAM = 'social_3_stream';
-	const TABLE_STREAM_DEST = 'social_3_stream_dest';
-	const TABLE_STREAM_TAGS = 'social_3_stream_tag';
-	const TABLE_STREAM_QUEUE = 'social_3_stream_queue';
-	const TABLE_STREAM_ACTIONS = 'social_3_stream_act';
+	public const TABLE_HASHTAGS = 'social_3_hashtag';
+	public const TABLE_FOLLOWS = 'social_3_follow';
+	public const TABLE_ACTIONS = 'social_3_action';
 
-	const TABLE_HASHTAGS = 'social_3_hashtag';
-	const TABLE_FOLLOWS = 'social_3_follow';
-	const TABLE_ACTIONS = 'social_3_action';
+	public const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
+	public const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
 
-	const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
-	const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
-
-	const TABLE_CLIENT = 'social_3_client';
-	const TABLE_CLIENT_AUTH = 'social_3_client_auth';
-	const TABLE_CLIENT_TOKEN = 'social_3_client_token';
+	public const TABLE_CLIENT = 'social_3_client';
+	public const TABLE_CLIENT_AUTH = 'social_3_client_auth';
+	public const TABLE_CLIENT_TOKEN = 'social_3_client_token';
 
 
 	private array $tables = [
@@ -728,7 +726,6 @@ class CoreRequestBuilder {
 		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
 
 		$qb->andWhere($orX);
-
 	}
 
 
@@ -1224,6 +1221,4 @@ class CoreRequestBuilder {
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
 		$qb->execute();
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -55,7 +55,6 @@ use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
-
 
 /**
  * Class NavigationController
@@ -116,12 +115,12 @@ class NavigationController extends Controller {
 	 */
 	public function navigate(string $path = ''): TemplateResponse {
 		$serverData = [
-			'public'   => false,
+			'public' => false,
 			'firstrun' => false,
-			'setup'    => false,
-			'isAdmin'  => OC::$server->getGroupManager()
+			'setup' => false,
+			'isAdmin' => OC::$server->getGroupManager()
 									 ->isAdmin($this->userId),
-			'cliUrl'   => $this->getCliUrl()
+			'cliUrl' => $this->getCliUrl()
 		];
 
 		try {
@@ -250,7 +249,6 @@ class NavigationController extends Controller {
 			$file = $this->documentService->getFromCache($id, $mime);
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
-
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -266,7 +264,6 @@ class NavigationController extends Controller {
 	 * @return Response
 	 */
 	public function documentGetPublic(string $id): Response {
-
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCache($id, $mime, true);
@@ -287,7 +284,6 @@ class NavigationController extends Controller {
 	 * @return Response
 	 */
 	public function resizedGet(string $id): Response {
-
 		try {
 			$mime = '';
 			$file = $this->documentService->getResizedFromCache($id, $mime);
@@ -308,7 +304,6 @@ class NavigationController extends Controller {
 	 * @return Response
 	 */
 	public function resizedGetPublic(string $id): Response {
-
 		try {
 			$mime = '';
 			$file = $this->documentService->getResizedFromCache($id, $mime, true);
@@ -318,6 +313,4 @@ class NavigationController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 }
-

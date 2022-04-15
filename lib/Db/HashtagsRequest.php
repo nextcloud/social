@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
-
 
 /**
  * Class HashtagsRequest
@@ -41,8 +40,6 @@ use OCA\Social\Exceptions\HashtagDoesNotExistException;
  * @package OCA\Social\Db
  */
 class HashtagsRequest extends HashtagsRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -136,7 +133,4 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 		return $hashtags;
 	}
-
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Actor;
 
-
 use daita\MySmallPhpTools\IQueryRow;
 use DateTime;
 use Exception;
@@ -44,24 +44,21 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Traits\TDetails;
 
-
 /**
  * Class Actor
  *
  * @package OCA\Social\Model\ActivityPub
  */
 class Person extends ACore implements IQueryRow, JsonSerializable {
-
-
 	use TDetails;
 
 
-	const TYPE = 'Person';
+	public const TYPE = 'Person';
 
 
-	const LINK_VIEWER = 'viewer';
-	const LINK_REMOTE = 'remote';
-	const LINK_LOCAL = 'local';
+	public const LINK_VIEWER = 'viewer';
+	public const LINK_REMOTE = 'remote';
+	public const LINK_LOCAL = 'local';
 
 
 	private string $userId = '';
@@ -641,7 +638,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		if ($icon->getType() === Image::TYPE) {
 			$this->setIcon($icon);
 		}
-
 	}
 
 
@@ -679,21 +675,21 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$result = array_merge(
 			parent::exportAsActivityPub(),
 			[
-				'aliases'           => [
+				'aliases' => [
 					$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
 					$this->getUrlSocial() . 'users/' . $this->getPreferredUsername()
 				],
 				'preferredUsername' => $this->getPreferredUsername(),
-				'name'              => $this->getName(),
-				'inbox'             => $this->getInbox(),
-				'outbox'            => $this->getOutbox(),
-				'account'           => $this->getAccount(),
-				'following'         => $this->getFollowing(),
-				'followers'         => $this->getFollowers(),
-				'endpoints'         => ['sharedInbox' => $this->getSharedInbox()],
-				'publicKey'         => [
-					'id'           => $this->getId() . '#main-key',
-					'owner'        => $this->getId(),
+				'name' => $this->getName(),
+				'inbox' => $this->getInbox(),
+				'outbox' => $this->getOutbox(),
+				'account' => $this->getAccount(),
+				'following' => $this->getFollowing(),
+				'followers' => $this->getFollowers(),
+				'endpoints' => ['sharedInbox' => $this->getSharedInbox()],
+				'publicKey' => [
+					'id' => $this->getId() . '#main-key',
+					'owner' => $this->getId(),
 					'publicKeyPem' => $this->getPublicKey()
 				]
 			]
@@ -715,38 +711,37 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$details = $this->getDetailsAll();
 		$result =
 			[
-				"username"        => $this->getPreferredUsername(),
-				"acct"            => $this->getAccount(),
-				"display_name"    => $this->getDisplayName(),
-				"locked"          => $this->isLocked(),
-				"bot"             => $this->isBot(),
-				"discoverable"    => $this->isDiscoverable(),
-				"group"           => false,
-				"created_at"      => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
-				"note"            => $this->getDescription(),
-				"url"             => $this->getId(),
-				"avatar"          => $this->getAvatar(),
+				"username" => $this->getPreferredUsername(),
+				"acct" => $this->getAccount(),
+				"display_name" => $this->getDisplayName(),
+				"locked" => $this->isLocked(),
+				"bot" => $this->isBot(),
+				"discoverable" => $this->isDiscoverable(),
+				"group" => false,
+				"created_at" => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
+				"note" => $this->getDescription(),
+				"url" => $this->getId(),
+				"avatar" => $this->getAvatar(),
 				//				"avatar_static"   => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
-				"avatar_static"   => $this->getAvatar(),
-				"header"          => $this->getHeader(),
-				"header_static"   => $this->getHeader(),
+				"avatar_static" => $this->getAvatar(),
+				"header" => $this->getHeader(),
+				"header_static" => $this->getHeader(),
 				"followers_count" => $this->getInt('count.followers', $details),
 				"following_count" => $this->getInt('count.following', $details),
-				"statuses_count"  => $this->getInt('count.post', $details),
-				"last_status_at"  => $this->get('last_post_creation', $details),
-				"source"          => [
-					"privacy"               => $this->getPrivacy(),
-					"sensitive"             => $this->isSensitive(),
-					"language"              => $this->getLanguage(),
-					"note"                  => $this->getDescription(),
-					"fields"                => [],
+				"statuses_count" => $this->getInt('count.post', $details),
+				"last_status_at" => $this->get('last_post_creation', $details),
+				"source" => [
+					"privacy" => $this->getPrivacy(),
+					"sensitive" => $this->isSensitive(),
+					"language" => $this->getLanguage(),
+					"note" => $this->getDescription(),
+					"fields" => [],
 					"follow_requests_count" => 0
 				],
-				"emojis"          => [],
-				"fields"          => []
+				"emojis" => [],
+				"fields" => []
 			];
 
 		return array_merge(parent::exportAsLocal(), $result);
 	}
-
 }

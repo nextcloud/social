@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -38,8 +38,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -182,6 +180,4 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		$actor->setViewerLink($link);
 	}
-
 }
-

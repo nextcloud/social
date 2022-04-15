@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client\Options;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCP\IRequest;
-
 
 /**
  * Class TimelineOptions
@@ -42,8 +41,6 @@ use OCP\IRequest;
  * @package OCA\Social\Model\Client\Options
  */
 class TimelineOptions extends CoreOptions implements JsonSerializable {
-
-
 	use TArrayTools;
 
 
@@ -273,15 +270,13 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return
 			[
-				'local'      => $this->isLocal(),
-				'remote'     => $this->isRemote(),
+				'local' => $this->isLocal(),
+				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),
-				'min_id'     => $this->getMinId(),
-				'max_id'     => $this->getMaxId(),
-				'since_id'   => $this->getSinceId(),
-				'limit'      => $this->getLimit()
+				'min_id' => $this->getMinId(),
+				'max_id' => $this->getMaxId(),
+				'since_id' => $this->getSinceId(),
+				'limit' => $this->getLimit()
 			];
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 
 namespace OCA\Social\Interfaces\Object;
-
 
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
@@ -65,15 +65,12 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamQueueService;
 
-
 /**
  * Class AnnounceInterface
  *
  * @package OCA\Social\Interfaces\Object
  */
 class AnnounceInterface implements IActivityPubInterface {
-
-
 	use TArrayTools;
 
 
@@ -234,7 +231,6 @@ class AnnounceInterface implements IActivityPubInterface {
 				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
 			);
 		}
-
 	}
 
 
@@ -432,6 +428,4 @@ class AnnounceInterface implements IActivityPubInterface {
 		} catch (StreamNotFoundException $e) {
 		}
 	}
-
 }
-

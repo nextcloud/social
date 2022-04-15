@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -47,7 +48,6 @@ class WebfingerHandler implements IHandler {
 		CacheActorService $cacheActorService, FediverseService $fediverseService,
 		ConfigService $configService
 	) {
-
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -83,7 +83,7 @@ class WebfingerHandler implements IHandler {
 		$response->addLink('self', 'application/activity+json', $href);
 
 		// Nextcloud profile page
-		$profilePageUrl =  $this->urlGenerator->linkToRouteAbsolute('core.ProfilePage.index', [
+		$profilePageUrl = $this->urlGenerator->linkToRouteAbsolute('core.ProfilePage.index', [
 			'targetUserId' => $actor->getPreferredUsername()
 		]);
 		$response->addAlias($profilePageUrl);

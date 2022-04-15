@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\HashtagsRequest;
@@ -41,15 +41,12 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 
-
 class HashtagService {
-
-
-	const TREND_1H = 3600;
-	const TREND_12H = 43200;
-	const TREND_1D = 86400;
-	const TREND_3D = 259200;
-	const TREND_10D = 864000;
+	public const TREND_1H = 3600;
+	public const TREND_12H = 43200;
+	public const TREND_1D = 86400;
+	public const TREND_3D = 259200;
+	public const TREND_10D = 864000;
 
 
 	use TArrayTools;
@@ -106,10 +103,10 @@ class HashtagService {
 
 		$time = time();
 		$hashtags = [
-			'1h'  => $this->getTrendSince($time - self::TREND_1H),
+			'1h' => $this->getTrendSince($time - self::TREND_1H),
 			'12h' => $this->getTrendSince($time - self::TREND_12H),
-			'1d'  => $this->getTrendSince($time - self::TREND_1D),
-			'3d'  => $this->getTrendSince($time - self::TREND_3D),
+			'1d' => $this->getTrendSince($time - self::TREND_1D),
+			'3d' => $this->getTrendSince($time - self::TREND_3D),
 			'10d' => $this->getTrendSince($time - self::TREND_10D)
 		];
 
@@ -240,4 +237,3 @@ class HashtagService {
 		throw new HashtagDoesNotExistException();
 	}
 }
-
