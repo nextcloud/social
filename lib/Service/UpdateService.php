@@ -39,21 +39,16 @@ use OCP\Notification\INotification;
 class UpdateService {
 
 
-	/** @var IUserManager */
-	private $userManager;
+	private IUserManager $userManager;
 
-	/** @var IGroupManager */
-	private $groupManager;
+	private IGroupManager $groupManager;
 
-	/** @var ITimeFactory */
-	private $time;
+	private ITimeFactory $time;
 
-	/** @var INotificationManager */
-	private $notificationManager;
+	private INotificationManager $notificationManager;
 
 
-	/** @var string */
-	private $updateId = 'alpha3';
+	private string $updateId = 'alpha3';
 
 
 	/**

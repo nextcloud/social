@@ -46,11 +46,9 @@ class Note extends Stream implements JsonSerializable {
 	const TYPE = 'Note';
 
 
-	/** @var array */
-	private $attachments = [];
+	private array $attachments = [];
 
-	/** @var array */
-	private $hashtags = [];
+	private array $hashtags = [];
 
 
 	/**

@@ -51,14 +51,11 @@ class QueueController extends Controller {
 
 	use TAsync;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
+	private RequestQueueService $requestQueueService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private ActivityService $activityService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

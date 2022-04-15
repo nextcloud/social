@@ -45,33 +45,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 
 class AccountFollowing extends Base {
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private FollowService $followService;
+	private ConfigService $configService;
+	private MiscService $miscService;
 
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var FollowService */
-	private $followService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param AccountService $accountService
-	 * @param CacheActorService $cacheActorService
-	 * @param FollowService $followService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		AccountService $accountService, CacheActorService $cacheActorService,
 		FollowService $followService, ConfigService $configService, MiscService $miscService
@@ -85,10 +64,6 @@ class AccountFollowing extends Base {
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 *
-	 */
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:following')
@@ -99,11 +74,7 @@ class AccountFollowing extends Base {
 			 ->setDescription('Following a new account');
 	}
 
-
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {

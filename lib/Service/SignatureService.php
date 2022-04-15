@@ -83,20 +83,15 @@ class SignatureService {
 	const DATE_DELAY = 300;
 
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var ActorsRequest */
-	private $actorsRequest;
+	private ActorsRequest $actorsRequest;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

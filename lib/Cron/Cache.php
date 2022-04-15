@@ -49,17 +49,13 @@ use OCP\AppFramework\QueryException;
 class Cache extends TimedJob {
 
 
-	/** @var AccountService */
-	private $accountService;
+	private ?AccountService $accountService = null;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private ?CacheActorService $cacheActorService = null;
 
-	/** @var DocumentService */
-	private $documentService;
+	private ?DocumentService $documentService = null;
 
-	/** @var HashtagService */
-	private $hashtagService;
+	private ?HashtagService $hashtagService = null;
 
 
 	/**

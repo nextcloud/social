@@ -71,26 +71,19 @@ class ACore extends Item implements JsonSerializable {
 	/** @var null Item */
 	private $parent = null;
 
-	/** @var string */
-	private $requestToken = '';
+	private string $requestToken = '';
 
-	/** @var array */
-	private $entries = [];
+	private array $entries = [];
 
-	/** @var ACore */
-	private $object = null;
+	private ?\OCA\Social\Model\ActivityPub\ACore $object = null;
 
-	/** @var Document */
-	private $icon = null;
+	private ?Document $icon = null;
 
-	/** @var bool */
-	private $displayW3ContextSecurity = false;
+	private bool $displayW3ContextSecurity = false;
 
-	/** @var LinkedDataSignature */
-	private $signature = null;
+	private ?LinkedDataSignature $signature = null;
 
-	/** @var int */
-	private $format = self::FORMAT_ACTIVITYPUB;
+	private int $format = self::FORMAT_ACTIVITYPUB;
 
 
 	/**

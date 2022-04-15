@@ -58,23 +58,17 @@ class PersonInterface implements IActivityPubInterface {
 	use TArrayTools;
 
 
-	/** @var CacheActorsRequest */
-	private $cacheActorsRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var FollowsRequest */
-	private $followsRequest;
+	private FollowsRequest $followsRequest;
 
-	/** @var ActorService */
-	private $actorService;
+	private ActorService $actorService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

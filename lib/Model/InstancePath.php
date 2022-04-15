@@ -56,14 +56,11 @@ class InstancePath implements JsonSerializable {
 	const PRIORITY_HIGH = 3;
 	const PRIORITY_TOP = 4;
 
-	/** @var string */
-	private $uri = '';
+	private string $uri = '';
 
-	/** @var int */
-	private $type = 0;
+	private int $type = 0;
 
-	/** @var int */
-	private $priority = 0;
+	private int $priority = 0;
 
 
 	/**

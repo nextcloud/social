@@ -67,26 +67,19 @@ class DocumentService {
 	const ERROR_PERMISSION = 3;
 
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private \OCP\IURLGenerator $urlGenerator;
 
-	/** @var CacheDocumentsRequest */
-	private $cacheDocumentsRequest;
+	private CacheDocumentsRequest $cacheDocumentsRequest;
 
-	/** @var ActorsRequest */
-	private $actorRequest;
+	private ActorsRequest $actorRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var CacheDocumentService */
-	private $cacheService;
+	private CacheDocumentService $cacheService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

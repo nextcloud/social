@@ -51,18 +51,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 class Fediverse extends Base {
 
 
-	/** @var FediverseService */
-	private $fediverseService;
+	private FediverseService $fediverseService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var OutputInterface */
-	private $output;
+	private ?OutputInterface $output = null;
 
 
 	/**

@@ -45,20 +45,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 class QueueProcess extends Base {
 
 
-	/** @var ActivityService */
-	private $activityService;
+	private ActivityService $activityService;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private StreamQueueService $streamQueueService;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
+	private RequestQueueService $requestQueueService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

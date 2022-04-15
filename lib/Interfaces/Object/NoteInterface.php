@@ -49,20 +49,15 @@ use OCA\Social\Service\PushService;
 class NoteInterface implements IActivityPubInterface {
 
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var PushService */
-	private $pushService;
+	private PushService $pushService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

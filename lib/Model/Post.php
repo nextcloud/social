@@ -47,29 +47,23 @@ class Post implements JsonSerializable {
 	use TArrayTools;
 
 
-	/** @var Person */
-	private $actor;
+	private Person $actor;
 
-	/** @var array */
-	private $to = [];
+	private array $to = [];
 
-	/** @var string */
-	private $replyTo = '';
+	private string $replyTo = '';
 
-	/** @var string */
-	private $content = '';
+	private string $content = '';
 
-	/** @var string */
-	private $type = '';
+	private string $type = '';
 
-	/** @var array */
-	private $hashtags = [];
+	private array $hashtags = [];
 
 	/** @var string[] */
-	private $attachments = [];
+	private array $attachments = [];
 
 	/** @var Document[] */
-	private $documents = [];
+	private array $documents = [];
 
 	/**
 	 * Post constructor.

@@ -58,29 +58,21 @@ use OCA\Social\Model\InstancePath;
 class StreamService {
 
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var ActivityService */
-	private $activityService;
+	private ActivityService $activityService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var SignatureService */
-	private $signatureService;
+	private SignatureService $signatureService;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private StreamQueueService $streamQueueService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

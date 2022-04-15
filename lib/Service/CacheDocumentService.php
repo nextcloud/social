@@ -64,17 +64,13 @@ class CacheDocumentService {
 	const RESIZED_WIDTH = 280;
 	const RESIZED_HEIGHT = 180;
 
-	/** @var IAppData */
-	private $appData;
+	private IAppData $appData;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

@@ -47,14 +47,11 @@ class RequestQueueService {
 	use TArrayTools;
 
 
-	/** @var RequestQueueRequest */
-	private $requestQueueRequest;
+	private RequestQueueRequest $requestQueueRequest;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

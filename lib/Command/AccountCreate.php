@@ -45,33 +45,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 
 class AccountCreate extends Base {
+	private IUserManager $userManager;
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private ConfigService $configService;
+	private MiscService $miscService;
 
-
-	/** @var IUserManager */
-	private $userManager;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param IUserManager $userManager
-	 * @param AccountService $accountService
-	 * @param CacheActorService $cacheActorService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IUserManager $userManager, AccountService $accountService,
 		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService
@@ -86,10 +65,6 @@ class AccountCreate extends Base {
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 *
-	 */
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:create')
@@ -98,11 +73,7 @@ class AccountCreate extends Base {
 			 ->setDescription('Create a new social account');
 	}
 
-
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
@@ -118,6 +89,5 @@ class AccountCreate extends Base {
 
 		$this->accountService->createActor($userId, $handle);
 	}
-
 }
 

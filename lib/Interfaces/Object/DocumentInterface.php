@@ -45,11 +45,9 @@ use OCA\Social\Service\MiscService;
 class DocumentInterface implements IActivityPubInterface {
 
 
-	/** @var CacheDocumentsRequest */
-	protected $cacheDocumentsRequest;
+	protected CacheDocumentsRequest $cacheDocumentsRequest;
 
-	/** @var MiscService */
-	protected $miscService;
+	protected MiscService $miscService;
 
 
 	/**

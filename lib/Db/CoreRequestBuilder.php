@@ -79,8 +79,7 @@ class CoreRequestBuilder {
 	const TABLE_CLIENT_TOKEN = 'social_3_client_token';
 
 
-	/** @var array */
-	private $tables = [
+	private array $tables = [
 		self::TABLE_REQUEST_QUEUE,
 		self::TABLE_ACTORS,
 		self::TABLE_STREAM,

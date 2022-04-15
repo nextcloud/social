@@ -57,11 +57,9 @@ class ClientService {
 	use TStringTools;
 
 
-	/** @var ClientRequest */
-	private $clientRequest;
+	private ClientRequest $clientRequest;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

@@ -53,17 +53,13 @@ class StreamAction implements JsonSerializable {
 	const REPLIED = 'replied';
 
 
-	/** @var integer */
-	private $id = 0;
+	private int $id = 0;
 
-	/** @var string */
-	private $actorId = '';
+	private string $actorId = '';
 
-	/** @var string */
-	private $streamId = '';
+	private string $streamId = '';
 
-	/** @var array */
-	private $values = [];
+	private array $values = [];
 
 
 	/**

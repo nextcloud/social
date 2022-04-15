@@ -52,24 +52,18 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class Timeline extends ExtendedBase {
 
-	/** @var IUserManager */
-	private $userManager;
+	private IUserManager $userManager;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var int */
-	private $count;
+	private ?int $count = null;
 
 
 	/**

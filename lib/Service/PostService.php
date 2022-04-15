@@ -57,23 +57,17 @@ use OCP\Files\NotPermittedException;
 class PostService {
 
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private ActivityService $activityService;
 
-	/** @var CacheDocumentService */
-	private $cacheDocumentService;
+	private CacheDocumentService $cacheDocumentService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

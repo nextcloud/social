@@ -53,18 +53,11 @@ class PushService {
 
 	use TAsync;
 
-//
-//	/** @var IPushManager */
-//	private $pushManager;
+private DetailsService $detailsService;
 
-	/** @var DetailsService */
-	private $detailsService;
+	private StreamService $streamService;
 
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

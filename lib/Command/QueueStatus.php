@@ -43,14 +43,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 class QueueStatus extends Base {
 
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
+	private RequestQueueService $requestQueueService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

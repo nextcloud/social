@@ -42,8 +42,7 @@ use OCA\Social\Service\MiscService;
 class RejectInterface implements IActivityPubInterface {
 
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

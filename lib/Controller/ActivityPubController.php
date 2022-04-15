@@ -69,38 +69,27 @@ class ActivityPubController extends Controller {
 use TNC20Logger;
 
 
-	/** @var SocialPubController */
-	private $socialPubController;
+	private SocialPubController $socialPubController;
 
-	/** @var FediverseService */
-	private $fediverseService;
+	private FediverseService $fediverseService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var SignatureService */
-	private $signatureService;
+	private SignatureService $signatureService;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private StreamQueueService $streamQueueService;
 
-	/** @var ImportService */
-	private $importService;
+	private ImportService $importService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var FollowService */
-	private $followService;
+	private FollowService $followService;
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

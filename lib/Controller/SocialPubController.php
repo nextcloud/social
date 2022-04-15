@@ -65,26 +65,19 @@ class SocialPubController extends Controller {
 	use TNCDataResponse;
 
 
-	/** @var string */
-	private $userId;
+	private string $userId;
 
-	/** @var IL10N */
-	private $l10n;
+	private IL10N $l10n;
 
-	/** @var NavigationController */
-	private $navigationController;
+	private NavigationController $navigationController;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
 
 	/**

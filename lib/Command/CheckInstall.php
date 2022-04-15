@@ -56,32 +56,24 @@ class CheckInstall extends Base {
 	use TArrayTools;
 
 
-	/** @var IUserManager */
-	private $userManager;
+	private IUserManager $userManager;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var StreamDestRequest */
-	private $streamDestRequest;
+	private StreamDestRequest $streamDestRequest;
 
-	/** @var StreamTagsRequest */
-	private $streamTagsRequest;
+	private StreamTagsRequest $streamTagsRequest;
 
-	/** @var CheckService */
-	private $checkService;
+	private CheckService $checkService;
 
 	/** @var */
 	private $configService;
 
-	/** @var PushService */
-	private $pushService;
+	private PushService $pushService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

@@ -77,20 +77,15 @@ class AnnounceInterface implements IActivityPubInterface {
 	use TArrayTools;
 
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var ActionsRequest */
-	private $actionsRequest;
+	private ActionsRequest $actionsRequest;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private StreamQueueService $streamQueueService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

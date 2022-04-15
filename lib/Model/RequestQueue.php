@@ -55,35 +55,25 @@ class RequestQueue implements JsonSerializable {
 	const STATUS_SUCCESS = 9;
 
 
-	/** @var integer */
-	private $id = 0;
+	private int $id = 0;
 
-	/** @var string */
-	private $token = '';
+	private string $token = '';
 
-	/** @var string */
-	private $author = '';
+	private string $author = '';
 
-	/** @var string */
-	private $activity = '';
+	private string $activity = '';
 
-	/** @var InstancePath */
-	private $instance;
+	private ?InstancePath $instance = null;
 
-	/** @var int */
-	private $priority = 0;
+	private int $priority = 0;
 
-	/** @var int */
-	private $status = 0;
+	private int $status = 0;
 
-	/** @var int */
-	private $tries = 0;
+	private int $tries = 0;
 
-	/** @var int */
-	private $last = 0;
+	private int $last = 0;
 
-	/** @var int */
-	private $timeout = 5;
+	private int $timeout = 5;
 
 
 	/**

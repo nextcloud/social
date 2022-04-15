@@ -64,80 +64,55 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	const LINK_LOCAL = 'local';
 
 
-	/** @var string */
-	private $userId = '';
+	private string $userId = '';
 
-	/** @var string */
-	private $name = '';
+	private string $name = '';
 
-	/** @var string */
-	private $preferredUsername = '';
+	private string $preferredUsername = '';
 
-	/** @var string */
-	private $displayName = '';
+	private string $displayName = '';
 
-	/** @var string */
-	private $description = '';
+	private string $description = '';
 
-	/** @var string */
-	private $publicKey = '';
+	private string $publicKey = '';
 
-	/** @var string */
-	private $privateKey = '';
+	private string $privateKey = '';
 
-	/** @var int */
-	private $creation = 0;
+	private int $creation = 0;
 
-	/** @var string */
-	private $account = '';
+	private string $account = '';
 
-	/** @var string */
-	private $following = '';
+	private string $following = '';
 
-	/** @var string */
-	private $followers = '';
+	private string $followers = '';
 
-	/** @var string */
-	private $inbox = '';
+	private string $inbox = '';
 
-	/** @var string */
-	private $outbox = '';
+	private string $outbox = '';
 
-	/** @var string */
-	private $sharedInbox = '';
+	private string $sharedInbox = '';
 
-	/** @var string */
-	private $featured = '';
+	private string $featured = '';
 
-	/** @var string */
-	private $avatar = '';
+	private string $avatar = '';
 
-	/** @var string */
-	private $header = '';
+	private string $header = '';
 
-	/** @var bool */
-	private $locked = false;
+	private bool $locked = false;
 
-	/** @var bool */
-	private $bot = false;
+	private bool $bot = false;
 
-	/** @var bool */
-	private $discoverable = false;
+	private bool $discoverable = false;
 
-	/** @var string */
-	private $privacy = 'public';
+	private string $privacy = 'public';
 
-	/** @var bool */
-	private $sensitive = false;
+	private bool $sensitive = false;
 
-	/** @var string */
-	private $language = 'en';
+	private string $language = 'en';
 
-	/** @var int */
-	private $avatarVersion = -1;
+	private int $avatarVersion = -1;
 
-	/** @var string */
-	private $viewerLink = '';
+	private string $viewerLink = '';
 
 	/**
 	 * Person constructor.

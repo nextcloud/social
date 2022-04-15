@@ -52,14 +52,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 class StreamDetails extends ExtendedBase {
 
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var DetailsService */
-	private $detailsService;
+	private DetailsService $detailsService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

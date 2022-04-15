@@ -45,11 +45,9 @@ class OrderedCollection extends ACore implements JsonSerializable {
 	const TYPE = 'OrderedCollection';
 
 
-	/** @var int */
-	private $totalItems = 0;
+	private int $totalItems = 0;
 
-	/** @var string */
-	private $first = '';
+	private string $first = '';
 
 	/**
 	 * Activity constructor.

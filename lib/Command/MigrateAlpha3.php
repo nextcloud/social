@@ -53,27 +53,20 @@ class MigrateAlpha3 extends Base {
 	use TArrayTools;
 
 
-	/** @var IDBConnection */
-	private $dbConnection;
+	private IDBConnection $dbConnection;
 
-	/** @var CoreRequestBuilder */
-	private $coreRequestBuilder;
+	private CoreRequestBuilder $coreRequestBuilder;
 
-	/** @var CheckService */
-	private $checkService;
+	private CheckService $checkService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
-	/** @var array */
-	private $done = [];
+	private array $done = [];
 
 
-	/** @var array */
-	public $tables = [
+	public array $tables = [
 		'social_a2_actions'       => [
 			['id_prim'],
 			'social_3_action',

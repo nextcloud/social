@@ -62,44 +62,31 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	const TYPE_ANNOUNCE = 'announce';
 
 
-	/** @var string */
-	private $activityId = '';
+	private string $activityId = '';
 
-	/** @var string */
-	private $content = '';
+	private string $content = '';
 
-	/** @var string */
-	private $spoilerText = '';
+	private string $spoilerText = '';
 
-	/** @var string */
-	private $language = 'en';
+	private string $language = 'en';
 
-	/** @var string */
-	private $attributedTo = '';
+	private string $attributedTo = '';
 
-	/** @var string */
-	private $inReplyTo = '';
+	private string $inReplyTo = '';
 
-	/** @var bool */
-	private $sensitive = false;
+	private bool $sensitive = false;
 
-	/** @var string */
-	private $conversation = '';
+	private string $conversation = '';
 
-	/** @var Cache */
-	private $cache = null;
+	private ?Cache $cache = null;
 
-	/** @var int */
-	private $publishedTime = 0;
+	private int $publishedTime = 0;
 
-	/** @var StreamAction */
-	private $action = null;
+	private ?StreamAction $action = null;
 
-	/** @var string */
-	private $timeline = '';
+	private string $timeline = '';
 
-	/** @var bool */
-	private $filterDuplicate = false;
+	private bool $filterDuplicate = false;
 
 
 	/**

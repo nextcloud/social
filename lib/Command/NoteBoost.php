@@ -50,17 +50,13 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class NoteBoost extends Base {
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var BoostService */
-	private $boostService;
+	private BoostService $boostService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

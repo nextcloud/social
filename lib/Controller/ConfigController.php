@@ -44,14 +44,11 @@ class ConfigController extends Controller {
 	use TNCDataResponse;
 
 
-	/** @var TestService */
-	private $testService;
+	private TestService $testService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	public function __construct(

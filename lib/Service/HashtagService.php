@@ -55,17 +55,13 @@ class HashtagService {
 	use TArrayTools;
 
 
-	/** @var HashtagsRequest */
-	private $hashtagsRequest;
+	private HashtagsRequest $hashtagsRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

@@ -72,8 +72,7 @@ class ConfigService {
 	const BACKGROUND_SERVICE = 3;
 	const BACKGROUND_FULL_SERVICE = 4;
 
-	/** @var array */
-	public $defaults = [
+	public array $defaults = [
 		self::CLOUD_URL           => '',
 		self::SOCIAL_URL          => '',
 		self::SOCIAL_ADDRESS      => '',
@@ -85,27 +84,21 @@ class ConfigService {
 		self::DATABASE_CHUNK_SIZE => 10000
 	];
 
-	/** @var array */
-	public $accessTypeList = [
+	public array $accessTypeList = [
 		'BLACKLIST' => 'all_but',
 		'WHITELIST' => 'none_but'
 	];
 
 
-	/** @var string */
-	private $userId;
+	private string $userId;
 
-	/** @var IConfig */
-	private $config;
+	private IConfig $config;
 
-	/** @var IRequest */
-	private $request;
+	private IRequest $request;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IURLGenerator $urlGenerator;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

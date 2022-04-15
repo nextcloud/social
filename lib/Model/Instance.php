@@ -47,56 +47,39 @@ class Instance implements IQueryRow, JsonSerializable {
 	use TArrayTools;
 
 
-	/** @var bool */
-	private $local = false;
+	private bool $local = false;
 
-	/** @var string */
-	private $uri = '';
+	private string $uri = '';
 
-	/** @var string */
-	private $title = '';
+	private string $title = '';
 
-	/** @var string */
-	private $version = '';
+	private string $version = '';
 
-	/** @var string */
-	private $shortDescription = '';
+	private string $shortDescription = '';
 
-	/** @var string */
-	private $description = '';
+	private string $description = '';
 
-	/** @var string */
-	private $email = '';
+	private string $email = '';
 
-	/** @var array */
-	private $urls = [];
+	private array $urls = [];
 
-	/** @var array */
-	private $stats = [];
+	private array $stats = [];
 
-	/** @var array */
-	private $usage = [];
+	private array $usage = [];
 
-	/** @var string */
-	private $image = '';
+	private string $image = '';
 
-	/** @var array */
-	private $languages = [];
+	private array $languages = [];
 
-	/** @var bool */
-	private $registrations = false;
+	private bool $registrations = false;
 
-	/** @var bool */
-	private $approvalRequired = false;
+	private bool $approvalRequired = false;
 
-	/** @var bool */
-	private $invitesEnabled = false;
+	private bool $invitesEnabled = false;
 
-	/** @var Person */
-	private $contactAccount;
+	private ?Person $contactAccount = null;
 
-	/** @var string */
-	private $accountPrim;
+	private ?string $accountPrim = null;
 
 
 	/**

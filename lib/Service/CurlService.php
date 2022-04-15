@@ -68,14 +68,11 @@ class CurlService {
 	const USER_AGENT = 'Nextcloud Social';
 
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var FediverseService */
-	private $fediverseService;
+	private FediverseService $fediverseService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

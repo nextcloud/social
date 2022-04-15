@@ -47,29 +47,21 @@ class LinkedDataSignature implements JsonSerializable {
 
 	use TArrayTools;
 
-	/** @var string */
-	private $type = '';
+	private string $type = '';
 
-	/** @var string */
-	private $creator = '';
+	private string $creator = '';
 
-	/** @var string */
-	private $created = '';
+	private string $created = '';
 
-	/** @var string */
-	private $nonce = '';
+	private string $nonce = '';
 
-	/** @var string */
-	private $signatureValue = '';
+	private string $signatureValue = '';
 
-	/** @var string */
-	private $privateKey = '';
+	private string $privateKey = '';
 
-	/** @var string */
-	private $publicKey = '';
+	private string $publicKey = '';
 
-	/** @var array */
-	private $object = [];
+	private array $object = [];
 
 
 	/**

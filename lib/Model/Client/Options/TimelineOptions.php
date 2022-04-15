@@ -47,32 +47,23 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	use TArrayTools;
 
 
-	/** @var string */
-	private $timeline = '';
+	private string $timeline = '';
 
-	/** @var bool */
-	private $local = false;
+	private bool $local = false;
 
-	/** @var bool */
-	private $remote = false;
+	private bool $remote = false;
 
-	/** @var bool */
-	private $onlyMedia = false;
+	private bool $onlyMedia = false;
 
-	/** @var int */
-	private $minId = 0;
+	private int $minId = 0;
 
-	/** @var int */
-	private $maxId = 0;
+	private int $maxId = 0;
 
-	/** @var int */
-	private $sinceId = 0;
+	private int $sinceId = 0;
 
-	/** @var int */
-	private $limit = 20;
+	private int $limit = 20;
 
-	/** @var bool */
-	private $inverted = false;
+	private bool $inverted = false;
 
 
 	/**

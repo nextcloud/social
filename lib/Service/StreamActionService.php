@@ -43,11 +43,9 @@ use OCA\Social\Model\StreamAction;
 class StreamActionService {
 
 
-	/** @var StreamActionsRequest */
-	private $streamActionsRequest;
+	private StreamActionsRequest $streamActionsRequest;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

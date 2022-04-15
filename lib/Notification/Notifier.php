@@ -49,20 +49,15 @@ use OCP\Notification\INotifier;
 class Notifier implements INotifier {
 
 
-	/** @var IL10N */
-	private $l10n;
+	private IL10N $l10n;
 
-	/** @var IFactory */
-	protected $factory;
+	protected IFactory $factory;
 
-	/** @var IManager */
-	protected $contactsManager;
+	protected IManager $contactsManager;
 
-	/** @var IURLGenerator */
-	protected $url;
+	protected IURLGenerator $url;
 
-	/** @var ICloudIdManager */
-	protected $cloudIdManager;
+	protected ICloudIdManager $cloudIdManager;
 
 
 	public function __construct(

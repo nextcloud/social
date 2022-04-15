@@ -64,44 +64,31 @@ class CheckService {
 
 	const CACHE_PREFIX = 'social_check_';
 
-	/** @var IUserManager */
-	private $userManager;
+	private IUserManager $userManager;
 
-	/** @var ICache */
-	private $cache;
+	private ICache $cache;
 
-	/** @var IConfig */
-	private $config;
+	private IConfig $config;
 
-	/** @var IClientService */
-	private $clientService;
+	private IClientService $clientService;
 
-	/** @var IRequest */
-	private $request;
+	private IRequest $request;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IURLGenerator $urlGenerator;
 
-	/** @var FollowsRequest */
-	private $followRequest;
+	private FollowsRequest $followRequest;
 
-	/** @var CacheActorsRequest */
-	private $cacheActorsRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 
-	/** @var StreamDestRequest */
-	private $streamDestRequest;
+	private StreamDestRequest $streamDestRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

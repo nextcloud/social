@@ -45,11 +45,9 @@ use OCP\AppFramework\QueryException;
  */
 class Chunk extends TimedJob {
 
-	/** @var ConfigService */
-	private $configService;
+	private ?ConfigService $configService = null;
 
-	/** @var MiscService */
-	private $miscService;
+	private ?MiscService $miscService = null;
 
 
 	/**

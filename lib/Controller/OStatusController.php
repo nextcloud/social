@@ -58,22 +58,16 @@ class OStatusController extends Controller {
 	use TArrayTools;
 
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
-	/** @var IUserManager */
-	private $userSession;
-	/** @var IInitialStateService */
-	private $initialStateService;
+	private IUserManager $userSession;
+	private IInitialStateService $initialStateService;
 
 
 	/**

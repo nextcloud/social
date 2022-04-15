@@ -72,45 +72,32 @@ class LocalController extends Controller {
 	use TNCDataResponse;
 
 
-	/** @var string */
-	private $userId;
+	private string $userId;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var HashtagService */
-	private $hashtagService;
+	private HashtagService $hashtagService;
 
-	/** @var FollowService */
-	private $followService;
+	private FollowService $followService;
 
-	/** @var BoostService */
-	private $boostService;
+	private BoostService $boostService;
 
-	/** @var LikeService */
-	private $likeService;
+	private LikeService $likeService;
 
-	/** @var PostService */
-	private $postService;
+	private PostService $postService;
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var SearchService */
-	private $searchService;
+	private SearchService $searchService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var DocumentService */
-	private $documentService;
+	private DocumentService $documentService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var Person */
-	private $viewer;
+	private ?Person $viewer = null;
 
 
 	/**

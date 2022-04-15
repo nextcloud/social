@@ -51,20 +51,15 @@ use OCP\IUserManager;
 class ContactsMenuProvider implements IProvider {
 
 
-	/** @var IActionFactory */
-	private $actionFactory;
+	private IActionFactory $actionFactory;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IURLGenerator $urlGenerator;
 
-	/** @var IUserManager */
-	private $userManager;
+	private IUserManager $userManager;
 
-	/** @var IL10N */
-	private $l10n;
+	private IL10N $l10n;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
 
 	/**

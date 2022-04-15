@@ -44,11 +44,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class ExtendedBase extends Base {
 
-	/** @var OutputInterface */
-	protected $output;
+	protected ?OutputInterface $output = null;
 
-	/** @var bool */
-	protected $asJson = false;
+	protected bool $asJson = false;
 
 
 	/**

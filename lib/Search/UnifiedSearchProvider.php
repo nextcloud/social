@@ -66,36 +66,26 @@ class UnifiedSearchProvider implements IProvider {
 	use TNC20Logger;
 
 
-	/** @var IL10N */
-	private $l10n;
+	private IL10N $l10n;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IURLGenerator $urlGenerator;
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var FollowService */
-	private $followService;
+	private FollowService $followService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var SearchService */
-	private $searchService;
+	private SearchService $searchService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var Person */
-	private $viewer;
+	private ?Person $viewer = null;
 
 
 	/**

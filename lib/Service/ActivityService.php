@@ -76,33 +76,24 @@ class ActivityService {
 	const TIMEOUT_SERVICE = 30;
 
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var FollowsRequest */
-	private $followsRequest;
+	private FollowsRequest $followsRequest;
 
-	/** @var SignatureService */
-	private $signatureService;
+	private SignatureService $signatureService;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
+	private RequestQueueService $requestQueueService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var array */
-	private $failInstances;
+	private ?array $failInstances = null;
 
 
 	/**

@@ -44,17 +44,13 @@ use OCA\Social\Model\StreamDetails;
  */
 class DetailsService {
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var FollowService */
-	private $followService;
+	private FollowService $followService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
 
 	/**

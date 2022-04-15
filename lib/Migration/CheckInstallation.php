@@ -44,8 +44,7 @@ use OCP\Migration\IRepairStep;
 class CheckInstallation implements IRepairStep {
 
 
-	/** @var CheckService */
-	protected $checkService;
+	protected CheckService $checkService;
 
 
 	/**

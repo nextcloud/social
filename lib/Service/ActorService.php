@@ -52,20 +52,15 @@ class ActorService {
 	use TArrayTools;
 
 
-	/** @var CacheActorsRequest */
-	private $cacheActorsRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 
-	/** @var CacheDocumentsRequest */
-	private $cacheDocumentsRequest;
+	private CacheDocumentsRequest $cacheDocumentsRequest;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

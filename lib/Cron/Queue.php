@@ -49,17 +49,13 @@ use OCP\AppFramework\QueryException;
 class Queue extends TimedJob {
 
 
-	/** @var ActivityService */
-	private $activityService;
+	private ?ActivityService $activityService = null;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
+	private ?RequestQueueService $requestQueueService = null;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private ?StreamQueueService $streamQueueService = null;
 
-	/** @var MiscService */
-	private $miscService;
+	private ?MiscService $miscService = null;
 
 
 	/**

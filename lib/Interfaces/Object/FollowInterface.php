@@ -71,23 +71,17 @@ use OCA\Social\Service\MiscService;
 class FollowInterface implements IActivityPubInterface {
 
 
-	/** @var FollowsRequest */
-	private $followsRequest;
+	private FollowsRequest $followsRequest;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private ActivityService $activityService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

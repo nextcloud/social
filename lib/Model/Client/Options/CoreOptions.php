@@ -42,8 +42,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 class CoreOptions {
 
 
-	/** @var int */
-	private $format = ACore::FORMAT_ACTIVITYPUB;
+	private int $format = ACore::FORMAT_ACTIVITYPUB;
 
 
 	/**

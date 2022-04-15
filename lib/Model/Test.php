@@ -51,17 +51,13 @@ class Test extends SimpleDataStore implements JsonSerializable {
 	const SEVERITY_MANDATORY = 'mandatory';
 
 
-	/** @var string */
-	private $name;
+	private string $name;
 
-	/** @var string */
-	private $severity;
+	private string $severity;
 
-	/** @var bool */
-	private $success = false;
+	private bool $success = false;
 
-	/** @var array */
-	private $messages = [];
+	private array $messages = [];
 
 
 	/**

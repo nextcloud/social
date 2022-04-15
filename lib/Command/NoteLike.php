@@ -51,17 +51,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 class NoteLike extends Base {
 
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var LikeService */
-	private $likeService;
+	private LikeService $likeService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

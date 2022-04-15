@@ -39,8 +39,7 @@ namespace OCA\Social\Db;
 class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 
 
-	/** @var int */
-	private $format = 1;
+	private int $format = 1;
 
 
 	/**

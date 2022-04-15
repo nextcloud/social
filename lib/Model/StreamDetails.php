@@ -48,20 +48,17 @@ class StreamDetails implements JsonSerializable {
 	use TArrayTools;
 
 
-	/** @var Stream */
-	private $stream;
+	private Stream $stream;
 
 	/** @var Person[] */
-	private $homeViewers = [];
+	private array $homeViewers = [];
 
 	/** @var Person[] */
-	private $directViewers = [];
+	private array $directViewers = [];
 
-	/** @var bool */
-	private $public = false;
+	private bool $public = false;
 
-	/** @var bool */
-	private $federated = false;
+	private bool $federated = false;
 
 
 	/**

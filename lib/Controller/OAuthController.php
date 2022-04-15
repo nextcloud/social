@@ -58,29 +58,21 @@ class OAuthController extends Controller {
 	use TNCDataResponse;
 
 
-	/** @var IUserSession */
-	private $userSession;
+	private IUserSession $userSession;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IURLGenerator $urlGenerator;
 
-	/** @var InstanceService */
-	private $instanceService;
+	private InstanceService $instanceService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var ClientService */
-	private $clientService;
+	private ClientService $clientService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

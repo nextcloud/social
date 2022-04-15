@@ -47,14 +47,11 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 	const TYPE = 'Follow';
 
 
-	/** @var string */
-	private $followId = '';
+	private string $followId = '';
 
-	/** @var string */
-	private $followIdPrim = '';
+	private string $followIdPrim = '';
 
-	/** @var bool */
-	private $accepted = false;
+	private bool $accepted = false;
 
 
 	/**

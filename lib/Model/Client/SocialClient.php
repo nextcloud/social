@@ -49,50 +49,33 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	use TArrayTools;
 
 
-	/** @var int */
-	private $id = 0;
+	private int $id = 0;
 
-	/** @var string */
-	private $appName = '';
+	private string $appName = '';
 
-	/** @var string */
-	private $appWebsite = '';
+	private string $appWebsite = '';
 
-	/** @var array */
-	private $appRedirectUris = [];
+	private array $appRedirectUris = [];
 
-	/** @var string */
-	private $appClientId = '';
+	private string $appClientId = '';
 
-	/** @var string */
-	private $appClientSecret = '';
+	private string $appClientSecret = '';
 
-	/** @var array */
-	private $appScopes = [];
+	private array $appScopes = [];
 
-	/** @var array */
-	private $authScopes = [];
+	private array $authScopes = [];
 
-	/** @var string */
-	private $authAccount = '';
+	private string $authAccount = '';
 
-	/** @var string */
-	private $authUserId = '';
+	private string $authUserId = '';
 
-	/** @var string */
-	private $authCode = '';
+	private string $authCode = '';
 
-//	/** @var string */
-//	private $authRedirectUri = '';
+private int $lastUpdate = -1;
 
-	/** @var int */
-	private $lastUpdate = -1;
+	private string $token = '';
 
-	/** @var string */
-	private $token = '';
-
-	/** @var int */
-	private $creation = -1;
+	private int $creation = -1;
 
 //	/** @var array */
 //	private $tokenScopes = [];

@@ -47,17 +47,13 @@ use Symfony\Component\Console\Question\Question;
 class Reset extends Base {
 
 
-	/** @var CoreRequestBuilder */
-	private $coreRequestBuilder;
+	private CoreRequestBuilder $coreRequestBuilder;
 
-	/** @var CheckService */
-	private $checkService;
+	private CheckService $checkService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

@@ -61,17 +61,13 @@ use OCA\Social\Service\MiscService;
  */
 class LikeInterface implements IActivityPubInterface {
 
-	/** @var ActionsRequest */
-	private $actionsRequest;
+	private ActionsRequest $actionsRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

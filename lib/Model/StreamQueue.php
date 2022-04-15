@@ -56,26 +56,19 @@ class StreamQueue implements JsonSerializable {
 	const STATUS_SUCCESS = 9;
 
 
-	/** @var integer */
-	private $id = 0;
+	private int $id = 0;
 
-	/** @var string */
-	private $token = '';
+	private string $token = '';
 
-	/** @var string */
-	private $streamId = '';
+	private string $streamId = '';
 
-	/** @var string */
-	private $type = '';
+	private string $type = '';
 
-	/** @var int */
-	private $status = 0;
+	private int $status = 0;
 
-	/** @var int */
-	private $tries = 0;
+	private int $tries = 0;
 
-	/** @var int */
-	private $last = 0;
+	private int $last = 0;
 
 
 	/**

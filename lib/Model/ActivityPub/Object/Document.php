@@ -50,29 +50,21 @@ class Document extends ACore implements JsonSerializable {
 	const TYPE = 'Document';
 
 
-	/** @var string */
-	private $mediaType = '';
+	private string $mediaType = '';
 
-	/** @var string */
-	private $mimeType = '';
+	private string $mimeType = '';
 
-	/** @var string */
-	private $localCopy = '';
+	private string $localCopy = '';
 
-	/** @var string */
-	private $resizedCopy = '';
+	private string $resizedCopy = '';
 
-	/** @var int */
-	private $caching = 0;
+	private int $caching = 0;
 
-	/** @var bool */
-	private $public = false;
+	private bool $public = false;
 
-	/** @var int */
-	private $error = 0;
+	private int $error = 0;
 
-	/** @var string */
-	private $parentId = '';
+	private string $parentId = '';
 
 	/**
 	 * Document constructor.

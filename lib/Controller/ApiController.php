@@ -67,42 +67,30 @@ class ApiController extends Controller {
 	use TNCDataResponse;
 
 
-	/** @var IUserSession */
-	private $userSession;
+	private IUserSession $userSession;
 
-	/** @var InstanceService */
-	private $instanceService;
+	private InstanceService $instanceService;
 
-	/** @var ClientService */
-	private $clientService;
+	private ClientService $clientService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var FollowService */
-	private $followService;
+	private FollowService $followService;
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var string */
-	private $bearer = '';
+	private string $bearer = '';
 
-	/** @var SocialClient */
-	private $client;
+	private ?SocialClient $client = null;
 
-	/** @var Person */
-	private $viewer;
+	private ?Person $viewer = null;
 
 
 	/**

@@ -1,13 +1,14 @@
 <?php
 namespace OCA\Social\Tests;
 
+use PHPUnit\Framework\TestCase;
 use OCA\Social\Controller\NavigationController;
 use OCA\Social\Controller\SocialPubController;
 use OCA\Social\Service\CacheActorService;
 use OCP\IL10N;
 use OCP\IRequest;
 
-class SocialTest extends \PHPUnit\Framework\TestCase {
+class SocialTest extends TestCase {
 
 	public function testDummy() {
 		/**

@@ -55,17 +55,13 @@ class SearchService {
 	const SEARCH_ALL = 7;
 
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var HashtagService */
-	private $hashtagService;
+	private HashtagService $hashtagService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

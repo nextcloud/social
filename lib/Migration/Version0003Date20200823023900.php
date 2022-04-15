@@ -49,8 +49,7 @@ use OCP\Migration\SimpleMigrationStep;
 class Version0003Date20200823023900 extends SimpleMigrationStep {
 
 
-	/** @var IDBConnection */
-	private $connection;
+	private IDBConnection $connection;
 
 
 	/**

@@ -41,86 +41,60 @@ class Item {
 	use TArrayTools;
 
 
-	/** @var string */
-	private $urlSocial = '';
+	private string $urlSocial = '';
 
-	/** @var string */
-	private $urlCloud = '';
+	private string $urlCloud = '';
 
-	/** @var string */
-	private $address = '';
+	private string $address = '';
 
-	/** @var string */
-	private $id = '';
+	private string $id = '';
 
-	/** @var int */
-	private $nid = 0;
+	private int $nid = 0;
 
-	/** @var string */
-	private $type = '';
+	private string $type = '';
 
-	/** @var string */
-	private $subType = '';
+	private string $subType = '';
 
-	/** @var string */
-	private $url = '';
+	private string $url = '';
 
-	/** @var string */
-	private $attributedTo = '';
+	private string $attributedTo = '';
 
-	/** @var string */
-	private $summary = '';
+	private string $summary = '';
 
 	/** @var InstancePath[] */
-	private $instancePaths = [];
+	private array $instancePaths = [];
 
-	/** @var string */
-	private $to = '';
+	private string $to = '';
 
-	/** @var array */
-	private $toArray = [];
+	private array $toArray = [];
 
-	/** @var array */
-	private $cc = [];
+	private array $cc = [];
 
-	/** @var array */
-	private $bcc = [];
+	private array $bcc = [];
 
-	/** @var string */
-	private $published = '';
+	private string $published = '';
 
-	/** @var array */
-	private $tags = [];
+	private array $tags = [];
 
-	/** @var Person */
-	private $actor = null;
+	private ?Person $actor = null;
 
-	/** @var string */
-	private $actorId = '';
+	private string $actorId = '';
 
-	/** @var string */
-	private $iconId = '';
+	private string $iconId = '';
 
-	/** @var string */
-	private $objectId = '';
+	private string $objectId = '';
 
-	/** @var bool */
-	private $completeDetails = false;
+	private bool $completeDetails = false;
 
-	/** @var string */
-	private $source = '';
+	private string $source = '';
 
-	/** @var bool */
-	private $local = false;
+	private bool $local = false;
 
-	/** @var string */
-	private $origin = '';
+	private string $origin = '';
 
-	/** @var int */
-	private $originSource = 0;
+	private int $originSource = 0;
 
-	/** @var int */
-	private $originCreationTime = 0;
+	private int $originCreationTime = 0;
 
 
 	/**

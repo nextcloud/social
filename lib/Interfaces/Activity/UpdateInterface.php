@@ -42,8 +42,7 @@ use OCA\Social\Service\MiscService;
 class UpdateInterface implements IActivityPubInterface {
 
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**

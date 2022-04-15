@@ -62,23 +62,17 @@ use OCA\Social\Model\StreamQueue;
 class StreamQueueService {
 
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var StreamQueueRequest */
-	private $streamQueueRequest;
+	private StreamQueueRequest $streamQueueRequest;
 
-	/** @var ImportService */
-	private $importService;
+	private ImportService $importService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
