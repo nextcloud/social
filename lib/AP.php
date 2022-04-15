@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 
 namespace OCA\Social;
-
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OC;
@@ -85,19 +85,16 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\QueryException;
 
-
 /**
  * Class AP
  *
  * @package OCA\Social
  */
 class AP {
-
-
 	use TArrayTools;
 
 
-	const REDUNDANCY_LIMIT = 10;
+	public const REDUNDANCY_LIMIT = 10;
 
 
 	/** @var AcceptInterface */
@@ -304,7 +301,6 @@ class AP {
 	 * @throws SocialAppConfigException
 	 */
 	public function getItemFromType(string $type): ACore {
-
 		switch ($type) {
 			case Accept::TYPE:
 				$item = new Accept();
@@ -525,9 +521,7 @@ class AP {
 
 		return (in_array($item->getType(), $types));
 	}
-
 }
 
 
 AP::init();
-

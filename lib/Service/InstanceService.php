@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,27 +31,21 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\InstancesRequest;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
 
-
 class InstanceService {
-
-
 	use TArrayTools;
 
 
 	private $instancesRequest;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	public function __construct(
@@ -66,7 +61,6 @@ class InstanceService {
 	 *
 	 */
 	public function createLocal(): void {
-
 	}
 
 	/**
@@ -85,6 +79,4 @@ class InstanceService {
 
 		return $this->instancesRequest->getLocal($format);
 	}
-
 }
-

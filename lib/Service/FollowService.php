@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\AP;
@@ -57,29 +57,21 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\InstancePath;
 
 class FollowService {
-
-
 	use TArrayTools;
 
 
-	/** @var FollowsRequest */
-	private $followsRequest;
+	private FollowsRequest $followsRequest;
 
-	/** @var ActivityService */
-	private $activityService;
+	private ActivityService $activityService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var Person */
-	private $viewer = null;
+	private ?Person $viewer = null;
 
 
 	/**
@@ -212,9 +204,8 @@ class FollowService {
 	 * @return array
 	 */
 	public function getLinksBetweenPersons(Person $local, Person $actor): array {
-
 		$links = [
-			'follower'  => false,
+			'follower' => false,
 			'following' => false
 		];
 
@@ -292,6 +283,4 @@ class FollowService {
 	public function getFollowersFromFollowId(string $recipient): array {
 		return $this->followsRequest->getFollowersByFollowId($recipient);
 	}
-
 }
-

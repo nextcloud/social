@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
 use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
@@ -55,25 +55,17 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 
 class PostService {
+	private StreamService $streamService;
 
+	private AccountService $accountService;
 
-	/** @var StreamService */
-	private $streamService;
+	private ActivityService $activityService;
 
-	/** @var AccountService */
-	private $accountService;
+	private CacheDocumentService $cacheDocumentService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private ConfigService $configService;
 
-	/** @var CacheDocumentService */
-	private $cacheDocumentService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -210,8 +202,5 @@ class PostService {
 		foreach ($matchesHash[1] as $hash) {
 			$post->addHashtag($hash);
 		}
-
 	}
-
 }
-

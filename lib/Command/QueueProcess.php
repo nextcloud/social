@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use OC\Core\Command\Base;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
@@ -41,24 +41,16 @@ use OCA\Social\Service\StreamQueueService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 class QueueProcess extends Base {
+	private ActivityService $activityService;
 
+	private StreamQueueService $streamQueueService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private RequestQueueService $requestQueueService;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private ConfigService $configService;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -100,7 +92,6 @@ class QueueProcess extends Base {
 	 * @param OutputInterface $output
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$output->writeLn('processing requests queue');
 		$this->processRequestQueue($output);
 
@@ -161,5 +152,4 @@ class QueueProcess extends Base {
 
 		$output->writeLn('done');
 	}
-
 }

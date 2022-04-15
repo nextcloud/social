@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use Exception;
 use OCA\Social\AP;
@@ -38,7 +38,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
-use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
@@ -47,6 +47,7 @@ use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
 use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
 use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -59,72 +60,33 @@ use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-
 
 /**
  * Class FollowInterface
  *
  * @package OCA\Social\Interfaces\Object
  */
-class FollowInterface implements IActivityPubInterface {
+class FollowInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	private FollowsRequest $followsRequest;
+	private CacheActorService $cacheActorService;
+	private AccountService $accountService;
+	private ActivityService $activityService;
+	private MiscService $miscService;
 
-
-	/** @var FollowsRequest */
-	private $followsRequest;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var ActivityService */
-	private $activityService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * NoteInterface constructor.
-	 *
-	 * @param FollowsRequest $followsRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param AccountService $accountService
-	 * @param ActivityService $activityService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
-		ConfigService $configService, MiscService $miscService
+		 MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
-		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param Follow $follow
-	 */
-	public function confirmFollowRequest(Follow $follow) {
+	public function confirmFollowRequest(Follow $follow): void {
 		try {
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
@@ -153,14 +115,11 @@ class FollowInterface implements IActivityPubInterface {
 				2
 			);
 		}
-
 	}
 
 
 	/**
 	 * This method is called when saving the Follow object
-	 *
-	 * @param ACore $follow
 	 *
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
@@ -175,8 +134,9 @@ class FollowInterface implements IActivityPubInterface {
 	 * @throws RequestResultNotJsonException
 	 * @throws Exception
 	 */
-	public function processIncomingRequest(ACore $follow) {
+	public function processIncomingRequest(ACore $item): void {
 		/** @var Follow $follow */
+		$follow = $item;
 		$follow->checkOrigin($follow->getActorId());
 
 		try {
@@ -195,31 +155,7 @@ class FollowInterface implements IActivityPubInterface {
 				$this->confirmFollowRequest($follow);
 			}
 		}
-
 	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItem(ACore $item): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param string $id
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
-	}
-
 
 	/**
 	 * @param ACore $activity
@@ -227,7 +163,7 @@ class FollowInterface implements IActivityPubInterface {
 	 *
 	 * @throws InvalidOriginException
 	 */
-	public function activity(Acore $activity, ACore $item) {
+	public function activity(Acore $activity, ACore $item): void {
 		/** @var Follow $item */
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($item->getId());
@@ -246,43 +182,10 @@ class FollowInterface implements IActivityPubInterface {
 		}
 	}
 
-
 	/**
-	 * @param ACore $item
+	 * @throws SocialAppConfigException|ItemAlreadyExistsException|ItemUnknownException
 	 */
-	public function save(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
-	}
-
-
-	/**
-	 * @param Follow $follow
-	 *
-	 * @throws ItemUnknownException
-	 * @throws SocialAppConfigException
-	 */
-	private function generateNotification(Follow $follow) {
+	private function generateNotification(Follow $follow): void {
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface =
 			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
@@ -308,6 +211,4 @@ class FollowInterface implements IActivityPubInterface {
 
 		$notificationInterface->save($notification);
 	}
-
 }
-

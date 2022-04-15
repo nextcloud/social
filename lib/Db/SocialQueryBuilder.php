@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,17 +31,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 /**
  * Class SocialQueryBuilder
  *
  * @package OCA\Social\Db
  */
 class SocialQueryBuilder extends SocialFiltersQueryBuilder {
-
-
-	/** @var int */
-	private $format = 1;
+	private int $format = 1;
 
 
 	/**
@@ -102,7 +99,4 @@ class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 		$dbConn = $this->getConnection();
 		$this->searchInDBField('account', $dbConn->escapeLikeParameter($account) . '%');
 	}
-
-
 }
-

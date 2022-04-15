@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use JsonSerializable;
-
 
 /**
  * Class StreamAction
@@ -42,183 +41,96 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class StreamAction implements JsonSerializable {
-
-
 	use TArrayTools;
 	use TStringTools;
 
 
-	const LIKED = 'liked';
-	const BOOSTED = 'boosted';
-	const REPLIED = 'replied';
+	public const LIKED = 'liked';
+	public const BOOSTED = 'boosted';
+	public const REPLIED = 'replied';
 
-
-	/** @var integer */
-	private $id = 0;
-
-	/** @var string */
-	private $actorId = '';
-
-	/** @var string */
-	private $streamId = '';
-
-	/** @var array */
-	private $values = [];
+	private int $id = 0;
+	private string $actorId = '';
+	private string $streamId = '';
+	private array $values = [];
 
 
 	/**
 	 * StreamAction constructor.
-	 *
-	 * @param string $actorId
-	 * @param string $streamId
 	 */
 	public function __construct(string $actorId = '', string $streamId = '') {
 		$this->actorId = $actorId;
 		$this->streamId = $streamId;
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getId(): int {
 		return $this->id;
 	}
 
-	/**
-	 * @param int $id
-	 *
-	 * @return StreamAction
-	 */
 	public function setId(int $id): StreamAction {
 		$this->id = $id;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getActorId(): string {
 		return $this->actorId;
 	}
 
-	/**
-	 * @param string $actorId
-	 *
-	 * @return StreamAction
-	 */
 	public function setActorId(string $actorId): StreamAction {
 		$this->actorId = $actorId;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getStreamId(): string {
 		return $this->streamId;
 	}
 
-	/**
-	 * @param string $streamId
-	 *
-	 * @return StreamAction
-	 */
 	public function setStreamId(string $streamId): StreamAction {
 		$this->streamId = $streamId;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param string $key
-	 * @param string $value
-	 */
-	public function updateValue(string $key, string $value) {
+	public function updateValue(string $key, string $value): void {
 		$this->values[$key] = $value;
 	}
 
-	/**
-	 * @param string $key
-	 * @param int $value
-	 */
-	public function updateValueInt(string $key, int $value) {
+	public function updateValueInt(string $key, int $value): void {
 		$this->values[$key] = $value;
 	}
 
-	/**
-	 * @param string $key
-	 * @param bool $value
-	 */
-	public function updateValueBool(string $key, bool $value) {
+	public function updateValueBool(string $key, bool $value): void {
 		$this->values[$key] = $value;
 	}
 
-	/**
-	 * @param string $key
-	 *
-	 * @return bool
-	 */
 	public function hasValue(string $key): bool {
 		return (array_key_exists($key, $this->values));
 	}
 
-	/**
-	 * @param string $key
-	 *
-	 * @return string
-	 */
 	public function getValue(string $key): string {
 		return $this->values[$key];
 	}
 
-	/**
-	 * @param string $key
-	 *
-	 * @return int
-	 */
 	public function getValueInt(string $key): int {
 		return $this->values[$key];
 	}
 
-	/**
-	 * @param string $key
-	 *
-	 * @return bool
-	 */
 	public function getValueBool(string $key): bool {
 		return $this->values[$key];
 	}
 
-	/**
-	 * @return array
-	 */
 	public function getValues(): array {
 		return $this->values;
 	}
 
-	/**
-	 * @param array $values
-	 *
-	 * @return StreamAction
-	 */
 	public function setValues(array $values): StreamAction {
 		$this->values = $values;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param array $default
-	 *
-	 * @return StreamAction
-	 */
 	public function setDefaultValues(array $default): StreamAction {
 		$keys = array_keys($default);
 		foreach ($keys as $k) {
@@ -230,29 +142,19 @@ class StreamAction implements JsonSerializable {
 		return $this;
 	}
 
-
-	/**
-	 * @param array $data
-	 */
-	public function importFromDatabase(array $data) {
+	public function importFromDatabase(array $data): void {
 		$this->setId($this->getInt('id', $data, 0));
 		$this->setActorId($this->get('actor_id', $data, ''));
 		$this->setStreamId($this->get('stream_id', $data, ''));
 		$this->setValues($this->getArray('values', $data, []));
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'       => $this->getId(),
-			'actorId'  => $this->getActorId(),
+			'id' => $this->getId(),
+			'actorId' => $this->getActorId(),
 			'streamId' => $this->getStreamId(),
-			'values'   => $this->getValues(),
+			'values' => $this->getValues(),
 		];
 	}
-
 }
-

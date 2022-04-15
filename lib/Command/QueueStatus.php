@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -39,18 +40,12 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 class QueueStatus extends Base {
+	private ConfigService $configService;
 
+	private RequestQueueService $requestQueueService;
 
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var RequestQueueService */
-	private $requestQueueService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -91,7 +86,6 @@ class QueueStatus extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$token = $input->getOption('token');
 
 		if ($token === null) {
@@ -103,8 +97,5 @@ class QueueStatus extends Base {
 		foreach ($requests as $request) {
 			$output->writeLn(json_encode($request));
 		}
-
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
@@ -42,19 +42,14 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 
-
 class ImportService {
-
-
 	use TArrayTools;
 	use TStringTools;
 
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -108,7 +103,4 @@ class ImportService {
 			);
 		}
 	}
-
-
 }
-

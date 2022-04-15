@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use OC\Core\Command\Base;
 use OCA\Social\AP;
@@ -41,20 +41,11 @@ use OCA\Social\Model\ActivityPub\Stream;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 class ExtendedBase extends Base {
+	protected ?OutputInterface $output = null;
+	protected bool $asJson = false;
 
-	/** @var OutputInterface */
-	protected $output;
-
-	/** @var bool */
-	protected $asJson = false;
-
-
-	/**
-	 * @param Person $actor
-	 */
-	protected function outputActor(Person $actor) {
+	protected function outputActor(Person $actor): void {
 		if ($this->asJson) {
 			$this->output->writeln(json_encode($actor, JSON_PRETTY_PRINT));
 		}
@@ -62,7 +53,6 @@ class ExtendedBase extends Base {
 		$this->output->writeln('<info>Account</info>: ' . $actor->getAccount());
 		$this->output->writeln('<info>Id</info>: ' . $actor->getId());
 		$this->output->writeln('');
-
 	}
 
 
@@ -130,5 +120,4 @@ class ExtendedBase extends Base {
 		);
 		$this->output->writeln('type: <info>' . $stream->getType() . '</info>');
 	}
-
 }

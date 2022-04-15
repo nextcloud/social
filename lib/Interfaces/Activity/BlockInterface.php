@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,36 +31,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
-
 use OCA\Social\AP;
-use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Service\MiscService;
 
-
-class BlockInterface implements IActivityPubInterface {
-
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * BlockService constructor.
-	 *
-	 * @param MiscService $miscService
-	 */
-	public function __construct(MiscService $miscService) {
-		$this->miscService = $miscService;
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processIncomingRequest(ACore $item) {
+class BlockInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	public function processIncomingRequest(ACore $item): void {
 		if (!$item->hasObject()) {
 			return;
 		}
@@ -71,71 +49,4 @@ class BlockInterface implements IActivityPubInterface {
 		} catch (ItemUnknownException $e) {
 		}
 	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItem(ACore $item): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param string $id
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function save(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
-	}
-
-
-	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 */
-	public function activity(ACore $activity, ACore $item) {
-	}
 }
-

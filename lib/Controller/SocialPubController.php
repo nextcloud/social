@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
@@ -39,7 +39,6 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -53,54 +52,25 @@ use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 
-
 /**
  * Class SocialPubController
  *
  * @package OCA\Social\Controller
  */
 class SocialPubController extends Controller {
-
-
 	use TNCDataResponse;
 
+	private ?string $userId = null;
+	private IL10N $l10n;
+	private NavigationController $navigationController;
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private StreamService $streamService;
+	private ConfigService $configService;
+	private IInitialStateService $initialStateService;
 
-	/** @var string */
-	private $userId;
-
-	/** @var IL10N */
-	private $l10n;
-
-	/** @var NavigationController */
-	private $navigationController;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var ConfigService */
-	private $configService;
-
-
-	/**
-	 * SocialPubController constructor.
-	 *
-	 * @param $userId
-	 * @param IRequest $request
-	 * @param IL10N $l10n
-	 * @param NavigationController $navigationController
-	 * @param CacheActorService $cacheActorService
-	 * @param AccountService $accountService
-	 * @param StreamService $streamService
-	 * @param ConfigService $configService
-	 */
 	public function __construct(
-		$userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,
+		?string $userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,
 		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
 		ConfigService $configService
 	) {
@@ -118,13 +88,10 @@ class SocialPubController extends Controller {
 
 
 	/**
-	 * @param $username
-	 *
-	 * @return Response
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
-	private function renderPage($username): Response {
+	private function renderPage(string $username): Response {
 		if ($this->userId) {
 			return $this->navigationController->navigate('');
 		}
@@ -155,15 +122,12 @@ class SocialPubController extends Controller {
 
 
 	/**
-	 * return webpage content for human navigation.
+	 * Return webpage content for human navigation.
 	 * Should return information about a Social account, based on username.
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
-	 * @param string $username
-	 *
-	 * @return Response
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
@@ -173,15 +137,11 @@ class SocialPubController extends Controller {
 
 
 	/**
-	 * return webpage content for human navigation.
+	 * Return webpage content for human navigation.
 	 * Should return followers of a Social account, based on username.
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @param string $username
-	 *
-	 * @return TemplateResponse
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
@@ -191,15 +151,11 @@ class SocialPubController extends Controller {
 
 
 	/**
-	 * return webpage content for human navigation.
+	 * Return webpage content for human navigation.
 	 * Should return following of a Social account, based on username.
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @param string $username
-	 *
-	 * @return TemplateResponse
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
@@ -213,11 +169,6 @@ class SocialPubController extends Controller {
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @param string $username
-	 * @param string $token
-	 *
-	 * @return TemplateResponse
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
@@ -232,17 +183,14 @@ class SocialPubController extends Controller {
 
 		$stream = $this->streamService->getStreamById($postId, true);
 		$data = [
-			'id'          => $postId,
+			'id' => $postId,
 			'application' => 'Social'
 		];
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream );
+		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream);
 		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', [
 			'public' => ($this->userId === null),
 		]);
 		return new TemplateResponse(Application::APP_NAME, 'main', $data);
 	}
-
-
 }
-

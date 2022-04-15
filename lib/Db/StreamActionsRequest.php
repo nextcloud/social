@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\StreamAction;
-
 
 /**
  * Class StreamActionsRequest
@@ -44,11 +43,9 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 
 
 	/**
-	 * create a new Queue in the database.
-	 *
-	 * @param StreamAction $action
+	 * Create a new Queue in the database.
 	 */
-	public function create(StreamAction $action) {
+	public function create(StreamAction $action): void {
 		$qb = $this->getStreamActionInsertSql();
 
 		$values = $action->getValues();
@@ -69,16 +66,12 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		   ->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
 		   ->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
 	/**
-	 * create a new Queue in the database.
-	 *
-	 * @param StreamAction $action
-	 *
-	 * @return int
+	 * Create a new Queue in the database.
 	 */
 	public function update(StreamAction $action): int {
 		$qb = $this->getStreamActionUpdateSql();
@@ -96,15 +89,11 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$this->limitToActorId($qb, $action->getActorId());
 		$this->limitToStreamId($qb, $action->getStreamId());
 
-		return $qb->execute();
+		return $qb->executeStatement();
 	}
 
 
 	/**
-	 * @param string $actorId
-	 * @param string $streamId
-	 *
-	 * @return StreamAction
 	 * @throws StreamActionDoesNotExistException
 	 */
 	public function getAction(string $actorId, string $streamId): StreamAction {
@@ -112,7 +101,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$this->limitToActorId($qb, $actorId);
 		$this->limitToStreamId($qb, $streamId);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		if ($data === false) {
 			throw new StreamActionDoesNotExistException();
@@ -122,17 +111,11 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		return $this->parseStreamActionsSelectSql($data);
 	}
 
-
-	/**
-	 * @param StreamAction $action
-	 */
-	public function delete(StreamAction $action) {
+	public function delete(StreamAction $action): void {
 		$qb = $this->getStreamActionDeleteSql();
 		$this->limitToActorId($qb, $action->getActorId());
 		$this->limitToStreamId($qb, $action->getStreamId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
-
 }
-

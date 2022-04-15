@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-
 
 /**
  * Class HashtagsRequestBuilder
@@ -41,8 +40,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class HashtagsRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -112,9 +109,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	public function parseHashtagsSelectSql(array $data): array {
 		return [
 			'hashtag' => $this->get('hashtag', $data, ''),
-			'trend'   => $this->getArray('trend', $data, [])
+			'trend' => $this->getArray('trend', $data, [])
 		];
 	}
-
 }
-

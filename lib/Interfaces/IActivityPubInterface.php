@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces;
 
-
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Interface ICoreService
@@ -43,51 +42,35 @@ use OCA\Social\Model\ActivityPub\ACore;
  */
 interface IActivityPubInterface {
 
-
 	/**
 	 * Freshly imported item can be processed/parsed on incoming Request.
-	 *
-	 * @param ACore $item
 	 */
-	public function processIncomingRequest(ACore $item);
+	public function processIncomingRequest(ACore $item): void;
 
 
 	/**
 	 * Freshly imported item can be processed/parsed on result of outgoing request.
-	 *
-	 * @param ACore $item
 	 */
-	public function processResult(ACore $item);
+	public function processResult(ACore $item): void;
 
 
 	/**
 	 * When an activity is triggered by an 'Model\ActivityPub\Activity' model.
 	 *
 	 * !! This should be the only way of interaction between 2 IActivityPubInterface !!
-	 *
-	 * @param ACore $activity
-	 * @param ACore $item
 	 */
-	public function activity(ACore $activity, ACore $item);
+	public function activity(ACore $activity, ACore $item): void;
 
 
 	/**
-	 * get Item by its Id.
-	 *
-	 * @param string $id
-	 *
-	 * @return ACore
+	 * Get Item by its Id.
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore;
 
 
 	/**
-	 * get Item when Id is not known.
-	 *
-	 * @param ACore $item
-	 *
-	 * @return ACore
+	 * Get Item when Id is not known.
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore;
@@ -98,10 +81,9 @@ interface IActivityPubInterface {
 	 *
 	 * !! Should not be called from an other IActivityPubInterface !!
 	 *
-	 * @param ACore $item
 	 * @throws ItemAlreadyExistsException
 	 */
-	public function save(ACore $item);
+	public function save(ACore $item): void;
 
 
 	/**
@@ -109,31 +91,23 @@ interface IActivityPubInterface {
 	 *
 	 * !! Should not be called from an other IActivityPubInterface !!
 	 *
-	 * @param ACore $item
 	 * @throws ItemNotFoundException
 	 */
-	public function update(ACore $item);
+	public function update(ACore $item): void;
 
 
 	/**
 	 * Event on the current item.
 	 *
 	 * !! Should not be called from an other IActivityPubInterface !!
-	 *
-	 * @param ACore $item
-	 * @param string $source
 	 */
-	public function event(ACore $item, string $source);
+	public function event(ACore $item, string $source): void;
 
 
 	/**
 	 * Delete the current item.
 	 *
 	 * !! Should not be called from an other IActivityPubInterface !!
-	 *
-	 * @param ACore $item
 	 */
-	public function delete(ACore $item);
-
+	public function delete(ACore $item): void;
 }
-

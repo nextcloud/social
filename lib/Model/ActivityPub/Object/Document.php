@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use DateTime;
 use Exception;
 use JsonSerializable;
@@ -38,41 +38,30 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 
-
 /**
  * Class Document
  *
  * @package OCA\Social\Model\ActivityPub
  */
 class Document extends ACore implements JsonSerializable {
+	public const TYPE = 'Document';
 
 
-	const TYPE = 'Document';
+	private string $mediaType = '';
 
+	private string $mimeType = '';
 
-	/** @var string */
-	private $mediaType = '';
+	private string $localCopy = '';
 
-	/** @var string */
-	private $mimeType = '';
+	private string $resizedCopy = '';
 
-	/** @var string */
-	private $localCopy = '';
+	private int $caching = 0;
 
-	/** @var string */
-	private $resizedCopy = '';
+	private bool $public = false;
 
-	/** @var int */
-	private $caching = 0;
+	private int $error = 0;
 
-	/** @var bool */
-	private $public = false;
-
-	/** @var int */
-	private $error = 0;
-
-	/** @var string */
-	private $parentId = '';
+	private string $parentId = '';
 
 	/**
 	 * Document constructor.
@@ -290,9 +279,9 @@ class Document extends ACore implements JsonSerializable {
 		$result = array_merge(
 			parent::jsonSerialize(),
 			[
-				'mediaType'   => $this->getMediaType(),
-				'mimeType'    => $this->getMimeType(),
-				'localCopy'   => $this->getLocalCopy(),
+				'mediaType' => $this->getMediaType(),
+				'mimeType' => $this->getMimeType(),
+				'localCopy' => $this->getLocalCopy(),
 				'resizedCopy' => $this->getResizedCopy()
 			]
 		);
@@ -303,6 +292,4 @@ class Document extends ACore implements JsonSerializable {
 
 		return $result;
 	}
-
 }
-

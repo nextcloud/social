@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Migration;
 
-
 use Closure;
 use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Types\Type;
@@ -40,17 +40,13 @@ use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
-
 /**
  * Class Version0003Date20200823023911
  *
  * @package OCA\Social\Migration
  */
 class Version0003Date20200823023911 extends SimpleMigrationStep {
-
-
-	/** @var IDBConnection */
-	private $connection;
+	private IDBConnection $connection;
 
 
 	/**
@@ -137,7 +133,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$table->addColumn(
 			'nid', 'bigint',
 			[
-				'length'   => 11,
+				'length' => 11,
 				'unsigned' => true,
 				'notnull' => false,
 			]
@@ -162,9 +158,9 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$table->addColumn(
 			'nid', 'bigint',
 			[
-				'autoincrement'       => true,
-				'length'              => 11,
-				'unsigned'            => true,
+				'autoincrement' => true,
+				'length' => 11,
+				'unsigned' => true,
 				'customSchemaOptions' => [
 					'unique' => true
 				]
@@ -188,16 +184,16 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'id', 'integer',
 			[
 				'autoincrement' => true,
-				'notnull'       => true,
-				'length'        => 7,
-				'unsigned'      => true,
+				'notnull' => true,
+				'length' => 7,
+				'unsigned' => true,
 			]
 		);
 		$table->addColumn(
 			'app_name', 'string',
 			[
 				'notnull' => false,
-				'length'  => 127,
+				'length' => 127,
 				'default' => ''
 			]
 		);
@@ -205,7 +201,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'app_website', 'string',
 			[
 				'notnull' => false,
-				'length'  => 255,
+				'length' => 255,
 				'default' => ''
 			]
 		);
@@ -220,7 +216,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'app_client_id', 'string',
 			[
 				'notnull' => false,
-				'length'  => 63,
+				'length' => 63,
 				'default' => ''
 			]
 		);
@@ -228,7 +224,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'app_client_secret', 'string',
 			[
 				'notnull' => false,
-				'length'  => 63,
+				'length' => 63,
 				'default' => ''
 			]
 		);
@@ -249,7 +245,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'auth_account', 'string',
 			[
 				'notnull' => false,
-				'length'  => 127,
+				'length' => 127,
 				'default' => ''
 			]
 		);
@@ -257,7 +253,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'auth_user_id', 'string',
 			[
 				'notnull' => false,
-				'length'  => 127,
+				'length' => 127,
 				'default' => ''
 			]
 		);
@@ -265,7 +261,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'auth_code', 'string',
 			[
 				'notnull' => false,
-				'length'  => 127,
+				'length' => 127,
 				'default' => ''
 			]
 		);
@@ -273,7 +269,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'token', 'string',
 			[
 				'notnull' => false,
-				'length'  => 127,
+				'length' => 127,
 				'default' => ''
 			]
 		);
@@ -307,9 +303,9 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$table->addColumn(
 			'local', 'smallint',
 			[
-				'notnull'  => false,
-				'length'   => 1,
-				'default'  => 0,
+				'notnull' => false,
+				'length' => 1,
+				'default' => 0,
 				'unsigned' => true
 			]
 		);
@@ -317,14 +313,14 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'uri', 'string',
 			[
 				'notnull' => false,
-				'length'  => 255,
+				'length' => 255,
 			]
 		);
 		$table->addColumn(
 			'title', 'string',
 			[
 				'notnull' => false,
-				'length'  => 255,
+				'length' => 255,
 				'default' => ''
 			]
 		);
@@ -332,7 +328,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'version', 'string',
 			[
 				'notnull' => false,
-				'length'  => 31,
+				'length' => 31,
 				'default' => ''
 			]
 		);
@@ -354,7 +350,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'email', 'string',
 			[
 				'notnull' => false,
-				'length'  => 255,
+				'length' => 255,
 				'default' => ''
 			]
 		);
@@ -383,7 +379,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'image', 'string',
 			[
 				'notnull' => false,
-				'length'  => 255,
+				'length' => 255,
 				'default' => ''
 			]
 		);
@@ -398,7 +394,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'contact', 'string',
 			[
 				'notnull' => false,
-				'length'  => 127,
+				'length' => 127,
 				'default' => ''
 			]
 		);
@@ -406,7 +402,7 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			'account_prim', 'string',
 			[
 				'notnull' => false,
-				'length'  => 128,
+				'length' => 128,
 				'default' => ''
 			]
 		);
@@ -442,8 +438,8 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 		$table->addColumn(
 			'chunk', Type::SMALLINT,
 			[
-				'default'  => 1,
-				'length'   => 1,
+				'default' => 1,
+				'length' => 1,
 				'unsigned' => true
 			]
 		);
@@ -452,6 +448,4 @@ class Version0003Date20200823023911 extends SimpleMigrationStep {
 			$table->addIndex(['chunk'], 'chunk' . $indexName);
 		}
 	}
-
 }
-

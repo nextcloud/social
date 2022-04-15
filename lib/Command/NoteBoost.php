@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
@@ -42,35 +42,17 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 /**
  * Class NoteBoost
  *
  * @package OCA\Social\Command
  */
 class NoteBoost extends Base {
+	private StreamService $streamService;
+	private AccountService $accountService;
+	private BoostService $boostService;
+	private MiscService $miscService;
 
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var BoostService */
-	private $boostService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * NoteBoost constructor.
-	 *
-	 * @param AccountService $accountService
-	 * @param StreamService $streamService
-	 * @param BoostService $boostService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		AccountService $accountService, StreamService $streamService, BoostService $boostService,
 		MiscService $miscService
@@ -110,6 +92,7 @@ class NoteBoost extends Base {
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->streamService->setViewer($actor);
 
+		$token = '';
 		if (!$input->getOption('unboost')) {
 			$activity = $this->boostService->create($actor, $noteId, $token);
 		} else {
@@ -119,6 +102,4 @@ class NoteBoost extends Base {
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";
 	}
-
 }
-

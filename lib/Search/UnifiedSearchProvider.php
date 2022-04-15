@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Search;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -49,53 +49,40 @@ use OCP\Search\IProvider;
 use OCP\Search\ISearchQuery;
 use OCP\Search\SearchResult;
 
-
 /**
  * Class UnifiedSearchProvider
  *
  * @package OCA\Social\Search
  */
 class UnifiedSearchProvider implements IProvider {
-
-
-	const PROVIDER_ID = 'social';
-	const ORDER = 12;
+	public const PROVIDER_ID = 'social';
+	public const ORDER = 12;
 
 
 	use TArrayTools;
 	use TNC20Logger;
 
 
-	/** @var IL10N */
-	private $l10n;
+	private IL10N $l10n;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IURLGenerator $urlGenerator;
 
-	/** @var StreamService */
-	private $streamService;
+	private StreamService $streamService;
 
-	/** @var FollowService */
-	private $followService;
+	private FollowService $followService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var SearchService */
-	private $searchService;
+	private SearchService $searchService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var Person */
-	private $viewer;
+	private ?Person $viewer = null;
 
 
 	/**
@@ -256,6 +243,4 @@ class UnifiedSearchProvider implements IProvider {
 
 		return $result;
 	}
-
 }
-

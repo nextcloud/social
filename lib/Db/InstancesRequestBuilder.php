@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
@@ -39,8 +39,6 @@ use OCA\Social\Model\Instance;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class InstancesRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -166,6 +164,4 @@ class InstancesRequestBuilder extends CoreRequestBuilder {
 
 		return $instance;
 	}
-
 }
-

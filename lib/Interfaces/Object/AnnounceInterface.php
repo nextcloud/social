@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
@@ -52,6 +52,7 @@ use daita\MySmallPhpTools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -65,43 +66,20 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamQueueService;
 
-
 /**
  * Class AnnounceInterface
  *
  * @package OCA\Social\Interfaces\Object
  */
-class AnnounceInterface implements IActivityPubInterface {
-
-
+class AnnounceInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
+	private StreamRequest $streamRequest;
+	private ActionsRequest $actionsRequest;
+	private StreamQueueService $streamQueueService;
+	private CacheActorService $cacheActorService;
+	private MiscService $miscService;
 
-	/** @var StreamRequest */
-	private $streamRequest;
-
-	/** @var ActionsRequest */
-	private $actionsRequest;
-
-	/** @var StreamQueueService */
-	private $streamQueueService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * AnnounceInterface constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param ActionsRequest $actionsRequest
-	 * @param StreamQueueService $streamQueueService
-	 * @param CacheActorService $cacheActorService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamRequest $streamRequest, ActionsRequest $actionsRequest,
 		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
@@ -114,14 +92,11 @@ class AnnounceInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
-	 * @param ACore $item
-	 *
 	 * @throws InvalidOriginException
 	 * @throws Exception
 	 */
-	public function processIncomingRequest(ACore $item) {
+	public function processIncomingRequest(ACore $item): void {
 		/** @var ACore $item */
 		$item->checkOrigin($item->getId());
 		$item->checkOrigin($item->getActorId());
@@ -143,9 +118,6 @@ class AnnounceInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $activity
-	 * @param ACore $announce
-	 *
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws MalformedArrayException
@@ -157,8 +129,9 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @throws RequestServerException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function activity(Acore $activity, ACore $announce) {
+	public function activity(Acore $activity, ACore $item): void {
 		/** @var Announce $announce */
+		$announce = $item;
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($announce->getId());
 			$activity->checkOrigin($announce->getActorId());
@@ -168,29 +141,14 @@ class AnnounceInterface implements IActivityPubInterface {
 		}
 	}
 
-
 	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore {
 		throw new ItemNotFoundException();
 	}
 
-
 	/**
-	 * @param string $id
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
@@ -199,11 +157,9 @@ class AnnounceInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $item
-	 *
 	 * @throws Exception
 	 */
-	public function save(ACore $item) {
+	public function save(ACore $item): void {
 		/** @var Announce $item */
 
 		try {
@@ -239,20 +195,10 @@ class AnnounceInterface implements IActivityPubInterface {
 				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
 			);
 		}
-
 	}
 
 
 	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
 	 * @throws RedundancyLimitException
@@ -264,7 +210,7 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @throws UnauthorizedFediverseException
 	 * @throws MalformedArrayException
 	 */
-	public function delete(ACore $item) {
+	public function delete(ACore $item): void {
 		try {
 			$knownItem =
 				$this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
@@ -282,18 +228,11 @@ class AnnounceInterface implements IActivityPubInterface {
 			} else {
 				$this->streamRequest->update($knownItem);
 			}
-		} catch (StreamNotFoundException $e) {
-		} catch (ItemUnknownException $e) {
-		} catch (SocialAppConfigException $e) {
+		} catch (StreamNotFoundException|ItemUnknownException|SocialAppConfigException $e) {
 		}
 	}
 
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
+	public function event(ACore $item, string $source): void {
 		/** @var Stream $item */
 		switch ($source) {
 			case 'updateCache':
@@ -327,11 +266,7 @@ class AnnounceInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param Announce $announce
-	 */
-	private function undoAnnounceAction(Announce $announce) {
+	private function undoAnnounceAction(Announce $announce): void {
 		try {
 			$this->actionsRequest->getActionFromItem($announce);
 			$this->actionsRequest->delete($announce);
@@ -352,11 +287,7 @@ class AnnounceInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param Stream $post
-	 */
-	private function updateDetails(Stream $post) {
+	private function updateDetails(Stream $post): void {
 		$post->setDetailInt(
 			'boosts', $this->actionsRequest->countActions($post->getId(), Announce::TYPE)
 		);
@@ -365,13 +296,10 @@ class AnnounceInterface implements IActivityPubInterface {
 	}
 
 	/**
-	 * @param Stream $post
-	 * @param Person $author
-	 *
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	private function generateNotification(Stream $post, Person $author) {
+	private function generateNotification(Stream $post, Person $author): void {
 		if (!$post->isLocal()) {
 			return;
 		}
@@ -408,13 +336,10 @@ class AnnounceInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param Stream $post
-	 * @param Person $author
-	 *
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
 	 */
-	private function cancelNotification(Stream $post, Person $author) {
+	private function cancelNotification(Stream $post, Person $author): void {
 		if (!$post->isLocal()) {
 			return;
 		}
@@ -437,6 +362,4 @@ class AnnounceInterface implements IActivityPubInterface {
 		} catch (StreamNotFoundException $e) {
 		}
 	}
-
 }
-

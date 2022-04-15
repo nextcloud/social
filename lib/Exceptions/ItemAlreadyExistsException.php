@@ -29,11 +29,7 @@
 
 namespace OCA\Social\Exceptions;
 
-
 use Exception;
 
-
 class ItemAlreadyExistsException extends Exception {
-
 }
-

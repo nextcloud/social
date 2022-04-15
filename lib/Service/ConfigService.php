@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -41,84 +42,59 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\PreConditionNotMetException;
 
-
 /**
  * Class ConfigService
  *
  * @package OCA\Social\Service
  */
 class ConfigService {
-
-
 	use TPathTools;
 	use TArrayTools;
 
 
-	const CLOUD_URL = 'cloud_url';
-	const SOCIAL_URL = 'social_url';
-	const SOCIAL_ADDRESS = 'social_address';
-	const DATABASE_CHUNK_SIZE = 'db_chunk_size';
+	public const CLOUD_URL = 'cloud_url';
+	public const SOCIAL_URL = 'social_url';
+	public const SOCIAL_ADDRESS = 'social_address';
+	public const DATABASE_CHUNK_SIZE = 'db_chunk_size';
 
-	const SOCIAL_SERVICE = 'service';
-	const SOCIAL_MAX_SIZE = 'max_size';
-	const SOCIAL_ACCESS_TYPE = 'access_type';
-	const SOCIAL_ACCESS_LIST = 'access_list';
+	public const SOCIAL_SERVICE = 'service';
+	public const SOCIAL_MAX_SIZE = 'max_size';
+	public const SOCIAL_ACCESS_TYPE = 'access_type';
+	public const SOCIAL_ACCESS_LIST = 'access_list';
 
-	const SOCIAL_SELF_SIGNED = 'allow_self_signed';
+	public const SOCIAL_SELF_SIGNED = 'allow_self_signed';
 
 
-	const BACKGROUND_CRON = 1;
-	const BACKGROUND_ASYNC = 2;
-	const BACKGROUND_SERVICE = 3;
-	const BACKGROUND_FULL_SERVICE = 4;
+	public const BACKGROUND_CRON = 1;
+	public const BACKGROUND_ASYNC = 2;
+	public const BACKGROUND_SERVICE = 3;
+	public const BACKGROUND_FULL_SERVICE = 4;
 
-	/** @var array */
-	public $defaults = [
-		self::CLOUD_URL           => '',
-		self::SOCIAL_URL          => '',
-		self::SOCIAL_ADDRESS      => '',
-		self::SOCIAL_SERVICE      => 1,
-		self::SOCIAL_MAX_SIZE     => 10,
-		self::SOCIAL_ACCESS_TYPE  => 'all_but',
-		self::SOCIAL_ACCESS_LIST  => '[]',
-		self::SOCIAL_SELF_SIGNED  => '0',
+	public array $defaults = [
+		self::CLOUD_URL => '',
+		self::SOCIAL_URL => '',
+		self::SOCIAL_ADDRESS => '',
+		self::SOCIAL_SERVICE => 1,
+		self::SOCIAL_MAX_SIZE => 10,
+		self::SOCIAL_ACCESS_TYPE => 'all_but',
+		self::SOCIAL_ACCESS_LIST => '[]',
+		self::SOCIAL_SELF_SIGNED => '0',
 		self::DATABASE_CHUNK_SIZE => 10000
 	];
 
-	/** @var array */
-	public $accessTypeList = [
+	public array $accessTypeList = [
 		'BLACKLIST' => 'all_but',
 		'WHITELIST' => 'none_but'
 	];
 
+	private ?string $userId = null;
+	private IConfig $config;
+	private IRequest $request;
+	private IURLGenerator $urlGenerator;
+	private MiscService $miscService;
 
-	/** @var string */
-	private $userId;
-
-	/** @var IConfig */
-	private $config;
-
-	/** @var IRequest */
-	private $request;
-
-	/** @var IURLGenerator */
-	private $urlGenerator;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * ConfigService constructor.
-	 *
-	 * @param string $userId
-	 * @param IConfig $config
-	 * @param IRequest $request
-	 * @param IURLGenerator $urlGenerator
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		$userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
+		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
 		MiscService $miscService
 	) {
 		$this->userId = $userId;
@@ -457,7 +433,4 @@ class ConfigService {
 		$request->setLocalAddressAllowed(true);
 		$request->setFollowLocation(true);
 	}
-
-
 }
-

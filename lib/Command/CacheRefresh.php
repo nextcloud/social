@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,55 +31,24 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
-use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 class CacheRefresh extends Base {
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private DocumentService $documentService;
+	private HashtagService $hashtagService;
 
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var DocumentService */
-	private $documentService;
-
-	/** @var HashtagService */
-	private $hashtagService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param AccountService $accountService
-	 * @param CacheActorService $cacheActorService
-	 * @param DocumentService $documentService
-	 * @param HashtagService $hashtagService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		AccountService $accountService, CacheActorService $cacheActorService,
-		DocumentService $documentService, HashtagService $hashtagService,
-		ConfigService $configService, MiscService $miscService
+		DocumentService $documentService, HashtagService $hashtagService
 	) {
 		parent::__construct();
 
@@ -86,29 +56,18 @@ class CacheRefresh extends Base {
 		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
 		$this->hashtagService = $hashtagService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 *
-	 */
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:cache:refresh')
 			 ->setDescription('Update the cache');
 	}
 
-
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$result = $this->accountService->blindKeyRotation();
 		$output->writeLn($result . ' key pairs refreshed');
 
@@ -127,6 +86,4 @@ class CacheRefresh extends Base {
 		$result = $this->hashtagService->manageHashtags();
 		$output->writeLn($result . ' hashtags updated');
 	}
-
 }
-

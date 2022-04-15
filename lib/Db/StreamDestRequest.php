@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TStringTools;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
+use OCP\DB\Exception as DBException;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
@@ -42,7 +42,6 @@ use OCA\Social\Service\MiscService;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
-
 
 /**
  * Class StreamDestRequest
@@ -72,16 +71,12 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		$qb->setValue('subtype', $qb->createNamedParameter($subType));
 
 		try {
-			$qb->execute();
-		} catch (UniqueConstraintViolationException $e) {
+			$qb->executeStatement();
+		} catch (DBException $e) {
 		}
 	}
 
-
-	/**
-	 * @param Stream $stream
-	 */
-	public function generateStreamDest(Stream $stream) {
+	public function generateStreamDest(Stream $stream): void {
 		if ($this->generateStreamNotification($stream)) {
 			return;
 		}
@@ -93,12 +88,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		$this->generateStreamHome($stream);
 	}
 
-
-	/**
-	 * @param Stream $stream
-	 *
-	 * @return bool
-	 */
 	private function generateStreamHome(Stream $stream): bool {
 		$recipients =
 			[
@@ -119,12 +108,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		return true;
 	}
 
-
-	/**
-	 * @param Stream $stream
-	 *
-	 * @return bool
-	 */
 	private function generateStreamDirect(Stream $stream): bool {
 		try {
 			$author = $this->cacheActorService->getFromId($stream->getAttributedTo());
@@ -153,12 +136,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		return true;
 	}
 
-
-	/**
-	 * @param Stream $stream
-	 *
-	 * @return bool
-	 */
 	private function generateStreamNotification(Stream $stream): bool {
 		if ($stream->getType() !== SocialAppNotification::TYPE) {
 			return false;
@@ -175,16 +152,10 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		return true;
 	}
 
-
-	/**
-	 *
-	 */
-	public function emptyStreamDest() {
+	public function emptyStreamDest(): void {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAM_DEST);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
-
 }
-

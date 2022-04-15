@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
@@ -55,70 +55,27 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
 
-
 /**
  * Class ApiController
  *
  * @package OCA\Social\Controller
  */
 class ApiController extends Controller {
-
-
 	use TNCDataResponse;
 
+	private IUserSession $userSession;
+	private InstanceService $instanceService;
+	private ClientService $clientService;
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private FollowService $followService;
+	private StreamService $streamService;
+	private ConfigService $configService;
+	private MiscService $miscService;
+	private string $bearer = '';
+	private ?SocialClient $client = null;
+	private ?Person $viewer = null;
 
-	/** @var IUserSession */
-	private $userSession;
-
-	/** @var InstanceService */
-	private $instanceService;
-
-	/** @var ClientService */
-	private $clientService;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var FollowService */
-	private $followService;
-
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/** @var string */
-	private $bearer = '';
-
-	/** @var SocialClient */
-	private $client;
-
-	/** @var Person */
-	private $viewer;
-
-
-	/**
-	 * ActivityStreamController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param IUserSession $userSession
-	 * @param InstanceService $instanceService
-	 * @param ClientService $clientService
-	 * @param AccountService $accountService
-	 * @param CacheActorService $cacheActorService
-	 * @param FollowService $followService
-	 * @param StreamService $streamService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IRequest $request, IUserSession $userSession, InstanceService $instanceService,
 		ClientService $clientService, AccountService $accountService, CacheActorService $cacheActorService,
@@ -160,14 +117,14 @@ class ApiController extends Controller {
 			if ($this->client === null) {
 				return new DataResponse(
 					[
-						'name'    => 'Nextcloud Social',
+						'name' => 'Nextcloud Social',
 						'website' => 'https://github.com/nextcloud/social/'
 					], Http::STATUS_OK
 				);
 			} else {
 				return new DataResponse(
 					[
-						'name'    => $this->client->getAppName(),
+						'name' => $this->client->getAppName(),
 						'website' => $this->client->getAppWebsite()
 					], Http::STATUS_OK
 				);
@@ -175,7 +132,6 @@ class ApiController extends Controller {
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}
-
 	}
 
 
@@ -347,7 +303,4 @@ class ApiController extends Controller {
 	private function error(string $error): DataResponse {
 		return new DataResponse(['error' => $error], Http::STATUS_UNAUTHORIZED);
 	}
-
 }
-
-

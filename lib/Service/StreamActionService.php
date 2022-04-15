@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,11 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\StreamAction;
-
 
 /**
  * Class StreamActionService
@@ -41,13 +40,9 @@ use OCA\Social\Model\StreamAction;
  * @package OCA\Social\Service
  */
 class StreamActionService {
+	private StreamActionsRequest $streamActionsRequest;
 
-
-	/** @var StreamActionsRequest */
-	private $streamActionsRequest;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -128,4 +123,3 @@ class StreamActionService {
 		}
 	}
 }
-

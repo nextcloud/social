@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
@@ -38,7 +38,6 @@ use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCP\DB\QueryBuilder\ICompositeExpression;
-
 
 /**
  * Class SocialLimitsQueryBuilder
@@ -466,6 +465,4 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		$this->andWhere($orX);
 	}
-
 }
-

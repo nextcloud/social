@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
 use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
@@ -58,35 +58,25 @@ use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IURLGenerator;
 
-
 class DocumentService {
+	public const ERROR_SIZE = 1;
+	public const ERROR_MIMETYPE = 2;
+	public const ERROR_PERMISSION = 3;
 
 
-	const ERROR_SIZE = 1;
-	const ERROR_MIMETYPE = 2;
-	const ERROR_PERMISSION = 3;
+	private \OCP\IURLGenerator $urlGenerator;
 
+	private CacheDocumentsRequest $cacheDocumentsRequest;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private ActorsRequest $actorRequest;
 
-	/** @var CacheDocumentsRequest */
-	private $cacheDocumentsRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var ActorsRequest */
-	private $actorRequest;
+	private CacheDocumentService $cacheService;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private ConfigService $configService;
 
-	/** @var CacheDocumentService */
-	private $cacheService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -291,6 +281,4 @@ class DocumentService {
 
 		return $icon->getId();
 	}
-
 }
-

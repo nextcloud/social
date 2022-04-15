@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Exceptions\EmptyQueueException;
@@ -40,21 +40,15 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 
-
 class RequestQueueService {
-
-
 	use TArrayTools;
 
 
-	/** @var RequestQueueRequest */
-	private $requestQueueRequest;
+	private RequestQueueRequest $requestQueueRequest;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -214,6 +208,4 @@ class RequestQueueService {
 	public function deleteRequest(RequestQueue $queue) {
 		$this->requestQueueRequest->delete($queue);
 	}
-
 }
-

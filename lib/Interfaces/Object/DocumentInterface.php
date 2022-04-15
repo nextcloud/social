@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,34 +31,20 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
-use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\MiscService;
 
+class DocumentInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	protected CacheDocumentsRequest $cacheDocumentsRequest;
+	protected MiscService $miscService;
 
-class DocumentInterface implements IActivityPubInterface {
-
-
-	/** @var CacheDocumentsRequest */
-	protected $cacheDocumentsRequest;
-
-	/** @var MiscService */
-	protected $miscService;
-
-
-	/**
-	 * DocumentInterface constructor.
-	 *
-	 * @param CacheDocumentsRequest $cacheDocumentsRequest
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		CacheDocumentsRequest $cacheDocumentsRequest, MiscService $miscService
 	) {
@@ -65,59 +52,16 @@ class DocumentInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 *
 	 * @throws InvalidOriginException
 	 */
-	public function activity(Acore $activity, ACore $item) {
+	public function activity(Acore $activity, ACore $item): void {
 		if ($activity->getType() === Person::TYPE) {
 			$activity->checkOrigin($item->getId());
 		}
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processIncomingRequest(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItem(ACore $item): ACore {
-		throw new ItemNotFoundException();
-	}
-
-
-	/**
-	 * @param string $id
-	 *
-	 * @return ACore
-	 * @throws ItemNotFoundException
-	 */
-	public function getItemById(string $id): ACore {
-		throw new ItemNotFoundException();
-	}
-
-	/**
-	 * @param ACore $item
-	 */
-	public function save(ACore $item) {
+	public function save(ACore $item): void {
 		/** @var Document $item */
 		if (!$item->isRoot()) {
 			$item->setParentId(
@@ -135,30 +79,4 @@ class DocumentInterface implements IActivityPubInterface {
 			}
 		}
 	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
-//		$this->cacheDocumentsRequest->delete($item);
-	}
-
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
-	}
-
-
 }
-

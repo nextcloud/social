@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
-
 use Closure;
-use OC\DB\SchemaWrapper;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Service\ConfigService;
@@ -45,6 +44,8 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\QueryException;
 use OCP\IDBConnection;
 use OCP\IServerContainer;
+use OC\DB\SchemaWrapper;
+use OCP\DB\ISchemaWrapper;
 use Throwable;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -55,7 +56,7 @@ require_once __DIR__ . '/../../vendor/autoload.php';
  * @package OCA\Social\AppInfo
  */
 class Application extends App implements IBootstrap {
-	const APP_NAME = 'social';
+	public const APP_NAME = 'social';
 
 	public function __construct(array $params = []) {
 		parent::__construct(self::APP_NAME, $params);
@@ -106,6 +107,7 @@ class Application extends App implements IBootstrap {
 			return;
 		}
 
+		/** @var ISchemaWrapper $schema */
 		$schema = new SchemaWrapper($container->get(IDBConnection::class));
 		if ($schema->hasTable('social_a2_stream')) {
 			$updateService->checkUpdateStatus();
@@ -113,6 +115,4 @@ class Application extends App implements IBootstrap {
 
 		$configService->setAppValue('update_checked', '0.3');
 	}
-
 }
-

@@ -6,3 +6,5 @@ img/twemoji/
 
 cypress/screenshots
 cypress/snapshots
+
+.php-cs-fixer.cache

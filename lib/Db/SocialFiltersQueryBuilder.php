@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
-use OCP\DB\QueryBuilder\IQueryBuilder;
-
-
 /**
  * Class SocialFiltersQueryBuilder
  *
@@ -64,6 +61,4 @@ class SocialFiltersQueryBuilder extends SocialLimitsQueryBuilder {
 
 		$this->andWhere($filter);
 	}
-
 }
-

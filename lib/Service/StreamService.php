@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
@@ -54,33 +54,22 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Model\InstancePath;
 
-
 class StreamService {
+	private StreamRequest $streamRequest;
 
+	private ActivityService $activityService;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private AccountService $accountService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private SignatureService $signatureService;
 
-	/** @var AccountService */
-	private $accountService;
+	private StreamQueueService $streamQueueService;
 
-	/** @var SignatureService */
-	private $signatureService;
+	private CacheActorService $cacheActorService;
 
-	/** @var StreamQueueService */
-	private $streamQueueService;
+	private ConfigService $configService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -228,7 +217,6 @@ class StreamService {
 		} catch (Exception $e) {
 			return;
 		}
-
 	}
 
 
@@ -426,7 +414,7 @@ class StreamService {
 	public function getTimeline(TimelineOptions $options): array {
 		if ($options->getTimeline() === 'home') {
 			return $this->streamRequest->getTimelineHome($options);
-		} else if ($options->getTimeline() === 'public') {
+		} elseif ($options->getTimeline() === 'public') {
 			return $this->streamRequest->getTimelinePublic($options);
 		}
 	}
@@ -558,7 +546,4 @@ class StreamService {
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());
 	}
-
-
 }
-

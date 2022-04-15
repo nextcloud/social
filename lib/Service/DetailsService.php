@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamDetails;
-
 
 /**
  * Class DetailsService
@@ -43,18 +42,13 @@ use OCA\Social\Model\StreamDetails;
  * @package OCA\Social\Service
  */
 class DetailsService {
+	private StreamService $streamService;
 
-	/** @var StreamService */
-	private $streamService;
+	private AccountService $accountService;
 
-	/** @var AccountService */
-	private $accountService;
+	private FollowService $followService;
 
-	/** @var FollowService */
-	private $followService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
 
 	/**
@@ -126,6 +120,4 @@ class DetailsService {
 			}
 		}
 	}
-
 }
-

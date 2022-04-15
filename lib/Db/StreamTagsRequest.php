@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TStringTools;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-
+use OCP\DB\Exception as DBException;
 
 /**
  * Class StreamTagsRequest
@@ -43,45 +42,32 @@ use OCA\Social\Model\ActivityPub\Stream;
  * @package OCA\Social\Db
  */
 class StreamTagsRequest extends StreamTagsRequestBuilder {
-
-
 	use TStringTools;
 
-
-	/**
-	 * @param Stream $stream
-	 */
-	public function generateStreamTags(Stream $stream) {
+	public function generateStreamTags(Stream $stream): void {
 		if ($stream->getType() !== Note::TYPE) {
 			return;
 		}
 
 		/** @var Note $stream */
 		foreach ($stream->getHashTags() as $hashtag) {
-
 			$qb = $this->getStreamTagsInsertSql();
 			$streamId = $qb->prim($stream->getId());
 			$qb->setValue('stream_id', $qb->createNamedParameter($streamId));
 			$qb->setValue('hashtag', $qb->createNamedParameter($hashtag));
 			try {
-				$qb->execute();
-			} catch (UniqueConstraintViolationException $e) {
+				$qb->executeStatement();
+			} catch (DBException $e) {
 				\OC::$server->getLogger()
 							->log(1, 'Social - Duplicate hashtag on Stream ' . json_encode($stream));
 			}
 		}
 	}
 
-
-	/**
-	 *
-	 */
-	public function emptyStreamTags() {
+	public function emptyStreamTags(): void {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAM_TAGS);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
-
 }
-

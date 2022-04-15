@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
-
 
 /**
  * Class InstancesRequest
@@ -43,8 +42,6 @@ use OCA\Social\Model\Instance;
  * @package OCA\Social\Db
  */
 class InstancesRequest extends InstancesRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -77,6 +74,4 @@ class InstancesRequest extends InstancesRequestBuilder {
 
 		return $this->getInstanceFromRequest($qb);
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client\Options;
 
-
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class TimelineOptions
@@ -40,10 +39,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\Client\Options
  */
 class CoreOptions {
-
-
-	/** @var int */
-	private $format = ACore::FORMAT_ACTIVITYPUB;
+	private int $format = ACore::FORMAT_ACTIVITYPUB;
 
 
 	/**
@@ -63,7 +59,4 @@ class CoreOptions {
 
 		return $this;
 	}
-
-
 }
-

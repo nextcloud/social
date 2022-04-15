@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Providers;
 
-
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Service\AccountService;
@@ -42,29 +42,21 @@ use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
 
-
 /**
  * Class ContactsMenuProvider
  *
  * @package OCA\Social\Providers
  */
 class ContactsMenuProvider implements IProvider {
+	private IActionFactory $actionFactory;
 
+	private IURLGenerator $urlGenerator;
 
-	/** @var IActionFactory */
-	private $actionFactory;
+	private IUserManager $userManager;
 
-	/** @var IURLGenerator */
-	private $urlGenerator;
+	private IL10N $l10n;
 
-	/** @var IUserManager */
-	private $userManager;
-
-	/** @var IL10N */
-	private $l10n;
-
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
 
 	/**
@@ -109,7 +101,6 @@ class ContactsMenuProvider implements IProvider {
 		} catch (Exception $e) {
 			return;
 		}
-
 	}
 
 
@@ -136,5 +127,4 @@ class ContactsMenuProvider implements IProvider {
 
 		return $user;
 	}
-
 }

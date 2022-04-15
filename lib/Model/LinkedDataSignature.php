@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Service\SignatureService;
-
 
 /**
  * Class LinkedDataSignature
@@ -43,192 +42,91 @@ use OCA\Social\Service\SignatureService;
  * @package OCA\Social\Model
  */
 class LinkedDataSignature implements JsonSerializable {
-
-
 	use TArrayTools;
 
-	/** @var string */
-	private $type = '';
+	private string $type = '';
+	private string $creator = '';
+	private string $created = '';
+	private string $nonce = '';
+	private string $signatureValue = '';
+	private string $privateKey = '';
+	private string $publicKey = '';
+	private array $object = [];
 
-	/** @var string */
-	private $creator = '';
-
-	/** @var string */
-	private $created = '';
-
-	/** @var string */
-	private $nonce = '';
-
-	/** @var string */
-	private $signatureValue = '';
-
-	/** @var string */
-	private $privateKey = '';
-
-	/** @var string */
-	private $publicKey = '';
-
-	/** @var array */
-	private $object = [];
-
-
-	/**
-	 * LinkedDataSignature constructor.
-	 */
-	public function __construct() {
-	}
-
-
-	/**
-	 * @return string
-	 */
 	public function getType(): string {
 		return $this->type;
 	}
 
-	/**
-	 * @param string $type
-	 *
-	 * @return LinkedDataSignature
-	 */
 	public function setType(string $type): LinkedDataSignature {
 		$this->type = $type;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getCreator(): string {
 		return $this->creator;
 	}
 
-	/**
-	 * @param string $creator
-	 *
-	 * @return LinkedDataSignature
-	 */
 	public function setCreator(string $creator): LinkedDataSignature {
 		$this->creator = $creator;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getNonce(): string {
 		return $this->nonce;
 	}
 
-	/**
-	 * @param string $nonce
-	 *
-	 * @return LinkedDataSignature
-	 */
 	public function setNonce(string $nonce): LinkedDataSignature {
 		$this->nonce = $nonce;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getCreated(): string {
 		return $this->created;
 	}
 
-	/**
-	 * @param string $created
-	 *
-	 * @return LinkedDataSignature
-	 */
 	public function setCreated(string $created): LinkedDataSignature {
 		$this->created = $created;
 
 		return $this;
 	}
 
-	/**
-	 * @return string
-	 */
 	public function getSignatureValue(): string {
 		return $this->signatureValue;
 	}
 
-	/**
-	 * @param string $signatureValue
-	 *
-	 * @return LinkedDataSignature
-	 */
 	public function setSignatureValue(string $signatureValue): LinkedDataSignature {
 		$this->signatureValue = $signatureValue;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return array
-	 */
-	public function getObject(): array {
-		return $this->object;
-	}
-
-	/**
-	 * @param array $object
-	 *
-	 * @return LinkedDataSignature
-	 */
-	public function setObject(array $object): LinkedDataSignature {
-		$this->object = $object;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 */
 	public function getPrivateKey(): string {
 		return $this->privateKey;
 	}
 
-	/**
-	 * @param string $privateKey
-	 *
-	 * @return LinkedDataSignature
-	 */
-	public function setPrivateKey(string $privateKey): LinkedDataSignature {
+	public function setPrivateKey(string $privateKey): self {
 		$this->privateKey = $privateKey;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
-	public function getPublicKey(): string {
-		return $this->publicKey;
-	}
-
-	/**
-	 * @param string $publicKey
-	 *
-	 * @return LinkedDataSignature
-	 */
-	public function setPublicKey(string $publicKey): LinkedDataSignature {
+	public function setPublicKey(string $publicKey): self {
 		$this->publicKey = $publicKey;
 
 		return $this;
 	}
 
+	public function getObject(): array {
+		return $this->object;
+	}
+
+	public function setObject(array $object): self {
+		$this->object = $object;
+		return $this;
+	}
 
 	/**
 	 * @throws LinkedDataSignatureMissingException
@@ -236,8 +134,8 @@ class LinkedDataSignature implements JsonSerializable {
 	public function sign() {
 		$header = [
 			'@context' => 'https://w3id.org/identity/v1',
-			'creator'  => $this->getCreator(),
-			'created'  => $this->getCreated()
+			'creator' => $this->getCreator(),
+			'created' => $this->getCreated()
 		];
 
 		$hash = $this->hashedCanonicalize($header) . $this->hashedCanonicalize($this->getObject());
@@ -254,17 +152,12 @@ class LinkedDataSignature implements JsonSerializable {
 		$this->setSignatureValue(base64_encode($signed));
 	}
 
-
-	/**
-	 * @return bool
-	 */
 	public function verify(): bool {
-
 		$header = [
 			'@context' => 'https://w3id.org/identity/v1',
-			'nonce'    => $this->getNonce(),
-			'creator'  => $this->getCreator(),
-			'created'  => $this->getCreated()
+			'nonce' => $this->getNonce(),
+			'creator' => $this->getCreator(),
+			'created' => $this->getCreated()
 		];
 
 		$hashHeader = $this->hashedCanonicalize($header, true);
@@ -286,13 +179,6 @@ class LinkedDataSignature implements JsonSerializable {
 		return false;
 	}
 
-	/**
-	 * @param array $data
-	 *
-	 * @param bool $removeEmptyValue
-	 *
-	 * @return string
-	 */
 	private function hashedCanonicalize(array $data, bool $removeEmptyValue = false): string {
 		if ($removeEmptyValue) {
 			$this->cleanArray($data);
@@ -302,8 +188,8 @@ class LinkedDataSignature implements JsonSerializable {
 		$res = jsonld_normalize(
 			$object,
 			[
-				'algorithm'      => 'URDNA2015',
-				'format'         => 'application/nquads',
+				'algorithm' => 'URDNA2015',
+				'format' => 'application/nquads',
 				'documentLoader' => [SignatureService::class, 'documentLoader']
 			]
 		);
@@ -313,11 +199,9 @@ class LinkedDataSignature implements JsonSerializable {
 
 
 	/**
-	 * @param array $data
-	 *
 	 * @throws LinkedDataSignatureMissingException
 	 */
-	public function import(array $data) {
+	public function import(array $data): void {
 
 //		if (!in_array(ACore::CONTEXT_SECURITY, $this->getArray('@context', $data, []))) {
 //			throw new LinkedDataSignatureMissingException('no @context security entry');
@@ -345,12 +229,10 @@ class LinkedDataSignature implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'type'           => $this->getType(),
-			'creator'        => $this->getCreator(),
-			'created'        => $this->getCreated(),
+			'type' => $this->getType(),
+			'creator' => $this->getCreator(),
+			'created' => $this->getCreated(),
 			'signatureValue' => $this->getSignatureValue()
 		];
 	}
-
 }
-

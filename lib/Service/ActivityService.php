@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\RequestContentException;
 use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
 use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
@@ -59,50 +59,38 @@ use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 
-
 /**
  * Class ActivityService
  *
  * @package OCA\Social\Service
  */
 class ActivityService {
-
-
 	use TArrayTools;
 
 
-	const TIMEOUT_LIVE = 3;
-	const TIMEOUT_ASYNC = 10;
-	const TIMEOUT_SERVICE = 30;
+	public const TIMEOUT_LIVE = 3;
+	public const TIMEOUT_ASYNC = 10;
+	public const TIMEOUT_SERVICE = 30;
 
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private StreamRequest $streamRequest;
 
-	/** @var FollowsRequest */
-	private $followsRequest;
+	private FollowsRequest $followsRequest;
 
-	/** @var SignatureService */
-	private $signatureService;
+	private SignatureService $signatureService;
 
-	/** @var RequestQueueService */
-	private $requestQueueService;
+	private RequestQueueService $requestQueueService;
 
-	/** @var AccountService */
-	private $accountService;
+	private AccountService $accountService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var array */
-	private $failInstances;
+	private ?array $failInstances = null;
 
 
 	/**
@@ -143,7 +131,6 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 */
 	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
-
 		$activity = new Create();
 		$item->setParent($activity);
 
@@ -432,7 +419,4 @@ class ActivityService {
 		} catch (ItemAlreadyExistsException $e) {
 		}
 	}
-
-
 }
-

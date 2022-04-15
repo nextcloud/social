@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,12 +30,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Model\Cache;
 use DateTime;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
+use OCP\DB\Exception as DBException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -49,7 +49,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
-
 
 /**
  * Class StreamRequest
@@ -71,73 +70,57 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->streamTagsRequest = $streamTagsRequest;
 	}
 
-
-	/**
-	 * @param Stream $stream
-	 */
-	public function save(Stream $stream) {
+	public function save(Stream $stream): void {
 		$qb = $this->saveStream($stream);
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
-			   ->setValue(
-				   'attachments', $qb->createNamedParameter(
+			   ->setValue('attachments', $qb->createNamedParameter(
 				   json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
-			   )
-			   );
+			   ));
 		}
 
 		try {
-			$qb->execute();
+			$qb->executeStatement();
 
 			$this->streamDestRequest->generateStreamDest($stream);
 			$this->streamTagsRequest->generateStreamTags($stream);
-		} catch (UniqueConstraintViolationException $e) {
+		} catch (DBException $e) {
+			if ($e->getReason() !== DBException::REASON_CONSTRAINT_VIOLATION) {
+				$this->logger->error("Couldn't save stream: " . $e->getMessage(), [
+					'exception' => $e,
+				]);
+			}
 		}
 	}
 
-
-	/**
-	 * @param Stream $stream \
-	 */
-	public function update(Stream $stream) {
+	public function update(Stream $stream): void {
 		$qb = $this->getStreamUpdateSql();
 
 		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
-		$qb->set(
-			'cc', $qb->createNamedParameter(
+		$qb->set('cc', $qb->createNamedParameter(
 			json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-		)
-		);
+		));
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
-		$qb->execute();
+		$qb->executeStatement();
 
 		$this->streamDestRequest->generateStreamDest($stream);
 	}
 
-
-	/**
-	 * @param Stream $stream
-	 * @param Cache $cache
-	 */
-	public function updateCache(Stream $stream, Cache $cache) {
+	public function updateCache(Stream $stream, Cache $cache): void {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('cache', $qb->createNamedParameter(json_encode($cache, JSON_UNESCAPED_SLASHES)));
 
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
-
-	/**
-	 * @param Document $document
-	 */
-	public function updateAttachments(Document $document) {
+	public function updateAttachments(Document $document): void {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToIdPrim($qb->prim($document->getParentId()));
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -150,13 +133,10 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->set('attachments', $qb->createNamedParameter(json_encode($new, JSON_UNESCAPED_SLASHES)));
 		$qb->limitToIdPrim($qb->prim($document->getParentId()));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 	/**
-	 * @param Document $document
-	 * @param array $attachments
-	 *
 	 * @return Document[]
 	 */
 	private function updateAttachmentInList(Document $document, array $attachments): array {
@@ -175,18 +155,14 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 
-	/**
-	 * @param string $itemId
-	 * @param string $to
-	 */
-	public function updateAttributedTo(string $itemId, string $to) {
+	public function updateAttributedTo(string $itemId, string $to): void {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attributed_to', $qb->createNamedParameter($to));
 		$qb->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($to)));
 
 		$qb->limitToIdPrim($qb->prim($itemId));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -207,9 +183,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param string $id
-	 * @param bool $asViewer
-	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
@@ -684,7 +657,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return IQueryBuilder
 	 */
 	public function saveStream(Stream $stream): IQueryBuilder {
-
 		try {
 			$dTime = new DateTime();
 			$dTime->setTimestamp($stream->getPublishedTime());
@@ -719,8 +691,8 @@ class StreamRequest extends StreamRequestBuilder {
 		   )
 		   ->setValue(
 			   'bcc', $qb->createNamedParameter(
-			   json_encode($stream->getBccArray()), JSON_UNESCAPED_SLASHES
-		   )
+				   json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES)
+			   )
 		   )
 		   ->setValue('content', $qb->createNamedParameter($stream->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))
@@ -763,6 +735,4 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $qb;
 	}
-
 }
-

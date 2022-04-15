@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -28,7 +29,6 @@ declare(strict_types=1);
  */
 
 namespace OCA\Social\Service;
-
 
 use daita\MySmallPhpTools\Exceptions\DateTimeException;
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
@@ -67,47 +67,23 @@ use OCP\IRequest;
 use stdClass;
 
 class SignatureService {
-
-
 	use TArrayTools;
 
+	public const ORIGIN_HEADER = 1;
+	public const ORIGIN_SIGNATURE = 2;
+	public const ORIGIN_REQUEST = 3;
 
-	const ORIGIN_HEADER = 1;
-	const ORIGIN_SIGNATURE = 2;
-	const ORIGIN_REQUEST = 3;
+	public const DATE_HEADER = 'D, d M Y H:i:s T';
+	public const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
+	public const DATE_DELAY = 300;
 
-	const DATE_HEADER = 'D, d M Y H:i:s T';
-	const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
+	private CacheActorService $cacheActorService;
+	private ActorsRequest $actorsRequest;
+	private CurlService $curlService;
+	private ConfigService $configService;
+	private MiscService $miscService;
 
-	const DATE_DELAY = 300;
-
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var ActorsRequest */
-	private $actorsRequest;
-
-	/** @var CurlService */
-	private $curlService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * ActivityService constructor.
-	 *
-	 * @param ActorsRequest $actorsRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		ActorsRequest $actorsRequest, CacheActorService $cacheActorService,
 		CurlService $curlService,
@@ -127,7 +103,7 @@ class SignatureService {
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				"digest_alg"       => "rsa",
+				"digest_alg" => "rsa",
 				"private_key_bits" => 2048,
 				"private_key_type" => OPENSSL_KEYTYPE_RSA,
 			]
@@ -157,10 +133,10 @@ class SignatureService {
 		$headersElements = ['content-length', 'date', 'host', 'digest'];
 		$allElements = [
 			'(request-target)' => 'post ' . $path->getPath(),
-			'date'             => $date,
-			'host'             => $path->getAddress(),
-			'digest'           => $this->generateDigest($request->getDataBody()),
-			'content-length'   => strlen($request->getDataBody())
+			'date' => $date,
+			'host' => $path->getAddress(),
+			'digest' => $this->generateDigest($request->getDataBody()),
+			'content-length' => strlen($request->getDataBody())
 		];
 
 		$signing = $this->generateHeaders($headersElements, $allElements, $request);
@@ -622,7 +598,6 @@ class SignatureService {
 	private static function generateContextCacheDocument(
 		ISimpleFolder $folder, string $filename, string $url
 	): stdClass {
-
 		try {
 			$data = jsonld_default_document_loader($url);
 			$content = json_encode($data);
@@ -659,6 +634,4 @@ class SignatureService {
 			}
 		}
 	}
-
 }
-

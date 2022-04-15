@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-
 use JsonSerializable;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class Image
@@ -43,9 +42,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\ActivityPub
  */
 class Image extends Document implements JsonSerializable {
-
-
-	const TYPE = 'Image';
+	public const TYPE = 'Image';
 
 
 	/**
@@ -77,6 +74,4 @@ class Image extends Document implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}
-
 }
-

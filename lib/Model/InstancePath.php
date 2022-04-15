@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,10 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
-
 
 /**
  * Class InstancePath
@@ -40,30 +39,23 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class InstancePath implements JsonSerializable {
-
-
 	use TArrayTools;
 
 
-	const TYPE_PUBLIC = 0;
-	const TYPE_INBOX = 1;
-	const TYPE_GLOBAL = 2;
-	const TYPE_FOLLOWERS = 3;
+	public const TYPE_PUBLIC = 0;
+	public const TYPE_INBOX = 1;
+	public const TYPE_GLOBAL = 2;
+	public const TYPE_FOLLOWERS = 3;
 
-	const PRIORITY_NONE = 0;
-	const PRIORITY_LOW = 1;
-	const PRIORITY_MEDIUM = 2;
-	const PRIORITY_HIGH = 3;
-	const PRIORITY_TOP = 4;
+	public const PRIORITY_NONE = 0;
+	public const PRIORITY_LOW = 1;
+	public const PRIORITY_MEDIUM = 2;
+	public const PRIORITY_HIGH = 3;
+	public const PRIORITY_TOP = 4;
 
-	/** @var string */
-	private $uri = '';
-
-	/** @var int */
-	private $type = 0;
-
-	/** @var int */
-	private $priority = 0;
+	private string $uri = '';
+	private int $type = 0;
+	private int $priority = 0;
 
 
 	/**
@@ -179,12 +171,9 @@ class InstancePath implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'uri'      => $this->getUri(),
-			'type'     => $this->getType(),
+			'uri' => $this->getUri(),
+			'type' => $this->getType(),
 			'priority' => $this->getPriority()
 		];
 	}
-
-
 }
-

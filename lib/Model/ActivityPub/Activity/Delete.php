@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,10 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Activity;
 
-
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
-
 
 /**
  * Class Delete
@@ -41,9 +40,7 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Model\ActivityPub\Activity
  */
 class Delete extends ACore implements JsonSerializable {
-
-
-	const TYPE = 'Delete';
+	public const TYPE = 'Delete';
 
 
 	/**
@@ -73,6 +70,4 @@ class Delete extends ACore implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return parent::jsonSerialize();
 	}
-
 }
-

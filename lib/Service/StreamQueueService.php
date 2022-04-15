@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
 use daita\MySmallPhpTools\Model\Cache;
 use daita\MySmallPhpTools\Model\CacheItem;
@@ -53,32 +53,23 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
 
-
 /**
  * Class StreamQueueService
  *
  * @package OCA\Social\Service
  */
 class StreamQueueService {
+	private StreamRequest $streamRequest;
 
+	private StreamQueueRequest $streamQueueRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private ImportService $importService;
 
-	/** @var StreamQueueRequest */
-	private $streamQueueRequest;
+	private CacheActorService $cacheActorService;
 
-	/** @var ImportService */
-	private $importService;
+	private CurlService $curlService;
 
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var CurlService */
-	private $curlService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -154,7 +145,6 @@ class StreamQueueService {
 	 * @param StreamQueue $queue
 	 */
 	public function manageStreamQueue(StreamQueue $queue) {
-
 		try {
 			$this->initCache($queue);
 		} catch (QueueStatusException $e) {
@@ -406,7 +396,4 @@ class StreamQueueService {
 	private function deleteCache(StreamQueue $queue) {
 		$this->streamQueueRequest->delete($queue);
 	}
-
-
 }
-

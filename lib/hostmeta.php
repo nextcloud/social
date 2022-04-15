@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /**
@@ -28,7 +29,7 @@ declare(strict_types=1);
 
 namespace OCA\Social;
 
-
+use OCA\Social\Exceptions\SocialAppConfigException;
 use Exception;
 use OC;
 use OCA\Social\Service\ConfigService;
@@ -41,7 +42,6 @@ try {
 	/** @var ConfigService $configService */
 	$configService = OC::$server->query(ConfigService::class);
 	$fediverseService->jailed();
-
 } catch (Exception $e) {
 	OC::$server->getLogger()
 			   ->log(1, 'Exception on hostmeta - ' . $e->getMessage());
@@ -57,5 +57,5 @@ try {
 	echo '<XRD xmlns="http://docs.oasis-open.org/ns/xri/xrd-1.0">' . "\n";
 	echo '  <Link rel="lrdd" type="application/xrd+xml" template="' . $url . '"/>' . "\n";
 	echo '</XRD>' . "\n";
-} catch (Exceptions\SocialAppConfigException $e) {
+} catch (SocialAppConfigException $e) {
 }

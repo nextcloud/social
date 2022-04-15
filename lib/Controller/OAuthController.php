@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
@@ -51,51 +51,18 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 
-
 class OAuthController extends Controller {
-
-
 	use TNCDataResponse;
 
+	private IUserSession $userSession;
+	private IURLGenerator $urlGenerator;
+	private InstanceService $instanceService;
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private ClientService $clientService;
+	private ConfigService $configService;
+	private MiscService $miscService;
 
-	/** @var IUserSession */
-	private $userSession;
-
-	/** @var IURLGenerator */
-	private $urlGenerator;
-
-	/** @var InstanceService */
-	private $instanceService;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var ClientService */
-	private $clientService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * ActivityStreamController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param IUserSession $userSession
-	 * @param IURLGenerator $urlGenerator
-	 * @param InstanceService $instanceService
-	 * @param AccountService $accountService
-	 * @param CacheActorService $cacheActorService
-	 * @param ClientService $clientService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IRequest $request, IUserSession $userSession, IURLGenerator $urlGenerator,
 		InstanceService $instanceService, AccountService $accountService,
@@ -121,13 +88,11 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @return Response
 	 */
-	public function nodeinfo(): Response {
+	public function nodeinfo(): DataResponse {
 		$nodeInfo = [
 			'links' => [
-				'rel'  => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
 				'href' => $this->urlGenerator->linkToRouteAbsolute('social.OAuth.nodeinfo2')
 			]
 		];
@@ -139,10 +104,8 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @return Response
 	 */
-	public function nodeinfo2() {
+	public function nodeinfo2(): Response {
 		try {
 			$local = $this->instanceService->getLocal();
 			$name = $local->getTitle();
@@ -158,15 +121,15 @@ class OAuthController extends Controller {
 		}
 
 		$nodeInfo = [
-			"version"           => "2.0",
-			"software"          => [
-				"name"    => $name,
+			"version" => "2.0",
+			"software" => [
+				"name" => $name,
 				"version" => $version
 			],
-			"protocols"         => [
+			"protocols" => [
 				"activitypub"
 			],
-			"usage"             => $usage,
+			"usage" => $usage,
 			"openRegistrations" => $openReg
 		];
 
@@ -177,18 +140,12 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
-	 *
-	 * @param string $website
-	 * @param string $redirect_uris
-	 * @param string $scopes
-	 * @param string $client_name
-	 *
-	 * @return Response
+	 * @param array|string $redirect_uris
 	 * @throws ClientException
 	 */
 	public function apps(
-		string $client_name = '', string $redirect_uris = '', string $website = '', string $scopes = 'read'
-	): Response {
+		string $client_name = '', $redirect_uris = '', string $website = '', string $scopes = 'read'
+	): DataResponse {
 		// TODO: manage array from request
 		if (!is_array($redirect_uris)) {
 			$redirect_uris = [$redirect_uris];
@@ -204,11 +161,11 @@ class OAuthController extends Controller {
 
 		return new DataResponse(
 			[
-				'id'            => $client->getId(),
-				'name'          => $client->getAppName(),
-				'website'       => $client->getAppWebsite(),
-				'scopes'        => implode(' ', $client->getAppScopes()),
-				'client_id'     => $client->getAppClientId(),
+				'id' => $client->getId(),
+				'name' => $client->getAppName(),
+				'website' => $client->getAppWebsite(),
+				'scopes' => implode(' ', $client->getAppScopes()),
+				'client_id' => $client->getAppClientId(),
 				'client_secret' => $client->getAppClientSecret()
 			], Http::STATUS_OK
 		);
@@ -218,13 +175,6 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 *
-	 * @param string $client_id
-	 * @param string $redirect_uri
-	 * @param string $response_type
-	 * @param string $scope
-	 *
-	 * @return DataResponse
 	 */
 	public function authorize(
 		string $client_id, string $redirect_uri, string $response_type, string $scope = 'read'
@@ -261,10 +211,10 @@ class OAuthController extends Controller {
 			// TODO : finalize result if no redirect_url
 			return new DataResponse(
 				[
-//				'access_token' => '',
-//				"token_type"   => "Bearer",
-//				"scope"        => "read write follow push",
-//				"created_at"   => 1573979017
+					//				'access_token' => '',
+					//				"token_type"   => "Bearer",
+					//				"scope"        => "read write follow push",
+					//				"created_at"   => 1573979017
 				], Http::STATUS_OK
 			);
 		} catch (Exception $e) {
@@ -278,28 +228,19 @@ class OAuthController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $client_id
-	 * @param string $client_secret
-	 * @param string $redirect_uri
-	 * @param string $grant_type
-	 * @param string $scope
-	 * @param string $code
-	 *
-	 * @return DataResponse
 	 */
 	public function token(
 		string $client_id, string $client_secret, string $redirect_uri, string $grant_type,
 		string $scope = 'read', string $code = ''
-	) {
+	): DataResponse {
 		try {
 			$client = $this->clientService->getFromClientId($client_id);
 			$this->clientService->confirmData(
 				$client,
 				[
 					'client_secret' => $client_secret,
-					'redirect_uri'  => $redirect_uri,
-					'auth_scopes'   => $scope
+					'redirect_uri' => $redirect_uri,
+					'auth_scopes' => $scope
 				]
 			);
 
@@ -310,7 +251,7 @@ class OAuthController extends Controller {
 
 				$this->clientService->confirmData($client, ['code' => $code]);
 				$this->clientService->generateToken($client);
-			} else if ($grant_type === 'client_credentials') {
+			} elseif ($grant_type === 'client_credentials') {
 				// TODO: manage client_credentials
 			} else {
 				return new DataResponse(
@@ -327,9 +268,9 @@ class OAuthController extends Controller {
 			return new DataResponse(
 				[
 					"access_token" => $client->getToken(),
-					"token_type"   => 'Bearer',
-					"scope"        => $scope,
-					"created_at"   => $client->getCreation()
+					"token_type" => 'Bearer',
+					"scope" => $scope,
+					"created_at" => $client->getCreation()
 				], Http::STATUS_OK
 			);
 		} catch (ClientNotFoundException $e) {
@@ -338,6 +279,4 @@ class OAuthController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
 	}
-
 }
-

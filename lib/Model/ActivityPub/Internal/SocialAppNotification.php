@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,16 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Internal;
 
-
 use Exception;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Stream;
 
-
 class SocialAppNotification extends Stream implements JsonSerializable {
-
-
-	const TYPE = 'SocialAppNotification';
+	public const TYPE = 'SocialAppNotification';
 
 
 	/**
@@ -85,6 +82,4 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 			]
 		);
 	}
-
 }
-

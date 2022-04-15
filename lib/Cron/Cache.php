@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,9 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Cron;
 
-
 use Exception;
-use OC\BackgroundJob\TimedJob;
+use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -40,32 +41,19 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
 use OCP\AppFramework\QueryException;
 
-
 /**
  * Class Cache
  *
  * @package OCA\Social\Cron
  */
 class Cache extends TimedJob {
+	private ?AccountService $accountService = null;
+	private ?CacheActorService $cacheActorService = null;
+	private ?DocumentService $documentService = null;
+	private ?HashtagService $hashtagService = null;
 
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var DocumentService */
-	private $documentService;
-
-	/** @var HashtagService */
-	private $hashtagService;
-
-
-	/**
-	 * Cache constructor.
-	 */
-	public function __construct() {
+	public function __construct(ITimeFactory $time) {
+		parent::__construct($time);
 		$this->setInterval(12 * 60); // 12 minutes
 	}
 
@@ -76,13 +64,13 @@ class Cache extends TimedJob {
 	 * @throws QueryException
 	 */
 	protected function run($argument) {
-		$app = \OC::$server->query(Application::class);
+		$app = \OC::$server->get(Application::class);
 		$c = $app->getContainer();
 
-		$this->accountService = $c->query(AccountService::class);
-		$this->cacheActorService = $c->query(CacheActorService::class);
-		$this->documentService = $c->query(DocumentService::class);
-		$this->hashtagService = $c->query(HashtagService::class);
+		$this->accountService = $c->get(AccountService::class);
+		$this->cacheActorService = $c->get(CacheActorService::class);
+		$this->documentService = $c->get(DocumentService::class);
+		$this->hashtagService = $c->get(HashtagService::class);
 
 		$this->manageCache();
 	}
@@ -114,6 +102,4 @@ class Cache extends TimedJob {
 		} catch (Exception $e) {
 		}
 	}
-
-
 }

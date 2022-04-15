@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -34,20 +35,15 @@ use Exception;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 
-
 /**
  * Class FediverseService
  *
  * @package OCA\Social\Service
  */
 class FediverseService {
+	private ConfigService $configService;
 
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -280,6 +276,4 @@ class FediverseService {
 //	}
 //
 //
-
 }
-

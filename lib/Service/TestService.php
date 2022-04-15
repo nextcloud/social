@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
 use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
 use daita\MySmallPhpTools\Model\SimpleDataStore;
@@ -43,26 +43,20 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Test;
 
-
 /**
  * Class TestService
  *
  * @package OCA\Social\Service
  */
 class TestService {
-
-
 	use TArrayTools;
 
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -181,8 +175,5 @@ class TestService {
 		}
 
 		$tests->aObj('tests', $testActor);
-
 	}
-
 }
-

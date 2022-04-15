@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\User\NoUserException;
@@ -49,14 +49,13 @@ use OCP\Accounts\IAccountManager;
 use OCP\IUserManager;
 use OCP\IUserSession;
 
-
 /**
  * Class ActorService
  *
  * @package OCA\Social\Service
  */
 class AccountService {
-	const KEY_PAIR_LIFESPAN = 7;
+	public const KEY_PAIR_LIFESPAN = 7;
 
 	use TArrayTools;
 
@@ -186,7 +185,6 @@ class AccountService {
 	 * @throws UrlCloudException
 	 */
 	public function createActor(string $userId, string $username) {
-
 		$this->miscService->confirmUserId($userId);
 		$this->checkActorUsername($username);
 
@@ -279,7 +277,7 @@ class AccountService {
 		$count = [
 			'followers' => $this->followsRequest->countFollowers($actor->getId()),
 			'following' => $this->followsRequest->countFollowing($actor->getId()),
-			'post'      => $this->streamRequest->countNotesFromActorId($actor->getId())
+			'post' => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
 		$actor->setDetailArray('count', $count);
 		$actor->setDetail('last_post_creation', $lastPostCreation);
@@ -358,6 +356,4 @@ class AccountService {
 
 		return $count;
 	}
-
-
 }

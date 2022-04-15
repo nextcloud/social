@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Actor;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -38,6 +38,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Update;
@@ -46,47 +47,21 @@ use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 
-
 /**
  * Class PersonService
  *
  * @package OCA\Social\Service\ActivityPub
  */
-class PersonInterface implements IActivityPubInterface {
-
-
+class PersonInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
+	private CacheActorsRequest $cacheActorsRequest;
+	private StreamRequest $streamRequest;
+	private FollowsRequest $followsRequest;
+	private ActorService $actorService;
+	private ConfigService $configService;
+	private MiscService $miscService;
 
-	/** @var CacheActorsRequest */
-	private $cacheActorsRequest;
-
-	/** @var StreamRequest */
-	private $streamRequest;
-
-	/** @var FollowsRequest */
-	private $followsRequest;
-
-	/** @var ActorService */
-	private $actorService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * UndoService constructor.
-	 *
-	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param StreamRequest $streamRequest
-	 * @param FollowsRequest $followsRequest
-	 * @param ActorService $actorService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
 		FollowsRequest $followsRequest, ActorService $actorService, ConfigService $configService,
@@ -100,36 +75,14 @@ class PersonInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
-	 * @param ACore $person
-	 */
-	public function processIncomingRequest(ACore $person) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function processResult(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore {
 		throw new ItemNotFoundException();
 	}
 
-
 	/**
-	 * @param string $id
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
@@ -142,14 +95,10 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
-	 *
 	 * @throws InvalidOriginException
 	 */
-	public function activity(Acore $activity, ACore $item) {
+	public function activity(Acore $activity, ACore $item): void {
 		/** @var Person $item */
 		$activity->checkOrigin($item->getId());
 
@@ -158,12 +107,9 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $person
-	 */
-	public function save(ACore $person) {
+	public function save(ACore $item): void {
 		/** @var Person $person */
+		$person = $item;
 		try {
 			$this->getItemById($person->getId());
 			$this->actorService->update($person);
@@ -172,37 +118,13 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
-	public function update(ACore $item) {
-	}
-
-
-	/**
-	 * @param ACore $item
-	 */
-	public function delete(ACore $item) {
+	public function delete(ACore $item): void {
 		/** @var Person $item */
 		$this->cacheActorsRequest->deleteCacheById($item->getId());
 		$this->streamRequest->deleteByAuthor($item->getId());
 		$this->followsRequest->deleteRelatedId($item->getId());
 	}
 
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
-	public function event(ACore $item, string $source) {
-	}
-
-
-	/**
-	 * @param Person $actor
-	 * @param ACore $activity
-	 */
 	private function updateActor(Person $actor, ACore $activity) {
 		$actor->setCreation($activity->getOriginCreationTime());
 
@@ -215,6 +137,4 @@ class PersonInterface implements IActivityPubInterface {
 			$this->cacheActorsRequest->save($actor);
 		}
 	}
-
 }
-

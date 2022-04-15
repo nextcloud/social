@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-
 use daita\MySmallPhpTools\IQueryRow;
 use daita\MySmallPhpTools\Model\Cache;
 use daita\MySmallPhpTools\Model\CacheItem;
@@ -40,74 +40,44 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Traits\TDetails;
 
-
 /**
  * Class Stream
  *
  * @package OCA\Social\Model\ActivityPub
  */
 class Stream extends ACore implements IQueryRow, JsonSerializable {
-
-
 	use TDetails;
 
 
-	const TYPE = 'Stream';
+	public const TYPE = 'Stream';
 
 
-	const TYPE_PUBLIC = 'public';
-	const TYPE_UNLISTED = 'unlisted';
-	const TYPE_FOLLOWERS = 'followers';
-	const TYPE_DIRECT = 'direct';
-	const TYPE_ANNOUNCE = 'announce';
+	public const TYPE_PUBLIC = 'public';
+	public const TYPE_UNLISTED = 'unlisted';
+	public const TYPE_FOLLOWERS = 'followers';
+	public const TYPE_DIRECT = 'direct';
+	public const TYPE_ANNOUNCE = 'announce';
 
-
-	/** @var string */
-	private $activityId = '';
-
-	/** @var string */
-	private $content = '';
-
-	/** @var string */
-	private $spoilerText = '';
-
-	/** @var string */
-	private $language = 'en';
-
-	/** @var string */
-	private $attributedTo = '';
-
-	/** @var string */
-	private $inReplyTo = '';
-
-	/** @var bool */
-	private $sensitive = false;
-
-	/** @var string */
-	private $conversation = '';
-
-	/** @var Cache */
-	private $cache = null;
-
-	/** @var int */
-	private $publishedTime = 0;
-
-	/** @var StreamAction */
-	private $action = null;
-
-	/** @var string */
-	private $timeline = '';
-
-	/** @var bool */
-	private $filterDuplicate = false;
-
+	private string $activityId = '';
+	private string $content = '';
+	private string $spoilerText = '';
+	private string $language = 'en';
+	private string $attributedTo = '';
+	private string $inReplyTo = '';
+	private bool $sensitive = false;
+	private string $conversation = '';
+	private ?Cache $cache = null;
+	private int $publishedTime = 0;
+	private ?StreamAction $action = null;
+	private string $timeline = '';
+	private bool $filterDuplicate = false;
 
 	/**
 	 * Stream constructor.
 	 *
-	 * @param null $parent
+	 * @param ?ACore $parent
 	 */
-	public function __construct($parent = null) {
+	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 	}
 
@@ -302,7 +272,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return Cache
 	 */
-	public function getCache(): Cache {
+	public function getCache(): ?Cache {
 		return $this->cache;
 	}
 
@@ -331,19 +301,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
-	/**
-	 * @return StreamAction
-	 */
-	public function getAction(): StreamAction {
+	public function getAction(): ?StreamAction {
 		return $this->action;
 	}
 
-	/**
-	 * @param StreamAction $action
-	 *
-	 * @return Stream
-	 */
 	public function setAction(StreamAction $action): Stream {
 		$this->action = $action;
 
@@ -454,11 +415,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$result = array_merge(
 			parent::exportAsActivityPub(),
 			[
-				'content'      => $this->getContent(),
+				'content' => $this->getContent(),
 				'attributedTo' => ($this->getAttributedTo() !== '') ? $this->getUrlSocial()
 																	  . $this->getAttributedTo() : '',
-				'inReplyTo'    => $this->getInReplyTo(),
-				'sensitive'    => $this->isSensitive(),
+				'inReplyTo' => $this->getInReplyTo(),
+				'sensitive' => $this->isSensitive(),
 				'conversation' => $this->getConversation()
 			]
 		);
@@ -468,9 +429,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$result = array_merge(
 				$result,
 				[
-					'details'       => $this->getDetailsAll(),
-					'action'        => ($this->hasAction()) ? $this->getAction() : [],
-					'cache'         => ($this->hasCache()) ? $this->getCache() : '',
+					'details' => $this->getDetailsAll(),
+					'action' => ($this->hasAction()) ? $this->getAction() : [],
+					'cache' => ($this->hasCache()) ? $this->getCache() : '',
 					'publishedTime' => $this->getPublishedTime()
 				]
 			);
@@ -506,25 +467,25 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			}
 		}
 		$result = [
-			"local"                  => $this->isLocal(),
-			"content"                => $this->getContent(),
-			"sensitive"              => $this->isSensitive(),
-			"spoiler_text"           => $this->getSpoilerText(),
-			"visibility"             => 'unlisted',
-			"language"               => $this->getLanguage(),
-			"in_reply_to_id"         => null,
+			"local" => $this->isLocal(),
+			"content" => $this->getContent(),
+			"sensitive" => $this->isSensitive(),
+			"spoiler_text" => $this->getSpoilerText(),
+			"visibility" => 'unlisted',
+			"language" => $this->getLanguage(),
+			"in_reply_to_id" => null,
 			"in_reply_to_account_id" => null,
-			'replies_count'          => 0,
-			'reblogs_count'          => 0,
-			'favourites_count'       => 0,
-			'favourited'             => $favorited,
-			'reblogged'              => $reblogged,
-			'muted'                  => false,
-			'bookmarked'             => false,
-			'uri'                    => $this->getId(),
-			'url'                    => $this->getId(),
-			"reblog"                 => null,
-			"created_at"             => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
+			'replies_count' => 0,
+			'reblogs_count' => 0,
+			'favourites_count' => 0,
+			'favourited' => $favorited,
+			'reblogged' => $reblogged,
+			'muted' => false,
+			'bookmarked' => false,
+			'uri' => $this->getId(),
+			'url' => $this->getId(),
+			"reblog" => null,
+			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
 		];
 
 		// TODO - store created_at full string with milliseconds ?
@@ -535,5 +496,4 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return array_merge(parent::exportAsLocal(), $result);
 	}
-
 }

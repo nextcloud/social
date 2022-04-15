@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -38,15 +38,12 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-
 /**
  * Class FollowsRequestBuilder
  *
  * @package OCA\Social\Db
  */
 class FollowsRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -187,6 +184,4 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 
 		return $follow;
 	}
-
 }
-

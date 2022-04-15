@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,15 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -130,6 +128,4 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $actor;
 	}
-
 }
-

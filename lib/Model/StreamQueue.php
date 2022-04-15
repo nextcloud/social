@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
-
 
 /**
  * Class StreamQueue
@@ -43,77 +42,39 @@ use JsonSerializable;
  * @package OCA\Social\Model
  */
 class StreamQueue implements JsonSerializable {
-
-
 	use TArrayTools;
 
+	public const TYPE_CACHE = 'Cache';
+	public const TYPE_VERIFY = 'Signature';
 
-	const TYPE_CACHE = 'Cache';
-	const TYPE_VERIFY = 'Signature';
+	public const STATUS_STANDBY = 0;
+	public const STATUS_RUNNING = 1;
+	public const STATUS_SUCCESS = 9;
 
-	const STATUS_STANDBY = 0;
-	const STATUS_RUNNING = 1;
-	const STATUS_SUCCESS = 9;
+	private int $id = 0;
+	private string $token = '';
+	private string $streamId = '';
+	private string $type = '';
+	private int $status = 0;
+	private int $tries = 0;
+	private int $last = 0;
 
-
-	/** @var integer */
-	private $id = 0;
-
-	/** @var string */
-	private $token = '';
-
-	/** @var string */
-	private $streamId = '';
-
-	/** @var string */
-	private $type = '';
-
-	/** @var int */
-	private $status = 0;
-
-	/** @var int */
-	private $tries = 0;
-
-	/** @var int */
-	private $last = 0;
-
-
-	/**
-	 * StreamQueue constructor.
-	 *
-	 * @param string $token
-	 * @param string $type
-	 * @param string $streamId
-	 */
 	public function __construct(string $token = '', string $type = '', string $streamId = '') {
 		$this->token = $token;
 		$this->type = $type;
 		$this->streamId = $streamId;
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getId(): int {
 		return $this->id;
 	}
 
-	/**
-	 * @param int $id
-	 *
-	 * @return StreamQueue
-	 */
 	public function setId(int $id): StreamQueue {
 		$this->id = $id;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getToken(): string {
 		return $this->token;
 	}
@@ -254,15 +215,13 @@ class StreamQueue implements JsonSerializable {
 	 */
 	public function jsonSerialize(): array {
 		return [
-			'id'       => $this->getId(),
-			'token'    => $this->getToken(),
+			'id' => $this->getId(),
+			'token' => $this->getToken(),
 			'streamId' => $this->getStreamId(),
-			'type'     => $this->getType(),
-			'status'   => $this->getStatus(),
-			'tries'    => $this->getTries(),
-			'last'     => $this->getLast()
+			'type' => $this->getType(),
+			'status' => $this->getStatus(),
+			'tries' => $this->getTries(),
+			'last' => $this->getLast()
 		];
 	}
-
 }
-

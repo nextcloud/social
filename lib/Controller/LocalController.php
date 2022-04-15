@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
@@ -59,79 +59,31 @@ use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
-
 /**
  * Class LocalController
  *
  * @package OCA\Social\Controller
  */
 class LocalController extends Controller {
-
-
 	use TArrayTools;
 	use TNCDataResponse;
 
+	private ?string $userId = null;
+	private CacheActorService $cacheActorService;
+	private HashtagService $hashtagService;
+	private FollowService $followService;
+	private BoostService $boostService;
+	private LikeService $likeService;
+	private PostService $postService;
+	private StreamService $streamService;
+	private SearchService $searchService;
+	private AccountService $accountService;
+	private DocumentService $documentService;
+	private MiscService $miscService;
+	private ?Person $viewer = null;
 
-	/** @var string */
-	private $userId;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var HashtagService */
-	private $hashtagService;
-
-	/** @var FollowService */
-	private $followService;
-
-	/** @var BoostService */
-	private $boostService;
-
-	/** @var LikeService */
-	private $likeService;
-
-	/** @var PostService */
-	private $postService;
-
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var SearchService */
-	private $searchService;
-
-	/** @var AccountService */
-	private $accountService;
-
-	/** @var DocumentService */
-	private $documentService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/** @var Person */
-	private $viewer;
-
-
-	/**
-	 * LocalController constructor.
-	 *
-	 * @param IRequest $request
-	 * @param string $userId
-	 * @param AccountService $accountService
-	 * @param CacheActorService $cacheActorService
-	 * @param HashtagService $hashtagService
-	 * @param FollowService $followService
-	 * @param PostService $postService
-	 * @param StreamService $streamService
-	 * @param SearchService $searchService
-	 * @param BoostService $boostService
-	 * @param LikeService $likeService
-	 * @param DocumentService $documentService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IRequest $request, $userId, AccountService $accountService, CacheActorService $cacheActorService,
+		IRequest $request, ?string $userId, AccountService $accountService, CacheActorService $cacheActorService,
 		HashtagService $hashtagService,
 		FollowService $followService, PostService $postService, StreamService $streamService,
 		SearchService $searchService,
@@ -159,10 +111,6 @@ class LocalController extends Controller {
 	 * Create a new post.
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param array $data
-	 *
-	 * @return DataResponse
 	 */
 	public function postCreate(array $data): DataResponse {
 		try {
@@ -177,11 +125,12 @@ class LocalController extends Controller {
 			$post->setHashtags($this->getArray('hashtags', $data, []));
 			$post->setAttachments($this->getArray('attachments', $data, []));
 
+			$token = '';
 			$activity = $this->postService->createPost($post, $token);
 
 			return $this->success(
 				[
-					'post'  => $activity->getObject(),
+					'post' => $activity->getObject(),
 					'token' => $token
 				]
 			);
@@ -192,15 +141,11 @@ class LocalController extends Controller {
 
 
 	/**
-	 * get info about a post (limited to viewer rights).
+	 * Get info about a post (limited to viewer rights).
 	 *
 	 * @NoAdminRequired
 	 * @PublicPage
 	 * @NoCSRFRequired
-	 *
-	 * @param string $id
-	 *
-	 * @return DataResponse
 	 */
 	public function postGet(string $id): DataResponse {
 		try {
@@ -215,16 +160,10 @@ class LocalController extends Controller {
 
 
 	/**
-	 * get replies about a post (limited to viewer rights).
+	 * Get replies about a post (limited to viewer rights).
 	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
-	 *
-	 * @param string $id
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
 	public function postReplies(string $id, int $since = 0, int $limit = 5): DataResponse {
 		try {
@@ -267,14 +206,11 @@ class LocalController extends Controller {
 	 * Create a new boost.
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param string $postId
-	 *
-	 * @return DataResponse
 	 */
 	public function postBoost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$announce = $this->boostService->create($this->viewer, $postId, $token);
 
 			return $this->success(
@@ -293,14 +229,11 @@ class LocalController extends Controller {
 	 * Delete a boost.
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param string $postId
-	 *
-	 * @return DataResponse
 	 */
 	public function postUnboost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$announce = $this->boostService->delete($this->viewer, $postId, $token);
 
 			return $this->success(
@@ -319,19 +252,16 @@ class LocalController extends Controller {
 	 * Like a post.
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param string $postId
-	 *
-	 * @return DataResponse
 	 */
 	public function postLike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$announce = $this->likeService->create($this->viewer, $postId, $token);
 
 			return $this->success(
 				[
-					'like'  => $announce,
+					'like' => $announce,
 					'token' => $token
 				]
 			);
@@ -342,22 +272,19 @@ class LocalController extends Controller {
 
 
 	/**
-	 * unlike a post.
+	 * Unlike a post.
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param string $postId
-	 *
-	 * @return DataResponse
 	 */
 	public function postUnlike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$like = $this->likeService->delete($this->viewer, $postId, $token);
 
 			return $this->success(
 				[
-					'like'  => $like,
+					'like' => $like,
 					'token' => $token
 				]
 			);
@@ -370,13 +297,8 @@ class LocalController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
-	public function streamHome($since = 0, int $limit = 5): DataResponse {
+	public function streamHome(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
 			$posts = $this->streamService->getStreamHome($since, $limit);
@@ -391,13 +313,8 @@ class LocalController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
-	public function streamNotifications($since = 0, int $limit = 5): DataResponse {
+	public function streamNotifications(int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer(true);
 			$posts = $this->streamService->getStreamNotifications($since, $limit);
@@ -412,14 +329,8 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $username
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
-	public function streamAccount(string $username, $since = 0, int $limit = 5): DataResponse {
+	public function streamAccount(string $username, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer();
 
@@ -436,11 +347,6 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
 	public function streamDirect(int $since = 0, int $limit = 5): DataResponse {
 		try {
@@ -459,11 +365,6 @@ class LocalController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
 		try {
@@ -481,12 +382,6 @@ class LocalController extends Controller {
 	 * Get timeline
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param string $hashtag
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
 	public function streamTag(string $hashtag, int $since = 0, int $limit = 5): DataResponse {
 		try {
@@ -504,11 +399,6 @@ class LocalController extends Controller {
 	 * Get timeline
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
 	public function streamFederated(int $since = 0, int $limit = 5): DataResponse {
 		try {
@@ -526,11 +416,6 @@ class LocalController extends Controller {
 	 * Get liked post
 	 *
 	 * @NoAdminRequired
-	 *
-	 * @param int $since
-	 * @param int $limit
-	 *
-	 * @return DataResponse
 	 */
 	public function streamLiked(int $since = 0, int $limit = 5): DataResponse {
 		try {
@@ -546,10 +431,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param string $account
-	 *
-	 * @return DataResponse
 	 */
 	public function actionFollow(string $account): DataResponse {
 		try {
@@ -566,10 +447,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param string $account
-	 *
-	 * @return DataResponse
 	 */
 	public function actionUnfollow(string $account): DataResponse {
 		try {
@@ -603,8 +480,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @return DataResponse
 	 */
 	public function currentFollowers(): DataResponse {
 		try {
@@ -622,8 +497,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @return DataResponse
 	 */
 	public function currentFollowing(): DataResponse {
 		try {
@@ -642,10 +515,6 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $username
-	 *
-	 * @return DataResponse
 	 */
 	public function accountInfo(string $username): DataResponse {
 		try {
@@ -664,35 +533,8 @@ class LocalController extends Controller {
 	/**
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $username
-	 *
-	 * @return DataResponse
-	 */
-	public function accountFollowers(string $username): DataResponse {
-		try {
-			$this->initViewer();
-
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
-			$followers = $this->followService->getFollowers($actor);
-
-			return $this->success($followers);
-		} catch (Exception $e) {
-			return $this->fail($e);
-		}
-	}
-
-
-	/**
-	 * @NoAdminRequired
-	 * @PublicPage
-	 *
-	 * @param string $username
-	 *
-	 * @return DataResponse
 	 */
 	public function accountFollowing(string $username): DataResponse {
-
 		try {
 			$this->initViewer();
 
@@ -708,10 +550,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param string $account
-	 *
-	 * @return DataResponse
 	 */
 	public function globalAccountInfo(string $account): DataResponse {
 		try {
@@ -728,10 +566,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param string $id
-	 *
-	 * @return DataResponse
 	 */
 	public function globalActorInfo(string $id): DataResponse {
 		try {
@@ -748,10 +582,6 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
-	 *
-	 * @param string $id
-	 *
-	 * @return DataResponse
 	 */
 	public function globalActorAvatar(string $id): Response {
 		try {
@@ -777,10 +607,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param string $search
-	 *
-	 * @return DataResponse
 	 * @throws Exception
 	 */
 	public function globalAccountsSearch(string $search): DataResponse {
@@ -814,10 +640,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param string $search
-	 *
-	 * @return DataResponse
 	 * @throws Exception
 	 */
 	public function globalTagsSearch(string $search): DataResponse {
@@ -847,14 +669,10 @@ class LocalController extends Controller {
 	}
 
 
-	/**     // TODO - remove this tag
-	 *
+	/**
+	 * TODO - remove this tag
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
-	 *
-	 * @param string $search
-	 *
-	 * @return DataResponse
 	 * @throws Exception
 	 */
 	public function search(string $search): DataResponse {
@@ -864,7 +682,7 @@ class LocalController extends Controller {
 		$result = [
 			'accounts' => $this->searchService->searchAccounts($search),
 			'hashtags' => $this->searchService->searchHashtags($search),
-			'content'  => $this->searchService->searchStreamContent($search)
+			'content' => $this->searchService->searchStreamContent($search)
 		];
 
 		return $this->success($result);
@@ -873,10 +691,6 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
-	 *
-	 * @param array $documents
-	 *
-	 * @return DataResponse
 	 */
 	public function documentsCache(array $documents): DataResponse {
 		try {
@@ -897,9 +711,6 @@ class LocalController extends Controller {
 
 
 	/**
-	 *
-	 * @param bool $exception
-	 *
 	 * @throws AccountDoesNotExistException
 	 */
 	private function initViewer(bool $exception = false) {
@@ -925,6 +736,4 @@ class LocalController extends Controller {
 			}
 		}
 	}
-
 }
-

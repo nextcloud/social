@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -43,23 +43,17 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 /**
  * Class StreamDetails
  *
  * @package OCA\Social\Command
  */
 class StreamDetails extends ExtendedBase {
+	private StreamService $streamService;
 
+	private DetailsService $detailsService;
 
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var DetailsService */
-	private $detailsService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -124,14 +118,14 @@ class StreamDetails extends ExtendedBase {
 
 		$this->output->writeln('<comment>Affected Timelines</comment>:');
 		$home = array_map(
-			function(Person $item): string {
+			function (Person $item): string {
 				return $item->getUserId();
 			}, $details->getHomeViewers()
 		);
 
 		$this->output->writeln('* <info>Home</info>: ' . json_encode($home, JSON_PRETTY_PRINT));
 		$direct = array_map(
-			function(Person $item): string {
+			function (Person $item): string {
 				return $item->getUserId();
 			}, $details->getDirectViewers()
 		);
@@ -140,6 +134,4 @@ class StreamDetails extends ExtendedBase {
 		$this->output->writeln('* <info>Public</info>: ' . ($details->isPublic() ? 'true' : 'false'));
 		$this->output->writeln('* <info>Federated</info>: ' . ($details->isFederated() ? 'true' : 'false'));
 	}
-
 }
-

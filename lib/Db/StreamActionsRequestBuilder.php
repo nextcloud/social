@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,11 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Model\StreamAction;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-
 
 /**
  * Class StreamActionsRequestBuilder
@@ -41,8 +40,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class StreamActionsRequestBuilder extends CoreRequestBuilder {
-
-
 	use TArrayTools;
 
 
@@ -115,6 +112,4 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 
 		return $action;
 	}
-
 }
-

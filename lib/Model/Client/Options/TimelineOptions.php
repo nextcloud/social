@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,11 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client\Options;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use JsonSerializable;
 use OCP\IRequest;
-
 
 /**
  * Class TimelineOptions
@@ -42,37 +41,26 @@ use OCP\IRequest;
  * @package OCA\Social\Model\Client\Options
  */
 class TimelineOptions extends CoreOptions implements JsonSerializable {
-
-
 	use TArrayTools;
 
 
-	/** @var string */
-	private $timeline = '';
+	private string $timeline = '';
 
-	/** @var bool */
-	private $local = false;
+	private bool $local = false;
 
-	/** @var bool */
-	private $remote = false;
+	private bool $remote = false;
 
-	/** @var bool */
-	private $onlyMedia = false;
+	private bool $onlyMedia = false;
 
-	/** @var int */
-	private $minId = 0;
+	private int $minId = 0;
 
-	/** @var int */
-	private $maxId = 0;
+	private int $maxId = 0;
 
-	/** @var int */
-	private $sinceId = 0;
+	private int $sinceId = 0;
 
-	/** @var int */
-	private $limit = 20;
+	private int $limit = 20;
 
-	/** @var bool */
-	private $inverted = false;
+	private bool $inverted = false;
 
 
 	/**
@@ -282,15 +270,13 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return
 			[
-				'local'      => $this->isLocal(),
-				'remote'     => $this->isRemote(),
+				'local' => $this->isLocal(),
+				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),
-				'min_id'     => $this->getMinId(),
-				'max_id'     => $this->getMaxId(),
-				'since_id'   => $this->getSinceId(),
-				'limit'      => $this->getLimit()
+				'min_id' => $this->getMinId(),
+				'max_id' => $this->getMaxId(),
+				'since_id' => $this->getSinceId(),
+				'limit' => $this->getLimit()
 			];
 	}
-
 }
-

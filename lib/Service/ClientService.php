@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TStringTools;
 use Exception;
 use OCA\Social\Db\ClientRequest;
@@ -37,31 +37,26 @@ use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
 
-
 /**
  * Class ClientService
  *
  * @package OCA\Social\Service
  */
 class ClientService {
-
-
-	const TIME_TOKEN_REFRESH = 300; // 5m
+	public const TIME_TOKEN_REFRESH = 300; // 5m
 //	const TIME_TOKEN_TTL = 21600; // 6h
 //	const TIME_AUTH_TTL = 30672000; // 1y
 
-// looks like there is no token refresh. token must have been updated in the last year.
-	const TIME_TOKEN_TTL = 30672000; // 1y
+	// looks like there is no token refresh. token must have been updated in the last year.
+	public const TIME_TOKEN_TTL = 30672000; // 1y
 
 
 	use TStringTools;
 
 
-	/** @var ClientRequest */
-	private $clientRequest;
+	private ClientRequest $clientRequest;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -202,6 +197,4 @@ class ClientService {
 			throw new ClientException('unknown code');
 		}
 	}
-
 }
-

@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 
 /**
@@ -29,7 +31,6 @@
 
 namespace OCA\Social\Notification;
 
-
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCP\Contacts\IManager;
@@ -40,29 +41,21 @@ use OCP\L10N\IFactory;
 use OCP\Notification\INotification;
 use OCP\Notification\INotifier;
 
-
 /**
  * Class Notifier
  *
  * @package OCA\Social\Notification
  */
 class Notifier implements INotifier {
+	private IL10N $l10n;
 
+	protected IFactory $factory;
 
-	/** @var IL10N */
-	private $l10n;
+	protected IManager $contactsManager;
 
-	/** @var IFactory */
-	protected $factory;
+	protected IURLGenerator $url;
 
-	/** @var IManager */
-	protected $contactsManager;
-
-	/** @var IURLGenerator */
-	protected $url;
-
-	/** @var ICloudIdManager */
-	protected $cloudIdManager;
+	protected ICloudIdManager $cloudIdManager;
 
 
 	public function __construct(
@@ -144,5 +137,4 @@ class Notifier implements INotifier {
 
 		return $notification;
 	}
-
 }

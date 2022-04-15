@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -44,32 +44,24 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 /**
  * Class Stream
  *
  * @package OCA\Social\Command
  */
 class Timeline extends ExtendedBase {
+	private IUserManager $userManager;
 
-	/** @var IUserManager */
-	private $userManager;
+	private StreamRequest $streamRequest;
 
-	/** @var StreamRequest */
-	private $streamRequest;
+	private AccountService $accountService;
 
-	/** @var AccountService */
-	private $accountService;
+	private ConfigService $configService;
 
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
-	/** @var int */
-	private $count;
+	private ?int $count = null;
 
 
 	/**
@@ -184,6 +176,4 @@ class Timeline extends ExtendedBase {
 				);
 		}
 	}
-
 }
-

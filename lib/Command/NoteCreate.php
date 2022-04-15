@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Model\Post;
@@ -45,32 +45,23 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-
 /**
  * Class NoteCreate
  *
  * @package OCA\Social\Command
  */
 class NoteCreate extends Base {
+	private ConfigService $configService;
 
+	private ActivityService $activityService;
 
-	/** @var ConfigService */
-	private $configService;
+	private AccountService $accountService;
 
-	/** @var ActivityService */
-	private $activityService;
+	private PostService $postService;
 
-	/** @var AccountService */
-	private $accountService;
+	private CurlService $curlService;
 
-	/** @var PostService */
-	private $postService;
-
-	/** @var CurlService */
-	private $curlService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -131,7 +122,6 @@ class NoteCreate extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$userId = $input->getArgument('userid');
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
@@ -147,11 +137,10 @@ class NoteCreate extends Base {
 		$post->addTo(($to === null) ? '' : $to);
 		$post->setHashtags(($hashtag === null) ? [] : [$hashtag]);
 
+		$token = '';
 		$activity = $this->postService->createPost($post, $token);
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";
 	}
-
 }
-

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TAsync;
 use OC;
 //use OC\Push\Model\Helper\PushCallback;
@@ -38,6 +38,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\AppFramework\QueryException;
+
 //use OCP\Push\Exceptions\PushInstallException;
 //use OCP\Push\IPushManager;
 //use OCP\Push\Model\IPushWrapper;
@@ -49,22 +50,13 @@ use OCP\AppFramework\QueryException;
  * @package OCA\Social\Service
  */
 class PushService {
-
-
 	use TAsync;
 
-//
-//	/** @var IPushManager */
-//	private $pushManager;
+	private DetailsService $detailsService;
 
-	/** @var DetailsService */
-	private $detailsService;
+	private StreamService $streamService;
 
-	/** @var StreamService */
-	private $streamService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -155,6 +147,4 @@ class PushService {
 ////
 ////		return $pushHelper->test($userId);
 //	}
-
 }
-

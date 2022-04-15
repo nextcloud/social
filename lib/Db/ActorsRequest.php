@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,29 +30,21 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\IDBConnection;
 
 class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
-	 * create a new Person in the database.
-	 *
-	 * @param Person $actor
-	 *
+	 * Create a new Person in the database.
 	 * @throws SocialAppConfigException
 	 */
-	public function create(Person $actor) {
-
+	public function create(Person $actor): void {
 		$actor->setId($this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername());
 		$qb = $this->getActorsInsertSql();
 
@@ -71,26 +64,18 @@ class ActorsRequest extends ActorsRequestBuilder {
 			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
-
-	/**
-	 * @param Person $actor
-	 */
-	public function update(Person $actor) {
+	public function update(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()));
 		$this->limitToIdString($qb, $actor->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
-
-	/**
-	 * @param Person $actor
-	 */
-	public function refreshKeys(Person $actor) {
+	public function refreshKeys(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
@@ -105,16 +90,13 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 		$this->limitToIdString($qb, $actor->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
 	/**
-	 * return Actor from database based on the username
+	 * Return Actor from database based on the username
 	 *
-	 * @param string $username
-	 *
-	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 * @throws SocialAppConfigException
 	 */
@@ -122,7 +104,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsSelectSql();
 		$this->limitToPreferredUsername($qb, $username);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -134,9 +116,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
-	 * @param string $id
-	 *
-	 * @return Person
 	 * @throws ActorDoesNotExistException
 	 * @throws SocialAppConfigException
 	 */
@@ -144,7 +123,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsSelectSql();
 		$this->limitToIdString($qb, $id);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -169,7 +148,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsSelectSql();
 		$this->limitToUserId($qb, $userId);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -189,7 +168,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsSelectSql();
 
 		$accounts = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$accounts[] = $this->parseActorsSelectSql($data);
 		}
@@ -200,8 +179,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 
 	/**
-	 * @param string $search
-	 *
 	 * @return Person[]
 	 * @throws SocialAppConfigException
 	 */
@@ -210,7 +187,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$this->searchInPreferredUsername($qb, $search);
 
 		$accounts = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$accounts[] = $this->parseActorsSelectSql($data);
 		}
@@ -218,6 +195,4 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 		return $accounts;
 	}
-
 }
-

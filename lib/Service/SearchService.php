@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,12 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-
 
 /**
  * Class SearchService
@@ -43,29 +42,23 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
  * @package OCA\Social\Service
  */
 class SearchService {
-
-
 	use TArrayTools;
 	use TNC20Logger;
 
 
-	const SEARCH_ACCOUNTS = 1;
-	const SEARCH_HASHTAGS = 2;
-	const SEARCH_CONTENT = 4;
-	const SEARCH_ALL = 7;
+	public const SEARCH_ACCOUNTS = 1;
+	public const SEARCH_HASHTAGS = 2;
+	public const SEARCH_CONTENT = 4;
+	public const SEARCH_ALL = 7;
 
 
-	/** @var CacheActorService */
-	private $cacheActorService;
+	private CacheActorService $cacheActorService;
 
-	/** @var HashtagService */
-	private $hashtagService;
+	private HashtagService $hashtagService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -170,6 +163,4 @@ class SearchService {
 				return self::SEARCH_ALL;
 		}
 	}
-
 }
-

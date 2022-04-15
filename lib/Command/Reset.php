@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Db\CoreRequestBuilder;
@@ -43,21 +43,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
 
-
 class Reset extends Base {
+	private CoreRequestBuilder $coreRequestBuilder;
 
+	private CheckService $checkService;
 
-	/** @var CoreRequestBuilder */
-	private $coreRequestBuilder;
+	private ConfigService $configService;
 
-	/** @var CheckService */
-	private $checkService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -99,7 +92,6 @@ class Reset extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
-
 		$helper = $this->getHelper('question');
 		$output->writeln(
 			'<error>Beware, this operation will delete all content from the Social App.</error>'
@@ -196,6 +188,4 @@ class Reset extends Base {
 			$this->configService->unsetCoreValue('public_host-meta-json');
 		}
 	}
-
 }
-

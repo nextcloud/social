@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
@@ -39,24 +39,18 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
-
 /**
  * Class ActionsRequest
  *
  * @package OCA\Social\Db
  */
 class ActionsRequest extends ActionsRequestBuilder {
-
-
 	use TArrayTools;
-
 
 	/**
 	 * Insert a new Note in the database.
-	 *
-	 * @param ACore $like
 	 */
-	public function save(ACore $like) {
+	public function save(ACore $like): void {
 		$qb = $this->getActionsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
 		   ->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
@@ -75,7 +69,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 
 		$this->generatePrimaryKey($qb, $like->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -169,6 +163,4 @@ class ActionsRequest extends ActionsRequestBuilder {
 //
 //		$qb->execute();
 //	}
-
 }
-

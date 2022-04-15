@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,13 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Cron;
 
-
-use OC\BackgroundJob\TimedJob;
+use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\MiscService;
 use OCP\AppFramework\QueryException;
-
 
 /**
  * Class Queue
@@ -44,19 +43,11 @@ use OCP\AppFramework\QueryException;
  * @package OCA\Social\Cron
  */
 class Chunk extends TimedJob {
+	private ?ConfigService $configService = null;
 
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * Cache constructor.
-	 */
-	public function __construct() {
-		$this->setInterval(12 * 3600); // 12 heures
+	public function __construct(ITimeFactory $time) {
+		parent::__construct($time);
+		$this->setInterval(12 * 3600); // 12 hours
 	}
 
 
@@ -70,7 +61,6 @@ class Chunk extends TimedJob {
 		$c = $app->getContainer();
 
 		$this->configService = $c->query(ConfigService::class);
-		$this->miscService = $c->query(MiscService::class);
 
 		$size = (int)$this->configService->getAppValue(ConfigService::DATABASE_CHUNK_SIZE);
 		$this->morphChunks($size);
@@ -81,8 +71,5 @@ class Chunk extends TimedJob {
 	 * @param int $size
 	 */
 	private function morphChunks(int $size) {
-
 	}
-
 }
-

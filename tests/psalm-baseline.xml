@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<files psalm-version="4.22.0@fc2c6ab4d5fa5d644d8617089f012f3bb84b8703">
+  <file src="lib/AP.php">
+    <InvalidScalarArgument occurrences="1">
+      <code>$level</code>
+    </InvalidScalarArgument>
+    <UndefinedPropertyAssignment occurrences="3">
+      <code>$ap-&gt;groupInterface</code>
+      <code>$ap-&gt;groupInterface</code>
+      <code>$ap-&gt;groupInterface</code>
+    </UndefinedPropertyAssignment>
+  </file>
+  <file src="lib/Migration/Version0003Date20200823023900.php">
+    <UndefinedDocblockClass occurrences="1">
+      <code>DBALException</code>
+    </UndefinedDocblockClass>
+  </file>
+  <file src="lib/Migration/Version0003Date20200823023911.php">
+    <UndefinedClass occurrences="3">
+      <code>SchemaException</code>
+      <code>SchemaException</code>
+      <code>Type</code>
+    </UndefinedClass>
+  </file>
+  <file src="lib/Model/ActivityPub/ACore.php">
+    <InvalidArgument occurrences="1">
+      <code>['a', 'p', 'span', 'br']</code>
+    </InvalidArgument>
+    <InvalidClass occurrences="1">
+      <code>Acore</code>
+    </InvalidClass>
+    <InvalidNullableReturnType occurrences="4">
+      <code>ACore</code>
+      <code>ACore</code>
+      <code>Document</code>
+      <code>LinkedDataSignature</code>
+    </InvalidNullableReturnType>
+    <InvalidPropertyAssignmentValue occurrences="1">
+      <code>$parent</code>
+    </InvalidPropertyAssignmentValue>
+    <NullableReturnStatement occurrences="4">
+      <code>$this-&gt;icon</code>
+      <code>$this-&gt;object</code>
+      <code>$this-&gt;parent</code>
+      <code>$this-&gt;signature</code>
+    </NullableReturnStatement>
+    <TypeDoesNotContainNull occurrences="1">
+      <code>$v === null</code>
+    </TypeDoesNotContainNull>
+    <TypeDoesNotContainType occurrences="2">
+      <code>$v === 0</code>
+      <code>$v === 0</code>
+    </TypeDoesNotContainType>
+  </file>
+  <file src="lib/Model/ActivityPub/Object/Announce.php">
+    <RedundantCondition occurrences="1">
+      <code>$object = $cache-&gt;getItem($this-&gt;getObjectId())</code>
+    </RedundantCondition>
+  </file>
+  <file src="lib/Model/Instance.php">
+    <InvalidNullableReturnType occurrences="2">
+      <code>Person</code>
+      <code>string</code>
+    </InvalidNullableReturnType>
+    <NullableReturnStatement occurrences="2">
+      <code>$this-&gt;accountPrim</code>
+      <code>$this-&gt;contactAccount</code>
+    </NullableReturnStatement>
+  </file>
+  <file src="lib/Model/LinkedDataSignature.php">
+    <UndefinedMethod occurrences="1">
+      <code>getPublicKey</code>
+    </UndefinedMethod>
+  </file>
+  <file src="lib/Model/RequestQueue.php">
+    <InvalidNullableReturnType occurrences="1">
+      <code>InstancePath</code>
+    </InvalidNullableReturnType>
+    <NullableReturnStatement occurrences="1">
+      <code>$this-&gt;instance</code>
+    </NullableReturnStatement>
+  </file>
+  <file src="lib/Service/CheckService.php">
+    <RedundantCast occurrences="1">
+      <code>(bool)($this-&gt;cache-&gt;get(self::CACHE_PREFIX . 'wellknown') === 'true')</code>
+    </RedundantCast>
+    <UndefinedClass occurrences="1">
+      <code>ClientException</code>
+    </UndefinedClass>
+  </file>
+  <file src="lib/Service/CurlService.php">
+    <InvalidOperand occurrences="1">
+      <code>$this-&gt;configService-&gt;getAppValue(ConfigService::SOCIAL_MAX_SIZE)</code>
+    </InvalidOperand>
+    <RedundantCondition occurrences="1">
+      <code>is_array($result)</code>
+    </RedundantCondition>
+  </file>
+  <file src="lib/Service/FollowService.php">
+    <InvalidReturnStatement occurrences="2">
+      <code>$this-&gt;followsRequest-&gt;getFollowersByActorId($actor-&gt;getId())</code>
+      <code>$this-&gt;followsRequest-&gt;getFollowingByActorId($actor-&gt;getId())</code>
+    </InvalidReturnStatement>
+    <InvalidReturnType occurrences="2">
+      <code>Person[]</code>
+      <code>Person[]</code>
+    </InvalidReturnType>
+  </file>
+  <file src="lib/Service/HashtagService.php">
+    <InvalidReturnStatement occurrences="1">
+      <code>$result</code>
+    </InvalidReturnStatement>
+    <InvalidReturnType occurrences="1">
+      <code>Stream[]</code>
+    </InvalidReturnType>
+  </file>
+  <file src="lib/Service/PostService.php">
+    <InvalidNullableReturnType occurrences="1">
+      <code>ACore</code>
+    </InvalidNullableReturnType>
+    <NullableReturnStatement occurrences="1">
+      <code>$activity</code>
+    </NullableReturnStatement>
+    <UndefinedMethod occurrences="2">
+      <code>setAttributedTo</code>
+      <code>setContent</code>
+    </UndefinedMethod>
+  </file>
+  <file src="lib/Service/SearchService.php">
+    <InvalidOperand occurrences="3">
+      <code>!$type</code>
+      <code>!$type</code>
+      <code>!$type</code>
+    </InvalidOperand>
+  </file>
+  <file src="lib/Service/SignatureService.php">
+    <RedundantCondition occurrences="1">
+      <code>$varr[0] !== null</code>
+    </RedundantCondition>
+    <UndefinedInterfaceMethod occurrences="1">
+      <code>getAppDataDir</code>
+    </UndefinedInterfaceMethod>
+  </file>
+  <file src="lib/Service/StreamService.php">
+    <InvalidReturnType occurrences="1">
+      <code>Note[]</code>
+    </InvalidReturnType>
+  </file>
+  <file src="lib/Service/TestService.php">
+    <TypeDoesNotContainNull occurrences="3">
+      <code>$host === null</code>
+      <code>$username === null</code>
+      <code>$username === null</code>
+    </TypeDoesNotContainNull>
+  </file>
+</files>

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
@@ -40,32 +40,24 @@ use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
-
 /**
  * Class ActorService
  *
  * @package OCA\Social\Service
  */
 class ActorService {
-
-
 	use TArrayTools;
 
 
-	/** @var CacheActorsRequest */
-	private $cacheActorsRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 
-	/** @var CacheDocumentsRequest */
-	private $cacheDocumentsRequest;
+	private CacheDocumentsRequest $cacheDocumentsRequest;
 
-	/** @var CurlService */
-	private $curlService;
+	private CurlService $curlService;
 
-	/** @var ConfigService */
-	private $configService;
+	private ConfigService $configService;
 
-	/** @var MiscService */
-	private $miscService;
+	private MiscService $miscService;
 
 
 	/**
@@ -153,6 +145,4 @@ class ActorService {
 			}
 		}
 	}
-
 }
-

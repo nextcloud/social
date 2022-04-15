@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -29,26 +30,21 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-
 use DateTime;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\DB\Exception as DBException;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
-
-
-	const CACHE_TTL = 60 * 24; // 1d
+	public const CACHE_TTL = 60 * 24; // 1d
 
 
 	/**
-	 * insert cache about an Actor in database.
-	 *
-	 * @param Person $actor
+	 * Insert cache about an Actor in database.
 	 */
-	public function save(Person $actor) {
+	public function save(Person $actor): void {
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
@@ -97,21 +93,16 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->generatePrimaryKey($actor->getId());
 
 		try {
-			$qb->execute();
-		} catch (UniqueConstraintViolationException $e) {
+			$qb->executeStatement();
+		} catch (DBException $e) {
 		}
 	}
 
 
 	/**
-	 * insert cache about an Actor in database.
-	 *
-	 * @param Person $actor
-	 *
-	 * @return int
+	 * Insert cache about an Actor in database.
 	 */
 	public function update(Person $actor): int {
-
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
 		   ->set('followers', $qb->createNamedParameter($actor->getFollowers()))
@@ -154,7 +145,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		$this->limitToIdString($qb, $actor->getId());
 
-		return $qb->execute();
+		return $qb->executeStatement();
 	}
 
 
@@ -205,6 +196,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToPreferredUsername($qb, $account);
 		$this->limitToLocal($qb, true);
+		/** @var SocialQueryBuilder $qb */
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 
@@ -220,6 +212,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->searchInAccount($qb, $search);
+		/** @var SocialQueryBuilder $qb */
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 		$this->limitResults($qb, 25);
@@ -252,6 +245,4 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		$qb->execute();
 	}
-
 }
-

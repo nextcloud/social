@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\Core\Command\Base;
@@ -49,54 +49,19 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 
-
 class CheckInstall extends Base {
-
-
 	use TArrayTools;
 
+	private IUserManager $userManager;
+	private StreamRequest $streamRequest;
+	private CacheActorService $cacheActorService;
+	private StreamDestRequest $streamDestRequest;
+	private StreamTagsRequest $streamTagsRequest;
+	private CheckService $checkService;
+	private ConfigService $configService;
+	private PushService $pushService;
+	private MiscService $miscService;
 
-	/** @var IUserManager */
-	private $userManager;
-
-	/** @var StreamRequest */
-	private $streamRequest;
-
-	/** @var CacheActorService */
-	private $cacheActorService;
-
-	/** @var StreamDestRequest */
-	private $streamDestRequest;
-
-	/** @var StreamTagsRequest */
-	private $streamTagsRequest;
-
-	/** @var CheckService */
-	private $checkService;
-
-	/** @var */
-	private $configService;
-
-	/** @var PushService */
-	private $pushService;
-
-	/** @var MiscService */
-	private $miscService;
-
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param IUserManager $userManager
-	 * @param StreamRequest $streamRequest
-	 * @param StreamDestRequest $streamDestRequest
-	 * @param StreamTagsRequest $streamTagsRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param CheckService $checkService
-	 * @param ConfigService $configService
-	 * @param PushService $pushService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IUserManager $userManager, StreamRequest $streamRequest, StreamDestRequest $streamDestRequest,
 		StreamTagsRequest $streamTagsRequest, CacheActorService $cacheActorService,
@@ -116,10 +81,6 @@ class CheckInstall extends Base {
 		$this->pushService = $pushService;
 	}
 
-
-	/**
-	 *
-	 */
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')
@@ -134,9 +95,6 @@ class CheckInstall extends Base {
 
 
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
@@ -157,7 +115,6 @@ class CheckInstall extends Base {
 		$output->writeln('- Your current configuration: ');
 		$output->writeln(json_encode($this->configService->getConfig(), JSON_PRETTY_PRINT));
 	}
-
 
 	/**
 	 * @param InputInterface $input
@@ -218,11 +175,7 @@ class CheckInstall extends Base {
 		return true;
 	}
 
-
-	/**
-	 * @param OutputInterface $output
-	 */
-	private function regenerateIndex(OutputInterface $output) {
+	private function regenerateIndex(OutputInterface $output): void {
 		$streams = $this->streamRequest->getAll();
 		$progressBar = new ProgressBar($output, count($streams));
 		$progressBar->start();
@@ -240,6 +193,4 @@ class CheckInstall extends Base {
 		$progressBar->finish();
 		$output->writeln('');
 	}
-
 }
-

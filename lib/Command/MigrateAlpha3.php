@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 
@@ -30,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
 use OC\Core\Command\Base;
@@ -46,65 +46,47 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 
-
 class MigrateAlpha3 extends Base {
-
-
 	use TArrayTools;
 
-
-	/** @var IDBConnection */
-	private $dbConnection;
-
-	/** @var CoreRequestBuilder */
-	private $coreRequestBuilder;
-
-	/** @var CheckService */
-	private $checkService;
-
-	/** @var ConfigService */
-	private $configService;
-
-	/** @var MiscService */
-	private $miscService;
-
-	/** @var array */
-	private $done = [];
-
-
-	/** @var array */
-	public $tables = [
-		'social_a2_actions'       => [
+	private IDBConnection $dbConnection;
+	private CoreRequestBuilder $coreRequestBuilder;
+	private CheckService $checkService;
+	private ConfigService $configService;
+	private MiscService $miscService;
+	private array $done = [];
+	public array $tables = [
+		'social_a2_actions' => [
 			['id_prim'],
 			'social_3_action',
 			[
-				'actor_id_prim'  => 'PRIM:actor_id',
+				'actor_id_prim' => 'PRIM:actor_id',
 				'object_id_prim' => 'PRIM:object_id'
 			]
 		],
-		'social_a2_actors'        => [['user_id'], 'social_3_actor', []],
-		'social_a2_cache_actors'  => [['id_prim'], 'social_3_cache_actor', []],
+		'social_a2_actors' => [['user_id'], 'social_3_actor', []],
+		'social_a2_cache_actors' => [['id_prim'], 'social_3_cache_actor', []],
 		'social_a2_cache_documts' => [['id_prim'], 'social_3_cache_doc', []],
-		'social_a2_follows'       => [
+		'social_a2_follows' => [
 			['id_prim'],
 			'social_3_follow',
 			[
-				'actor_id_prim'  => 'PRIM:actor_id',
+				'actor_id_prim' => 'PRIM:actor_id',
 				'object_id_prim' => 'PRIM:object_id',
 				'follow_id_prim' => 'PRIM:follow_id'
 			]
 		],
 
-		'social_a2_hashtags'      => [['hashtag'], 'social_3_hashtag', []],
+		'social_a2_hashtags' => [['hashtag'], 'social_3_hashtag', []],
 		'social_a2_request_queue' => [['id'], 'social_3_req_queue', []],
-		'social_a2_stream'        => [
+		'social_a2_stream' => [
 			['id_prim'],
 			'social_3_stream',
 			[
-				'object_id_prim'     => 'PRIM:object_id',
-				'in_reply_to_prim'   => 'PRIM:in_reply_to',
+				'object_id_prim' => 'PRIM:object_id',
+				'in_reply_to_prim' => 'PRIM:in_reply_to',
 				'attributed_to_prim' => 'PRIM:attributed_to',
-				'filter_duplicate'   => 'COPY:hidden_on_timeline',
+				'filter_duplicate' => 'COPY:hidden_on_timeline',
 				'hidden_on_timeline' => 'REMOVED:'
 			]
 		],
@@ -112,24 +94,14 @@ class MigrateAlpha3 extends Base {
 			['id'],
 			'social_3_stream_act',
 			[
-				'actor_id_prim'  => 'PRIM:actor_id',
+				'actor_id_prim' => 'PRIM:actor_id',
 				'stream_id_prim' => 'PRIM:stream_id',
-				'_function_'     => 'migrateTableStreamAction'
+				'_function_' => 'migrateTableStreamAction'
 			]
 		],
-		'social_a2_stream_queue'  => [['id'], 'social_3_stream_queue', []]
+		'social_a2_stream_queue' => [['id'], 'social_3_stream_queue', []]
 	];
 
-
-	/**
-	 * CacheUpdate constructor.
-	 *
-	 * @param IDBConnection $dbConnection
-	 * @param CoreRequestBuilder $coreRequestBuilder
-	 * @param CheckService $checkService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IDBConnection $dbConnection, CoreRequestBuilder $coreRequestBuilder, CheckService $checkService,
 		ConfigService $configService, MiscService $miscService
@@ -142,10 +114,6 @@ class MigrateAlpha3 extends Base {
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 *
-	 */
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:migrate:alpha3')
@@ -160,9 +128,6 @@ class MigrateAlpha3 extends Base {
 
 
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output) {
@@ -223,8 +188,6 @@ class MigrateAlpha3 extends Base {
 	/**
 	 * @param InputInterface $input
 	 * @param OutputInterface $output
-	 *
-	 * @return bool
 	 */
 	private function confirmExecute(InputInterface $input, OutputInterface $output): bool {
 		$helper = $this->getHelper('question');
@@ -241,11 +204,7 @@ class MigrateAlpha3 extends Base {
 	}
 
 
-	/**
-	 * @param OutputInterface $output
-	 * @param array $tables
-	 */
-	private function migrateTables(OutputInterface $output, array $tables) {
+	private function migrateTables(OutputInterface $output, array $tables): void {
 		foreach ($tables as $table) {
 			try {
 				$this->migrateTable($output, $table);
@@ -257,15 +216,9 @@ class MigrateAlpha3 extends Base {
 				);
 			}
 		}
-
 	}
 
-
-	/**
-	 * @param OutputInterface $output
-	 * @param string $table
-	 */
-	private function migrateTable(OutputInterface $output, string $table) {
+	private function migrateTable(OutputInterface $output, string $table): void {
 		$output->writeln('');
 		$output->writeln('Retrieving data from \'' . $table . '\'.');
 		$fullContent = $this->getContentFromTable($table);
@@ -289,12 +242,6 @@ class MigrateAlpha3 extends Base {
 		$this->done[] = $table;
 	}
 
-
-	/**
-	 * @param string $table
-	 *
-	 * @return array
-	 */
 	private function getContentFromTable(string $table): array {
 		$qb = $this->dbConnection->getQueryBuilder();
 
@@ -311,13 +258,6 @@ class MigrateAlpha3 extends Base {
 		return $entries;
 	}
 
-
-	/**
-	 * @param string $table
-	 * @param $entry
-	 *
-	 * @return bool
-	 */
 	private function migrateEntry(string $table, $entry): bool {
 		if (!$this->checkUnique($table, $entry)) {
 			return false;
@@ -340,7 +280,7 @@ class MigrateAlpha3 extends Base {
 				if ($this->get($k, $entry, '') !== '') {
 					$this->manageDefault($qb, $this->get($k, $destDefault), $entry);
 					$value = $entry[$k];
-				} else if (array_key_exists($k, $destDefault)) {
+				} elseif (array_key_exists($k, $destDefault)) {
 					$value = $this->manageDefault($qb, $destDefault[$k], $entry);
 				}
 			} catch (Exception $e) {
@@ -361,13 +301,6 @@ class MigrateAlpha3 extends Base {
 		return true;
 	}
 
-
-	/**
-	 * @param string $table
-	 * @param $entry
-	 *
-	 * @return bool
-	 */
 	private function checkUnique(string $table, $entry): bool {
 		list($unique, $destTable) = $this->tables[$table];
 
@@ -382,7 +315,7 @@ class MigrateAlpha3 extends Base {
 		}
 		$qb->andWhere($andX);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -395,10 +328,6 @@ class MigrateAlpha3 extends Base {
 
 
 	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $default
-	 * @param array $entry
-	 *
 	 * @return IParameter|string
 	 * @throws Exception
 	 */
@@ -430,11 +359,6 @@ class MigrateAlpha3 extends Base {
 		return '';
 	}
 
-
-	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 */
 	private function dropDeprecatedTables(InputInterface $input, OutputInterface $output) {
 		$helper = $this->getHelper('question');
 		$output->writeln('');
@@ -452,20 +376,11 @@ class MigrateAlpha3 extends Base {
 		}
 	}
 
-
-	/**
-	 * @param string $table
-	 */
-	private function dropTable(string $table) {
+	private function dropTable(string $table): void {
 		$this->dbConnection->dropTable($table);
 	}
 
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param array $entry
-	 */
-	public function migrateTableStreamAction(IQueryBuilder $qb, array $entry) {
+	public function migrateTableStreamAction(IQueryBuilder $qb, array $entry): void {
 		$values = json_decode($entry['values'], true);
 		if ($values === null) {
 			return;
@@ -477,6 +392,4 @@ class MigrateAlpha3 extends Base {
 		$qb->setValue('liked', $qb->createNamedParameter($liked));
 		$qb->setValue('boosted', $qb->createNamedParameter($boosted));
 	}
-
 }
-
