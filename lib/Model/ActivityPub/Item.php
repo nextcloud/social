@@ -37,163 +37,85 @@ use OCA\Social\Model\InstancePath;
 class Item {
 	use TArrayTools;
 
-
 	private string $urlSocial = '';
-
 	private string $urlCloud = '';
-
 	private string $address = '';
-
 	private string $id = '';
-
 	private int $nid = 0;
-
 	private string $type = '';
-
 	private string $subType = '';
-
 	private string $url = '';
-
 	private string $attributedTo = '';
-
 	private string $summary = '';
-
 	/** @var InstancePath[] */
 	private array $instancePaths = [];
-
 	private string $to = '';
-
 	private array $toArray = [];
-
 	private array $cc = [];
-
 	private array $bcc = [];
-
 	private string $published = '';
-
 	private array $tags = [];
-
 	private ?Person $actor = null;
-
 	private string $actorId = '';
-
 	private string $iconId = '';
-
 	private string $objectId = '';
-
 	private bool $completeDetails = false;
-
 	private string $source = '';
-
 	private bool $local = false;
-
 	private string $origin = '';
-
 	private int $originSource = 0;
-
 	private int $originCreationTime = 0;
 
-
-	/**
-	 * @return string
-	 */
 	public function getId(): string {
 		return $this->id;
 	}
 
-	/**
-	 * @param string $id
-	 *
-	 * @return Item
-	 */
 	public function setId(string $id): Item {
 		$this->id = $id;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getNid(): int {
 		return $this->nid;
 	}
 
-	/**
-	 * @param int $nid
-	 *
-	 * @return Item
-	 */
 	public function setNid(int $nid): self {
 		$this->nid = $nid;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getType(): string {
 		return $this->type;
 	}
 
-	/**
-	 * @param string $type
-	 *
-	 * @return Item
-	 */
 	public function setType(string $type): Item {
 		$this->type = $type;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getSubType(): string {
 		return $this->subType;
 	}
 
-	/**
-	 * @param string $type
-	 *
-	 * @return Item
-	 */
 	public function setSubType(string $type): Item {
 		$this->subType = $type;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getUrl(): string {
 		return $this->url;
 	}
 
-	/**
-	 * @param string $url
-	 *
-	 * @return Item
-	 */
 	public function setUrl(string $url): Item {
 		$this->url = $url;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param InstancePath $instancePath
-	 *
-	 * @return Item
-	 */
 	public function addInstancePath(InstancePath $instancePath): Item {
 		if ($instancePath->getUri() !== '') {
 			$this->instancePaths[] = $instancePath;
@@ -202,11 +124,8 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @param InstancePath[] $path
-	 *
-	 * @return Item
 	 */
 	public function addInstancePaths(array $path): Item {
 		$this->instancePaths = array_merge($this->instancePaths, $path);
@@ -232,10 +151,6 @@ class Item {
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getSummary(): string {
 		return $this->summary;
 	}
@@ -255,15 +170,10 @@ class Item {
 	/**
 	 * @return Person
 	 */
-	public function getActor(): Person {
+	public function getActor(): ?Person {
 		return $this->actor;
 	}
 
-	/**
-	 * @param Person $actor
-	 *
-	 * @return Item
-	 */
 	public function setActor(Person $actor): Item {
 		$this->actor = $actor;
 

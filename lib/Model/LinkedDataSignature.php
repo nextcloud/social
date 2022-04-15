@@ -107,15 +107,24 @@ class LinkedDataSignature implements JsonSerializable {
 		return $this->privateKey;
 	}
 
-	public function setPrivateKey(string $privateKey): LinkedDataSignature {
+	public function setPrivateKey(string $privateKey): self {
 		$this->privateKey = $privateKey;
 
 		return $this;
 	}
 
-	public function setPublicKey(string $publicKey): LinkedDataSignature {
+	public function setPublicKey(string $publicKey): self {
 		$this->publicKey = $publicKey;
 
+		return $this;
+	}
+
+	public function getObject(): array {
+		return $this->object;
+	}
+
+	public function setObject(array $object): self {
+		$this->object = $object;
 		return $this;
 	}
 

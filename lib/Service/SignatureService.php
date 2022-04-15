@@ -69,38 +69,21 @@ use stdClass;
 class SignatureService {
 	use TArrayTools;
 
-
 	public const ORIGIN_HEADER = 1;
 	public const ORIGIN_SIGNATURE = 2;
 	public const ORIGIN_REQUEST = 3;
-
 
 	public const DATE_HEADER = 'D, d M Y H:i:s T';
 	public const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
 	public const DATE_DELAY = 300;
 
-
 	private CacheActorService $cacheActorService;
-
 	private ActorsRequest $actorsRequest;
-
 	private CurlService $curlService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * ActivityService constructor.
-	 *
-	 * @param ActorsRequest $actorsRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		ActorsRequest $actorsRequest, CacheActorService $cacheActorService,
 		CurlService $curlService,

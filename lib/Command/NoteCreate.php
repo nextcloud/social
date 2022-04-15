@@ -137,6 +137,7 @@ class NoteCreate extends Base {
 		$post->addTo(($to === null) ? '' : $to);
 		$post->setHashtags(($hashtag === null) ? [] : [$hashtag]);
 
+		$token = '';
 		$activity = $this->postService->createPost($post, $token);
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

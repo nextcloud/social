@@ -87,29 +87,14 @@ class ConfigService {
 		'WHITELIST' => 'none_but'
 	];
 
-
-	private string $userId;
-
+	private ?string $userId = null;
 	private IConfig $config;
-
 	private IRequest $request;
-
 	private IURLGenerator $urlGenerator;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * ConfigService constructor.
-	 *
-	 * @param string $userId
-	 * @param IConfig $config
-	 * @param IRequest $request
-	 * @param IURLGenerator $urlGenerator
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		$userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
+		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
 		MiscService $miscService
 	) {
 		$this->userId = $userId;

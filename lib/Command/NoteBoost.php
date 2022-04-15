@@ -49,22 +49,10 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class NoteBoost extends Base {
 	private StreamService $streamService;
-
 	private AccountService $accountService;
-
 	private BoostService $boostService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * NoteBoost constructor.
-	 *
-	 * @param AccountService $accountService
-	 * @param StreamService $streamService
-	 * @param BoostService $boostService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		AccountService $accountService, StreamService $streamService, BoostService $boostService,
 		MiscService $miscService
@@ -104,6 +92,7 @@ class NoteBoost extends Base {
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->streamService->setViewer($actor);
 
+		$token = '';
 		if (!$input->getOption('unboost')) {
 			$activity = $this->boostService->create($actor, $noteId, $token);
 		} else {

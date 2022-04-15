@@ -47,25 +47,11 @@ use OCA\Social\Service\PushService;
 
 class NoteInterface implements IActivityPubInterface {
 	private StreamRequest $streamRequest;
-
 	private CurlService $curlService;
-
 	private PushService $pushService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * NoteInterface constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param CurlService $curlService
-	 * @param PushService $pushService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamRequest $streamRequest, CurlService $curlService, PushService $pushService,
 		ConfigService $configService, MiscService $miscService
@@ -77,36 +63,20 @@ class NoteInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 * @param ACore $note
-	 */
-	public function processIncomingRequest(ACore $note) {
+	public function processIncomingRequest(ACore $item) {
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
 	public function processResult(ACore $item) {
 	}
 
-
 	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore {
 		throw new ItemNotFoundException();
 	}
 
-
 	/**
-	 * @param string $id
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore {
@@ -140,13 +110,9 @@ class NoteInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $note
-	 */
-	public function save(ACore $note) {
+	public function save(ACore $item) {
 		/** @var Note $note */
-
+		$note = $item;
 		try {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {

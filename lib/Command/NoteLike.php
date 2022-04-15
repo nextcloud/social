@@ -104,6 +104,7 @@ class NoteLike extends Base {
 		$actor = $this->accountService->getActorFromUserId($userId);
 		$this->streamService->setViewer($actor);
 
+		$token = '';
 		if (!$input->getOption('unlike')) {
 			$activity = $this->likeService->create($actor, $noteId, $token);
 		} else {

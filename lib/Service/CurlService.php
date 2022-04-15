@@ -65,11 +65,8 @@ class CurlService {
 	public const ASYNC_REQUEST_TOKEN = '/async/request/{token}';
 	public const USER_AGENT = 'Nextcloud Social';
 
-
 	private ConfigService $configService;
-
 	private FediverseService $fediverseService;
-
 	private MiscService $miscService;
 
 
@@ -115,10 +112,12 @@ class CurlService {
 			throw new InvalidResourceException('account format is not valid');
 		}
 
-		list($username, $host) = explode('@', $account);
-		if ($username === null || $host === null) {
+		$exploded = explode('@', $account);
+
+		if (count($exploded) < 2) {
 			throw new InvalidResourceException();
 		}
+		[$username, $host] = $exploded;
 
 		$protocols = ['https', 'http'];
 		try {

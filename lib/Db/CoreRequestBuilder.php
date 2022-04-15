@@ -38,6 +38,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
 use OC\DB\SchemaWrapper;
+use OCP\DB\ISchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -109,7 +110,6 @@ class CoreRequestBuilder {
 	) {
 		$this->dbConnection = $connection;
 		$this->logger = $logger;
-		$this->loggerInterface = $logger;
 		$this->urlGenerator = $urlGenerator;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
@@ -122,7 +122,7 @@ class CoreRequestBuilder {
 	public function getQueryBuilder(): SocialQueryBuilder {
 		$qb = new SocialQueryBuilder(
 			$this->dbConnection,
-			OC::$server->getSystemConfig(),
+			OC::$server->get(\OC\SystemConfig::class),
 			$this->logger,
 			$this->urlGenerator
 		);
@@ -729,19 +729,10 @@ class CoreRequestBuilder {
 	}
 
 
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param array $values
-	 */
-	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values) {
+	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values): void {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
-
-		if (!is_array($values)) {
-			$values = [$values];
-		}
 
 		$orX = $expr->orX();
 		foreach ($values as $value) {
@@ -1185,6 +1176,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function uninstallSocialTables() {
+		/** @var ISchemaWrapper|SchemaWrapper $schema */
 		$schema = new SchemaWrapper($this->dbConnection);
 		foreach ($this->tables as $table) {
 			if ($schema->hasTable($table)) {

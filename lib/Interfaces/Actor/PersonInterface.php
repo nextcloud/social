@@ -54,30 +54,13 @@ use OCA\Social\Service\MiscService;
 class PersonInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-
 	private CacheActorsRequest $cacheActorsRequest;
-
 	private StreamRequest $streamRequest;
-
 	private FollowsRequest $followsRequest;
-
 	private ActorService $actorService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * UndoService constructor.
-	 *
-	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param StreamRequest $streamRequest
-	 * @param FollowsRequest $followsRequest
-	 * @param ActorService $actorService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
 		FollowsRequest $followsRequest, ActorService $actorService, ConfigService $configService,
@@ -91,25 +74,15 @@ class PersonInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 * @param ACore $person
-	 */
-	public function processIncomingRequest(ACore $person) {
+	public function processIncomingRequest(ACore $item) {
 	}
 
 
-	/**
-	 * @param ACore $item
-	 */
 	public function processResult(ACore $item) {
 	}
 
 
 	/**
-	 * @param ACore $item
-	 *
-	 * @return ACore
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore {
@@ -149,12 +122,9 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $person
-	 */
-	public function save(ACore $person) {
+	public function save(ACore $item) {
 		/** @var Person $person */
+		$person = $item;
 		try {
 			$this->getItemById($person->getId());
 			$this->actorService->update($person);
@@ -163,17 +133,9 @@ class PersonInterface implements IActivityPubInterface {
 		}
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
 	public function update(ACore $item) {
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
 	public function delete(ACore $item) {
 		/** @var Person $item */
 		$this->cacheActorsRequest->deleteCacheById($item->getId());
@@ -181,19 +143,9 @@ class PersonInterface implements IActivityPubInterface {
 		$this->followsRequest->deleteRelatedId($item->getId());
 	}
 
-
-	/**
-	 * @param ACore $item
-	 * @param string $source
-	 */
 	public function event(ACore $item, string $source) {
 	}
 
-
-	/**
-	 * @param Person $actor
-	 * @param ACore $activity
-	 */
 	private function updateActor(Person $actor, ACore $activity) {
 		$actor->setCreation($activity->getOriginCreationTime());
 

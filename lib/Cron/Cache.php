@@ -32,7 +32,7 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 use Exception;
-use OC\AppFramework\Utility\TimeFactory;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\AccountService;
@@ -52,7 +52,7 @@ class Cache extends TimedJob {
 	private ?DocumentService $documentService = null;
 	private ?HashtagService $hashtagService = null;
 
-	public function __construct(TimeFactory $time) {
+	public function __construct(ITimeFactory $time) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60); // 12 minutes
 	}

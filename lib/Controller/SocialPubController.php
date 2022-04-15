@@ -67,6 +67,7 @@ class SocialPubController extends Controller {
 	private CacheActorService $cacheActorService;
 	private StreamService $streamService;
 	private ConfigService $configService;
+	private IInitialStateService $initialStateService;
 
 	public function __construct(
 		?string $userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,

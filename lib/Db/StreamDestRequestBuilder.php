@@ -44,8 +44,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 	/**
 	 * Base of the Sql Insert request
-	 *
-	 * @return IQueryBuilder
 	 */
 	protected function getStreamDestInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();

@@ -118,8 +118,8 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 * @throws ActionDoesNotExistException
 	 */
 	protected function getActionFromRequest(SocialQueryBuilder $qb): ACore {
-		/** @var ACore $result */
 		try {
+			/** @var ACore $result */
 			$result = $qb->getRow([$this, 'parseActionsSelectSql']);
 		} catch (RowNotFoundException $e) {
 			throw new ActionDoesNotExistException($e->getMessage());

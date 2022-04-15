@@ -61,51 +61,22 @@ class CheckService {
 	public const CACHE_PREFIX = 'social_check_';
 
 	private IUserManager $userManager;
-
 	private ICache $cache;
-
 	private IConfig $config;
-
 	private IClientService $clientService;
-
 	private IRequest $request;
-
 	private IURLGenerator $urlGenerator;
-
 	private FollowsRequest $followRequest;
-
 	private CacheActorsRequest $cacheActorsRequest;
-
 	private StreamDestRequest $streamDestRequest;
-
 	private StreamRequest $streamRequest;
-
 	private AccountService $accountService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
+	private ?string $userId = null;
 
-
-	/**
-	 * CheckService constructor.
-	 *
-	 * @param IUserManager $userManager
-	 * @param ICache $cache
-	 * @param IConfig $config
-	 * @param IClientService $clientService
-	 * @param IRequest $request
-	 * @param IURLGenerator $urlGenerator
-	 * @param FollowsRequest $followRequest
-	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param StreamDestRequest $streamDestRequest
-	 * @param StreamRequest $streamRequest
-	 * @param AccountService $accountService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
-		IUserManager $userManager, ICache $cache, IConfig $config, IClientService $clientService,
+		IUserManager $userManager, ?string $userId, ICache $cache, IConfig $config, IClientService $clientService,
 		IRequest $request, IURLGenerator $urlGenerator, FollowsRequest $followRequest,
 		CacheActorsRequest $cacheActorsRequest, StreamDestRequest $streamDestRequest,
 		StreamRequest $streamRequest, AccountService $accountService, ConfigService $configService,
@@ -124,6 +95,7 @@ class CheckService {
 		$this->accountService = $accountService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->userId = $userId;
 	}
 
 
@@ -291,16 +263,12 @@ class CheckService {
 		return $count;
 	}
 
-
-	/**
-	 * @param string $base
-	 *
-	 * @return bool
-	 */
-	private function requestWellKnown(string $base) {
+	private function requestWellKnown(string $base): bool {
 		try {
-			$url = $base . '/.well-known/webfinger';
+			$url = $base . '/.well-known/webfinger?resource=acct:' . $this->userId . '@' . parse_url($base, PHP_URL_HOST);
 			$options['nextcloud']['allow_local_address'] = true;
+			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
+
 			$response = $this->clientService->newClient()
 											->get($url, $options);
 			if ($response->getStatusCode() === Http::STATUS_OK) {

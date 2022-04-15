@@ -140,10 +140,11 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
+	 * @param array|string $redirect_uris
 	 * @throws ClientException
 	 */
 	public function apps(
-		string $client_name = '', string $redirect_uris = '', string $website = '', string $scopes = 'read'
+		string $client_name = '', $redirect_uris = '', string $website = '', string $scopes = 'read'
 	): DataResponse {
 		// TODO: manage array from request
 		if (!is_array($redirect_uris)) {

@@ -44,7 +44,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 class StreamDetails implements JsonSerializable {
 	use TArrayTools;
 
-
 	private Stream $stream;
 
 	/** @var Person[] */
@@ -52,82 +51,51 @@ class StreamDetails implements JsonSerializable {
 
 	/** @var Person[] */
 	private array $directViewers = [];
-
 	private bool $public = false;
-
 	private bool $federated = false;
 
 
 	/**
 	 * StreamDetails constructor.
-	 *
-	 * @param Stream|null $stream
 	 */
-	public function __construct(Stream $stream = null) {
+	public function __construct(?Stream $stream = null) {
 		$this->stream = $stream;
 	}
 
-
-	/**
-	 * @return Stream
-	 */
 	public function getStream(): Stream {
 		return $this->stream;
 	}
 
-	/**
-	 * @param Stream $stream
-	 *
-	 * @return StreamDetails
-	 */
 	public function setStream(Stream $stream): self {
 		$this->stream = $stream;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return Person[]
-	 */
+	/** @return Person[] */
 	public function getHomeViewers(): array {
 		return $this->homeViewers;
 	}
 
-	/**
-	 * @param Person[] $viewers
-	 *
-	 * @return StreamDetails
-	 */
+	/** @param Person[] $viewers */
 	public function setHomeViewers(array $viewers): self {
 		$this->homeViewers = $viewers;
 
 		return $this;
 	}
 
-	/**
-	 * @param Person $viewer
-	 *
-	 * @return StreamDetails
-	 */
 	public function addHomeViewer(Person $viewer): self {
 		$this->homeViewers[] = $viewer;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return Person[]
-	 */
 	public function getDirectViewers(): array {
 		return $this->directViewers;
 	}
 
 	/**
 	 * @param Person[] $viewers
-	 *
-	 * @return StreamDetails
 	 */
 	public function setDirectViewers(array $viewers): self {
 		$this->directViewers = $viewers;
@@ -135,59 +103,32 @@ class StreamDetails implements JsonSerializable {
 		return $this;
 	}
 
-	/**
-	 * @param Person $viewer
-	 *
-	 * @return StreamDetails
-	 */
 	public function addDirectViewer(Person $viewer): self {
 		$this->directViewers[] = $viewer;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return bool
-	 */
 	public function isPublic(): bool {
 		return $this->public;
 	}
 
-	/**
-	 * @param bool $public
-	 *
-	 * @return StreamDetails
-	 */
 	public function setPublic(bool $public): self {
 		$this->public = $public;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return bool
-	 */
 	public function isFederated(): bool {
 		return $this->federated;
 	}
 
-	/**
-	 * @param bool $federated
-	 *
-	 * @return StreamDetails
-	 */
 	public function setFederated(bool $federated): self {
 		$this->federated = $federated;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function jsonSerialize(): array {
 		return [
 			'stream' => $this->getStream(),

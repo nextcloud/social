@@ -74,6 +74,7 @@ class NavigationController extends Controller {
 	private MiscService $miscService;
 	private IL10N $l10n;
 	private CheckService $checkService;
+	private IInitialStateService $initialStateService;
 
 	public function __construct(
 		IL10N $l10n,

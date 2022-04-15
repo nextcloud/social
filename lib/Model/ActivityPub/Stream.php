@@ -58,40 +58,26 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_DIRECT = 'direct';
 	public const TYPE_ANNOUNCE = 'announce';
 
-
 	private string $activityId = '';
-
 	private string $content = '';
-
 	private string $spoilerText = '';
-
 	private string $language = 'en';
-
 	private string $attributedTo = '';
-
 	private string $inReplyTo = '';
-
 	private bool $sensitive = false;
-
 	private string $conversation = '';
-
 	private ?Cache $cache = null;
-
 	private int $publishedTime = 0;
-
 	private ?StreamAction $action = null;
-
 	private string $timeline = '';
-
 	private bool $filterDuplicate = false;
-
 
 	/**
 	 * Stream constructor.
 	 *
-	 * @param null $parent
+	 * @param ?ACore $parent
 	 */
-	public function __construct($parent = null) {
+	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 	}
 
@@ -286,7 +272,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return Cache
 	 */
-	public function getCache(): Cache {
+	public function getCache(): ?Cache {
 		return $this->cache;
 	}
 
@@ -315,19 +301,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
-	/**
-	 * @return StreamAction
-	 */
-	public function getAction(): StreamAction {
+	public function getAction(): ?StreamAction {
 		return $this->action;
 	}
 
-	/**
-	 * @param StreamAction $action
-	 *
-	 * @return Stream
-	 */
 	public function setAction(StreamAction $action): Stream {
 		$this->action = $action;
 

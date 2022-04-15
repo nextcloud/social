@@ -44,7 +44,6 @@ use JsonSerializable;
 class StreamQueue implements JsonSerializable {
 	use TArrayTools;
 
-
 	public const TYPE_CACHE = 'Cache';
 	public const TYPE_VERIFY = 'Signature';
 
@@ -52,58 +51,30 @@ class StreamQueue implements JsonSerializable {
 	public const STATUS_RUNNING = 1;
 	public const STATUS_SUCCESS = 9;
 
-
 	private int $id = 0;
-
 	private string $token = '';
-
 	private string $streamId = '';
-
 	private string $type = '';
-
 	private int $status = 0;
-
 	private int $tries = 0;
-
 	private int $last = 0;
 
-
-	/**
-	 * StreamQueue constructor.
-	 *
-	 * @param string $token
-	 * @param string $type
-	 * @param string $streamId
-	 */
 	public function __construct(string $token = '', string $type = '', string $streamId = '') {
 		$this->token = $token;
 		$this->type = $type;
 		$this->streamId = $streamId;
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getId(): int {
 		return $this->id;
 	}
 
-	/**
-	 * @param int $id
-	 *
-	 * @return StreamQueue
-	 */
 	public function setId(int $id): StreamQueue {
 		$this->id = $id;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getToken(): string {
 		return $this->token;
 	}

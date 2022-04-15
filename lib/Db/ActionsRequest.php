@@ -69,7 +69,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 
 		$this->generatePrimaryKey($qb, $like->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 

@@ -149,8 +149,9 @@ class AnnounceInterface implements IActivityPubInterface {
 	 * @throws RequestServerException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function activity(Acore $activity, ACore $announce) {
+	public function activity(Acore $activity, ACore $item) {
 		/** @var Announce $announce */
+		$announce = $item;
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($announce->getId());
 			$activity->checkOrigin($announce->getActorId());

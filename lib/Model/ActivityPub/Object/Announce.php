@@ -51,7 +51,7 @@ class Announce extends Stream implements JsonSerializable {
 	 *
 	 * @param ACore $parent
 	 */
-	public function __construct($parent = null) {
+	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);

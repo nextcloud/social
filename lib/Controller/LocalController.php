@@ -125,6 +125,7 @@ class LocalController extends Controller {
 			$post->setHashtags($this->getArray('hashtags', $data, []));
 			$post->setAttachments($this->getArray('attachments', $data, []));
 
+			$token = '';
 			$activity = $this->postService->createPost($post, $token);
 
 			return $this->success(
@@ -209,6 +210,7 @@ class LocalController extends Controller {
 	public function postBoost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$announce = $this->boostService->create($this->viewer, $postId, $token);
 
 			return $this->success(
@@ -231,6 +233,7 @@ class LocalController extends Controller {
 	public function postUnboost(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$announce = $this->boostService->delete($this->viewer, $postId, $token);
 
 			return $this->success(
@@ -253,6 +256,7 @@ class LocalController extends Controller {
 	public function postLike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$announce = $this->likeService->create($this->viewer, $postId, $token);
 
 			return $this->success(
@@ -275,6 +279,7 @@ class LocalController extends Controller {
 	public function postUnlike(string $postId): DataResponse {
 		try {
 			$this->initViewer(true);
+			$token = '';
 			$like = $this->likeService->delete($this->viewer, $postId, $token);
 
 			return $this->success(

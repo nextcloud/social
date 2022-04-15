@@ -88,12 +88,13 @@ class LikeInterface implements IActivityPubInterface {
 
 
 	/**
-	 * @param ACore $like
+	 * @param ACore $item
 	 *
 	 * @throws InvalidOriginException
 	 */
-	public function processIncomingRequest(ACore $like) {
+	public function processIncomingRequest(ACore $item) {
 		/** @var Like $like */
+		$like = $item;
 		$like->checkOrigin($like->getId());
 		$like->checkOrigin($like->getActorId());
 
@@ -110,8 +111,9 @@ class LikeInterface implements IActivityPubInterface {
 	 *
 	 * @throws InvalidOriginException
 	 */
-	public function activity(ACore $activity, ACore $like) {
+	public function activity(ACore $activity, ACore $item) {
 		/** @var Like $like */
+		$like = $item;
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($like->getId());
 			$activity->checkOrigin($like->getActorId());
@@ -212,7 +214,9 @@ class LikeInterface implements IActivityPubInterface {
 	/**
 	 * @param ACore $like
 	 */
-	private function undoLikeAction(ACore $like) {
+	private function undoLikeAction(ACore $item) {
+		/** @var Like $like */
+		$like = $item;
 		try {
 			if ($like->hasActor()) {
 				$actor = $like->getActor();

@@ -175,7 +175,7 @@ class CheckInstall extends Base {
 		return true;
 	}
 
-	private function regenerateIndex(OutputInterface $output) {
+	private function regenerateIndex(OutputInterface $output): void {
 		$streams = $this->streamRequest->getAll();
 		$progressBar = new ProgressBar($output, count($streams));
 		$progressBar->start();

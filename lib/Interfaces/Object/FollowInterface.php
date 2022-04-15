@@ -69,28 +69,12 @@ use OCA\Social\Service\MiscService;
  */
 class FollowInterface implements IActivityPubInterface {
 	private FollowsRequest $followsRequest;
-
 	private CacheActorService $cacheActorService;
-
 	private AccountService $accountService;
-
 	private ActivityService $activityService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * NoteInterface constructor.
-	 *
-	 * @param FollowsRequest $followsRequest
-	 * @param CacheActorService $cacheActorService
-	 * @param AccountService $accountService
-	 * @param ActivityService $activityService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
@@ -104,17 +88,9 @@ class FollowInterface implements IActivityPubInterface {
 		$this->miscService = $miscService;
 	}
 
-
-	/**
-	 * @param ACore $item
-	 */
 	public function processResult(ACore $item) {
 	}
 
-
-	/**
-	 * @param Follow $follow
-	 */
 	public function confirmFollowRequest(Follow $follow) {
 		try {
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
@@ -165,8 +141,9 @@ class FollowInterface implements IActivityPubInterface {
 	 * @throws RequestResultNotJsonException
 	 * @throws Exception
 	 */
-	public function processIncomingRequest(ACore $follow) {
+	public function processIncomingRequest(ACore $item) {
 		/** @var Follow $follow */
+		$follow = $item;
 		$follow->checkOrigin($follow->getActorId());
 
 		try {
