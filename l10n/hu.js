@@ -52,11 +52,9 @@ OC.L10N.register(
     "No local posts found" : "Nem található helyi bejegyzés",
     "Posts from other people on this instance will show up here" : "Az ezen a példányon található személyek bejegyzései itt jelennek meg",
     "No notifications found" : "Nincsenek értesítések",
-    "You haven't receive any notifications yet" : "Még nem kapott értesítéseket",
     "No global posts found" : "Nem található globális bejegyzés",
     "Posts from federated instances will show up here" : "A föderált példányok bejegyzései itt jelennek meg",
     "No liked posts found" : "Nem található kedvelt bejegyzés",
-    "You haven't tooted yet" : "Még nem tülkölt",
     "No posts found for this tag" : "Nincs bejegyzés ehhez a címkéhez",
     "No replies found" : "Nem található válasz",
     "hasn't tooted yet" : "még nem tülkölt",
@@ -79,6 +77,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "A Nextcloud az összekapcsolt közösségi hálózatok részévé válik!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automatikusan létrehoztunk egy Közösség-fiókot az Ön számára. A Közösség azonosítója megegyezik a föderált felhőazonosítójával:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Mivel Ön még nem ismeri a Közösség alkalmazást, kezdje el a hivatalos Nextcloud-fiók követésével, hogy ne maradjon le egyetlen hírről sem",
-    "Follow Nextcloud on mastodon.xyz" : "Kövesse a Nextcloudot a mastodon.xyz-n"
+    "Follow Nextcloud on mastodon.xyz" : "Kövesse a Nextcloudot a mastodon.xyz-n",
+    "You haven't receive any notifications yet" : "Még nem kapott értesítéseket",
+    "You haven't tooted yet" : "Még nem tülkölt"
 },
 "nplurals=2; plural=(n != 1);");

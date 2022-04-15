@@ -49,11 +49,9 @@
     "No local posts found" : "Perunu cummentu locale agatadu",
     "Posts from other people on this instance will show up here" : "Is cummentos de àteras persones in custa istàntzia s'ant a mustrare inoghe",
     "No notifications found" : "Peruna notìfica agatada",
-    "You haven't receive any notifications yet" : "No as retzidu peruna notìfica ancora",
     "No global posts found" : "Perunu cummentu globale agatadu",
     "Posts from federated instances will show up here" : "Cummentos dae istàntzias federadas s'ant a mustrare inoghe",
     "No liked posts found" : "Perunu cummentu agradadu agatadu",
-    "You haven't tooted yet" : "No as naradu ancora nudda",
     "No posts found for this tag" : "Perunu cummentu agatadu pro custa eticheta",
     "No replies found" : "Peruna risposta agatada",
     "hasn't tooted yet" : "No at naradu ancora nudda",
@@ -76,6 +74,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud divenit parte de is retes sotziales federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Amus creadu in manera automàtica unu contu de Sotziale pro te. S'ID tuo est su matessi ID de sa nue virtuale federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dae chi ses nou in Sotziale, cumintza sighende su contu ufitziale de Nextcloud a manera chi non ti perdas is noas",
-    "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz",
+    "You haven't receive any notifications yet" : "No as retzidu peruna notìfica ancora",
+    "You haven't tooted yet" : "No as naradu ancora nudda"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

@@ -49,11 +49,9 @@ OC.L10N.register(
     "No local posts found" : "هیچ پست محلی یافت نشد",
     "Posts from other people on this instance will show up here" : "پست های سایر افراد در این مورد در اینجا نشان داده می شود",
     "No notifications found" : "هیچ اعلانی یافت نشد",
-    "You haven't receive any notifications yet" : "شما هنوز هیچ اعلانی دریافت نکرده اید",
     "No global posts found" : "هیچ پست جهانی یافت نشد",
     "Posts from federated instances will show up here" : "پست های نمونه های فدرال در اینجا نشان داده می شود",
     "No liked posts found" : "هیچ پست مورد پسند یافت نشد",
-    "You haven't tooted yet" : "شما هنوز ثبت نام نکرده اید",
     "No posts found for this tag" : "هیچ پستی برای این برچسب یافت نشد",
     "hasn't tooted yet" : "هنوز نكرده است",
     "Reply" : "پاسخ",
@@ -74,6 +72,8 @@ OC.L10N.register(
     "Sorry, we could not find the account of {userId}" : "متأسفیم ، نتوانستیم حساب {userId} را پیدا کنیم",
     "Nextcloud becomes part of the federated social networks!" : "نکست کلود به بخشی از شبکه های اجتماعی فدراسیون تبدیل می شود!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "از آنجا که تازه وارد Social شده اید ، با دنبال کردن حساب رسمی نکست کلود شروع کنید تا هیچ خبری از دست ندهید",
-    "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید"
+    "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید",
+    "You haven't receive any notifications yet" : "شما هنوز هیچ اعلانی دریافت نکرده اید",
+    "You haven't tooted yet" : "شما هنوز ثبت نام نکرده اید"
 },
 "nplurals=2; plural=(n > 1);");

@@ -51,11 +51,9 @@ OC.L10N.register(
     "No local posts found" : "Nisu pronađene lokalne objave",
     "Posts from other people on this instance will show up here" : "Ovdje će se prikazivati objave drugih ljudi iz ove instance",
     "No notifications found" : "Nije pronađena nijedna obavijest",
-    "You haven't receive any notifications yet" : "Niste primili nijednu obavijest",
     "No global posts found" : "Nisu pronađene globalne objave",
     "Posts from federated instances will show up here" : "Ovdje će se prikazivati objave iz udruženih instanci",
     "No liked posts found" : "Nije pronađena nijedna objava označena kao „sviđa mi se“",
-    "You haven't tooted yet" : "Niste se još uspostavili",
     "No posts found for this tag" : "Nije pronađena nijedna objava za ovu oznaku",
     "No replies found" : "Nije pronađen nijedan odgovor",
     "hasn't tooted yet" : "nije se još uspostavio",
@@ -78,6 +76,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud postaje dio udruženih društvenih mreža!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automatski smo stvorili vaš račun u aplikaciji Social. Vaš ID jednak je vašem ID-u udruženog oblaka:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Budući da ste novi korisnik aplikacije Social, počnite pratiti službeni račun Nextclouda kako ne biste propustili nijednu vijest",
-    "Follow Nextcloud on mastodon.xyz" : "Pratite Nextcloud na mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Pratite Nextcloud na mastodon.xyz",
+    "You haven't receive any notifications yet" : "Niste primili nijednu obavijest",
+    "You haven't tooted yet" : "Niste se još uspostavili"
 },
 "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;");

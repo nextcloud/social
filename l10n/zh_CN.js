@@ -52,11 +52,9 @@ OC.L10N.register(
     "No local posts found" : "未找到本地帖子",
     "Posts from other people on this instance will show up here" : "此实例上来自其他人的帖子将在此处显示",
     "No notifications found" : "未找到通知",
-    "You haven't receive any notifications yet" : "您还没有收到任何通知",
     "No global posts found" : "未找到跨站帖子",
     "Posts from federated instances will show up here" : "来自其他联合云实例的帖子将在此处显示",
     "No liked posts found" : "未找到已点赞的文章",
-    "You haven't tooted yet" : "您还没有发贴过",
     "No posts found for this tag" : "未找到带有此标签的帖子",
     "No replies found" : "未找到回复",
     "hasn't tooted yet" : "还没有发帖过",
@@ -79,6 +77,8 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 已经成为联合云社交网络的一部分！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我们会自动为您创建一个社交账号。您的社交 ID 与您的联合云 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鉴于您刚来到社交应用，请先关注 Nextcloud 官方账号，这样您将不会错过任何新闻",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud"
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud",
+    "You haven't receive any notifications yet" : "您还没有收到任何通知",
+    "You haven't tooted yet" : "您还没有发贴过"
 },
 "nplurals=1; plural=0;");
