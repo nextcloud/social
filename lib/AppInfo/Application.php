@@ -37,11 +37,13 @@ use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
+use OCA\Social\WellKnown\WebfingerHandler;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\QueryException;
+use OCP\IDBConnection;
 use OCP\IServerContainer;
 use Throwable;
 
@@ -53,16 +55,8 @@ require_once __DIR__ . '/../../vendor/autoload.php';
  * @package OCA\Social\AppInfo
  */
 class Application extends App implements IBootstrap {
-
-
 	const APP_NAME = 'social';
 
-
-	/**
-	 * Application constructor.
-	 *
-	 * @param array $params
-	 */
 	public function __construct(array $params = []) {
 		parent::__construct(self::APP_NAME, $params);
 	}
@@ -73,9 +67,7 @@ class Application extends App implements IBootstrap {
 	 */
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
-
-		// TODO: nc21, uncomment
-		// $context->registerEventListener(WellKnownEvent::class, WellKnownListener::class);
+		$context->registerWellKnownHandler(WebfingerHandler::class);
 	}
 
 
@@ -114,7 +106,7 @@ class Application extends App implements IBootstrap {
 			return;
 		}
 
-		$schema = new SchemaWrapper($container->getDatabaseConnection());
+		$schema = new SchemaWrapper($container->get(IDBConnection::class));
 		if ($schema->hasTable('social_a2_stream')) {
 			$updateService->checkUpdateStatus();
 		}
