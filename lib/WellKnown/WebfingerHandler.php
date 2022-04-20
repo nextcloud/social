@@ -33,7 +33,6 @@ use OCA\Social\Service\FediverseService;
 use OCP\Http\WellKnown\IHandler;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
-use OCP\Http\WellKnown\JrdResponse;
 use OCP\IURLGenerator;
 
 class WebfingerHandler implements IHandler {
@@ -90,9 +89,15 @@ class WebfingerHandler implements IHandler {
 		$response->addLink('http://webfinger.net/rel/profile-page', 'text/html', $profilePageUrl);
 
 		// Ostatus subscribe url
-		// JrdResponse doesn't support template
-		// $subscribe = $this->urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe') . '?uri={uri}';
-		// $response->addLink('http://ostatus.org/schema/1.0/subscribe', $subscribe);
+		$subscribe = $this->urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe') . '?uri={uri}';
+		$response->addLink(
+			'http://ostatus.org/schema/1.0/subscribe',
+			'',
+			'',
+			null,
+			null,
+			['template' => $subscribe]
+		);
 
 		return $response;
 	}
