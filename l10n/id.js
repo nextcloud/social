@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Pemberitahuan",
     "Public" : "Publik",
     "Reply" : "Balas",
+    "Hello" : "Halo",
     "Close" : "Tutup",
     "Continue" : "Lanjutkan"
 },

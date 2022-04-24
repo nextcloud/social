@@ -3,6 +3,8 @@ OC.L10N.register(
     {
     "Social" : "Social",
     "Help" : "Ajuda",
+    "Open documentation" : "Dobrir la documentacion",
+    "Finish setup" : "Acabar parametratge",
     "Home" : "Domicili",
     "Direct messages" : "Messatges dirèctes",
     "Notifications" : "Notificacions",
@@ -12,6 +14,9 @@ OC.L10N.register(
     "Follow" : "Seguir",
     "Reply" : "Respondre",
     "More actions" : "Mai d’accions",
-    "Close" : "Tampar"
+    "Hello" : "Adieu",
+    "Close" : "Tampar",
+    "Continue" : "Contunhar",
+    "User not found" : "Utilizaire pas trobat"
 },
 "nplurals=2; plural=(n > 1);");

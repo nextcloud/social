@@ -9,6 +9,7 @@ OC.L10N.register(
     "Public" : "Публічне",
     "Reply" : "Відповісти",
     "More actions" : "Більше дій",
+    "Hello" : "Привіт",
     "Close" : "Закрити",
     "Continue" : "Продовжити",
     "User not found" : "Користувача не знайдено"

@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Afslut opsætning",
     "Home" : "Hjem",
     "Notifications" : "Notifikationer",
+    "Profile" : "Profil",
     "Public" : "Offentlig",
     "Reply" : "Besvar",
     "More actions" : "Flere handlinger",
