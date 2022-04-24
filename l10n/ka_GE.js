@@ -9,6 +9,7 @@ OC.L10N.register(
     "Public" : "ღია",
     "Reply" : "პასუხი",
     "More actions" : "მეტი ქმედება",
+    "Hello" : "გამარჯობა",
     "Close" : "დახურვა",
     "Continue" : "გაგრძელება"
 },

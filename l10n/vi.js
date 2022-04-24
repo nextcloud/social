@@ -11,6 +11,7 @@ OC.L10N.register(
     "More actions" : "Nhiều hành động hơn",
     "Hello" : "Xin chào",
     "Close" : "Đóng",
-    "Continue" : "Tiếp tục"
+    "Continue" : "Tiếp tục",
+    "User not found" : "Không tìm thấy người dùng"
 },
 "nplurals=1; plural=0;");

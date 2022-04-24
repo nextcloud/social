@@ -1,6 +1,8 @@
 { "translations": {
     "Social" : "Social",
     "Help" : "Ajuda",
+    "Open documentation" : "Dobrir la documentacion",
+    "Finish setup" : "Acabar parametratge",
     "Home" : "Domicili",
     "Direct messages" : "Messatges dirèctes",
     "Notifications" : "Notificacions",
@@ -10,6 +12,9 @@
     "Follow" : "Seguir",
     "Reply" : "Respondre",
     "More actions" : "Mai d’accions",
-    "Close" : "Tampar"
+    "Hello" : "Adieu",
+    "Close" : "Tampar",
+    "Continue" : "Contunhar",
+    "User not found" : "Utilizaire pas trobat"
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }
