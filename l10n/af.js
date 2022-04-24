@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Voltooi opstelling",
     "Home" : "Tuis",
     "Notifications" : "Kennisgewings",
+    "Profile" : "Profiel",
     "Reply" : "Antwoord",
     "Close" : "Sluit",
     "Continue" : "Gaan voort"

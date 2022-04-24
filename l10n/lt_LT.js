@@ -12,6 +12,7 @@ OC.L10N.register(
     "Public" : "Vieša",
     "Unfollow" : "Nebesekti",
     "Follow" : "Sekti",
+    "posts" : "įrašai",
     "followers" : "sekėjų",
     "No results found" : "Nerasta jokių rezultatų",
     "There were no results for your search:" : "Jūsų paieška negrąžino jokių rezultatų:",

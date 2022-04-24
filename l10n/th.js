@@ -6,7 +6,9 @@ OC.L10N.register(
     "Finish setup" : "ติดตั้งเลย",
     "Home" : "หน้าหลัก",
     "Notifications" : "การแจ้งเตือน",
+    "Public" : "สาธารณะ",
     "Reply" : "ตอบกลับ",
+    "Hello" : "สวัสดี",
     "Close" : "ปิด",
     "Continue" : "ดำเนินการต่อ"
 },
