@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Selesaikan instalasi",
     "Home" : "Beranda",
     "Notifications" : "Pemberitahuan",
+    "Profile" : "Profil",
     "Public" : "Publik",
     "Reply" : "Balas",
     "Hello" : "Halo",
