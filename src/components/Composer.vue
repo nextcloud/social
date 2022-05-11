@@ -22,6 +22,14 @@
 
 <template>
 	<div class="new-post" data-id="">
+		<input id="file-upload"
+			ref="fileUploadInput"
+			multiple
+			type="file"
+			tabindex="-1"
+			aria-hidden="true"
+			class="hidden-visually"
+			@change="handleFileInput">
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
 				:size="32" />
@@ -52,56 +60,50 @@
 					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.prevent.enter="keyup"
 					@tribute-replaced="updatePostFromTribute" />
 			</vue-tribute>
-			<emoji-picker ref="emojiPicker" :search="search" class="emoji-picker-wrapper"
-				@emoji="insert">
-				<div slot="emoji-invoker" v-tooltip="'Insert emoji'" slot-scope="{ events }"
-					class="emoji-invoker" tabindex="0" @keyup.enter="events.click"
-					@keyup.space="events.click" @click.stop="events.click" />
-				<!-- eslint-disable-next-line vue/no-template-shadow -->
-				<div slot="emoji-picker" slot-scope="{ emojis, insert }" class="emoji-picker popovermenu">
-					<div>
-						<div>
-							<input v-model="search" v-focus-on-create type="text"
-								@keyup.enter="insert(emojis)">
-						</div>
-						<div>
-							<div v-for="(emojiGroup, category) in emojis" :key="category">
-								<h5>{{ category }}</h5>
-								<div>
-									<!-- eslint-disable vue/no-v-html -->
-									<span v-for="(emoji, emojiName) in emojiGroup" :key="emojiName" :title="emojiName"
-										tabindex="0"
-										class="emoji" @click="insert(emoji)" @keyup.enter="insert(emoji)"
-										@keyup.space="insert(emoji)" v-html="$twemoji.parse(emoji)" />
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</emoji-picker>
 
 			<masonry>
 				<div v-for="(item, index) in miniatures" :key="index" ref="miniatures">
-					<img :src="item.img" :usemap="'#map' + index">
+					<img alt="" :src="item.img" :usemap="'#map' + index">
 					<map :name="'map' + index">
 						<area shape="circle" :coords="getImageMapCoords(index)" @click="removeAttachment(index)">
 					</map>
 				</div>
 			</masonry>
 
-			<div class="options">
-				<input :value="currentVisibilityPostLabel" :disabled="post.length < 1 || post==='<br>'" class="submit primary"
-					type="submit" title="" data-original-title="Post">
-				<div v-click-outside="hidePopoverMenu">
-					<button :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
+			<div class="options my-3">
+				<div class="new-post-form__emoji-picker mr-3">
+					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
+						:container="containerElement"
+						@select="insert">
+						<Button type="ternary-no-background" :aria-haspopup="true" :aria-label="t('social', 'Add emoji')">
+							<template #icon>
+								<EmoticonOutline :size="16" decorative title="" />
+							</template>
+						</Button>
+					</EmojiPicker>
+				</div>
+
+				<Button type="ternary-no-background" class="mr-3" :aria-label="t('social', 'Add attachment')"
+					@click.prevent="clickImportInput">
+					<template #icon>
+						<FileUpload :size="16" decorative title="" />
+					</template>
+				</Button>
+
+				<div v-click-outside="hidePopoverMenu" class="mr-3">
+					<Button type="ternary-no-background" :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu menu-center">
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
 				<div class="emptySpace" />
-				<label v-tooltip="'Attach document'" class="button icon-upload" for="file-upload" />
-				<input id="file-upload" ref="addAttach" class="upload-button"
-					type="file" @change="AddAttachment">
+				<Button :value="currentVisibilityPostLabel" :disabled="post.length < 1 || post==='<br>'" type="primary"
+					@click.prevent="createPost">
+					<template #icon>
+						<Send title="" :size="16" decorative />
+					</template>
+					<template>{{ t('social', 'Post to followers') }}</template>
+				</button>
 			</div>
 		</form>
 	</div>
@@ -115,6 +117,16 @@
 		top: 47px;
 		z-index: 100;
 		margin-bottom: 10px;
+
+		&-form {
+			flex-grow: 1;
+			position: relative;
+			top: -10px;
+			margin-left: 39px;
+			&__emoji-picker {
+				z-index: 1;
+			}
+		}
 	}
 
 	.new-post-author {
@@ -155,13 +167,6 @@
 		}
 	}
 
-	.new-post-form {
-		flex-grow: 1;
-		position: relative;
-		top: -10px;
-		margin-left: 39px;
-	}
-
 	.message {
 		width: 100%;
 		padding-right: 44px;
@@ -193,82 +198,10 @@
 		display: flex;
 		align-items: flex-end;
 		width: 100%;
-		flex-direction: row-reverse;
-	}
-
-	.options > div {
-		position: relative;
-	}
-
-	.options button {
-		width: 34px;
-		height: 34px;
 	}
 
 	.emptySpace {
 		flex-grow:1;
-	}
-
-	.icon-upload {
-		width: 34px;
-		height: 34px;
-	}
-
-	.upload-button {
-		display: none;
-	}
-
-	.emoji-invoker {
-		background-image: var(--icon-social-emoji-000);
-		background-position: center center;
-		background-repeat: no-repeat;
-		width: 38px;
-		opacity: 0.5;
-		background-size: 16px 16px;
-		height: 38px;
-		cursor: pointer;
-		display: block;
-	}
-
-	.emoji-invoker:focus,
-	.emoji-invoker:hover {
-		opacity: 1;
-	}
-
-	.emoji-picker-wrapper {
-		position: absolute;
-		right: 0;
-		top: 0;
-	}
-
-	.emoji-picker.popovermenu {
-		display: block;
-		padding: 5px;
-		width: 200px;
-		height: 200px;
-		top: 44px;
-	}
-
-	.emoji-picker > div {
-		overflow: hidden;
-		overflow-y: scroll;
-		height: 190px;
-	}
-
-	.emoji-picker input {
-		width: 100%;
-	}
-
-	.emoji-picker span.emoji {
-		padding: 3px;
-	}
-
-	.emoji-picker span.emoji:focus {
-		background-color: var(--color-background-dark);
-	}
-
-	.emoji-picker .emoji img {
-		width: 16px;
 	}
 
 	.popovermenu {
@@ -385,12 +318,28 @@
 	.hashtag {
 		text-decoration: underline;
 	}
+	.mt-3, .my-3 {
+		margin-top: 1rem;
+	}
+	.mb-3, .my-3 {
+		margin-bottom: 1rem;
+	}
+	.mr-3, .mx-3 {
+		margin-right: 1rem;
+	}
+	.ml-3, .mx-3 {
+		margin-left: 1rem;
+	}
 </style>
 <script>
 
+import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline'
+import Send from 'vue-material-design-icons/Send'
+import FileUpload from 'vue-material-design-icons/FileUpload'
 import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import Button from '@nextcloud/vue/dist/Components/Button'
 import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
-import EmojiPicker from 'vue-emoji-picker'
+import EmojiPicker from '@nextcloud/vue/dist/Components/EmojiPicker'
 import VueTribute from 'vue-tribute'
 import he from 'he'
 import CurrentUserMixin from './../mixins/currentUserMixin'
@@ -404,9 +353,13 @@ export default {
 	components: {
 		PopoverMenu,
 		Avatar,
+		FileUpload,
 		ActorAvatar,
 		EmojiPicker,
-		VueTribute
+		VueTribute,
+		EmoticonOutline,
+		Button,
+		Send
 	},
 	directives: {
 		FocusOnCreate: FocusOnCreate
@@ -517,6 +470,9 @@ export default {
 		}
 	},
 	computed: {
+		containerElement() {
+			return document.querySelector('#content-vue')
+		},
 		currentVisibilityIconClass() {
 			return this.visibilityIconClass(this.type)
 		},
@@ -614,10 +570,13 @@ export default {
 		})
 	},
 	methods: {
-		AddAttachment() {
-			// TODO: handle (or prevent) mulitple files
+		clickImportInput() {
+			this.$refs.fileUploadInput.click()
+		},
+		handleFileInput() {
+			// TODO: handle (or prevent) mulitples/ files
 			let self = this
-			let file = this.$refs.addAttach.files[0]
+			let file = this.$refs.fileUploadInput.files[0]
 			let reader = new FileReader()
 
 			// Called when selected file is completly loaded to draw a miniature

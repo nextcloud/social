@@ -1163,6 +1163,8 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function emptyAll() {
+		/** @var ISchemaWrapper|SchemaWrapper $schema */
+		$schema = new SchemaWrapper($this->dbConnection);
 		foreach ($this->tables as $table) {
 			if ($schema->hasTable($table)) {
 				$qb = $this->dbConnection->getQueryBuilder();
