@@ -33,7 +33,6 @@ namespace OCA\Social\Cron;
 
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\QueryException;
 
@@ -43,11 +42,12 @@ use OCP\AppFramework\QueryException;
  * @package OCA\Social\Cron
  */
 class Chunk extends TimedJob {
-	private ?ConfigService $configService = null;
+	private ConfigService $configService;
 
-	public function __construct(ITimeFactory $time) {
+	public function __construct(ITimeFactory $time, ConfigService $configService) {
 		parent::__construct($time);
 		$this->setInterval(12 * 3600); // 12 hours
+		$this->configService = $configService;
 	}
 
 
@@ -57,11 +57,6 @@ class Chunk extends TimedJob {
 	 * @throws QueryException
 	 */
 	protected function run($argument) {
-		$app = \OC::$server->query(Application::class);
-		$c = $app->getContainer();
-
-		$this->configService = $c->query(ConfigService::class);
-
 		$size = (int)$this->configService->getAppValue(ConfigService::DATABASE_CHUNK_SIZE);
 		$this->morphChunks($size);
 	}
@@ -70,6 +65,6 @@ class Chunk extends TimedJob {
 	/**
 	 * @param int $size
 	 */
-	private function morphChunks(int $size) {
+	private function morphChunks(int $size): void {
 	}
 }

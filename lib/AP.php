@@ -32,7 +32,6 @@ declare(strict_types=1);
 namespace OCA\Social;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
-use OC;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -84,6 +83,8 @@ use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\QueryException;
+use OCP\Server;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class AP
@@ -93,123 +94,92 @@ use OCP\AppFramework\QueryException;
 class AP {
 	use TArrayTools;
 
-
 	public const REDUNDANCY_LIMIT = 10;
 
+	public AcceptInterface $acceptInterface;
+	public AddInterface $addInterface;
+	public AnnounceInterface $announceInterface;
+	public BlockInterface $blockInterface;
+	public CreateInterface $createInterface;
+	public DeleteInterface $deleteInterface;
+	public DocumentInterface $documentInterface;
+	public FollowInterface $followInterface;
+	public ImageInterface $imageInterface;
+	public LikeInterface $likeInterface;
+	public PersonInterface $personInterface;
+	public NoteInterface $noteInterface;
+	public GroupInterface $groupInterface;
+	public OrganizationInterface $organizationInterface;
+	public ApplicationInterface $applicationInterface;
+	public RejectInterface $rejectInterface;
+	public RemoveInterface $removeInterface;
+	public ServiceInterface $serviceInterface;
+	public UndoInterface $undoInterface;
+	public UpdateInterface $updateInterface;
+	public SocialAppNotificationInterface $notificationInterface;
+	public ConfigService $configService;
+	public static ?AP $activityPub = null;
+	private SocialAppNotificationInterface $socialAppNotificationInterface;
 
-	/** @var AcceptInterface */
-	public $acceptInterface;
-
-	/** @var AddInterface */
-	public $addInterface;
-
-	/** @var AnnounceInterface */
-	public $announceInterface;
-
-	/** @var BlockInterface */
-	public $blockInterface;
-
-	/** @var CreateInterface */
-	public $createInterface;
-
-	/** @var DeleteInterface */
-	public $deleteInterface;
-
-	/** @var DocumentInterface */
-	public $documentInterface;
-
-	/** @var FollowInterface */
-	public $followInterface;
-
-	/** @var ImageInterface */
-	public $imageInterface;
-
-	/** @var LikeInterface */
-	public $likeInterface;
-
-	/** @var PersonInterface */
-	public $personInterface;
-
-	/** @var NoteInterface */
-	public $noteInterface;
-
-	/** @var RejectInterface */
-	public $rejectInterface;
-
-	/** @var RemoveInterface */
-	public $removeInterface;
-
-	/** @var ServiceInterface */
-	public $serviceInterface;
-
-	/** @var UndoInterface */
-	public $undoInterface;
-
-	/** @var UpdateInterface */
-	public $updateInterface;
-
-	/** @var SocialAppNotificationInterface */
-	public $notificationInterface;
-
-	/** @var ConfigService */
-	public $configService;
-
-
-	/** @var AP */
-	public static $activityPub = null;
-
-
-	/**
-	 * AP constructor.
-	 */
-	public function __construct() {
+	public function __construct(
+		AcceptInterface $acceptInterface,
+		AddInterface $addInterface,
+		AnnounceInterface $announceInterface,
+		BlockInterface $blockInterface,
+		CreateInterface $createInterface,
+		DeleteInterface $deleteInterface,
+		DocumentInterface $documentInterface,
+		FollowInterface $followInterface,
+		ImageInterface $imageInterface,
+		LikeInterface $likeInterface,
+		NoteInterface $noteInterface,
+		SocialAppNotificationInterface $socialAppNotificationInterface,
+		PersonInterface $personInterface,
+		ServiceInterface $serviceInterface,
+		GroupInterface $groupInterface,
+		OrganizationInterface $organizationInterface,
+		ApplicationInterface $applicationInterface,
+		RejectInterface $rejectInterface,
+		RemoveInterface $removeInterface,
+		UndoInterface $undoInterface,
+		UpdateInterface $updateInterface,
+		ConfigService $configService
+	) {
+		$this->acceptInterface = $acceptInterface;
+		$this->addInterface = $addInterface;
+		$this->announceInterface = $announceInterface;
+		$this->blockInterface = $blockInterface;
+		$this->createInterface = $createInterface;
+		$this->deleteInterface = $deleteInterface;
+		$this->documentInterface = $documentInterface;
+		$this->followInterface = $followInterface;
+		$this->imageInterface = $imageInterface;
+		$this->likeInterface = $likeInterface;
+		$this->noteInterface = $noteInterface;
+		$this->socialAppNotificationInterface = $socialAppNotificationInterface;
+		$this->personInterface = $personInterface;
+		$this->serviceInterface = $serviceInterface;
+		$this->groupInterface = $groupInterface;
+		$this->organizationInterface = $organizationInterface;
+		$this->applicationInterface = $applicationInterface;
+		$this->rejectInterface = $rejectInterface;
+		$this->removeInterface = $removeInterface;
+		$this->undoInterface = $undoInterface;
+		$this->updateInterface = $updateInterface;
+		$this->configService = $configService;
 	}
 
-
-	/**
-	 *
-	 */
 	public static function init() {
-		$ap = new AP();
 		try {
-			$ap->acceptInterface = OC::$server->query(AcceptInterface::class);
-			$ap->addInterface = OC::$server->query(AddInterface::class);
-			$ap->announceInterface = OC::$server->query(AnnounceInterface::class);
-			$ap->blockInterface = OC::$server->query(BlockInterface::class);
-			$ap->createInterface = OC::$server->query(CreateInterface::class);
-			$ap->deleteInterface = OC::$server->query(DeleteInterface::class);
-			$ap->documentInterface = OC::$server->query(DocumentInterface::class);
-			$ap->followInterface = OC::$server->query(FollowInterface::class);
-			$ap->imageInterface = OC::$server->query(ImageInterface::class);
-			$ap->likeInterface = OC::$server->query(LikeInterface::class);
-			$ap->noteInterface = OC::$server->query(NoteInterface::class);
-			$ap->notificationInterface = OC::$server->query(SocialAppNotificationInterface::class);
-			$ap->personInterface = OC::$server->query(PersonInterface::class);
-			$ap->serviceInterface = OC::$server->query(ServiceInterface::class);
-			$ap->groupInterface = OC::$server->query(GroupInterface::class);
-			$ap->groupInterface = OC::$server->query(OrganizationInterface::class);
-			$ap->groupInterface = OC::$server->query(ApplicationInterface::class);
-			$ap->rejectInterface = OC::$server->query(RejectInterface::class);
-			$ap->removeInterface = OC::$server->query(RemoveInterface::class);
-			$ap->undoInterface = OC::$server->query(UndoInterface::class);
-			$ap->updateInterface = OC::$server->query(UpdateInterface::class);
-
-			$ap->configService = OC::$server->query(ConfigService::class);
-
-			AP::$activityPub = $ap;
+			AP::$activityPub = Server::get(AP::class);
 		} catch (QueryException $e) {
-			OC::$server->getLogger()
-					   ->logException($e);
+			Server::get(LoggerInterface::class)
+					   ->errir($e->getMessage(), ['exception' => $e]);
 		}
 	}
 
 
 	/**
-	 * @param array $data
-	 * @param ACore $parent
-	 * @param int $level
-	 *
-	 * @return ACore
 	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
@@ -232,10 +202,6 @@ class AP {
 
 
 	/**
-	 * @param array $data
-	 * @param ACore $item
-	 * @param int $level
-	 *
 	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 */
@@ -258,10 +224,6 @@ class AP {
 
 
 	/**
-	 * @param array $data
-	 * @param ACore $item
-	 * @param int $level
-	 *
 	 * @throws RedundancyLimitException
 	 * @throws SocialAppConfigException
 	 */
@@ -279,9 +241,6 @@ class AP {
 
 
 	/**
-	 * @param array $data
-	 *
-	 * @return ACore
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 */
@@ -425,103 +384,75 @@ class AP {
 	public function getInterfaceFromType(string $type): IActivityPubInterface {
 		switch ($type) {
 			case Accept::TYPE:
-				$interface = $this->acceptInterface;
-				break;
+				return $this->acceptInterface;
 
 			case Add::TYPE:
-				$interface = $this->addInterface;
-				break;
+				return $this->addInterface;
 
 			case Announce::TYPE:
-				$interface = $this->announceInterface;
-				break;
+				return $this->announceInterface;
 
 			case Block::TYPE:
-				$interface = $this->blockInterface;
-				break;
+				return $this->blockInterface;
 
 			case Create::TYPE:
-				$interface = $this->createInterface;
-				break;
+				return $this->createInterface;
 
 			case Delete::TYPE:
-				$interface = $this->deleteInterface;
-				break;
+				return $this->deleteInterface;
 
 			case Document::TYPE:
-				$interface = $this->documentInterface;
-				break;
+				return $this->documentInterface;
 
 			case Follow::TYPE:
-				$interface = $this->followInterface;
-				break;
+				return $this->followInterface;
 
 			case Image::TYPE:
-				$interface = $this->imageInterface;
-				break;
+				return $this->imageInterface;
 
 			case Like::TYPE:
-				$interface = $this->likeInterface;
-				break;
+				return $this->likeInterface;
 
 			case Note::TYPE:
-				$interface = $this->noteInterface;
-				break;
+				return $this->noteInterface;
 
 			case SocialAppNotification::TYPE:
-				$interface = $this->notificationInterface;
-				break;
+				return $this->notificationInterface;
 
 			case Person::TYPE:
-				$interface = $this->personInterface;
-				break;
+				return $this->personInterface;
 
 			case Reject::TYPE:
-				$interface = $this->rejectInterface;
-				break;
+				return $this->rejectInterface;
 
 			case Remove::TYPE:
-				$interface = $this->removeInterface;
-				break;
+				return $this->removeInterface;
 
 			case Service::TYPE:
-				$interface = $this->serviceInterface;
-				break;
+				return $this->serviceInterface;
 
 			case Undo::TYPE:
-				$interface = $this->undoInterface;
-				break;
+				return $this->undoInterface;
 
 			case Update::TYPE:
-				$interface = $this->updateInterface;
-				break;
+				return $this->updateInterface;
 
 			default:
 				throw new ItemUnknownException();
 		}
-
-		return $interface;
 	}
 
-
-	/**
-	 * @param ACore $item
-	 *
-	 * @return bool
-	 */
 	public function isActor(ACore $item): bool {
-		$types =
-			[
-				Person::TYPE,
-				Service::TYPE,
-				Group::TYPE,
-				Organization::TYPE,
-				Application::TYPE
-			];
+		$types = [
+			Person::TYPE,
+			Service::TYPE,
+			Group::TYPE,
+			Organization::TYPE,
+			Application::TYPE
+		];
 
 		return (in_array($item->getType(), $types));
 	}
 }
-
 
 AP::init();

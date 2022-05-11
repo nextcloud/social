@@ -53,18 +53,12 @@ class PushService {
 	use TAsync;
 
 	private DetailsService $detailsService;
-
 	private StreamService $streamService;
-
 	private MiscService $miscService;
 
 
 	/**
 	 * PushService constructor.
-	 *
-	 * @param DetailsService $detailsService
-	 * @param StreamService $streamService
-	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		DetailsService $detailsService, StreamService $streamService, MiscService $miscService

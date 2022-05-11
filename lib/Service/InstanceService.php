@@ -40,13 +40,9 @@ use OCA\Social\Model\Instance;
 class InstanceService {
 	use TArrayTools;
 
-
-	private $instancesRequest;
-
+	private InstancesRequest$instancesRequest;
 	private ConfigService $configService;
-
 	private MiscService $miscService;
-
 
 	public function __construct(
 		InstancesRequest $instancesRequest, ConfigService $configService, MiscService $miscService

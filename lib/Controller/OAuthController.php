@@ -211,6 +211,7 @@ class OAuthController extends Controller {
 			// TODO : finalize result if no redirect_url
 			return new DataResponse(
 				[
+					'code' => $code,
 					//				'access_token' => '',
 					//				"token_type"   => "Bearer",
 					//				"scope"        => "read write follow push",

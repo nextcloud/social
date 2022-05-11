@@ -33,7 +33,6 @@ namespace OCA\Social\Cron;
 
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\RequestQueueService;
@@ -46,16 +45,19 @@ use OCP\AppFramework\QueryException;
  * @package OCA\Social\Cron
  */
 class Queue extends TimedJob {
-	private ?ActivityService $activityService = null;
-	private ?RequestQueueService $requestQueueService = null;
-	private ?StreamQueueService $streamQueueService = null;
+	private ActivityService $activityService;
+	private RequestQueueService $requestQueueService;
+	private StreamQueueService $streamQueueService;
 
 	/**
 	 * Cache constructor.
 	 */
-	public function __construct(ITimeFactory $time) {
+	public function __construct(ITimeFactory $time, RequestQueueService $requestQueueService, StreamQueueService $streamQueueService, ActivityService $activityService) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60); // 12 minutes
+		$this->requestQueueService = $requestQueueService;
+		$this->streamQueueService = $streamQueueService;
+		$this->activityService = $activityService;
 	}
 
 
@@ -65,14 +67,6 @@ class Queue extends TimedJob {
 	 * @throws QueryException
 	 */
 	protected function run($argument) {
-		/** @var Application $app */
-		$app = \OC::$server->get(Application::class);
-		$c = $app->getContainer();
-
-		$this->requestQueueService = $c->get(RequestQueueService::class);
-		$this->streamQueueService = $c->get(StreamQueueService::class);
-		$this->activityService = $c->get(ActivityService::class);
-
 		$this->manageRequestQueue();
 		$this->manageStreamQueue();
 	}

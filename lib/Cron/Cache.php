@@ -34,7 +34,6 @@ namespace OCA\Social\Cron;
 use Exception;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
@@ -47,16 +46,19 @@ use OCP\AppFramework\QueryException;
  * @package OCA\Social\Cron
  */
 class Cache extends TimedJob {
-	private ?AccountService $accountService = null;
-	private ?CacheActorService $cacheActorService = null;
-	private ?DocumentService $documentService = null;
-	private ?HashtagService $hashtagService = null;
+	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
+	private DocumentService $documentService;
+	private HashtagService $hashtagService;
 
-	public function __construct(ITimeFactory $time) {
+	public function __construct(ITimeFactory $time, AccountService $accountService, CacheActorService $cacheActorService, DocumentService $documentService, HashtagService $hashtagService) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60); // 12 minutes
+		$this->accountService = $accountService;
+		$this->cacheActorService = $cacheActorService;
+		$this->documentService = $documentService;
+		$this->hashtagService = $hashtagService;
 	}
-
 
 	/**
 	 * @param mixed $argument
@@ -64,19 +66,6 @@ class Cache extends TimedJob {
 	 * @throws QueryException
 	 */
 	protected function run($argument) {
-		$app = \OC::$server->get(Application::class);
-		$c = $app->getContainer();
-
-		$this->accountService = $c->get(AccountService::class);
-		$this->cacheActorService = $c->get(CacheActorService::class);
-		$this->documentService = $c->get(DocumentService::class);
-		$this->hashtagService = $c->get(HashtagService::class);
-
-		$this->manageCache();
-	}
-
-
-	private function manageCache() {
 		try {
 			$this->accountService->blindKeyRotation();
 		} catch (Exception $e) {

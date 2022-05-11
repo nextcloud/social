@@ -34,7 +34,9 @@ namespace OCA\Social\Db;
 use daita\MySmallPhpTools\Traits\TStringTools;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCP\Server;
 use OCP\DB\Exception as DBException;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class StreamTagsRequest
@@ -58,7 +60,7 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 			try {
 				$qb->executeStatement();
 			} catch (DBException $e) {
-				\OC::$server->getLogger()
+				Server::get(LoggerInterface::class)
 							->log(1, 'Social - Duplicate hashtag on Stream ' . json_encode($stream));
 			}
 		}

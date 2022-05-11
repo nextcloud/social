@@ -55,8 +55,7 @@ class InstancesRequest extends InstancesRequestBuilder {
 
 		$qb = $this->getInstanceInsertSql();
 		$qb->setValue('uri', $qb->createNamedParameter($instance->getUri()));
-
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
