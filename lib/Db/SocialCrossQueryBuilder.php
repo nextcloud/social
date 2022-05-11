@@ -96,7 +96,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$expr = $this->expr();
 		if ($link !== '') {
-			$this->innerJoin(
+			$this->leftJoin(
 				$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf,
 				$expr->eq('ca.id_prim', $link)
 			);

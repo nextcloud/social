@@ -246,18 +246,10 @@ class Instance implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-	/**
-	 * @return string
-	 */
-	public function getAccountPrim(): string {
+	public function getAccountPrim(): ?string {
 		return $this->accountPrim;
 	}
 
-	/**
-	 * @param string $prim
-	 *
-	 * @return Instance
-	 */
 	public function setAccountPrim(string $prim): self {
 		$this->accountPrim = $prim;
 
