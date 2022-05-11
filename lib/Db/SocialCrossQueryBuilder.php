@@ -87,7 +87,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $alias
 	 * @param string $link
 	 */
-	public function linkToCacheActors(string $alias = 'ca', string $link = '') {
+	public function linkToCacheActors(string $alias = 'ca', string $link = '', bool $innerJoin = true) {
 		if ($this->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
@@ -96,10 +96,17 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$expr = $this->expr();
 		if ($link !== '') {
-			$this->leftJoin(
-				$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf,
-				$expr->eq('ca.id_prim', $link)
-			);
+			if ($innerJoin) {
+				$this->innerJoin(
+					$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf,
+					$expr->eq('ca.id_prim', $link)
+				);
+			} else {
+				$this->leftJoin(
+					$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf,
+					$expr->eq('ca.id_prim', $link)
+				);
+			}
 		} else {
 			$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
 		}
