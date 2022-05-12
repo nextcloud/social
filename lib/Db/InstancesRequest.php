@@ -35,6 +35,7 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class InstancesRequest
@@ -54,9 +55,20 @@ class InstancesRequest extends InstancesRequestBuilder {
 //		$instance->setCreation($now->getTimestamp());
 
 		$qb = $this->getInstanceInsertSql();
-		$qb->setValue('uri', $qb->createNamedParameter($instance->getUri()));
-
-		$qb->execute();
+		$qb->setValue('uri', $qb->createNamedParameter($instance->getUri()))
+			->setValue('local', $qb->createNamedParameter($instance->isLocal()), IQueryBuilder::PARAM_BOOL)
+			->setValue('title', $qb->createNamedParameter($instance->getTitle()))
+			->setValue('version', $qb->createNamedParameter($instance->getVersion()))
+			->setValue('short_description', $qb->createNamedParameter($instance->getShortDescription()))
+			->setValue('description', $qb->createNamedParameter($instance->getDescription()))
+			->setValue('email', $qb->createNamedParameter($instance->getEmail()))
+			->setValue('urls', $qb->createNamedParameter(json_encode($instance->getUrls())))
+			->setValue('stats', $qb->createNamedParameter(json_encode($instance->getStats())))
+			->setValue('usage', $qb->createNamedParameter(json_encode($instance->getUsage())))
+			->setValue('image', $qb->createNamedParameter($instance->getImage()))
+			->setValue('languages', $qb->createNamedParameter(json_encode($instance->getImage())))
+			->setValue('account_prim', $qb->createNamedParameter($instance->getAccountPrim() ? $this->prim($instance->getAccountPrim()) : null));
+		$qb->executeStatement();
 	}
 
 

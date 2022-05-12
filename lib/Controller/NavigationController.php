@@ -34,7 +34,6 @@ namespace OCA\Social\Controller;
 use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
 use daita\MySmallPhpTools\Traits\TArrayTools;
 use Exception;
-use OC;
 use OCP\AppFramework\Http;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
@@ -55,6 +54,8 @@ use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\IGroupManager;
+use OCP\Server;
 
 /**
  * Class NavigationController
@@ -119,7 +120,7 @@ class NavigationController extends Controller {
 			'public' => false,
 			'firstrun' => false,
 			'setup' => false,
-			'isAdmin' => OC::$server->getGroupManager()
+			'isAdmin' => Server::get(IGroupManager::class)
 									 ->isAdmin($this->userId),
 			'cliUrl' => $this->getCliUrl()
 		];

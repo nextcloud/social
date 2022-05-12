@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="4.22.0@fc2c6ab4d5fa5d644d8617089f012f3bb84b8703">
+<files psalm-version="4.23.0@f1fe6ff483bf325c803df9f510d09a03fd796f88">
   <file src="lib/AP.php">
     <InvalidScalarArgument occurrences="1">
       <code>$level</code>
     </InvalidScalarArgument>
-    <UndefinedPropertyAssignment occurrences="3">
-      <code>$ap-&gt;groupInterface</code>
-      <code>$ap-&gt;groupInterface</code>
-      <code>$ap-&gt;groupInterface</code>
-    </UndefinedPropertyAssignment>
+  </file>
+  <file src="lib/Db/CoreRequestBuilder.php">
+    <UndefinedVariable occurrences="1">
+      <code>$schema</code>
+    </UndefinedVariable>
   </file>
   <file src="lib/Migration/Version0003Date20200823023900.php">
     <UndefinedDocblockClass occurrences="1">
@@ -137,9 +137,9 @@
     <RedundantCondition occurrences="1">
       <code>$varr[0] !== null</code>
     </RedundantCondition>
-    <UndefinedInterfaceMethod occurrences="1">
-      <code>getAppDataDir</code>
-    </UndefinedInterfaceMethod>
+    <UndefinedClass occurrences="1">
+      <code>IFactory</code>
+    </UndefinedClass>
   </file>
   <file src="lib/Service/StreamService.php">
     <InvalidReturnType occurrences="1">

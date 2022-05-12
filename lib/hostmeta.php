@@ -31,20 +31,20 @@ namespace OCA\Social;
 
 use OCA\Social\Exceptions\SocialAppConfigException;
 use Exception;
-use OC;
+use OCP\Server;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use Psr\Log\LoggerInterface;
 
 require_once(__DIR__ . '/../vendor/autoload.php');
 
 try {
-	$fediverseService = OC::$server->query(FediverseService::class);
+	$fediverseService = Server::get(FediverseService::class);
 	/** @var ConfigService $configService */
-	$configService = OC::$server->query(ConfigService::class);
+	$configService = Server::get(ConfigService::class);
 	$fediverseService->jailed();
 } catch (Exception $e) {
-	OC::$server->getLogger()
-			   ->log(1, 'Exception on hostmeta - ' . $e->getMessage());
+	Server::get(LoggerInterface::class)->log(1, 'Exception on hostmeta - ' . $e->getMessage());
 	http_response_code(404);
 	exit;
 }

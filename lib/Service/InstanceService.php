@@ -36,37 +36,40 @@ use OCA\Social\Db\InstancesRequest;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
+use OCP\IConfig;
 
 class InstanceService {
 	use TArrayTools;
 
-
-	private $instancesRequest;
-
+	private InstancesRequest $instancesRequest;
 	private ConfigService $configService;
-
 	private MiscService $miscService;
-
+	private IConfig $config;
 
 	public function __construct(
-		InstancesRequest $instancesRequest, ConfigService $configService, MiscService $miscService
+		InstancesRequest $instancesRequest,
+		ConfigService $configService,
+		MiscService $miscService,
+		IConfig $config
 	) {
 		$this->instancesRequest = $instancesRequest;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->config = $config;
 	}
 
-
-	/**
-	 *
-	 */
-	public function createLocal(): void {
+	public function createLocal(): Instance {
+		$instance = new Instance();
+		$instance->setLocal(true)
+			->setVersion($this->config->getAppValue('social', 'installed_version', '0.0'))
+			->setApprovalRequired(false)
+			->setDescription($this->config->getAppValue('theming', 'slogan', 'a safe home for your data'))
+			->setTitle($this->config->getAppValue('theming', 'name', 'Nextcloud Social'));
+		$this->instancesRequest->save($instance);
+		return $instance;
 	}
 
 	/**
-	 * @param int $format
-	 *
-	 * @return Instance
 	 * @throws InstanceDoesNotExistException
 	 */
 	public function getLocal(int $format = ACore::FORMAT_LOCAL): Instance {
@@ -75,8 +78,6 @@ class InstanceService {
 		} catch (InstanceDoesNotExistException $e) {
 		}
 
-		$this->createLocal();
-
-		return $this->instancesRequest->getLocal($format);
+		return $this->createLocal();
 	}
 }

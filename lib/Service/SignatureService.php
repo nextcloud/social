@@ -42,7 +42,6 @@ use daita\MySmallPhpTools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonLdException;
-use OC;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -59,11 +58,13 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
+use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IRequest;
+use OCP\Server;
 use stdClass;
 
 class SignatureService {
@@ -573,7 +574,7 @@ class SignatureService {
 	private static function getContextCacheFolder(): ISimpleFolder {
 		$path = 'context';
 
-		$appData = OC::$server->getAppDataDir(Application::APP_NAME);
+		$appData = Server::get(IAppDataFactory::class)->get(Application::APP_NAME);
 		try {
 			$folder = $appData->getFolder($path);
 		} catch (NotFoundException $e) {
