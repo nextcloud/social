@@ -66,7 +66,7 @@ class InstancesRequest extends InstancesRequestBuilder {
 			->setValue('stats', $qb->createNamedParameter(json_encode($instance->getStats())))
 			->setValue('usage', $qb->createNamedParameter(json_encode($instance->getUsage())))
 			->setValue('image', $qb->createNamedParameter($instance->getImage()))
-			->setValue('languages', $qb->createNamedParameter(json_encode($instance->getImage())))
+			->setValue('languages', $qb->createNamedParameter(json_encode($instance->getLanguages())))
 			->setValue('account_prim', $qb->createNamedParameter($instance->getAccountPrim() ? $this->prim($instance->getAccountPrim()) : null));
 		$qb->executeStatement();
 	}
@@ -80,7 +80,7 @@ class InstancesRequest extends InstancesRequestBuilder {
 	 */
 	public function getLocal(int $format = ACore::FORMAT_ACTIVITYPUB): Instance {
 		$qb = $this->getInstanceSelectSql($format);
-		$qb->linkToCacheActors('ca', 'account_prim');
+		$qb->linkToCacheActors('ca', 'account_prim', false);
 		$qb->limitToDBFieldInt('local', 1);
 		$qb->leftJoinCacheDocuments('icon_id', 'ca');
 

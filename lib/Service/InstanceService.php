@@ -32,6 +32,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\InstancesRequest;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -61,11 +62,12 @@ class InstanceService {
 	public function createLocal(): Instance {
 		$instance = new Instance();
 		$instance->setLocal(true)
-			->setVersion($this->config->getAppValue('social', 'installed_version', '0.0'))
+			->setVersion($this->config->getAppValue(Application::APP_NAME, 'installed_version', '0.0'))
 			->setApprovalRequired(false)
 			->setDescription($this->config->getAppValue('theming', 'slogan', 'a safe home for your data'))
 			->setTitle($this->config->getAppValue('theming', 'name', 'Nextcloud Social'));
 		$this->instancesRequest->save($instance);
+
 		return $instance;
 	}
 
