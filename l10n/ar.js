@@ -12,6 +12,8 @@ OC.L10N.register(
     "Local timeline" : "الخيط المحلي",
     "Global timeline" : "الخيط العام",
     "Following" : "يتابِع",
+    "Add emoji" : "اضافة رمز تعبيري",
+    "Add attachment" : "أضف ملحق",
     "Public" : "للعامة",
     "Unlisted" : "غير مدرج",
     "Do not post to public timelines" : "لا تنشره على الخيوط العامة",

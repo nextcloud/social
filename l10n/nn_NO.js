@@ -5,6 +5,7 @@ OC.L10N.register(
     "Finish setup" : "Fullfør oppsettet",
     "Home" : "Heim",
     "Notifications" : "Meldingar",
+    "Add attachment" : "Legg til vedlegg",
     "Reply" : "Svare",
     "Hello" : "Hallo",
     "Close" : "Lukk",

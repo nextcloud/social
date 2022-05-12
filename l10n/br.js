@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Stalian echu",
     "Home" : "Degemer",
     "Notifications" : "Kemenadenoù",
+    "Add emoji" : "Ouzhpennañ un emoji",
     "Public" : "Publik",
     "Reply" : "Respont",
     "Close" : "Serriñ",
