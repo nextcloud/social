@@ -420,7 +420,7 @@ class ConfigService {
 
 		if ($request->getType() === Request::TYPE_GET) {
 			$request->addHeader(
-				'Accept', 'application/json; profile="https://www.w3.org/ns/activitystreams"'
+				'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 			);
 		}
 
