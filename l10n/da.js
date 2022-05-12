@@ -7,6 +7,7 @@ OC.L10N.register(
     "Home" : "Hjem",
     "Notifications" : "Notifikationer",
     "Profile" : "Profil",
+    "Add attachment" : "Tilføj vedhæftelse",
     "Public" : "Offentlig",
     "Reply" : "Besvar",
     "More actions" : "Flere handlinger",

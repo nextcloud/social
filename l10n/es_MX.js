@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Terminar configuración",
     "Home" : "Inicio",
     "Notifications" : "Notificaciones",
+    "Add attachment" : "Agregar archivo adjunto",
     "Public" : "Público",
     "Reply" : "Responder",
     "More actions" : "Más acciones",
