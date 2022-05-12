@@ -9,6 +9,7 @@ OC.L10N.register(
     "Direct messages" : "Messatges dirèctes",
     "Notifications" : "Notificacions",
     "Profile" : "Perfil",
+    "Add emoji" : "Apondre emoji",
     "Public" : "Public",
     "Followers" : "Seguidors",
     "Follow" : "Seguir",

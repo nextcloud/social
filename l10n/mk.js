@@ -7,6 +7,7 @@ OC.L10N.register(
     "Home" : "Дома",
     "Notifications" : "Известувања",
     "Profile" : "Профил",
+    "Add emoji" : "Додади емотикон",
     "Public" : "Јавна",
     "posts" : "објави",
     "No results found" : "Нема пронајдено резултати",

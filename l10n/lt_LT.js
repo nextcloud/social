@@ -8,6 +8,8 @@ OC.L10N.register(
     "Home" : "Namų",
     "Notifications" : "Pranešimai",
     "Profile" : "Profilis",
+    "Add emoji" : "Pridėti šypsenėlę",
+    "Add attachment" : "Pridėti priedą",
     "Post publicly" : "Paskelbti viešai",
     "Public" : "Vieša",
     "Unfollow" : "Nebesekti",
