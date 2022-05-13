@@ -6,6 +6,8 @@ OC.L10N.register(
     "Finish setup" : "Cài đặt hoàn tất",
     "Home" : "Trang nhất",
     "Notifications" : "Thông b",
+    "Add emoji" : "Thêm biểu tượng cảm xúc",
+    "Add attachment" : "Thêm tệp đính kèm",
     "Public" : "Công khai",
     "Reply" : "Trả l",
     "More actions" : "Nhiều hành động hơn",
