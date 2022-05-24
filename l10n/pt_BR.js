@@ -85,4 +85,4 @@ OC.L10N.register(
     "You haven't receive any notifications yet" : "Você ainda não recebeu nenhuma notificação",
     "You haven't tooted yet" : "Você não reiniciou ainda"
 },
-"nplurals=2; plural=(n > 1);");
+"nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
