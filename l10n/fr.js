@@ -81,4 +81,4 @@ OC.L10N.register(
     "You haven't receive any notifications yet" : "Vous n'avez pas encore reçu de notification",
     "You haven't tooted yet" : "Vous n'avez pas encore envoyé de pouet"
 },
-"nplurals=2; plural=(n > 1);");
+"nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
