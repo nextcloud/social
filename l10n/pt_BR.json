@@ -82,5 +82,5 @@
     "Follow Nextcloud on mastodon.xyz" : "Seguir Nextcloud em mastodon.xyz",
     "You haven't receive any notifications yet" : "Você ainda não recebeu nenhuma notificação",
     "You haven't tooted yet" : "Você não reiniciou ainda"
-},"pluralForm" :"nplurals=2; plural=(n > 1);"
+},"pluralForm" :"nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;"
 }
