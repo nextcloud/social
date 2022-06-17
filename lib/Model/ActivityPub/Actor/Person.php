@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Actor;
 
-use daita\MySmallPhpTools\IQueryRow;
+use OCA\Social\Tools\IQueryRow;
 use DateTime;
 use Exception;
 use JsonSerializable;

@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Db\StreamDestRequest;

@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Exceptions\RowNotFoundException;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;

@@ -30,14 +30,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
-use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TNCLogger;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
@@ -60,31 +60,17 @@ use OCP\IURLGenerator;
  */
 class CacheActorService {
 	use TArrayTools;
-	use TNC20Logger;
-
+	use TNCLogger;
 
 	private \OCP\IURLGenerator $urlGenerator;
-
 	private CacheActorsRequest $cacheActorsRequest;
-
 	private CurlService $curlService;
-
 	private FediverseService $fediverseService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
-
 
 	/**
 	 * CacheService constructor.
-	 *
-	 * @param IUrlGenerator $urlGenerator
-	 * @param CacheActorsRequest $cacheActorsRequest
-	 * @param CurlService $curlService
-	 * @param FediverseService $fediverseService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
 	 */
 	public function __construct(
 		IUrlGenerator $urlGenerator, CacheActorsRequest $cacheActorsRequest, CurlService $curlService,

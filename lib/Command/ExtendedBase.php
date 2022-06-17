@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use daita\MySmallPhpTools\Exceptions\CacheItemNotFoundException;
+use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use OC\Core\Command\Base;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemUnknownException;

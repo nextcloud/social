@@ -31,8 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client;
 
-use daita\MySmallPhpTools\IQueryRow;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonSerializable;

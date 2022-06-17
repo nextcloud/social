@@ -30,18 +30,20 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
-use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
-use daita\MySmallPhpTools\Model\Request;
-use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Request;
-use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TPathTools;
+use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\Traits\TNCRequest;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TPathTools;
+use OCA\Social\Tools\Traits\TNCSetup;
+use OCA\Social\Tools\Traits\TNCLogger;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -56,8 +58,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 
 class CurlService {
 	use TArrayTools;
+	use TNCSetup;
+	use TNCLogger;
 	use TPathTools;
-	use TNC20Request {
+	use TNCRequest {
 		retrieveJson as retrieveJsonOrig;
 		doRequest as doRequestOrig;
 	}
@@ -126,7 +130,7 @@ class CurlService {
 			$path = '/.well-known/webfinger';
 		}
 
-		$request = new NC20Request($path);
+		$request = new NCRequest($path);
 		$request->addParam('resource', 'acct:' . $account);
 		$request->setHost($host);
 		$request->setProtocols($protocols);
@@ -152,7 +156,7 @@ class CurlService {
 	 * @throws HostMetaException
 	 */
 	public function hostMeta(string &$host, array &$protocols): string {
-		$request = new NC20Request('/.well-known/host-meta');
+		$request = new NCRequest('/.well-known/host-meta');
 		$request->setHost($host);
 		$request->setProtocols($protocols);
 
@@ -243,7 +247,7 @@ class CurlService {
 		$this->debug('retrieveObject', ['id' => $id]);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
-		$request = new NC20Request($url['path'], Request::TYPE_GET);
+		$request = new NCRequest($url['path'], Request::TYPE_GET);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
 
@@ -261,13 +265,13 @@ class CurlService {
 
 
 	/**
-	 * @param NC20Request $request
+	 * @param NCRequest $request
 	 *
 	 * @return array
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
 	 */
-	public function retrieveJson(NC20Request $request): array {
+	public function retrieveJson(NCRequest $request): array {
 		try {
 			return $this->retrieveJsonOrig($request);
 		} catch (RequestNetworkException | RequestContentException $e) {
@@ -278,9 +282,8 @@ class CurlService {
 
 
 	/**
-	 * @param NC20Request $request
+	 * @param NCRequest $request
 	 *
-	 * @return mixed
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 * @throws RequestContentException
@@ -289,7 +292,7 @@ class CurlService {
 	 * @throws RequestServerException
 	 */
 	// migration ?
-	public function doRequest(NC20Request $request) {
+	public function doRequest(NCRequest $request): string {
 		$this->fediverseService->authorized($request->getAddress());
 		$this->configService->configureRequest($request);
 		$this->assignUserAgent($request);
@@ -299,9 +302,9 @@ class CurlService {
 
 
 	/**
-	 * @param NC20Request $request
+	 * @param NCRequest $request
 	 */
-	public function assignUserAgent(NC20Request $request) {
+	public function assignUserAgent(NCRequest $request): void {
 		$request->setUserAgent(
 			self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version')
 		);
@@ -320,7 +323,7 @@ class CurlService {
 		$path .= $this->withoutBeginSlash(self::ASYNC_REQUEST_TOKEN);
 		$path = str_replace('{token}', $token, $path);
 
-		$request = new NC20Request($path, Request::TYPE_POST);
+		$request = new NCRequest($path, Request::TYPE_POST);
 		$request->setHost($this->configService->getCloudHost());
 		$request->setProtocol(parse_url($address, PHP_URL_SCHEME));
 

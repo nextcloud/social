@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Exceptions\DateTimeException;
-use daita\MySmallPhpTools\Model\Cache;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Model\Cache;
 use DateTime;
 use Exception;
 use OCP\DB\Exception as DBException;

@@ -26,8 +26,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use daita\MySmallPhpTools\Model\SimpleDataStore;
-use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
+use OCA\Social\Tools\Model\SimpleDataStore;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ConfigService;

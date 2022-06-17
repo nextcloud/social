@@ -30,9 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-use daita\MySmallPhpTools\IQueryRow;
-use daita\MySmallPhpTools\Model\Cache;
-use daita\MySmallPhpTools\Model\CacheItem;
+use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Model\Cache;
+use OCA\Social\Tools\Model\CacheItem;
 use DateTime;
 use Exception;
 use JsonSerializable;

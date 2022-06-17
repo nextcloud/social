@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\IQueryBuilder;

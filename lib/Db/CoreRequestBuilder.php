@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
@@ -46,6 +46,7 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\DB\QueryBuilder\IQueryFunction;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -573,14 +574,6 @@ class CoreRequestBuilder {
 		$qb->andWhere($expr);
 	}
 
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 * @param bool $cs - case sensitive
-	 * @param string $alias
-	 */
 	protected function filterDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
 	) {
@@ -588,21 +581,10 @@ class CoreRequestBuilder {
 		$qb->andWhere($expr);
 	}
 
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param string $value
-	 * @param bool $eq - true = limit, false = filter
-	 * @param bool $cs
-	 * @param string $alias
-	 *
-	 * @return string
-	 */
 	protected function exprLimitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
 		string $alias = ''
-	): string {
+	): IQueryFunction {
 		$expr = $qb->expr();
 
 		$pf = '';
@@ -627,32 +609,16 @@ class CoreRequestBuilder {
 		}
 	}
 
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param int $value
-	 * @param string $alias
-	 */
 	protected function limitToDBFieldInt(
 		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
-	) {
+	): void {
 		$expr = $this->exprLimitToDBFieldInt($qb, $field, $value, $alias);
 		$qb->andWhere($expr);
 	}
 
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $field
-	 * @param int $value
-	 * @param string $alias
-	 *
-	 * @return string
-	 */
 	protected function exprLimitToDBFieldInt(
 		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
-	): string {
+	): IQueryFunction {
 		$expr = $qb->expr();
 
 		$pf = '';

@@ -30,14 +30,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
-use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
-use daita\MySmallPhpTools\Model\Request;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
@@ -349,13 +349,7 @@ class ActivityService {
 		return $instancePaths;
 	}
 
-
-	/**
-	 * @param RequestQueue $queue
-	 *
-	 * @return NC20Request
-	 */
-	private function generateRequestFromQueue(RequestQueue $queue): NC20Request {
+	private function generateRequestFromQueue(RequestQueue $queue): NCRequest {
 		$path = $queue->getInstance();
 
 		$requestType = Request::TYPE_GET;
@@ -365,7 +359,7 @@ class ActivityService {
 			$requestType = Request::TYPE_POST;
 		}
 
-		$request = new NC20Request($path->getPath(), $requestType);
+		$request = new NCRequest($path->getPath(), $requestType);
 		$request->setTimeout($queue->getTimeout());
 		$request->setDataJson($queue->getActivity());
 		$request->setHost($path->getAddress());

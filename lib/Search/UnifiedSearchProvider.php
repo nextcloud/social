@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Search;
 
-use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TNCLogger;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -60,7 +60,7 @@ class UnifiedSearchProvider implements IProvider {
 
 
 	use TArrayTools;
-	use TNC20Logger;
+	use TNCLogger;
 
 
 	private IL10N $l10n;

@@ -5,11 +5,6 @@
       <code>$level</code>
     </InvalidScalarArgument>
   </file>
-  <file src="lib/Db/CoreRequestBuilder.php">
-    <UndefinedVariable occurrences="1">
-      <code>$schema</code>
-    </UndefinedVariable>
-  </file>
   <file src="lib/Migration/Version0003Date20200823023900.php">
     <UndefinedDocblockClass occurrences="1">
       <code>DBALException</code>
@@ -58,12 +53,10 @@
     </RedundantCondition>
   </file>
   <file src="lib/Model/Instance.php">
-    <InvalidNullableReturnType occurrences="2">
+    <InvalidNullableReturnType occurrences="1">
       <code>Person</code>
-      <code>string</code>
     </InvalidNullableReturnType>
-    <NullableReturnStatement occurrences="2">
-      <code>$this-&gt;accountPrim</code>
+    <NullableReturnStatement occurrences="1">
       <code>$this-&gt;contactAccount</code>
     </NullableReturnStatement>
   </file>
@@ -138,7 +131,7 @@
       <code>$varr[0] !== null</code>
     </RedundantCondition>
     <UndefinedClass occurrences="1">
-      <code>IFactory</code>
+      <code>IAppDataFactory</code>
     </UndefinedClass>
   </file>
   <file src="lib/Service/StreamService.php">
@@ -152,5 +145,10 @@
       <code>$username === null</code>
       <code>$username === null</code>
     </TypeDoesNotContainNull>
+  </file>
+  <file src="lib/Tools/Traits/TNCLogger.php">
+    <UndefinedClass occurrences="1">
+      <code>HintException</code>
+    </UndefinedClass>
   </file>
 </files>

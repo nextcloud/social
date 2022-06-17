@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Exception;

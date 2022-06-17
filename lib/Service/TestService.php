@@ -30,10 +30,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\ArrayNotFoundException;
-use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
-use daita\MySmallPhpTools\Model\SimpleDataStore;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\SimpleDataStore;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -102,7 +102,7 @@ class TestService {
 		$tests->aObj('tests', $testHostMeta);
 
 
-		$request = new NC20Request($path);
+		$request = new NCRequest($path);
 		$request->addParam('resource', 'acct:' . $account);
 		$request->setHost($host);
 		$request->setProtocols($protocols);

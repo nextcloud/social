@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-use daita\MySmallPhpTools\IQueryRow;
+use OCA\Social\Tools\IQueryRow;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 

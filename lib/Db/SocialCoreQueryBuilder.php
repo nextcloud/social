@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Db\ExtendedQueryBuilder;
+use OCA\Social\Tools\Db\ExtendedQueryBuilder;
 use OC\SystemConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\DB\QueryBuilder\ICompositeExpression;
