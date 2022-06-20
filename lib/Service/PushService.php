@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Traits\TAsync;
+use OCA\Social\Tools\Traits\TAsync;
 use OC;
 //use OC\Push\Model\Helper\PushCallback;
 use OCA\Social\Exceptions\SocialAppConfigException;

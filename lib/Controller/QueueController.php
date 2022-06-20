@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use daita\MySmallPhpTools\Traits\TAsync;
+use OCA\Social\Tools\Traits\TAsync;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\RequestQueue;

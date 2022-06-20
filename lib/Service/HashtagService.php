@@ -31,8 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\DateTimeException;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;

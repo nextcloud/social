@@ -30,15 +30,15 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\DateTimeException;
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultNotJsonException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
-use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonLdException;
@@ -119,13 +119,13 @@ class SignatureService {
 
 
 	/**
-	 * @param NC20Request $request
+	 * @param NCRequest $request
 	 * @param RequestQueue $queue
 	 *
 	 * @throws ActorDoesNotExistException
-	 * @throws SocialAppConfigException // TODO: implement in TNC20Request ?
+	 * @throws SocialAppConfigException // TODO: implement in TNCRequest ?
 	 */
-	public function signRequest(NC20Request $request, RequestQueue $queue) {
+	public function signRequest(NCRequest $request, RequestQueue $queue): void {
 		$date = gmdate(self::DATE_HEADER);
 		$path = $queue->getInstance();
 
@@ -153,11 +153,11 @@ class SignatureService {
 	/**
 	 * @param array $elements
 	 * @param array $data
-	 * @param NC20Request $request
+	 * @param NCRequest $request
 	 *
 	 * @return string
 	 */
-	private function generateHeaders(array $elements, array $data, NC20Request $request): string {
+	private function generateHeaders(array $elements, array $data, NCRequest $request): string {
 		$signingElements = [];
 		foreach ($elements as $element) {
 			$signingElements[] = $element . ': ' . $data[$element];

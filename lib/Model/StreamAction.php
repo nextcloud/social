@@ -31,8 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use JsonSerializable;
 
 /**

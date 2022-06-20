@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -174,7 +174,7 @@ class AP {
 			AP::$activityPub = Server::get(AP::class);
 		} catch (QueryException $e) {
 			Server::get(LoggerInterface::class)
-					   ->errir($e->getMessage(), ['exception' => $e]);
+					   ->error($e->getMessage(), ['exception' => $e]);
 		}
 	}
 

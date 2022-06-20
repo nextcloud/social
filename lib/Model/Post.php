@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;

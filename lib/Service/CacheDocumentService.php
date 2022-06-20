@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 /**
  * Nextcloud - Social Support
  *
@@ -30,15 +29,15 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Exceptions\MalformedArrayException;
-use daita\MySmallPhpTools\Exceptions\RequestContentException;
-use daita\MySmallPhpTools\Exceptions\RequestNetworkException;
-use daita\MySmallPhpTools\Exceptions\RequestResultSizeException;
-use daita\MySmallPhpTools\Exceptions\RequestServerException;
-use daita\MySmallPhpTools\Model\Nextcloud\nc20\NC20Request;
-use daita\MySmallPhpTools\Model\Request;
-use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use Gumlet\ImageResize;
 use Gumlet\ImageResizeException;
@@ -57,27 +56,14 @@ class CacheDocumentService {
 	use TArrayTools;
 	use TStringTools;
 
-
 	public const RESIZED_WIDTH = 280;
 	public const RESIZED_HEIGHT = 180;
 
 	private IAppData $appData;
-
 	private CurlService $curlService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
-
-	/**
-	 * CacheService constructor.
-	 *
-	 * @param IAppData $appData
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		IAppData $appData, CurlService $curlService, ConfigService $configService,
 		MiscService $miscService
@@ -90,9 +76,7 @@ class CacheDocumentService {
 
 
 	/**
-	 * @param Document $document
-	 * @param string $uploaded
-	 * @param string $mime
+	 * @brief Save the local upload to the cache
 	 *
 	 * @throws CacheContentMimeTypeException
 	 * @throws NotFoundException
@@ -265,7 +249,7 @@ class CacheDocumentService {
 	public function retrieveContent(string $url): string {
 		$url = parse_url($url);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
-		$request = new NC20Request($url['path'], Request::TYPE_GET, true);
+		$request = new NCRequest($url['path'], Request::TYPE_GET, true);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
 

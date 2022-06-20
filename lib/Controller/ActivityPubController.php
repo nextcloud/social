@@ -30,10 +30,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
-use daita\MySmallPhpTools\Traits\Nextcloud\TNCDataResponse;
-use daita\MySmallPhpTools\Traits\TAsync;
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Traits\TNCLogger;
+use OCA\Social\Tools\Traits\TNCDataResponse;
+use OCA\Social\Tools\Traits\TAsync;
+use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCP\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
@@ -63,7 +63,7 @@ class ActivityPubController extends Controller {
 	use TNCDataResponse;
 	use TStringTools;
 	use TAsync;
-	use TNC20Logger;
+	use TNCLogger;
 
 	private SocialPubController $socialPubController;
 	private FediverseService $fediverseService;

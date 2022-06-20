@@ -31,8 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Traits\Nextcloud\nc20\TNC20Logger;
-use daita\MySmallPhpTools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TNCLogger;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 
@@ -43,7 +43,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
  */
 class SearchService {
 	use TArrayTools;
-	use TNC20Logger;
+	use TNCLogger;
 
 
 	public const SEARCH_ACCOUNTS = 1;

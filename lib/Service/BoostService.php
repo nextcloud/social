@@ -30,7 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;

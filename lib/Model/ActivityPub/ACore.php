@@ -30,9 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TPathTools;
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TPathTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;

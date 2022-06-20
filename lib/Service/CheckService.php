@@ -23,8 +23,8 @@
 
 namespace OCA\Social\Service;
 
-use daita\MySmallPhpTools\Traits\TArrayTools;
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
 use OC\User\NoUserException;

@@ -31,7 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use daita\MySmallPhpTools\Traits\TStringTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCP\DB\Exception as DBException;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
