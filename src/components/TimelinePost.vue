@@ -32,18 +32,44 @@
 		<div v-if="hasAttachments" class="post-attachments">
 			<post-attachment :attachments="item.attachment" />
 		</div>
-		<div v-if="this.$route.params.type!=='notifications' && !serverData.public" v-click-outside="hidePopoverMenu" class="post-actions">
-			<a v-tooltip.bottom="t('social', 'Reply')" class="icon-reply" @click.prevent="reply" />
-			<a v-if="item.actor_info.account !== cloudId" v-tooltip.bottom="t('social', 'Boost')"
-				:class="(isBoosted) ? 'icon-boosted' : 'icon-boost'"
-				@click.prevent="boost" />
-			<a v-tooltip.bottom="t('social', 'Like')" :class="(isLiked) ? 'icon-starred' : 'icon-favorite'" @click.prevent="like" />
-			<div v-if="popoverMenu.length > 0" v-tooltip.bottom="menuOpened ? '' : t('social', 'More actions')" class="post-actions-more">
-				<a class="icon-more" @click.prevent="togglePopoverMenu" />
-				<div :class="{open: menuOpened}" class="popovermenu menu-center">
-					<popover-menu :menu="popoverMenu" />
-				</div>
-			</div>
+		<div v-if="this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
+			<Button type="tertiary-no-background"
+				v-tooltip="t('social', 'Reply')"
+				@click="reply">
+				<template #icon>
+					<Reply :size="20" />
+				</template>
+			</Button>
+			<Button type="tertiary-no-background"
+				v-tooltip="t('social', 'Boost')"
+				@click="boost">
+				<template #icon>
+					<Repeat :size="20" :fillColor="isBoosted ? 'blue' : 'black'" />
+				</template>
+			</Button>
+			<Button v-if="!isLiked"
+				type="tertiary-no-background"
+				v-tooltip="t('social', 'Like')"
+				@click="like">
+				<template #icon>
+					<Heart :size="20" />
+				</template>
+			</Button>
+			<Button v-if="isLiked"
+				type="tertiary-no-background"
+				v-tooltip="t('social', 'Undo Like')"
+				@click="like">
+				<template #icon>
+					<HeartOutline :size="20" />
+				</template>
+			</Button>
+			<Actions>
+				<ActionButton v-if="item.actor_info.account === cloudId"
+					@click="remove()"
+					icon="icon-delete">
+					{{ t('social', 'Delete') }}
+				</ActionButton>
+			</Actions>
 		</div>
 	</div>
 </template>
@@ -52,9 +78,15 @@
 import * as linkify from 'linkifyjs'
 import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
-import popoverMenu from './../mixins/popoverMenu'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment.vue'
+import Button from '@nextcloud/vue/dist/Components/Button'
+import Actions from '@nextcloud/vue/dist/Components/Actions'
+import ActionButton from '@nextcloud/vue/dist/Components/ActionButton'
+import Repeat from 'vue-material-design-icons/Repeat.vue'
+import Reply from 'vue-material-design-icons/Reply.vue'
+import Heart from 'vue-material-design-icons/Heart.vue'
+import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import Logger from '../logger'
 import MessageContent from './MessageContent'
 import moment from '@nextcloud/moment'
@@ -66,35 +98,21 @@ export default {
 	name: 'TimelinePost',
 	components: {
 		PostAttachment,
-		MessageContent
+		MessageContent,
+		Actions,
+		ActionButton,
+		Button,
+		Repeat,
+		Reply,
+		Heart,
+		HeartOutline,
 	},
-	mixins: [popoverMenu, currentUser],
+	mixins: [currentUser],
 	props: {
 		item: { type: Object, default: () => {} },
 		parentAnnounce: { type: Object, default: () => {} }
 	},
-	data() {
-		return {
-		}
-	},
 	computed: {
-		popoverMenu() {
-			var actions = [
-			]
-			if (this.item.actor_info.account === this.cloudId) {
-				actions.push(
-					{
-						action: () => {
-							this.$store.dispatch('postDelete', this.item)
-							this.hidePopoverMenu()
-						},
-						icon: 'icon-delete',
-						text: t('social', 'Delete post')
-					}
-				)
-			}
-			return actions
-		},
 		relativeTimestamp() {
 			return moment(this.item.published).fromNow()
 		},
@@ -132,9 +150,9 @@ export default {
 	},
 	methods: {
 		/**
-     * @function getSinglePostTimeline
-     * @description Opens the timeline of the post clicked
-     */
+		 * @function getSinglePostTimeline
+		 * @description Opens the timeline of the post clicked
+		 */
 		getSinglePostTimeline(e) {
 			// Display internal or external post
 			if (!this.item.local) {
@@ -174,6 +192,9 @@ export default {
 				this.$store.dispatch('postBoost', params)
 			}
 		},
+		remove() {
+			this.$store.dispatch('postDelete', this.item)
+		},
 		like() {
 			let params = {
 				post: this.item,
@@ -189,6 +210,19 @@ export default {
 }
 </script>
 <style scoped lang="scss">
+	.post-content {
+		padding: 4px 4px 4px 8px;
+		font-size: 15px;
+		line-height: 1.6em;
+		position: relative;
+		width: 100%;
+
+		&:hover {
+			border-radius: 8px;
+			background-color: var(--color-background-hover);
+		}
+	}
+
 	.post-author {
 		font-weight: bold;
 	}
@@ -206,6 +240,7 @@ export default {
 	.post-actions {
 		margin-left: -13px;
 		height: 44px;
+		display: flex;
 
 		.post-actions-more {
 			position: relative;

@@ -26,10 +26,13 @@
 		</template>
 		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 		<template v-else>
-			<timeline-avatar :item="entryContent" />
-			<timeline-post
-				:item="entryContent"
-				:parent-announce="isBoost" />
+			<div class="wrapper">
+				<timeline-avatar :item="entryContent" />
+				<timeline-post
+					class="message"
+					:item="entryContent"
+					:parent-announce="isBoost" />
+			</div>
 		</template>
 	</div>
 </template>
@@ -115,19 +118,15 @@ export default {
 }
 </script>
 <style scoped lang="scss">
-  .timeline-entry.with-header {
-    grid-template-rows: 30px 1fr;
-  }
-	.timeline-entry {
-		display: grid;
-    grid-template-columns: 44px 1fr;
-    grid-template-rows: 1fr;
-		padding: 10px;
-		margin-bottom: 10px;
-		&:hover {
-			background-color: var(--color-background-hover);
+	.wrapper {
+		display: flex;
+		margin: auto;
+		padding: 0;
+		&:focus {
+			background-color: rgba(47, 47, 47, 0.068);
 		}
 	}
+
 	.notification-header {
 		display: flex;
 		align-items: bottom;
