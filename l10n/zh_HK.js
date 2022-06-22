@@ -65,8 +65,6 @@ OC.L10N.register(
     "Reply" : "回覆",
     "Boost" : "促進",
     "Like" : "贊",
-    "More actions" : "更多操作",
-    "Delete post" : "刪除帖子",
     "Follow on Nextcloud Social" : "在 Nextcloud Social 上關注",
     "Hello" : "嗨",
     "Please confirm that you want to follow this account:" : "請確認您要關注此賬戶：",
@@ -83,6 +81,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鑑於您剛來到 Social，請先關注 Nextcloud 官方賬戶，這樣您將不會錯過任何新聞",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud",
     "You haven't receive any notifications yet" : "您還沒有收到任何通知",
-    "You haven't tooted yet" : "您還沒有發貼過"
+    "You haven't tooted yet" : "您還沒有發貼過",
+    "More actions" : "更多操作",
+    "Delete post" : "刪除帖子"
 },
 "nplurals=1; plural=0;");

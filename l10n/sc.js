@@ -62,8 +62,6 @@ OC.L10N.register(
     "Reply" : "Risponde",
     "Boost" : "Boost",
     "Like" : "M'agradat",
-    "More actions" : "Àteras atziones",
-    "Delete post" : "Elìmina cummentu",
     "Follow on Nextcloud Social" : "Sighi in Nextcloud Sotziale",
     "Hello" : "Oe",
     "Please confirm that you want to follow this account:" : "Cunfirma chi disìgias sighire custu contu:",
@@ -80,6 +78,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dae chi ses nou in Sotziale, cumintza sighende su contu ufitziale de Nextcloud a manera chi non ti perdas is noas",
     "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz",
     "You haven't receive any notifications yet" : "No as retzidu peruna notìfica ancora",
-    "You haven't tooted yet" : "No as naradu ancora nudda"
+    "You haven't tooted yet" : "No as naradu ancora nudda",
+    "More actions" : "Àteras atziones",
+    "Delete post" : "Elìmina cummentu"
 },
 "nplurals=2; plural=(n != 1);");

@@ -65,8 +65,6 @@ OC.L10N.register(
     "Reply" : "Отговори",
     "Boost" : "Подсилване",
     "Like" : "Харесване",
-    "More actions" : "Още действия",
-    "Delete post" : "Изтриване на публикацията",
     "Follow on Nextcloud Social" : "Следвайте в Nextcloud Social",
     "Hello" : "Здравейте",
     "Please confirm that you want to follow this account:" : "Моля, потвърдете, че искате да следвате този профил:",
@@ -83,6 +81,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Понеже си нов потребител в Social, последвай официялният акаунт на  Nextcloud account, за да не пропуснеш новини от развитието на проекта",
     "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz",
     "You haven't receive any notifications yet" : "Все още не сте получили никакви известия",
-    "You haven't tooted yet" : "Все още не сте тутвали /публикували/"
+    "You haven't tooted yet" : "Все още не сте тутвали /публикували/",
+    "More actions" : "Още действия",
+    "Delete post" : "Изтриване на публикацията"
 },
 "nplurals=2; plural=(n != 1);");

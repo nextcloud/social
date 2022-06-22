@@ -65,8 +65,6 @@ OC.L10N.register(
     "Reply" : "Válasz",
     "Boost" : "Megtolás",
     "Like" : "Tetszik",
-    "More actions" : "További lehetőségek",
-    "Delete post" : "Bejegyzés törlése",
     "Follow on Nextcloud Social" : "Követés a Nextcloud Közösségen",
     "Hello" : "Üdv",
     "Please confirm that you want to follow this account:" : "Erősítse meg, hogy követi ezt a fiókot:",
@@ -83,6 +81,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Mivel Ön még nem ismeri a Közösség alkalmazást, kezdje el a hivatalos Nextcloud-fiók követésével, hogy ne maradjon le egyetlen hírről sem",
     "Follow Nextcloud on mastodon.xyz" : "Kövesse a Nextcloudot a mastodon.xyz-n",
     "You haven't receive any notifications yet" : "Még nem kapott értesítéseket",
-    "You haven't tooted yet" : "Még nem tülkölt"
+    "You haven't tooted yet" : "Még nem tülkölt",
+    "More actions" : "További lehetőségek",
+    "Delete post" : "Bejegyzés törlése"
 },
 "nplurals=2; plural=(n != 1);");

@@ -62,8 +62,6 @@
     "Reply" : "Antworten",
     "Boost" : "Verstärken",
     "Like" : "Mag ich",
-    "More actions" : "Weitere Aktionen",
-    "Delete post" : "Post löschen",
     "Follow on Nextcloud Social" : "Auf Nextcloud Social folgen",
     "Hello" : "Hallo",
     "Please confirm that you want to follow this account:" : "Bitte bestätige, dass Du diesem Konto folgen willst:",
@@ -80,6 +78,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Du bist neu bei Social, von daher empfehlen wir Dir dem Nextcloud-Konto zu folgen und so keine Neuigkeiten zu verpassen",
     "Follow Nextcloud on mastodon.xyz" : "Nextcloud auf mastodon.xyz folgen",
     "You haven't receive any notifications yet" : "Du hast bislang noch keine Benachrichtigung erhalten",
-    "You haven't tooted yet" : "Du hast bisher noch nicht getootet"
+    "You haven't tooted yet" : "Du hast bisher noch nicht getootet",
+    "More actions" : "Weitere Aktionen",
+    "Delete post" : "Post löschen"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

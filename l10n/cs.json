@@ -63,8 +63,6 @@
     "Reply" : "Odpovědět",
     "Boost" : "Přeposlat",
     "Like" : "Lajk",
-    "More actions" : "Další akce",
-    "Delete post" : "Smazat příspěvek",
     "Follow on Nextcloud Social" : "Sledovat na Nexcloud Social",
     "Hello" : "Zdravíme",
     "Please confirm that you want to follow this account:" : "Potvrďte, že opravdu chcete sledovat tento účet:",
@@ -81,6 +79,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Protože jste na Social noví, začněte sledováním oficiálního účtu Nextcloudu, aby vám nic neušlo.",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nexcloud na mastodon.xyz",
     "You haven't receive any notifications yet" : "Doposud jste neobdrželi žádná upozornění",
-    "You haven't tooted yet" : "Zatím jste nic nenapsali"
+    "You haven't tooted yet" : "Zatím jste nic nenapsali",
+    "More actions" : "Další akce",
+    "Delete post" : "Smazat příspěvek"
 },"pluralForm" :"nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n >= 2 && n <= 4 && n % 1 == 0) ? 1: (n % 1 != 0 ) ? 2 : 3;"
 }

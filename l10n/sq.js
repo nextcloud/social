@@ -8,9 +8,9 @@ OC.L10N.register(
     "Notifications" : "Njoftimet",
     "Public" : "Publik",
     "Reply" : "Përgjigju",
-    "More actions" : "Më tepër veprime ",
     "Hello" : "Përshëndetje",
     "Close" : "Mbylleni",
-    "Continue" : "Vazhdo"
+    "Continue" : "Vazhdo",
+    "More actions" : "Më tepër veprime "
 },
 "nplurals=2; plural=(n != 1);");

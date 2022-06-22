@@ -14,10 +14,10 @@ OC.L10N.register(
     "Followers" : "Seguidors",
     "Follow" : "Seguir",
     "Reply" : "Respondre",
-    "More actions" : "Mai d’accions",
     "Hello" : "Adieu",
     "Close" : "Tampar",
     "Continue" : "Contunhar",
-    "User not found" : "Utilizaire pas trobat"
+    "User not found" : "Utilizaire pas trobat",
+    "More actions" : "Mai d’accions"
 },
 "nplurals=2; plural=(n > 1);");

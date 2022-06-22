@@ -62,8 +62,6 @@ OC.L10N.register(
     "Reply" : "Απάντηση",
     "Boost" : "Ενίσχυση",
     "Like" : "Αρέσει",
-    "More actions" : "Περισσότερες ενέργειες",
-    "Delete post" : "Διαγραφή δημοσίευσης",
     "Follow on Nextcloud Social" : "Ακολουθήστε στο Nextcloud Social",
     "Hello" : "Γεια σας",
     "Please confirm that you want to follow this account:" : "Παρακαλώ επιβεβαιώστε πως θέλετε να ακολουθήσετε αυτόν τον λογαριασμό:",
@@ -80,6 +78,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Καθως είστε νέοι στο Social, ξεκινήστε ακολουθώντας τον επίσημο λογαριασμό του Nextcloud για να μην χάσετε καμιά είδηση",
     "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz",
     "You haven't receive any notifications yet" : "Δεν λάβατε ειδοποιήσεις ακόμη",
-    "You haven't tooted yet" : "Δεν έχετε επισημανθεί ακόμη"
+    "You haven't tooted yet" : "Δεν έχετε επισημανθεί ακόμη",
+    "More actions" : "Περισσότερες ενέργειες",
+    "Delete post" : "Διαγραφή δημοσίευσης"
 },
 "nplurals=2; plural=(n != 1);");

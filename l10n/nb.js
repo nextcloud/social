@@ -9,10 +9,10 @@ OC.L10N.register(
     "Add attachment" : "Legg til vedlegg",
     "Public" : "Offentlig",
     "Reply" : "Svar",
-    "More actions" : "Flere handlinger",
     "Hello" : "Hallo",
     "Close" : "Lukk",
     "Continue" : "Fortsett",
-    "User not found" : "Fant ikke brukeren"
+    "User not found" : "Fant ikke brukeren",
+    "More actions" : "Flere handlinger"
 },
 "nplurals=2; plural=(n != 1);");

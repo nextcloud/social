@@ -49,8 +49,6 @@
     "No replies found" : "Vastauksia ei löytynyt",
     "Reply" : "Vastaa",
     "Like" : "Tykkää",
-    "More actions" : "Lisää toimintoja",
-    "Delete post" : "Poista viesti",
     "Hello" : "Hei",
     "Please confirm that you want to follow this account:" : "Vahvista että haluat seurata tätä tiliä:",
     "You are following this account" : "Seuraat tätä tiliä",
@@ -60,6 +58,8 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudista tulee yhteenliitettyjen sosiaalisten verkostojen osa!",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Koska olet uusi käyttäjä, aloita seuraamalla virallista Nextcloud -tiliä ettet jää uutisista paitsi",
     "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa",
-    "You haven't receive any notifications yet" : "Et ole vielä saanut yhtäkään ilmoitusta"
+    "You haven't receive any notifications yet" : "Et ole vielä saanut yhtäkään ilmoitusta",
+    "More actions" : "Lisää toimintoja",
+    "Delete post" : "Poista viesti"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

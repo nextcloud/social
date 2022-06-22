@@ -31,8 +31,6 @@
     "Posts directed to you will show up here" : "سوف تظهر هنا المنشورات التي ستتلقاها",
     "No local posts found" : "لم يتم العثور على منشورات محلية",
     "Reply" : "رد",
-    "More actions" : "إجراءات أخرى",
-    "Delete post" : "احذف المنشور",
     "Hello" : "أهلا",
     "You are following this account" : "إنك تتابع هذا الحساب",
     "Close" : "إغلاق",
@@ -40,6 +38,8 @@
     "Continue" : "المتابعة",
     "User not found" : "لم يتم العثور على المستخدم",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "تم الانشاء التلقائي لـ حساب اجتماعي لك. معرفك الاجتماعي هو نفسه معرف السحابة المتحدة او Federated Cloud ID",
-    "Follow Nextcloud on mastodon.xyz" : "تابع Nextcloud على mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "تابع Nextcloud على mastodon.xyz",
+    "More actions" : "إجراءات أخرى",
+    "Delete post" : "احذف المنشور"
 },"pluralForm" :"nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;"
 }

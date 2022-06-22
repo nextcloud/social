@@ -62,8 +62,6 @@ OC.L10N.register(
     "Reply" : "Odgovori",
     "Boost" : "Pojačaj",
     "Like" : "Sviđa mi se",
-    "More actions" : "Dodatne radnje",
-    "Delete post" : "Izbriši objavu",
     "Follow on Nextcloud Social" : "Prati na Nextcloud Social",
     "Hello" : "Pozdrav",
     "Please confirm that you want to follow this account:" : "Potvrdite želite li pratiti ovaj račun:",
@@ -80,6 +78,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Budući da ste novi korisnik aplikacije Social, počnite pratiti službeni račun Nextclouda kako ne biste propustili nijednu vijest",
     "Follow Nextcloud on mastodon.xyz" : "Pratite Nextcloud na mastodon.xyz",
     "You haven't receive any notifications yet" : "Niste primili nijednu obavijest",
-    "You haven't tooted yet" : "Niste se još uspostavili"
+    "You haven't tooted yet" : "Niste se još uspostavili",
+    "More actions" : "Dodatne radnje",
+    "Delete post" : "Izbriši objavu"
 },
 "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;");
