@@ -56,8 +56,6 @@
     "Reply" : "پاسخ",
     "Boost" : "تقویت",
     "Like" : "دوست داشتن",
-    "More actions" : "اقدامات بیشتر",
-    "Delete post" : "پست را حذف کنید",
     "Follow on Nextcloud Social" : "در شبکه اجتماعی نکست کلود دنبال کنید",
     "Hello" : "سلام",
     "Please confirm that you want to follow this account:" : "لطفاً تأیید کنید که می خواهید این حساب را دنبال کنید:",
@@ -73,6 +71,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "از آنجا که تازه وارد Social شده اید ، با دنبال کردن حساب رسمی نکست کلود شروع کنید تا هیچ خبری از دست ندهید",
     "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید",
     "You haven't receive any notifications yet" : "شما هنوز هیچ اعلانی دریافت نکرده اید",
-    "You haven't tooted yet" : "شما هنوز ثبت نام نکرده اید"
+    "You haven't tooted yet" : "شما هنوز ثبت نام نکرده اید",
+    "More actions" : "اقدامات بیشتر",
+    "Delete post" : "پست را حذف کنید"
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }

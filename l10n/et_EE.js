@@ -8,9 +8,9 @@ OC.L10N.register(
     "Notifications" : "Teavitused",
     "Public" : "Avalik",
     "Reply" : "Vasta",
-    "Delete post" : "Kustuta postitus",
     "Close" : "Sulge",
     "Continue" : "Jätka",
-    "User not found" : "Kasutajat ei leitud"
+    "User not found" : "Kasutajat ei leitud",
+    "Delete post" : "Kustuta postitus"
 },
 "nplurals=2; plural=(n != 1);");

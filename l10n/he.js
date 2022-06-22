@@ -33,8 +33,6 @@ OC.L10N.register(
     "No liked posts found" : "לא נמצאו פוסטים שאהבת",
     "Reply" : "תגובה",
     "Like" : "אהבתי",
-    "More actions" : "פעולות נוספות",
-    "Delete post" : "מחיקת רשומה",
     "Follow on Nextcloud Social" : "עקוב ב NextCloud חברתי",
     "Hello" : "שלום",
     "Please confirm that you want to follow this account:" : "נא לאשר שרצונך הוא לעקוב אחר חשבון זה:",
@@ -43,6 +41,8 @@ OC.L10N.register(
     "Continue" : "המשך",
     "User not found" : "המשתמש לא נמצא",
     "Sorry, we could not find the account of {userId}" : "לא הצלחנו למצוא את החשבון של {userId}, עמך הסליחה",
-    "Follow Nextcloud on mastodon.xyz" : "ניתן לעקוב אחר Nextcloud ב־mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "ניתן לעקוב אחר Nextcloud ב־mastodon.xyz",
+    "More actions" : "פעולות נוספות",
+    "Delete post" : "מחיקת רשומה"
 },
 "nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n == 2 && n % 1 == 0) ? 1: (n % 10 == 0 && n % 1 == 0 && n > 10) ? 2 : 3;");

@@ -65,8 +65,6 @@ OC.L10N.register(
     "Reply" : "返信",
     "Boost" : "ブースト",
     "Like" : "いいね！",
-    "More actions" : "その他のアクション",
-    "Delete post" : "削除日時",
     "Follow on Nextcloud Social" : "Nextcloud ソーシャルでフォローする",
     "Hello" : "こんにちは",
     "Please confirm that you want to follow this account:" : "このアカウントをフォローすることを確認してください。",
@@ -83,6 +81,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "「ソーシャル」は初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
     "You haven't receive any notifications yet" : "受信された通知はありません",
-    "You haven't tooted yet" : "あなたはまだtootしていません"
+    "You haven't tooted yet" : "あなたはまだtootしていません",
+    "More actions" : "その他のアクション",
+    "Delete post" : "削除日時"
 },
 "nplurals=1; plural=0;");

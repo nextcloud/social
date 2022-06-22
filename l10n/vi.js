@@ -10,10 +10,10 @@ OC.L10N.register(
     "Add attachment" : "Thêm tệp đính kèm",
     "Public" : "Công khai",
     "Reply" : "Trả l",
-    "More actions" : "Nhiều hành động hơn",
     "Hello" : "Xin chào",
     "Close" : "Đóng",
     "Continue" : "Tiếp tục",
-    "User not found" : "Không tìm thấy người dùng"
+    "User not found" : "Không tìm thấy người dùng",
+    "More actions" : "Nhiều hành động hơn"
 },
 "nplurals=1; plural=0;");

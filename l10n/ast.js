@@ -7,8 +7,8 @@ OC.L10N.register(
     "Home" : "Aniciu",
     "Notifications" : "Notificaciones",
     "Reply" : "Rempuesta",
-    "More actions" : "Más aiciones",
     "Close" : "Zarrar",
-    "Continue" : "Siguir"
+    "Continue" : "Siguir",
+    "More actions" : "Más aiciones"
 },
 "nplurals=2; plural=(n != 1);");

@@ -8,9 +8,9 @@ OC.L10N.register(
     "Notifications" : "Sciigoj",
     "Public" : "Publika",
     "Reply" : "Respondi",
-    "More actions" : "Pliaj agoj",
     "Close" : "Malfermi",
     "Continue" : "Daŭrigi",
-    "User not found" : "Netrovita uzanto"
+    "User not found" : "Netrovita uzanto",
+    "More actions" : "Pliaj agoj"
 },
 "nplurals=2; plural=(n != 1);");

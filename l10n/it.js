@@ -63,8 +63,6 @@ OC.L10N.register(
     "Reply" : "Rispondi",
     "Boost" : "Boost",
     "Like" : "Mi piace",
-    "More actions" : "Altre azioni",
-    "Delete post" : "Elimina commento",
     "Follow on Nextcloud Social" : "Segui su Nextcloud Sociale",
     "Hello" : "Ciao",
     "Please confirm that you want to follow this account:" : "Conferma che desideri seguire questo account:",
@@ -81,6 +79,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Poiché sei nuovo di Sociale, inizia seguendo l'account ufficiale di Nextcloud in modo da non perdere le novità",
     "Follow Nextcloud on mastodon.xyz" : "Segui Nextcloud su mastodon.xyz",
     "You haven't receive any notifications yet" : "Non hai ancora ricevuto alcuna notifica",
-    "You haven't tooted yet" : "Non hai ancora fiatato"
+    "You haven't tooted yet" : "Non hai ancora fiatato",
+    "More actions" : "Altre azioni",
+    "Delete post" : "Elimina commento"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
