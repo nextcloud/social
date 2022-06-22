@@ -65,8 +65,6 @@ OC.L10N.register(
     "Reply" : "Odpoveď",
     "Boost" : "Preposlať",
     "Like" : "Páči sa mi",
-    "More actions" : "Viac akcií",
-    "Delete post" : "Odstrániť príspevok",
     "Follow on Nextcloud Social" : "Sledovať Nextcloud Social",
     "Hello" : "Ahoj",
     "Please confirm that you want to follow this account:" : "Potvrďte, že chcete sledovať tento účet:",
@@ -83,6 +81,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Preto, že ste nový na Social, začnite sledovať oficiálny účet Nextcloud, aby vám nič neušlo",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz",
     "You haven't receive any notifications yet" : "Zatiaľ ste nedostali žiadne upozornenia",
-    "You haven't tooted yet" : "Zatiaľ ste nič nenapísali"
+    "You haven't tooted yet" : "Zatiaľ ste nič nenapísali",
+    "More actions" : "Viac akcií",
+    "Delete post" : "Odstrániť príspevok"
 },
 "nplurals=4; plural=(n % 1 == 0 && n == 1 ? 0 : n % 1 == 0 && n >= 2 && n <= 4 ? 1 : n % 1 != 0 ? 2: 3);");

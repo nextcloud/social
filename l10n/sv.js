@@ -58,8 +58,6 @@ OC.L10N.register(
     "Reply" : "Svara",
     "Boost" : "Puffa",
     "Like" : "Gilla",
-    "More actions" : "Fler händelser",
-    "Delete post" : "Ta bort inlägg",
     "Follow on Nextcloud Social" : "Följ på Nextcloud Social",
     "Hello" : "Hej",
     "Please confirm that you want to follow this account:" : "Bekräfta att du vill följa detta konto:",
@@ -75,6 +73,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Eftersom du är ny här kan du börja med att följa det officiella Nextcloud-kontot så att du inte missar några nyheter",
     "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz",
     "You haven't receive any notifications yet" : "Du har inte fått några aviseringar än",
-    "You haven't tooted yet" : "Du har inte tutat än"
+    "You haven't tooted yet" : "Du har inte tutat än",
+    "More actions" : "Fler händelser",
+    "Delete post" : "Ta bort inlägg"
 },
 "nplurals=2; plural=(n != 1);");

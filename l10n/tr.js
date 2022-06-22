@@ -65,8 +65,6 @@ OC.L10N.register(
     "Reply" : "Yanıtla",
     "Boost" : "Yükselt",
     "Like" : "Beğen",
-    "More actions" : "Diğer işlemler",
-    "Delete post" : "İletiyi sil",
     "Follow on Nextcloud Social" : "Nextcloud Sosyal Ağı Üzerinde Takip Et",
     "Hello" : "Merhaba",
     "Please confirm that you want to follow this account:" : "Lütfen şu hesabı takip etmek istediğinizi onaylayın:",
@@ -83,6 +81,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Sosyal ağ kullanmaya yeni başladığınızdan, haberleri kaçırmamak için resmi Nextcloud hesabını takibe başlayın",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et",
     "You haven't receive any notifications yet" : "Henüz size bir bildirim gönderilmemiş",
-    "You haven't tooted yet" : "Henüz uyarılmamışsınız"
+    "You haven't tooted yet" : "Henüz uyarılmamışsınız",
+    "More actions" : "Diğer işlemler",
+    "Delete post" : "İletiyi sil"
 },
 "nplurals=2; plural=(n > 1);");

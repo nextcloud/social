@@ -8,9 +8,9 @@ OC.L10N.register(
     "Notifications" : "შეტყობინებები",
     "Public" : "ღია",
     "Reply" : "პასუხი",
-    "More actions" : "მეტი ქმედება",
     "Hello" : "გამარჯობა",
     "Close" : "დახურვა",
-    "Continue" : "გაგრძელება"
+    "Continue" : "გაგრძელება",
+    "More actions" : "მეტი ქმედება"
 },
 "nplurals=2; plural=(n!=1);");

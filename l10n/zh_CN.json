@@ -61,8 +61,6 @@
     "Reply" : "回复",
     "Boost" : "转贴",
     "Like" : "赞",
-    "More actions" : "更多操作",
-    "Delete post" : "删除帖子",
     "Follow on Nextcloud Social" : "关注 Nextcloud 社交",
     "Hello" : "您好",
     "Please confirm that you want to follow this account:" : "请确认您要关注此账号：",
@@ -79,6 +77,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鉴于您刚来到社交应用，请先关注 Nextcloud 官方账号，这样您将不会错过任何新闻",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud",
     "You haven't receive any notifications yet" : "您还没有收到任何通知",
-    "You haven't tooted yet" : "您还没有发贴过"
+    "You haven't tooted yet" : "您还没有发贴过",
+    "More actions" : "更多操作",
+    "Delete post" : "删除帖子"
 },"pluralForm" :"nplurals=1; plural=0;"
 }
