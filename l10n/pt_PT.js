@@ -40,6 +40,7 @@ OC.L10N.register(
     "No global posts found" : "Nenhuma publicação global encontrada",
     "Posts from federated instances will show up here" : "Publicações de instâncias federadas serão apresentadas aqui",
     "Reply" : "Resposta",
+    "Delete" : "Apagar",
     "Hello" : "Olá",
     "Close" : "Fechar",
     "Continue" : "Continuar",

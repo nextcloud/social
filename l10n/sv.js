@@ -58,6 +58,7 @@ OC.L10N.register(
     "Reply" : "Svara",
     "Boost" : "Puffa",
     "Like" : "Gilla",
+    "Delete" : "Radera",
     "Follow on Nextcloud Social" : "Följ på Nextcloud Social",
     "Hello" : "Hej",
     "Please confirm that you want to follow this account:" : "Bekräfta att du vill följa detta konto:",

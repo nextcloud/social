@@ -5,6 +5,7 @@ OC.L10N.register(
     "Finish setup" : "ສໍາເລັດການຕັ້ງຄ່າ",
     "Home" : "ໜ້າຫຼັກ",
     "Notifications" : "ການເເຈ້ງເຕືອນ",
+    "Delete" : "ລຶບ",
     "Close" : "ປິດ",
     "Continue" : "ສືບຕໍ່"
 },

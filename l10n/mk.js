@@ -12,6 +12,7 @@ OC.L10N.register(
     "posts" : "објави",
     "No results found" : "Нема пронајдено резултати",
     "Reply" : "Одговор",
+    "Delete" : "Избриши",
     "Hello" : "Здраво",
     "Close" : "Затвори",
     "Continue" : "Продолжи",

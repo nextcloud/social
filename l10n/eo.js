@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Sciigoj",
     "Public" : "Publika",
     "Reply" : "Respondi",
+    "Delete" : "Forigi",
     "Close" : "Malfermi",
     "Continue" : "Daŭrigi",
     "User not found" : "Netrovita uzanto",

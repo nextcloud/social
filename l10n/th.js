@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "การแจ้งเตือน",
     "Public" : "สาธารณะ",
     "Reply" : "ตอบกลับ",
+    "Delete" : "ลบ",
     "Hello" : "สวัสดี",
     "Close" : "ปิด",
     "Continue" : "ดำเนินการต่อ"

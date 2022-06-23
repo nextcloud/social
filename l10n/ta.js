@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "உதவி",
     "Finish setup" : "அமைப்பை முடிக்க",
     "Home" : "அகம்",
+    "Delete" : "நீக்குக",
     "Close" : "மூடுக",
     "Continue" : "Continue"
 },

@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Njoftimet",
     "Public" : "Publik",
     "Reply" : "Përgjigju",
+    "Delete" : "Fshi",
     "Hello" : "Përshëndetje",
     "Close" : "Mbylleni",
     "Continue" : "Vazhdo",

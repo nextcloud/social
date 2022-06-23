@@ -23,6 +23,7 @@ OC.L10N.register(
     "No notifications found" : "Nerasta jokių pranešimų",
     "No replies found" : "Nerasta jokių atsakymų",
     "Reply" : "Atsakyti",
+    "Delete" : "Ištrinti",
     "Hello" : "Sveiki",
     "Close" : "Užverti",
     "Continue" : "Tęsti",

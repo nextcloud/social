@@ -9,6 +9,7 @@ OC.L10N.register(
     "Add attachment" : "Add attachment",
     "Public" : "Public",
     "Reply" : "Reply",
+    "Delete" : "Delete",
     "Hello" : "Hello",
     "Close" : "Close",
     "Continue" : "Continue",

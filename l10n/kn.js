@@ -5,6 +5,7 @@ OC.L10N.register(
     "Finish setup" : "ಹೊಂದಾಣಿಕೆಗಳನ್ನು ಪೂರ್ಣಗೊಳಿಸಿ",
     "Home" : "﻿ಮುಖಪುಟ",
     "Notifications" : "ಸೂಚನೆಗಳು",
+    "Delete" : "﻿ಅಳಿಸಿ",
     "Close" : "ಮುಚ್ಚು",
     "Continue" : "﻿ಮುಂದುವರಿಸಿ"
 },

@@ -63,6 +63,7 @@ OC.L10N.register(
     "Reply" : "回复",
     "Boost" : "转贴",
     "Like" : "赞",
+    "Delete" : "删除",
     "Follow on Nextcloud Social" : "关注 Nextcloud 社交",
     "Hello" : "您好",
     "Please confirm that you want to follow this account:" : "请确认您要关注此账号：",

@@ -9,6 +9,7 @@ OC.L10N.register(
     "Add emoji" : "Ouzhpennañ un emoji",
     "Public" : "Publik",
     "Reply" : "Respont",
+    "Delete" : "Lemel",
     "Close" : "Serriñ",
     "Continue" : "Kendec'hel"
 },

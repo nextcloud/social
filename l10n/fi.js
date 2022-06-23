@@ -51,6 +51,7 @@ OC.L10N.register(
     "No replies found" : "Vastauksia ei löytynyt",
     "Reply" : "Vastaa",
     "Like" : "Tykkää",
+    "Delete" : "Poista",
     "Hello" : "Hei",
     "Please confirm that you want to follow this account:" : "Vahvista että haluat seurata tätä tiliä:",
     "You are following this account" : "Seuraat tätä tiliä",

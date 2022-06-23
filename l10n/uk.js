@@ -9,6 +9,7 @@ OC.L10N.register(
     "Add attachment" : "Додати вкладення",
     "Public" : "Публічне",
     "Reply" : "Відповісти",
+    "Delete" : "Вилучити",
     "Hello" : "Привіт",
     "Close" : "Закрити",
     "Continue" : "Продовжити",

@@ -12,6 +12,7 @@ OC.L10N.register(
     "Public" : "공개",
     "No results found" : "결과 없음",
     "Reply" : "답장",
+    "Delete" : "삭제",
     "Hello" : "안녕하세요",
     "Close" : "닫기",
     "Continue" : "Continue",

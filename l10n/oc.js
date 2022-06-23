@@ -14,6 +14,7 @@ OC.L10N.register(
     "Followers" : "Seguidors",
     "Follow" : "Seguir",
     "Reply" : "Respondre",
+    "Delete" : "Suprimir",
     "Hello" : "Adieu",
     "Close" : "Tampar",
     "Continue" : "Contunhar",

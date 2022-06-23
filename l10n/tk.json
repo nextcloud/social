@@ -1,0 +1,8 @@
+{ "translations": {
+    "Help" : "Kömek",
+    "Home" : "Baş sahypa",
+    "Notifications" : "Duýduryşlar",
+    "Delete" : "Pozmak",
+    "Close" : "Ýap"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}

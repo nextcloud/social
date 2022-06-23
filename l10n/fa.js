@@ -58,6 +58,7 @@ OC.L10N.register(
     "Reply" : "پاسخ",
     "Boost" : "تقویت",
     "Like" : "دوست داشتن",
+    "Delete" : "حذف",
     "Follow on Nextcloud Social" : "در شبکه اجتماعی نکست کلود دنبال کنید",
     "Hello" : "سلام",
     "Please confirm that you want to follow this account:" : "لطفاً تأیید کنید که می خواهید این حساب را دنبال کنید:",

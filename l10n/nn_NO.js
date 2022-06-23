@@ -7,6 +7,7 @@ OC.L10N.register(
     "Notifications" : "Meldingar",
     "Add attachment" : "Legg til vedlegg",
     "Reply" : "Svare",
+    "Delete" : "Slett",
     "Hello" : "Hallo",
     "Close" : "Lukk",
     "Continue" : "Gå vidare"

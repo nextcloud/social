@@ -28,6 +28,7 @@ OC.L10N.register(
     "posts" : "publicaciones",
     "following" : "siguiendo",
     "Reply" : "Responder",
+    "Delete" : "Eliminar",
     "Close" : "Cerrar",
     "Continue" : "Continuar"
 },

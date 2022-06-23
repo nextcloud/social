@@ -10,6 +10,7 @@ OC.L10N.register(
     "Add attachment" : "Thêm tệp đính kèm",
     "Public" : "Công khai",
     "Reply" : "Trả l",
+    "Delete" : "Xóa",
     "Hello" : "Xin chào",
     "Close" : "Đóng",
     "Continue" : "Tiếp tục",
