@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Notificari",
     "Public" : "Public",
     "Reply" : "Răspunde",
+    "Delete" : "Șterge",
     "Hello" : "Bună",
     "Close" : "Închide",
     "Continue" : "Continuă",

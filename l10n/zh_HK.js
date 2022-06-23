@@ -65,6 +65,7 @@ OC.L10N.register(
     "Reply" : "回覆",
     "Boost" : "促進",
     "Like" : "贊",
+    "Delete" : "刪除",
     "Follow on Nextcloud Social" : "在 Nextcloud Social 上關注",
     "Hello" : "嗨",
     "Please confirm that you want to follow this account:" : "請確認您要關注此賬戶：",

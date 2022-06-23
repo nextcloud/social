@@ -7,6 +7,7 @@ OC.L10N.register(
     "Home" : "Aniciu",
     "Notifications" : "Notificaciones",
     "Reply" : "Rempuesta",
+    "Delete" : "Desaniciar",
     "Close" : "Zarrar",
     "Continue" : "Siguir",
     "More actions" : "Más aiciones"

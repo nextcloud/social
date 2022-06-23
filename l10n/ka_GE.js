@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "შეტყობინებები",
     "Public" : "ღია",
     "Reply" : "პასუხი",
+    "Delete" : "წაშლა",
     "Hello" : "გამარჯობა",
     "Close" : "დახურვა",
     "Continue" : "გაგრძელება",

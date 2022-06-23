@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Teavitused",
     "Public" : "Avalik",
     "Reply" : "Vasta",
+    "Delete" : "Kustuta",
     "Close" : "Sulge",
     "Continue" : "Jätka",
     "User not found" : "Kasutajat ei leitud",

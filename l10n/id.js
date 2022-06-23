@@ -9,6 +9,7 @@ OC.L10N.register(
     "Profile" : "Profil",
     "Public" : "Publik",
     "Reply" : "Balas",
+    "Delete" : "Hapus",
     "Hello" : "Halo",
     "Close" : "Tutup",
     "Continue" : "Lanjutkan"

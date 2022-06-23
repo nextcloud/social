@@ -65,6 +65,8 @@ OC.L10N.register(
     "Reply" : "Odpowiedź",
     "Boost" : "Podbić",
     "Like" : "Lubię to",
+    "Undo Like" : "Cofnij polubienie",
+    "Delete" : "Usuń",
     "Follow on Nextcloud Social" : "Śledź w Nextcloud Social",
     "Hello" : "Witaj",
     "Please confirm that you want to follow this account:" : "Potwierdź, że chcesz śledzić to konto:",

@@ -63,6 +63,8 @@
     "Reply" : "回覆",
     "Boost" : "轉嘟",
     "Like" : "喜歡",
+    "Undo Like" : "還原喜歡",
+    "Delete" : "刪除",
     "Follow on Nextcloud Social" : "在 Nextcloud Social 上追蹤",
     "Hello" : "嗨，",
     "Please confirm that you want to follow this account:" : "請確認您想要追蹤此帳號：",

@@ -65,6 +65,7 @@ OC.L10N.register(
     "Reply" : "Odpoveď",
     "Boost" : "Preposlať",
     "Like" : "Páči sa mi",
+    "Delete" : "Vymazať",
     "Follow on Nextcloud Social" : "Sledovať Nextcloud Social",
     "Hello" : "Ahoj",
     "Please confirm that you want to follow this account:" : "Potvrďte, že chcete sledovať tento účet:",

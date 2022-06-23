@@ -6,6 +6,7 @@ OC.L10N.register(
     "Home" : "ទំព័រដើម",
     "Notifications" : "ការ​ជូន​ដំណឹង",
     "Reply" : "ឆ្លើយតប",
+    "Delete" : "លុប",
     "Close" : "បិទ",
     "Continue" : "បន្ត"
 },

@@ -10,6 +10,7 @@ OC.L10N.register(
     "Add attachment" : "Tilføj vedhæftelse",
     "Public" : "Offentlig",
     "Reply" : "Besvar",
+    "Delete" : "Slet",
     "Hello" : "Hej",
     "Close" : "Luk",
     "Continue" : "Fortsæt",

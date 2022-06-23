@@ -6,6 +6,7 @@ OC.L10N.register(
     "Home" : "Ev",
     "Notifications" : "Xəbərdarlıqlar",
     "Reply" : "Cavab",
+    "Delete" : "Sil",
     "Close" : "Bağla"
 },
 "nplurals=2; plural=(n != 1);");

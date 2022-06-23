@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "مدد",
     "Finish setup" : "سیٹ اپ ختم کریں",
     "Reply" : "جواب",
+    "Delete" : "حذف کریں",
     "Close" : "بند ",
     "Continue" : "جاری"
 },

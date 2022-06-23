@@ -5,6 +5,7 @@ OC.L10N.register(
     "Finish setup" : "Gorffen sefydlu",
     "Home" : "Cartref",
     "Notifications" : "Hysbysiadau",
+    "Delete" : "Dileu",
     "Close" : "Cau",
     "User not found" : "Defnyddiwr heb ei ganfod"
 },

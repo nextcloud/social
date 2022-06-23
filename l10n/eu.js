@@ -65,6 +65,8 @@ OC.L10N.register(
     "Reply" : "Erantzun",
     "Boost" : "Bultzada",
     "Like" : "Gogokoa",
+    "Undo Like" : "Desegin atsegitea",
+    "Delete" : "Ezabatu",
     "Follow on Nextcloud Social" : "Jarraitu Nextcloud Social bidez",
     "Hello" : "Kaixo",
     "Please confirm that you want to follow this account:" : "Baieztatu kontu hau jarraitu nahi duzula:",

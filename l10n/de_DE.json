@@ -63,6 +63,8 @@
     "Reply" : "Antworten",
     "Boost" : "Verstärken",
     "Like" : "Mag ich",
+    "Undo Like" : "Mag ich rückgängig machen",
+    "Delete" : "Löschen",
     "Follow on Nextcloud Social" : "Auf Nextcloud Social folgen",
     "Hello" : "Hallo",
     "Please confirm that you want to follow this account:" : "Bitte bestätigen Sie, dass Sie diesem Konto folgen wollen:",

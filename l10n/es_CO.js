@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Notificaciones",
     "Public" : "Público",
     "Reply" : "Responder",
+    "Delete" : "Borrar",
     "Close" : "Cerrar",
     "Continue" : "Continuar",
     "User not found" : "No se encontró el usuario",

@@ -1,0 +1,10 @@
+OC.L10N.register(
+    "social",
+    {
+    "Help" : "مرسته",
+    "Home" : "کور",
+    "Delete" : "ړنګول",
+    "Close" : "بندول",
+    "Continue" : "وړاندې تګ"
+},
+"nplurals=2; plural=(n != 1);");
