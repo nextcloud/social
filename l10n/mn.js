@@ -7,6 +7,7 @@ OC.L10N.register(
     "Notifications" : "Мэдэгдэл",
     "Public" : "Нийтийн",
     "Reply" : "хариулт",
+    "Delete" : "Устгах",
     "Close" : "Хаах",
     "Continue" : "үргэлжлүүлэх"
 },

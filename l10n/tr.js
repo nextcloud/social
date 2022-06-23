@@ -65,6 +65,8 @@ OC.L10N.register(
     "Reply" : "Yanıtla",
     "Boost" : "Yükselt",
     "Like" : "Beğen",
+    "Undo Like" : "Beğenmeyi geri al",
+    "Delete" : "Sil",
     "Follow on Nextcloud Social" : "Nextcloud Sosyal Ağı Üzerinde Takip Et",
     "Hello" : "Merhaba",
     "Please confirm that you want to follow this account:" : "Lütfen şu hesabı takip etmek istediğinizi onaylayın:",

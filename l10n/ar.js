@@ -33,6 +33,7 @@ OC.L10N.register(
     "Posts directed to you will show up here" : "سوف تظهر هنا المنشورات التي ستتلقاها",
     "No local posts found" : "لم يتم العثور على منشورات محلية",
     "Reply" : "رد",
+    "Delete" : "إزالة",
     "Hello" : "أهلا",
     "You are following this account" : "إنك تتابع هذا الحساب",
     "Close" : "إغلاق",

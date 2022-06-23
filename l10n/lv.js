@@ -33,6 +33,7 @@ OC.L10N.register(
     "No posts found" : "Atrasta jauns ieraksts",
     "No direct messages found" : "Tiešie ziņojumi nav atrasti",
     "Reply" : "Atbildēt",
+    "Delete" : "Dzēst",
     "Close" : "Aizvērt",
     "Continue" : "Turpināt",
     "User not found" : "Lietotājs nav atrasts"

@@ -8,6 +8,7 @@ OC.L10N.register(
     "Notifications" : "Kennisgewings",
     "Profile" : "Profiel",
     "Reply" : "Antwoord",
+    "Delete" : "Skrap",
     "Close" : "Sluit",
     "Continue" : "Gaan voort"
 },

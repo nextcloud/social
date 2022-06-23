@@ -6,6 +6,7 @@ OC.L10N.register(
     "Home" : "নিবাস",
     "Notifications" : "বার্তাসমূহ",
     "Reply" : "জবাব",
+    "Delete" : "মুছে",
     "Close" : "বন্ধ",
     "Continue" : "চালিয়ে যাও"
 },

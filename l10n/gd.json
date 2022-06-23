@@ -1,0 +1,8 @@
+{ "translations": {
+    "Help" : "Cobhair",
+    "Home" : "Dachaigh",
+    "Notifications" : "Brathan",
+    "Delete" : "Sguab às",
+    "Close" : "Dùin"
+},"pluralForm" :"nplurals=4; plural=(n==1 || n==11) ? 0 : (n==2 || n==12) ? 1 : (n > 2 && n < 20) ? 2 : 3;"
+}

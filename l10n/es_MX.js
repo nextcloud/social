@@ -9,6 +9,7 @@ OC.L10N.register(
     "Add attachment" : "Agregar archivo adjunto",
     "Public" : "Público",
     "Reply" : "Responder",
+    "Delete" : "Eliminar",
     "Close" : "Cerrar",
     "Continue" : "Continuar",
     "User not found" : "No se encontró el usuario",

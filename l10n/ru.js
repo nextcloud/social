@@ -63,6 +63,7 @@ OC.L10N.register(
     "Reply" : "Ответить",
     "Boost" : "Продвинуть",
     "Like" : "Нравится",
+    "Delete" : "Удалить",
     "Follow on Nextcloud Social" : "Следить в приложении Социальные сети для Nextcloud",
     "Hello" : "Привет",
     "Please confirm that you want to follow this account:" : "Подтвердите подписку на этого пользователя:",

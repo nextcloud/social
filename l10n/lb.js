@@ -7,6 +7,7 @@ OC.L10N.register(
     "Home" : "Doheem",
     "Notifications" : "Notifikatiounen",
     "Reply" : "Äntwerten",
+    "Delete" : "Läschen",
     "Close" : "Zoumaachen",
     "Continue" : "Weider"
 },

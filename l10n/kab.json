@@ -1,0 +1,8 @@
+{ "translations": {
+    "Help" : "Tallalt",
+    "Home" : "Asnubeg",
+    "Notifications" : "Ilɣa",
+    "Delete" : "Kkes",
+    "Close" : "Mdel"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}

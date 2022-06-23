@@ -5,6 +5,7 @@ OC.L10N.register(
     "Home" : "Почетна",
     "Notifications" : "Obaveštenja",
     "Reply" : "Odgovori",
+    "Delete" : "Obriši",
     "Hello" : "Zdravo",
     "Close" : "Zatvori"
 },
