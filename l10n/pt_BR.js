@@ -65,6 +65,7 @@ OC.L10N.register(
     "Reply" : "Responder",
     "Boost" : "Impulsionar",
     "Like" : "Curtir",
+    "Undo Like" : "Desfazer o Curtir",
     "Delete" : "Excluir",
     "Follow on Nextcloud Social" : "Seguir no Nextcloud Social",
     "Hello" : "Olá",
