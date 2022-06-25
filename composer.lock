@@ -4,48 +4,8 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c9f825ade4c2baa82438409e058171bc",
+    "content-hash": "27094b58c53da78123011af974a4cfdd",
     "packages": [
-        {
-            "name": "daita/my-small-php-tools",
-            "version": "dev-master",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/daita/my-small-php-tools.git",
-                "reference": "e91fa3953c549334dab1a0cb29432a1a36bebf6e"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/daita/my-small-php-tools/zipball/e91fa3953c549334dab1a0cb29432a1a36bebf6e",
-                "reference": "e91fa3953c549334dab1a0cb29432a1a36bebf6e",
-                "shasum": ""
-            },
-            "require": {
-                "php": ">=7.0"
-            },
-            "default-branch": true,
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "daita\\MySmallPhpTools\\": "lib/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "AGPL-3.0-or-later"
-            ],
-            "authors": [
-                {
-                    "name": "Maxence Lange",
-                    "email": "maxence@artificial-owl.com"
-                }
-            ],
-            "description": "My small PHP Tools",
-            "support": {
-                "source": "https://github.com/daita/my-small-php-tools/tree/v22.0.12"
-            },
-            "time": "2021-06-09T16:54:37+00:00"
-        },
         {
             "name": "friendica/json-ld",
             "version": "1.1.1",
@@ -92,16 +52,16 @@
         },
         {
             "name": "gumlet/php-image-resize",
-            "version": "2.0.2",
+            "version": "2.0.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/gumlet/php-image-resize.git",
-                "reference": "39066a32de8476a32c9ac6322f9658021cee8638"
+                "reference": "aee4e2573e83476ffd0ac64b7269f838c8cd9d68"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/39066a32de8476a32c9ac6322f9658021cee8638",
-                "reference": "39066a32de8476a32c9ac6322f9658021cee8638",
+                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/aee4e2573e83476ffd0ac64b7269f838c8cd9d68",
+                "reference": "aee4e2573e83476ffd0ac64b7269f838c8cd9d68",
                 "shasum": ""
             },
             "require": {
@@ -145,9 +105,9 @@
             ],
             "support": {
                 "issues": "https://github.com/gumlet/php-image-resize/issues",
-                "source": "https://github.com/gumlet/php-image-resize/tree/2.0.2"
+                "source": "https://github.com/gumlet/php-image-resize/tree/2.0.3"
             },
-            "time": "2022-05-12T11:03:20+00:00"
+            "time": "2022-06-21T16:20:34+00:00"
         }
     ],
     "packages-dev": [
@@ -4989,7 +4949,6 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "daita/my-small-php-tools": 20,
         "christophwurst/nextcloud": 20
     },
     "prefer-stable": false,
