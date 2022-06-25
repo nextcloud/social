@@ -65,7 +65,7 @@ OC.L10N.register(
     "Reply" : "Antworten",
     "Boost" : "Verstärken",
     "Like" : "Mag ich",
-    "Undo Like" : "Mag ich rückgängig machen",
+    "Undo Like" : "\"Mag ich\" rückgängig machen",
     "Delete" : "Löschen",
     "Follow on Nextcloud Social" : "Auf Nextcloud Social folgen",
     "Hello" : "Hallo",
