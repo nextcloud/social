@@ -65,6 +65,7 @@ OC.L10N.register(
     "Reply" : "Válasz",
     "Boost" : "Megtolás",
     "Like" : "Tetszik",
+    "Undo Like" : "Kedvelés visszavonása",
     "Delete" : "Törlés",
     "Follow on Nextcloud Social" : "Követés a Nextcloud Közösségen",
     "Hello" : "Üdv",
