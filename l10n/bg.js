@@ -65,6 +65,7 @@ OC.L10N.register(
     "Reply" : "Отговори",
     "Boost" : "Подсилване",
     "Like" : "Харесване",
+    "Undo Like" : "Отмяна на харесване",
     "Delete" : "Изтриване",
     "Follow on Nextcloud Social" : "Следвайте в Nextcloud Social",
     "Hello" : "Здравейте",
