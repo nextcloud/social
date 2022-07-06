@@ -49,6 +49,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\DB\ORM\IEntityManager;
 use OCP\IConfig;
 use OCP\IInitialStateService;
 use OCP\IL10N;
@@ -88,7 +89,8 @@ class NavigationController extends Controller {
 		DocumentService $documentService,
 		ConfigService $configService,
 		CheckService $checkService,
-		MiscService $miscService
+		MiscService $miscService,
+		IEntityManager $manager
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 

@@ -30,23 +30,24 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Entity\Account;
+use OCA\Social\Entity\Instance;
+use OCA\Social\Repository\InstanceRepository;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use Exception;
-use OCA\Social\AppInfo\Application;
+use OCA\Social\Entity\Application;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
-use OCA\Social\Exceptions\InstanceDoesNotExistException;
-use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ClientService;
+use OCA\Social\Service\ApplicationService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Response;
+use OCP\DB\ORM\IEntityManager;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -59,17 +60,24 @@ class OAuthController extends Controller {
 	private InstanceService $instanceService;
 	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
-	private ClientService $clientService;
+	private ApplicationService $clientService;
 	private ConfigService $configService;
 	private MiscService $miscService;
+	private IEntityManager $entityManager;
 
 	public function __construct(
-		IRequest $request, IUserSession $userSession, IURLGenerator $urlGenerator,
-		InstanceService $instanceService, AccountService $accountService,
-		CacheActorService $cacheActorService, ClientService $clientService, ConfigService $configService,
-		MiscService $miscService
+		IRequest $request,
+		IUserSession $userSession,
+		IURLGenerator $urlGenerator,
+		InstanceService $instanceService,
+		AccountService $accountService,
+		CacheActorService $cacheActorService,
+		ApplicationService $clientService,
+		ConfigService $configService,
+		MiscService $miscService,
+		IEntityManager $entityManager
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct('social', $request);
 
 		$this->userSession = $userSession;
 		$this->urlGenerator = $urlGenerator;
@@ -79,9 +87,7 @@ class OAuthController extends Controller {
 		$this->clientService = $clientService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
-
-		$body = file_get_contents('php://input');
-		$this->miscService->log('[OAuthController] input: ' . $body, 0);
+		$this->entityManager = $entityManager;
 	}
 
 
@@ -89,11 +95,11 @@ class OAuthController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 */
-	public function nodeinfo(): DataResponse {
+	public function index(): DataResponse {
 		$nodeInfo = [
 			'links' => [
 				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-				'href' => $this->urlGenerator->linkToRouteAbsolute('social.OAuth.nodeinfo2')
+				'href' => $this->urlGenerator->linkToRouteAbsolute('social.OAuth.show')
 			]
 		];
 
@@ -105,32 +111,24 @@ class OAuthController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 */
-	public function nodeinfo2(): Response {
-		try {
-			$local = $this->instanceService->getLocal();
-			$name = $local->getTitle();
-
-			$version = $local->getVersion();
-			$usage = $local->getUsage();
-			$openReg = $local->isRegistrations();
-		} catch (InstanceDoesNotExistException $e) {
-			$name = 'Nextcloud Social';
-			$version = $this->configService->getAppValue('installed_version');
-			$usage = [];
-			$openReg = false;
-		}
+	public function show(): DataResponse {
+		$query = $this->entityManager->createQuery('SELECT COUNT(a) FROM \OCA\Social\Entity\Account a');
+		$query->setCacheable(true);
+		$countUser = $query->getSingleScalarResult();
 
 		$nodeInfo = [
 			"version" => "2.0",
 			"software" => [
-				"name" => $name,
-				"version" => $version
+				"name" => 'Nextcloud Social',
+				"version" => $this->configService->getAppValue('installed_version'),
 			],
 			"protocols" => [
 				"activitypub"
 			],
-			"usage" => $usage,
-			"openRegistrations" => $openReg
+			"usage" => [
+				"total" => (int)$countUser,
+			],
+			"openRegistrations" => false,
 		];
 
 		return new DataResponse($nodeInfo, Http::STATUS_OK);
@@ -151,10 +149,10 @@ class OAuthController extends Controller {
 			$redirect_uris = [$redirect_uris];
 		}
 
-		$client = new SocialClient();
+		$client = new Application();
 		$client->setAppWebsite($website);
 		$client->setAppRedirectUris($redirect_uris);
-		$client->setAppScopes($client->getScopesFromString($scopes));
+		$client->setAppScopes(Application::getScopesFromString($scopes));
 		$client->setAppName($client_name);
 
 		$this->clientService->createApp($client);
@@ -181,6 +179,11 @@ class OAuthController extends Controller {
 	): DataResponse {
 		try {
 			$user = $this->userSession->getUser();
+			$accountRepository = $this->entityManager->getRepository(Account::class);
+			$accountRepository->findBy([
+				''
+			]);
+
 			$account = $this->accountService->getActorFromUserId($user->getUID());
 
 			if ($response_type !== 'code') {

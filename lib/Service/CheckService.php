@@ -57,7 +57,6 @@ class CheckService {
 	use TArrayTools;
 	use TStringTools;
 
-
 	public const CACHE_PREFIX = 'social_check_';
 
 	private IUserManager $userManager;

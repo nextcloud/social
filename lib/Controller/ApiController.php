@@ -43,7 +43,7 @@ use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ClientService;
+use OCA\Social\Service\ApplicationService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
@@ -65,7 +65,7 @@ class ApiController extends Controller {
 
 	private IUserSession $userSession;
 	private InstanceService $instanceService;
-	private ClientService $clientService;
+	private ApplicationService $clientService;
 	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
 	private FollowService $followService;
@@ -77,10 +77,10 @@ class ApiController extends Controller {
 	private ?Person $viewer = null;
 
 	public function __construct(
-		IRequest $request, IUserSession $userSession, InstanceService $instanceService,
-		ClientService $clientService, AccountService $accountService, CacheActorService $cacheActorService,
-		FollowService $followService, StreamService $streamService, ConfigService $configService,
-		MiscService $miscService
+        IRequest           $request, IUserSession $userSession, InstanceService $instanceService,
+        ApplicationService $clientService, AccountService $accountService, CacheActorService $cacheActorService,
+        FollowService      $followService, StreamService $streamService, ConfigService $configService,
+        MiscService        $miscService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
