@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Entity;
 
+use Doctrine\Common\Collections\Collection;
+use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -24,7 +26,7 @@ class Status {
 	 * @ORM\Column(type="bigint")
 	 * @ORM\GeneratedValue
 	 */
-    private string $id;
+    private string $id = "";
 
 	/**
 	 * @ORM\Column(type="string", nullable=true)
@@ -131,7 +133,7 @@ class Status {
 	private ?\DateTime $editedAt = null;
 
 	/**
-	 * @ORM\Column(type="boolean", nullable=false)
+	 * @ORM\Column(nullable=false)
 	 */
 	private bool $trendable = false;
 
@@ -140,6 +142,15 @@ class Status {
 	 * @ORM\Column(name="ordered_media_attachment_ids", type="array", nullable=false)
 	 */
 	private array $orderedMediaAttachmentIds = [];
+
+	/**
+	 * @ORM\OneToMany
+	 */
+	private Collection $mentions;
+
+	public function __construct() {
+
+	}
 
 	public function getId(): string {
 		return $this->id;
@@ -329,5 +340,19 @@ class Status {
 	 */
 	public function setOrderedMediaAttachmentIds(array $orderedMediaAttachmentIds): void {
 		$this->orderedMediaAttachmentIds = $orderedMediaAttachmentIds;
+	}
+
+	public function getMentions(): Collection {
+		return $this->mentions;
+	}
+
+	public function getActiveMentions(): Collection {
+		$criteria = Criteria::create();
+		$criteria->where(Criteria::expr()->eq('silent', false));
+		return $this->mentions->matching($criteria);
+	}
+
+	public function setMentions(Collection $mentions): void {
+		$this->mentions = $mentions;
 	}
 }

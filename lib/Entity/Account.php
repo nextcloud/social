@@ -8,8 +8,8 @@ declare(strict_types=1);
 namespace OCA\Social\Entity;
 
 use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use OCA\DAV\CalDAV\Principal\Collection;
 
 /**
  * @ORM\Entity
@@ -21,28 +21,33 @@ class Account {
 	 * @ORM\Column(type="integer")
 	 * @ORM\GeneratedValue
 	 */
-    private int $id;
+    private ?int $id = null;
 
 	/**
 	 * @ORM\Column(name="user_name", type="string", nullable=false)
 	 */
-	private string $userName;
+	private string $userName = "";
+
+	/**
+	 * @ORM\Column(name="user_id", type="string", nullable=true)
+	 */
+	private ?string $userId = null;
 
 	/**
 	 * @ORM\ManyToOne
-	 * @ORM\JoinColumn(name="domain", referencedColumnName="domain", nullable=false)
+	 * @ORM\JoinColumn(name="domain", referencedColumnName="domain", nullable=true)
 	 */
-	private Instance $instance;
+	private ?Instance $instance;
 
 	/**
 	 * @ORM\Column(name="private_key", type="text", nullable=false)
 	 */
-	private string $privateKey;
+	private string $privateKey = "";
 
 	/**
 	 * @ORM\Column(name="public_key", type="text", nullable=false)
 	 */
-	private string $publicKey;
+	private string $publicKey = "";
 
 	/**
 	 * @ORM\Column(name="created_at", type="datetime", nullable=false)
@@ -62,7 +67,7 @@ class Account {
 	/**
 	 * @ORM\Column(type="string", nullable=false)
 	 */
-	private string $url;
+	private string $url = "";
 
 	/**
 	 * @ORM\Column(type="boolean", nullable=false)
@@ -120,14 +125,14 @@ class Account {
 	private array $fields = [];
 
 	/**
-	 * @ORM\Column(type="string", nullable=true)
+	 * @ORM\Column(type="string", nullable=false)
 	 */
-	private ?string $actorType = null;
+	private string $actorType = "person";
 
 	/**
-	 * @ORM\Column(type="boolean", nullable=true)
+	 * @ORM\Column(nullable=false)
 	 */
-	private ?bool $discoverable = null;
+	private bool $discoverable = true;
 
 	/**
 	 * @ORM\OneToMany(targetEntity="Follow", mappedBy="account", fetch="EXTRA_LAZY")
@@ -153,40 +158,243 @@ class Account {
 	 */
 	private Collection $blockedBy;
 
-#  avatar_file_name              :string
-#  avatar_content_type           :string
-#  avatar_file_size              :integer
-#  avatar_updated_at             :datetime
-#  header_file_name              :string
-#  header_content_type           :string
-#  header_file_size              :integer
-#  header_updated_at             :datetime
-#  avatar_remote_url             :string
-#  locked                        :boolean          default(FALSE), not null
-#  header_remote_url             :string           default(""), not null
-#  last_webfingered_at           :datetime
-#  inbox_url                     :string           default(""), not null
-#  outbox_url                    :string           default(""), not null
-#  shared_inbox_url              :string           default(""), not null
-#  followers_url                 :string           default(""), not null
-#  protocol                      :integer          default("ostatus"), not null
-#  memorial                      :boolean          default(FALSE), not null
-#  moved_to_account_id           :bigint(8)
-#  featured_collection_url       :string
-#  fields                        :jsonb
-#  actor_type                    :string
-#  discoverable                  :boolean
-#  also_known_as                 :string           is an Array
-#  silenced_at                   :datetime
-#  suspended_at                  :datetime
-#  hide_collections              :boolean
-#  avatar_storage_schema_version :integer
-#  header_storage_schema_version :integer
-#  devices_url                   :string
-#  suspension_origin             :integer
-#  sensitized_at                 :datetime
-#  trendable                     :boolean
-#  reviewed_at                   :datetime
-#  requested_review_at           :datetime
+	private Collection $activeMentions;
 
+	public function __construct() {
+		$this->block = new ArrayCollection();
+		$this->blockedBy = new ArrayCollection();
+		$this->follow = new ArrayCollection();
+		$this->followedBy = new ArrayCollection();
+		$this->updatedAt = new \DateTime();
+		$this->createdAt = new \DateTime();
+		$this->instance = new Instance();
+	}
+
+	public function getId(): int {
+		return $this->id;
+	}
+
+	public function getUserId(): string {
+		return $this->userId;
+	}
+
+	public function setUserId(string $userId): void {
+		$this->userId = $userId;
+	}
+
+	public function getUserName(): string {
+		return $this->userName;
+	}
+
+	public function setUserName(string $userName): void {
+		$this->userName = $userName;
+	}
+
+	public function getInstance(): Instance {
+		return $this->instance;
+	}
+
+	public function setInstance(Instance $instance): void {
+		$this->instance = $instance;
+	}
+
+	public function getPrivateKey(): string {
+		return $this->privateKey;
+	}
+
+	public function setPrivateKey(string $privateKey): void {
+		$this->privateKey = $privateKey;
+	}
+
+	public function getPublicKey(): string {
+		return $this->publicKey;
+	}
+
+	public function setPublicKey(string $publicKey): void {
+		$this->publicKey = $publicKey;
+	}
+
+	public function getCreatedAt(): \DateTime {
+		return $this->createdAt;
+	}
+
+	public function setCreatedAt(\DateTime $createdAt): void {
+		$this->createdAt = $createdAt;
+	}
+
+	public function getUpdatedAt(): \DateTime {
+		return $this->updatedAt;
+	}
+
+	public function setUpdatedAt(\DateTime $updatedAt): void {
+		$this->updatedAt = $updatedAt;
+	}
+
+	public function getUri(): string {
+		return $this->uri;
+	}
+
+	public function setUri(string $uri): void {
+		$this->uri = $uri;
+	}
+
+	public function getUrl(): string {
+		return $this->url;
+	}
+
+	public function setUrl(string $url): void {
+		$this->url = $url;
+	}
+
+	public function isLocked(): bool {
+		return $this->locked;
+	}
+
+	public function setLocked(bool $locked): void {
+		$this->locked = $locked;
+	}
+
+	public function getAvatarRemoteUrl(): string {
+		return $this->avatarRemoteUrl;
+	}
+
+	public function setAvatarRemoteUrl(string $avatarRemoteUrl): void {
+		$this->avatarRemoteUrl = $avatarRemoteUrl;
+	}
+
+	public function getHeaderRemoteUrl(): string {
+		return $this->headerRemoteUrl;
+	}
+
+	public function setHeaderRemoteUrl(string $headerRemoteUrl): void {
+		$this->headerRemoteUrl = $headerRemoteUrl;
+	}
+
+	public function getLastWebfingeredAt(): ?\DateTimeInterface {
+		return $this->lastWebfingeredAt;
+	}
+
+	public function setLastWebfingeredAt(?\DateTimeInterface $lastWebfingeredAt): void {
+		$this->lastWebfingeredAt = $lastWebfingeredAt;
+	}
+
+	public function getInboxUrl(): string {
+		return $this->inboxUrl;
+	}
+
+	public function setInboxUrl(string $inboxUrl): void {
+		$this->inboxUrl = $inboxUrl;
+	}
+
+	public function getOutboxUrl(): string {
+		return $this->outboxUrl;
+	}
+
+	public function setOutboxUrl(string $outboxUrl): void {
+		$this->outboxUrl = $outboxUrl;
+	}
+
+	public function getSharedInboxUrl(): string {
+		return $this->sharedInboxUrl;
+	}
+
+	public function setSharedInboxUrl(string $sharedInboxUrl): void {
+		$this->sharedInboxUrl = $sharedInboxUrl;
+	}
+
+	public function getFollowersUrl(): string {
+		return $this->followersUrl;
+	}
+
+	public function setFollowersUrl(string $followersUrl): void {
+		$this->followersUrl = $followersUrl;
+	}
+
+	public function getProtocol(): string {
+		return $this->protocol;
+	}
+
+	public function setProtocol(string $protocol): void {
+		$this->protocol = $protocol;
+	}
+
+	public function isMemorial(): bool {
+		return $this->memorial;
+	}
+
+	public function setMemorial(bool $memorial): void {
+		$this->memorial = $memorial;
+	}
+
+	public function getFields(): array {
+		return $this->fields;
+	}
+
+	public function setFields(array $fields): void {
+		$this->fields = $fields;
+	}
+
+	public function getActorType(): string {
+		return $this->actorType;
+	}
+
+	public function setActorType(string $actorType): void {
+		$this->actorType = $actorType;
+	}
+
+	public function isDiscoverable(): bool {
+		return $this->discoverable;
+	}
+
+	public function setDiscoverable(bool $discoverable): void {
+		$this->discoverable = $discoverable;
+	}
+
+	public function getFollow(): Collection {
+		return $this->follow;
+	}
+
+	public function setFollow(Collection $follow): void {
+		$this->follow = $follow;
+	}
+
+	public function getFollowedBy(): Collection {
+		return $this->followedBy;
+	}
+
+	public function setFollowedBy(Collection $followedBy): void {
+		$this->followedBy = $followedBy;
+	}
+
+	public function getBlock(): Collection {
+		return $this->block;
+	}
+
+	public function setBlock(Collection $block): void {
+		$this->block = $block;
+	}
+
+	public function getBlockedBy(): Collection {
+		return $this->blockedBy;
+	}
+
+	public function setBlockedBy(Collection $blockedBy): void {
+		$this->blockedBy = $blockedBy;
+	}
+
+	public function isLocal(): bool {
+		return $this->getInstance() === null;
+	}
+
+	public function getDomain(): ?string {
+		return $this->getInstance() !== null ? $this->getInstance()->getDomain() : null;
+	}
+
+	public function getAccountName(): string {
+		return $this->isLocal() ? $this->getUserName() : $this->getUserName() . '@' . $this->getDomain();
+	}
+
+	public function possiblyStale() {
+		return $this->lastWebfingeredAt === null || $this->lastWebfingeredAt->diff((new \DateTime('now')))->days > 1;
+	}
 }
