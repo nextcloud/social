@@ -2,30 +2,48 @@
 
 namespace OCA\Social\Service;
 
+use OCA\Circles\Tools\Model\NCWebfinger;
 use OCA\Social\Entity\Account;
+use OCA\Social\Service\ActivityPub\RemoteAccountFetcher;
+use OCA\Social\Service\ActivityPub\RemoteAccountFetchOption;
 use OCP\Http\Client\IClientService;
+use OCP\IRequest;
 
 class AccountResolverOption {
 	/**
 	 * @var bool Whether we should follow webfinger redirection
 	 */
-	public bool $followWebfingerRediction = true;
+	public bool $followWebfingerRedirection = true;
 
 	/**
 	 * @var bool Whether we should attempt to fetch the account from webfinger
 	 */
 	public bool $queryWebfinger = true;
 
-	static public function default(): AccountResolverOption {
-		return new AccountResolverOption();
+	static public function default(): self {
+		return new self();
 	}
 }
 
 class ResolveAccountService {
 	private IClientService $clientService;
+	private IRequest $request;
+	private TrustedDomainChecker $trustedDomainChecker;
+	private AccountFinder $accountFinder;
+	private RemoteAccountFetcher $remoteAccountFetcher;
 
-	public function __construct(IClientService $clientService) {
+	public function __construct(
+		IClientService $clientService,
+		IRequest $request,
+		TrustedDomainChecker $trustedDomainChecker,
+		AccountFinder $accountFinder,
+		RemoteAccountFetcher $remoteAccountFetcher
+	) {
 		$this->clientService = $clientService;
+		$this->request = $request;
+		$this->trustedDomainChecker = $trustedDomainChecker;
+		$this->accountFinder = $accountFinder;
+		$this->remoteAccountFetcher = $remoteAccountFetcher;
 	}
 
 	/**
@@ -39,28 +57,45 @@ class ResolveAccountService {
 			return null;
 		}
 
-		[$confirmedUserName, $confirmedDomain] = $webFinger;
+		[$confirmedUserName, $confirmedDomain] = $webFinger->getSubject();
 
 		if ($confirmedDomain !== $domain || $confirmedUserName !== $userName) {
-			$webFinger = $this->requestWebfinger($confirmedUserName, $confirmedDomain);
+			if (!$option->followWebfingerRedirection) {
+				return null;
+			}
 
+			$webFinger = $this->requestWebfinger($confirmedUserName, $confirmedDomain);
 			if ($webFinger === null) {
 				return null;
 			}
 
-			[$newConfirmedUserName, $newConfirmedDomain] = $webFinger;
+			[$newConfirmedUserName, $newConfirmedDomain] = $webFinger->getSubject();
 			if ($confirmedDomain !== $newConfirmedDomain || $confirmedUserName !== $newConfirmedUserName) {
 				// Hijack attempt
 				return null;
 			}
+			$confirmedDomain = $newConfirmedDomain;
+			$confirmedUserName = $newConfirmedUserName;
 		}
 
-		// TODO
+		if ($confirmedDomain === $this->request->getServerHost()) {
+			$confirmedDomain = null;
+		}
 
-		return null;
+		if ($this->trustedDomainChecker->check($confirmedDomain)) {
+			return null; // blocked
+		}
+
+		$account = $this->accountFinder->findRemote($userName, $domain);
+
+		if ($account !== null && ($account->isLocal() || !$account->possiblyStale())) {
+			return $account;
+		}
+
+		return $this->fetchAccount($webFinger);
 	}
 
-	private function requestWebfinger($userName, $domain): ?array {
+	private function requestWebfinger($userName, $domain): ?NCWebfinger {
 		$client = $this->clientService->newClient();
 
 		$uri = 'acct:' . $userName . '@' . $domain;
@@ -81,12 +116,11 @@ class ResolveAccountService {
 		}
 
 		try {
-			$webFinger = json_decode($response->getBody());
-			$subject = $webFinger['subject'];
-			[$confirmedUserName, $confirmedDomain] = explode('@');
+			$webFinger = new NCWebfinger(json_decode($response->getBody()));
 		} catch (\Exception $e) {
-
+			return null;
 		}
+		return $webFinger;
 	}
 
 	public function resolveAccount(Account $account, AccountResolverOption $option): ?Account {
@@ -96,5 +130,14 @@ class ResolveAccountService {
 		return $account;
 	}
 
-	public function requestWebfinger():
+	public function fetchAccount(NCWebfinger $webfinger): ?Account {
+		// TODO lock
+
+		$actorUrl = $webfinger->getLink('self');
+		if (!$actorUrl) {
+			return null;
+		}
+
+		return $this->remoteAccountFetcher->fetch($actorUrl, RemoteAccountFetchOption::default());
+	}
 }

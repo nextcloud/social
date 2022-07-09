@@ -17,17 +17,29 @@ class PostServiceStatus {
 	private ICache $idempotenceCache;
 	private IConfig $config;
 	private IEntityManager $entityManager;
+	private ProcessMentionsService $mentionsService;
+	private FeedManager $feedManager;
 
-	public function __construct(ICacheFactory $cacheFactory, IConfig $config, IEntityManager $entityManager) {
+	public function __construct(
+		ICacheFactory $cacheFactory,
+		IConfig $config,
+		IEntityManager $entityManager,
+		ProcessMentionsService $mentionsService,
+		FeedManager $feedManager
+	) {
 		$this->idempotenceCache = $cacheFactory->createDistributed('social.idempotence');
 		$this->config = $config;
 		$this->entityManager = $entityManager;
+		$this->mentionsService = $mentionsService;
+		$this->feedManager = $feedManager;
 	}
 
 	/**
 	 * @psalm-param array{?text: string, ?spoilerText: string, ?sensitive: bool, ?visibility: Status::STATUS_*} $options
 	 */
 	public function create(Account $account, array $options): void {
+		$this->checkIdempotenceDuplicate($account, $options);
+
 		$status = new Status();
 		$status->setText($options['text'] ?? '');
 		$status->setSensitive(isset($options['spoilerText'])
@@ -44,10 +56,16 @@ class PostServiceStatus {
 			throw new ApiException('Invalid visibility');
 		}
 
+		// Add mentioned user to CC
+		$this->mentionsService->run($status);
+
+		// Save status
 		$this->entityManager->persist($account);
 		$this->entityManager->flush();
 
-		$this->updateIdempotency($status);
+		$this->sendStatus($status);
+
+		$this->updateIdempotency($account, $status);
 	}
 
 	private function idempotencyKey(Account $account, string $idempotency): string {
@@ -64,11 +82,16 @@ class PostServiceStatus {
 		}
 	}
 
-	private function updateIdempotency(Status $id): void {
+	private function updateIdempotency(Account $account, Status $status): void {
 		if (!isset($options['idempotency'])) {
 			return;
 		}
 
 		$this->idempotenceCache->set($this->idempotencyKey($account, $options['idempotency']), $status->getId(), 3600);
+	}
+
+	public function sendStatus(Account $account, Status $status): void {
+		// to self
+		$this->feedManager->addToHome($account->getId(), $status);
 	}
 }

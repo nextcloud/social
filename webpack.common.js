@@ -6,6 +6,7 @@ module.exports = {
 	entry: {
 		social: path.join(__dirname, 'src', 'main.js'),
 		ostatus: path.join(__dirname, 'src', 'ostatus.js'),
+		'settings-personal': path.join(__dirname, 'src', 'settings-personal.js'),
 	},
 	output: {
 		path: path.resolve(__dirname, './js'),

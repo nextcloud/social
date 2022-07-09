@@ -32,9 +32,14 @@ declare(strict_types=1);
 namespace OCA\Social\AppInfo;
 
 use Closure;
+use OCA\Social\Entity\Account;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
+use OCA\Social\Serializer\AccountSerializer;
+use OCA\Social\Serializer\SerializerFactory;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\Feed\RedisFeedProvider;
+use OCA\Social\Service\IFeedProvider;
 use OCA\Social\Service\UpdateService;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCP\AppFramework\App;
@@ -46,6 +51,7 @@ use OCP\IDBConnection;
 use OCP\IServerContainer;
 use OC\DB\SchemaWrapper;
 use OCP\DB\ISchemaWrapper;
+use Psr\Container\ContainerInterface;
 use Throwable;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -69,6 +75,15 @@ class Application extends App implements IBootstrap {
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
+		$context->registerNotifierService(Notifier::class);
+
+		/** @var SerializerFactory $serializerFactory */
+		$serializerFactory = $this->getContainer()->get(SerializerFactory::class);
+		$serializerFactory->registerSerializer(Account::class, AccountSerializer::class);
+
+		$context->registerService(IFeedProvider::class, function (ContainerInterface $container): IFeedProvider {
+			return $container->get(RedisFeedProvider::class);
+		});
 	}
 
 
@@ -76,43 +91,5 @@ class Application extends App implements IBootstrap {
 	 * @param IBootContext $context
 	 */
 	public function boot(IBootContext $context): void {
-		$manager = $context->getServerContainer()
-						   ->getNotificationManager();
-		$manager->registerNotifierService(Notifier::class);
-
-		try {
-			$context->injectFn(Closure::fromCallable([$this, 'checkUpgradeStatus']));
-		} catch (Throwable $e) {
-		}
-	}
-
-
-	/**
-	 * Register Navigation Tab
-	 *
-	 * @param IServerContainer $container
-	 */
-	protected function checkUpgradeStatus(IServerContainer $container) {
-		$upgradeChecked = $container->getConfig()
-									->getAppValue(Application::APP_NAME, 'update_checked', '');
-
-		if ($upgradeChecked === '0.3') {
-			return;
-		}
-
-		try {
-			$configService = $container->query(ConfigService::class);
-			$updateService = $container->query(UpdateService::class);
-		} catch (QueryException $e) {
-			return;
-		}
-
-		/** @var ISchemaWrapper $schema */
-		$schema = new SchemaWrapper($container->get(IDBConnection::class));
-		if ($schema->hasTable('social_a2_stream')) {
-			$updateService->checkUpdateStatus();
-		}
-
-		$configService->setAppValue('update_checked', '0.3');
 	}
 }

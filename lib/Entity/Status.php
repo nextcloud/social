@@ -144,7 +144,7 @@ class Status {
 	private array $orderedMediaAttachmentIds = [];
 
 	/**
-	 * @ORM\OneToMany
+	 * @ORM\OneToMany(targetEntity="Mention", mappedBy="status")
 	 */
 	private Collection $mentions;
 
@@ -354,5 +354,9 @@ class Status {
 
 	public function setMentions(Collection $mentions): void {
 		$this->mentions = $mentions;
+	}
+
+	public function isReblog(): bool {
+		return $this->reblogOf !== null;
 	}
 }

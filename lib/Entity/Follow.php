@@ -21,29 +21,29 @@ class Follow {
 	 * @ORM\Column(type="bigint")
 	 * @ORM\GeneratedValue
 	 */
-	private string $id = "-1";
+	private ?string $id = null;
 
 	/**
-	 * @ORM\Column(name="created_at")
+	 * @ORM\Column(name="created_at", type="datetime", nullable=false)
 	 */
-    private DateTimeInterface $createdAt;
+    private \DateTime $createdAt;
 
 	/**
-	 * @ORM\Column(name="updated_at")
+	 * @ORM\Column(name="updated_at", type="datetime", nullable=false)
 	 */
-    private DateTimeInterface $updatedAt;
+    private \DateTime $updatedAt;
 
 	/**
-	 * @ORM\ManyToOne
+	 * @ORM\ManyToOne(cascade={"persist", "remove"})
 	 * @ORM\JoinColumn(nullable=false)
 	 */
-    private Account $account;
+    private ?Account $account = null;
 
 	/**
-	 * @ORM\ManyToOne
+	 * @ORM\ManyToOne(cascade={"persist", "remove"})
 	 * @ORM\JoinColumn(nullable=false)
 	 */
-	private Account $targetAccount;
+	private ?Account $targetAccount = null;
 
 	/**
 	 * @ORM\Column
@@ -65,5 +65,65 @@ class Follow {
 		$this->createdAt = new \DateTime();
 		$this->account = new Account();
 		$this->targetAccount = new Account();
+	}
+
+	public function getId(): string {
+		return $this->id;
+	}
+
+	public function getCreatedAt():\DateTimeInterface {
+		return $this->createdAt;
+	}
+
+	public function setCreatedAt(\DateTime $createdAt): void {
+		$this->createdAt = $createdAt;
+	}
+
+	public function getUpdatedAt(): \DateTimeInterface {
+		return $this->updatedAt;
+	}
+
+	public function setUpdatedAt(\DateTime $updatedAt): void {
+		$this->updatedAt = $updatedAt;
+	}
+
+	public function getAccount(): Account {
+		return $this->account;
+	}
+
+	public function setAccount(Account $account): void {
+		$this->account = $account;
+	}
+
+	public function getTargetAccount(): Account {
+		return $this->targetAccount;
+	}
+
+	public function setTargetAccount(Account $targetAccount): void {
+		$this->targetAccount = $targetAccount;
+	}
+
+	public function isShowReblogs(): bool {
+		return $this->showReblogs;
+	}
+
+	public function setShowReblogs(bool $showReblogs): void {
+		$this->showReblogs = $showReblogs;
+	}
+
+	public function getUri(): string {
+		return $this->uri;
+	}
+
+	public function setUri(string $uri): void {
+		$this->uri = $uri;
+	}
+
+	public function isNotify(): bool {
+		return $this->notify;
+	}
+
+	public function setNotify(bool $notify): void {
+		$this->notify = $notify;
 	}
 }

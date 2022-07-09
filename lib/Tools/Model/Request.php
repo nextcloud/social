@@ -33,6 +33,7 @@ namespace OCA\Social\Tools\Model;
 
 use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
+use OCP\Http\Client\IClient;
 
 /**
  * Class Request
@@ -42,211 +43,96 @@ use JsonSerializable;
 class Request implements JsonSerializable {
 	use TArrayTools;
 
-
 	public const TYPE_GET = 0;
 	public const TYPE_POST = 1;
 	public const TYPE_PUT = 2;
 	public const TYPE_DELETE = 3;
 
-
 	public const QS_VAR_DUPLICATE = 1;
 	public const QS_VAR_ARRAY = 2;
 
+	private string $protocol = '';
+	private array $protocols = ['https'];
+	private string $host = '';
+	private int $port = 0;
+	private ?Uri $url;
+	private string $baseUrl = '';
+	private int $type = 0;
+	private bool $binary = false;
+	private bool $verifyPeer = true;
+	private bool $httpErrorsAllowed = false;
+	private bool $followLocation = true;
+	private array $headers = [];
+	private array $cookies = [];
+	private array $params = [];
+	private array $data = [];
+	private int $queryStringType = self::QS_VAR_DUPLICATE;
+	private int $timeout = 10;
+	private string $userAgent = '';
+	private int $resultCode = 0;
+	private string $contentType = '';
+	private IClient $client;
 
-	/** @var string */
-	private $protocol = '';
-
-	/** @var array */
-	private $protocols = ['https'];
-
-	/** @var string */
-	private $host = '';
-
-	/** @var int */
-	private $port = 0;
-
-	/** @var string */
-	private $url = '';
-
-	/** @var string */
-	private $baseUrl = '';
-
-	/** @var int */
-	private $type = 0;
-
-	/** @var bool */
-	private $binary = false;
-
-	/** @var bool */
-	private $verifyPeer = true;
-
-	/** @var bool */
-	private $httpErrorsAllowed = false;
-
-	/** @var bool */
-	private $followLocation = true;
-
-	/** @var array */
-	private $headers = [];
-
-	/** @var array */
-	private $cookies = [];
-
-	/** @var array */
-	private $params = [];
-
-	/** @var array */
-	private $data = [];
-
-	/** @var int */
-	private $queryStringType = self::QS_VAR_DUPLICATE;
-
-	/** @var int */
-	private $timeout = 10;
-
-	/** @var string */
-	private $userAgent = '';
-
-	/** @var int */
-	private $resultCode = 0;
-
-	/** @var string */
-	private $contentType = '';
-
-
-	/**
-	 * Request constructor.
-	 *
-	 * @param string $url
-	 * @param int $type
-	 * @param bool $binary
-	 */
-	public function __construct(string $url = '', int $type = 0, bool $binary = false) {
+	public function __construct(?Uri $url = null, int $type = 0, bool $binary = false) {
 		$this->url = $url;
 		$this->type = $type;
 		$this->binary = $binary;
 	}
 
 
-	/**
-	 * @param string $protocol
-	 *
-	 * @return Request
-	 */
-	public function setProtocol(string $protocol): Request {
-		$this->protocols = [$protocol];
-
+	public function setClient(IClient $client): self {
+		$this->client = $client;
 		return $this;
 	}
 
-	/**
-	 * @param array $protocols
-	 *
-	 * @return Request
-	 */
-	public function setProtocols(array $protocols): Request {
-		$this->protocols = $protocols;
+	public function getClient(): IClient {
+		return $this->client;
+	}
 
+	public function setProtocol(string $protocol): self {
+		$this->protocol = $protocol;
 		return $this;
 	}
 
-	/**
-	 * @return string[]
-	 */
-	public function getProtocols(): array {
-		return $this->protocols;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getUsedProtocol(): string {
+	public function getProtocol(): string {
 		return $this->protocol;
 	}
 
-	/**
-	 * @param string $protocol
-	 *
-	 * @return Request
-	 */
-	public function setUsedProtocol(string $protocol): Request {
-		$this->protocol = $protocol;
-
-		return $this;
-	}
-
-
-	/**
-	 * @return string
-	 * @deprecated - 19 - use getHost();
-	 */
-	public function getAddress(): string {
-		return $this->getHost();
-	}
-
-	/**
-	 * @param string $address
-	 *
-	 * @return Request
-	 * @deprecated - 19 - use setHost();
-	 */
-	public function setAddress(string $address): Request {
-		$this->setHost($address);
-
-		return $this;
-	}
-
-	/**
-	 * @return string
-	 */
 	public function getHost(): string {
-		return $this->host;
+		return $this->url->getHost();
 	}
 
-	/**
-	 * @param string $host
-	 *
-	 * @return Request
-	 */
-	public function setHost(string $host): Request {
-		$this->host = $host;
+	public function setHost(string $host): self {
+		$this->url->setHost($host);
 
 		return $this;
 	}
 
-
-	/**
-	 * @return int
-	 */
-	public function getPort(): int {
-		return $this->port;
+	public function getPort(): ?int {
+		return $this->url->getPort();
 	}
 
-	/**
-	 * @param int $port
-	 *
-	 * @return Request
-	 */
-	public function setPort(int $port): Request {
-		$this->port = $port;
+	public function setPort(?int $port): self {
+		$this->url->setPort($port);
 
 		return $this;
 	}
 
-
 	/**
-	 * @param string $instance
+	 * Set the instance
 	 *
-	 * @return Request
+	 * @param string $instance The instance for example floss.social, cloud.com:442, 4u3849u3.onion
+	 * @return $this
 	 */
-	public function setInstance(string $instance): Request {
+	public function setInstance(string $instance): self {
+		$this->setPort(null);
 		if (strpos($instance, ':') === false) {
 			$this->setHost($instance);
 
 			return $this;
 		}
 
-		list($host, $port) = explode(':', $instance, 2);
+		[$host, $port] = explode(':', $instance, 2);
 		$this->setHost($host);
 		if ($port !== '') {
 			$this->setPort((int)$port);
@@ -255,63 +141,20 @@ class Request implements JsonSerializable {
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getInstance(): string {
 		$instance = $this->getHost();
-		if ($this->getPort() > 0) {
+		if ($this->getPort() !== null) {
 			$instance .= ':' . $this->getPort();
 		}
 
 		return $instance;
 	}
 
-
-	/**
-	 * @param string $url
-	 *
-	 * @deprecated - 19 - use basedOnUrl();
-	 */
-	public function setAddressFromUrl(string $url) {
-		$this->basedOnUrl($url);
+	public function parse(string $url): void {
+		$this->url = new Uri($url);
 	}
 
-	/**
-	 * @param string $url
-	 */
-	public function basedOnUrl(string $url) {
-		$protocol = parse_url($url, PHP_URL_SCHEME);
-		if ($protocol === null) {
-			if (strpos($url, '/') > -1) {
-				list($address, $baseUrl) = explode('/', $url, 2);
-				$this->setBaseUrl('/' . $baseUrl);
-			} else {
-				$address = $url;
-			}
-			if (strpos($address, ':') > -1) {
-				list($address, $port) = explode(':', $address, 2);
-				$this->setPort((int)$port);
-			}
-			$this->setHost($address);
-		} else {
-			$this->setProtocols([$protocol]);
-			$this->setUsedProtocol($protocol);
-			$this->setHost(parse_url($url, PHP_URL_HOST));
-			$this->setBaseUrl(parse_url($url, PHP_URL_PATH));
-			if (is_numeric($port = parse_url($url, PHP_URL_PORT))) {
-				$this->setPort($port);
-			}
-		}
-	}
-
-	/**
-	 * @param string|null $baseUrl
-	 *
-	 * @return Request
-	 */
-	public function setBaseUrl(?string $baseUrl): Request {
+	public function setBaseUrl(?string $baseUrl): self {
 		if ($baseUrl !== null) {
 			$this->baseUrl = $baseUrl;
 		}
@@ -319,92 +162,40 @@ class Request implements JsonSerializable {
 		return $this;
 	}
 
-	/**
-	 * @return bool
-	 */
 	public function isBinary(): bool {
 		return $this->binary;
 	}
 
-
-	/**
-	 * @param bool $verifyPeer
-	 *
-	 * @return $this
-	 */
-	public function setVerifyPeer(bool $verifyPeer): Request {
+	public function setVerifyPeer(bool $verifyPeer): self {
 		$this->verifyPeer = $verifyPeer;
 
 		return $this;
 	}
 
-	/**
-	 * @return bool
-	 */
 	public function isVerifyPeer(): bool {
 		return $this->verifyPeer;
 	}
 
-
-	/**
-	 * @param bool $httpErrorsAllowed
-	 *
-	 * @return Request
-	 */
-	public function setHttpErrorsAllowed(bool $httpErrorsAllowed): Request {
+	public function setHttpErrorsAllowed(bool $httpErrorsAllowed): self {
 		$this->httpErrorsAllowed = $httpErrorsAllowed;
 
 		return $this;
 	}
 
-	/**
-	 * @return bool
-	 */
 	public function isHttpErrorsAllowed(): bool {
 		return $this->httpErrorsAllowed;
 	}
 
-
-	/**
-	 * @param bool $followLocation
-	 *
-	 * @return $this
-	 */
-	public function setFollowLocation(bool $followLocation): Request {
+	public function setFollowLocation(bool $followLocation): self {
 		$this->followLocation = $followLocation;
 
 		return $this;
 	}
 
-	/**
-	 * @return bool
-	 */
 	public function isFollowLocation(): bool {
 		return $this->followLocation;
 	}
 
-
-	/**
-	 * @return string
-	 * @deprecated - 19 - use getParametersUrl() + addParam()
-	 */
-	public function getParsedUrl(): string {
-		$url = $this->getPath();
-		$ak = array_keys($this->getData());
-		foreach ($ak as $k) {
-			if (!is_string($this->data[$k])) {
-				continue;
-			}
-
-			$url = str_replace(':' . $k, $this->data[$k], $url);
-		}
-
-		return $url;
-	}
-
-	/**
-	 * @return string
-	 */
 	public function getParametersUrl(): string {
 		$url = $this->getPath();
 		$ak = array_keys($this->getParams());
@@ -419,43 +210,19 @@ class Request implements JsonSerializable {
 		return $url;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getPath(): string {
 		return $this->baseUrl . $this->url;
 	}
 
-
-	/**
-	 * @return string
-	 * @deprecated - 19 - use getPath()
-	 */
-	public function getUrl(): string {
-		return $this->getPath();
-	}
-
-
-	/**
-	 * @return string
-	 */
 	public function getCompleteUrl(): string {
-		$port = ($this->getPort() > 0) ? ':' . $this->getPort() : '';
-
-		return $this->getUsedProtocol() . '://' . $this->getHost() . $port . $this->getParametersUrl();
+		return (string)$this->url;
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getType(): int {
 		return $this->type;
 	}
 
-
-	public function addHeader($key, $value): Request {
+	public function addHeader($key, $value): self {
 		$header = $this->get($key, $this->headers);
 		if ($header !== '') {
 			$header .= ', ' . $value;
@@ -474,213 +241,92 @@ class Request implements JsonSerializable {
 	public function getHeaders(): array {
 		return array_merge(['User-Agent' => $this->getUserAgent()], $this->headers);
 	}
-
-	/**
-	 * @param array $headers
-	 *
-	 * @return Request
-	 */
-	public function setHeaders(array $headers): Request {
+	public function setHeaders(array $headers): self {
 		$this->headers = $headers;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function getCookies(): array {
 		return $this->cookies;
 	}
 
-	/**
-	 * @param array $cookies
-	 *
-	 * @return Request
-	 */
-	public function setCookies(array $cookies): Request {
+	public function setCookies(array $cookies): self {
 		$this->cookies = $cookies;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param int $queryStringType
-	 *
-	 * @return Request
-	 */
 	public function setQueryStringType(int $queryStringType): self {
 		$this->queryStringType = $queryStringType;
 
 		return $this;
 	}
 
-	/**
-	 * @return int
-	 */
 	public function getQueryStringType(): int {
 		return $this->queryStringType;
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function getData(): array {
 		return $this->data;
 	}
 
-
-	/**
-	 * @param array $data
-	 *
-	 * @return Request
-	 */
-	public function setData(array $data): Request {
+	public function setData(array $data): self {
 		$this->data = $data;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param string $data
-	 *
-	 * @return Request
-	 */
-	public function setDataJson(string $data): Request {
+	public function setDataJson(string $data): self {
 		$this->setData(json_decode($data, true));
 
 		return $this;
 	}
 
-
-	/**
-	 * @param JsonSerializable $data
-	 *
-	 * @return Request
-	 */
-	public function setDataSerialize(JsonSerializable $data): Request {
+	public function setDataSerialize(JsonSerializable $data): self {
 		$this->setDataJson(json_encode($data));
 
 		return $this;
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function getParams(): array {
 		return $this->params;
 	}
 
-	/**
-	 * @param array $params
-	 *
-	 * @return Request
-	 */
-	public function setParams(array $params): Request {
+	public function setParams(array $params): self {
 		$this->params = $params;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param string $k
-	 * @param string $v
-	 *
-	 * @return Request
-	 */
-	public function addParam(string $k, string $v): Request {
+	public function addParam(string $k, string $v): self {
 		$this->params[$k] = $v;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param string $k
-	 * @param int $v
-	 *
-	 * @return Request
-	 */
-	public function addParamInt(string $k, int $v): Request {
+	public function addParamInt(string $k, int $v): self {
 		$this->params[$k] = $v;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param string $k
-	 * @param string $v
-	 *
-	 * @return Request
-	 */
-	public function addData(string $k, string $v): Request {
+	public function addData(string $k, string $v): self {
 		$this->data[$k] = $v;
 
 		return $this;
 	}
 
-
-	/**
-	 * @param string $k
-	 * @param int $v
-	 *
-	 * @return Request
-	 */
-	public function addDataInt(string $k, int $v): Request {
+	public function addDataInt(string $k, int $v): self {
 		$this->data[$k] = $v;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getDataBody(): string {
 		return json_encode($this->getData());
 	}
 
-	/**
-	 * @return string
-	 * @deprecated - 19 - use getUrlParams();
-	 */
-	public function getUrlData(): string {
-		if ($this->getData() === []) {
-			return '';
-		}
-
-		return preg_replace(
-			'/([(%5B)]{1})[0-9]+([(%5D)]{1})/', '$1$2', http_build_query($this->getData())
-		);
-	}
-
-	/**
-	 * @return string
-	 * @deprecated - 21 - use getQueryString();
-	 */
-	public function getUrlParams(): string {
-		if ($this->getParams() === []) {
-			return '';
-		}
-
-		return preg_replace(
-			'/([(%5B)]{1})[0-9]+([(%5D)]{1})/', '$1$2', http_build_query($this->getParams())
-		);
-	}
-
-
-	/**
-	 * @param int $type
-	 *
-	 * @return string
-	 */
 	public function getQueryString(): string {
 		if (empty($this->getParams())) {
 			return '';
@@ -698,90 +344,48 @@ class Request implements JsonSerializable {
 		}
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getTimeout(): int {
 		return $this->timeout;
 	}
 
-	/**
-	 * @param int $timeout
-	 *
-	 * @return Request
-	 */
-	public function setTimeout(int $timeout): Request {
+	public function setTimeout(int $timeout): self {
 		$this->timeout = $timeout;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getUserAgent(): string {
 		return $this->userAgent;
 	}
 
-	/**
-	 * @param string $userAgent
-	 *
-	 * @return Request
-	 */
-	public function setUserAgent(string $userAgent): Request {
+	public function setUserAgent(string $userAgent): self {
 		$this->userAgent = $userAgent;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getResultCode(): int {
 		return $this->resultCode;
 	}
 
-	/**
-	 * @param int $resultCode
-	 *
-	 * @return Request
-	 */
-	public function setResultCode(int $resultCode): Request {
+	public function setResultCode(int $resultCode): self {
 		$this->resultCode = $resultCode;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getContentType(): string {
 		return $this->contentType;
 	}
 
-	/**
-	 * @param string $contentType
-	 *
-	 * @return Request
-	 */
-	public function setContentType(string $contentType): Request {
+	public function setContentType(string $contentType): self {
 		$this->contentType = $contentType;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return array
-	 */
 	public function jsonSerialize(): array {
 		return [
-			'protocols' => $this->getProtocols(),
-			'used_protocol' => $this->getUsedProtocol(),
 			'port' => $this->getPort(),
 			'host' => $this->getHost(),
 			'url' => $this->getPath(),
@@ -798,12 +402,6 @@ class Request implements JsonSerializable {
 		];
 	}
 
-
-	/**
-	 * @param string $type
-	 *
-	 * @return int
-	 */
 	public static function type(string $type): int {
 		switch (strtoupper($type)) {
 			case 'GET':
@@ -818,7 +416,6 @@ class Request implements JsonSerializable {
 
 		return 0;
 	}
-
 
 	public static function method(int $type): string {
 		switch ($type) {

@@ -21,7 +21,7 @@ class Instance {
 	private string $domain = "";
 
 	/**
-	 * @ORM\Column(type="int")
+	 * @ORM\Column(type="integer")
 	 */
 	private int $accountsCount = -1;
 

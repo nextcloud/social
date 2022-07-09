@@ -77,4 +77,9 @@
 	<contactsmenu>
 		<provider>OCA\Social\Providers\ContactsMenuProvider</provider>
 	</contactsmenu>
+
+	<settings>
+		<personal>OCA\Social\Settings\Personal</personal>
+		<personal-section>OCA\Social\Settings\PersonalSection</personal-section>
+	</settings>
 </info>

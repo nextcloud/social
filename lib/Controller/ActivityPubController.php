@@ -30,6 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Entity\Account;
+use OCA\Social\Serializer\SerializerFactory;
 use OCA\Social\Tools\Traits\TNCLogger;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCA\Social\Tools\Traits\TAsync;
@@ -57,6 +59,8 @@ use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\DB\ORM\IEntityManager;
+use OCP\DB\ORM\IEntityRepository;
 use OCP\IRequest;
 
 class ActivityPubController extends Controller {
@@ -76,13 +80,14 @@ class ActivityPubController extends Controller {
 	private StreamService $streamService;
 	private ConfigService $configService;
 	private MiscService $miscService;
+	private IEntityManager $entityManager;
 
 	public function __construct(
 		IRequest $request, SocialPubController $socialPubController, FediverseService $fediverseService,
 		CacheActorService $cacheActorService, SignatureService $signatureService,
 		StreamQueueService $streamQueueService, ImportService $importService, AccountService $accountService,
 		FollowService $followService, StreamService $streamService, ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService, IEntityManager $entityManager, SerializerFactory $serializerFactory
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -97,11 +102,12 @@ class ActivityPubController extends Controller {
 		$this->streamService = $streamService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->entityManager = $entityManager;
 	}
 
 
 	/**
-	 * returns information about an Actor, based on the username.
+	 * Returns the actor information
 	 *
 	 * This method should be called when a remote ActivityPub server require information
 	 * about a local Social account
@@ -111,9 +117,6 @@ class ActivityPubController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
-	 * @param string $username
-	 *
-	 * @return Response
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
@@ -122,15 +125,17 @@ class ActivityPubController extends Controller {
 			return $this->socialPubController->actor($username);
 		}
 
-		try {
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
-			$actor->setDisplayW3ContextSecurity(true);
-
-			return $this->directSuccess($actor);
-		} catch (Exception $e) {
+		/** @var IEntityRepository<Account> $accountRepository */
+		$accountRepository = $this->entityManager->getRepository(Account::class);
+		$account = $accountRepository->findOneBy([
+			'userName' => $username,
+		]);
+		if ($account === null || !$account->isLocal()) {
 			http_response_code(404);
 			exit();
 		}
+
+		return $account->toJsonLd($this->request);
 	}
 
 
