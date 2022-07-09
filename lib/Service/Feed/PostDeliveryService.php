@@ -5,11 +5,13 @@ declare(strict_types=1);
 // SPDX-FileCopyrightText: 2022 Carl Schwan <carl@carlschwan.eu>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-namespace OCA\Social\Service;
+namespace OCA\Social\Service\Feed;
 
 use OCA\Social\Entity\Account;
 use OCA\Social\Entity\Mention;
 use OCA\Social\Entity\Status;
+use OCA\Social\Service\AccountFinder;
+use OCA\Social\Service\Feed\FeedManager;
 
 class PostDeliveryService {
 	private FeedManager $feedManager;
@@ -20,7 +22,8 @@ class PostDeliveryService {
 		$this->accountFinder = $accountFinder;
 	}
 
-	public function run(Account $author, Status $status): void {
+	public function run(Status $status): void {
+		$author = $status->getAccount();
 		// deliver to self
 		if ($status->isLocal()) {
 			$this->feedManager->addToHome($author->getId(), $status);
@@ -35,10 +38,9 @@ class PostDeliveryService {
 		});
 
 		// deliver to local followers
-		$localFollowers->forAll(function (Account $account) use ($status): void {
-			$this->deliverLocalAccount($status, $account);
-		});
-
+		foreach ($localFollowers as $follower) {
+			$this->deliverLocalAccount($status, $follower->getAccount());
+		};
 	}
 
 	public function deliverLocalAccount(Status $status, Account $account) {

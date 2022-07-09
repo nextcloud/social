@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Entity;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\Mapping as ORM;
@@ -149,7 +150,7 @@ class Status {
 	private Collection $mentions;
 
 	public function __construct() {
-
+		$this->mentions = new ArrayCollection();
 	}
 
 	public function getId(): string {

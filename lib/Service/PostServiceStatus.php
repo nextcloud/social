@@ -8,6 +8,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Entity\Account;
 use OCA\Social\Entity\Status;
+use OCA\Social\Service\Feed\PostDeliveryService;
 use OCP\DB\ORM\IEntityManager;
 use OCP\ICache;
 use OCP\ICacheFactory;
@@ -18,20 +19,20 @@ class PostServiceStatus {
 	private IConfig $config;
 	private IEntityManager $entityManager;
 	private ProcessMentionsService $mentionsService;
-	private FeedManager $feedManager;
+	private PostDeliveryService $deliveryService;
 
 	public function __construct(
 		ICacheFactory $cacheFactory,
 		IConfig $config,
 		IEntityManager $entityManager,
 		ProcessMentionsService $mentionsService,
-		FeedManager $feedManager
+		PostDeliveryService $deliveryService
 	) {
 		$this->idempotenceCache = $cacheFactory->createDistributed('social.idempotence');
 		$this->config = $config;
 		$this->entityManager = $entityManager;
 		$this->mentionsService = $mentionsService;
-		$this->feedManager = $feedManager;
+		$this->deliveryService = $deliveryService;
 	}
 
 	/**
@@ -63,7 +64,7 @@ class PostServiceStatus {
 		$this->entityManager->persist($account);
 		$this->entityManager->flush();
 
-		$this->sendStatus($status);
+		$this->deliveryService->run($status);
 
 		$this->updateIdempotency($account, $status);
 	}
@@ -88,10 +89,5 @@ class PostServiceStatus {
 		}
 
 		$this->idempotenceCache->set($this->idempotencyKey($account, $options['idempotency']), $status->getId(), 3600);
-	}
-
-	public function sendStatus(Account $account, Status $status): void {
-		// to self
-		$this->feedManager->addToHome($account->getId(), $status);
 	}
 }

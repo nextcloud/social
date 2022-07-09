@@ -29,7 +29,7 @@ class TagManagerTest extends TestCase {
 	 */
 	public function testIsLocalUri(?string $url, string $localDomain, bool $result): void {
 		$request = $this->createMock(IRequest::class);
-		$request->expects($this->once())
+		$request->expects($this->any())
 			->method('getServerHost')
 			->willReturn($localDomain);
 		$tagManager = new TagManager($request);

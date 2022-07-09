@@ -239,7 +239,8 @@ class Account {
 	}
 
 	public function setRepresentative(): self {
-		$this->id = self::REPRESENTATIVE_ID;
+		$this->userId = '__self';
+		return $this;
 	}
 
 	public function getUserId(): ?string {

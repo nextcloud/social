@@ -8,6 +8,7 @@ namespace OCA\Social\Service;
 
 use Doctrine\Common\Collections\Collection;
 use OCA\Social\Entity\Account;
+use OCA\Social\Entity\Follow;
 use OCP\DB\ORM\IEntityManager;
 use OCP\DB\ORM\IEntityRepository;
 use OCP\IRequest;
@@ -17,6 +18,7 @@ class AccountFinder {
 	private IEntityManager $entityManager;
 	private IEntityRepository $repository;
 	private IRequest $request;
+	private ?Account $representative = null;
 
 	public function __construct(IEntityManager $entityManager, IRequest $request) {
 		$this->entityManager = $entityManager;
@@ -57,10 +59,14 @@ class AccountFinder {
 	}
 
 	public function getRepresentative(): Account {
+		if ($this->representative !== null) {
+			return $this->representative;
+		}
 		$account = $this->repository->findOneBy([
-			'id' => Account::REPRESENTATIVE_ID,
+			'userId' => '__self',
 		]);
 		if ($account) {
+			$this->representative = $account;
 			return $account;
 		}
 		$account = Account::newLocal();
@@ -72,17 +78,16 @@ class AccountFinder {
 			->generateKeys();
 		$this->entityManager->persist($account);
 		$this->entityManager->flush();
+		$this->representative = $account;
 		return $account;
 	}
 
 	/**
 	 * @param Account $account
-	 * @return array<Account>
+	 * @return array<Follow>
 	 */
 	public function getLocalFollowersOf(Account $account): array {
-		echo $this->entityManager->createQuery('SELECT a, f FROM \OCA\Social\Entity\Follow f LEFT JOIN f.account a WHERE f.targetAccount = :target')
-			->setParameters(['target' => $account])->getSql() . ' ' . $account->getId() ;
-		return $this->entityManager->createQuery('SELECT f FROM \OCA\Social\Entity\Follow f LEFT JOIN f.account a WHERE f.targetAccount = :target')
-			->setParameters(['target' => $account])->getArrayResult();
+		return $this->entityManager->createQuery('SELECT f,a FROM \OCA\Social\Entity\Follow f LEFT JOIN f.account a WHERE f.targetAccount = :target')
+			->setParameters(['target' => $account])->getResult();
 	}
 }
