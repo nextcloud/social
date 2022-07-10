@@ -30,14 +30,14 @@ class PostDeliveryService {
 		}
 
 		// deliver to mentioned accounts
-		$localFollowers = $this->accountFinder->getLocalFollowersOf($author);
-		$status->getActiveMentions()->forAll(function (Mention $mention) use ($status): void{
-			if ($mention->getAccount()->isLocal()) {
+		$status->getActiveMentions()->forAll(function ($mention) use ($status): void{
+			if ($mention && $mention->getAccount()->isLocal()) {
 				$this->deliverLocalAccount($status, $mention->getAccount());
 			}
 		});
 
 		// deliver to local followers
+		$localFollowers = $this->accountFinder->getLocalFollowersOf($author);
 		foreach ($localFollowers as $follower) {
 			$this->deliverLocalAccount($status, $follower->getAccount());
 		};

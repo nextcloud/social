@@ -9,8 +9,10 @@ namespace OCA\Social\Service;
 use Doctrine\Common\Collections\Collection;
 use OCA\Social\Entity\Account;
 use OCA\Social\Entity\Follow;
+use OCA\Social\Entity\Instance;
 use OCP\DB\ORM\IEntityManager;
 use OCP\DB\ORM\IEntityRepository;
+use OCP\DB\ORM\NoResultException;
 use OCP\IRequest;
 use OCP\IUser;
 
@@ -27,10 +29,20 @@ class AccountFinder {
 	}
 
 	public function findRemote(string $userName, ?string $domain): ?Account {
-		return $this->repository->findOneBy([
-			'domain' => $domain,
-			'userName' => $userName,
-		]);
+		if ($domain !== null) {
+			$instance = new Instance();
+			$instance->setDomain($domain);
+			return $this->entityManager->createQuery('SELECT a FROM \OCA\Social\Entity\Account a WHERE a.instance = :instance AND a.userName = :userName')
+				->setParameters([
+					'instance' => $instance,
+					'userName' => $userName,
+				])->getOneOrNullResult();
+		} else {
+			return $this->entityManager->createQuery('SELECT a FROM \OCA\Social\Entity\Account a WHERE a.instance is NULL AND a.userName = :userName')
+				->setParameters([
+					'userName' => $userName,
+				])->getOneOrNullResult();
+		}
 	}
 
 	public function findLocal(string $userName): ?Account {

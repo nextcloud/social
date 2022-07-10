@@ -62,31 +62,44 @@ class Mention {
 		return $this->status;
 	}
 
-	public function setStatus(?Status $status): void {
+	public function setStatus(?Status $status): self {
 		$this->status = $status;
+		return $this;
 	}
 
 	public function getAccount(): ?Account {
 		return $this->account;
 	}
 
-	public function setAccount(?Account $account): void {
+	public function setAccount(?Account $account): self {
 		$this->account = $account;
+		return $this;
 	}
 
 	public function getCreatedAt() {
 		return $this->createdAt;
 	}
 
-	public function setCreatedAt($createdAt): void {
+	public function setCreatedAt($createdAt): self {
 		$this->createdAt = $createdAt;
+		return $this;
 	}
 
 	public function getUpdatedAt() {
 		return $this->updatedAt;
 	}
 
-	public function setUpdatedAt($updatedAt): void {
+	public function setUpdatedAt($updatedAt): self {
 		$this->updatedAt = $updatedAt;
+		return $this;
+	}
+
+	public function isSilent(): bool {
+		return $this->silent;
+	}
+
+	public function setSilent(bool $silent): self {
+		$this->silent = $silent;
+		return $this;
 	}
 }

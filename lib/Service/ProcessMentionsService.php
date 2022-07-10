@@ -35,12 +35,12 @@ class ProcessMentionsService {
 		$this->previousMentions = $status->getActiveMentions();
 		$this->currentMentions = new ArrayCollection();
 
-		if (preg_match('/@(([a-z0-9_]([a-z0-9_\.-]+[a-z0-9_]+)+)(@[[:word:]\.\-]+[[:word:]]+)?)/i', $status->getText(), $matches)) {
+		if (preg_match_all('/@(([a-z0-9_]([a-z0-9_\.-]+[a-z0-9_]+)+)(@[[:word:]\.\-]+[[:word:]]+)?)/i', $status->getText(), $matches)) {
 			$host = $this->request->getServerHost();
 			for ($i = 0; $i < count($matches[0]); $i++) {
 				$completeMatch = $matches[0][$i];
 				$userName = $matches[2][$i];
-				$domain = $matches[2][$i] === '' ? '' : substr($matches[2][$i], 1);
+				$domain = $matches[4][$i] === '' ? '' : substr($matches[4][$i], 1);
 
 				$isLocal = $domain === '' || $host === $domain;
 				if ($isLocal) {
@@ -74,5 +74,7 @@ class ProcessMentionsService {
 				str_replace($completeMatch, $mentionnedAccount->getAccountName(), $status->getText());
 			}
 		}
+
+		$status->setMentions($this->currentMentions);
 	}
 }

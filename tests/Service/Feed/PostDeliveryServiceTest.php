@@ -12,6 +12,7 @@ use OCA\Social\Entity\Status;
 use OCA\Social\Service\AccountFinder;
 use OCA\Social\Service\Feed\PostDeliveryService;
 use OCA\Social\Service\Feed\FeedManager;
+use OCA\Social\Service\ProcessMentionsService;
 use OCP\DB\ORM\IEntityManager;
 use OCP\Server;
 use PHPUnit\Framework\MockObject\MockClass;
@@ -50,6 +51,7 @@ class PostDeliveryServiceTest extends TestCase {
 		$em = Server::get(IEntityManager::class);
 		$em->remove($this->account1);
 		$em->remove($this->account2);
+		$em->remove($this->account3);
 		$em->flush();
 
 		parent::tearDown();
@@ -74,13 +76,14 @@ class PostDeliveryServiceTest extends TestCase {
 		$status->setAccount($this->account1);
 		$status->setText('Hello world @user3!');
 		$status->setLocal(true);
-		\OCP
+		$mentionService = \OCP\Server::get(ProcessMentionsService::class);
+		$mentionService->run($status);
 		$this->feedManager->expects($this->exactly(2))
 			->method('addToHome')
 			->withConsecutive(
 				[$this->account1->getId(), $status], // self
-				[$this->account2->getId(), $status] // follower
-				[$this->account3->getId(), $status] // follower
+				[$this->account2->getId(), $status], // follower
+				[$this->account3->getId(), $status] // mentioned user
 			);
 		$this->postDeliveryService->run($status);
 	}

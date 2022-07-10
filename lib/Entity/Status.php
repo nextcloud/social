@@ -347,6 +347,9 @@ class Status {
 		return $this->mentions;
 	}
 
+	/**
+	 * @return Collection<Mention>
+	 */
 	public function getActiveMentions(): Collection {
 		$criteria = Criteria::create();
 		$criteria->where(Criteria::expr()->eq('silent', false));
