@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Entitiy;
 
 use OCA\Social\Entity\Account;
+use OCA\Social\InstanceUtils;
 use OCA\Social\Serializer\AccountSerializer;
 use OCP\IRequest;
 use OCP\IUser;
@@ -18,10 +19,10 @@ use Test\TestCase;
 class AccountSerializerTest extends TestCase {
 	public function testJsonLd(): void {
 		$localDomain = "helloworld.social";
-		$request = $this->createMock(IRequest::class);
-		$request->expects($this->once())
-			->method('getServerHost')
-			->willReturn($localDomain);
+		$instanceUtil = $this->createMock(InstanceUtils::class);
+		$instanceUtil->expects($this->any())
+			->method('getLocalInstanceUrl')
+			->willReturn('https://' . $localDomain);
 
 		$alice = $this->createMock(IUser::class);
 		$alice->expects($this->atLeastOnce())
@@ -38,9 +39,9 @@ class AccountSerializerTest extends TestCase {
 		$account->setUserName('alice');
 		$account->setUserId('alice_id');
 
-		$accountSerializer = new AccountSerializer($request, $userManager);
+		$accountSerializer = new AccountSerializer($userManager, $instanceUtil);
 		$jsonLd = $accountSerializer->toJsonLd($account);
-		$this->assertSame($jsonLd['id'], 'https://' . $localDomain . '/alice');
-		$this->assertSame($jsonLd['name'], 'Alice Alice');
+		$this->assertSame('https://' . $localDomain . '/alice', $jsonLd['id']);
+		$this->assertSame('Alice Alice', $jsonLd['name']);
 	}
 }

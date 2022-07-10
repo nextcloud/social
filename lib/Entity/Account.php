@@ -11,6 +11,9 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\Mapping as ORM;
+use OCA\Social\Service\FollowOption;
+use OCA\Social\InstanceUtils;
+use OCP\IRequest;
 
 /**
  * @ORM\Entity
@@ -168,6 +171,18 @@ class Account {
 	private Collection $followedBy;
 
 	/**
+	 * @ORM\OneToMany(targetEntity="FollowRequest", mappedBy="account", fetch="EXTRA_LAZY", cascade={"persist", "remove"})
+	 * @var Collection<FollowRequest>
+	 */
+	private Collection $followRequest;
+
+	/**
+	 * @ORM\OneToMany(targetEntity="FollowRequest", mappedBy="targetAccount", fetch="EXTRA_LAZY", cascade={"persist", "remove"})
+	 * @var Collection<FollowRequest>
+	 */
+	private Collection $followRequestFrom;
+
+	/**
 	 * @ORM\OneToMany(targetEntity="Follow", mappedBy="account", fetch="EXTRA_LAZY", cascade={"persist", "remove"})
 	 * @var Collection<Block>
 	 */
@@ -179,17 +194,12 @@ class Account {
 	 */
 	private Collection $blockedBy;
 
-	private Collection $activeMentions;
-
-	/**
-	 * @var ?array{private: string, public: string}
-	 */
-	private ?array $keyPair = null;
-
 	public function __construct() {
 		$this->block = new ArrayCollection();
 		$this->blockedBy = new ArrayCollection();
 		$this->follow = new ArrayCollection();
+		$this->followRequest = new ArrayCollection();
+		$this->followRequestFrom = new ArrayCollection();
 		$this->followedBy = new ArrayCollection();
 		$this->updatedAt = new \DateTime();
 		$this->createdAt = new \DateTime();
@@ -501,31 +511,50 @@ class Account {
 	}
 
 	/**
-	 * @return Collection<Follow>
+	 * Check whether this account follow the $targetAccount
 	 */
-	public function getFollowersForLocalDistribution(): Collection {
+	public function following(Account $targetAccount): bool {
 		$criteria = Criteria::create();
-		$criteria->where(Criteria::expr()->eq('', false));
-		return $this->followedBy->matching($criteria);
+		$criteria->where(Criteria::expr()->eq('account', $targetAccount));
+		return !$this->follow->matching($criteria)->isEmpty();
+	}
+
+	/**
+	 * Check whether this account created a follow request to $targetAccount
+	 */
+	public function followRequested(Account $targetAccount): bool {
+		$criteria = Criteria::create();
+		$criteria->where(Criteria::expr()->eq('account', $targetAccount));
+		return !$this->followRequest->matching($criteria)->isEmpty();
 	}
 
 	/**
 	 * Add a new follower to this account
 	 */
-	public function addFollower(Account $account): void {
+	public function follow(Account $account, bool $notify = false, bool $showReblogs = true): Follow {
 		$follow = new Follow();
-		$follow->setTargetAccount($this);
-		$follow->setAccount($account);
+		$follow->setTargetAccount($account);
+		$follow->setAccount($this);
+		$follow->setNotify($notify);
+		$follow->setShowReblogs($showReblogs);
 		$this->followedBy->add($follow);
+		return $follow;
 	}
 
-	/**
-	 * Follow a new account
-	 */
-	public function follow(Account $account): void {
-		$follow = new Follow();
-		$follow->setAccount($this);
-		$follow->setTargetAccount($account);
-		$this->followedBy->add($follow);
+	public function getFollowRequest() {
+		return $this->followRequest;
+	}
+
+	public function setFollowRequest($followRequest): void {
+		$this->followRequest = $followRequest;
+	}
+
+	public function getFollowRequestFrom(): Collection {
+		return $this->followRequestFrom;
+	}
+
+	public function setFollowRequestFrom(Collection $followRequestFrom): self {
+		$this->followRequestFrom = $followRequestFrom;
+		return $this;
 	}
 }

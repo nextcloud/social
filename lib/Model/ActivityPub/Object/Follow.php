@@ -31,34 +31,27 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Entity\Follow as FollowEntitiy;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 
 /**
+ * Virtual rep
  * Class Follow
  *
- * @package OCA\Social\Model\ActivityPub\Object
  */
-class Follow extends ACore implements JsonSerializable, IQueryRow {
+class Follow extends ACore implements JsonSerializable {
 	public const TYPE = 'Follow';
 
-
-	private string $followId = '';
-
-	private string $followIdPrim = '';
-
-	private bool $accepted = false;
-
-
-	/**
-	 * Follow constructor.
-	 *
-	 * @param ACore $parent
-	 */
+	static public function create(FollowEntitiy $follow): self {
+		$followActivity = new Follow();
+		$followActivity->setId($follow->getUri() ?: $follow->getAccount()->getUri() . '#follows/' . $follow->getId());
+		$followActivity->setActor($follow->getAccount());
+		$followActivity->setVirtualObject()
+		return $followActivity
+	}
 	public function __construct($parent = null) {
 		parent::__construct($parent);
-
 		$this->setType(self::TYPE);
 	}
 
@@ -119,27 +112,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
-	/**
-	 * @param array $data
-	 */
-	public function import(array $data) {
-		parent::import($data);
-	}
-
-
-	/**
-	 * @param array $data
-	 */
-	public function importFromDatabase(array $data) {
-		parent::importFromDatabase($data);
-
-		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
-		$this->setFollowId($this->get('follow_id', $data, ''));
-		$this->setFollowIdPrim($this->get('follow_id_prim', $data, ''));
-	}
-
-
 	/**
 	 * @return array
 	 */
@@ -150,9 +122,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 			$result = array_merge(
 				$result,
 				[
-					'follow_id' => $this->getFollowId(),
-					'follow_id_prim' => $this->getFollowIdPrim(),
-					'accepted' => $this->isAccepted()
 				]
 			);
 		}

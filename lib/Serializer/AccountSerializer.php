@@ -8,16 +8,17 @@ declare(strict_types=1);
 namespace OCA\Social\Serializer;
 
 use OCA\Social\Entity\Account;
+use OCA\Social\InstanceUtils;
 use OCP\IRequest;
 use OCP\IUserManager;
 
 class AccountSerializer extends ActivityPubSerializer {
-	private IRequest $request;
 	private IUserManager $userManager;
+	private InstanceUtils $instanceUtils;
 
-	public function __construct(IRequest $request, IUserManager $userManager) {
-		$this->request = $request;
+	public function __construct(IUserManager $userManager, InstanceUtils $instanceUtils) {
 		$this->userManager = $userManager;
+		$this->instanceUtils = $instanceUtils;
 	}
 
 	public function toJsonLd(object $account): array {
@@ -25,7 +26,7 @@ class AccountSerializer extends ActivityPubSerializer {
 
 		$user = $this->userManager->get($account->getUserId());
 
-		$baseUrl = "https://" . $this->request->getServerHost() . '/';
+		$baseUrl = $this->instanceUtils->getLocalInstanceUrl() . '/';
 		$baseUserUrl = $baseUrl . "/users/" . $account->getUserName() . '/';
 
 		return array_merge($this->getContext(), [

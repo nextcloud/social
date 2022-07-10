@@ -31,28 +31,19 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
-use Closure;
 use OCA\Social\Entity\Account;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Serializer\AccountSerializer;
 use OCA\Social\Serializer\SerializerFactory;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\Feed\RedisFeedProvider;
-use OCA\Social\Service\IFeedProvider;
-use OCA\Social\Service\UpdateService;
+use OCA\Social\Service\Feed\IFeedProvider;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
-use OCP\AppFramework\QueryException;
-use OCP\IDBConnection;
-use OCP\IServerContainer;
-use OC\DB\SchemaWrapper;
-use OCP\DB\ISchemaWrapper;
 use Psr\Container\ContainerInterface;
-use Throwable;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 

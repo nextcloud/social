@@ -33,9 +33,11 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
+use OCA\Social\Service\AccountFinder;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FollowOption;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MiscService;
 use Symfony\Component\Console\Input\InputArgument;
@@ -44,23 +46,18 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class AccountFollowing extends Base {
-	private AccountService $accountService;
+	private AccountFinder $accountFinder;
 	private CacheActorService $cacheActorService;
 	private FollowService $followService;
-	private ConfigService $configService;
-	private MiscService $miscService;
 
 	public function __construct(
-		AccountService $accountService, CacheActorService $cacheActorService,
-		FollowService $followService, ConfigService $configService, MiscService $miscService
+		AccountFinder $accountFinder, FollowService $followService, ConfigService $configService
 	) {
 		parent::__construct();
 
-		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
+		$this->accountFinder = $accountFinder;
 		$this->followService = $followService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 	protected function configure() {
@@ -80,16 +77,16 @@ class AccountFollowing extends Base {
 		$userId = $input->getArgument('userId');
 		$account = $input->getArgument('account');
 
-		$actor = $this->accountService->getActor($userId);
+		$sourceAccount = $this->accountFinder->getAccountByNextcloudId($userId);
+
 		if ($input->getOption('local')) {
-			$local = $this->cacheActorService->getFromLocalAccount($account);
-			$account = $local->getAccount();
+			$targetAccount = $this->accountFinder->getAccountByNextcloudId($account);
 		}
 
 		if ($input->getOption('unfollow')) {
-			$this->followService->unfollowAccount($actor, $account);
+			$this->followService->unfollow($sourceAccount, $targetAccount, FollowOption::default());
 		} else {
-			$this->followService->followAccount($actor, $account);
+			$this->followService->follow($sourceAccount, $targetAccount, FollowOption::default());
 		}
 	}
 }

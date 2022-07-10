@@ -283,7 +283,7 @@ class ACore extends Item implements JsonSerializable {
 	 *
 	 * @throws UrlCloudException
 	 */
-	public function generateUniqueId(string $base = '', bool $root = true) {
+	public function generateUniqueId(string $base = '', bool $root = true): void {
 		$url = '';
 		if ($root) {
 			$url = $this->getUrlCloud();

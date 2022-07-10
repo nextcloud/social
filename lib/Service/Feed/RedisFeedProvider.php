@@ -8,9 +8,8 @@ declare(strict_types=1);
 namespace OCA\Social\Service\Feed;
 
 use OC\RedisFactory;
+use OCA\Social\Entity\Account;
 use OCA\Social\Entity\Status;
-use OCA\Social\Service\FeedManager;
-use OCA\Social\Service\IFeedProvider;
 
 class RedisFeedProvider implements IFeedProvider {
 	private \Redis $redis;
@@ -55,5 +54,14 @@ class RedisFeedProvider implements IFeedProvider {
 
 	public function removeFromFeed(string $timelineType, string $accountId, Status $status, bool $aggregateReblog = true): bool {
 		return false;
+	}
+
+	public function mergeIntoHome(Account $fromAccount, Account $intoAccount): void {
+		$timelineKey = $this->key(FeedManager::HOME_FEED, $intoAccount->getId());
+		$aggregate = true; // TODO make configurable
+
+		if ($this->redis->zCard($timelineKey) > (FeedManager::MAX_ITEM / 4)) {
+			$oldestHomeScore = $this->redis->zRange($timelineKey, 0, 0, true);
+		}
 	}
 }

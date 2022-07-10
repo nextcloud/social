@@ -99,7 +99,9 @@ class AccountFinder {
 	 * @return array<Follow>
 	 */
 	public function getLocalFollowersOf(Account $account): array {
-		return $this->entityManager->createQuery('SELECT f,a FROM \OCA\Social\Entity\Follow f LEFT JOIN f.account a WHERE f.targetAccount = :target')
-			->setParameters(['target' => $account])->getResult();
+		return $this->entityManager
+			->createQuery('SELECT f,a FROM \OCA\Social\Entity\Follow f LEFT JOIN f.account a WHERE f.targetAccount = :target')
+			->setParameters(['target' => $account])
+			->getResult();
 	}
 }

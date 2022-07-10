@@ -49,7 +49,7 @@ class AccountFinderTest extends TestCase {
 
 	public function testGetLocalFollower(): void {
 		$accounts = $this->accountFinder->getLocalFollowersOf($this->account1);
-		$this->assertSame(count($accounts), 1);
+		$this->assertSame(1, count($accounts));
 		$this->assertSame($accounts[0]->getAccount()->getId(), $this->account2->getId());
 	}
 
