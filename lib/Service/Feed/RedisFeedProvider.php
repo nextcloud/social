@@ -29,7 +29,7 @@ class RedisFeedProvider implements IFeedProvider {
 		$timelineKey = $this->key($timelineType, $accountId);
 		$reblogKey = $this->key($timelineType, $accountId, 'reblogs');
 
-		if ($status->isReblog() !== null && $aggregateReblog) {
+		if ($status->isReblog() && $aggregateReblog) {
 			$rank = $this->redis->zRevRank($timelineKey, $status->getReblogOf()->getId());
 			if ($rank !== null && $rank < FeedManager::REBLOG_FALLOFF) {
 				return false;

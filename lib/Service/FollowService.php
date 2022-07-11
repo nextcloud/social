@@ -116,10 +116,12 @@ class FollowService {
 
 	private function directFollow(Account $sourceAccount, Account $targetAccount): Follow {
 		$follow = $sourceAccount->follow($targetAccount);
-		$this->entityManager->persist($sourceAccount);
+		$this->entityManager->persist($follow);
+		$this->entityManager->flush();
 
 		// TODO Notify target account they got a new follower
 
+		// Add statues of target user into source user timeline
 		$this->feedManager->mergeIntoHome($targetAccount, $sourceAccount);
 
 		return $follow;
@@ -128,7 +130,11 @@ class FollowService {
 	private function requestFollow(Account $sourceAccount, Account $targetAccount) {
 		if ($targetAccount->isLocal()) {
 			// Just create an internal follow request
+			$followRequest = $sourceAccount->requestFollow($targetAccount);
+			$this->entityManager->persist($followRequest);
+			$this->entityManager->flush();
 
+			// TODO Notify target account they got a new follow request
 		} else {
 			$this->createRemoteFollowRequest($sourceAccount, $targetAccount);
 		}
@@ -141,6 +147,8 @@ class FollowService {
 			'actor' => $sourceAccount->getUri(),
 			'object' => $targetAccount->getUri(),
 		]);
+
+		// TODO send follow request
 	}
 
 	/**

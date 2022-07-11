@@ -557,4 +557,14 @@ class Account {
 		$this->followRequestFrom = $followRequestFrom;
 		return $this;
 	}
+
+	public function requestFollow(Account $targetAccount, bool $notify = false, bool $showReblogs = true): FollowRequest {
+		$followRequest = new Follow();
+		$followRequest->setTargetAccount($targetAccount);
+		$followRequest->setAccount($this);
+		$followRequest->setNotify($notify);
+		$followRequest->setShowReblogs($showReblogs);
+		$this->followRequest->add($followRequest);
+		return $followRequest;
+	}
 }

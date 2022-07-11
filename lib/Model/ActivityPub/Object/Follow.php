@@ -47,7 +47,7 @@ class Follow extends ACore implements JsonSerializable {
 		$followActivity = new Follow();
 		$followActivity->setId($follow->getUri() ?: $follow->getAccount()->getUri() . '#follows/' . $follow->getId());
 		$followActivity->setActor($follow->getAccount());
-		$followActivity->setVirtualObject()
+		$followActivity->setVirtualObject();
 		return $followActivity
 	}
 	public function __construct($parent = null) {

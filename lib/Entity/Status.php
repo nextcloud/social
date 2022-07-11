@@ -50,17 +50,10 @@ class Status {
 	private \DateTime $updatedAt;
 
 	/**
-	 * //@ORM\ManyToOne
-	 * //@ORM\JoinColumn(name="in_reply_to_id", type="")
-	 * @ORM\Column(name="in_reply_to_id", type="bigint", nullable=true)
-	 */
-	private ?int $inReplyToId = null;
-
-	/**
 	 * @ORM\ManyToOne
-	 * @ORM\JoinColumn(name="reblog_of_id", referencedColumnName="id", nullable=true)
+	 * @ORM\JoinColumn(name="in_reply_to_id", referencedColumnName="id", nullable=true)
 	 */
-	private ?Status $reblogOf = null;
+	private ?Status $inReplyTo = null;
 
 	/**
 	 * @ORM\Column(type="string", nullable=true)
@@ -68,14 +61,14 @@ class Status {
 	private ?string $url = null;
 
 	/**
-	 * @ORM\Column(type="boolean")
+	 * @ORM\Column(name="`sensitive`")
 	 */
 	private bool $sensitive = false;
 
 	/**
-	 * @ORM\Column(type="integer", nullable=false)
+	 * @ORM\Column
 	 */
-	private int $visibility;
+	private int $visibility = 0;
 
 	/**
 	 * @ORM\Column(name="spoiler_text", type="text", nullable=false)
@@ -90,7 +83,7 @@ class Status {
 	/**
 	 * @ORM\Column(type="string", nullable=false)
 	 */
-	private string $language;
+	private string $language = "en";
 
 	/**
 	 * @ORM\Column(name="conversation_id", type="bigint", nullable=true)
@@ -104,8 +97,9 @@ class Status {
 
 	/**
 	 * @ORM\ManyToOne
+	 * @ORM\JoinColumn(nullable=false)
 	 */
-	private Account $account;
+	private ?Account $account = null;
 
 	/**
 	 * @ORM\ManyToOne
@@ -151,6 +145,8 @@ class Status {
 
 	public function __construct() {
 		$this->mentions = new ArrayCollection();
+		$this->createdAt = new \DateTime();
+		$this->updatedAt = new \DateTime();
 	}
 
 	public function getId(): string {
@@ -193,12 +189,12 @@ class Status {
 		$this->updatedAt = $updatedAt;
 	}
 
-	public function getInReplyToId(): ?int {
-		return $this->inReplyToId;
+	public function getInReplyTo(): ?Status {
+		return $this->inReplyTo;
 	}
 
-	public function setInReplyToId(?int $inReplyToId): void {
-		$this->inReplyToId = $inReplyToId;
+	public function setInReplyTo(?Status $inReplyTo): void {
+		$this->inReplyTo = $inReplyTo;
 	}
 
 	public function getReblogOf(): ?Status {
