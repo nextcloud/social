@@ -21,7 +21,7 @@
 </style>
 
 <script>
-import Composer from '../components/Composer.vue'
+import Composer from '../components/Composer/Composer.vue'
 import ProfileInfo from '../components/ProfileInfo.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'

@@ -92,7 +92,7 @@
 </style>
 
 <script>
-import Composer from './../components/Composer.vue'
+import Composer from './../components/Composer/Composer.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin'
 import follow from './../mixins/follow'
 import TimelineList from './../components/TimelineList.vue'
