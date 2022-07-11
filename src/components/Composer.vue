@@ -44,7 +44,7 @@
 		</div>
 		<div v-if="replyTo" class="reply-to">
 			<p>
-				<span>In reply to</span>
+				<span>{{ t('social', 'In reply to') }}</span>
 				<actor-avatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
 				<a class="icon-close" @click="closeReply()" />
@@ -70,267 +70,54 @@
 				</div>
 			</masonry>
 
-			<div class="options my-3">
-				<div class="new-post-form__emoji-picker mr-3">
+			<div class="options">
+				<Button type="tertiary"
+					@click.prevent="clickImportInput"
+					:aria-label="t('social', 'Add attachment')"
+					v-tooltip="t('social', 'Add attachment')">
+					<template #icon>
+						<FileUpload :size="22" decorative title="" />
+					</template>
+				</Button>
+
+				<div class="new-post-form__emoji-picker">
 					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
 						:container="containerElement"
 						@select="insert">
-						<Button type="ternary-no-background" :aria-haspopup="true" :aria-label="t('social', 'Add emoji')">
+						<Button type="tertiary"
+							:aria-haspopup="true"
+							:aria-label="t('social', 'Add emoji')"
+							v-tooltip="t('social', 'Add emoji')">
 							<template #icon>
-								<EmoticonOutline :size="16" decorative title="" />
+								<EmoticonOutline :size="22" decorative title="" />
 							</template>
 						</Button>
 					</EmojiPicker>
 				</div>
 
-				<Button type="ternary-no-background" class="mr-3" :aria-label="t('social', 'Add attachment')"
-					@click.prevent="clickImportInput">
-					<template #icon>
-						<FileUpload :size="16" decorative title="" />
-					</template>
-				</Button>
-
-				<div v-click-outside="hidePopoverMenu" class="mr-3">
-					<Button type="ternary-no-background" :class="currentVisibilityIconClass" @click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu menu-center">
+				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
+					<Button type="tertiary"
+					:class="currentVisibilityIconClass"
+					@click.prevent="togglePopoverMenu"
+					v-tooltip="t('social', 'Visibility')" />
+					<div :class="{open: menuOpened}" class="popovermenu">
 						<popover-menu :menu="visibilityPopover" />
 					</div>
 				</div>
+
 				<div class="emptySpace" />
 				<Button :value="currentVisibilityPostLabel" :disabled="post.length < 1 || post==='<br>'" type="primary"
 					@click.prevent="createPost">
 					<template #icon>
-						<Send title="" :size="16" decorative />
+						<Send title="" :size="22" decorative />
 					</template>
-					<template>{{ t('social', 'Post to followers') }}</template>
+					<template>{{ postTo }}</template>
 				</button>
 			</div>
 		</form>
 	</div>
 </template>
-<style scoped lang="scss">
 
-	.new-post {
-		padding: 10px;
-		background-color: var(--color-main-background);
-		position: sticky;
-		top: 47px;
-		z-index: 100;
-		margin-bottom: 10px;
-
-		&-form {
-			flex-grow: 1;
-			position: relative;
-			top: -10px;
-			margin-left: 39px;
-			&__emoji-picker {
-				z-index: 1;
-			}
-		}
-	}
-
-	.new-post-author {
-		padding: 5px;
-		display: flex;
-		flex-wrap: wrap;
-
-		.post-author {
-			padding: 6px;
-
-			.post-author-name {
-				font-weight: bold;
-			}
-
-			.post-author-id {
-				opacity: .7;
-			}
-		}
-	}
-
-	.reply-to {
-		background-image: url(../../img/reply.svg);
-		background-position: 5px 5px;
-		background-repeat: no-repeat;
-		margin-left: 39px;
-		margin-bottom: 20px;
-		overflow: hidden;
-		background-color: #fafafa;
-		border-radius: 3px;
-		padding: 5px;
-		padding-left: 30px;
-
-		.icon-close {
-			display: inline-block;
-			float: right;
-			opacity: .7;
-			padding: 3px;
-		}
-	}
-
-	.message {
-		width: 100%;
-		padding-right: 44px;
-		min-height: 70px;
-		min-width: 2px;
-		display: block;
-	}
-
-	[contenteditable=true]:empty:before {
-		content: attr(placeholder);
-		display: block; /* For Firefox */
-		opacity: .5;
-	}
-
-	input[type=submit].inline {
-		width: 44px;
-		height: 44px;
-		margin: 0;
-		padding: 13px;
-		background-color: transparent;
-		border: none;
-		opacity: 0.3;
-		position: absolute;
-		bottom: 0;
-		right: 0;
-	}
-
-	.options {
-		display: flex;
-		align-items: flex-end;
-		width: 100%;
-	}
-
-	.emptySpace {
-		flex-grow:1;
-	}
-
-	.popovermenu {
-		top: 55px;
-	}
-
-	.attachment-picker-wrapper {
-		position: absolute;
-		right: 0;
-		top: 2;
-	}
-</style>
-<style>
-	/* Tribute-specific styles TODO: properly scope component css */
-	.tribute-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		height: auto;
-		max-height: 300px;
-		max-width: 500px;
-		min-width: 200px;
-		overflow: auto;
-		display: block;
-		z-index: 999999;
-		border-radius: 4px;
-		box-shadow: 0 1px 3px var(--color-box-shadow);
-	}
-
-	.tribute-container ul {
-		margin: 0;
-		margin-top: 2px;
-		padding: 0;
-		list-style: none;
-		background: var(--color-main-background);
-		border-radius: 4px;
-		background-clip: padding-box;
-		overflow: hidden;
-	}
-
-	.tribute-container li {
-		color: var(--color-text);
-		padding: 5px 10px;
-		cursor: pointer;
-		font-size: 14px;
-		display: flex;
-	}
-
-	.tribute-container li span {
-		display: block;
-	}
-
-	.tribute-container li.highlight,
-	.tribute-container li:hover {
-		background: var(--color-primary);
-		color: var(--color-primary-text);
-	}
-
-	.tribute-container li img {
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		overflow: hidden;
-		margin-right: 10px;
-		margin-left: -3px;
-		margin-top: 3px;
-	}
-
-	.tribute-container li span {
-		font-weight: bold;
-	}
-
-	.tribute-container li.no-match {
-		cursor: default;
-	}
-
-	.tribute-container .menu-highlighted {
-		font-weight: bold;
-	}
-
-	.tribute-container .account,
-	.tribute-container li.highlight .account,
-	.tribute-container li:hover .account {
-		font-weight: normal;
-		color: var(--color-text-light);
-		opacity: 0.5;
-	}
-
-	.tribute-container li.highlight .account,
-	.tribute-container li:hover .account {
-		color: var(--color-primary-text) !important;
-		opacity: .6;
-	}
-
-	.message .mention {
-		color: var(--color-primary-element);
-		background-color: var(--color-background-dark);
-		border-radius: 5px;
-		padding-top: 1px;
-		padding-left: 2px;
-		padding-bottom: 1px;
-		padding-right: 5px;
-	}
-
-	.mention img {
-		width: 16px;
-		border-radius: 50%;
-		overflow: hidden;
-		margin-right: 3px;
-		vertical-align: middle;
-		margin-top: -1px;
-	}
-
-	.hashtag {
-		text-decoration: underline;
-	}
-	.mt-3, .my-3 {
-		margin-top: 1rem;
-	}
-	.mb-3, .my-3 {
-		margin-bottom: 1rem;
-	}
-	.mr-3, .mx-3 {
-		margin-right: 1rem;
-	}
-	.ml-3, .mx-3 {
-		margin-left: 1rem;
-	}
-</style>
 <script>
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline'
@@ -359,10 +146,10 @@ export default {
 		VueTribute,
 		EmoticonOutline,
 		Button,
-		Send
+		Send,
 	},
 	directives: {
-		FocusOnCreate: FocusOnCreate
+		FocusOnCreate,
 	},
 	mixins: [CurrentUserMixin],
 	props: {},
@@ -470,6 +257,17 @@ export default {
 		}
 	},
 	computed: {
+		postTo() {
+			switch (this.type) {
+				case 'public':
+				case 'unlisted':
+					return t('social', 'Post')
+				case 'followers':
+					return t('social', 'Post to followers')
+				case 'direct':
+					return t('social', 'Post to mentioned users')
+			}
+		},
 		containerElement() {
 			return document.querySelector('#content-vue')
 		},
@@ -561,7 +359,13 @@ export default {
 					longtext: t('social', 'Post to mentioned users only')
 				}
 			]
-		}
+		},
+		container() {
+			return '#content-vue'
+		},
+		containerElement() {
+			return document.querySelector(this.container)
+		},
 	},
 	mounted() {
 		this.$root.$on('composer-reply', (data) => {
@@ -804,3 +608,219 @@ export default {
 }
 
 </script>
+
+<style scoped lang="scss">
+	.new-post {
+		padding: 10px;
+		background-color: var(--color-main-background);
+		position: sticky;
+		top: 47px;
+		z-index: 100;
+		margin-bottom: 10px;
+
+		&-form {
+			flex-grow: 1;
+			position: relative;
+			top: -10px;
+			margin-left: 39px;
+			&__emoji-picker {
+				z-index: 1;
+			}
+		}
+	}
+
+	.new-post-author {
+		padding: 5px;
+		display: flex;
+		flex-wrap: wrap;
+
+		.post-author {
+			padding: 6px;
+
+			.post-author-name {
+				font-weight: bold;
+			}
+
+			.post-author-id {
+				opacity: .7;
+			}
+		}
+	}
+
+	.reply-to {
+		background-image: url(../../img/reply.svg);
+		background-position: 5px 5px;
+		background-repeat: no-repeat;
+		margin-left: 39px;
+		margin-bottom: 20px;
+		overflow: hidden;
+		background-color: #fafafa;
+		border-radius: 3px;
+		padding: 5px;
+		padding-left: 30px;
+
+		.icon-close {
+			display: inline-block;
+			float: right;
+			opacity: .7;
+			padding: 3px;
+		}
+	}
+
+	.message {
+		width: 100%;
+		padding-right: 44px;
+		min-height: 70px;
+		min-width: 2px;
+		display: block;
+	}
+
+	[contenteditable=true]:empty:before {
+		content: attr(placeholder);
+		display: block; /* For Firefox */
+		opacity: .5;
+	}
+
+	input[type=submit].inline {
+		width: 44px;
+		height: 44px;
+		margin: 0;
+		padding: 13px;
+		background-color: transparent;
+		border: none;
+		opacity: 0.3;
+		position: absolute;
+		bottom: 0;
+		right: 0;
+	}
+
+	.options {
+		display: flex;
+		align-items: flex-end;
+		width: 100%;
+		margin-top: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.emptySpace {
+		flex-grow:1;
+	}
+
+	.popovermenu-parent {
+		position: relative;
+	}
+	.popovermenu {
+		top: 55px;
+	}
+
+	.attachment-picker-wrapper {
+		position: absolute;
+		right: 0;
+		top: 2;
+	}
+</style>
+<style>
+	/* Tribute-specific styles TODO: properly scope component css */
+	.tribute-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: auto;
+		max-height: 300px;
+		max-width: 500px;
+		min-width: 200px;
+		overflow: auto;
+		display: block;
+		z-index: 999999;
+		border-radius: 4px;
+		box-shadow: 0 1px 3px var(--color-box-shadow);
+	}
+
+	.tribute-container ul {
+		margin: 0;
+		margin-top: 2px;
+		padding: 0;
+		list-style: none;
+		background: var(--color-main-background);
+		border-radius: 4px;
+		background-clip: padding-box;
+		overflow: hidden;
+	}
+
+	.tribute-container li {
+		color: var(--color-text);
+		padding: 5px 10px;
+		cursor: pointer;
+		font-size: 14px;
+		display: flex;
+	}
+
+	.tribute-container li span {
+		display: block;
+	}
+
+	.tribute-container li.highlight,
+	.tribute-container li:hover {
+		background: var(--color-primary);
+		color: var(--color-primary-text);
+	}
+
+	.tribute-container li img {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		overflow: hidden;
+		margin-right: 10px;
+		margin-left: -3px;
+		margin-top: 3px;
+	}
+
+	.tribute-container li span {
+		font-weight: bold;
+	}
+
+	.tribute-container li.no-match {
+		cursor: default;
+	}
+
+	.tribute-container .menu-highlighted {
+		font-weight: bold;
+	}
+
+	.tribute-container .account,
+	.tribute-container li.highlight .account,
+	.tribute-container li:hover .account {
+		font-weight: normal;
+		color: var(--color-text-light);
+		opacity: 0.5;
+	}
+
+	.tribute-container li.highlight .account,
+	.tribute-container li:hover .account {
+		color: var(--color-primary-text) !important;
+		opacity: .6;
+	}
+
+	.message .mention {
+		color: var(--color-primary-element);
+		background-color: var(--color-background-dark);
+		border-radius: 5px;
+		padding-top: 1px;
+		padding-left: 2px;
+		padding-bottom: 1px;
+		padding-right: 5px;
+	}
+
+	.mention img {
+		width: 16px;
+		border-radius: 50%;
+		overflow: hidden;
+		margin-right: 3px;
+		vertical-align: middle;
+		margin-top: -1px;
+	}
+
+	.hashtag {
+		text-decoration: underline;
+	}
+</style>
