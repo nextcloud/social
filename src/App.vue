@@ -2,7 +2,11 @@
 	<Content v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<AppNavigation v-if="!serverData.public">
 			<AppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
-				:title="item.title" :icon="item.icon" :exact="true" />
+				:title="item.title" :exact="true">
+				<template #icon>
+					<component :is="item.icon" />
+				</template>
+			</AppNavigationItem>
 		</AppNavigation>
 		<AppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
@@ -93,6 +97,14 @@ import AppContent from '@nextcloud/vue/dist/Components/AppContent'
 import AppNavigation from '@nextcloud/vue/dist/Components/AppNavigation'
 import AppNavigationItem from '@nextcloud/vue/dist/Components/AppNavigationItem'
 
+import Home from 'vue-material-design-icons/Home.vue'
+import CommentAccount from 'vue-material-design-icons/CommentAccount.vue'
+import Bell from 'vue-material-design-icons/Bell.vue'
+import Account from 'vue-material-design-icons/Account.vue'
+import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
+import Heart from 'vue-material-design-icons/Heart.vue'
+import Earth from 'vue-material-design-icons/Earth.vue'
+
 import axios from '@nextcloud/axios'
 import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin'
@@ -106,7 +118,7 @@ export default {
 		AppContent,
 		AppNavigation,
 		AppNavigationItem,
-		Search
+		Search,
 	},
 	mixins: [currentuserMixin],
 	data: function() {
@@ -125,7 +137,7 @@ export default {
 			const defaultCategories = [
 				{
 					id: 'social-timeline',
-					icon: 'icon-home',
+					icon: Home,
 					title: t('social', 'Home'),
 					to: {
 						name: 'timeline'
@@ -133,7 +145,7 @@ export default {
 				},
 				{
 					id: 'social-direct-messages',
-					icon: 'icon-comment',
+					icon: CommentAccount,
 					title: t('social', 'Direct messages'),
 					to: {
 						name: 'timeline',
@@ -142,7 +154,7 @@ export default {
 				},
 				{
 					id: 'social-notifications',
-					icon: 'icon-notifications',
+					icon: Bell,
 					title: t('social', 'Notifications'),
 					to: {
 						name: 'timeline',
@@ -151,7 +163,7 @@ export default {
 				},
 				{
 					id: 'social-account',
-					icon: 'icon-user',
+					icon: Account,
 					title: t('social', 'Profile'),
 					to: {
 						name: 'profile',
@@ -160,7 +172,7 @@ export default {
 				},
 				{
 					id: 'social-liked',
-					icon: 'icon-favorite',
+					icon: Heart,
 					title: t('social', 'Liked'),
 					to: {
 						name: 'timeline',
@@ -169,7 +181,7 @@ export default {
 				},
 				{
 					id: 'social-local',
-					icon: 'icon-category-monitoring',
+					icon: AccountMultiple,
 					title: t('social', 'Local timeline'),
 					to: {
 						name: 'timeline',
@@ -178,7 +190,7 @@ export default {
 				},
 				{
 					id: 'social-global',
-					icon: 'icon-link',
+					icon: Earth,
 					title: t('social', 'Global timeline'),
 					to: {
 						name: 'timeline',
