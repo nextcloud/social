@@ -1,5 +1,6 @@
 <!--
   - @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
+  - @copyright Copyright (c) 2022 Carl Schwan <carl@carlschwan.eu>
   -
   - @author Julius Härtl <jus@bitgrid.net>
   -
@@ -24,12 +25,12 @@
 	<div class="new-post" data-id="">
 		<input id="file-upload"
 			ref="fileUploadInput"
+			@change="handleFileChange($event)"
 			multiple
 			type="file"
 			tabindex="-1"
 			aria-hidden="true"
-			class="hidden-visually"
-			@change="handleFileInput">
+			class="hidden-visually">
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
 				:size="32" />
@@ -61,14 +62,7 @@
 					@tribute-replaced="updatePostFromTribute" />
 			</vue-tribute>
 
-			<masonry>
-				<div v-for="(item, index) in miniatures" :key="index" ref="miniatures">
-					<img alt="" :src="item.img" :usemap="'#map' + index">
-					<map :name="'map' + index">
-						<area shape="circle" :coords="getImageMapCoords(index)" @click="removeAttachment(index)">
-					</map>
-				</div>
-			</masonry>
+			<PreviewGrid :uploading="false" :uploadProgress="0.4" :miniatures="previewUrls" />
 
 			<div class="options">
 				<Button type="tertiary"
@@ -82,7 +76,7 @@
 
 				<div class="new-post-form__emoji-picker">
 					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
-						:container="containerElement"
+						:container="container"
 						@select="insert">
 						<Button type="tertiary"
 							:aria-haspopup="true"
@@ -106,7 +100,7 @@
 				</div>
 
 				<div class="emptySpace" />
-				<Button :value="currentVisibilityPostLabel" :disabled="post.length < 1 || post==='<br>'" type="primary"
+				<Button :value="currentVisibilityPostLabel" :disabled="!canPost" type="primary"
 					@click.prevent="createPost">
 					<template #icon>
 						<Send title="" :size="22" decorative />
@@ -129,11 +123,12 @@ import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
 import EmojiPicker from '@nextcloud/vue/dist/Components/EmojiPicker'
 import VueTribute from 'vue-tribute'
 import he from 'he'
-import CurrentUserMixin from './../mixins/currentUserMixin'
-import FocusOnCreate from '../directives/focusOnCreate'
+import CurrentUserMixin from '../../mixins/currentUserMixin'
+import FocusOnCreate from '../../directives/focusOnCreate'
 import axios from '@nextcloud/axios'
-import ActorAvatar from './ActorAvatar.vue'
+import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
+import PreviewGrid from './PreviewGrid'
 
 export default {
 	name: 'Composer',
@@ -147,6 +142,7 @@ export default {
 		EmoticonOutline,
 		Button,
 		Send,
+		PreviewGrid,
 	},
 	directives: {
 		FocusOnCreate,
@@ -160,6 +156,7 @@ export default {
 			post: '',
 			miniatures: [],		// miniatures of images stored in postAttachments
 			postAttachments: [],	// The toot's attachments
+			previewUrls: [],
 			canType: true,
 			search: '',
 			replyTo: null,
@@ -268,9 +265,6 @@ export default {
 					return t('social', 'Post to mentioned users')
 			}
 		},
-		containerElement() {
-			return document.querySelector('#content-vue')
-		},
 		currentVisibilityIconClass() {
 			return this.visibilityIconClass(this.type)
 		},
@@ -366,6 +360,12 @@ export default {
 		containerElement() {
 			return document.querySelector(this.container)
 		},
+		canPost() {
+			if (this.previewUrls.length > 0) {
+				return true;
+			}
+			return this.post.length !== 0 && this.post !== '<br>'
+		}
 	},
 	mounted() {
 		this.$root.$on('composer-reply', (data) => {
@@ -377,98 +377,16 @@ export default {
 		clickImportInput() {
 			this.$refs.fileUploadInput.click()
 		},
-		handleFileInput() {
-			// TODO: handle (or prevent) mulitples/ files
-			let self = this
-			let file = this.$refs.fileUploadInput.files[0]
-			let reader = new FileReader()
-
-			// Called when selected file is completly loaded to draw a miniature
-			reader.onload = function(e) {
-				let canvas = document.createElement('canvas')
-				let ctx = canvas.getContext('2d')
-				let width = 265
-				let height = 180
-				let img = new Image()
-
-				// Called when img.src is set below
-				img.onload = function() {
-
-					// scale image for miniature
-					let imgWidth = this.width
-					let imgHeight = this.height
-					imgHeight = Math.floor(imgHeight * (width / imgWidth))
-					imgWidth = width
-					if (imgHeight > height) {
-						imgWidth = Math.floor(imgWidth * (height / imgHeight))
-						imgHeight = height
-					}
-					canvas.width = imgWidth
-					canvas.height = imgHeight
-					ctx.drawImage(this, 0, 0, imgWidth, imgHeight)
-
-					// Draw a border
-					ctx.beginPath()
-					ctx.fillStyle = 'black'
-					ctx.lineWidth = 1
-					ctx.moveTo(0, 0)
-					ctx.lineTo(imgWidth, 0)
-					ctx.lineTo(imgWidth, imgHeight)
-					ctx.lineTo(0, imgHeight)
-					ctx.lineTo(0, 0)
-					ctx.stroke()
-
-					// Create a close badge in the upper-right corner
-					ctx.beginPath()
-					ctx.arc(imgWidth - 20, 20, 10, 0, 2 * Math.PI)
-					ctx.fillStyle = 'white'
-					ctx.fill()
-					ctx.lineWidth = 2
-					ctx.StrokeStyle = 'darkgray'
-					ctx.stroke()
-					ctx.beginPath()
-					ctx.moveTo(imgWidth - (20 + 5), 20 - 5)
-					ctx.lineTo(imgWidth - (20 - 5), 20 + 5)
-					ctx.stroke()
-					ctx.moveTo(imgWidth - (20 - 5), 20 - 5)
-					ctx.lineTo(imgWidth - (20 + 5), 20 + 5)
-					ctx.stroke()
-
-					// Add filename to generic icon for non image document
-					if (!e.target.result.startsWith('data:image')) {
-						ctx.fillStyle = 'black'
-						ctx.font = '12px Arial'
-						ctx.fillText(file.name, 30, imgHeight - 20)
-					}
-
-					// Save miniature
-					self.miniatures.push({
-						'img': canvas.toDataURL(),
-						'coords': String(imgWidth - 20) + ',20,10'
-					})
-
-				}
-
-				// Save document
-				self.postAttachments.push(e.target.result)
-
-				// Draw a generic icon when document is not an image
-				if (e.target.result.startsWith('data:image')) {
-					img.src = e.target.result
-				} else {
-					img.src = generateUrl('svg/core/filetypes/x-office-document?color=d8d8d8')
-				}
-			}
-
-			// Start reading selected file
-			reader.readAsDataURL(file)
+		handleFileChange(event) {
+			const previewUrl = URL.createObjectURL(event.target.files[0])
+			this.previewUrls.push({
+				description: '',
+				url: previewUrl,
+				result: event.target.files[0],
+			})
 		},
 		removeAttachment(idx) {
-			this.postAttachments.splice(idx, 1)
-			this.miniatures.splice(idx, 1)
-		},
-		getImageMapCoords(idx) {
-			return 	this.miniatures[idx].coords
+			this.previewUrls.splice(idx, 1)
 		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
@@ -537,7 +455,7 @@ export default {
 				to: to,
 				hashtags: hashtags,
 				type: this.type,
-				attachments: this.postAttachments
+				attachments: this.previewUrls.map(preview => preview.result), // TODO send the summary and other props too
 			}
 
 			if (this.replyTo) {
@@ -587,8 +505,7 @@ export default {
 				this.replyTo = null
 				this.post = ''
 				this.$refs.composerInput.innerText = this.post
-				this.postAttachments = []
-				this.miniatures = []
+				this.previewUrls = []
 				this.$store.dispatch('refreshTimeline')
 			})
 
@@ -648,7 +565,7 @@ export default {
 	}
 
 	.reply-to {
-		background-image: url(../../img/reply.svg);
+		background-image: url(../../../img/reply.svg);
 		background-position: 5px 5px;
 		background-repeat: no-repeat;
 		margin-left: 39px;

@@ -106,6 +106,15 @@ class LocalController extends Controller {
 		$this->miscService = $miscService;
 	}
 
+	/**
+	 * Upload file
+	 *
+	 * @NoAdminRequired
+	 */
+	public function uploadAttachement(): DataResponse {
+		
+	}
+
 
 	/**
 	 * Create a new post.
