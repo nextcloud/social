@@ -5,9 +5,12 @@ OC.L10N.register(
     "Open documentation" : "Aperir documentation",
     "Home" : "Initio",
     "Notifications" : "Notificationes",
+    "Post" : "Publicar",
     "Public" : "Public",
-    "Reply" : "Responder",
+    "Uploading..." : "Incargante...",
     "Delete" : "Deler",
-    "Close" : "Clauder"
+    "Edit" : "Modificar",
+    "Close" : "Clauder",
+    "Reply" : "Responder"
 },
 "nplurals=2; plural=(n != 1);");

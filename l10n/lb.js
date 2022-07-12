@@ -6,9 +6,11 @@ OC.L10N.register(
     "Finish setup" : "Installatioun ofschléissen",
     "Home" : "Doheem",
     "Notifications" : "Notifikatiounen",
-    "Reply" : "Äntwerten",
+    "Uploading..." : "Lueden erop...",
     "Delete" : "Läschen",
+    "Edit" : "Änneren",
     "Close" : "Zoumaachen",
+    "Reply" : "Äntwerten",
     "Continue" : "Weider"
 },
 "nplurals=2; plural=(n != 1);");

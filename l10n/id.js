@@ -7,11 +7,15 @@ OC.L10N.register(
     "Home" : "Beranda",
     "Notifications" : "Pemberitahuan",
     "Profile" : "Profil",
+    "In reply to" : "Membalas kepada",
+    "Post" : "Post",
     "Public" : "Publik",
-    "Reply" : "Balas",
+    "Uploading..." : "Mengunggah...",
     "Delete" : "Hapus",
-    "Hello" : "Halo",
+    "Edit" : "Sunting",
     "Close" : "Tutup",
+    "Reply" : "Balas",
+    "Hello" : "Halo",
     "Continue" : "Lanjutkan"
 },
 "nplurals=1; plural=0;");

@@ -6,6 +6,7 @@ OC.L10N.register(
     "Home" : "ໜ້າຫຼັກ",
     "Notifications" : "ການເເຈ້ງເຕືອນ",
     "Delete" : "ລຶບ",
+    "Edit" : "ແກ້ໄຂ",
     "Close" : "ປິດ",
     "Continue" : "ສືບຕໍ່"
 },

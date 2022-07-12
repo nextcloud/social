@@ -5,9 +5,12 @@
     "Home" : "Tuis",
     "Notifications" : "Kennisgewings",
     "Profile" : "Profiel",
-    "Reply" : "Antwoord",
+    "Post" : "Plaas",
+    "Uploading..." : "Laai tans op...",
     "Delete" : "Skrap",
+    "Edit" : "Wysig",
     "Close" : "Sluit",
+    "Reply" : "Antwoord",
     "Continue" : "Gaan voort"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
