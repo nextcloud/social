@@ -5,9 +5,9 @@
     "Home" : "Inicio",
     "Notifications" : "Notificaciones",
     "Public" : "Público",
-    "Reply" : "Responder",
     "Delete" : "Borrar",
     "Close" : "Cerrar",
+    "Reply" : "Responder",
     "Continue" : "Continuar",
     "More actions" : "Más acciones"
 },"pluralForm" :"nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;"

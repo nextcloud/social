@@ -5,8 +5,10 @@ OC.L10N.register(
     "Finish setup" : "Završite postavke",
     "Home" : "Početna stranica",
     "Notifications" : "Notifikacija",
+    "Post" : "Objava",
     "Public" : "Javno",
     "Delete" : "Obriši",
+    "Edit" : "Izmjeni",
     "Close" : "Zatvori",
     "Continue" : "Nastavi"
 },

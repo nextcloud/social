@@ -6,6 +6,7 @@ OC.L10N.register(
     "Home" : "﻿ಮುಖಪುಟ",
     "Notifications" : "ಸೂಚನೆಗಳು",
     "Delete" : "﻿ಅಳಿಸಿ",
+    "Edit" : "ಸಂಪಾದಿಸು",
     "Close" : "ಮುಚ್ಚು",
     "Continue" : "﻿ಮುಂದುವರಿಸಿ"
 },

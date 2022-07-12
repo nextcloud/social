@@ -7,9 +7,12 @@ OC.L10N.register(
     "Home" : "Tuis",
     "Notifications" : "Kennisgewings",
     "Profile" : "Profiel",
-    "Reply" : "Antwoord",
+    "Post" : "Plaas",
+    "Uploading..." : "Laai tans op...",
     "Delete" : "Skrap",
+    "Edit" : "Wysig",
     "Close" : "Sluit",
+    "Reply" : "Antwoord",
     "Continue" : "Gaan voort"
 },
 "nplurals=2; plural=(n != 1);");

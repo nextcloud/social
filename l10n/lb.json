@@ -4,9 +4,11 @@
     "Finish setup" : "Installatioun ofschléissen",
     "Home" : "Doheem",
     "Notifications" : "Notifikatiounen",
-    "Reply" : "Äntwerten",
+    "Uploading..." : "Lueden erop...",
     "Delete" : "Läschen",
+    "Edit" : "Änneren",
     "Close" : "Zoumaachen",
+    "Reply" : "Äntwerten",
     "Continue" : "Weider"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

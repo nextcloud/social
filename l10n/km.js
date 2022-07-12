@@ -5,9 +5,9 @@ OC.L10N.register(
     "Finish setup" : "បញ្ចប់​ការ​ដំឡើង",
     "Home" : "ទំព័រដើម",
     "Notifications" : "ការ​ជូន​ដំណឹង",
-    "Reply" : "ឆ្លើយតប",
     "Delete" : "លុប",
     "Close" : "បិទ",
+    "Reply" : "ឆ្លើយតប",
     "Continue" : "បន្ត"
 },
 "nplurals=1; plural=0;");

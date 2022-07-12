@@ -6,10 +6,12 @@ OC.L10N.register(
     "Finish setup" : "Terminar configuración",
     "Home" : "Inicio",
     "Notifications" : "Notificaciones",
+    "Post" : "Publicar",
     "Public" : "Público",
-    "Reply" : "Responder",
+    "Uploading..." : "Cargando...",
     "Delete" : "Borrar",
     "Close" : "Cerrar",
+    "Reply" : "Responder",
     "Continue" : "Continuar",
     "More actions" : "Más acciones"
 },

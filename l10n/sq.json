@@ -4,11 +4,14 @@
     "Finish setup" : "Përfundoje rregullimin",
     "Home" : "Kryefaqja",
     "Notifications" : "Njoftimet",
+    "Post" : "Posto",
     "Public" : "Publik",
-    "Reply" : "Përgjigju",
+    "Uploading..." : "Duke ngarkuar...",
     "Delete" : "Fshi",
-    "Hello" : "Përshëndetje",
+    "Edit" : "Përpuno",
     "Close" : "Mbylleni",
+    "Reply" : "Përgjigju",
+    "Hello" : "Përshëndetje",
     "Continue" : "Vazhdo",
     "More actions" : "Më tepër veprime "
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
