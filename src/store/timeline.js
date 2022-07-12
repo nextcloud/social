@@ -52,7 +52,8 @@ const state = {
 	 * It's up to the view to honor this status or not.
 	 * @member {boolean}
 	 */
-	composerDisplayStatus: false
+	composerDisplayStatus: false,
+    draft: null,
 }
 const mutations = {
 	addToTimeline(state, data) {
@@ -144,6 +145,22 @@ const actions = {
 		context.commit('setTimelineType', 'account')
 		context.commit('setAccount', account)
 	},
+	async uploadAttachement(context, formData) {
+		const res = await axios.post(generateUrl('apps/social/api/v1/media', formData, {
+			headers: {
+				'Content-Type': 'multipart/form-data'
+			},
+		})
+		context.commit('addAttachement', {
+			id: res.data.id,
+			description: res.data.description,
+			url: res.data.url,
+			preview_url: res.data.preview_url,
+		})
+	},
+    async uploadAttachement() {
+
+    },
 	post(context, post) {
 		return new Promise((resolve, reject) => {
 			axios.post(generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {

@@ -378,6 +378,10 @@ export default {
 			this.$refs.fileUploadInput.click()
 		},
 		handleFileChange(event) {
+			const formData = new FormData()
+			formData.append('file', event.target.files[0])
+			this.$store.dispatch('uploadAttachement', formData)
+
 			const previewUrl = URL.createObjectURL(event.target.files[0])
 			this.previewUrls.push({
 				description: '',
