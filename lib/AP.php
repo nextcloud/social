@@ -119,7 +119,6 @@ class AP {
 	public SocialAppNotificationInterface $notificationInterface;
 	public ConfigService $configService;
 	public static ?AP $activityPub = null;
-	private SocialAppNotificationInterface $socialAppNotificationInterface;
 
 	public function __construct(
 		AcceptInterface $acceptInterface,
@@ -133,7 +132,7 @@ class AP {
 		ImageInterface $imageInterface,
 		LikeInterface $likeInterface,
 		NoteInterface $noteInterface,
-		SocialAppNotificationInterface $socialAppNotificationInterface,
+		SocialAppNotificationInterface $notificationInterface,
 		PersonInterface $personInterface,
 		ServiceInterface $serviceInterface,
 		GroupInterface $groupInterface,
@@ -156,7 +155,7 @@ class AP {
 		$this->imageInterface = $imageInterface;
 		$this->likeInterface = $likeInterface;
 		$this->noteInterface = $noteInterface;
-		$this->socialAppNotificationInterface = $socialAppNotificationInterface;
+		$this->notificationInterface = $notificationInterface;
 		$this->personInterface = $personInterface;
 		$this->serviceInterface = $serviceInterface;
 		$this->groupInterface = $groupInterface;
