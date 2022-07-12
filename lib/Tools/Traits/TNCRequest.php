@@ -184,7 +184,7 @@ trait TNCRequest {
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
 		} else {
-			$curl = curl_init($url . '?' . $request->getUrlData());
+			$curl = curl_init($url . $request->getQueryString());
 		}
 
 		return $curl;
@@ -249,8 +249,12 @@ trait TNCRequest {
 	 */
 	private function initRequestHeaders($curl, Request $request) {
 		$headers = $request->getHeaders();
+		$headersCurl = [];
+		foreach ($headers as $name => $value) {
+			$headersCurl[] = $name . ': ' . $value;
+		}
 
-		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+		curl_setopt($curl, CURLOPT_HTTPHEADER, $headersCurl);
 	}
 
 
