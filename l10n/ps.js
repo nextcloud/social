@@ -3,6 +3,7 @@ OC.L10N.register(
     {
     "Help" : "مرسته",
     "Home" : "کور",
+    "Post" : "پوسټ",
     "Delete" : "ړنګول",
     "Close" : "بندول",
     "Continue" : "وړاندې تګ"

@@ -4,8 +4,10 @@ OC.L10N.register(
     "Help" : "උපකාර",
     "Home" : "මුල් පිටුව",
     "Notifications" : "දැනුම්දීම්",
+    "Post" : "පළ කරන්න",
     "Public" : "පොදු",
-    "Reply" : "පිළිතුර",
-    "Close" : "වසන්න"
+    "Edit" : "සංස්කරණය",
+    "Close" : "වසන්න",
+    "Reply" : "පිළිතුර"
 },
 "nplurals=2; plural=(n != 1);");

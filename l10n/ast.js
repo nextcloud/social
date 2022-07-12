@@ -6,9 +6,12 @@ OC.L10N.register(
     "Finish setup" : "Finar la configuración ",
     "Home" : "Aniciu",
     "Notifications" : "Notificaciones",
-    "Reply" : "Rempuesta",
+    "Post" : "Espublizar",
+    "Uploading..." : "Xubiendo...",
     "Delete" : "Desaniciar",
+    "Edit" : "Editar",
     "Close" : "Zarrar",
+    "Reply" : "Rempuesta",
     "Continue" : "Siguir",
     "More actions" : "Más aiciones"
 },

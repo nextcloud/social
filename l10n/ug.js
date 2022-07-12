@@ -4,8 +4,10 @@ OC.L10N.register(
     "Help" : "ياردەم",
     "Finish setup" : "تەڭشەك تامام",
     "Home" : "ئۆي",
-    "Reply" : "جاۋاب قايتۇر",
+    "Uploading..." : "يۈكلەۋاتىدۇ…",
     "Delete" : "ئۆچۈر",
-    "Close" : "ياپ"
+    "Edit" : "تەھرىر",
+    "Close" : "ياپ",
+    "Reply" : "جاۋاب قايتۇر"
 },
 "nplurals=2; plural=(n != 1);");

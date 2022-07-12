@@ -5,6 +5,7 @@ OC.L10N.register(
     "Finish setup" : "Setup selesai",
     "Home" : "Rumah",
     "Delete" : "Padam",
+    "Edit" : "Sunting",
     "Close" : "Tutup"
 },
 "nplurals=1; plural=0;");

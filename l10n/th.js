@@ -6,11 +6,14 @@ OC.L10N.register(
     "Finish setup" : "ติดตั้งเลย",
     "Home" : "หน้าหลัก",
     "Notifications" : "การแจ้งเตือน",
+    "Post" : "โพสต์",
     "Public" : "สาธารณะ",
-    "Reply" : "ตอบกลับ",
+    "Uploading..." : "กำลังอัพโหลด...",
     "Delete" : "ลบ",
-    "Hello" : "สวัสดี",
+    "Edit" : "แก้ไข",
     "Close" : "ปิด",
+    "Reply" : "ตอบกลับ",
+    "Hello" : "สวัสดี",
     "Continue" : "ดำเนินการต่อ"
 },
 "nplurals=1; plural=0;");

@@ -7,9 +7,9 @@ OC.L10N.register(
     "Home" : "Inicio",
     "Notifications" : "Notificaciones",
     "Public" : "Público",
-    "Reply" : "Responder",
     "Delete" : "Borrar",
     "Close" : "Cerrar",
+    "Reply" : "Responder",
     "Continue" : "Continuar",
     "More actions" : "Más acciones"
 },
