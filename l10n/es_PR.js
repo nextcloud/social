@@ -10,6 +10,7 @@ OC.L10N.register(
     "Public" : "Público",
     "Uploading..." : "Cargando...",
     "Delete" : "Borrar",
+    "Edit" : "Editar",
     "Close" : "Cerrar",
     "Reply" : "Responder",
     "Continue" : "Continuar",
