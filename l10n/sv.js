@@ -39,6 +39,7 @@ OC.L10N.register(
     "Error while trying to post your message: Could not find any valid recipients." : "Fel vid försök att skicka ditt meddelande: kunde inte hitta några giltiga mottagare.",
     "Uploading..." : "Laddar upp...",
     "Delete" : "Radera",
+    "Edit" : "Ändra",
     "Close" : "Stäng",
     "Unfollow" : "Sluta följa",
     "Follow" : "Följ",

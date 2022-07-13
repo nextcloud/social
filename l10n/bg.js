@@ -43,6 +43,7 @@ OC.L10N.register(
     "Error while trying to post your message: Could not find any valid recipients." : "Грешка при опит за публикуване на вашето съобщение: Невъзможно да се намерят валидни получатели.",
     "Uploading..." : "Качване...",
     "Delete" : "Изтриване",
+    "Edit" : "Редактиране",
     "Close" : "Затваряне",
     "Unfollow" : "Не следвай",
     "Follow" : "Последвай",
