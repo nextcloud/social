@@ -21,6 +21,7 @@ OC.L10N.register(
     "Reply" : "Одговор",
     "Hello" : "Здраво",
     "Continue" : "Продолжи",
-    "User not found" : "Корисникот не е пронајден"
+    "User not found" : "Корисникот не е пронајден",
+    "More actions" : "Повеќе акции"
 },
 "nplurals=2; plural=(n % 10 == 1 && n % 100 != 11) ? 0 : 1;");
