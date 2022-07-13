@@ -44,7 +44,7 @@
 				v-tooltip="t('social', 'Boost')"
 				@click="boost">
 				<template #icon>
-					<Repeat :size="20" :fillColor="isBoosted ? 'blue' : 'black'" />
+					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'black'" />
 				</template>
 			</Button>
 			<Button v-if="!isLiked"
@@ -52,7 +52,7 @@
 				v-tooltip="t('social', 'Like')"
 				@click="like">
 				<template #icon>
-					<Heart :size="20" />
+					<HeartOutline :size="20" />
 				</template>
 			</Button>
 			<Button v-if="isLiked"
@@ -60,7 +60,7 @@
 				v-tooltip="t('social', 'Undo Like')"
 				@click="like">
 				<template #icon>
-					<HeartOutline :size="20" />
+					<Heart :size="20" :fill-color="'var(--color-error)'" />
 				</template>
 			</Button>
 			<Actions>
