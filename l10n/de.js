@@ -43,7 +43,7 @@ OC.L10N.register(
     "Error while trying to post your message: Could not find any valid recipients." : "Fehler beim Versuch Deine Nachricht zu senden: Konnte keinen gültigen Empfänger finden.",
     "Uploading..." : "Lade hoch…",
     "Delete" : "Löschen",
-    "Edit" : "Benötigt keine Übersetzung. Hier wird nur die formelle Übersetzung verwendet (de_DE).",
+    "Edit" : "Bearbeiten",
     "Close" : "Schließen",
     "Unfollow" : "Entfolgen",
     "Follow" : "Folgen",
