@@ -24,7 +24,7 @@ OC.L10N.register(
     "Global timeline" : "Globale Zeitleiste",
     "Following" : "Folge ich",
     "In reply to" : "Als Antwort auf",
-    "Add attachment" : "Benötigt keine Übersetzung. Für Android wird nur die formelle Übersetzung verwendet (de_DE).",
+    "Add attachment" : "Anhang hinzufügen",
     "Add emoji" : "Emoji hinzufügen",
     "Visibility" : "Sichtbarkeit",
     "Post" : "Absenden",
