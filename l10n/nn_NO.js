@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Hjelp",
+    "Open documentation" : "Opne dokumentasjon",
     "Finish setup" : "Fullfør oppsettet",
     "Home" : "Heim",
     "Notifications" : "Meldingar",
