@@ -21,6 +21,7 @@ OC.L10N.register(
     "Global timeline" : "Víðvær tímalína",
     "Following" : "Fylgir",
     "Add attachment" : "Bæta við viðhengi",
+    "Visibility" : "Sýnileiki",
     "Post" : "Senda",
     "Post to followers" : "Senda á fylgjendur",
     "Post publicly" : "Birta opinberlega",
