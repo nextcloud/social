@@ -46,7 +46,9 @@ jobs:
         uses: actions/cache@v3
         with:
           key: cypress-context-${{ github.run_id }}
-          path: /home/runner/work/social
+          path: |
+            /home/runner/work/social
+            /home/runner/.cache/Cypress
 
   cypress:
     runs-on: ubuntu-latest
@@ -65,7 +67,9 @@ jobs:
         uses: actions/cache@v3
         with:
           key: cypress-context-${{ github.run_id }}
-          path: /home/runner/work/social
+          path: |
+            /home/runner/work/social
+            /home/runner/.cache/Cypress
 
       - name: Setup server
         run: |
@@ -88,6 +92,7 @@ jobs:
           # cypress env
           ci-build-id: ${{ github.sha }}-${{ github.run_number }}
           tag: ${{ github.event_name }}
+          install: false
         env:
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           # https://github.com/cypress-io/github-action/issues/124
