@@ -7,6 +7,7 @@ OC.L10N.register(
     "Home" : "Hjem",
     "Notifications" : "Varsler",
     "Add attachment" : "Legg til vedlegg",
+    "Visibility" : "Synlighet",
     "Post" : "Send",
     "Public" : "Offentlig",
     "Uploading..." : "Laster opp …",
