@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\IMimeTypeDetector;
 
 class MediaApiController extends Controller {
@@ -32,7 +33,7 @@ class MediaApiController extends Controller {
 	 */
 	public function uploadMedia(): DataResponse {
 		// TODO
-		return DataResponse([
+		return new DataResponse([
 			'id' => 1,
 			'url' => '',
 			'preview_url' => '',

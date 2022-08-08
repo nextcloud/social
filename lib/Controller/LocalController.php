@@ -112,9 +112,12 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 */
 	public function uploadAttachement(): DataResponse {
-
+		try {
+			throw new \BadMethodCallException('uploadAttachment is not implemented yet');
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
 	}
-
 
 	/**
 	 * Create a new post.
