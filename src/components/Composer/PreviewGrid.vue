@@ -19,7 +19,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 			</div>
 		</div>
 		<div class="preview-grid">
-			<PreviewGridItem v-for="(item, index) in miniatures" :key="index" :preview="item" :index="index" @delete="deletePreview" />
+			<PreviewGridItem v-for="(item, index) in draft.attachements" :key="index" :preview="item" :index="index" />
 		</div>
 	</div>
 </template>
@@ -27,12 +27,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <script>
 import PreviewGridItem from './PreviewGridItem'
 import FileUpload from 'vue-material-design-icons/FileUpload'
+import { mapState } from 'vuex'
 
 export default {
 	name: 'PreviewGrid',
 	components: {
 		PreviewGridItem,
 		FileUpload,
+	},
+	computed: {
+		...mapState({
+			'draft': state => state.timeline.draft,
+		}),
 	},
 	props: {
 		uploadProgress: {
@@ -47,12 +53,6 @@ export default {
 			type: Array,
 			required: true,
 		},
-	},
-	methods: {
-		deletePreview(index) {
-			console.debug("rjeoijreo")
-			this.miniatures.splice(index, 1)
-		}
 	},
 }
 </script>

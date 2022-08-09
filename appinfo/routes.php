@@ -81,6 +81,10 @@ return [
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
+		['name' => 'MediaApi#uploadMedia', 'url' => '/api/v1/media', 'verb' => 'POST'],
+		['name' => 'MediaApi#updateMedia', 'url' => '/api/v1/media/{id}', 'verb' => 'PUT'],
+		['name' => 'MediaApi#deleteMedia', 'url' => '/api/v1/media/{id}', 'verb' => 'DELETE'],
+		['name' => 'MediaApi#getMedia', 'url' => '/media/{shortcode}.{extension}', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController

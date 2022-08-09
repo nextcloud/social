@@ -10,19 +10,22 @@ namespace OCA\Social\Controller;
 use OCA\Social\Entity\MediaAttachment;
 use OCA\Social\Service\AccountFinder;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\DataDownloadResponse;
+use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\DB\ORM\IEntityManager;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\IL10N;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\DataResponse;
 use OCP\Files\IMimeTypeDetector;
 use OCP\Image;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\Util;
+use Psr\Log\LoggerInterface;
 
 class MediaApiController extends Controller {
 
@@ -34,6 +37,18 @@ class MediaApiController extends Controller {
 	private IEntityManager $entityManager;
 	private IURLGenerator $generator;
 
+	public const IMAGE_MIME_TYPES = [
+		'image/png',
+		'image/jpeg',
+		'image/jpg',
+		'image/gif',
+		'image/x-xbitmap',
+		'image/x-ms-bmp',
+		'image/bmp',
+		'image/svg+xml',
+		'image/webp',
+	];
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -43,7 +58,8 @@ class MediaApiController extends Controller {
 		IUserSession $userSession,
 		AccountFinder $accountFinder,
 		IEntityManager $entityManager,
-		IURLGenerator $generator
+		IURLGenerator $generator,
+		LoggerInterface $logger
 	) {
 		parent::__construct($appName, $request);
 		$this->l10n = $l10n;
@@ -53,6 +69,7 @@ class MediaApiController extends Controller {
 		$this->accountFinder = $accountFinder;
 		$this->entityManager = $entityManager;
 		$this->generator = $generator;
+		$this->logger = $logger;
 	}
 
 	/**
@@ -60,7 +77,7 @@ class MediaApiController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 */
-	public function uploadMedia(string $description, string $focus = ''): DataResponse {
+	public function uploadMedia(?string $description, ?string $focus = ''): DataResponse {
 		try {
 			$file = $this->getUploadedFile('file');
 			if (!isset($file['tmp_name'], $file['name'], $file['type'])) {
@@ -90,10 +107,10 @@ class MediaApiController extends Controller {
 				"aspect" => $image->width() /  $image->height(),
 			];
 
-			$attachment = new MediaAttachment();
+			$attachment = MediaAttachment::create();
 			$attachment->setMimetype($file['type']);
 			$attachment->setAccount($account);
-			$attachment->setDescription($description);
+			$attachment->setDescription($description ?? '');
 			$attachment->setMeta($meta);
 			$this->entityManager->persist($attachment);
 			$this->entityManager->flush();
@@ -103,10 +120,39 @@ class MediaApiController extends Controller {
 			} catch (NotFoundException $e) {
 				$folder = $this->appData->newFolder('media-attachments');
 			}
+			assert($attachment->getId() !== '');
 			$folder->newFile($attachment->getId(), $image->data());
 
 			return new DataResponse($attachment->toMastodonApi($this->generator));
 		} catch (\Exception $e) {
+			$this->logger->error($e->getMessage(), ['exception' => $e]);
+			return new DataResponse([
+				  "error" => "Validation failed: File content type is invalid, File is invalid",
+			], 500);
+		}
+	}
+
+	/**
+	 * @NoAdminRequired
+	 */
+	public function updateMedia(string $id, ?string $description, ?string $focus = ''): Response {
+		try {
+			$account = $this->accountFinder->getCurrentAccount($this->userSession->getUser());
+			$attachementRepository = $this->entityManager->getRepository(MediaAttachment::class);
+			$attachement = $attachementRepository->findOneBy([
+				'id' => $id,
+			]);
+			if ($attachement->getAccount()->getId() !== $account->getId()) {
+				throw new NotFoundResponse();
+			}
+
+			$attachement->setDescription($description ?? '');
+			$this->entityManager->persist($attachement);
+			$this->entityManager->flush();
+
+			return new DataResponse($attachement->toMastodonApi($this->generator));
+		} catch (\Exception $e) {
+			$this->logger->error($e->getMessage(), ['exception' => $e]);
 			return new DataResponse([
 				  "error" => "Validation failed: File content type is invalid, File is invalid",
 			], 500);
@@ -150,5 +196,61 @@ class MediaApiController extends Controller {
 			throw new \Exception($error);
 		}
 		return $file;
+	}
+
+	/**
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	public function getMedia(string $shortcode, string $extension): DataDownloadResponse {
+		try {
+			$folder = $this->appData->getFolder('media-attachments');
+		} catch (NotFoundException $e) {
+			$folder = $this->appData->newFolder('media-attachments');
+		}
+		$attachementRepository = $this->entityManager->getRepository(MediaAttachment::class);
+		$attachement = $attachementRepository->findOneBy([
+			'shortcode' => $shortcode,
+		]);
+		$file = $folder->getFile($attachement->getId());
+		return new DataDownloadResponse(
+			$file->getContent(),
+			(string) Http::STATUS_OK,
+			$this->getSecureMimeType($file->getMimeType())
+		);
+	}
+
+	/**
+	 * @NoAdminRequired
+	 */
+	public function deleteMedia(string $id): DataResponse {
+		try {
+			$folder = $this->appData->getFolder('media-attachments');
+		} catch (NotFoundException $e) {
+			$folder = $this->appData->newFolder('media-attachments');
+		}
+		$attachementRepository = $this->entityManager->getRepository(MediaAttachment::class);
+		$attachement = $attachementRepository->findOneBy([
+			'id' => $id,
+		]);
+		$file = $folder->getFile($attachement->getId());
+		$file->delete();
+		$this->entityManager->remove($attachement);
+		$this->entityManager->flush();
+		return new DataResponse(['removed']);
+	}
+
+	/**
+	 * Allow all supported mimetypes
+	 * Use mimetype detector for the other ones
+	 *
+	 * @param string $mimetype
+	 * @return string
+	 */
+	private function getSecureMimeType(string $mimetype): string {
+		if (in_array($mimetype, self::IMAGE_MIME_TYPES)) {
+			return $mimetype;
+		}
+		return $this->mimeTypeDetector->getSecureMimeType($mimetype);
 	}
 }

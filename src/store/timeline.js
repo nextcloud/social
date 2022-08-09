@@ -53,7 +53,9 @@ const state = {
 	 * @member {boolean}
 	 */
 	composerDisplayStatus: false,
-    draft: null,
+	draft: {
+		attachements: []
+	},
 }
 const mutations = {
 	addToTimeline(state, data) {
@@ -112,7 +114,22 @@ const mutations = {
 		if (typeof parentAnnounce.id !== 'undefined') {
 			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
 		}
-	}
+	},
+	addAttachement(state, {id, description, url, preview_url}) {
+		state.draft.attachements.push({id, description, url, preview_url})
+	},
+	updateAttachement(state, {id, description, url, preview_url}) {
+		const index = state.draft.attachements.findIndex(item => {
+			return id === item.id
+		})
+		state.draft.attachements.splice(index, 1, {id, description, url, preview_url})
+	},
+	deleteAttachement(state, {id}) {
+		const index = state.draft.attachements.findIndex(item => {
+			return id === item.id
+		})
+		state.draft.attachements.splice(index, 1)
+	},
 }
 const getters = {
 	getComposerDisplayStatus(state) {
@@ -146,7 +163,7 @@ const actions = {
 		context.commit('setAccount', account)
 	},
 	async uploadAttachement(context, formData) {
-		const res = await axios.post(generateUrl('apps/social/api/v1/media', formData, {
+		const res = await axios.post(generateUrl('apps/social/api/v1/media'), formData, {
 			headers: {
 				'Content-Type': 'multipart/form-data'
 			},
@@ -158,9 +175,23 @@ const actions = {
 			preview_url: res.data.preview_url,
 		})
 	},
-    async uploadAttachement() {
-
-    },
+	async updateAttachement(context, {id, description}) {
+		const res = await axios.put(generateUrl('apps/social/api/v1/media/' + id), {
+			description,
+		})
+		context.commit('updateAttachement', {
+			id: res.data.id,
+			description: res.data.description,
+			url: res.data.url,
+			preview_url: res.data.preview_url,
+		})
+	},
+	async deleteAttachement(context, {id}) {
+		const res = await axios.delete(generateUrl('apps/social/api/v1/media/' + id))
+		context.commit('deleteAttachement', {
+			id: res.data.id,
+		})
+	},
 	post(context, post) {
 		return new Promise((resolve, reject) => {
 			axios.post(generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {

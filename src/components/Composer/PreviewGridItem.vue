@@ -2,7 +2,7 @@
 	<div class="preview-item-wrapper">
 		<div class="preview-item" :style="backgroundStyle">
 			<div class="preview-item__actions">
-				<Button type="tertiary-no-background" @click="$emit('delete', index)">
+				<Button type="tertiary-no-background" @click="deletePreview">
 					<template #icon>
 						<Close :size="16" fillColor="white" />
 					</template>
@@ -25,7 +25,7 @@
 					<label :for="`image-description-${index}`">
 						{{ t('social', 'Describe for the visually impaired') }}
 					</label>
-					<textarea :id="`image-description-${index}`" v-model="preview.description">
+					<textarea :id="`image-description-${index}`" v-model="internalDescription">
 					</textarea>
 					<Button type="primary" @click="closeModal">{{ t('social', 'Close') }}</Button>
 				</div>
@@ -51,14 +51,27 @@ export default {
 	data() {
 		return {
 			modal: false,
+			internalDescription: '',
 		}
 	},
+	mounted() {
+		this.internalDescription = this.preview.description
+	},
 	methods: {
+		deletePreview() {
+			this.$store.dispatch('deleteAttachement', {
+				id: this.preview.id,
+			})
+		},
 		showModal() {
 			this.modal = true
 		},
 		closeModal() {
 			this.modal = false
+			this.$store.dispatch('updateAttachement', {
+				id: this.preview.id,
+				description: this.internalDescription,
+			})
 		}
 	},
 	props: {
@@ -74,7 +87,7 @@ export default {
 	computed: {
 		backgroundStyle() {
 			return {
-				backgroundImage: `url("${this.preview.url}")`,
+				backgroundImage: `url("${this.preview.preview_url}")`,
 			}
 		},
 	},

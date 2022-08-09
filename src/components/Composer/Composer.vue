@@ -381,13 +381,6 @@ export default {
 			const formData = new FormData()
 			formData.append('file', event.target.files[0])
 			this.$store.dispatch('uploadAttachement', formData)
-
-			const previewUrl = URL.createObjectURL(event.target.files[0])
-			this.previewUrls.push({
-				description: '',
-				url: previewUrl,
-				result: event.target.files[0],
-			})
 		},
 		removeAttachment(idx) {
 			this.previewUrls.splice(idx, 1)

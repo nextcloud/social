@@ -46,7 +46,7 @@ class MediaAttachment  {
 	 * @ORM\Column(type="bigint")
 	 * @ORM\GeneratedValue
 	 */
-	private string $id = '-1';
+	private ?string $id = '-1';
 
 	/**
 	 * @ORM\ManyToOne
@@ -81,7 +81,7 @@ class MediaAttachment  {
 	/**
 	 * @ORM\Column(type="text")
 	 */
-	private ?string $description = null;
+	private string $description = '';
 
 	/**
 	 * @ORM\Column
@@ -101,18 +101,27 @@ class MediaAttachment  {
 	/**
 	 * @ORM\Column
 	 */
-	private ?string $blurhash = null;
+	private string $blurhash = '';
 
 	public function __construct() {
 		$this->updatedAt = new \DateTime();
 		$this->createdAt = new \DateTime();
+		$this->meta = [];
+	}
+
+	static public function create(): self {
+		$attachement = new MediaAttachment();
+		$length = 14;
+		$length = ($length < 4) ? 4 : $length;
+		$attachement->setShortcode(bin2hex(random_bytes(($length - ($length % 2)) / 2)));
+		return $attachement;
 	}
 
 	public function getId(): string {
 		return $this->id;
 	}
 
-	public function setId(string $id): void {
+	public function setId(?string $id): void {
 		$this->id = $id;
 	}
 
