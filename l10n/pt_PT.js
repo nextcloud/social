@@ -13,6 +13,7 @@ OC.L10N.register(
     "Local timeline" : "Linha temporal local",
     "Global timeline" : "Linha temporal global",
     "Following" : "A seguir",
+    "Visibility" : "Visibilidade",
     "Post" : "Publicar",
     "Post to followers" : "Publicar para seguidores",
     "Post publicly" : "Publicar publicamente",
