@@ -77,7 +77,7 @@ OC.L10N.register(
     "Like" : "Lajk",
     "Undo Like" : "Vzít zpět označení „To se mi líbí“",
     "Follow on Nextcloud Social" : "Sledovat na Nexcloud Social",
-    "Hello" : "Zdravíme",
+    "Hello" : "Dobrý den",
     "Please confirm that you want to follow this account:" : "Potvrďte, že opravdu chcete sledovat tento účet:",
     "You are following this account" : "Sledujete tento účet",
     "You are going to follow:" : "Chystáte se sledovat:",
