@@ -1,0 +1,10 @@
+{ "translations": {
+    "Help" : "Aduya",
+    "Open documentation" : "Ubrir documentazión",
+    "Home" : "Casa",
+    "Notifications" : "Notificazions",
+    "Delete" : "Borrar",
+    "Close" : "Zarrar",
+    "Continue" : "Continar"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}
