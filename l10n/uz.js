@@ -1,12 +1,13 @@
 OC.L10N.register(
     "social",
     {
-    "Help" : "Yordam",
-    "Finish setup" : "O'rnatishni tugating",
-    "Home" : "Bosh sahifa",
-    "Notifications" : "Bildirishnomalar",
-    "Delete" : "O'chir",
-    "Close" : "yopish",
-    "Continue" : "Davom etish"
+    "Help" : "Help",
+    "Finish setup" : "Finish setup",
+    "Home" : "Home",
+    "Notifications" : "Notifications",
+    "Delete" : "Delete",
+    "Close" : "Close",
+    "Hello" : "Hello",
+    "Continue" : "Continue"
 },
 "nplurals=1; plural=0;");
