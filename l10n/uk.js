@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Завершити встановлення",
     "Home" : "Домашній",
     "Notifications" : "Сповіщення",
+    "Profile" : "Профіль",
     "In reply to" : "У відповідь",
     "Add attachment" : "Додати вкладення",
     "Post" : "Розмістити",
