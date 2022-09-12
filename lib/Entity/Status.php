@@ -11,10 +11,12 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\Mapping as ORM;
+use OCA\Social\Service\ActivityPub;
 
 /**
  * @ORM\Entity
  * @ORM\Table(name="social_status")
+ * @ORM\HasLifecycleCallbacks
  */
 class Status {
 	const STATUS_PUBLIC = "public";
@@ -147,6 +149,17 @@ class Status {
 		$this->mentions = new ArrayCollection();
 		$this->createdAt = new \DateTime();
 		$this->updatedAt = new \DateTime();
+	}
+
+	/**
+	 * @ORM\PostPersist
+	 */
+	public function generateUri(): void {
+		if ($this->uri !== null) {
+			return;
+		}
+
+		$this->uri = ActivityPub\TagManager::getInstance()->uriFor($this);
 	}
 
 	public function getId(): string {
@@ -358,5 +371,31 @@ class Status {
 
 	public function isReblog(): bool {
 		return $this->reblogOf !== null;
+	}
+
+	public function toMastodonApi(): array {
+		return [
+			'id' => $this->id,
+			'created_at' => $this->createdAt->format(\DateTimeInterface::ISO8601),
+			'in_reply_to_id' => $this->inReplyTo ? $this->inReplyTo->getId() : null,
+			'in_reply_to_account_id' => $this->inReplyTo ? $this->inReplyTo->getAccount()->getId() : null,
+			'sensitive' => $this->sensitive,
+			'spoiler_text' => $this->spoilerText,
+			'visibility' => $this->visibility,
+			'language' => $this->language,
+			'uri' => $this->uri,
+			'url' => $this->url,
+			'replies_count' => 0,
+			'reblogs_count' => 0,
+			'favourites_count' => 0,
+			'favourited' => false,
+			'reblogged' => false,
+			'muted' => false,
+			'bookmarked' => false,
+			'content' => $this->text,
+			'reblog' => $this->reblogOf,
+			'application' => $this->application ? $this->application->toMastodonApi() : null,
+			'account' => $this->account->toMastodonApi(),
+		];
 	}
 }

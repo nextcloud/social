@@ -38,7 +38,7 @@ class PostServiceStatus {
 	/**
 	 * @psalm-param array{?text: string, ?spoilerText: string, ?sensitive: bool, ?visibility: Status::STATUS_*} $options
 	 */
-	public function create(Account $account, array $options): void {
+	public function create(Account $account, array $options): Status {
 		$this->checkIdempotenceDuplicate($account, $options);
 
 		$status = new Status();
@@ -61,12 +61,14 @@ class PostServiceStatus {
 		$this->mentionsService->run($status);
 
 		// Save status
+		$this->entityManager->persist($status);
 		$this->entityManager->persist($account);
 		$this->entityManager->flush();
 
 		$this->deliveryService->run($status);
 
 		$this->updateIdempotency($account, $status);
+		return $status;
 	}
 
 	private function idempotencyKey(Account $account, string $idempotency): string {

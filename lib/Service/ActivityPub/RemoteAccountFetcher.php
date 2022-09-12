@@ -24,9 +24,9 @@ class RemoteAccountFetcher {
 	private IRequest $request;
 	private TagManager $tagManager;
 
-	public function __construct(IRequest $request, TagManager $tagManager) {
+	public function __construct(IRequest $request) {
 		$this->request = $request;
-		$this->tagManager = $tagManager;
+		$this->tagManager = TagManager::getInstance();
 	}
 
 	public function fetch(?string $uri, RemoteAccountFetchOption $fetchOption): ?Account {

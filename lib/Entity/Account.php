@@ -567,4 +567,14 @@ class Account {
 		$this->followRequest->add($followRequest);
 		return $followRequest;
 	}
+
+	public function toMastodonApi(): array {
+		return [
+			'id' => $this->id,
+			'username' => $this->userName,
+			'acct' => $this->userName,
+			'display_name' => $this->name ?? $this->userName,
+			// TODO more
+		];
+	}
 }

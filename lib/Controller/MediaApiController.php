@@ -36,6 +36,7 @@ class MediaApiController extends Controller {
 	private AccountFinder $accountFinder;
 	private IEntityManager $entityManager;
 	private IURLGenerator $generator;
+	private LoggerInterface $logger;
 
 	public const IMAGE_MIME_TYPES = [
 		'image/png',

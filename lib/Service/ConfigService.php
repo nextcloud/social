@@ -307,19 +307,8 @@ class ConfigService {
 	 * @throws SocialAppConfigException
 	 */
 	public function getCloudUrl(bool $noPhp = false) {
-		$address = $this->getAppValue(self::CLOUD_URL);
-		if ($address === '') {
-			throw new SocialAppConfigException();
-		}
-
-		if ($noPhp) {
-			$pos = strpos($address, '/index.php');
-			if ($pos) {
-				$address = substr($address, 0, $pos);
-			}
-		}
-
-		return $this->withoutEndSlash($address, false, false);
+		$url = $this->urlGenerator->getAbsoluteURL('/');
+		return rtrim($url, '/');
 	}
 
 	/**
