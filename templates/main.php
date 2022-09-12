@@ -22,5 +22,4 @@
  *
  */
 
-script('social', 'social');
-style('social', 'style');
+\OCP\Util::addScript('social', 'social-social');
