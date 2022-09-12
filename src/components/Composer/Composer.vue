@@ -44,11 +44,17 @@
 			</div>
 		</div>
 		<div v-if="replyTo" class="reply-to">
-			<p>
+			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
 				<actor-avatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
-				<a class="icon-close" @click="closeReply()" />
+				<NcButton type="tertiary" class="close-button"
+					@click="closeReply"
+					:aria-label="t('social', 'Close reply')">
+					<template #icon>
+						<Close :size="20" />
+					</template>
+				</NcButton>
 			</p>
 			<div class="reply-to-preview">
 				{{ replyTo.content }}
@@ -75,27 +81,27 @@
 				</NcButton>
 
 				<div class="new-post-form__emoji-picker">
-					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
+					<NcEmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
 						:container="container"
 						@select="insert">
-						<Button type="tertiary"
+						<NcButton type="tertiary"
 							:aria-haspopup="true"
 							:aria-label="t('social', 'Add emoji')"
 							v-tooltip="t('social', 'Add emoji')">
 							<template #icon>
 								<EmoticonOutline :size="22" decorative title="" />
 							</template>
-						</Button>
-					</EmojiPicker>
+						</NcButton>
+					</NcEmojiPicker>
 				</div>
 
 				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
-					<Button type="tertiary"
+					<NcButton type="tertiary"
 					:class="currentVisibilityIconClass"
 					@click.prevent="togglePopoverMenu"
 					v-tooltip="t('social', 'Visibility')" />
 					<div :class="{open: menuOpened}" class="popovermenu">
-						<popover-menu :menu="visibilityPopover" />
+						<NcPopoverMenu :menu="visibilityPopover" />
 					</div>
 				</div>
 
@@ -116,6 +122,7 @@
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import Send from 'vue-material-design-icons/Send.vue'
+import Close from 'vue-material-design-icons/Close.vue'
 import FileUpload from 'vue-material-design-icons/FileUpload.vue'
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
@@ -135,13 +142,14 @@ export default {
 	components: {
 		NcPopoverMenu,
 		NcAvatar,
-		NcActorAvatar,
 		NcEmojiPicker,
 		NcButton,
+		ActorAvatar,
 		FileUpload,
 		VueTribute,
 		EmoticonOutline,
 		Send,
+		Close,
 		PreviewGrid,
 	},
 	directives: {
@@ -566,21 +574,27 @@ export default {
 
 	.reply-to {
 		background-image: url(../../../img/reply.svg);
-		background-position: 5px 5px;
+		background-position: 8px 12px;
 		background-repeat: no-repeat;
 		margin-left: 39px;
 		margin-bottom: 20px;
 		overflow: hidden;
-		background-color: #fafafa;
-		border-radius: 3px;
+		background-color: var(--color-background-hover);
+		border-radius: var(--border-radius-large);
 		padding: 5px;
 		padding-left: 30px;
 
-		.icon-close {
-			display: inline-block;
-			float: right;
+		.reply-info {
+			display: flex;
+			align-items: center;
+		}
+		.close-button {
+			margin-left: auto;
 			opacity: .7;
-			padding: 3px;
+			min-width: 30px;
+			min-height: 30px;
+			height: 30px;
+			width: 30px !important;
 		}
 	}
 

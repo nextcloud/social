@@ -22,8 +22,8 @@
 
 <template>
 	<NcAvatar v-if="actor.local" :size="size" :user="actor.preferredUsername"
-		:display-name="actor.account" :disable-tooltip="true" />
-	<NcAvatar v-else :size="size" :url="avatarUrl"
+		:display-name="actor.account" :disable-tooltip="true" :showUserStatus="false" />
+	<NcAvatar v-else :size="size" :url="avatarUrl" :showUserStatus="false"
 		:disable-tooltip="true" />
 </template>
 

@@ -1,12 +1,14 @@
 <template>
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<NcAppNavigation v-if="!serverData.public">
-			<NcAppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
-				:title="item.title" :exact="true">
-				<template #icon>
-					<component :is="item.icon" />
-				</template>
-			</NcAppNavigationItem>
+			<template #list>
+				<NcAppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
+					:title="item.title" :exact="true">
+					<template #icon>
+						<component :is="item.icon" />
+					</template>
+				</NcAppNavigationItem>
+			</template>
 		</NcAppNavigation>
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">

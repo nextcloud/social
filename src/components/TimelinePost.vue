@@ -99,9 +99,9 @@ export default {
 	components: {
 		PostAttachment,
 		MessageContent,
-		Actions,
-		ActionButton,
-		Button,
+		NcActions,
+		NcActionButton,
+		NcButton,
 		Repeat,
 		Reply,
 		Heart,
