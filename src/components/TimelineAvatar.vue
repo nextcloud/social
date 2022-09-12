@@ -1,25 +1,25 @@
 <template>
 	<div v-if="item.actor_info" class="post-avatar">
-		<Avatar v-if="item.local"
+		<NcAvatar v-if="item.local"
 			class="messages__avatar__icon"
 			:show-user-status="false"
 			menu-position="left"
 			:user="userTest"
 			:display-name="item.actor_info.account"
 			:disable-tooltip="true" />
-		<Avatar v-else
+		<NcAvatar v-else
 			:url="avatarUrl"
 			:disable-tooltip="true" />
 	</div>
 </template>
 
 <script>
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 
 export default {
 	name: 'TimelineAvatar',
 	components: {
-		Avatar,
+		NcAvatar,
 	},
 	props: {
 		item: {

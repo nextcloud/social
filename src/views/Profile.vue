@@ -25,7 +25,15 @@
 		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
-		<empty-content v-if="accountLoaded && !accountInfo" :item="emptyContentData" />
+		<NcEmptyContent v-if="accountLoaded && !accountInfo"
+			:title="t('social', 'User not found')"
+			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: this.uid })">
+			<template #icon>
+				<img :src="emptyContentImage"
+					class="icon-illustration"
+					alt="">
+			</template>
+		</NcEmptyContent>
 	</div>
 </template>
 
@@ -39,14 +47,15 @@
 
 <script>
 import ProfileInfo from './../components/ProfileInfo.vue'
-import EmptyContent from '../components/EmptyContent.vue'
-import accountMixins from '../mixins/accountMixins'
-import serverData from '../mixins/serverData'
+import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import accountMixins from '../mixins/accountMixins.js'
+import serverData from '../mixins/serverData.js'
+import { generateFilePath } from '@nextcloud/router'
 
 export default {
 	name: 'Profile',
 	components: {
-		EmptyContent,
+		NcEmptyContent,
 		ProfileInfo
 	},
 	mixins: [
@@ -63,13 +72,9 @@ export default {
 		timeline: function() {
 			return this.$store.getters.getTimeline
 		},
-		emptyContentData() {
-			return {
-				image: 'img/undraw/profile.svg',
-				title: t('social', 'User not found'),
-				description: t('social', 'Sorry, we could not find the account of {userId}', { userId: this.uid })
-			}
-		}
+		emptyContentImage() {
+			return generateFilePath('social', 'img', 'undraw/profile.svg')
+		},
 	},
 	// Start fetching account information before mounting the component
 	beforeMount() {

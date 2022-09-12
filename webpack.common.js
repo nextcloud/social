@@ -1,56 +1,12 @@
+// SPDX-FileCopyrigthText: 2022 Carl Schwan <carl@carlschwan.eu>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 const path = require('path');
-const VueLoaderPlugin = require('vue-loader/lib/plugin');
+const webpackConfig = require('@nextcloud/webpack-vue-config')
 
+webpackConfig.entry = {
+	social: path.join(__dirname, 'src', 'main.js'),
+	ostatus: path.join(__dirname, 'src', 'ostatus.js'),
+}
 
-module.exports = {
-	entry: {
-		social: path.join(__dirname, 'src', 'main.js'),
-		ostatus: path.join(__dirname, 'src', 'ostatus.js'),
-	},
-	output: {
-		path: path.resolve(__dirname, './js'),
-		publicPath: '/js/',
-		filename: '[name].js',
-		chunkFilename: '[name].[chunkhash].js'
-	},
-	module: {
-		rules: [
-			{
-				test: /\.css$/,
-				use: [
-					'style-loader',
-					'css-loader'
-				]
-			},
-			{
-				test: /\.scss$/,
-				use: [
-					'style-loader',
-					'css-loader',
-					'sass-loader'
-				]
-			},
-			{
-				test: /\.vue$/,
-				loader: 'vue-loader'
-			},
-			{
-				test: /\.js$/,
-				loader: 'babel-loader',
-				exclude: /node_modules/
-			},
-			{
-				test: /\.(png|jpg|gif|svg)$/,
-				loader: 'file-loader',
-				options: {
-					name: '[name].[ext]?[hash]'
-				}
-			}
-		]
-	},
-	plugins: [new VueLoaderPlugin()],
-	resolve: {
-		extensions: ['*', '.js', '.vue'],
-		symlinks: false
-	}
-};
+module.exports = webpackConfig

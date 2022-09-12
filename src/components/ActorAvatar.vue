@@ -21,20 +21,20 @@
   -->
 
 <template>
-	<avatar v-if="actor.local" :size="size" :user="actor.preferredUsername"
+	<NcAvatar v-if="actor.local" :size="size" :user="actor.preferredUsername"
 		:display-name="actor.account" :disable-tooltip="true" />
-	<avatar v-else :size="size" :url="avatarUrl"
+	<NcAvatar v-else :size="size" :url="avatarUrl"
 		:disable-tooltip="true" />
 </template>
 
 <script>
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'ActorAvatar',
 	components: {
-		Avatar
+		NcAvatar
 	},
 	props: {
 		actor: { type: Object, default: () => {} },

@@ -2,51 +2,51 @@
 	<div class="preview-item-wrapper">
 		<div class="preview-item" :style="backgroundStyle">
 			<div class="preview-item__actions">
-				<Button type="tertiary-no-background" @click="$emit('delete', index)">
+				<NcButton type="tertiary-no-background" @click="$emit('delete', index)">
 					<template #icon>
 						<Close :size="16" fillColor="white" />
 					</template>
 					<span>{{ t('social', 'Delete') }}</span>
-				</Button>
-				<Button type="tertiary-no-background" @click="showModal">
+				</NcButton>
+				<NcButton type="tertiary-no-background" @click="showModal">
 					<template #icon>
 						<Edit :size="16" fillColor="white" />
 					</template>
 					<span>{{ t('social', 'Edit') }}</span>
-				</Button>
+				</NcButton>
 			</div>
 
 			<div class="description-warning" v-if="preview.description.length === 0">
 				{{ t('social', 'No description added') }}
 			</div>
 
-			<Modal v-if="modal" @close="closeModal" size="small">
+			<NcModal v-if="modal" @close="closeModal" size="small">
 				<div class="modal__content">
 					<label :for="`image-description-${index}`">
 						{{ t('social', 'Describe for the visually impaired') }}
 					</label>
 					<textarea :id="`image-description-${index}`" v-model="preview.description">
 					</textarea>
-					<Button type="primary" @click="closeModal">{{ t('social', 'Close') }}</Button>
+					<NcButton type="primary" @click="closeModal">{{ t('social', 'Close') }}</NcButton>
 				</div>
-			</Modal>
+			</NcModal>
 		</div>
 	</div>
 </template>
 
 <script>
-import Close from 'vue-material-design-icons/Close'
-import Edit from 'vue-material-design-icons/Pencil'
-import Button from '@nextcloud/vue/dist/Components/Button'
-import Modal from '@nextcloud/vue/dist/Components/Modal'
+import Close from 'vue-material-design-icons/Close.vue'
+import Edit from 'vue-material-design-icons/Pencil.vue'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
 
 export default {
 	name: 'PreviewGridItem',
 	components: {
 		Close,
 		Edit,
-		Button,
-		Modal,
+		NcButton,
+		NcModal,
 	},
 	data() {
 		return {

@@ -93,8 +93,8 @@
 
 <script>
 import Composer from './../components/Composer/Composer.vue'
-import CurrentUserMixin from './../mixins/currentUserMixin'
-import follow from './../mixins/follow'
+import CurrentUserMixin from './../mixins/currentUserMixin.js'
+import follow from './../mixins/follow.js'
 import TimelineList from './../components/TimelineList.vue'
 
 export default {

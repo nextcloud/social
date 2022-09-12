@@ -25,9 +25,9 @@ import Composer from '../components/Composer/Composer.vue'
 import ProfileInfo from '../components/ProfileInfo.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
-import currentUserMixin from '../mixins/currentUserMixin'
-import accountMixins from '../mixins/accountMixins'
-import serverData from '../mixins/serverData'
+import currentUserMixin from '../mixins/currentUserMixin.js'
+import accountMixins from '../mixins/accountMixins.js'
+import serverData from '../mixins/serverData.js'
 import { loadState } from '@nextcloud/initial-state'
 
 export default {

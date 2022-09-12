@@ -134,7 +134,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 
 	public function exprLimitToDBField(
 		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = ''
-	): IQueryFunction;
+	): string;
 
 	public function limitToDBFieldArray(
 		string $field, array $values, bool $cs = true, string $alias = ''
@@ -191,7 +191,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @param int $value
 	 * @param string $alias
 	 */
-	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = ''): IQueryFunction;
+	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = ''): string;
 
 
 	/**

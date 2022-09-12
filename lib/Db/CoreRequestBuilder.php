@@ -584,7 +584,7 @@ class CoreRequestBuilder {
 	protected function exprLimitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
 		string $alias = ''
-	): IQueryFunction {
+	): string {
 		$expr = $qb->expr();
 
 		$pf = '';
@@ -618,7 +618,7 @@ class CoreRequestBuilder {
 
 	protected function exprLimitToDBFieldInt(
 		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
-	): IQueryFunction {
+	): string {
 		$expr = $qb->expr();
 
 		$pf = '';

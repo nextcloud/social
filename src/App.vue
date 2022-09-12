@@ -1,14 +1,14 @@
 <template>
-	<Content v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
-		<AppNavigation v-if="!serverData.public">
-			<AppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
+	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
+		<NcAppNavigation v-if="!serverData.public">
+			<NcAppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
 				:title="item.title" :exact="true">
 				<template #icon>
 					<component :is="item.icon" />
 				</template>
-			</AppNavigationItem>
-		</AppNavigation>
-		<AppContent>
+			</NcAppNavigationItem>
+		</NcAppNavigation>
+		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
 					{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
@@ -24,10 +24,10 @@
 			</div>
 			<Search v-if="searchTerm !== ''" :term="searchTerm" />
 			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
-		</AppContent>
-	</Content>
-	<Content v-else app-name="social">
-		<AppContent v-if="serverData.isAdmin" class="setup">
+		</NcAppContent>
+	</NcContent>
+	<NcContent v-else app-name="social">
+		<NcAppContent v-if="serverData.isAdmin" class="setup">
 			<h2>{{ t('social', 'Social app setup') }}</h2>
 			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
@@ -55,47 +55,18 @@
 					</p>
 				</template>
 			</form>
-		</AppContent>
-		<AppContent v-else class="setup">
+		</NcAppContent>
+		<NcAppContent v-else class="setup">
 			<p>{{ t('social', 'The Social app needs to be set up by the server administrator.') }}</p>
-		</AppContent>
-	</Content>
+		</NcAppContent>
+	</NcContent>
 </template>
 
-<style scoped>
-	#app-content-vue .social__wrapper {
-		padding: 15px;
-		max-width: 630px;
-		margin: auto;
-	}
-
-	.setup {
-		margin: 0 auto !important;
-		padding: 15px;
-		max-width: 630px;
-	}
-
-	.setup input[type=url] {
-		width: 300px;
-		max-width: 100%;
-	}
-
-	#social-spacer a:hover,
-	#social-spacer a:focus {
-		border: none !important;
-	}
-
-	a.external_link {
-		text-decoration: underline;
-	}
-
-</style>
-
 <script>
-import Content from '@nextcloud/vue/dist/Components/Content'
-import AppContent from '@nextcloud/vue/dist/Components/AppContent'
-import AppNavigation from '@nextcloud/vue/dist/Components/AppNavigation'
-import AppNavigationItem from '@nextcloud/vue/dist/Components/AppNavigationItem'
+import NcContent from '@nextcloud/vue/dist/Components/NcContent.js'
+import NcAppContent from '@nextcloud/vue/dist/Components/NcAppContent.js'
+import NcAppNavigation from '@nextcloud/vue/dist/Components/NcAppNavigation.js'
+import NcAppNavigationItem from '@nextcloud/vue/dist/Components/NcAppNavigationItem.js'
 
 import Home from 'vue-material-design-icons/Home.vue'
 import CommentAccount from 'vue-material-design-icons/CommentAccount.vue'
@@ -107,17 +78,17 @@ import Earth from 'vue-material-design-icons/Earth.vue'
 
 import axios from '@nextcloud/axios'
 import Search from './components/Search.vue'
-import currentuserMixin from './mixins/currentUserMixin'
+import currentuserMixin from './mixins/currentUserMixin.js'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'App',
 	components: {
-		Content,
-		AppContent,
-		AppNavigation,
-		AppNavigationItem,
+		NcContent,
+		NcAppContent,
+		NcAppNavigation,
+		NcAppNavigationItem,
 		Search,
 	},
 	mixins: [currentuserMixin],
@@ -258,3 +229,32 @@ export default {
 	}
 }
 </script>
+
+<style scoped>
+	#app-content-vue .social__wrapper {
+		padding: 15px;
+		max-width: 630px;
+		margin: auto;
+	}
+
+	.setup {
+		margin: 0 auto !important;
+		padding: 15px;
+		max-width: 630px;
+	}
+
+	.setup input[type=url] {
+		width: 300px;
+		max-width: 100%;
+	}
+
+	#social-spacer a:hover,
+	#social-spacer a:focus {
+		border: none !important;
+	}
+
+	a.external_link {
+		text-decoration: underline;
+	}
+
+</style>

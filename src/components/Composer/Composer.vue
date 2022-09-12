@@ -32,7 +32,7 @@
 			aria-hidden="true"
 			class="hidden-visually">
 		<div class="new-post-author">
-			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
+			<NcAvatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
 				:size="32" />
 			<div class="post-author">
 				<span class="post-author-name">
@@ -65,14 +65,14 @@
 			<PreviewGrid :uploading="false" :uploadProgress="0.4" :miniatures="previewUrls" />
 
 			<div class="options">
-				<Button type="tertiary"
+				<NcButton type="tertiary"
 					@click.prevent="clickImportInput"
 					:aria-label="t('social', 'Add attachment')"
 					v-tooltip="t('social', 'Add attachment')">
 					<template #icon>
 						<FileUpload :size="22" decorative title="" />
 					</template>
-				</Button>
+				</NcButton>
 
 				<div class="new-post-form__emoji-picker">
 					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
@@ -100,13 +100,13 @@
 				</div>
 
 				<div class="emptySpace" />
-				<Button :value="currentVisibilityPostLabel" :disabled="!canPost" type="primary"
+				<NcButton :value="currentVisibilityPostLabel" :disabled="!canPost" type="primary"
 					@click.prevent="createPost">
 					<template #icon>
 						<Send title="" :size="22" decorative />
 					</template>
 					<template>{{ postTo }}</template>
-				</button>
+				</NcButton>
 			</div>
 		</form>
 	</div>
@@ -114,33 +114,33 @@
 
 <script>
 
-import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline'
-import Send from 'vue-material-design-icons/Send'
-import FileUpload from 'vue-material-design-icons/FileUpload'
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
-import Button from '@nextcloud/vue/dist/Components/Button'
-import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
-import EmojiPicker from '@nextcloud/vue/dist/Components/EmojiPicker'
+import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
+import Send from 'vue-material-design-icons/Send.vue'
+import FileUpload from 'vue-material-design-icons/FileUpload.vue'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcPopoverMenu from '@nextcloud/vue/dist/Components/NcPopoverMenu.js'
+import NcEmojiPicker from '@nextcloud/vue/dist/Components/NcEmojiPicker.js'
 import VueTribute from 'vue-tribute'
 import he from 'he'
-import CurrentUserMixin from '../../mixins/currentUserMixin'
-import FocusOnCreate from '../../directives/focusOnCreate'
+import CurrentUserMixin from '../../mixins/currentUserMixin.js'
+import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
-import PreviewGrid from './PreviewGrid'
+import PreviewGrid from './PreviewGrid.vue'
 
 export default {
 	name: 'Composer',
 	components: {
-		PopoverMenu,
-		Avatar,
+		NcPopoverMenu,
+		NcAvatar,
+		NcActorAvatar,
+		NcEmojiPicker,
+		NcButton,
 		FileUpload,
-		ActorAvatar,
-		EmojiPicker,
 		VueTribute,
 		EmoticonOutline,
-		Button,
 		Send,
 		PreviewGrid,
 	},

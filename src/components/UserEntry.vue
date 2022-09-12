@@ -24,9 +24,9 @@
 	<div v-if="item" class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
-				<avatar v-if="item.local" :size="32" :user="item.preferredUsername"
+				<NcAvatar v-if="item.local" :size="32" :user="item.preferredUsername"
 					:disable-tooltip="true" />
-				<avatar v-else :url="avatarUrl" />
+				<NcAvatar v-else :url="avatarUrl" />
 			</div>
 			<div class="user-details">
 				<router-link v-if="!serverData.public" :to="{ name: 'profile', params: { account: item.local ? item.preferredUsername : item.account }}">
@@ -55,9 +55,9 @@
 </template>
 
 <script>
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
-import follow from '../mixins/follow'
-import currentUser from '../mixins/currentUserMixin'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import follow from '../mixins/follow.js'
+import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
 import { generateUrl } from '@nextcloud/router'
 
@@ -65,7 +65,7 @@ export default {
 	name: 'UserEntry',
 	components: {
 		FollowButton,
-		Avatar
+		NcAvatar,
 	},
 	mixins: [
 		follow,

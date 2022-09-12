@@ -33,43 +33,43 @@
 			<post-attachment :attachments="item.attachment" />
 		</div>
 		<div v-if="this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<Button type="tertiary-no-background"
+			<NcButton type="tertiary-no-background"
 				v-tooltip="t('social', 'Reply')"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
 				</template>
-			</Button>
-			<Button type="tertiary-no-background"
+			</NcButton>
+			<NcButton type="tertiary-no-background"
 				v-tooltip="t('social', 'Boost')"
 				@click="boost">
 				<template #icon>
 					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'black'" />
 				</template>
-			</Button>
-			<Button v-if="!isLiked"
+			</NcButton>
+			<NcButton v-if="!isLiked"
 				type="tertiary-no-background"
 				v-tooltip="t('social', 'Like')"
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
 				</template>
-			</Button>
-			<Button v-if="isLiked"
+			</NcButton>
+			<NcButton v-if="isLiked"
 				type="tertiary-no-background"
 				v-tooltip="t('social', 'Undo Like')"
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
 				</template>
-			</Button>
-			<Actions>
-				<ActionButton v-if="item.actor_info.account === cloudId"
+			</NcButton>
+			<NcActions>
+				<NcActionButton v-if="item.actor_info.account === cloudId"
 					@click="remove()"
 					icon="icon-delete">
 					{{ t('social', 'Delete') }}
-				</ActionButton>
-			</Actions>
+				</NcActionButton>
+			</NcActions>
 		</div>
 	</div>
 </template>
@@ -80,9 +80,9 @@ import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment.vue'
-import Button from '@nextcloud/vue/dist/Components/Button'
-import Actions from '@nextcloud/vue/dist/Components/Actions'
-import ActionButton from '@nextcloud/vue/dist/Components/ActionButton'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
+import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'

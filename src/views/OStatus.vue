@@ -7,7 +7,7 @@
 				{{ t('social', 'Please confirm that you want to follow this account:') }}
 			</p>
 
-			<avatar :url="avatarUrl" :disable-tooltip="true" :size="128" />
+			<NcAvatar :url="avatarUrl" :disable-tooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form v-if="!isFollowing" @submit.prevent="follow">
 				<input type="submit" class="primary" value="Follow">
@@ -18,15 +18,15 @@
 			</p>
 
 			<div v-if="isFollowing">
-				<button @click="close">
+				<NcButton @click="close">
 					{{ t('social', 'Close') }}
-				</button>
+				</NcButton>
 			</div>
 		</div>
 		<!-- Some unauthenticated user wants to follow a local account -->
 		<div v-if="serverData.local">
 			<p>{{ t('social', 'You are going to follow:') }}</p>
-			<avatar :user="serverData.local" :disable-tooltip="true" :size="128" />
+			<NcAvatar :user="serverData.local" :disable-tooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form @submit.prevent="followRemote">
 				<input v-model="remote" type="text" :placeholder="t('social', 'name@domain of your federation account')">
@@ -61,17 +61,17 @@
 </style>
 
 <script>
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import axios from '@nextcloud/axios'
-import accountMixins from '../mixins/accountMixins'
-import currentuserMixin from '../mixins/currentUserMixin'
+import accountMixins from '../mixins/accountMixins.js'
+import currentuserMixin from '../mixins/currentUserMixin.js'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'App',
 	components: {
-		Avatar
+		NcAvatar,
 	},
 	mixins: [
 		accountMixins,
