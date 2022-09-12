@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <template>
 	<div class="upload-form">
-		<div class="upload-progress" v-if="false">
+		<div v-if="false" class="upload-progress">
 			<div class="upload-progress__icon">
 				<FileUpload :size="32" />
 			</div>
@@ -19,7 +19,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 			</div>
 		</div>
 		<div class="preview-grid">
-			<PreviewGridItem v-for="(item, index) in draft.attachements" :key="index" :preview="item" :index="index" />
+			<PreviewGridItem v-for="(item, index) in draft.attachements" :key="index" :preview="item"
+				:index="index" />
 		</div>
 	</div>
 </template>
@@ -33,27 +34,27 @@ export default {
 	name: 'PreviewGrid',
 	components: {
 		PreviewGridItem,
-		FileUpload,
+		FileUpload
 	},
 	computed: {
 		...mapState({
-			'draft': state => state.timeline.draft,
-		}),
+			'draft': state => state.timeline.draft
+		})
 	},
 	props: {
 		uploadProgress: {
 			type: Number,
-			required: true,
+			required: true
 		},
 		uploading: {
 			type: Boolean,
-			required: true,
+			required: true
 		},
 		miniatures: {
 			type: Array,
-			required: true,
-		},
-	},
+			required: true
+		}
+	}
 }
 </script>
 

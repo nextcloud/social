@@ -51,7 +51,7 @@ export default {
 	name: 'SetupUser',
 	components: {
 		CheckboxRadioSwitch,
-		SettingsSection,
+		SettingsSection
 	},
 	data() {
 		return {

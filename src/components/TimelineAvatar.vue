@@ -19,13 +19,13 @@ import Avatar from '@nextcloud/vue/dist/Components/Avatar'
 export default {
 	name: 'TimelineAvatar',
 	components: {
-		Avatar,
+		Avatar
 	},
 	props: {
 		item: {
 			type: Object,
-			default: () => {},
-		},
+			default: () => {}
+		}
 	},
 	computed: {
 		userTest() {
@@ -33,8 +33,8 @@ export default {
 		},
 		avatarUrl() {
 			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
-		},
-	},
+		}
+	}
 }
 </script>
 

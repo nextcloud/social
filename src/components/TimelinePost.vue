@@ -33,31 +33,31 @@
 			<post-attachment :attachments="item.attachment" />
 		</div>
 		<div v-if="this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<Button type="tertiary-no-background"
-				v-tooltip="t('social', 'Reply')"
+			<Button v-tooltip="t('social', 'Reply')"
+				type="tertiary-no-background"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
 				</template>
 			</Button>
-			<Button type="tertiary-no-background"
-				v-tooltip="t('social', 'Boost')"
+			<Button v-tooltip="t('social', 'Boost')"
+				type="tertiary-no-background"
 				@click="boost">
 				<template #icon>
 					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'black'" />
 				</template>
 			</Button>
 			<Button v-if="!isLiked"
-				type="tertiary-no-background"
 				v-tooltip="t('social', 'Like')"
+				type="tertiary-no-background"
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
 				</template>
 			</Button>
 			<Button v-if="isLiked"
-				type="tertiary-no-background"
 				v-tooltip="t('social', 'Undo Like')"
+				type="tertiary-no-background"
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
@@ -65,8 +65,8 @@
 			</Button>
 			<Actions>
 				<ActionButton v-if="item.actor_info.account === cloudId"
-					@click="remove()"
-					icon="icon-delete">
+					icon="icon-delete"
+					@click="remove()">
 					{{ t('social', 'Delete') }}
 				</ActionButton>
 			</Actions>
@@ -105,7 +105,7 @@ export default {
 		Repeat,
 		Reply,
 		Heart,
-		HeartOutline,
+		HeartOutline
 	},
 	mixins: [currentUser],
 	props: {

@@ -4,30 +4,31 @@
 			<div class="preview-item__actions">
 				<Button type="tertiary-no-background" @click="deletePreview">
 					<template #icon>
-						<Close :size="16" fillColor="white" />
+						<Close :size="16" fill-color="white" />
 					</template>
 					<span>{{ t('social', 'Delete') }}</span>
 				</Button>
 				<Button type="tertiary-no-background" @click="showModal">
 					<template #icon>
-						<Edit :size="16" fillColor="white" />
+						<Edit :size="16" fill-color="white" />
 					</template>
 					<span>{{ t('social', 'Edit') }}</span>
 				</Button>
 			</div>
 
-			<div class="description-warning" v-if="preview.description.length === 0">
+			<div v-if="preview.description.length === 0" class="description-warning">
 				{{ t('social', 'No description added') }}
 			</div>
 
-			<Modal v-if="modal" @close="closeModal" size="small">
+			<Modal v-if="modal" size="small" @close="closeModal">
 				<div class="modal__content">
 					<label :for="`image-description-${index}`">
 						{{ t('social', 'Describe for the visually impaired') }}
 					</label>
-					<textarea :id="`image-description-${index}`" v-model="internalDescription">
-					</textarea>
-					<Button type="primary" @click="closeModal">{{ t('social', 'Close') }}</Button>
+					<textarea :id="`image-description-${index}`" v-model="internalDescription" />
+					<Button type="primary" @click="closeModal">
+						{{ t('social', 'Close') }}
+					</Button>
 				</div>
 			</Modal>
 		</div>
@@ -46,12 +47,29 @@ export default {
 		Close,
 		Edit,
 		Button,
-		Modal,
+		Modal
+	},
+	props: {
+		preview: {
+			type: Object,
+			required: true
+		},
+		index: {
+			type: Number,
+			required: true
+		}
 	},
 	data() {
 		return {
 			modal: false,
-			internalDescription: '',
+			internalDescription: ''
+		}
+	},
+	computed: {
+		backgroundStyle() {
+			return {
+				backgroundImage: `url("${this.preview.preview_url}")`
+			}
 		}
 	},
 	mounted() {
@@ -60,7 +78,7 @@ export default {
 	methods: {
 		deletePreview() {
 			this.$store.dispatch('deleteAttachement', {
-				id: this.preview.id,
+				id: this.preview.id
 			})
 		},
 		showModal() {
@@ -70,27 +88,10 @@ export default {
 			this.modal = false
 			this.$store.dispatch('updateAttachement', {
 				id: this.preview.id,
-				description: this.internalDescription,
+				description: this.internalDescription
 			})
 		}
-	},
-	props: {
-		preview: {
-			type: Object,
-			required: true,
-		},
-		index: {
-			type: Number,
-			required: true,
-		},
-	},
-	computed: {
-		backgroundStyle() {
-			return {
-				backgroundImage: `url("${this.preview.preview_url}")`,
-			}
-		},
-	},
+	}
 }
 </script>
 

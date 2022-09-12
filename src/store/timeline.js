@@ -55,7 +55,7 @@ const state = {
 	composerDisplayStatus: false,
 	draft: {
 		attachements: []
-	},
+	}
 }
 const mutations = {
 	addToTimeline(state, data) {
@@ -115,21 +115,24 @@ const mutations = {
 			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
 		}
 	},
-	addAttachement(state, {id, description, url, preview_url}) {
-		state.draft.attachements.push({id, description, url, preview_url})
+	addAttachement(state, { id, description, url, preview_url }) {
+		state.draft.attachements.push({ id, description, url, preview_url })
 	},
-	updateAttachement(state, {id, description, url, preview_url}) {
+	updateAttachement(state, { id, description, url, preview_url }) {
 		const index = state.draft.attachements.findIndex(item => {
 			return id === item.id
 		})
-		state.draft.attachements.splice(index, 1, {id, description, url, preview_url})
+		state.draft.attachements.splice(index, 1, { id, description, url, preview_url })
 	},
-	deleteAttachement(state, {id}) {
+	deleteAttachement(state, { id }) {
 		const index = state.draft.attachements.findIndex(item => {
 			return id === item.id
 		})
 		state.draft.attachements.splice(index, 1)
 	},
+	clearAttachements(state) {
+		state.draft.attachements.splice(0)
+	}
 }
 const getters = {
 	getComposerDisplayStatus(state) {
@@ -166,43 +169,44 @@ const actions = {
 		const res = await axios.post(generateUrl('apps/social/api/v1/media'), formData, {
 			headers: {
 				'Content-Type': 'multipart/form-data'
-			},
+			}
 		})
 		context.commit('addAttachement', {
 			id: res.data.id,
 			description: res.data.description,
 			url: res.data.url,
-			preview_url: res.data.preview_url,
+			preview_url: res.data.preview_url
 		})
 	},
-	async updateAttachement(context, {id, description}) {
+	async updateAttachement(context, { id, description }) {
 		const res = await axios.put(generateUrl('apps/social/api/v1/media/' + id), {
-			description,
+			description
 		})
 		context.commit('updateAttachement', {
 			id: res.data.id,
 			description: res.data.description,
 			url: res.data.url,
-			preview_url: res.data.preview_url,
+			preview_url: res.data.preview_url
 		})
 	},
-	async deleteAttachement(context, {id}) {
+	async deleteAttachement(context, { id }) {
 		const res = await axios.delete(generateUrl('apps/social/api/v1/media/' + id))
 		context.commit('deleteAttachement', {
-			id: res.data.id,
+			id: res.data.id
 		})
 	},
-	post(context, post) {
-		return new Promise((resolve, reject) => {
-			axios.post(generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
-				Logger.info('Post created with token ' + response.data.result.token)
-				resolve(response)
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to create a post')
-				Logger.error('Failed to create a post', { 'error': error.response })
-				reject(error)
-			})
-		})
+	async postStatus({ commit, state }, text) {
+		const data = {
+			status: text,
+			media_ids: state.draft.attachements.map(attachement => attachement.id)
+		}
+		try {
+			const response = axios.post(generateUrl('apps/social/api/v1/statuses'), data)
+		} catch (error) {
+			OC.Notification.showTemporary('Failed to create a post')
+			Logger.error('Failed to create a post', { 'error': error.response })
+		}
+		commit('clearAttachements')
 	},
 	postDelete(context, post) {
 		return axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
