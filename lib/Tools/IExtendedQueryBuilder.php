@@ -35,7 +35,6 @@ use DateTime;
 use Exception;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\DB\QueryBuilder\IQueryFunction;
 
 /**
  * Interface IExtendedQueryBuilder

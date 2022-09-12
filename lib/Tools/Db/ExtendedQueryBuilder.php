@@ -42,7 +42,6 @@ use Exception;
 use OC\DB\QueryBuilder\QueryBuilder;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\DB\QueryBuilder\IQueryFunction;
 
 /**
  * Class ExtendedQueryBuilder
