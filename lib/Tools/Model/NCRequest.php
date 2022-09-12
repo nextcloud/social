@@ -31,54 +31,15 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Model;
 
-use OCP\Http\Client\IClient;
-
-/**
- * Class NCRequest
- *
- * @package OCA\Social\Tools\Model
- */
 class NCRequest extends Request {
-	private IClient $client;
-	private array $clientOptions = [];
-	private bool $localAddressAllowed = false;
+	private ?Account $onBehalfOf = null;
 
-	public function setClient(IClient $client): self {
-		$this->client = $client;
-		return $this;
+	public function getOnBehalfOf(): ?Account {
+		return $this->onBehalfOf;
 	}
 
-	public function getClient(): IClient {
-		return $this->client;
+	public function setOnBehalfOf(?Account $onBehalfOf): void {
+		$this->onBehalfOf = $onBehalfOf;
 	}
 
-	public function getClientOptions(): array {
-		return $this->clientOptions;
-	}
-
-	public function setClientOptions(array $clientOptions): self {
-		$this->clientOptions = $clientOptions;
-
-		return $this;
-	}
-
-	public function isLocalAddressAllowed(): bool {
-		return $this->localAddressAllowed;
-	}
-
-	public function setLocalAddressAllowed(bool $allowed): self {
-		$this->localAddressAllowed = $allowed;
-
-		return $this;
-	}
-
-	public function jsonSerialize(): array {
-		return array_merge(
-			parent::jsonSerialize(),
-			[
-				'clientOptions' => $this->getClientOptions(),
-				'localAddressAllowed' => $this->isLocalAddressAllowed(),
-			]
-		);
-	}
 }

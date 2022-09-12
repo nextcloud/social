@@ -26,6 +26,7 @@ import Vuex from 'vuex'
 import timeline from './timeline'
 import account from './account'
 import settings from './settings'
+import composer from './composer'
 
 Vue.use(Vuex)
 
@@ -35,7 +36,8 @@ export default new Vuex.Store({
 	modules: {
 		timeline,
 		account,
-		settings
+		settings,
+		composer
 	},
 	strict: debug
 })

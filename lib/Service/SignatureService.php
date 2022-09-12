@@ -30,6 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Entity\Account;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -43,8 +44,6 @@ use DateTime;
 use Exception;
 use JsonLdException;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Db\ActorsRequest;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -77,31 +76,7 @@ class SignatureService {
 	public const DATE_HEADER = 'D, d M Y H:i:s T';
 	public const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
-	public const DATE_DELAY = 300;
-
-	private CacheActorService $cacheActorService;
-	private ActorsRequest $actorsRequest;
-	private CurlService $curlService;
-	private ConfigService $configService;
-	private MiscService $miscService;
-
-	public function __construct(
-		ActorsRequest $actorsRequest, CacheActorService $cacheActorService,
-		CurlService $curlService,
-		ConfigService $configService, MiscService $miscService
-	) {
-		$this->actorsRequest = $actorsRequest;
-		$this->cacheActorService = $cacheActorService;
-		$this->curlService = $curlService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
-	}
-
-
-	/**
-	 * @param Person $actor
-	 */
-	public function generateKeys(Person &$actor) {
+	public function generateKeys(Account $account): void {
 		$res = openssl_pkey_new(
 			[
 				"digest_alg" => "rsa",
@@ -113,19 +88,11 @@ class SignatureService {
 		openssl_pkey_export($res, $privateKey);
 		$publicKey = openssl_pkey_get_details($res)['key'];
 
-		$actor->setPublicKey($publicKey);
-		$actor->setPrivateKey($privateKey);
+		$account->setPublicKey($publicKey);
+		$account->setPrivateKey($privateKey);
 	}
 
-
-	/**
-	 * @param NCRequest $request
-	 * @param RequestQueue $queue
-	 *
-	 * @throws ActorDoesNotExistException
-	 * @throws SocialAppConfigException // TODO: implement in TNCRequest ?
-	 */
-	public function signRequest(NCRequest $request, RequestQueue $queue): void {
+	public function signRequest(SignedRequest $request): void {
 		$date = gmdate(self::DATE_HEADER);
 		$path = $queue->getInstance();
 
@@ -133,7 +100,7 @@ class SignatureService {
 
 		$headersElements = ['(request-target)', 'content-length', 'date', 'host', 'digest'];
 		$allElements = [
-			'(request-target)' => 'post ' . $path->getPath(),
+			'(request-target)' => 'path' . $request->getPath(),
 			'date' => $date,
 			'host' => $path->getAddress(),
 			'digest' => $this->generateDigest($request->getDataBody()),

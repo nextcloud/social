@@ -67,8 +67,8 @@ return [
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
 		// OAuth
-		['name' => 'OAuth#nodeinfo', 'url' => '/.well-known/nodeinfo', 'verb' => 'GET'],
-		['name' => 'OAuth#nodeinfo2', 'url' => '/.well-known/nodeinfo/2.0', 'verb' => 'GET'],
+		['name' => 'OAuth#index', 'url' => '/.well-known/nodeinfo', 'verb' => 'GET'],
+		['name' => 'OAuth#show', 'url' => '/.well-known/nodeinfo/2.{version}{extension}', 'verb' => 'GET'],
 		['name' => 'OAuth#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
 		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
 		['name' => 'OAuth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
@@ -81,6 +81,16 @@ return [
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
+
+		['name' => 'MediaApi#uploadMedia', 'url' => '/api/v1/media', 'verb' => 'POST'],
+		['name' => 'MediaApi#updateMedia', 'url' => '/api/v1/media/{id}', 'verb' => 'PUT'],
+		['name' => 'MediaApi#deleteMedia', 'url' => '/api/v1/media/{id}', 'verb' => 'DELETE'],
+
+		['name' => 'StatusApi#publishStatus', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
+		['name' => 'StatusApi#getStatus', 'url' => '/api/v1/statuses/{id}', 'verb' => 'GET'],
+		['name' => 'StatusApi#deleteStatus', 'url' => '/api/v1/statuses/{id}', 'verb' => 'DELETE'],
+		['name' => 'StatusApi#contextStatus', 'url' => '/api/v1/statuses/{id}/context', 'verb' => 'GET'],
+		['name' => 'StatusApi#reblogedBy', 'url' => '/api/v1/statuses/{id}/reblogged_by', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController

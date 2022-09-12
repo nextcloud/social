@@ -25,12 +25,12 @@
 	<div class="new-post" data-id="">
 		<input id="file-upload"
 			ref="fileUploadInput"
-			@change="handleFileChange($event)"
 			multiple
 			type="file"
 			tabindex="-1"
 			aria-hidden="true"
-			class="hidden-visually">
+			class="hidden-visually"
+			@change="handleFileChange($event)">
 		<div class="new-post-author">
 			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
 				:size="32" />
@@ -62,13 +62,13 @@
 					@tribute-replaced="updatePostFromTribute" />
 			</vue-tribute>
 
-			<PreviewGrid :uploading="false" :uploadProgress="0.4" :miniatures="previewUrls" />
+			<PreviewGrid :uploading="false" :upload-progress="0.4" :miniatures="previewUrls" />
 
 			<div class="options">
-				<Button type="tertiary"
-					@click.prevent="clickImportInput"
+				<Button v-tooltip="t('social', 'Add attachment')"
+					type="tertiary"
 					:aria-label="t('social', 'Add attachment')"
-					v-tooltip="t('social', 'Add attachment')">
+					@click.prevent="clickImportInput">
 					<template #icon>
 						<FileUpload :size="22" decorative title="" />
 					</template>
@@ -78,10 +78,10 @@
 					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
 						:container="container"
 						@select="insert">
-						<Button type="tertiary"
+						<Button v-tooltip="t('social', 'Add emoji')"
+							type="tertiary"
 							:aria-haspopup="true"
-							:aria-label="t('social', 'Add emoji')"
-							v-tooltip="t('social', 'Add emoji')">
+							:aria-label="t('social', 'Add emoji')">
 							<template #icon>
 								<EmoticonOutline :size="22" decorative title="" />
 							</template>
@@ -90,10 +90,10 @@
 				</div>
 
 				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
-					<Button type="tertiary"
-					:class="currentVisibilityIconClass"
-					@click.prevent="togglePopoverMenu"
-					v-tooltip="t('social', 'Visibility')" />
+					<Button v-tooltip="t('social', 'Visibility')"
+						type="tertiary"
+						:class="currentVisibilityIconClass"
+						@click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu">
 						<popover-menu :menu="visibilityPopover" />
 					</div>
@@ -142,10 +142,10 @@ export default {
 		EmoticonOutline,
 		Button,
 		Send,
-		PreviewGrid,
+		PreviewGrid
 	},
 	directives: {
-		FocusOnCreate,
+		FocusOnCreate
 	},
 	mixins: [CurrentUserMixin],
 	props: {},
@@ -256,13 +256,13 @@ export default {
 	computed: {
 		postTo() {
 			switch (this.type) {
-				case 'public':
-				case 'unlisted':
-					return t('social', 'Post')
-				case 'followers':
-					return t('social', 'Post to followers')
-				case 'direct':
-					return t('social', 'Post to mentioned users')
+			case 'public':
+			case 'unlisted':
+				return t('social', 'Post')
+			case 'followers':
+				return t('social', 'Post to followers')
+			case 'direct':
+				return t('social', 'Post to mentioned users')
 			}
 		},
 		currentVisibilityIconClass() {
@@ -287,6 +287,14 @@ export default {
 		},
 		currentVisibilityPostLabel() {
 			return this.visibilityPostLabel(this.type)
+		},
+		message: {
+			get() {
+				return this.$store.state.obj.message
+			},
+			set(value) {
+				this.$store.commit('updateStatus', value)
+			}
 		},
 		visibilityPostLabel() {
 			return (type) => {
@@ -362,7 +370,7 @@ export default {
 		},
 		canPost() {
 			if (this.previewUrls.length > 0) {
-				return true;
+				return true
 			}
 			return this.post.length !== 0 && this.post !== '<br>'
 		}
@@ -378,12 +386,9 @@ export default {
 			this.$refs.fileUploadInput.click()
 		},
 		handleFileChange(event) {
-			const previewUrl = URL.createObjectURL(event.target.files[0])
-			this.previewUrls.push({
-				description: '',
-				url: previewUrl,
-				result: event.target.files[0],
-			})
+			const formData = new FormData()
+			formData.append('file', event.target.files[0])
+			this.$store.dispatch('uploadAttachement', formData)
 		},
 		removeAttachment(idx) {
 			this.previewUrls.splice(idx, 1)
@@ -410,13 +415,17 @@ export default {
 			this.menuOpened = false
 			localStorage.setItem('social.lastPostType', type)
 		},
-		getPostData() {
+		keyup(event) {
+			if (event.shiftKey || event.ctrlKey) {
+				this.createPost(event)
+			}
+		},
+		updatePostFromTribute(event) {
+			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
+			this.$refs.composerInput.oninput(event)
+		},
+		createPost: async function(event) {
 			let element = this.$refs.composerInput.cloneNode(true)
-			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
-				var em = document.createTextNode(emoji.getAttribute('alt'))
-				emoji.replaceWith(em)
-			})
-
 			let contentHtml = element.innerHTML
 
 			// Extract mentions from content and create an array out of them
@@ -430,84 +439,32 @@ export default {
 				}
 			} while (match)
 
-			// Add author of original post in case of reply
-			if (this.replyTo !== null) {
-				to.push(this.replyTo.actor_info.account)
-			}
-
-			// Extract hashtags from content and create an array ot of them
-			const hashtagRegex = />#([^<]+)</g
-			let hashtags = []
-			match = null
-			do {
-				match = hashtagRegex.exec(contentHtml)
-				if (match) {
-					hashtags.push(match[1])
-				}
-			} while (match)
-
-			// Remove all html tags but </div> (wich we turn in newlines) and decode the remaining html entities
 			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
 			content = he.decode(content)
 
-			let data = {
-				content: content,
-				to: to,
-				hashtags: hashtags,
-				type: this.type,
-				attachments: this.previewUrls.map(preview => preview.result), // TODO send the summary and other props too
-			}
-
-			if (this.replyTo) {
-				data.replyTo = this.replyTo.id
-			}
-
-			return data
-		},
-		keyup(event) {
-			if (event.shiftKey || event.ctrlKey) {
-				this.createPost(event)
-			}
-		},
-		updatePostFromTribute(event) {
-			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
-			this.$refs.composerInput.oninput(event)
-		},
-		createPost: async function(event) {
-
-			let postData = this.getPostData()
-
-			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
-			let regex = /@([-\w]+)$/
-			let lastMention = postData.content.match(regex)
-			if (lastMention) {
-
-				// Ask the server for matching accounts, and wait for the results
-				let result = await this.remoteSearchAccounts(lastMention[1])
-
-				// Validate the last mention only when it matches a single account
-				if (result.data.result.accounts.length === 1) {
-					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
-					postData.to.push(result.data.result.accounts[0].account)
-				}
-			}
+			console.debug(content)
+			this.$store.dispatch('postStatus', content)
+			//
+			//			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
+			//			let regex = /@([-\w]+)$/
+			//			let lastMention = postData.content.match(regex)
+			//			if (lastMention) {
+			//
+			//				// Ask the server for matching accounts, and wait for the results
+			//				let result = await this.remoteSearchAccounts(lastMention[1])
+			//
+			//				// Validate the last mention only when it matches a single account
+			//				if (result.data.result.accounts.length === 1) {
+			//					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
+			//					postData.to.push(result.data.result.accounts[0].account)
+			//				}
+			//			}
 
 			// Abort if the post is a direct message and no valid mentions were found
 			// if (this.type === 'direct' && postData.to.length === 0) {
 			// 	OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
 			// 	return
 			// }
-
-			// Post message
-			this.loading = true
-			this.$store.dispatch('post', postData).then((response) => {
-				this.loading = false
-				this.replyTo = null
-				this.post = ''
-				this.$refs.composerInput.innerText = this.post
-				this.previewUrls = []
-				this.$store.dispatch('refreshTimeline')
-			})
 
 		},
 		closeReply() {

@@ -24,7 +24,8 @@
   },
   "require": {
     "gumlet/php-image-resize": "2.0.*",
-    "friendica/json-ld": "^1.0"
+    "friendica/json-ld": "^1.0",
+    "landrok/activitypub": "^0.5.8"
   },
   "require-dev": {
     "phpunit/phpunit": "^9.5",

@@ -118,7 +118,7 @@ export default {
 		AppContent,
 		AppNavigation,
 		AppNavigationItem,
-		Search,
+		Search
 	},
 	mixins: [currentuserMixin],
 	data: function() {
