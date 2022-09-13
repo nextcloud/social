@@ -539,7 +539,6 @@ export default {
 		padding: 10px;
 		background-color: var(--color-main-background);
 		position: sticky;
-		top: 47px;
 		z-index: 100;
 		margin-bottom: 10px;
 
