@@ -32,7 +32,7 @@
 		<div v-if="hasAttachments" class="post-attachments">
 			<post-attachment :attachments="item.attachment" />
 		</div>
-		<div v-if="this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
+		<div v-if="this.$route && this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<NcButton type="tertiary-no-background"
 				v-tooltip="t('social', 'Reply')"
 				@click="reply">

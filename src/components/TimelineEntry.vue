@@ -11,7 +11,7 @@
 				<span class="icon-boost" />
 			</div>
 			<div class="boost">
-				<router-link v-if="item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
+				<router-link v-if="!isProfilePage && item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
 					<span v-tooltip.bottom="item.actor_info.account" class="post-author">
 						{{ userDisplayName(item.actor_info) }}
 					</span>
@@ -50,7 +50,14 @@ export default {
 		UserEntry
 	},
 	props: {
-		item: { type: Object, default: () => {} }
+		item: {
+			type: Object,
+			default: () => {}
+		},
+		isProfilePage: {
+			type: Boolean,
+			default: false,
+		},
 	},
 	data() {
 		return {

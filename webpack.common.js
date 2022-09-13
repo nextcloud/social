@@ -7,6 +7,7 @@ const webpackConfig = require('@nextcloud/webpack-vue-config')
 webpackConfig.entry = {
 	social: path.join(__dirname, 'src', 'main.js'),
 	ostatus: path.join(__dirname, 'src', 'ostatus.js'),
+	profilePage: path.join(__dirname, 'src', 'profile.js'),
 }
 
 module.exports = webpackConfig

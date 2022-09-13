@@ -37,6 +37,9 @@ export default {
 		 * @property 		setup
 		 */
 		serverData() {
+			if (!this.$store) {
+				return {}
+			}
 			return this.$store.getters.getServerData
 		},
 		hostname() {
