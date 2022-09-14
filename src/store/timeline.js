@@ -144,17 +144,19 @@ const actions = {
 		context.commit('setTimelineType', 'account')
 		context.commit('setAccount', account)
 	},
-	post(context, post) {
-		return new Promise((resolve, reject) => {
-			axios.post(generateUrl('apps/social/api/v1/post'), { data: post }).then((response) => {
-				Logger.info('Post created with token ' + response.data.result.token)
-				resolve(response)
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to create a post')
-				Logger.error('Failed to create a post', { 'error': error.response })
-				reject(error)
+	async post(context, post) {
+		try {
+			const { data } = axios.post(generateUrl('apps/social/api/v1/post'), post, {
+				headers: {
+					'Content-Type': 'multipart/form-data'
+				}
 			})
-		})
+            Logger.info('Post created with token ' + data.result.token)
+        } catch (error) {
+            OC.Notification.showTemporary('Failed to create a post')
+            console.error(error)
+            Logger.error('Failed to create a post', { 'error': error.response })
+		}
 	},
 	postDelete(context, post) {
 		return axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {

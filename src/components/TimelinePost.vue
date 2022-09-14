@@ -25,51 +25,54 @@
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="item.content" class="post-message">
-			<MessageContent :source="source" />
+			<RichText :text="source"
+				:autolink="true"
+				:reference-limit="2"
+				:arguments="richParameters" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.actor_info.summary" />
 		<div v-if="hasAttachments" class="post-attachments">
 			<post-attachment :attachments="item.attachment" />
 		</div>
-		<div v-if="this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<Button type="tertiary-no-background"
+		<div v-if="this.$route && this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
+			<NcButton type="tertiary-no-background"
 				v-tooltip="t('social', 'Reply')"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
 				</template>
-			</Button>
-			<Button type="tertiary-no-background"
+			</NcButton>
+			<NcButton type="tertiary-no-background"
 				v-tooltip="t('social', 'Boost')"
 				@click="boost">
 				<template #icon>
-					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'black'" />
+					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'var(--color-main-text)'" />
 				</template>
-			</Button>
-			<Button v-if="!isLiked"
+			</NcButton>
+			<NcButton v-if="!isLiked"
 				type="tertiary-no-background"
 				v-tooltip="t('social', 'Like')"
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
 				</template>
-			</Button>
-			<Button v-if="isLiked"
+			</NcButton>
+			<NcButton v-if="isLiked"
 				type="tertiary-no-background"
 				v-tooltip="t('social', 'Undo Like')"
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
 				</template>
-			</Button>
-			<Actions>
-				<ActionButton v-if="item.actor_info.account === cloudId"
+			</NcButton>
+			<NcActions>
+				<NcActionButton v-if="item.actor_info.account === cloudId"
 					@click="remove()"
 					icon="icon-delete">
 					{{ t('social', 'Delete') }}
-				</ActionButton>
-			</Actions>
+				</NcActionButton>
+			</NcActions>
 		</div>
 	</div>
 </template>
@@ -80,9 +83,9 @@ import pluginMention from 'linkifyjs/plugins/mention'
 import 'linkifyjs/string'
 import currentUser from './../mixins/currentUserMixin'
 import PostAttachment from './PostAttachment.vue'
-import Button from '@nextcloud/vue/dist/Components/Button'
-import Actions from '@nextcloud/vue/dist/Components/Actions'
-import ActionButton from '@nextcloud/vue/dist/Components/ActionButton'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
+import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
@@ -91,6 +94,7 @@ import Logger from '../logger'
 import MessageContent from './MessageContent'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import RichText from '@nextcloud/vue-richtext'
 
 pluginMention(linkify)
 
@@ -99,13 +103,14 @@ export default {
 	components: {
 		PostAttachment,
 		MessageContent,
-		Actions,
-		ActionButton,
-		Button,
+		NcActions,
+		NcActionButton,
+		NcButton,
 		Repeat,
 		Reply,
 		Heart,
 		HeartOutline,
+		RichText,
 	},
 	mixins: [currentUser],
 	props: {
@@ -122,11 +127,10 @@ export default {
 		source() {
 			if (!this.item.source && this.item.content) {
 				// local posts don't have a source json
-				return {
-					content: this.item.content,
-					tag: []
-				}
+				console.debug(this.item.content)
+				return this.item.content
 			}
+			console.debug(JSON.parse(this.item.source))
 			return JSON.parse(this.item.source)
 		},
 		avatarUrl() {
@@ -146,7 +150,10 @@ export default {
 				return false
 			}
 			return !!this.item.action.values.liked
-		}
+		},
+		richParameters() {
+			return {}
+		},
 	},
 	methods: {
 		/**
@@ -210,12 +217,17 @@ export default {
 }
 </script>
 <style scoped lang="scss">
+	@import '@nextcloud/vue-richtext/dist/style.css';
 	.post-content {
 		padding: 4px 4px 4px 8px;
 		font-size: 15px;
 		line-height: 1.6em;
 		position: relative;
 		width: 100%;
+
+		::v-deep a.widget-default {
+			text-decoration: none !important;
+		}
 
 		&:hover {
 			border-radius: 8px;

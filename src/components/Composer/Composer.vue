@@ -32,7 +32,7 @@
 			aria-hidden="true"
 			class="hidden-visually">
 		<div class="new-post-author">
-			<avatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
+			<NcAvatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
 				:size="32" />
 			<div class="post-author">
 				<span class="post-author-name">
@@ -44,11 +44,17 @@
 			</div>
 		</div>
 		<div v-if="replyTo" class="reply-to">
-			<p>
+			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
 				<actor-avatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
-				<a class="icon-close" @click="closeReply()" />
+				<NcButton type="tertiary" class="close-button"
+					@click="closeReply"
+					:aria-label="t('social', 'Close reply')">
+					<template #icon>
+						<Close :size="20" />
+					</template>
+				</NcButton>
 			</p>
 			<div class="reply-to-preview">
 				{{ replyTo.content }}
@@ -65,48 +71,48 @@
 			<PreviewGrid :uploading="false" :uploadProgress="0.4" :miniatures="previewUrls" />
 
 			<div class="options">
-				<Button type="tertiary"
+				<NcButton type="tertiary"
 					@click.prevent="clickImportInput"
 					:aria-label="t('social', 'Add attachment')"
 					v-tooltip="t('social', 'Add attachment')">
 					<template #icon>
 						<FileUpload :size="22" decorative title="" />
 					</template>
-				</Button>
+				</NcButton>
 
 				<div class="new-post-form__emoji-picker">
-					<EmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
+					<NcEmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
 						:container="container"
 						@select="insert">
-						<Button type="tertiary"
+						<NcButton type="tertiary"
 							:aria-haspopup="true"
 							:aria-label="t('social', 'Add emoji')"
 							v-tooltip="t('social', 'Add emoji')">
 							<template #icon>
 								<EmoticonOutline :size="22" decorative title="" />
 							</template>
-						</Button>
-					</EmojiPicker>
+						</NcButton>
+					</NcEmojiPicker>
 				</div>
 
 				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
-					<Button type="tertiary"
+					<NcButton type="tertiary"
 					:class="currentVisibilityIconClass"
 					@click.prevent="togglePopoverMenu"
 					v-tooltip="t('social', 'Visibility')" />
 					<div :class="{open: menuOpened}" class="popovermenu">
-						<popover-menu :menu="visibilityPopover" />
+						<NcPopoverMenu :menu="visibilityPopover" />
 					</div>
 				</div>
 
 				<div class="emptySpace" />
-				<Button :value="currentVisibilityPostLabel" :disabled="!canPost" type="primary"
+				<NcButton :value="currentVisibilityPostLabel" :disabled="!canPost" type="primary"
 					@click.prevent="createPost">
 					<template #icon>
 						<Send title="" :size="22" decorative />
 					</template>
 					<template>{{ postTo }}</template>
-				</button>
+				</NcButton>
 			</div>
 		</form>
 	</div>
@@ -114,34 +120,36 @@
 
 <script>
 
-import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline'
-import Send from 'vue-material-design-icons/Send'
-import FileUpload from 'vue-material-design-icons/FileUpload'
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
-import Button from '@nextcloud/vue/dist/Components/Button'
-import PopoverMenu from '@nextcloud/vue/dist/Components/PopoverMenu'
-import EmojiPicker from '@nextcloud/vue/dist/Components/EmojiPicker'
+import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
+import Send from 'vue-material-design-icons/Send.vue'
+import Close from 'vue-material-design-icons/Close.vue'
+import FileUpload from 'vue-material-design-icons/FileUpload.vue'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcPopoverMenu from '@nextcloud/vue/dist/Components/NcPopoverMenu.js'
+import NcEmojiPicker from '@nextcloud/vue/dist/Components/NcEmojiPicker.js'
 import VueTribute from 'vue-tribute'
 import he from 'he'
-import CurrentUserMixin from '../../mixins/currentUserMixin'
-import FocusOnCreate from '../../directives/focusOnCreate'
+import CurrentUserMixin from '../../mixins/currentUserMixin.js'
+import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
-import PreviewGrid from './PreviewGrid'
+import PreviewGrid from './PreviewGrid.vue'
 
 export default {
 	name: 'Composer',
 	components: {
-		PopoverMenu,
-		Avatar,
-		FileUpload,
+		NcPopoverMenu,
+		NcAvatar,
+		NcEmojiPicker,
+		NcButton,
 		ActorAvatar,
-		EmojiPicker,
+		FileUpload,
 		VueTribute,
 		EmoticonOutline,
-		Button,
 		Send,
+		Close,
 		PreviewGrid,
 	},
 	directives: {
@@ -450,19 +458,20 @@ export default {
 			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
 			content = he.decode(content)
 
-			let data = {
-				content: content,
-				to: to,
-				hashtags: hashtags,
-				type: this.type,
-				attachments: this.previewUrls.map(preview => preview.result), // TODO send the summary and other props too
+			let formData = new FormData()
+			formData.append('content', content)
+			formData.append('to', to)
+			formData.append('hashtags', hashtags)
+			formData.append('type', this.type)
+			for (const preview of this.previewUrls) {
+				// TODO send the summary and other props too
+				formData.append('attachments', preview.result)
 			}
-
 			if (this.replyTo) {
-				data.replyTo = this.replyTo.id
+				formData.append('replyTo', this.replyTo.id)
 			}
 
-			return data
+			return formData
 		},
 		keyup(event) {
 			if (event.shiftKey || event.ctrlKey) {
@@ -479,7 +488,7 @@ export default {
 
 			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
 			let regex = /@([-\w]+)$/
-			let lastMention = postData.content.match(regex)
+			let lastMention = postData.get('content').match(regex)
 			if (lastMention) {
 
 				// Ask the server for matching accounts, and wait for the results
@@ -487,13 +496,13 @@ export default {
 
 				// Validate the last mention only when it matches a single account
 				if (result.data.result.accounts.length === 1) {
-					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
-					postData.to.push(result.data.result.accounts[0].account)
+					postData.set('content', postData.get('content').replace(regex, '@' + result.data.result.accounts[0].account))
+					postData.set('to', postData.get('to').push(result.data.result.accounts[0].account))
 				}
 			}
 
 			// Abort if the post is a direct message and no valid mentions were found
-			// if (this.type === 'direct' && postData.to.length === 0) {
+			// if (this.type === 'direct' && postData.get('to').length === 0) {
 			// 	OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
 			// 	return
 			// }
@@ -531,9 +540,9 @@ export default {
 		padding: 10px;
 		background-color: var(--color-main-background);
 		position: sticky;
-		top: 47px;
 		z-index: 100;
 		margin-bottom: 10px;
+		top: 0;
 
 		&-form {
 			flex-grow: 1;
@@ -566,21 +575,27 @@ export default {
 
 	.reply-to {
 		background-image: url(../../../img/reply.svg);
-		background-position: 5px 5px;
+		background-position: 8px 12px;
 		background-repeat: no-repeat;
 		margin-left: 39px;
 		margin-bottom: 20px;
 		overflow: hidden;
-		background-color: #fafafa;
-		border-radius: 3px;
+		background-color: var(--color-background-hover);
+		border-radius: var(--border-radius-large);
 		padding: 5px;
 		padding-left: 30px;
 
-		.icon-close {
-			display: inline-block;
-			float: right;
+		.reply-info {
+			display: flex;
+			align-items: center;
+		}
+		.close-button {
+			margin-left: auto;
 			opacity: .7;
-			padding: 3px;
+			min-width: 30px;
+			min-height: 30px;
+			height: 30px;
+			width: 30px !important;
 		}
 	}
 
@@ -616,7 +631,6 @@ export default {
 		align-items: flex-end;
 		width: 100%;
 		margin-top: 0.5rem;
-		margin-bottom: 1rem;
 	}
 
 	.emptySpace {

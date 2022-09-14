@@ -42,7 +42,6 @@ use Exception;
 use OC\DB\QueryBuilder\QueryBuilder;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\DB\QueryBuilder\IQueryFunction;
 
 /**
  * Class ExtendedQueryBuilder
@@ -174,7 +173,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 	public function exprLimitToDBField(
 		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = ''
-	): IQueryFunction {
+	): string {
 		$expr = $this->expr();
 
 		$pf = '';
@@ -295,7 +294,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	}
 
 	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = '', bool $eq = true
-	): IQueryFunction {
+	): string {
 		$expr = $this->expr();
 
 		$pf = '';

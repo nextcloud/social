@@ -3,26 +3,26 @@
 		<div v-for="(item, index) in attachments" :key="index">
 			<img :src="imageUrl(item)" @click="showModal(index)">
 		</div>
-		<modal v-show="modal" :has-previous="current > 0" :has-next="current < (attachments.length - 1)"
+		<NcModal v-show="modal" :has-previous="current > 0" :has-next="current < (attachments.length - 1)"
 			size="full" @close="closeModal" @previous="showPrevious"
 			@next="showNext">
 			<div class="modal__content">
 				<canvas ref="modalCanvas" />
 			</div>
-		</modal>
+		</NcModal>
 	</masonry>
 </template>
 
 <script>
 
-import serverData from '../mixins/serverData'
-import Modal from '@nextcloud/vue/dist/Components/Modal'
+import serverData from '../mixins/serverData.js'
+import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
 import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'PostAttachment',
 	components: {
-		Modal
+		NcModal
 	},
 	mixins: [
 		serverData

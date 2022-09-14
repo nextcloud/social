@@ -53,34 +53,20 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
+use Psr\Log\LoggerInterface;
 
 class PostService {
 	private StreamService $streamService;
-
 	private AccountService $accountService;
-
 	private ActivityService $activityService;
-
 	private CacheDocumentService $cacheDocumentService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
+	private LoggerInterface $logger;
 
-
-	/**
-	 * PostService constructor.
-	 *
-	 * @param StreamService $streamService
-	 * @param AccountService $accountService
-	 * @param ActivityService $activityService
-	 * @param CacheDocumentService $cacheDocumentService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
-		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService
+		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService, LoggerInterface $logger
 	) {
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
@@ -88,6 +74,7 @@ class PostService {
 		$this->cacheDocumentService = $cacheDocumentService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -142,15 +129,48 @@ class PostService {
 	 */
 	private function generateDocumentsFromAttachments(Note $note, Post $post) {
 		$documents = [];
-		foreach ($post->getAttachments() as $attachment) {
+		\OC::$server->getLogger()->error(var_export($_FILES["attachments"], true));
+		if (!isset($_FILES['attachments'])) {
+			return [];
+		}
+		if (is_array($_FILES["attachments"]["error"])) {
+			foreach ($_FILES["attachments"]["error"] as $key => $error) {
+				if ($error == UPLOAD_ERR_OK) {
+					try {
+						$document = $this->generateDocumentFromAttachment($note, $key);
+
+						$service = AP::$activityPub->getInterfaceForItem($document);
+						$service->save($document);
+
+						$documents[] = $document;
+					} catch (Exception $e) {
+					}
+				}
+			}
+		} else {
 			try {
-				$document = $this->generateDocumentFromAttachment($note, $attachment);
+				$tmp_name = $_FILES["attachments"]["tmp_name"];
+				$name = basename($_FILES["attachments"]["name"]);
+				$tmpFile = tmpfile();
+				$tmpPath = stream_get_meta_data($tmpFile)['uri'];
+				if (move_uploaded_file($tmp_name, $tmpPath)) {
+					$document = new Document();
+					$document->setUrlCloud($this->configService->getCloudUrl());
+					$document->generateUniqueId('/documents/local');
+					$document->setParentId($note->getId());
+					$document->setPublic(true);
+
+					$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
+				}
 
 				$service = AP::$activityPub->getInterfaceForItem($document);
 				$service->save($document);
 
 				$documents[] = $document;
 			} catch (Exception $e) {
+				$this->logger->error($e->getMessage(), [
+					'exception' => $e,
+				]);
 			}
 		}
 		$post->setDocuments($documents);
@@ -168,21 +188,21 @@ class PostService {
 	 * @throws SocialAppConfigException
 	 * @throws UrlCloudException
 	 */
-	private function generateDocumentFromAttachment(Note $note, string $attachment): Document {
-		list(, $data) = explode(';', $attachment);
-		list(, $data) = explode(',', $data);
-		$content = base64_decode($data);
+	private function generateDocumentFromAttachment(Note $note, int $key): Document {
+		$tmp_name = $_FILES["attachments"]["tmp_name"][$key];
+		$name = basename($_FILES["attachments"]["name"][$key]);
+		$tmpFile = tmpfile();
+		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
+		if (move_uploaded_file($tmp_name, $tmpPath)) {
+			$document = new Document();
+			$document->setUrlCloud($this->configService->getCloudUrl());
+			$document->generateUniqueId('/documents/local');
+			$document->setParentId($note->getId());
+			$document->setPublic(true);
 
-		$document = new Document();
-		$document->setUrlCloud($this->configService->getCloudUrl());
-		$document->generateUniqueId('/documents/local');
-		$document->setParentId($note->getId());
-		$document->setPublic(true);
+			$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
+		}
 
-		$mime = '';
-		$this->cacheDocumentService->saveLocalUploadToCache($document, $content, $mime);
-		$document->setMediaType($mime);
-		$document->setMimeType($mime);
 
 		return $document;
 	}

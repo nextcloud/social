@@ -124,18 +124,26 @@ class LocalController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 */
-	public function postCreate(array $data): DataResponse {
+	public function postCreate(string $content = '', $to = null, string $type = null, ?string $replyTo = null, $attachments = null, ?string $hashtags = null): DataResponse {
+		$content = $content ?? '';
+		$to = is_string($to) ? [$to] : $to;
+		$to = $to ?? [];
+		$replyTo = $replyTo ?? '';
+		$type = $type ?? Stream::TYPE_PUBLIC;
+		$hashtags = $hashtags === '' ? [] : $hashtags;
+		$hashtags = $hashtags ?? [];
+		$attachments = $attachments ?? [];
+
 		try {
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 
 			$post = new Post($actor);
-			$post->setContent($this->get('content', $data, ''));
-			$post->setReplyTo($this->get('replyTo', $data, ''));
-			$post->setTo($this->getArray('to', $data, []));
-			$post->addTo($this->get('to', $data, ''));
-			$post->setType($this->get('type', $data, Stream::TYPE_PUBLIC));
-			$post->setHashtags($this->getArray('hashtags', $data, []));
-			$post->setAttachments($this->getArray('attachments', $data, []));
+			$post->setContent($content);
+			$post->setReplyTo($replyTo);
+			$post->setTo($to);
+			$post->setType($type);
+			$post->setHashtags($hashtags);
+			$post->setAttachments($attachments);
 
 			$token = '';
 			$activity = $this->postService->createPost($post, $token);
@@ -150,7 +158,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * Get info about a post (limited to viewer rights).

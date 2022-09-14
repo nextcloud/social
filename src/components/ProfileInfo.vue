@@ -22,9 +22,9 @@
 
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<avatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
+		<NcAvatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
 			:size="128" />
-		<avatar v-else :url="avatarUrl" :disable-tooltip="true"
+		<NcAvatar v-else :url="avatarUrl" :disable-tooltip="true"
 			:size="128" />
 		<h2>{{ displayName }}</h2>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
@@ -52,16 +52,17 @@
 			</a>
 		</p>
 		<follow-button :account="accountInfo.account" :uid="uid" />
-		<button v-if="serverData.public" class="primary" @click="followRemote">
+		<NcButton v-if="serverData.public" class="primary" @click="followRemote">
 			{{ t('social', 'Follow') }}
-		</button>
+		</NcButton>
 	</div>
 </template>
+
 <style scoped>
 	.user-profile {
 		display: flex;
 		flex-wrap: wrap;
-    flex-direction: column;
+		flex-direction: column;
 		justify-content: space-between;
 		width: 100%;
 		text-align: center;
@@ -94,11 +95,12 @@
 	}
 </style>
 <script>
-import Avatar from '@nextcloud/vue/dist/Components/Avatar'
-import accountMixins from '../mixins/accountMixins'
-import serverData from '../mixins/serverData'
-import currentUser from '../mixins/currentUserMixin'
-import follow from '../mixins/follow'
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import accountMixins from '../mixins/accountMixins.js'
+import serverData from '../mixins/serverData.js'
+import currentUser from '../mixins/currentUserMixin.js'
+import follow from '../mixins/follow.js'
 import FollowButton from './FollowButton.vue'
 import { generateUrl } from '@nextcloud/router'
 
@@ -106,7 +108,8 @@ export default {
 	name: 'ProfileInfo',
 	components: {
 		FollowButton,
-		Avatar
+		NcAvatar,
+		NcButton,
 	},
 	mixins: [
 		accountMixins,

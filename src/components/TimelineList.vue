@@ -58,7 +58,7 @@
 <script>
 import InfiniteLoading from 'vue-infinite-loading'
 import TimelineEntry from './TimelineEntry.vue'
-import CurrentUserMixin from './../mixins/currentUserMixin'
+import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
 import Logger from '../logger.js'
 
@@ -73,7 +73,7 @@ export default {
 	props: {
 		type: { type: String, default: () => 'home' }
 	},
-	data: function() {
+	data() {
 		return {
 			infoHidden: false,
 			state: [],

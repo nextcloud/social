@@ -32,7 +32,6 @@
 <style scoped>
 
 	.social__welcome {
-		max-width: 600px;
 		margin: 15px auto;
 		padding: 15px;
 		border-bottom: 1px solid var(--color-border);
@@ -68,7 +67,6 @@
 	}
 
 	.social__timeline {
-		max-width: 600px;
 		margin: 15px auto;
 	}
 
@@ -93,8 +91,8 @@
 
 <script>
 import Composer from './../components/Composer/Composer.vue'
-import CurrentUserMixin from './../mixins/currentUserMixin'
-import follow from './../mixins/follow'
+import CurrentUserMixin from './../mixins/currentUserMixin.js'
+import follow from './../mixins/follow.js'
 import TimelineList from './../components/TimelineList.vue'
 
 export default {

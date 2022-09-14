@@ -36,8 +36,8 @@
 </template>
 
 <script>
-import accountMixins from '../mixins/accountMixins'
-import currentUser from '../mixins/currentUserMixin'
+import accountMixins from '../mixins/accountMixins.js'
+import currentUser from '../mixins/currentUserMixin.js'
 
 export default {
 	name: 'FollowButton',

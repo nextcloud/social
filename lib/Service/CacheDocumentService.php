@@ -137,6 +137,24 @@ class CacheDocumentService {
 		$document->setResizedCopy($resized);
 	}
 
+	public function saveFromTempToCache(Document $document, string $tmpPath) {
+		$mime = mime_content_type($tmpPath);
+
+		$this->filterMimeTypes($mime);
+
+		$document->setMediaType($mime);
+		$document->setMimeType($mime);
+
+		$file = fopen($tmpPath, 'r');
+		$content = fread($file, filesize($tmpPath));
+
+		$filename = $this->generateFileFromContent($content);
+		$document->setLocalCopy($filename);
+		$this->resizeImage($content);
+		$resized = $this->generateFileFromContent($content);
+		$document->setResizedCopy($resized);
+	}
+
 
 	/**
 	 * @param string $content

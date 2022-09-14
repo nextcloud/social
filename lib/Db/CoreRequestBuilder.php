@@ -46,7 +46,6 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\DB\QueryBuilder\IQueryFunction;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -584,7 +583,7 @@ class CoreRequestBuilder {
 	protected function exprLimitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
 		string $alias = ''
-	): IQueryFunction {
+	): string {
 		$expr = $qb->expr();
 
 		$pf = '';
@@ -618,7 +617,7 @@ class CoreRequestBuilder {
 
 	protected function exprLimitToDBFieldInt(
 		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
-	): IQueryFunction {
+	): string {
 		$expr = $qb->expr();
 
 		$pf = '';

@@ -37,11 +37,13 @@ use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
 use OCA\Social\WellKnown\WebfingerHandler;
+use OCA\Social\Listeners\ProfileSectionListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\QueryException;
+use OCP\Profile\BeforeTemplateRenderedEvent;
 use OCP\IDBConnection;
 use OCP\IServerContainer;
 use OC\DB\SchemaWrapper;
@@ -62,19 +64,12 @@ class Application extends App implements IBootstrap {
 		parent::__construct(self::APP_NAME, $params);
 	}
 
-
-	/**
-	 * @param IRegistrationContext $context
-	 */
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
+		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 	}
 
-
-	/**
-	 * @param IBootContext $context
-	 */
 	public function boot(IBootContext $context): void {
 		$manager = $context->getServerContainer()
 						   ->getNotificationManager();
