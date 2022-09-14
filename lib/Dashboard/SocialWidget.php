@@ -72,7 +72,7 @@ class SocialWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function getUrl(): ?string {
-		return ''; //$this->uRLGenerator->linkToRoute('social.local.streamNotifications', []);
+		return $this->urlGenerator->linkToRoute('social.local.streamNotifications', []);
 	}
 
 	/**
@@ -80,5 +80,6 @@ class SocialWidget implements IWidget {
 	 */
 	public function load(): void {
 		\OCP\Util::addScript(Application::APP_NAME, 'social-dashboard');
+		\OCP\Util::addStyle(Application::APP_NAME, 'dashboard');
 	}
 }
