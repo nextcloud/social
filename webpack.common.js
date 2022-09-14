@@ -10,3 +10,5 @@ webpackConfig.entry = {
 	profilePage: path.join(__dirname, 'src', 'profile.js'),
     dashboard: path.join(__dirname, 'src', 'dashboard.js'),
 }
+
+module.exports = webpackConfig

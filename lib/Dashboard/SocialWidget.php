@@ -23,19 +23,21 @@
 
 namespace OCA\Social\Dashboard;
 
+use OCP\IURLGenerator;
 use OCP\Dashboard\IWidget;
 use OCP\IL10N;
 use OCA\Social\AppInfo\Application;
 
 class SocialWidget implements IWidget {
-
-	/** @var IL10N */
-	private $l10n;
+	private IL10N $l10n;
+	private IURLGenerator $urlGenerator;
 
 	public function __construct(
-		IL10N $l10n
+		IL10N $l10n,
+		IURLGenerator $urlGenerator
 	) {
 		$this->l10n = $l10n;
+		$this->urlGenerator = $urlGenerator;
 	}
 
 	/**
@@ -70,14 +72,13 @@ class SocialWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function getUrl(): ?string {
-		return \OC::$server->getURLGenerator()->linkToRoute('social.local.streamNotifications', []);
+		return ''; //$this->uRLGenerator->linkToRoute('social.local.streamNotifications', []);
 	}
 
 	/**
 	 * @inheritDoc
 	 */
 	public function load(): void {
-		\OC_Util::addScript(Application::APP_NAME, 'dashboard');
-		\OC_Util::addStyle(Application::APP_NAME, 'dashboard');
+		\OCP\Util::addScript(Application::APP_NAME, 'social-dashboard');
 	}
 }

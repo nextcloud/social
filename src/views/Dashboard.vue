@@ -1,10 +1,10 @@
 <template>
-	<DashboardWidget :items="items"
+	<NcDashboardWidget :items="items"
 		:show-more-url="showMoreUrl"
 		:show-more-text="title"
 		:loading="state === 'loading'">
 		<template #empty-content>
-			<EmptyContent
+			<NcEmptyContent
 				v-if="emptyContentMessage"
 				:icon="emptyContentIcon">
 				<template #desc>
@@ -15,24 +15,24 @@
 						</a>
 					</div>
 				</template>
-			</EmptyContent>
+			</NcEmptyContent>
 		</template>
-	</DashboardWidget>
+	</NcDashboardWidget>
 </template>
 
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
-import { DashboardWidget } from '@nextcloud/vue-dashboard'
-import EmptyContent from '@nextcloud/vue/dist/Components/EmptyContent'
+import NcDashboardWidget from '@nextcloud/vue/dist/Components/NcDashboardWidget.js'
+import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
 
 export default {
 	name: 'Dashboard',
 
 	components: {
-		DashboardWidget,
-		EmptyContent
+		NcDashboardWidget,
+		NcEmptyContent
 	},
 
 	props: {
@@ -152,6 +152,9 @@ export default {
 			if (n.subtype === 'Follow') {
 				return t('social', '{account} is following you', { account: this.getActorName(n) })
 			}
+			if (n.subtype === 'Like') {
+				return t('social', '{account} liked your post', { account: this.getActorName(n) })
+			}
 		},
 		getAvatarUrl(n) {
 			return undefined
@@ -178,6 +181,9 @@ export default {
 		},
 		getSubline(n) {
 			if (n.subtype === 'Follow') {
+				return this.getActorAccountName(n)
+			}
+			if (n.subtype === 'Like') {
 				return this.getActorAccountName(n)
 			}
 			return ''
