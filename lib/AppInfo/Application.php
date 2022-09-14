@@ -38,6 +38,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\UpdateService;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCA\Social\Listeners\ProfileSectionListener;
+use OCA\Social\Dashboard\SocialWidget;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -68,6 +69,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
+		$context->registerDashboardWidget(SocialWidget::class);
 	}
 
 	public function boot(IBootContext $context): void {
