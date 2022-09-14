@@ -542,6 +542,7 @@ export default {
 		position: sticky;
 		z-index: 100;
 		margin-bottom: 10px;
+		top: 0;
 
 		&-form {
 			flex-grow: 1;
@@ -630,7 +631,6 @@ export default {
 		align-items: flex-end;
 		width: 100%;
 		margin-top: 0.5rem;
-		margin-bottom: 1rem;
 	}
 
 	.emptySpace {
