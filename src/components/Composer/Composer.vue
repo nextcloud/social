@@ -458,19 +458,20 @@ export default {
 			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
 			content = he.decode(content)
 
-			let data = {
-				content: content,
-				to: to,
-				hashtags: hashtags,
-				type: this.type,
-				attachments: this.previewUrls.map(preview => preview.result), // TODO send the summary and other props too
+			let formData = new FormData()
+			formData.append('content', content)
+			formData.append('to', to)
+			formData.append('hashtags', hashtags)
+			formData.append('type', this.type)
+			for (const preview of this.previewUrls) {
+				// TODO send the summary and other props too
+				formData.append('attachments', preview.result)
 			}
-
 			if (this.replyTo) {
-				data.replyTo = this.replyTo.id
+				formData.append('replyTo', this.replyTo.id)
 			}
 
-			return data
+			return formData
 		},
 		keyup(event) {
 			if (event.shiftKey || event.ctrlKey) {
@@ -487,7 +488,7 @@ export default {
 
 			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
 			let regex = /@([-\w]+)$/
-			let lastMention = postData.content.match(regex)
+			let lastMention = postData.get('content').match(regex)
 			if (lastMention) {
 
 				// Ask the server for matching accounts, and wait for the results
@@ -495,13 +496,13 @@ export default {
 
 				// Validate the last mention only when it matches a single account
 				if (result.data.result.accounts.length === 1) {
-					postData.content = postData.content.replace(regex, '@' + result.data.result.accounts[0].account)
-					postData.to.push(result.data.result.accounts[0].account)
+					postData.set('content', postData.get('content').replace(regex, '@' + result.data.result.accounts[0].account))
+					postData.set('to', postData.get('to').push(result.data.result.accounts[0].account))
 				}
 			}
 
 			// Abort if the post is a direct message and no valid mentions were found
-			// if (this.type === 'direct' && postData.to.length === 0) {
+			// if (this.type === 'direct' && postData.get('to').length === 0) {
 			// 	OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
 			// 	return
 			// }
