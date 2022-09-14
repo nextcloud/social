@@ -44,7 +44,7 @@
 				v-tooltip="t('social', 'Boost')"
 				@click="boost">
 				<template #icon>
-					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'black'" />
+					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'var(--color-main-text)'" />
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"

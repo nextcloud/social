@@ -89,7 +89,7 @@ export default {
 }
 
 .preview-item {
-	border-radius: 4px;
+	border-radius: var(--border-radius-large);
 	background-color: #000;
 	background-position: 50%;
 	background-size: cover;
