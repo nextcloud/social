@@ -235,14 +235,14 @@ export default {
 <style scoped>
 	#app-content-vue .social__wrapper {
 		padding: 15px;
-		max-width: 630px;
+		max-width: 800px;
 		margin: auto;
 	}
 
 	.setup {
 		margin: 0 auto !important;
 		padding: 15px;
-		max-width: 630px;
+		max-width: 800px;
 	}
 
 	.setup input[type=url] {

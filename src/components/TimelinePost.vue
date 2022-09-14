@@ -25,7 +25,10 @@
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="item.content" class="post-message">
-			<MessageContent :source="source" />
+			<RichText :text="source"
+				:autolink="true"
+				:reference-limit="2"
+				:arguments="richParameters" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.actor_info.summary" />
@@ -91,6 +94,7 @@ import Logger from '../logger'
 import MessageContent from './MessageContent'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import RichText from '@nextcloud/vue-richtext'
 
 pluginMention(linkify)
 
@@ -106,6 +110,7 @@ export default {
 		Reply,
 		Heart,
 		HeartOutline,
+		RichText,
 	},
 	mixins: [currentUser],
 	props: {
@@ -122,11 +127,10 @@ export default {
 		source() {
 			if (!this.item.source && this.item.content) {
 				// local posts don't have a source json
-				return {
-					content: this.item.content,
-					tag: []
-				}
+				console.debug(this.item.content)
+				return this.item.content
 			}
+			console.debug(JSON.parse(this.item.source))
 			return JSON.parse(this.item.source)
 		},
 		avatarUrl() {
@@ -146,7 +150,10 @@ export default {
 				return false
 			}
 			return !!this.item.action.values.liked
-		}
+		},
+		richParameters() {
+			return {}
+		},
 	},
 	methods: {
 		/**
@@ -210,12 +217,17 @@ export default {
 }
 </script>
 <style scoped lang="scss">
+	@import '@nextcloud/vue-richtext/dist/style.css';
 	.post-content {
 		padding: 4px 4px 4px 8px;
 		font-size: 15px;
 		line-height: 1.6em;
 		position: relative;
 		width: 100%;
+
+		::v-deep a.widget-default {
+			text-decoration: none !important;
+		}
 
 		&:hover {
 			border-radius: 8px;
