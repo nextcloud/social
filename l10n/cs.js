@@ -42,7 +42,7 @@ OC.L10N.register(
     "Direct" : "Přímo",
     "Post to mentioned users only" : "Poslat pouze zmíněným uživatelům",
     "Error while trying to post your message: Could not find any valid recipients." : "Nastal chyba při posílání zprávy: Žádní platní adresáti.",
-    "Uploading..." : "Nahrávání",
+    "Uploading..." : "Nahrávání…",
     "Delete" : "Smazat",
     "Edit" : "Upravit",
     "No description added" : "Nepřidán žádný popis",
