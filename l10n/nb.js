@@ -6,6 +6,7 @@ OC.L10N.register(
     "Finish setup" : "Fullfør oppsett",
     "Home" : "Hjem",
     "Notifications" : "Varsler",
+    "Profile" : "Profil",
     "Add attachment" : "Legg til vedlegg",
     "Visibility" : "Synlighet",
     "Post" : "Send",
