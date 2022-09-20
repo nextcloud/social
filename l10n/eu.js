@@ -24,6 +24,7 @@ OC.L10N.register(
     "Global timeline" : "Denbora-lerro globala",
     "Following" : "Jarraitzen",
     "In reply to" : "Honi erantzunez",
+    "Close reply" : "Itxi erantzuna",
     "Add attachment" : "Gehitu eranskina",
     "Add emoji" : "Gehitu emojia",
     "Visibility" : "Ikusgarritasuna",
