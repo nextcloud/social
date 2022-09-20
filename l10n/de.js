@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Social" : "Social",
+    "Social notifications" : "Social-Benachrichtigungen",
     "Please note that the data from alpha2 can only be migrated manually.\n\t\t\t\t\t\tA detailed documentation to guide you during this process is available using the button below." : "Bitte beachten, dass Daten der Alpha2 nur händisch migriert werden können.\n\t\t\t\t\t\tEine detaillierte Dokumentation zur Umsetzung kann über die unterere Schaltfläche aufgerufen werden.",
     "Help" : "Hilfe",
     "Follow %s on Social" : "Folge %s auf Social",
@@ -76,6 +77,10 @@ OC.L10N.register(
     "Boost" : "Verstärken",
     "Like" : "Mag ich",
     "Undo Like" : "Like rückgängig machen",
+    "Go to Social app" : "Zur Socia-App gehen",
+    "Error getting Social notifications" : "Fehler beim Empfangen von Social-Benachrichtigungen",
+    "No Social notifications!" : "Keine Social-Benachrichtigungen!",
+    "Failed to get Social notifications" : "Fehler beim Empfangen von Social-Benachrichtigungen",
     "{account} is following you" : "{account} folgt dir",
     "{account} liked your post" : "{account} gefällt dein Beitrag",
     "Follow on Nextcloud Social" : "Auf Nextcloud Social folgen",
