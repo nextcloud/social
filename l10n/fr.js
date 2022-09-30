@@ -22,7 +22,7 @@ OC.L10N.register(
     "Global timeline" : "Fil global",
     "Following" : "Suivi",
     "In reply to" : "En réponse à",
-    "Add attachment" : "Ajouter une pièce-jointe",
+    "Add attachment" : "Ajouter une pièce jointe",
     "Add emoji" : "Ajouter un emoji",
     "Visibility" : "Visibilité",
     "Post" : "Publier",
