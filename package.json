@@ -38,7 +38,7 @@
 		"@nextcloud/vue": "^7.0.0-beta.3",
 		"@nextcloud/vue-richtext": "^2.0.0",
 		"he": "^1.2.0",
-		"linkifyjs": "^2.1.8",
+		"linkifyjs": "^4.0.1",
 		"tributejs": "^3.7.3",
 		"twemoji": "12.0.1",
 		"uuid": "^8.3.2",
