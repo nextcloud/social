@@ -24,6 +24,7 @@ OC.L10N.register(
     "Global timeline" : "Globálna časová os",
     "Following" : "Sledovanie",
     "In reply to" : "Odpoveď na",
+    "Close reply" : "Zavrieť odpoveď",
     "Add attachment" : "Pridať prílohu",
     "Add emoji" : "Pridať emodži",
     "Visibility" : "Viditeľnosť",
