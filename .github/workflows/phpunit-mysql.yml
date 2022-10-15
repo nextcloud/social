@@ -1,11 +1,36 @@
+# This workflow is provided via the organization template repository
+#
+# https://github.com/nextcloud/.github
+# https://docs.github.com/en/actions/learn-github-actions/sharing-workflows-with-your-organization
+
 name: PHPUnit
 
 on:
   pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'appinfo/**'
+      - 'lib/**'
+      - 'templates/**'
+      - 'tests/**'
+      - 'vendor/**'
+      - 'vendor-bin/**'
+      - '.php-cs-fixer.dist.php'
+      - 'composer.json'
+      - 'composer.lock'
+
   push:
     branches:
+      - main
       - master
       - stable*
+
+permissions:
+  contents: read
+
+concurrency: 
+  group: phpunit-mysql-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 env:
   # Location of the phpunit.xml and phpunit.integration.xml files
@@ -61,7 +86,15 @@ jobs:
           extensions: mbstring, iconv, fileinfo, intl, mysql, pdo_mysql
           coverage: none
 
+      - name: Check composer file existence
+        id: check_composer
+        uses: andstor/file-existence-action@v1
+        with:
+          files: apps/${{ env.APP_NAME }}/composer.json
+
       - name: Set up PHPUnit
+        # Only run if phpunit config file exists
+        if: steps.check_composer.outputs.files_exists == 'true'
         working-directory: apps/${{ env.APP_NAME }}
         run: composer i
 
@@ -71,7 +104,7 @@ jobs:
         run: |
           mkdir data
           ./occ maintenance:install --verbose --database=mysql --database-name=nextcloud --database-host=127.0.0.1 --database-port=$DB_PORT --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass password
-          ./occ app:enable ${{ env.APP_NAME }}
+          ./occ app:enable --force ${{ env.APP_NAME }}
 
       - name: Check PHPUnit config file existence
         id: check_phpunit
@@ -103,6 +136,8 @@ jobs:
         run: ./vendor/phpunit/phpunit/phpunit -c ${{ env.PHPUNIT_INTEGRATION_CONFIG }}
 
   summary:
+    permissions:
+      contents: none
     runs-on: ubuntu-latest
     needs: phpunit-mysql
 
