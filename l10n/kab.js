@@ -6,6 +6,7 @@ OC.L10N.register(
     "Notifications" : "Ilɣa",
     "Delete" : "Kkes",
     "Edit" : "Ẓreg",
-    "Close" : "Mdel"
+    "Close" : "Mdel",
+    "Continue" : "Continuer"
 },
 "nplurals=2; plural=(n != 1);");
