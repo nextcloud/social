@@ -548,6 +548,23 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * @NoAdminRequired
+	 * @PublicPage
+	 */
+	public function accountFollowers(string $username): DataResponse {
+		try {
+			$this->initViewer();
+
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$following = $this->followService->getFollowers($actor);
+
+			return $this->success($following);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 
 	/**
 	 * @NoAdminRequired
