@@ -2,25 +2,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // eslint-disable-next-line
-__webpack_nonce__ = btoa(OC.requestToken)
-// eslint-disable-next-line
-__webpack_public_path__ = OC.linkTo('social', 'js/')
-
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue' 
 import Vue from 'vue'
-import { sync } from 'vuex-router-sync'
+import { generateFilePath } from '@nextcloud/router'
+import { translate, translatePlural } from '@nextcloud/l10n'
 
-if (!OCA?.Core?.ProfileSections) {
-	exit();
+// eslint-disable-next-line
+__webpack_nonce__ = btoa(OC.requestToken)
+// eslint-disable-next-line
+__webpack_public_path__ = generateFilePath('social', '', 'js/')
+
+if (OCA?.Core?.ProfileSections) {
+	Vue.prototype.t = translate
+	Vue.prototype.n = translatePlural
+	Vue.prototype.OC = OC
+	Vue.prototype.OCA = OCA
+
+	const View = Vue.extend(ProfilePageIntegration)
+
+	OCA.Core.ProfileSections.registerSection((el, userId) => {
+		return View
+	})
 }
-
-Vue.prototype.t = t
-Vue.prototype.n = n
-Vue.prototype.OC = OC
-Vue.prototype.OCA = OCA
-
-const View = Vue.extend(ProfilePageIntegration)
-
-OCA.Core.ProfileSections.registerSection((el, userId) => {
-	return View
-})

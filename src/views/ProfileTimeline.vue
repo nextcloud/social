@@ -21,12 +21,8 @@
   -->
 
 <template>
-	<timeline-list />
+	<TimelineList />
 </template>
-
-<style scoped>
-
-</style>
 
 <script>
 import TimelineList from './../components/TimelineList.vue'
@@ -34,13 +30,17 @@ import TimelineList from './../components/TimelineList.vue'
 export default {
 	name: 'ProfileTimeline',
 	components: {
-		TimelineList
+		TimelineList,
 	},
 	computed: {
 
 	},
-	beforeMount: function() {
+	beforeMount() {
 		this.$store.dispatch('changeTimelineTypeAccount', this.$route.params.account)
-	}
+	},
 }
 </script>
+
+<style scoped>
+
+</style>

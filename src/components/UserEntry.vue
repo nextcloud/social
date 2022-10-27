@@ -24,7 +24,9 @@
 	<div v-if="item" class="user-entry">
 		<div class="entry-content">
 			<div class="user-avatar">
-				<NcAvatar v-if="item.local" :size="32" :user="item.preferredUsername"
+				<NcAvatar v-if="item.local"
+					:size="32"
+					:user="item.preferredUsername"
 					:disable-tooltip="true" />
 				<NcAvatar v-else :url="avatarUrl" />
 			</div>
@@ -37,7 +39,9 @@
 						{{ item.account }}
 					</span>
 				</router-link>
-				<a v-else :href="item.id" target="_blank"
+				<a v-else
+					:href="item.id"
+					target="_blank"
 					rel="noreferrer">
 					<span class="post-author">
 						{{ item.name }}
@@ -49,7 +53,7 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-html="item.summary" />
 			</div>
-			<follow-button :account="item.account" />
+			<FollowButton :account="item.account" />
 		</div>
 	</div>
 </template>
@@ -69,14 +73,14 @@ export default {
 	},
 	mixins: [
 		follow,
-		currentUser
+		currentUser,
 	],
 	props: {
-		item: { type: Object, default: () => {} }
+		item: { type: Object, default: () => {} },
 	},
-	data: function() {
+	data() {
 		return {
-			followingText: t('social', 'Following')
+			followingText: t('social', 'Following'),
 		}
 	},
 	computed: {
@@ -88,8 +92,8 @@ export default {
 		},
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.id)
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped>

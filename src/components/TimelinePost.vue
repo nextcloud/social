@@ -33,34 +33,34 @@
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.actor_info.summary" />
 		<div v-if="hasAttachments" class="post-attachments">
-			<post-attachment :attachments="item.attachment" />
+			<PostAttachment :attachments="item.attachment" />
 		</div>
-		<div v-if="this.$route && this.$route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<NcButton type="tertiary-no-background"
-				v-tooltip="t('social', 'Reply')"
+		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
+			<NcButton v-tooltip="t('social', 'Reply')"
+				type="tertiary-no-background"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
 				</template>
 			</NcButton>
-			<NcButton type="tertiary-no-background"
-				v-tooltip="t('social', 'Boost')"
+			<NcButton v-tooltip="t('social', 'Boost')"
+				type="tertiary-no-background"
 				@click="boost">
 				<template #icon>
 					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'var(--color-main-text)'" />
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"
-				type="tertiary-no-background"
 				v-tooltip="t('social', 'Like')"
+				type="tertiary-no-background"
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
 				</template>
 			</NcButton>
 			<NcButton v-if="isLiked"
-				type="tertiary-no-background"
 				v-tooltip="t('social', 'Undo Like')"
+				type="tertiary-no-background"
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
@@ -68,8 +68,8 @@
 			</NcButton>
 			<NcActions>
 				<NcActionButton v-if="item.actor_info.account === cloudId"
-					@click="remove()"
-					icon="icon-delete">
+					icon="icon-delete"
+					@click="remove()">
 					{{ t('social', 'Delete') }}
 				</NcActionButton>
 			</NcActions>
@@ -79,9 +79,11 @@
 
 <script>
 import * as linkify from 'linkifyjs'
+// eslint-disable-next-line
 import pluginMention from 'linkifyjs/plugins/mention'
+// eslint-disable-next-line
 import 'linkifyjs/string'
-import currentUser from './../mixins/currentUserMixin'
+import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
@@ -90,8 +92,7 @@ import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
-import Logger from '../logger'
-import MessageContent from './MessageContent'
+import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
 import RichText from '@nextcloud/vue-richtext'
@@ -102,7 +103,6 @@ export default {
 	name: 'TimelinePost',
 	components: {
 		PostAttachment,
-		MessageContent,
 		NcActions,
 		NcActionButton,
 		NcButton,
@@ -115,7 +115,7 @@ export default {
 	mixins: [currentUser],
 	props: {
 		item: { type: Object, default: () => {} },
-		parentAnnounce: { type: Object, default: () => {} }
+		parentAnnounce: { type: Object, default: () => {} },
 	},
 	computed: {
 		relativeTimestamp() {
@@ -157,6 +157,7 @@ export default {
 	},
 	methods: {
 		/**
+		 * @param e
 		 * @function getSinglePostTimeline
 		 * @description Opens the timeline of the post clicked
 		 */
@@ -168,16 +169,17 @@ export default {
 				} else if (this.item.type === 'Announce') {
 					window.open(this.item.object)
 				} else {
-					Logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
+					logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
 				}
 			} else {
-				this.$router.push({ name: 'single-post',
+				this.$router.push({
+					name: 'single-post',
 					params: {
 						account: this.item.actor_info.preferredUsername,
 						id: this.item.id,
 						localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
-						type: 'single-post'
-					}
+						type: 'single-post',
+					},
 				})
 			}
 		},
@@ -189,9 +191,9 @@ export default {
 			this.$root.$emit('composer-reply', this.item)
 		},
 		boost() {
-			let params = {
+			const params = {
 				post: this.item,
-				parentAnnounce: this.parentAnnounce
+				parentAnnounce: this.parentAnnounce,
 			}
 			if (this.isBoosted) {
 				this.$store.dispatch('postUnBoost', params)
@@ -203,17 +205,17 @@ export default {
 			this.$store.dispatch('postDelete', this.item)
 		},
 		like() {
-			let params = {
+			const params = {
 				post: this.item,
-				parentAnnounce: this.parentAnnounce
+				parentAnnounce: this.parentAnnounce,
 			}
 			if (this.isLiked) {
 				this.$store.dispatch('postUnlike', params)
 			} else {
 				this.$store.dispatch('postLike', params)
 			}
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped lang="scss">

@@ -34,7 +34,7 @@ class UnfollowException {
 export default {
 	data() {
 		return {
-			followLoading: false
+			followLoading: false,
 		}
 	},
 	methods: {
@@ -66,6 +66,6 @@ export default {
 				OC.Notification.showTemporary(`Failed to unfollow user ${this.item.account}`)
 				console.error(`Failed to unfollow user ${this.item.account}`, error.response.data)
 			})
-		}
-	}
+		},
+	},
 }

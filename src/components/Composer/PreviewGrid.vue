@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 <template>
 	<div class="upload-form">
-		<div class="upload-progress" v-if="false">
+		<div v-if="false" class="upload-progress">
 			<div class="upload-progress__icon">
 				<FileUpload :size="32" />
 			</div>
@@ -19,14 +19,18 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 			</div>
 		</div>
 		<div class="preview-grid">
-			<PreviewGridItem v-for="(item, index) in miniatures" :key="index" :preview="item" :index="index" @delete="deletePreview" />
+			<PreviewGridItem v-for="(item, index) in miniatures"
+				:key="index"
+				:preview="item"
+				:index="index"
+				@delete="deletePreview" />
 		</div>
 	</div>
 </template>
 
 <script>
-import PreviewGridItem from './PreviewGridItem'
-import FileUpload from 'vue-material-design-icons/FileUpload'
+import PreviewGridItem from './PreviewGridItem.vue'
+import FileUpload from 'vue-material-design-icons/FileUpload.vue'
 
 export default {
 	name: 'PreviewGrid',
@@ -50,9 +54,8 @@ export default {
 	},
 	methods: {
 		deletePreview(index) {
-			console.debug("rjeoijreo")
-			this.miniatures.splice(index, 1)
-		}
+			$emit('deleted', index)
+		},
 	},
 }
 </script>

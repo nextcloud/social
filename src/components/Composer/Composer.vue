@@ -25,14 +25,16 @@
 	<div class="new-post" data-id="">
 		<input id="file-upload"
 			ref="fileUploadInput"
-			@change="handleFileChange($event)"
 			multiple
 			type="file"
 			tabindex="-1"
 			aria-hidden="true"
-			class="hidden-visually">
+			class="hidden-visually"
+			@change="handleFileChange($event)">
 		<div class="new-post-author">
-			<NcAvatar :user="currentUser.uid" :display-name="currentUser.displayName" :disable-tooltip="true"
+			<NcAvatar :user="currentUser.uid"
+				:display-name="currentUser.displayName"
+				:disable-tooltip="true"
 				:size="32" />
 			<div class="post-author">
 				<span class="post-author-name">
@@ -46,11 +48,12 @@
 		<div v-if="replyTo" class="reply-to">
 			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
-				<actor-avatar :actor="replyTo.actor_info" :size="16" />
+				<ActorAvatar :actor="replyTo.actor_info" :size="16" />
 				<strong>{{ replyTo.actor_info.account }}</strong>
-				<NcButton type="tertiary" class="close-button"
-					@click="closeReply"
-					:aria-label="t('social', 'Close reply')">
+				<NcButton type="tertiary"
+					class="close-button"
+					:aria-label="t('social', 'Close reply')"
+					@click="closeReply">
 					<template #icon>
 						<Close :size="20" />
 					</template>
@@ -61,33 +64,42 @@
 			</div>
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
-			<vue-tribute :options="tributeOptions">
+			<VueTribute :options="tributeOptions">
 				<!-- eslint-disable-next-line vue/valid-v-model -->
-				<div ref="composerInput" v-contenteditable:post.dangerousHTML="canType && !loading" class="message"
-					placeholder="What would you like to share?" :class="{'icon-loading': loading}" @keyup.prevent.enter="keyup"
+				<div ref="composerInput"
+					v-contenteditable:post.dangerousHTML="canType && !loading"
+					class="message"
+					placeholder="What would you like to share?"
+					:class="{'icon-loading': loading}"
+					@keyup.prevent.enter="keyup"
 					@tribute-replaced="updatePostFromTribute" />
-			</vue-tribute>
+			</VueTribute>
 
-			<PreviewGrid :uploading="false" :uploadProgress="0.4" :miniatures="previewUrls" />
+			<PreviewGrid :uploading="false"
+				:upload-progress="0.4"
+				:miniatures="previewUrls"
+				@deleted="deletePreview" />
 
 			<div class="options">
-				<NcButton type="tertiary"
-					@click.prevent="clickImportInput"
+				<NcButton v-tooltip="t('social', 'Add attachment')"
+					type="tertiary"
 					:aria-label="t('social', 'Add attachment')"
-					v-tooltip="t('social', 'Add attachment')">
+					@click.prevent="clickImportInput">
 					<template #icon>
 						<FileUpload :size="22" decorative title="" />
 					</template>
 				</NcButton>
 
 				<div class="new-post-form__emoji-picker">
-					<NcEmojiPicker ref="emojiPicker" :search="search" :close-on-select="false"
+					<NcEmojiPicker ref="emojiPicker"
+						:search="search"
+						:close-on-select="false"
 						:container="container"
 						@select="insert">
-						<NcButton type="tertiary"
+						<NcButton v-tooltip="t('social', 'Add emoji')"
+							type="tertiary"
 							:aria-haspopup="true"
-							:aria-label="t('social', 'Add emoji')"
-							v-tooltip="t('social', 'Add emoji')">
+							:aria-label="t('social', 'Add emoji')">
 							<template #icon>
 								<EmoticonOutline :size="22" decorative title="" />
 							</template>
@@ -96,17 +108,19 @@
 				</div>
 
 				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
-					<NcButton type="tertiary"
-					:class="currentVisibilityIconClass"
-					@click.prevent="togglePopoverMenu"
-					v-tooltip="t('social', 'Visibility')" />
+					<NcButton v-tooltip="t('social', 'Visibility')"
+						type="tertiary"
+						:class="currentVisibilityIconClass"
+						@click.prevent="togglePopoverMenu" />
 					<div :class="{open: menuOpened}" class="popovermenu">
 						<NcPopoverMenu :menu="visibilityPopover" />
 					</div>
 				</div>
 
 				<div class="emptySpace" />
-				<NcButton :value="currentVisibilityPostLabel" :disabled="!canPost" type="primary"
+				<NcButton :value="currentVisibilityPostLabel"
+					:disabled="!canPost"
+					type="primary"
 					@click.prevent="createPost">
 					<template #icon>
 						<Send title="" :size="22" decorative />
@@ -162,8 +176,8 @@ export default {
 			type: localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			post: '',
-			miniatures: [],		// miniatures of images stored in postAttachments
-			postAttachments: [],	// The toot's attachments
+			miniatures: [], // miniatures of images stored in postAttachments
+			postAttachments: [], // The toot's attachments
 			previewUrls: [],
 			canType: true,
 			search: '',
@@ -173,45 +187,45 @@ export default {
 				collection: [
 					{
 						trigger: '@',
-						lookup: function(item) {
+						lookup(item) {
 							return item.key + item.value
 						},
-						menuItemTemplate: function(item) {
+						menuItemTemplate(item) {
 							return '<img src="' + item.original.avatar + '" /><div>'
 								+ '<span class="displayName">' + item.original.key + '</span>'
 								+ '<span class="account">' + item.original.value + '</span>'
 								+ '</div>'
 						},
-						selectTemplate: function(item) {
+						selectTemplate(item) {
 							return '<span class="mention" contenteditable="false">'
 								+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
 						},
 						values: (text, cb) => {
-							let users = []
+							const users = []
 
 							if (text.length < 1) {
 								cb(users)
 							}
 							this.remoteSearchAccounts(text).then((result) => {
-								for (var i in result.data.result.accounts) {
-									let user = result.data.result.accounts[i]
+								for (const i in result.data.result.accounts) {
+									const user = result.data.result.accounts[i]
 									users.push({
 										key: user.preferredUsername,
 										value: user.account,
 										url: user.url,
-										avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`)
+										avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`),
 									})
 								}
 								cb(users)
 							})
-						}
+						},
 					},
 					{
 						trigger: '#',
-						menuItemTemplate: function(item) {
+						menuItemTemplate(item) {
 							return item.original.value
 						},
-						selectTemplate: function(item) {
+						selectTemplate(item) {
 							let tag = ''
 							// item is undefined if selectTemplate is called from a noMatchTemplate menu
 							if (typeof item === 'undefined') {
@@ -223,7 +237,7 @@ export default {
 								+ '<a href="' + generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
 						},
 						values: (text, cb) => {
-							let tags = []
+							const tags = []
 
 							if (text.length < 1) {
 								cb(tags)
@@ -232,20 +246,20 @@ export default {
 								if (result.data.result.exact) {
 									tags.push({
 										key: result.data.result.exact,
-										value: result.data.result.exact
+										value: result.data.result.exact,
 									})
 								}
-								for (var i in result.data.result.tags) {
-									let tag = result.data.result.tags[i]
+								for (const i in result.data.result.tags) {
+									const tag = result.data.result.tags[i]
 									tags.push({
 										key: tag.hashtag,
-										value: tag.hashtag
+										value: tag.hashtag,
 									})
 								}
 								cb(tags)
 							})
-						}
-					}
+						},
+					},
 				],
 				noMatchTemplate() {
 					if (this.current.collection.trigger === '#') {
@@ -255,23 +269,24 @@ export default {
 							return '<li data-index="0">#' + this.current.mentionText + '</li>'
 						}
 					}
-				}
+				},
 			},
-			menuOpened: false
+			menuOpened: false,
 
 		}
 	},
 	computed: {
 		postTo() {
 			switch (this.type) {
-				case 'public':
-				case 'unlisted':
-					return t('social', 'Post')
-				case 'followers':
-					return t('social', 'Post to followers')
-				case 'direct':
-					return t('social', 'Post to mentioned users')
+			case 'public':
+			case 'unlisted':
+				return t('social', 'Post')
+			case 'followers':
+				return t('social', 'Post to followers')
+			case 'direct':
+				return t('social', 'Post to mentioned users')
 			}
+			return ''
 		},
 		currentVisibilityIconClass() {
 			return this.visibilityIconClass(this.type)
@@ -331,7 +346,7 @@ export default {
 					icon: this.visibilityIconClass('public'),
 					active: this.activeState('public'),
 					text: t('social', 'Public'),
-					longtext: t('social', 'Post to public timelines')
+					longtext: t('social', 'Post to public timelines'),
 				},
 				{
 					action: () => {
@@ -340,7 +355,7 @@ export default {
 					icon: this.visibilityIconClass('unlisted'),
 					active: this.activeState('unlisted'),
 					text: t('social', 'Unlisted'),
-					longtext: t('social', 'Do not post to public timelines')
+					longtext: t('social', 'Do not post to public timelines'),
 				},
 				{
 					action: () => {
@@ -349,7 +364,7 @@ export default {
 					icon: this.visibilityIconClass('followers'),
 					active: this.activeState('followers'),
 					text: t('social', 'Followers'),
-					longtext: t('social', 'Post to followers only')
+					longtext: t('social', 'Post to followers only'),
 				},
 				{
 					action: () => {
@@ -358,8 +373,8 @@ export default {
 					icon: this.visibilityIconClass('direct'),
 					active: this.activeState('direct'),
 					text: t('social', 'Direct'),
-					longtext: t('social', 'Post to mentioned users only')
-				}
+					longtext: t('social', 'Post to mentioned users only'),
+				},
 			]
 		},
 		container() {
@@ -370,10 +385,10 @@ export default {
 		},
 		canPost() {
 			if (this.previewUrls.length > 0) {
-				return true;
+				return true
 			}
 			return this.post.length !== 0 && this.post !== '<br>'
-		}
+		},
 	},
 	mounted() {
 		this.$root.$on('composer-reply', (data) => {
@@ -398,9 +413,9 @@ export default {
 		},
 		insert(emoji) {
 			if (typeof emoji === 'object') {
-				let category = Object.keys(emoji)[0]
-				let emojis = emoji[category]
-				let firstEmoji = Object.keys(emojis)[0]
+				const category = Object.keys(emoji)[0]
+				const emojis = emoji[category]
+				const firstEmoji = Object.keys(emojis)[0]
 				emoji = emojis[firstEmoji]
 			}
 			this.post += this.$twemoji.parse(emoji) + ' '
@@ -419,16 +434,16 @@ export default {
 			localStorage.setItem('social.lastPostType', type)
 		},
 		getPostData() {
-			let element = this.$refs.composerInput.cloneNode(true)
+			const element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
-				var em = document.createTextNode(emoji.getAttribute('alt'))
+				const em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
 
-			let contentHtml = element.innerHTML
+			const contentHtml = element.innerHTML
 
 			// Extract mentions from content and create an array out of them
-			let to = []
+			const to = []
 			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
 			let match = null
 			do {
@@ -445,7 +460,7 @@ export default {
 
 			// Extract hashtags from content and create an array ot of them
 			const hashtagRegex = />#([^<]+)</g
-			let hashtags = []
+			const hashtags = []
 			match = null
 			do {
 				match = hashtagRegex.exec(contentHtml)
@@ -458,7 +473,7 @@ export default {
 			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
 			content = he.decode(content)
 
-			let formData = new FormData()
+			const formData = new FormData()
 			formData.append('content', content)
 			formData.append('to', to)
 			formData.append('hashtags', hashtags)
@@ -483,17 +498,17 @@ export default {
 			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
 			this.$refs.composerInput.oninput(event)
 		},
-		createPost: async function(event) {
+		async createPost(event) {
 
-			let postData = this.getPostData()
+			const postData = this.getPostData()
 
 			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
-			let regex = /@([-\w]+)$/
-			let lastMention = postData.get('content').match(regex)
+			const regex = /@([-\w]+)$/
+			const lastMention = postData.get('content').match(regex)
 			if (lastMention) {
 
 				// Ask the server for matching accounts, and wait for the results
-				let result = await this.remoteSearchAccounts(lastMention[1])
+				const result = await this.remoteSearchAccounts(lastMention[1])
 
 				// Validate the last mention only when it matches a single account
 				if (result.data.result.accounts.length === 1) {
@@ -504,8 +519,8 @@ export default {
 
 			// Abort if the post is a direct message and no valid mentions were found
 			// if (this.type === 'direct' && postData.get('to').length === 0) {
-			// 	OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
-			// 	return
+			// OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
+			// return
 			// }
 
 			// Post message
@@ -530,8 +545,11 @@ export default {
 		},
 		remoteSearchHashtags(text) {
 			return axios.get(generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
-		}
-	}
+		},
+		deletePreview(index) {
+			this.previewUrls.splice(index, 1)
+		},
+	},
 }
 
 </script>

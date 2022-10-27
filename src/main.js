@@ -24,12 +24,12 @@ import Vue from 'vue'
 import { sync } from 'vuex-router-sync'
 
 import App from './App.vue'
-import store from './store'
-import router from './router'
+import store from './store/index.js'
+import router from './router.js'
 import vuetwemoji from 'vue-twemoji'
 import contenteditableDirective from 'vue-contenteditable-directive'
 import ClickOutside from 'vue-click-outside'
-import VTooltip from '@nextcloud/vue/dist/Directives/Tooltip'
+import VTooltip from '@nextcloud/vue/dist/Directives/Tooltip.js'
 
 sync(store, router)
 
@@ -54,12 +54,12 @@ Vue.use(vuetwemoji, {
 	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/
 	extension: '.svg', // .svg, .png
 	className: 'emoji', // custom className for image output
-	size: 'twemoji' // image size
+	size: 'twemoji', // image size
 })
 
 /* eslint-disable-next-line no-new */
 new Vue({
-	router: router,
+	router,
 	render: h => h(App),
-	store: store
+	store,
 }).$mount('#content')

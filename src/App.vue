@@ -2,8 +2,11 @@
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<NcAppNavigation v-if="!serverData.public">
 			<template #list>
-				<NcAppNavigationItem v-for="item in menu.items" :key="item.key" :to="item.to"
-					:title="item.title" :exact="true">
+				<NcAppNavigationItem v-for="item in menu.items"
+					:key="item.key"
+					:to="item.to"
+					:title="item.title"
+					:exact="true">
 					<template #icon>
 						<component :is="item.icon" />
 					</template>
@@ -94,27 +97,27 @@ export default {
 		Search,
 	},
 	mixins: [currentuserMixin],
-	data: function() {
+	data() {
 		return {
 			infoHidden: false,
 			state: [],
 			cloudAddress: '',
-			searchTerm: ''
+			searchTerm: '',
 		}
 	},
 	computed: {
-		timeline: function() {
+		timeline() {
 			return this.$store.getters.getTimeline
 		},
-		menu: function() {
+		menu() {
 			const defaultCategories = [
 				{
 					id: 'social-timeline',
 					icon: Home,
 					title: t('social', 'Home'),
 					to: {
-						name: 'timeline'
-					}
+						name: 'timeline',
+					},
 				},
 				{
 					id: 'social-direct-messages',
@@ -122,8 +125,8 @@ export default {
 					title: t('social', 'Direct messages'),
 					to: {
 						name: 'timeline',
-						params: { type: 'direct' }
-					}
+						params: { type: 'direct' },
+					},
 				},
 				{
 					id: 'social-notifications',
@@ -131,8 +134,8 @@ export default {
 					title: t('social', 'Notifications'),
 					to: {
 						name: 'timeline',
-						params: { type: 'notifications' }
-					}
+						params: { type: 'notifications' },
+					},
 				},
 				{
 					id: 'social-account',
@@ -140,8 +143,8 @@ export default {
 					title: t('social', 'Profile'),
 					to: {
 						name: 'profile',
-						params: { account: this.currentUser.uid }
-					}
+						params: { account: this.currentUser.uid },
+					},
 				},
 				{
 					id: 'social-liked',
@@ -149,8 +152,8 @@ export default {
 					title: t('social', 'Liked'),
 					to: {
 						name: 'timeline',
-						params: { type: 'liked' }
-					}
+						params: { type: 'liked' },
+					},
 				},
 				{
 					id: 'social-local',
@@ -158,8 +161,8 @@ export default {
 					title: t('social', 'Local timeline'),
 					to: {
 						name: 'timeline',
-						params: { type: 'timeline' }
-					}
+						params: { type: 'timeline' },
+					},
 				},
 				{
 					id: 'social-global',
@@ -167,22 +170,22 @@ export default {
 					title: t('social', 'Global timeline'),
 					to: {
 						name: 'timeline',
-						params: { type: 'federated' }
-					}
-				}
+						params: { type: 'federated' },
+					},
+				},
 			]
 			return {
 				items: defaultCategories,
-				loading: false
+				loading: false,
 			}
-		}
+		},
 	},
 	watch: {
 		$route(to, from) {
 			this.searchTerm = ''
-		}
+		},
 	},
-	beforeMount: function() {
+	beforeMount() {
 		// importing server data into the store
 		this.$store.commit('setServerData', loadState('social', 'serverData'))
 
@@ -212,7 +215,7 @@ export default {
 		resetSearch() {
 			this.searchTerm = ''
 		},
-		fromPushApp: function(data) {
+		fromPushApp(data) {
 			// FIXME: might be better to use Timeline.type() ?
 			let timeline = 'home'
 			if (this.$route.name === 'tags') {
@@ -227,8 +230,8 @@ export default {
 			if (data.source === 'timeline.direct' && timeline === 'direct') {
 				this.$store.dispatch('addToTimeline', [data.payload])
 			}
-		}
-	}
+		},
+	},
 }
 </script>
 

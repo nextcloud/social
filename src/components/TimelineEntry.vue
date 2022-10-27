@@ -24,12 +24,11 @@
 				{{ boosted }}
 			</div>
 		</template>
-		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
+		<UserEntry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 		<template v-else>
 			<div class="wrapper">
-				<timeline-avatar :item="entryContent" />
-				<timeline-post
-					class="message"
+				<TimelineAvatar :item="entryContent" />
+				<TimelinePost class="message"
 					:item="entryContent"
 					:parent-announce="isBoost" />
 			</div>
@@ -47,12 +46,12 @@ export default {
 	components: {
 		TimelinePost,
 		TimelineAvatar,
-		UserEntry
+		UserEntry,
 	},
 	props: {
 		item: {
 			type: Object,
-			default: () => {}
+			default: () => {},
 		},
 		isProfilePage: {
 			type: Boolean,
@@ -88,13 +87,13 @@ export default {
 		actionSummary() {
 
 			let summary = this.item.summary
-			for (var key in this.item.details) {
+			for (const key in this.item.details) {
 
-				let keyword = '{' + key + '}'
+				const keyword = '{' + key + '}'
 				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
 
 					let concatination = ''
-					for (var stringKey in this.item.details[key]) {
+					for (const stringKey in this.item.details[key]) {
 
 						if (this.item.details[key].length > 3 && stringKey === '3') {
 							// ellipses the actors' list to 3 actors when it's big
@@ -115,13 +114,13 @@ export default {
 			}
 
 			return summary
-		}
+		},
 	},
 	methods: {
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped lang="scss">

@@ -23,12 +23,16 @@
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
 	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
-		<button v-if="isCurrentUserFollowing" :class="{'icon-loading-small': followLoading}"
+		<button v-if="isCurrentUserFollowing"
+			:class="{'icon-loading-small': followLoading}"
 			@click="unfollow()"
-			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
+			@mouseover="followingText=t('social', 'Unfollow')"
+			@mouseleave="followingText=t('social', 'Following')">
 			<span><span class="icon-checkmark" />{{ followingText }}</span>
 		</button>
-		<button v-else :class="{'icon-loading-small': followLoading}" class="primary"
+		<button v-else
+			:class="{'icon-loading-small': followLoading}"
+			class="primary"
 			@click="follow">
 			<span>{{ t('social', 'Follow') }}</span>
 		</button>
@@ -43,21 +47,21 @@ export default {
 	name: 'FollowButton',
 	mixins: [
 		accountMixins,
-		currentUser
+		currentUser,
 	],
 	props: {
 		account: {
 			type: String,
-			default: ''
+			default: '',
 		},
 		uid: {
 			type: String,
-			default: ''
-		}
+			default: '',
+		},
 	},
-	data: function() {
+	data() {
 		return {
-			followingText: t('social', 'Following')
+			followingText: t('social', 'Following'),
 		}
 	},
 	computed: {
@@ -66,7 +70,7 @@ export default {
 		},
 		isCurrentUserFollowing() {
 			return this.$store.getters.isFollowingUser(this.account)
-		}
+		},
 	},
 	methods: {
 		follow() {
@@ -74,8 +78,8 @@ export default {
 		},
 		unfollow() {
 			this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped>

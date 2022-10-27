@@ -16,18 +16,87 @@
 				</p>
 				<div v-show="!isFollowingNextcloudAccount" class="follow-nextcloud">
 					<p>{{ t('social', 'Since you are new to Social, start by following the official Nextcloud account so you don\'t miss any news') }}</p>
-					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')" type="button" class="primary"
+					<input :value="t('social', 'Follow Nextcloud on mastodon.xyz')"
+						type="button"
+						class="primary"
 						@click="followNextcloud">
 				</div>
 			</div>
 		</transition>
-		<composer v-if="type !== 'notifications' && type !== 'single-post'" />
+		<Composer v-if="type !== 'notifications' && type !== 'single-post'" />
 		<h2 v-if="type === 'tags'">
-			#{{ this.$route.params.tag }}
+			#{{ $route.params.tag }}
 		</h2>
-		<timeline-list :type="type" />
+		<TimelineList :type="type" />
 	</div>
 </template>
+
+<script>
+import Composer from './../components/Composer/Composer.vue'
+import CurrentUserMixin from './../mixins/currentUserMixin.js'
+import follow from './../mixins/follow.js'
+import TimelineList from './../components/TimelineList.vue'
+
+export default {
+	name: 'Timeline',
+	components: {
+		Composer,
+		TimelineList,
+	},
+	mixins: [
+		CurrentUserMixin,
+		follow,
+	],
+	data() {
+		return {
+			infoHidden: false,
+			nextcloudAccount: 'nextcloud@mastodon.xyz',
+		}
+	},
+	computed: {
+		params() {
+			if (this.$route.name === 'tags') {
+				return { tag: this.$route.params.tag }
+			} else if (this.$route.name === 'single-post') {
+				return this.$route.params
+			}
+			return {}
+		},
+		type() {
+			if (this.$route.name === 'tags') {
+				return 'tags'
+			}
+			if (this.$route.params.type) {
+				return this.$route.params.type
+			}
+			return 'home'
+		},
+		showInfo() {
+			return this.$store.getters.getServerData.firstrun && !this.infoHidden
+		},
+		isFollowingNextcloudAccount() {
+			if (!this.$store.getters.accountLoaded(this.nextcloudAccount)) {
+				return true
+			}
+			return this.$store.getters.isFollowingUser(this.nextcloudAccount)
+		},
+	},
+	beforeMount() {
+		this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
+		if (this.showInfo) {
+			this.$store.dispatch('fetchAccountInfo', this.nextcloudAccount)
+		}
+	},
+	methods: {
+		hideInfo() {
+			this.infoHidden = true
+		},
+		followNextcloud() {
+			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
+		},
+	},
+}
+</script>
 
 <style scoped>
 
@@ -88,70 +157,3 @@
 	}
 
 </style>
-
-<script>
-import Composer from './../components/Composer/Composer.vue'
-import CurrentUserMixin from './../mixins/currentUserMixin.js'
-import follow from './../mixins/follow.js'
-import TimelineList from './../components/TimelineList.vue'
-
-export default {
-	name: 'Timeline',
-	components: {
-		Composer,
-		TimelineList
-	},
-	mixins: [
-		CurrentUserMixin,
-		follow
-	],
-	data: function() {
-		return {
-			infoHidden: false,
-			nextcloudAccount: 'nextcloud@mastodon.xyz'
-		}
-	},
-	computed: {
-		params() {
-			if (this.$route.name === 'tags') {
-				return { tag: this.$route.params.tag }
-			} else if (this.$route.name === 'single-post') {
-				return this.$route.params
-			}
-			return {}
-		},
-		type() {
-			if (this.$route.name === 'tags') {
-				return 'tags'
-			}
-			if (this.$route.params.type) {
-				return this.$route.params.type
-			}
-			return 'home'
-		},
-		showInfo() {
-			return this.$store.getters.getServerData.firstrun && !this.infoHidden
-		},
-		isFollowingNextcloudAccount() {
-			if (!this.$store.getters.accountLoaded(this.nextcloudAccount)) {
-				return true
-			}
-			return this.$store.getters.isFollowingUser(this.nextcloudAccount)
-		}
-	},
-	beforeMount: function() {
-		this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
-		if (this.showInfo) {
-			this.$store.dispatch('fetchAccountInfo', this.nextcloudAccount)
-		}
-	},
-	methods: {
-		hideInfo() {
-			this.infoHidden = true
-		},
-		followNextcloud() {
-			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
-		}
-	}
-}
-</script>

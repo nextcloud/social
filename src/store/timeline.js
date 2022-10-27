@@ -23,17 +23,17 @@
  *
  */
 
-import Logger from '../logger'
+import logger from '../services/logger.js'
 import axios from '@nextcloud/axios'
 import Vue from 'vue'
 import { generateUrl } from '@nextcloud/router'
 
 /**
- * @property {object}	timeline	- The posts' collection
- * @property {int}	since 		- Time (EPOCH) of the most recent post
- * @property {string}	type		- Timeline's type: 'home', 'single-post',...
- * @property {object}	params		- Timeline's parameters
- * @property {string}	account		-
+ * @property {object} timeline - The posts' collection
+ * @property {int} since - Time (EPOCH) of the most recent post
+ * @property {string} type - Timeline's type: 'home', 'single-post',...
+ * @property {object} params - Timeline's parameters
+ * @property {string} account -
  */
 const state = {
 	timeline: {},
@@ -41,10 +41,10 @@ const state = {
 	type: 'home',
 	/**
 	 * @namespace params
-	 * @property {string}	account			???
-	 * @property {string}	id
-	 * @property {string}	localId
-	 * @property {string}	type 			???
+	 * @property {string} account ???
+	 * @property {string} id
+	 * @property {string} localId
+	 * @property {string} type ???
 	 */
 	params: {},
 	account: '',
@@ -52,11 +52,11 @@ const state = {
 	 * It's up to the view to honor this status or not.
 	 * @member {boolean}
 	 */
-	composerDisplayStatus: false
+	composerDisplayStatus: false,
 }
 const mutations = {
 	addToTimeline(state, data) {
-		for (let item in data) {
+		for (const item in data) {
 			state.since = data[item].publishedTime
 			Vue.set(state.timeline, data[item].id, data[item])
 		}
@@ -111,7 +111,7 @@ const mutations = {
 		if (typeof parentAnnounce.id !== 'undefined') {
 			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
 		}
-	}
+	},
 }
 const getters = {
 	getComposerDisplayStatus(state) {
@@ -127,10 +127,10 @@ const getters = {
 			if (typeof state.timeline[postId] !== 'undefined') {
 				return state.timeline[postId]
 			} else {
-				Logger.warn('Could not find post in timeline', { postId: postId })
+				logger.warn('Could not find post in timeline', { postId })
 			}
 		}
-	}
+	},
 }
 const actions = {
 	changeTimelineType(context, { type, params }) {
@@ -148,22 +148,22 @@ const actions = {
 		try {
 			const { data } = await axios.post(generateUrl('apps/social/api/v1/post'), post, {
 				headers: {
-					'Content-Type': 'multipart/form-data'
-				}
+					'Content-Type': 'multipart/form-data',
+				},
 			})
-            Logger.info('Post created with token ' + data.result.token)
-        } catch (error) {
-            OC.Notification.showTemporary('Failed to create a post')
-            Logger.error('Failed to create a post', { 'error': error.response })
+			logger.info('Post created with token ' + data.result.token)
+		} catch (error) {
+			OC.Notification.showTemporary('Failed to create a post')
+			logger.error('Failed to create a post', { error: error.response })
 		}
 	},
 	postDelete(context, post) {
 		return axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
 			context.commit('removePost', post)
-			Logger.info('Post deleted with token ' + response.data.result.token)
+			logger.info('Post deleted with token ' + response.data.result.token)
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to delete the post')
-			Logger.error('Failed to delete the post', { 'error': error })
+			logger.error('Failed to delete the post', { error })
 		})
 	},
 	postLike(context, { post, parentAnnounce }) {
@@ -173,7 +173,7 @@ const actions = {
 				resolve(response)
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to like post')
-				Logger.error('Failed to like post', { 'error': error.response })
+				logger.error('Failed to like post', { error: error.response })
 				reject(error)
 			})
 		})
@@ -187,18 +187,18 @@ const actions = {
 			}
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to unlike post')
-			Logger.error('Failed to unlike post', { 'error': error })
+			logger.error('Failed to unlike post', { error })
 		})
 	},
 	postBoost(context, { post, parentAnnounce }) {
 		return new Promise((resolve, reject) => {
 			axios.post(generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 				context.commit('boostPost', { post, parentAnnounce })
-				Logger.info('Post boosted with token ' + response.data.result.token)
+				logger.info('Post boosted with token ' + response.data.result.token)
 				resolve(response)
 			}).catch((error) => {
 				OC.Notification.showTemporary('Failed to create a boost post')
-				Logger.error('Failed to create a boost post', { 'error': error.response })
+				logger.error('Failed to create a boost post', { error: error.response })
 				reject(error)
 			})
 		})
@@ -206,10 +206,10 @@ const actions = {
 	postUnBoost(context, { post, parentAnnounce }) {
 		return axios.delete(generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
 			context.commit('unboostPost', { post, parentAnnounce })
-			Logger.info('Boost deleted with token ' + response.data.result.token)
+			logger.info('Boost deleted with token ' + response.data.result.token)
 		}).catch((error) => {
 			OC.Notification.showTemporary('Failed to delete the boost')
-			Logger.error('Failed to delete the boost', { 'error': error })
+			logger.error('Failed to delete the boost', { error })
 		})
 	},
 	refreshTimeline(context) {
@@ -248,7 +248,7 @@ const actions = {
 	},
 	addToTimeline(context, data) {
 		context.commit('addToTimeline', data)
-	}
+	},
 }
 
 export default { state, mutations, getters, actions }

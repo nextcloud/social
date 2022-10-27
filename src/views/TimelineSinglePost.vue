@@ -1,24 +1,11 @@
 <template>
 	<div class="social__wrapper">
-		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
-		<composer v-show="composerDisplayStatus" />
-		<timeline-entry class="main-post" :item="mainPost" />
-		<timeline-list v-if="timeline" :type="$route.params.type" />
+		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
+		<Composer v-show="composerDisplayStatus" />
+		<TimelineEntry class="main-post" :item="mainPost" />
+		<TimelineList v-if="timeline" :type="$route.params.type" />
 	</div>
 </template>
-
-<style scoped>
-
-	.social__timeline {
-		max-width: 600px;
-		margin: 15px auto;
-	}
-
-	#app-content {
-		position: relative;
-	}
-
-</style>
 
 <script>
 import Composer from '../components/Composer/Composer.vue'
@@ -36,43 +23,43 @@ export default {
 		Composer,
 		ProfileInfo,
 		TimelineEntry,
-		TimelineList
+		TimelineList,
 	},
 	mixins: [
 		accountMixins,
 		currentUserMixin,
-		serverData
+		serverData,
 	],
 	data() {
 		return {
 			mainPost: {},
-			uid: this.$route.params.account
+			uid: this.$route.params.account,
 		}
 	},
 	computed: {
 		/**
 		 * @description Tells whether Composer shall be displayed or not
-		 * @returns {boolean}
+		 * @return {boolean}
 		 */
 		composerDisplayStatus() {
 			return this.$store.getters.getComposerDisplayStatus
 		},
 		/**
 		 * @description Extracts the viewed account name from the URL
-		 * @returns {String}
+		 * @return {string}
 		 */
 		account() {
 			return window.location.href.split('/')[window.location.href.split('/').length - 2].slice(1)
 		},
 		/**
 		 * @description Returns the timeline currently loaded in the store
-		 * @returns {Object}
+		 * @return {object}
 		 */
-		timeline: function() {
+		timeline() {
 			return this.$store.getters.getTimeline
-		}
+		},
 	},
-	beforeMount: function() {
+	beforeMount() {
 
 		// Get data of post clicked on
 		if (typeof this.$route.params.id === 'undefined') {
@@ -89,21 +76,34 @@ export default {
 		})
 
 		// Fetch single post timeline
-		let params = {
+		const params = {
 			account: this.account,
 			id: window.location.href,
 			localId: window.location.href.split('/')[window.location.href.split('/').length - 1],
-			type: 'single-post'
+			type: 'single-post',
 		}
 		this.$store.dispatch('changeTimelineType', {
 			type: 'single-post',
-			params: params
+			params,
 		})
 	},
 	methods: {
-	}
+	},
 }
 </script>
+
+<style scoped>
+
+	.social__timeline {
+		max-width: 600px;
+		margin: 15px auto;
+	}
+
+	#app-content {
+		position: relative;
+	}
+
+</style>
 
 <style>
 

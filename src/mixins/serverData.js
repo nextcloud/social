@@ -26,15 +26,16 @@
 
 export default {
 	computed: {
-		/** @description Returns the serverData object
-		 * @property {String}	account - The account that the user wants to follow (Only in 'OStatus.vue')
+		/**
+		 * @description Returns the serverData object
+		 * @property {string} account - The account that the user wants to follow (Only in 'OStatus.vue')
 		 * @property cliUrl
 		 * @property cloudAddress
 		 * @property firstrun
 		 * @property isAdmin
-		 * @property {String}	local	- The local part of the account that the user wants to follow
-		 * @property {boolean}	public	- False when the page is accessed by an authenticated user. True otherwise
-		 * @property 		setup
+		 * @property {string} local - The local part of the account that the user wants to follow
+		 * @property {boolean} public - False when the page is accessed by an authenticated user. True otherwise
+		 * @property setup
 		 */
 		serverData() {
 			if (!this.$store) {
@@ -46,6 +47,6 @@ export default {
 			const url = document.createElement('a')
 			url.setAttribute('href', this.serverData.cloudAddress)
 			return url.hostname
-		}
-	}
+		},
+	},
 }

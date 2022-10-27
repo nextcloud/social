@@ -21,7 +21,7 @@
  */
 
 const state = {
-	serverData: {}
+	serverData: {},
 }
 const mutations = {
 	setServerData(state, data) {
@@ -29,12 +29,12 @@ const mutations = {
 	},
 	setServerDataEntry(state, key, value) {
 		state.serverData[key] = value
-	}
+	},
 }
 const getters = {
 	getServerData(state) {
 		return state.serverData
-	}
+	},
 }
 const actions = {}
 

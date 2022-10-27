@@ -33,48 +33,23 @@
 		</div>
 		<div v-else>
 			<h3>{{ t('social', 'Searching for') }} {{ decodeURIComponent(term) }}</h3>
-			<user-entry v-for="result in allResults" :key="result.id" :item="result" />
+			<UserEntry v-for="result in allResults" :key="result.id" :item="result" />
 			<div v-if="hashtags.length > 0">
 				<li v-for="tag in hashtags" :key="tag.hashtag" class="tag">
 					<router-link :to="{ name: 'tags', params: {tag: tag.hashtag } }">
 						<span>#{{ tag.hashtag }}</span>
-						<trend
-							:data="trendData(tag.trend)"
-							:gradient="['#17adff', '#0082c9']" :smooth="true" :width="150"
-							:height="44" stroke-width="2" />
+						<Trend :data="trendData(tag.trend)"
+							:gradient="['#17adff', '#0082c9']"
+							:smooth="true"
+							:width="150"
+							:height="44"
+							stroke-width="2" />
 					</router-link>
 				</li>
 			</div>
 		</div>
 	</div>
 </template>
-
-<style scoped lang="scss">
-	.user-entry {
-		padding: 0;
-	}
-
-	h3 {
-		margin-top: -3px;
-		margin-left: 47px;
-	}
-	.tag {
-		list-style-type: none;
-		margin: 0;
-		padding: 0;
-		border-bottom: 1px solid var(--color-background-dark);
-
-		a {
-			display: flex;
-			span {
-				display: inline-block;
-				padding: 12px;
-				font-weight: 300;
-				flex-grow: 1;
-			}
-		}
-	}
-</style>
 
 <script>
 
@@ -87,13 +62,13 @@ export default {
 	name: 'Search',
 	components: {
 		UserEntry,
-		Trend
+		Trend,
 	},
 	props: {
 		term: {
 			type: String,
-			default: ''
-		}
+			default: '',
+		},
 	},
 	data() {
 		return {
@@ -101,7 +76,7 @@ export default {
 			loading: false,
 			remoteLoading: false,
 			match: null,
-			hashtags: []
+			hashtags: [],
 		}
 	},
 	computed: {
@@ -113,12 +88,12 @@ export default {
 				return this.results.accounts.result
 			}
 			return []
-		}
+		},
 	},
 	watch: {
 		term(val) {
 			this.search(val)
-		}
+		},
 	},
 	beforeMount() {
 		this.search(this.term)
@@ -130,7 +105,7 @@ export default {
 				Math.max(0, trend['3d'] - trend['1d']),
 				Math.max(0, trend['1d'] - trend['12h']),
 				Math.max(0, trend['12h'] - trend['1h']),
-				Math.max(0, trend['1h'])
+				Math.max(0, trend['1h']),
 			]
 			return data
 		},
@@ -162,7 +137,34 @@ export default {
 		},
 		remoteSearch(term) {
 			return axios.get(generateUrl('apps/social/api/v1/global/account/info?account=' + term))
-		}
-	}
+		},
+	},
 }
 </script>
+
+<style scoped lang="scss">
+	.user-entry {
+		padding: 0;
+	}
+
+	h3 {
+		margin-top: -3px;
+		margin-left: 47px;
+	}
+	.tag {
+		list-style-type: none;
+		margin: 0;
+		padding: 0;
+		border-bottom: 1px solid var(--color-background-dark);
+
+		a {
+			display: flex;
+			span {
+				display: inline-block;
+				padding: 12px;
+				font-weight: 300;
+				flex-grow: 1;
+			}
+		}
+	}
+</style>

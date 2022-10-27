@@ -3,8 +3,12 @@
 		<div v-for="(item, index) in attachments" :key="index">
 			<img :src="imageUrl(item)" @click="showModal(index)">
 		</div>
-		<NcModal v-show="modal" :has-previous="current > 0" :has-next="current < (attachments.length - 1)"
-			size="full" @close="closeModal" @previous="showPrevious"
+		<NcModal v-show="modal"
+			:has-previous="current > 0"
+			:has-next="current < (attachments.length - 1)"
+			size="full"
+			@close="closeModal"
+			@previous="showPrevious"
 			@next="showNext">
 			<div class="modal__content">
 				<canvas ref="modalCanvas" />
@@ -22,21 +26,21 @@ import { generateUrl } from '@nextcloud/router'
 export default {
 	name: 'PostAttachment',
 	components: {
-		NcModal
+		NcModal,
 	},
 	mixins: [
-		serverData
+		serverData,
 	],
 	props: {
 		attachments: {
 			type: Array,
-			default: Array
-		}
+			default: Array,
+		},
 	},
 	data() {
 		return {
 			modal: false,
-			current: ''
+			current: '',
 		}
 	},
 	methods: {
@@ -44,7 +48,7 @@ export default {
 		 * @function imageUrl
 		 * @description Returns the URL where to get a resized version of the attachement
 		 * @param {object} item - The attachment
-		 * @returns {string} The URL
+		 * @return {string} The URL
 		 */
 		imageUrl(item) {
 			if (this.serverData.public) {
@@ -58,12 +62,12 @@ export default {
 		 * @description Displays the currently selected attachment's image
 		 */
 		displayImage() {
-			var canvas = this.$refs.modalCanvas
-			var ctx = canvas.getContext('2d')
-			var img = new Image()
+			const canvas = this.$refs.modalCanvas
+			const ctx = canvas.getContext('2d')
+			const img = new Image()
 			img.onload = function() {
-				var width = img.width
-				var height = img.height
+				let width = img.width
+				let height = img.height
 				if (width > window.innerWidth) {
 					height = height * (window.innerWidth / width)
 					width = window.innerWidth
@@ -93,7 +97,7 @@ export default {
 		showNext() {
 			this.current++
 			this.displayImage()
-		}
-	}
+		},
+	},
 }
 </script>
