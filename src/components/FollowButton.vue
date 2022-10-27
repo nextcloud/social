@@ -23,28 +23,37 @@
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
 	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
-		<button v-if="isCurrentUserFollowing"
+		<NcButton v-if="isCurrentUserFollowing"
 			:class="{'icon-loading-small': followLoading}"
 			@click="unfollow()"
 			@mouseover="followingText=t('social', 'Unfollow')"
 			@mouseleave="followingText=t('social', 'Following')">
-			<span><span class="icon-checkmark" />{{ followingText }}</span>
-		</button>
-		<button v-else
+			<template #icon>
+				<Check :size="32" />
+			</template>
+			{{ followingText }}
+		</NcButton>
+		<NcButton v-else
 			:class="{'icon-loading-small': followLoading}"
 			class="primary"
 			@click="follow">
-			<span>{{ t('social', 'Follow') }}</span>
-		</button>
+			{{ t('social', 'Follow') }}
+		</NcButton>
 	</div>
 </template>
 
 <script>
 import accountMixins from '../mixins/accountMixins.js'
 import currentUser from '../mixins/currentUserMixin.js'
+import Check from 'vue-material-design-icons/Check.vue'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 
 export default {
 	name: 'FollowButton',
+	components: {
+		Check,
+		NcButton,
+	},
 	mixins: [
 		accountMixins,
 		currentUser,
