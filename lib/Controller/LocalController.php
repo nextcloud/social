@@ -125,7 +125,7 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 */
 	public function postCreate(string $content = '', $to = null, string $type = null, ?string $replyTo = null, $attachments = null, ?string $hashtags = null): DataResponse {
-		$content = $content ?? '';
+		$content = $content ?: '';
 		$to = is_string($to) ? [$to] : $to;
 		$to = $to ?? [];
 		$replyTo = $replyTo ?? '';
