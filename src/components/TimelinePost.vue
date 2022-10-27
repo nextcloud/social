@@ -246,7 +246,7 @@ export default {
 	.post-timestamp {
 		width: 120px;
 		text-align: right;
-		flex-shrink: 0;
+		flex-grow: 2;
 	}
 
 	.post-actions {

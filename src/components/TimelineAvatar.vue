@@ -41,7 +41,7 @@ export default {
 <style scoped>
 .post-avatar {
 	position: relative;
-	padding: 18px 10px 10px 10px;
+	padding: 5px 10px 10px 5px;
 	height: 52px;
 	width: 52px;
 }

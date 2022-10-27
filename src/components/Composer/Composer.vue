@@ -466,6 +466,7 @@ export default {
 			for (const preview of this.previewUrls) {
 				// TODO send the summary and other props too
 				formData.append('attachments', preview.result)
+				formData.append('attachmentDescriptions', preview.description)
 			}
 			if (this.replyTo) {
 				formData.append('replyTo', this.replyTo.id)

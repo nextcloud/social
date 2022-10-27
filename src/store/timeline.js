@@ -146,7 +146,7 @@ const actions = {
 	},
 	async post(context, post) {
 		try {
-			const { data } = axios.post(generateUrl('apps/social/api/v1/post'), post, {
+			const { data } = await axios.post(generateUrl('apps/social/api/v1/post'), post, {
 				headers: {
 					'Content-Type': 'multipart/form-data'
 				}
@@ -154,7 +154,6 @@ const actions = {
             Logger.info('Post created with token ' + data.result.token)
         } catch (error) {
             OC.Notification.showTemporary('Failed to create a post')
-            console.error(error)
             Logger.error('Failed to create a post', { 'error': error.response })
 		}
 	},
