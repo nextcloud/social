@@ -212,7 +212,7 @@ class UnifiedSearchProvider implements IProvider {
 				$icon,
 				$account->getPreferredUsername(),
 				'@' . $account->getAccount(),
-				$account->getUrl(),
+				$this->urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $account->getAccount()]),
 				$icon
 			);
 		}
