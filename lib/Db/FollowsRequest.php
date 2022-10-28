@@ -154,7 +154,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(true);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
