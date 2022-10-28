@@ -1,11 +1,11 @@
 <template>
 	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']">
-		<template v-if="item.type === 'SocialAppNotification'">
-			<div class="notification-icon" :class="notificationIcon" />
+		<div v-if="item.type === 'SocialAppNotification'" class="notification">
+			<Bell :size="22" />
 			<span class="notification-action">
 				{{ actionSummary }}
 			</span>
-		</template>
+		</div>
 		<template v-else-if="item.type === 'Announce'">
 			<div class="container-icon-boost boost">
 				<span class="icon-boost" />
@@ -40,6 +40,7 @@
 import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
+import Bell from 'vue-material-design-icons/Bell.vue'
 
 export default {
 	name: 'TimelineEntry',
@@ -47,6 +48,7 @@ export default {
 		TimelinePost,
 		TimelineAvatar,
 		UserEntry,
+		Bell,
 	},
 	props: {
 		item: {
@@ -138,26 +140,25 @@ export default {
 		align-items: bottom;
 	}
 
-	.notification-action {
-		flex-grow: 1;
-		display: inline-block;
-		grid-row: 1;
-		grid-column: 2;
+	.notification {
+		display: flex;
+		padding-left: 2rem;
+		gap: 0.2rem;
+		margin-top: 1rem;
+
+		&-action {
+			flex-grow: 1;
+			display: inline-block;
+			grid-row: 1;
+			grid-column: 2;
+			color: var(--color-text-lighter);
+		}
+
+		.bell-icon {
+			opacity: .5;
+		}
 	}
 
-	.notification-icon {
-		opacity: .5;
-		background-position: center;
-		background-size: contain;
-		overflow: hidden;
-		height: 20px;
-		min-width: 32px;
-		flex-shrink: 0;
-		display: inline-block;
-		vertical-align: middle;
-		grid-column: 1;
-		grid-row: 1;
-	}
 
 	.icon-boost {
 		display: inline-block;
