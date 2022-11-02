@@ -31,10 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class LinkedDataSignature
@@ -125,6 +125,7 @@ class LinkedDataSignature implements JsonSerializable {
 
 	public function setObject(array $object): self {
 		$this->object = $object;
+
 		return $this;
 	}
 
@@ -170,9 +171,7 @@ class LinkedDataSignature implements JsonSerializable {
 
 		$signed = base64_decode($this->getSignatureValue());
 		if ($signed !== false
-			&& openssl_verify(
-				   $hashHeader . $hashObject, $signed, $this->getPublicKey(), $algo
-			   ) === 1) {
+			&& openssl_verify($hashHeader . $hashObject, $signed, $this->publicKey, $algo) === 1) {
 			return true;
 		}
 
@@ -202,7 +201,6 @@ class LinkedDataSignature implements JsonSerializable {
 	 * @throws LinkedDataSignatureMissingException
 	 */
 	public function import(array $data): void {
-
 //		if (!in_array(ACore::CONTEXT_SECURITY, $this->getArray('@context', $data, []))) {
 //			throw new LinkedDataSignatureMissingException('no @context security entry');
 //		}
