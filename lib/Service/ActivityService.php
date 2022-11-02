@@ -80,6 +80,7 @@ class ActivityService {
 	private ConfigService $configService;
 	private CurlService $curlService;
 	private MiscService $miscService;
+	private LoggerInterface $logger;
 
 	private ?array $failInstances = null;
 
