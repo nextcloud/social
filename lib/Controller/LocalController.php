@@ -125,7 +125,7 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 */
 	public function postCreate(string $content = '', $to = null, string $type = null, ?string $replyTo = null, $attachments = null, ?string $hashtags = null): DataResponse {
-		$content = $content ?? '';
+		$content = $content ?: '';
 		$to = is_string($to) ? [$to] : $to;
 		$to = $to ?? [];
 		$replyTo = $replyTo ?? '';
@@ -543,6 +543,23 @@ class LocalController extends Controller {
 			$actor->setCompleteDetails(true);
 
 			return $this->success(['account' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * @NoAdminRequired
+	 * @PublicPage
+	 */
+	public function accountFollowers(string $username): DataResponse {
+		try {
+			$this->initViewer();
+
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$following = $this->followService->getFollowers($actor);
+
+			return $this->success($following);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

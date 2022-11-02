@@ -1,5 +1,7 @@
 <template>
-	<img class="emoji" draggable="false" :alt="emoji"
+	<img class="emoji"
+		draggable="false"
+		:alt="emoji"
 		:src="emojiUrl">
 </template>
 
@@ -14,9 +16,9 @@ const UFE0Fg = /\uFE0F/g
 export default {
 	name: 'Emoji',
 	props: {
-		emoji: { type: String, default: '' }
+		emoji: { type: String, default: '' },
 	},
-	data: function() {
+	data() {
 		return {}
 	},
 	computed: {
@@ -28,8 +30,8 @@ export default {
 		},
 		emojiUrl() {
 			return generateFilePath('social', 'img', 'twemoji/' + this.icon + '.svg')
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped>

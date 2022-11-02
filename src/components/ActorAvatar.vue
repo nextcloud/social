@@ -21,9 +21,16 @@
   -->
 
 <template>
-	<NcAvatar v-if="actor.local" :size="size" :user="actor.preferredUsername"
-		:display-name="actor.account" :disable-tooltip="true" :showUserStatus="false" />
-	<NcAvatar v-else :size="size" :url="avatarUrl" :showUserStatus="false"
+	<NcAvatar v-if="actor.local"
+		:size="size"
+		:user="actor.preferredUsername"
+		:display-name="actor.account"
+		:disable-tooltip="true"
+		:show-user-status="false" />
+	<NcAvatar v-else
+		:size="size"
+		:url="avatarUrl"
+		:show-user-status="false"
 		:disable-tooltip="true" />
 </template>
 
@@ -34,21 +41,21 @@ import { generateUrl } from '@nextcloud/router'
 export default {
 	name: 'ActorAvatar',
 	components: {
-		NcAvatar
+		NcAvatar,
 	},
 	props: {
 		actor: { type: Object, default: () => {} },
-		size: { type: Number, default: 32 }
+		size: { type: Number, default: 32 },
 	},
-	data: function() {
+	data() {
 		return {
-			followingText: t('social', 'Following')
+			followingText: t('social', 'Following'),
 		}
 	},
 	computed: {
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
-		}
-	}
+		},
+	},
 }
 </script>

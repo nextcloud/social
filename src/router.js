@@ -43,35 +43,35 @@ export default new Router({
 	routes: [
 		{
 			path: '/:index(index.php/)?apps/social/',
-			redirect: { name: 'timeline' }
+			redirect: { name: 'timeline' },
 		},
 		{
 			path: '/:index(index.php/)?apps/social/timeline/:type?',
 			components: {
-				default: Timeline
+				default: Timeline,
 			},
 			props: true,
 			name: 'timeline',
 			children: [
 				{
 					path: 'tags/:tag',
-					name: 'tags'
-				}
-			]
+					name: 'tags',
+				},
+			],
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account/:localId',
 			components: {
-				default: TimelineSinglePost
+				default: TimelineSinglePost,
 			},
 			props: true,
-			name: 'single-post'
+			name: 'single-post',
 		},
 		{
 			path: '/:index(index.php/)?apps/social/@:account',
 			components: {
 				default: Profile,
-				details: ProfileTimeline
+				details: ProfileTimeline,
 			},
 			props: true,
 			children: [
@@ -79,33 +79,33 @@ export default new Router({
 					path: '',
 					name: 'profile',
 					components: {
-						details: ProfileTimeline
-					}
+						details: ProfileTimeline,
+					},
 				},
 				{
 					path: 'followers',
 					name: 'profile.followers',
 					components: {
-						details: ProfileFollowers
-					}
+						details: ProfileFollowers,
+					},
 				},
 				{
 					path: 'following',
 					name: 'profile.following',
 
 					components: {
-						details: ProfileFollowers
-					}
-				}
-			]
+						details: ProfileFollowers,
+					},
+				},
+			],
 		},
 		{
 			path: '/:index(index.php/)?apps/social/ostatus/follow',
 			components: {
 				default: Profile,
-				details: ProfileTimeline
+				details: ProfileTimeline,
 			},
-			props: true
-		}
-	]
+			props: true,
+		},
+	],
 })

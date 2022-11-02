@@ -21,7 +21,7 @@
  */
 
 import Vue from 'vue'
-import store from './store'
+import store from './store/index.js'
 import OStatus from './views/OStatus.vue'
 
 // eslint-disable-next-line
@@ -37,5 +37,5 @@ Vue.prototype.OCA = OCA
 /* eslint-disable-next-line no-new */
 new Vue({
 	render: h => h(OStatus),
-	store: store
+	store,
 }).$mount('#content')

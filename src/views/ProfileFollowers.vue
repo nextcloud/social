@@ -22,9 +22,43 @@
 
 <template>
 	<div class="social__followers">
-		<user-entry v-for="user in users" :key="user.id" :item="user" />
+		<UserEntry v-for="user in users" :key="user.id" :item="user" />
 	</div>
 </template>
+
+<script>
+import UserEntry from '../components/UserEntry.vue'
+import serverData from '../mixins/serverData.js'
+
+export default {
+	name: 'ProfileFollowers',
+	components: {
+		UserEntry,
+	},
+	mixins: [
+		serverData,
+	],
+	computed: {
+		profileAccount() {
+			return (this.$route.params.account.indexOf('@') === -1) ? this.$route.params.account + '@' + this.hostname : this.$route.params.account
+		},
+		users() {
+			if (this.$route.name === 'profile.followers') {
+				return this.$store.getters.getAccountFollowers(this.profileAccount)
+			} else {
+				return this.$store.getters.getAccountFollowing(this.profileAccount)
+			}
+		},
+	},
+	beforeMount() {
+		if (this.$route.name === 'profile.followers') {
+			this.$store.dispatch('fetchAccountFollowers', this.profileAccount)
+		} else {
+			this.$store.dispatch('fetchAccountFollowing', this.profileAccount)
+		}
+	},
+}
+</script>
 
 <style scoped>
 	.social__followers {
@@ -40,37 +74,3 @@
 		margin-bottom: 10px;
 	}
 </style>
-
-<script>
-import UserEntry from '../components/UserEntry.vue'
-import serverData from '../mixins/serverData'
-
-export default {
-	name: 'ProfileFollowers',
-	components: {
-		UserEntry
-	},
-	mixins: [
-		serverData
-	],
-	computed: {
-		profileAccount() {
-			return (this.$route.params.account.indexOf('@') === -1) ? this.$route.params.account + '@' + this.hostname : this.$route.params.account
-		},
-		users: function() {
-			if (this.$route.name === 'profile.followers') {
-				return this.$store.getters.getAccountFollowers(this.profileAccount)
-			} else {
-				return this.$store.getters.getAccountFollowing(this.profileAccount)
-			}
-		}
-	},
-	beforeMount() {
-		if (this.$route.name === 'profile.followers') {
-			this.$store.dispatch('fetchAccountFollowers', this.profileAccount)
-		} else {
-			this.$store.dispatch('fetchAccountFollowing', this.profileAccount)
-		}
-	}
-}
-</script>

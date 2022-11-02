@@ -22,9 +22,13 @@
 
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<NcAvatar v-if="accountInfo.local" :user="localUid" :disable-tooltip="true"
+		<NcAvatar v-if="accountInfo.local"
+			:user="localUid"
+			:disable-tooltip="true"
 			:size="128" />
-		<NcAvatar v-else :url="avatarUrl" :disable-tooltip="true"
+		<NcAvatar v-else
+			:url="avatarUrl"
+			:disable-tooltip="true"
 			:size="128" />
 		<h2>{{ displayName }}</h2>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
@@ -51,13 +55,77 @@
 				{{ accountInfo.website.value }}
 			</a>
 		</p>
-		<follow-button :account="accountInfo.account" :uid="uid" />
+		<FollowButton :account="accountInfo.account" :uid="uid" />
 		<NcButton v-if="serverData.public" class="primary" @click="followRemote">
 			{{ t('social', 'Follow') }}
 		</NcButton>
 	</div>
 </template>
 
+<script>
+import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import accountMixins from '../mixins/accountMixins.js'
+import serverData from '../mixins/serverData.js'
+import currentUser from '../mixins/currentUserMixin.js'
+import follow from '../mixins/follow.js'
+import FollowButton from './FollowButton.vue'
+import { generateUrl } from '@nextcloud/router'
+
+export default {
+	name: 'ProfileInfo',
+	components: {
+		FollowButton,
+		NcAvatar,
+		NcButton,
+	},
+	mixins: [
+		accountMixins,
+		currentUser,
+		serverData,
+		follow,
+	],
+	props: {
+		uid: {
+			type: String,
+			default: '',
+		},
+	},
+	data() {
+		return {
+			followingText: t('social', 'Following'),
+		}
+	},
+	computed: {
+		localUid() {
+			// Returns only the local part of a username
+			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.slice(0, this.uid.indexOf('@'))
+		},
+		displayName() {
+			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
+				return this.accountInfo.name
+			}
+			if (typeof this.accountInfo.preferredUsername !== 'undefined' && this.accountInfo.preferredUsername !== '') {
+				return this.accountInfo.preferredUsername
+			}
+			return this.profileAccount
+		},
+		getCount() {
+			const account = this.accountInfo
+			return (field) => account.details.count ? account.details.count[field] : ''
+		},
+		avatarUrl() {
+			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
+		},
+	},
+	methods: {
+		followRemote() {
+			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
+		},
+	},
+}
+
+</script>
 <style scoped>
 	.user-profile {
 		display: flex;
@@ -94,67 +162,3 @@
 		border-bottom: 1px solid var(--color-main-text);
 	}
 </style>
-<script>
-import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
-import accountMixins from '../mixins/accountMixins.js'
-import serverData from '../mixins/serverData.js'
-import currentUser from '../mixins/currentUserMixin.js'
-import follow from '../mixins/follow.js'
-import FollowButton from './FollowButton.vue'
-import { generateUrl } from '@nextcloud/router'
-
-export default {
-	name: 'ProfileInfo',
-	components: {
-		FollowButton,
-		NcAvatar,
-		NcButton,
-	},
-	mixins: [
-		accountMixins,
-		currentUser,
-		serverData,
-		follow
-	],
-	props: {
-		uid: {
-			type: String,
-			default: ''
-		}
-	},
-	data: function() {
-		return {
-			followingText: t('social', 'Following')
-		}
-	},
-	computed: {
-		localUid() {
-			// Returns only the local part of a username
-			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.slice(0, this.uid.indexOf('@'))
-		},
-		displayName() {
-			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
-				return this.accountInfo.name
-			}
-			if (typeof this.accountInfo.preferredUsername !== 'undefined' && this.accountInfo.preferredUsername !== '') {
-				return this.accountInfo.preferredUsername
-			}
-			return this.profileAccount
-		},
-		getCount() {
-			let account = this.accountInfo
-			return (field) => account.details.count ? account.details.count[field] : ''
-		},
-		avatarUrl() {
-			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
-		}
-	},
-	methods: {
-		followRemote() {
-			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
-		}
-	}
-}
-
-</script>

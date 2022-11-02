@@ -24,11 +24,11 @@
  *
  */
 
-import serverData from './serverData'
+import serverData from './serverData.js'
 
 export default {
 	mixins: [
-		serverData
+		serverData,
 	],
 	computed: {
 		/** @function  Returns the complete account name */
@@ -39,10 +39,12 @@ export default {
 		accountInfo() {
 			return this.$store.getters.getAccount(this.profileAccount)
 		},
-		/** @function Somewhat duplicate with accountInfo(), but needed (for some reason) to avoid glitches
-		 * where components would first show "user not found" before display an account's account info */
+		/**
+		 * @function Somewhat duplicate with accountInfo(), but needed (for some reason) to avoid glitches
+		 * where components would first show "user not found" before display an account's account info
+		 */
 		accountLoaded() {
 			return this.$store.getters.accountLoaded(this.profileAccount)
-		}
-	}
+		},
+	},
 }

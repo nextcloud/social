@@ -36,13 +36,13 @@
 export default {
 	name: 'EmptyContent',
 	props: {
-		item: { type: Object, default: () => {} }
+		item: { type: Object, default: () => {} },
 	},
 	computed: {
 		imageUrl() {
 			return OC.linkTo('social', this.item.image)
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped>

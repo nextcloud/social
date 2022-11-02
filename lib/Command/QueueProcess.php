@@ -43,13 +43,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class QueueProcess extends Base {
 	private ActivityService $activityService;
-
 	private StreamQueueService $streamQueueService;
-
 	private RequestQueueService $requestQueueService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
 
 
@@ -97,6 +93,7 @@ class QueueProcess extends Base {
 
 		$output->writeLn('processing stream queue');
 		$this->processStreamQueue($output);
+		return 0;
 	}
 
 

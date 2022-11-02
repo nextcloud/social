@@ -80,6 +80,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	/**
 	 * Return Queue from database based on the status=0
 	 *
+	 * @return list<RequestQueue>
 	 * @throws Exception
 	 */
 	public function getStandby(): array {
@@ -101,7 +102,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	/**
 	 * Return Queue from database based on the token
 	 *
-	 * @return RequestQueue[]
+	 * @return list<RequestQueue>
 	 * @throws Exception
 	 */
 	public function getFromToken(string $token, int $status = -1): array {

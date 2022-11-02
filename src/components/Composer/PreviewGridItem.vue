@@ -4,62 +4,54 @@
 			<div class="preview-item__actions">
 				<NcButton type="tertiary-no-background" @click="$emit('delete', index)">
 					<template #icon>
-						<Close :size="16" fillColor="white" />
+						<Close :size="16" fill-color="white" />
 					</template>
 					<span>{{ t('social', 'Delete') }}</span>
 				</NcButton>
+				<!--
 				<NcButton type="tertiary-no-background" @click="showModal">
 					<template #icon>
-						<Edit :size="16" fillColor="white" />
+						<Edit :size="16" fill-color="white" />
 					</template>
 					<span>{{ t('social', 'Edit') }}</span>
 				</NcButton>
+				-->
 			</div>
 
-			<div class="description-warning" v-if="preview.description.length === 0">
+			<!--
+			<div v-if="preview.description.length === 0" class="description-warning">
 				{{ t('social', 'No description added') }}
 			</div>
 
-			<NcModal v-if="modal" @close="closeModal" size="small">
+			<NcModal v-if="modal" size="small" @close="closeModal">
 				<div class="modal__content">
 					<label :for="`image-description-${index}`">
 						{{ t('social', 'Describe for the visually impaired') }}
 					</label>
-					<textarea :id="`image-description-${index}`" v-model="preview.description">
-					</textarea>
-					<NcButton type="primary" @click="closeModal">{{ t('social', 'Close') }}</NcButton>
+					<textarea :id="`image-description-${index}`" v-model="preview.description" />
+					<NcButton type="primary" @click="closeModal">
+						{{ t('social', 'Close') }}
+					</NcButton>
 				</div>
 			</NcModal>
+			-->
 		</div>
 	</div>
 </template>
 
 <script>
 import Close from 'vue-material-design-icons/Close.vue'
-import Edit from 'vue-material-design-icons/Pencil.vue'
+// import Edit from 'vue-material-design-icons/Pencil.vue'
+// import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
-import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
 
 export default {
 	name: 'PreviewGridItem',
 	components: {
 		Close,
-		Edit,
+		// Edit,
+		// NcModal,
 		NcButton,
-		NcModal,
-	},
-	data() {
-		return {
-			modal: false,
-		}
-	},
-	methods: {
-		showModal() {
-			this.modal = true
-		},
-		closeModal() {
-			this.modal = false
-		}
 	},
 	props: {
 		preview: {
@@ -71,11 +63,24 @@ export default {
 			required: true,
 		},
 	},
+	data() {
+		return {
+			modal: false,
+		}
+	},
 	computed: {
 		backgroundStyle() {
 			return {
 				backgroundImage: `url("${this.preview.url}")`,
 			}
+		},
+	},
+	methods: {
+		showModal() {
+			this.modal = true
+		},
+		closeModal() {
+			this.modal = false
 		},
 	},
 }

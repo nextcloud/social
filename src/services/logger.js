@@ -1,9 +1,9 @@
-/*
- * @copyright Copyright (c) 2019 Julius Härtl <jus@bitgrid.net>
+/**
+ * @copyright 2022 Louis Chemineau <mlouis@chmn.me>
  *
- * @author Julius Härtl <jus@bitgrid.net>
+ * @author Louis Chemineau <mlouis@chmn.me>
  *
- * @license GNU AGPL version 3 or any later version
+ * @license AGPL-3.0-or-later
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -17,26 +17,21 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-import NcPopoverMenu from '@nextcloud/vue/dist/Components/NcPopoverMenu.js'
+import { getCurrentUser } from '@nextcloud/auth'
+import { getLoggerBuilder } from '@nextcloud/logger'
 
-export default {
-	components: {
-		NcPopoverMenu,
-	},
-	data() {
-		return {
-			menuOpened: false,
-		}
-	},
-	methods: {
-		togglePopoverMenu() {
-			this.menuOpened = !this.menuOpened
-		},
-		hidePopoverMenu() {
-			this.menuOpened = false
-		},
-	},
+const getLogger = user => {
+	if (user === null) {
+		return getLoggerBuilder()
+			.setApp('social')
+			.build()
+	}
+	return getLoggerBuilder()
+		.setApp('social')
+		.setUid(user.uid)
+		.build()
 }
+
+export default getLogger(getCurrentUser())

@@ -1,11 +1,11 @@
 <template>
 	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']">
-		<template v-if="item.type === 'SocialAppNotification'">
-			<div class="notification-icon" :class="notificationIcon" />
+		<div v-if="item.type === 'SocialAppNotification'" class="notification">
+			<Bell :size="22" />
 			<span class="notification-action">
 				{{ actionSummary }}
 			</span>
-		</template>
+		</div>
 		<template v-else-if="item.type === 'Announce'">
 			<div class="container-icon-boost boost">
 				<span class="icon-boost" />
@@ -24,12 +24,11 @@
 				{{ boosted }}
 			</div>
 		</template>
-		<user-entry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
+		<UserEntry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 		<template v-else>
 			<div class="wrapper">
-				<timeline-avatar :item="entryContent" />
-				<timeline-post
-					class="message"
+				<TimelineAvatar :item="entryContent" />
+				<TimelinePost class="message"
 					:item="entryContent"
 					:parent-announce="isBoost" />
 			</div>
@@ -41,18 +40,20 @@
 import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
+import Bell from 'vue-material-design-icons/Bell.vue'
 
 export default {
 	name: 'TimelineEntry',
 	components: {
 		TimelinePost,
 		TimelineAvatar,
-		UserEntry
+		UserEntry,
+		Bell,
 	},
 	props: {
 		item: {
 			type: Object,
-			default: () => {}
+			default: () => {},
 		},
 		isProfilePage: {
 			type: Boolean,
@@ -88,13 +89,13 @@ export default {
 		actionSummary() {
 
 			let summary = this.item.summary
-			for (var key in this.item.details) {
+			for (const key in this.item.details) {
 
-				let keyword = '{' + key + '}'
+				const keyword = '{' + key + '}'
 				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
 
 					let concatination = ''
-					for (var stringKey in this.item.details[key]) {
+					for (const stringKey in this.item.details[key]) {
 
 						if (this.item.details[key].length > 3 && stringKey === '3') {
 							// ellipses the actors' list to 3 actors when it's big
@@ -115,13 +116,13 @@ export default {
 			}
 
 			return summary
-		}
+		},
 	},
 	methods: {
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped lang="scss">
@@ -139,26 +140,25 @@ export default {
 		align-items: bottom;
 	}
 
-	.notification-action {
-		flex-grow: 1;
-		display: inline-block;
-		grid-row: 1;
-		grid-column: 2;
+	.notification {
+		display: flex;
+		padding-left: 2rem;
+		gap: 0.2rem;
+		margin-top: 1rem;
+
+		&-action {
+			flex-grow: 1;
+			display: inline-block;
+			grid-row: 1;
+			grid-column: 2;
+			color: var(--color-text-lighter);
+		}
+
+		.bell-icon {
+			opacity: .5;
+		}
 	}
 
-	.notification-icon {
-		opacity: .5;
-		background-position: center;
-		background-size: contain;
-		overflow: hidden;
-		height: 20px;
-		min-width: 32px;
-		flex-shrink: 0;
-		display: inline-block;
-		vertical-align: middle;
-		grid-column: 1;
-		grid-row: 1;
-	}
 
 	.icon-boost {
 		display: inline-block;

@@ -23,41 +23,54 @@
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
 	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
-		<button v-if="isCurrentUserFollowing" :class="{'icon-loading-small': followLoading}"
+		<NcButton v-if="isCurrentUserFollowing"
+			:class="{'icon-loading-small': followLoading}"
 			@click="unfollow()"
-			@mouseover="followingText=t('social', 'Unfollow')" @mouseleave="followingText=t('social', 'Following')">
-			<span><span class="icon-checkmark" />{{ followingText }}</span>
-		</button>
-		<button v-else :class="{'icon-loading-small': followLoading}" class="primary"
+			@mouseover="followingText=t('social', 'Unfollow')"
+			@mouseleave="followingText=t('social', 'Following')">
+			<template #icon>
+				<Check :size="32" />
+			</template>
+			{{ followingText }}
+		</NcButton>
+		<NcButton v-else
+			:class="{'icon-loading-small': followLoading}"
+			class="primary"
 			@click="follow">
-			<span>{{ t('social', 'Follow') }}</span>
-		</button>
+			{{ t('social', 'Follow') }}
+		</NcButton>
 	</div>
 </template>
 
 <script>
 import accountMixins from '../mixins/accountMixins.js'
 import currentUser from '../mixins/currentUserMixin.js'
+import Check from 'vue-material-design-icons/Check.vue'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 
 export default {
 	name: 'FollowButton',
+	components: {
+		Check,
+		NcButton,
+	},
 	mixins: [
 		accountMixins,
-		currentUser
+		currentUser,
 	],
 	props: {
 		account: {
 			type: String,
-			default: ''
+			default: '',
 		},
 		uid: {
 			type: String,
-			default: ''
-		}
+			default: '',
+		},
 	},
-	data: function() {
+	data() {
 		return {
-			followingText: t('social', 'Following')
+			followingText: t('social', 'Following'),
 		}
 	},
 	computed: {
@@ -66,7 +79,7 @@ export default {
 		},
 		isCurrentUserFollowing() {
 			return this.$store.getters.isFollowingUser(this.account)
-		}
+		},
 	},
 	methods: {
 		follow() {
@@ -74,8 +87,8 @@ export default {
 		},
 		unfollow() {
 			this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
-		}
-	}
+		},
+	},
 }
 </script>
 <style scoped>

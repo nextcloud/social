@@ -58,6 +58,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class ActivityService
@@ -67,49 +68,27 @@ use OCA\Social\Model\RequestQueue;
 class ActivityService {
 	use TArrayTools;
 
-
 	public const TIMEOUT_LIVE = 3;
 	public const TIMEOUT_ASYNC = 10;
 	public const TIMEOUT_SERVICE = 30;
 
-
 	private StreamRequest $streamRequest;
-
 	private FollowsRequest $followsRequest;
-
 	private SignatureService $signatureService;
-
 	private RequestQueueService $requestQueueService;
-
 	private AccountService $accountService;
-
 	private ConfigService $configService;
-
 	private CurlService $curlService;
-
 	private MiscService $miscService;
-
+	private LoggerInterface $logger;
 
 	private ?array $failInstances = null;
 
-
-	/**
-	 * ActivityService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param FollowsRequest $followsRequest
-	 * @param SignatureService $signatureService
-	 * @param RequestQueueService $requestQueueService
-	 * @param AccountService $accountService
-	 * @param CurlService $curlService
-	 * @param ConfigService $configService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamRequest $streamRequest, FollowsRequest $followsRequest,
 		SignatureService $signatureService, RequestQueueService $requestQueueService,
 		AccountService $accountService, CurlService $curlService, ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService, LoggerInterface $logger
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->followsRequest = $followsRequest;
@@ -119,6 +98,7 @@ class ActivityService {
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -207,9 +187,6 @@ class ActivityService {
 
 
 	/**
-	 * @param ACore $activity
-	 *
-	 * @return string
 	 * @throws SocialAppConfigException
 	 */
 	public function request(ACore $activity): string {
@@ -265,6 +242,9 @@ class ActivityService {
 		try {
 			$this->requestQueueService->initRequest($queue);
 		} catch (QueueStatusException $e) {
+			$this->logger->error("Error while trying to init request", [
+				'exception' => $e,
+			]);
 			return;
 		}
 

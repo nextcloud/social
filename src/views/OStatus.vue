@@ -38,28 +38,6 @@
 	<div v-else :class="{ 'icon-loading-dark': !account }" />
 </template>
 
-<style scoped>
-	h2, p {
-		color: var(--color-primary-text);
-	}
-	p .icon {
-		display: inline-block;
-	}
-	.avatardiv {
-		vertical-align: -4px;
-		margin-right: 3px;
-		filter: drop-shadow(0 0 0.5rem #333);
-		margin-top: 10px;
-		margin-bottom: 20px;
-	}
-</style>
-
-<style>
-	.wrapper {
-		margin-top: 20px;
-	}
-</style>
-
 <script>
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import axios from '@nextcloud/axios'
@@ -69,18 +47,18 @@ import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
 export default {
-	name: 'App',
+	name: 'OStatus',
 	components: {
 		NcAvatar,
 	},
 	mixins: [
 		accountMixins,
-		currentuserMixin
+		currentuserMixin,
 	],
 	data() {
 		return {
 			remote: '',
-			account: {}
+			account: {},
 		}
 	},
 	computed: {
@@ -99,9 +77,9 @@ export default {
 			}
 
 			return (this.account.name ? this.account.name : this.account.preferredUsername)
-		}
+		},
 	},
-	beforeMount: function() {
+	beforeMount() {
 		// importing server data into the store and fetching viewed account's information
 		try {
 			const serverData = loadState('social', 'serverData')
@@ -136,7 +114,29 @@ export default {
 		},
 		close() {
 			window.close()
-		}
-	}
+		},
+	},
 }
 </script>
+
+<style scoped>
+	h2, p {
+		color: var(--color-primary-text);
+	}
+	p .icon {
+		display: inline-block;
+	}
+	.avatardiv {
+		vertical-align: -4px;
+		margin-right: 3px;
+		filter: drop-shadow(0 0 0.5rem #333);
+		margin-top: 10px;
+		margin-bottom: 20px;
+	}
+</style>
+
+<style>
+	.wrapper {
+		margin-top: 20px;
+	}
+</style>

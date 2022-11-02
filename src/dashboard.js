@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	OCA.Dashboard.register('social_notifications', (el, { widget }) => {
 		const View = Vue.extend(Dashboard)
 		new View({
-			propsData: { title: widget.title }
+			propsData: { title: widget.title },
 		}).$mount(el)
 	})
 })

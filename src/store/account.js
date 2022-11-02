@@ -27,10 +27,17 @@ import { generateUrl } from '@nextcloud/router'
 const state = {
 	currentAccount: {},
 	accounts: {},
-	accountIdMap: {}
+	accountIdMap: {},
 }
 const addAccount = (state, { actorId, data }) => {
-	Vue.set(state.accounts, actorId, Object.assign({ followersList: [], followingList: [], details: { following: false, follower: false } }, state.accounts[actorId], data))
+	Vue.set(state.accounts, actorId, Object.assign({
+		followersList: [],
+		followingList: [],
+		details: {
+			following: false,
+			follower: false,
+		}
+	}, state.accounts[actorId], data))
 	Vue.set(state.accountIdMap, data.account, data.id)
 }
 const _getActorIdForAccount = (account) => state.accountIdMap[account]
@@ -43,25 +50,25 @@ const mutations = {
 		addAccount(state, { actorId, data })
 	},
 	addFollowers(state, { account, data }) {
-		let users = []
-		for (var index in data) {
+		const users = []
+		for (const index in data) {
 			const actor = data[index].actor_info
 			addAccount(state, {
 				actorId: actor.id,
-				data: actor
+				data: actor,
 			})
 		}
 		Vue.set(state.accounts[_getActorIdForAccount(account)], 'followersList', users)
 	},
 	addFollowing(state, { account, data }) {
-		let users = []
-		for (var index in data) {
+		const users = []
+		for (const index in data) {
 			const actor = data[index].actor_info
 			if (typeof actor !== 'undefined' && account !== actor.account) {
 				users.push(actor.id)
 				addAccount(state, {
 					actorId: actor.id,
-					data: actor
+					data: actor,
 				})
 			}
 		}
@@ -72,7 +79,7 @@ const mutations = {
 	},
 	unfollowAccount(state, accountToUnfollow) {
 		Vue.set(state.accounts[_getActorIdForAccount(accountToUnfollow)].details, 'following', false)
-	}
+	},
 }
 
 const getters = {
@@ -101,10 +108,10 @@ const getters = {
 	},
 	isFollowingUser(state) {
 		return (followingAccount) => {
-			let account = state.accounts[_getActorIdForAccount(followingAccount)]
+			const account = state.accounts[_getActorIdForAccount(followingAccount)]
 			return account && account.details ? account.details.following : false
 		}
-	}
+	},
 }
 
 const actions = {
@@ -169,7 +176,7 @@ const actions = {
 		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/following`)).then((response) => {
 			context.commit('addFollowing', { account, data: response.data.result })
 		})
-	}
+	},
 }
 
 export default { state, mutations, getters, actions }

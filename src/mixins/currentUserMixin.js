@@ -20,10 +20,10 @@
  *
  */
 
-import serverData from './serverData'
+import serverData from './serverData.js'
 export default {
 	mixins: [
-		serverData
+		serverData,
 	],
 	computed: {
 		currentUser() {
@@ -34,6 +34,6 @@ export default {
 		},
 		cloudId() {
 			return this.currentUser.uid + '@' + this.hostname
-		}
-	}
+		},
+	},
 }

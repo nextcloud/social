@@ -22,12 +22,12 @@
 
 <template>
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
-		<profile-info v-if="accountLoaded && accountInfo" :uid="uid" />
+		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
 		<NcEmptyContent v-if="accountLoaded && !accountInfo"
 			:title="t('social', 'User not found')"
-			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: this.uid })">
+			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
 			<template #icon>
 				<img :src="emptyContentImage"
 					class="icon-illustration"
@@ -36,14 +36,6 @@
 		</NcEmptyContent>
 	</div>
 </template>
-
-<style scoped>
-
-	.social__wrapper.icon-loading {
-		margin-top: 50vh;
-	}
-
-</style>
 
 <script>
 import ProfileInfo from './../components/ProfileInfo.vue'
@@ -56,20 +48,20 @@ export default {
 	name: 'Profile',
 	components: {
 		NcEmptyContent,
-		ProfileInfo
+		ProfileInfo,
 	},
 	mixins: [
 		accountMixins,
-		serverData
+		serverData,
 	],
 	data() {
 		return {
 			state: [],
-			uid: null
+			uid: null,
 		}
 	},
 	computed: {
-		timeline: function() {
+		timeline() {
 			return this.$store.getters.getTimeline
 		},
 		emptyContentImage() {
@@ -93,6 +85,14 @@ export default {
 		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
 			this.uid = response.account
 		})
-	}
+	},
 }
 </script>
+
+<style scoped>
+
+	.social__wrapper.icon-loading {
+		margin-top: 50vh;
+	}
+
+</style>

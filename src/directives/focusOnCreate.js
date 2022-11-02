@@ -23,9 +23,9 @@
 import Vue from 'vue'
 
 export default {
-	bind: function(el) {
+	bind(el) {
 		Vue.nextTick(() => {
 			el.focus()
 		})
-	}
+	},
 }
