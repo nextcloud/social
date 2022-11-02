@@ -30,7 +30,14 @@ const state = {
 	accountIdMap: {},
 }
 const addAccount = (state, { actorId, data }) => {
-	Vue.set(state.accounts, actorId, Object.assign({ followersList: [], followingList: [], details: { following: false, follower: false } }, state.accounts[actorId], data))
+	Vue.set(state.accounts, actorId, Object.assign({
+		followersList: [],
+		followingList: [],
+		details: {
+			following: false,
+			follower: false,
+		}
+	}, state.accounts[actorId], data))
 	Vue.set(state.accountIdMap, data.account, data.id)
 }
 const _getActorIdForAccount = (account) => state.accountIdMap[account]
