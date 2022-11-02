@@ -30,6 +30,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCP\AppFramework\Http;
 use OCP\Http\WellKnown\IHandler;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
@@ -64,20 +65,27 @@ class WebfingerHandler implements IHandler {
 			$subject = substr($subject, 5);
 		}
 
+		$actor = null;
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
 		} catch (CacheActorDoesNotExistException $e) {
-			$actor = $this->cacheActorsRequest->getFromId($subject);
-			if (!$actor->isLocal()) {
-				throw new CacheActorDoesNotExistException();
+		}
+
+		if ($actor === null) {
+			try {
+				$actor = $this->cacheActorsRequest->getFromId($subject);
+			} catch (CacheActorDoesNotExistException $e) {
 			}
 		}
 
-		$response = new JrdResponse($subject);
-
+		if ($actor === null || !$actor->isLocal()) {
+			return new JrdResponse('', Http::STATUS_NOT_FOUND);
+		}
+		
 		// ActivityPub profile
 		$href = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
 		$href = rtrim($href, '/');
+		$response = new JrdResponse($subject);
 		$response->addAlias($href);
 		$response->addLink('self', 'application/activity+json', $href);
 
