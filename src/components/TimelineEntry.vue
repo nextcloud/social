@@ -159,7 +159,6 @@ export default {
 		}
 	}
 
-
 	.icon-boost {
 		display: inline-block;
 		vertical-align: middle;

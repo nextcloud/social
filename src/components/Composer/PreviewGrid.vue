@@ -54,7 +54,7 @@ export default {
 	},
 	methods: {
 		deletePreview(index) {
-			$emit('deleted', index)
+			this.$emit('deleted', index)
 		},
 	},
 }
