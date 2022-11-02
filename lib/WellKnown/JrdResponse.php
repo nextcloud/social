@@ -26,6 +26,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\WellKnown;
 
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\Http\WellKnown\IResponse;
@@ -40,6 +42,7 @@ use function array_filter;
 final class JrdResponse implements IResponse {
 	private string $subject;
 	private ?string $expires = null;
+	private int $httpCode;
 
 	/** @var string[] */
 	private array $aliases = [];
@@ -55,8 +58,9 @@ final class JrdResponse implements IResponse {
 	 *
 	 * @since 21.0.0
 	 */
-	public function __construct(string $subject) {
+	public function __construct(string $subject, int $httpCode = Http::STATUS_OK) {
 		$this->subject = $subject;
+		$this->httpCode = $httpCode;
 	}
 
 	/**
@@ -68,6 +72,13 @@ final class JrdResponse implements IResponse {
 	 */
 	public function setExpires(string $expires): self {
 		$this->expires = $expires;
+
+		return $this;
+	}
+
+
+	public function setHttpCode(int $httpCode): self {
+		$this->httpCode = $httpCode;
 
 		return $this;
 	}
@@ -119,17 +130,19 @@ final class JrdResponse implements IResponse {
 	 * @param string[]|null $properties https://tools.ietf.org/html/rfc7033#section-4.4.4.5
 	 * @param string[] $entries
 	 *
-	 * @psalm-param array<string,(string|null)>|null $properties https://tools.ietf.org/html/rfc7033#section-4.4.4.5
+	 * @psalm-param array<string,(string|null)>|null $properties
+	 *     https://tools.ietf.org/html/rfc7033#section-4.4.4.5
 	 *
 	 * @return JrdResponse
 	 * @since 21.0.0
 	 */
-	public function addLink(string $rel,
-							?string $type,
-							?string $href,
-							?array $titles = [],
-							?array $properties = [],
-							array $entries = []
+	public function addLink(
+		string $rel,
+		?string $type,
+		?string $href,
+		?array $titles = [],
+		?array $properties = [],
+		array $entries = []
 	): self {
 		$this->links[] = array_filter(
 			array_merge(
@@ -151,13 +164,17 @@ final class JrdResponse implements IResponse {
 	 * @since 21.0.0
 	 */
 	public function toHttpResponse(): Response {
-		return new JSONResponse(array_filter([
-			'subject' => $this->subject,
-			'expires' => $this->expires,
-			'aliases' => $this->aliases,
-			'properties' => $this->properties,
-			'links' => $this->links,
-		]));
+		$data = array_filter(
+			[
+				'subject' => $this->subject,
+				'expires' => $this->expires,
+				'aliases' => $this->aliases,
+				'properties' => $this->properties,
+				'links' => $this->links,
+			]
+		);
+
+		return (empty($data)) ? new DataResponse('', $this->httpCode) : new JSONResponse($data, $this->httpCode);
 	}
 
 	/**
@@ -167,8 +184,8 @@ final class JrdResponse implements IResponse {
 	 */
 	public function isEmpty(): bool {
 		return $this->expires === null
-			&& empty($this->aliases)
-			&& empty($this->properties)
-			&& empty($this->links);
+			   && empty($this->aliases)
+			   && empty($this->properties)
+			   && empty($this->links);
 	}
 }
