@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="4.23.0@f1fe6ff483bf325c803df9f510d09a03fd796f88">
+<files psalm-version="4.29.0@7ec5ffbd5f68ae03782d7fd33fff0c45a69f95b3">
   <file src="lib/AP.php">
     <InvalidScalarArgument occurrences="1">
       <code>$level</code>
@@ -59,11 +59,6 @@
     <NullableReturnStatement occurrences="1">
       <code>$this-&gt;contactAccount</code>
     </NullableReturnStatement>
-  </file>
-  <file src="lib/Model/LinkedDataSignature.php">
-    <UndefinedMethod occurrences="1">
-      <code>getPublicKey</code>
-    </UndefinedMethod>
   </file>
   <file src="lib/Model/RequestQueue.php">
     <InvalidNullableReturnType occurrences="1">
@@ -130,9 +125,6 @@
     <RedundantCondition occurrences="1">
       <code>$varr[0] !== null</code>
     </RedundantCondition>
-    <UndefinedClass occurrences="1">
-      <code>IAppDataFactory</code>
-    </UndefinedClass>
   </file>
   <file src="lib/Service/StreamService.php">
     <InvalidReturnType occurrences="1">
@@ -150,5 +142,11 @@
     <UndefinedClass occurrences="1">
       <code>HintException</code>
     </UndefinedClass>
+  </file>
+  <file src="lib/Tools/Traits/TNCRequest.php">
+    <InvalidArgument occurrences="21">
+      <code>$curl</code>
+    </InvalidArgument>
+    <InvalidReturnType occurrences="1"/>
   </file>
 </files>
