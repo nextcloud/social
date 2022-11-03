@@ -6,6 +6,7 @@ declare(strict_types=1);
  * @copyright 2020 Christoph Wurst <christoph@winzerhof-wurst.at>
  *
  * @author Christoph Wurst <christoph@winzerhof-wurst.at>
+ * @author Maxence Lange <maxence@artificial-owl.com>
  *
  * @license GNU AGPL version 3 or any later version
  *
@@ -58,7 +59,7 @@ final class JrdResponse implements IResponse {
 	 *
 	 * @since 21.0.0
 	 */
-	public function __construct(string $subject, int $httpCode = Http::STATUS_OK) {
+	public function __construct(string $subject = '', int $httpCode = Http::STATUS_OK) {
 		$this->subject = $subject;
 		$this->httpCode = $httpCode;
 	}
