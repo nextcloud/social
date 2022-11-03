@@ -27,6 +27,8 @@ namespace OCA\Social\WellKnown;
 
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
@@ -55,12 +57,51 @@ class WebfingerHandler implements IHandler {
 		$this->configService = $configService;
 	}
 
-	public function handle(string $service, IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
-		// See https://docs.joinmastodon.org/spec/webfinger/
 
-		$this->fediverseService->jailed();
+	/**
+	 * @see https://docs.joinmastodon.org/spec/webfinger/
+	 *
+	 * @param string $service
+	 * @param IRequestContext $context
+	 * @param IResponse|null $previousResponse
+	 *
+	 * @return IResponse|null
+	 */
+	public function handle(
+		string $service,
+		IRequestContext $context,
+		?IResponse $previousResponse
+	): ?IResponse {
+		try {
+			$this->fediverseService->jailed();
+		} catch (UnauthorizedFediverseException $e) {
+			return null;
+		}
+
+		switch (strtolower($service)) {
+			case 'webfinger':
+				return $this->handleWebfinger($context);
+
+			case 'nodeinfo':
+				return $this->handleNodeInfo($context);
+
+			case 'host-meta':
+				return $this->handleHostMeta($context);
+		}
+
+		return null;
+	}
+
+
+	/**
+	 * handle request on /.well-known/webfinger
+	 *
+	 * @param IRequestContext $context
+	 *
+	 * @return IResponse|null
+	 */
+	public function handleWebfinger(IRequestContext $context): ?IResponse {
 		$subject = $context->getHttpRequest()->getParam('resource');
-
 		if (strpos($subject, 'acct:') === 0) {
 			$subject = substr($subject, 5);
 		}
@@ -68,6 +109,8 @@ class WebfingerHandler implements IHandler {
 		$actor = null;
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
+		} catch (SocialAppConfigException $e) {
+			return null;
 		} catch (CacheActorDoesNotExistException $e) {
 		}
 
@@ -81,7 +124,7 @@ class WebfingerHandler implements IHandler {
 		if ($actor === null || !$actor->isLocal()) {
 			return new JrdResponse('', Http::STATUS_NOT_FOUND);
 		}
-		
+
 		// ActivityPub profile
 		$href = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
 		$href = rtrim($href, '/');
@@ -106,6 +149,48 @@ class WebfingerHandler implements IHandler {
 			null,
 			['template' => $subscribe]
 		);
+
+		return $response;
+	}
+
+
+	/**
+	 * handle request on /.well-known/nodeinfo
+	 * returns Json
+	 *
+	 * @param IRequestContext $context
+	 *
+	 * @return IResponse|null
+	 */
+	private function handleNodeInfo(IRequestContext $context): ?IResponse {
+		$response = new JrdResponse();
+		$response->addLink(
+			'http://nodeinfo.diaspora.software/ns/schema/2.0',
+			null,
+			$this->urlGenerator->linkToRouteAbsolute('social.OAuth.nodeinfo2')
+		);
+
+		return $response;
+	}
+
+
+	/**
+	 * handle request on /.well-known/host-meta
+	 * returns xml/xrd
+	 *
+	 * @param IRequestContext $context
+	 *
+	 * @return IResponse|null
+	 */
+	private function handleHostMeta(IRequestContext $context): ?IResponse {
+		$response = new XrdResponse();
+		try {
+			$url = $this->configService->getCloudUrl(true) . '/.well-known/webfinger?resource={uri}';
+		} catch (SocialAppConfigException $e) {
+			return null;
+		}
+
+		$response->addLink('lrdd', $url);
 
 		return $response;
 	}

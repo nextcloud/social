@@ -1,6 +1,7 @@
 js/
 \.idea/
 node_modules/
+build/
 vendor/
 img/twemoji/
 
