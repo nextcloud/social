@@ -169,23 +169,6 @@ class Reset extends Base {
 		$this->coreRequestBuilder->uninstallSocialTables();
 		$this->coreRequestBuilder->uninstallFromMigrations();
 		$this->coreRequestBuilder->uninstallFromJobs();
-		$this->uninstallWellKnown();
 		$this->configService->unsetAppConfig();
-	}
-
-
-	/**
-	 *
-	 */
-	private function uninstallWellKnown() {
-		if ($this->configService->getCoreValue('public_webfinger') === 'social/lib/webfinger.php') {
-			$this->configService->unsetCoreValue('public_webfinger');
-		}
-		if ($this->configService->getCoreValue('public_host-meta') === 'social/lib/hostmeta.php') {
-			$this->configService->unsetCoreValue('public_host-meta');
-		}
-		if ($this->configService->getCoreValue('public_host-meta-json') === 'social/lib/hostmeta.php') {
-			$this->configService->unsetCoreValue('public_host-meta-json');
-		}
 	}
 }
