@@ -37,8 +37,6 @@ namespace OCA\Social\Db;
  * @package OCA\Social\Db
  */
 class SocialFiltersQueryBuilder extends SocialLimitsQueryBuilder {
-
-
 	/**
 	 *
 	 */

@@ -32,7 +32,6 @@ declare(strict_types=1);
 namespace OCA\Social\Tools;
 
 interface IDeserializable {
-
 	/**
 	 * @param array $data
 	 *

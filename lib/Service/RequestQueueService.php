@@ -114,7 +114,6 @@ class RequestQueueService {
 
 		$request = $requests[0];
 		switch ($request->getPriority()) {
-
 			case InstancePath::PRIORITY_TOP:
 				return $request;
 

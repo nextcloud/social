@@ -39,8 +39,6 @@ use OCP\Search\SearchResultEntry;
  * @package OCA\Social\Search
  */
 class UnifiedSearchResult extends SearchResultEntry {
-
-
 	/**
 	 * UnifiedSearchResult constructor.
 	 *

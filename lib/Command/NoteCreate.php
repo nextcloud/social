@@ -96,18 +96,18 @@ class NoteCreate extends Base {
 		parent::configure();
 		$this->setName('social:note:create')
 			 ->addOption(
-				 'replyTo', 'r', InputOption::VALUE_OPTIONAL, 'in reply to an existing thread'
+			 	'replyTo', 'r', InputOption::VALUE_OPTIONAL, 'in reply to an existing thread'
 			 )
 			 ->addOption(
-				 'to', 't', InputOption::VALUE_OPTIONAL, 'mentioning people'
+			 	'to', 't', InputOption::VALUE_OPTIONAL, 'mentioning people'
 			 )
 			 ->addOption(
-				 'type', 'y', InputOption::VALUE_OPTIONAL,
-				 'type: public (default), followers, unlisted, direct'
+			 	'type', 'y', InputOption::VALUE_OPTIONAL,
+			 	'type: public (default), followers, unlisted, direct'
 			 )
 			 ->addOption(
-				 'hashtag', 'g', InputOption::VALUE_OPTIONAL,
-				 'hashtag, without the leading #'
+			 	'hashtag', 'g', InputOption::VALUE_OPTIONAL,
+			 	'hashtag, without the leading #'
 			 )
 			 ->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
 			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')

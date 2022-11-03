@@ -43,8 +43,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Tools\Db
  */
 class RequestBuilder {
-
-
 	/** @var string */
 	protected $defaultSelectAlias;
 

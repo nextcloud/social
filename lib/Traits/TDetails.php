@@ -39,8 +39,6 @@ use OCA\Social\Model\ActivityPub\Item;
  * @package OCA\Social\Traits
  */
 trait TDetails {
-
-
 	/** @var array */
 	private $details = [];
 

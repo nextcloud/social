@@ -42,8 +42,6 @@ use OCA\Social\Tools\Exceptions\ShellUnknownItemException;
  * @package OCA\Social\Tools
  */
 interface IInteractiveShellClient {
-
-
 	/**
 	 * @param string $source
 	 * @param string $field

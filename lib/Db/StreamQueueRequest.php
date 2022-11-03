@@ -42,8 +42,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class StreamQueueRequest extends StreamQueueRequestBuilder {
-
-
 	/**
 	 * create a new Queue in the database.
 	 *
@@ -112,8 +110,8 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$qb = $this->getStreamQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_RUNNING))
 		   ->set(
-			   'last',
-			   $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   	'last',
+		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);

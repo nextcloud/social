@@ -202,7 +202,6 @@ class StreamQueueService {
 		$cache = $stream->getCache();
 
 		foreach ($cache->getItems() as $item) {
-
 			// TODO: PHP7.2 (NC16) : multiple exception per catch
 
 			try {

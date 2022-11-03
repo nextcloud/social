@@ -59,7 +59,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->setValue('featured', $qb->createNamedParameter($actor->getFeatured()))
 		   ->setValue('url', $qb->createNamedParameter($actor->getUrl()))
 		   ->setValue(
-			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 		   )
 		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
@@ -112,7 +112,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		   ->set('featured', $qb->createNamedParameter($actor->getFeatured()))
 		   ->set('url', $qb->createNamedParameter($actor->getUrl()))
 		   ->set(
-			   'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 		   )
 		   ->set('name', $qb->createNamedParameter($actor->getName()))
 		   ->set('summary', $qb->createNamedParameter($actor->getSummary()))

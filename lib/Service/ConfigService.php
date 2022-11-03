@@ -381,8 +381,8 @@ class ConfigService {
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
 			$url = $this->getCloudUrl(true) . $this->urlGenerator->linkToRoute(
-					'social.Navigation.navigate'
-				);
+				'social.Navigation.navigate'
+			);
 		}
 
 		if (parse_url($url, PHP_URL_SCHEME) === null) {
