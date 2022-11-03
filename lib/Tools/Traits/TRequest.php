@@ -144,14 +144,14 @@ trait TRequest {
 		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
 		curl_setopt($curl, CURLOPT_NOPROGRESS, false);
 		curl_setopt(
-		/**
-		 * @param $downloadSize
-		 * @param int $downloaded
-		 * @param $uploadSize
-		 * @param int $uploaded
-		 *
-		 * @return int
-		 */
+			/**
+			 * @param $downloadSize
+			 * @param int $downloaded
+			 * @param $uploadSize
+			 * @param int $uploaded
+			 *
+			 * @return int
+			 */
 			$curl, CURLOPT_PROGRESSFUNCTION,
 			function ($downloadSize, int $downloaded, $uploadSize, int $uploaded) {
 				if ($downloaded > ($this->maxDownloadSize * (1024 * 1024))) {

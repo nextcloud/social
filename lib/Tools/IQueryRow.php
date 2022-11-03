@@ -38,7 +38,6 @@ namespace OCA\Social\Tools;
  * @package OCA\Social\Tools
  */
 interface IQueryRow {
-
 	/**
 	 * import data to feed the model.
 	 *

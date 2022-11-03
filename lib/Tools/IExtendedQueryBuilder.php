@@ -43,8 +43,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Tools
  */
 interface IExtendedQueryBuilder extends IQueryBuilder {
-
-
 	/**
 	 * @param string $alias
 	 *

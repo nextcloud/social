@@ -269,8 +269,8 @@ class StreamService {
 				[
 					'type' => 'Hashtag',
 					'href' => $this->configService->getSocialUrl() . 'tag/' . strtolower(
-							$hashtag
-						),
+						$hashtag
+					),
 					'name' => '#' . $hashtag
 				]
 			);

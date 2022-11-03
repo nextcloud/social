@@ -316,7 +316,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$notification->addDetail('accounts', $author->getAccount());
 			$notificationInterface->update($notification);
 		} catch (StreamNotFoundException $e) {
-
 			/** @var SocialAppNotification $notification */
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
 //			$notification->setDetail('url', '');

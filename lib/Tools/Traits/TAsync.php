@@ -40,8 +40,6 @@ use JsonSerializable;
  * @package OCA\Social\Tools\Traits
  */
 trait TAsync {
-
-
 	/**
 	 * Hacky way to async the rest of the process without keeping client on hold.
 	 *

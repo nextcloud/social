@@ -39,8 +39,6 @@ use Exception;
  * @package OCA\Social\Tools\Traits
  */
 trait TStringTools {
-
-
 	/**
 	 * @param int $length
 	 *

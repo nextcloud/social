@@ -41,7 +41,6 @@ use OCA\Social\Model\ActivityPub\ACore;
  * @package OCA\Social\Service
  */
 interface IActivityPubInterface {
-
 	/**
 	 * Freshly imported item can be processed/parsed on incoming Request.
 	 */

@@ -49,8 +49,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Tools\Db
  */
 class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder {
-
-
 	/** @var string */
 	private $defaultSelectAlias = '';
 

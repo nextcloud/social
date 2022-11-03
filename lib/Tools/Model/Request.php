@@ -693,8 +693,8 @@ class Request implements JsonSerializable {
 			case self::QS_VAR_DUPLICATE:
 			default:
 				return '?' . preg_replace(
-						'/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=', http_build_query($this->getParams())
-					);
+					'/%5B(?:[0-9]|[1-9][0-9]+)%5D=/', '=', http_build_query($this->getParams())
+				);
 		}
 	}
 

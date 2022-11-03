@@ -37,7 +37,6 @@ namespace OCA\Social\Tools\Traits;
  * @package OCA\Social\Tools\Traits
  */
 trait TFileTools {
-
 	/**
 	 * @param $stream
 	 *
