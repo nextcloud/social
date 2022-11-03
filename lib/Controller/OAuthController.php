@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ClientException;
@@ -42,7 +41,6 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
-use OCA\Social\Service\MiscService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -50,10 +48,9 @@ use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
+use Psr\Log\LoggerInterface;
 
 class OAuthController extends Controller {
-	use TNCDataResponse;
-
 	private IUserSession $userSession;
 	private IURLGenerator $urlGenerator;
 	private InstanceService $instanceService;
@@ -61,13 +58,18 @@ class OAuthController extends Controller {
 	private CacheActorService $cacheActorService;
 	private ClientService $clientService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+	private LoggerInterface $logger;
 
 	public function __construct(
-		IRequest $request, IUserSession $userSession, IURLGenerator $urlGenerator,
-		InstanceService $instanceService, AccountService $accountService,
-		CacheActorService $cacheActorService, ClientService $clientService, ConfigService $configService,
-		MiscService $miscService
+		IRequest $request,
+		IUserSession $userSession,
+		IURLGenerator $urlGenerator,
+		InstanceService $instanceService,
+		AccountService $accountService,
+		CacheActorService $cacheActorService,
+		ClientService $clientService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -78,26 +80,10 @@ class OAuthController extends Controller {
 		$this->cacheActorService = $cacheActorService;
 		$this->clientService = $clientService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 
 		$body = file_get_contents('php://input');
-		$this->miscService->log('[OAuthController] input: ' . $body, 0);
-	}
-
-
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 */
-	public function nodeinfo(): DataResponse {
-		$nodeInfo = [
-			'links' => [
-				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-				'href' => $this->urlGenerator->linkToRouteAbsolute('social.OAuth.nodeinfo2')
-			]
-		];
-
-		return new DataResponse($nodeInfo, Http::STATUS_OK);
+		$logger->debug('[OAuthController] input: ' . $body);
 	}
 
 
@@ -140,11 +126,16 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
+	 *
 	 * @param array|string $redirect_uris
+	 *
 	 * @throws ClientException
 	 */
 	public function apps(
-		string $client_name = '', $redirect_uris = '', string $website = '', string $scopes = 'read'
+		string $client_name = '',
+		$redirect_uris = '',
+		string $website = '',
+		string $scopes = 'read'
 	): DataResponse {
 		// TODO: manage array from request
 		if (!is_array($redirect_uris)) {
@@ -177,7 +168,10 @@ class OAuthController extends Controller {
 	 * @NoAdminRequired
 	 */
 	public function authorize(
-		string $client_id, string $redirect_uri, string $response_type, string $scope = 'read'
+		string $client_id,
+		string $redirect_uri,
+		string $response_type,
+		string $scope = 'read'
 	): DataResponse {
 		try {
 			$user = $this->userSession->getUser();
@@ -219,7 +213,8 @@ class OAuthController extends Controller {
 				], Http::STATUS_OK
 			);
 		} catch (Exception $e) {
-			$this->miscService->log($e->getMessage() . ' ' . get_class($e));
+			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
+
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
 	}
@@ -231,8 +226,12 @@ class OAuthController extends Controller {
 	 * @PublicPage
 	 */
 	public function token(
-		string $client_id, string $client_secret, string $redirect_uri, string $grant_type,
-		string $scope = 'read', string $code = ''
+		string $client_id,
+		string $client_secret,
+		string $redirect_uri,
+		string $grant_type,
+		string $scope = 'read',
+		string $code = ''
 	): DataResponse {
 		try {
 			$client = $this->clientService->getFromClientId($client_id);

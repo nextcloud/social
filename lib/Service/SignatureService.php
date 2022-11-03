@@ -86,9 +86,11 @@ class SignatureService {
 	private MiscService $miscService;
 
 	public function __construct(
-		ActorsRequest $actorsRequest, CacheActorService $cacheActorService,
+		ActorsRequest $actorsRequest,
+		CacheActorService $cacheActorService,
 		CurlService $curlService,
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;

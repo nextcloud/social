@@ -67,7 +67,6 @@ return [
 		['name' => 'OStatus#getLink', 'url' => '/api/v1/ostatus/link/{local}/{account}', 'verb' => 'GET'],
 
 		// OAuth
-		['name' => 'OAuth#nodeinfo', 'url' => '/.well-known/nodeinfo', 'verb' => 'GET'],
 		['name' => 'OAuth#nodeinfo2', 'url' => '/.well-known/nodeinfo/2.0', 'verb' => 'GET'],
 		['name' => 'OAuth#apps', 'url' => '/api/v1/apps', 'verb' => 'POST'],
 		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],

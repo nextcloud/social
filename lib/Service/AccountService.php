@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OC\User\NoUserException;
 use OCA\Social\Db\ActorsRequest;
@@ -45,6 +44,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Accounts\IAccountManager;
 use OCP\IUserManager;
 use OCP\IUserSession;
@@ -72,11 +72,17 @@ class AccountService {
 	private MiscService $miscService;
 
 	public function __construct(
-		IUserManager $userManager, IUserSession $userSession, IAccountManager $accountManager,
+		IUserManager $userManager,
+		IUserSession $userSession,
+		IAccountManager $accountManager,
 		ActorsRequest $actorsRequest,
-		FollowsRequest $followsRequest, StreamRequest $streamRequest, ActorService $actorService,
-		DocumentService $documentService, SignatureService $signatureService,
-		ConfigService $configService, MiscService $miscService
+		FollowsRequest $followsRequest,
+		StreamRequest $streamRequest,
+		ActorService $actorService,
+		DocumentService $documentService,
+		SignatureService $signatureService,
+		ConfigService $configService,
+		MiscService $miscService
 	) {
 		$this->userManager = $userManager;
 		$this->userSession = $userSession;
