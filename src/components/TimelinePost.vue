@@ -131,7 +131,7 @@ export default {
 				return this.item.content
 			}
 			console.debug(JSON.parse(this.item.source))
-			return JSON.parse(this.item.source)
+			return JSON.parse(this.item.source).content
 		},
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
