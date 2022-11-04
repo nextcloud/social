@@ -525,7 +525,6 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		$table->addColumn(
 			'nid', 'bigint',
 			[
-				'autoincrement' => true,
 				'length' => 11,
 				'unsigned' => true,
 			]

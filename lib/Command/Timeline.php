@@ -33,10 +33,12 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\UnknownTimelineException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\MiscService;
 use OCP\IUserManager;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -51,15 +53,9 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class Timeline extends ExtendedBase {
 	private IUserManager $userManager;
-
 	private StreamRequest $streamRequest;
-
 	private AccountService $accountService;
-
 	private ConfigService $configService;
-
-	private MiscService $miscService;
-
 
 	private ?int $count = null;
 
@@ -71,12 +67,12 @@ class Timeline extends ExtendedBase {
 	 * @param StreamRequest $streamRequest
 	 * @param AccountService $accountService
 	 * @param ConfigService $configService
-	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		IUserManager $userManager, StreamRequest $streamRequest,
-		AccountService $accountService, ConfigService $configService,
-		MiscService $miscService
+		IUserManager $userManager,
+		StreamRequest $streamRequest,
+		AccountService $accountService,
+		ConfigService $configService
 	) {
 		parent::__construct();
 
@@ -84,7 +80,6 @@ class Timeline extends ExtendedBase {
 		$this->streamRequest = $streamRequest;
 		$this->accountService = $accountService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 
@@ -97,6 +92,9 @@ class Timeline extends ExtendedBase {
 			 ->addArgument('userId', InputArgument::REQUIRED, 'viewer')
 			 ->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
 			 ->addOption('count', '', InputOption::VALUE_REQUIRED, 'number of elements', '5')
+			 ->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
+			 ->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
+			 ->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
 			 ->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
 			 ->setDescription('Get stream by timeline and viewer');
 	}
@@ -108,14 +106,12 @@ class Timeline extends ExtendedBase {
 	 *
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$output = new ConsoleOutput();
 		$this->output = $output->section();
 
 		$this->asJson = $input->getOption('json');
-		$this->count = intval($input->getOption('count'));
-
-		$timeline = $input->getArgument('timeline');
+		$this->crop = intval($input->getOption('crop'));
 
 		$userId = $input->getArgument('userId');
 		if ($this->userManager->get($userId) === null) {
@@ -127,7 +123,24 @@ class Timeline extends ExtendedBase {
 		if (!$this->asJson) {
 			$this->outputActor($actor);
 		}
-		$this->displayStream($actor, $timeline);
+
+		$this->streamRequest->setViewer($actor);
+
+		$options = new TimelineOptions();
+		$options->setFormat(Stream::FORMAT_LOCAL);
+		$options->setLimit(intval($input->getOption('count')))
+				->setMinId(intval($input->getOption('min_id')))
+				->setMaxId(intval($input->getOption('max_id')));
+
+		try {
+			$options->setTimeline($input->getArgument('timeline'));
+			$this->outputStreams($this->streamRequest->getTimeline($options));
+		} catch (UnknownTimelineException $e) {
+			echo $input->getArgument('timeline');
+			$this->displayUnsupportedStream($options);
+		}
+
+		return 0;
 	}
 
 
@@ -137,42 +150,27 @@ class Timeline extends ExtendedBase {
 	 *
 	 * @throws Exception
 	 */
-	private function displayStream(Person $actor, string $timeline) {
-		$this->streamRequest->setViewer($actor);
-		switch ($timeline) {
-			case 'home':
-				$stream = $this->streamRequest->getTimelineHome_dep(0, $this->count);
-				$this->outputStreams($stream);
-				break;
-
+	private function displayUnsupportedStream(TimelineOptions $options) {
+		switch ($options->getTimeline()) {
 			case 'direct':
-				$stream = $this->streamRequest->getTimelineDirect(0, $this->count);
+				$stream = $this->streamRequest->getTimelineDirect(0, $options->getLimit());
 				$this->outputStreams($stream);
 				break;
 
 			case 'notifications':
-				$stream = $this->streamRequest->getTimelineNotifications(0, $this->count);
+				$stream = $this->streamRequest->getTimelineNotifications(0, $options->getLimit());
 				$this->outputStreams($stream);
 				break;
 
 			case 'liked':
-				$stream = $this->streamRequest->getTimelineLiked(0, $this->count);
-				$this->outputStreams($stream);
-				break;
-
-			case 'local':
-				$stream = $this->streamRequest->getTimelineGlobal_dep(0, $this->count, true);
-				$this->outputStreams($stream);
-				break;
-
-			case 'global':
-				$stream = $this->streamRequest->getTimelineGlobal_dep(0, $this->count, false);
+				$stream = $this->streamRequest->getTimelineLiked(0, $options->getLimit());
 				$this->outputStreams($stream);
 				break;
 
 			default:
 				throw new Exception(
-					'Unknown timeline. Try home, direct, notifications, liked, local, global.'
+					'Unknown timeline. Try ' . implode(', ', TimelineOptions::$availableTimelines)
+					. ', direct, notifications, liked'
 				);
 		}
 	}

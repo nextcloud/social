@@ -412,11 +412,7 @@ class StreamService {
 	 * @return Note[]
 	 */
 	public function getTimeline(TimelineOptions $options): array {
-		if ($options->getTimeline() === 'home') {
-			return $this->streamRequest->getTimelineHome($options);
-		} elseif ($options->getTimeline() === 'public') {
-			return $this->streamRequest->getTimelinePublic($options);
-		}
+		return $this->streamRequest->getTimeline($options);
 	}
 
 	/**

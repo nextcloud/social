@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 /**
  * Nextcloud - Social Support
  *
@@ -30,7 +29,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use OC\Core\Command\Base;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -38,12 +36,14 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class ExtendedBase extends Base {
 	protected ?OutputInterface $output = null;
 	protected bool $asJson = false;
+	protected int $crop = 0;
 
 	protected function outputActor(Person $actor): void {
 		if ($this->asJson) {
@@ -65,9 +65,8 @@ class ExtendedBase extends Base {
 		}
 
 		$table = new Table($this->output);
-		$table->setHeaders(['Id', 'Source', 'Type', 'Author', 'Content']);
+		$table->setHeaders(['Nid', 'Id', 'Source', 'Type', 'Author', 'Content']);
 		$table->render();
-		$this->output->writeln('');
 
 		foreach ($streams as $item) {
 			$objectId = $item->getObjectId();
@@ -95,8 +94,11 @@ class ExtendedBase extends Base {
 							   ->getAccount();
 			}
 
+			$content = ($this->crop) ? substr($content, 0, $this->crop) : $content;
+
 			$table->appendRow(
 				[
+					$item->getNid(),
 					'<comment>' . $item->getId() . '</comment>',
 					'<info>' . $item->getActor()
 									->getAccount() . '</info>',

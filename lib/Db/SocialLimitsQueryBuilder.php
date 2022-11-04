@@ -345,7 +345,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		if ($options->getMinId() > 0) {
 			$options->setInverted(true);
-			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
+			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMinId())));
 		}
 
 		$this->setMaxResults($options->getLimit());

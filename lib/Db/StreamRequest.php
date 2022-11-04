@@ -30,11 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Model\Cache;
 use DateTime;
 use Exception;
-use OCP\DB\Exception as DBException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -45,6 +42,9 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Model\Cache;
+use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
@@ -56,6 +56,7 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Db
  */
 class StreamRequest extends StreamRequestBuilder {
+	private const NID_LIMIT = 1000000;
 	private StreamDestRequest $streamDestRequest;
 	private StreamTagsRequest $streamTagsRequest;
 
@@ -75,9 +76,11 @@ class StreamRequest extends StreamRequestBuilder {
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
-			   ->setValue('attachments', $qb->createNamedParameter(
-			   	json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
-			   ));
+			   ->setValue(
+			   	'attachments', $qb->createNamedParameter(
+			   		json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+			   	)
+			   );
 		}
 
 		try {
@@ -98,9 +101,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamUpdateSql();
 
 		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
-		$qb->set('cc', $qb->createNamedParameter(
-			json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-		));
+		$qb->set(
+			'cc', $qb->createNamedParameter(
+				json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
+			)
+		);
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 		$qb->executeStatement();
 
@@ -326,6 +331,23 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 
+	public function getTimeline(TimelineOptions $options): array {
+		switch (strtolower($options->getTimeline())) {
+			case 'home':
+				return $this->getTimelineHome($options);
+			case 'public':
+				$options->setLocal(false);
+
+				return $this->getTimelinePublic($options);
+			case 'local':
+				$options->setLocal(true);
+
+				return $this->getTimelinePublic($options);
+		}
+
+		return [];
+	}
+
 	/**
 	 * Should returns:
 	 *  * Own posts,
@@ -441,7 +463,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
-		$accountIsViewer = ($qb->hasViewer()) ? ($qb->getViewer()->getId() === $actorId) : false;
+		$accountIsViewer = ($qb->hasViewer() && $qb->getViewer()->getId() === $actorId);
 		$qb->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -478,7 +500,7 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * Should returns:
+	 * Should return:
 	 *  * All local public/federated posts
 	 *
 	 * @param TimelineOptions $options
@@ -490,7 +512,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->paginate($options);
 
-		$qb->limitToLocal($options->isLocal());
+		if ($options->isLocal()) {
+			$qb->limitToLocal(true);
+		}
 		$qb->limitToType(Note::TYPE);
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -674,8 +698,13 @@ class StreamRequest extends StreamRequestBuilder {
 								   ->getId();
 		}
 
+		if ($stream->getNid() === 0) {
+			$stream->setNid($stream->getPublishedTime() * self::NID_LIMIT + rand(1, self::NID_LIMIT));
+		}
+
 		$qb = $this->getStreamInsertSql();
-		$qb->setValue('id', $qb->createNamedParameter($stream->getId()))
+		$qb->setValue('nid', $qb->createNamedParameter($stream->getNid()))
+		   ->setValue('id', $qb->createNamedParameter($stream->getId()))
 		   ->setValue('type', $qb->createNamedParameter($stream->getType()))
 		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
