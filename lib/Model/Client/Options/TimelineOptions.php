@@ -31,8 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client\Options;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
+use OCA\Social\Exceptions\UnknownTimelineException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IRequest;
 
 /**
@@ -43,24 +44,21 @@ use OCP\IRequest;
 class TimelineOptions extends CoreOptions implements JsonSerializable {
 	use TArrayTools;
 
-
 	private string $timeline = '';
-
 	private bool $local = false;
-
 	private bool $remote = false;
-
 	private bool $onlyMedia = false;
-
 	private int $minId = 0;
-
 	private int $maxId = 0;
-
 	private int $sinceId = 0;
-
 	private int $limit = 20;
-
 	private bool $inverted = false;
+
+	public static array $availableTimelines = [
+		'home',
+		'local',
+		'public'
+	];
 
 
 	/**
@@ -86,8 +84,16 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	 * @param string $timeline
 	 *
 	 * @return TimelineOptions
+	 * @throws UnknownTimelineException
 	 */
 	public function setTimeline(string $timeline): self {
+		$timeline = strtolower($timeline);
+		if (!in_array($timeline, self::$availableTimelines)) {
+			throw new UnknownTimelineException(
+				'unknown timeline: ' . implode(', ', self::$availableTimelines)
+			);
+		}
+
 		$this->timeline = $timeline;
 
 		return $this;
@@ -270,6 +276,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return
 			[
+				'timeline' => $this->getTimeline(),
 				'local' => $this->isLocal(),
 				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),

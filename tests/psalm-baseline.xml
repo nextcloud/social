@@ -126,11 +126,6 @@
       <code>$varr[0] !== null</code>
     </RedundantCondition>
   </file>
-  <file src="lib/Service/StreamService.php">
-    <InvalidReturnType occurrences="1">
-      <code>Note[]</code>
-    </InvalidReturnType>
-  </file>
   <file src="lib/Service/TestService.php">
     <TypeDoesNotContainNull occurrences="3">
       <code>$host === null</code>
