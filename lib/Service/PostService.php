@@ -129,7 +129,6 @@ class PostService {
 	 */
 	private function generateDocumentsFromAttachments(Note $note, Post $post) {
 		$documents = [];
-		\OC::$server->getLogger()->error(var_export($_FILES["attachments"], true));
 		if (!isset($_FILES['attachments'])) {
 			return [];
 		}
