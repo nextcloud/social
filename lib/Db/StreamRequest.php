@@ -459,7 +459,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitPaginate($since, $limit);
 
-		$qb->limitToAttributedTo($actorId);
+		// $qb->limitToAttributedTo($actorId);
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
@@ -467,7 +467,14 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-		$qb->leftJoinStreamAction();
+		$qb->leftJoinStreamAction('sa', $actorId);
+
+		$expr = $qb->expr();
+		$qb->andWhere($expr->orX(
+				$expr->eq('s.attributed_to',  $qb->createNamedParameter($actorId)),
+				$expr->andX(
+					$expr->eq('sa.boosted', $qb->createNamedParameter(1)),
+					$expr->eq('s.type', $qb->createNamedParameter('Announce')))));
 
 		return $this->getStreamsFromRequest($qb);
 	}

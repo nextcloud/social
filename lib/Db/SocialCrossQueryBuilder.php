@@ -259,8 +259,8 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	/**
 	 * @param string $alias
 	 */
-	public function leftJoinStreamAction(string $alias = 'sa'): void {
-		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
+	public function leftJoinStreamAction(string $alias = 'sa', string $actor_id = ''): void {
+		if ($this->getType() !== QueryBuilder::SELECT || ($actor_id === '' && !$this->hasViewer())) {
 			return;
 		}
 
@@ -278,8 +278,12 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$on = $expr->andX();
 //		$this->inChunk('sa', $on);
-		$viewer = $this->getViewer();
-		$idPrim = $this->prim($viewer->getId());
+		if ($actor_id === '') {
+			$viewer = $this->getViewer();
+			$idPrim = $this->prim($viewer->getId());
+		} else {
+			$idPrim = $this->prim($actor_id);
+		}
 
 		$on->add($expr->eq($alias . '.actor_id_prim', $this->createNamedParameter($idPrim)));
 		$on->add($orX);
