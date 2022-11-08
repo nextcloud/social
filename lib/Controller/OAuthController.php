@@ -115,6 +115,7 @@ class OAuthController extends Controller {
 			"protocols" => [
 				"activitypub"
 			],
+			"rootUrl" => rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/'),
 			"usage" => $usage,
 			"openRegistrations" => $openReg
 		];
