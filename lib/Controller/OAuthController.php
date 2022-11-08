@@ -45,6 +45,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -172,13 +173,57 @@ class OAuthController extends Controller {
 		string $redirect_uri,
 		string $response_type,
 		string $scope = 'read'
+	): Response {
+		try {
+			$user = $this->userSession->getUser();
+
+			// check actor exists
+			$this->accountService->getActorFromUserId($user->getUID());
+
+			if ($response_type !== 'code') {
+				throw new ClientNotFoundException('invalid response type');
+			}
+
+			// check client exists in db
+			$this->clientService->getFromClientId($client_id);
+
+			return new TemplateResponse(Application::APP_NAME, 'oauth2', [
+				'request' =>
+					[
+						'clientId' => $client_id,
+						'redirectUri' => $redirect_uri,
+						'responseType' => $response_type,
+						'scope' => $scope
+					]
+			]);
+
+		} catch (Exception $e) {
+			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
+
+			return new TemplateResponse(
+				Application::APP_NAME,
+				'oauth2',
+				['error' => $e->getMessage()]
+			);
+		}
+	}
+
+
+	/**
+	 * @NoAdminRequired
+	 */
+	public function authorizing(
+		string $client_id,
+		string $redirect_uri,
+		string $response_type,
+		string $scope = 'read'
 	): DataResponse {
 		try {
 			$user = $this->userSession->getUser();
 			$account = $this->accountService->getActorFromUserId($user->getUID());
 
 			if ($response_type !== 'code') {
-				return new DataResponse(['error' => 'invalid_type'], Http::STATUS_BAD_REQUEST);
+				throw new ClientNotFoundException('invalid response type');
 			}
 
 			$client = $this->clientService->getFromClientId($client_id);
@@ -204,18 +249,12 @@ class OAuthController extends Controller {
 
 			// TODO : finalize result if no redirect_url
 			return new DataResponse(
-				[
-					'code' => $code,
-					//				'access_token' => '',
-					//				"token_type"   => "Bearer",
-					//				"scope"        => "read write follow push",
-					//				"created_at"   => 1573979017
-				], Http::STATUS_OK
+				['code' => $code], Http::STATUS_OK
 			);
 		} catch (Exception $e) {
 			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
 
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
 
