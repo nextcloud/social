@@ -11,9 +11,7 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-version+=0.4.2
-
-
+version+=0.5.0-beta3
 
 
 all: dev-setup lint build-js-production composer test
@@ -68,30 +66,20 @@ composer:
 	composer install --prefer-dist
 	composer update --prefer-dist
 
-# releasing to github
-release: appstore github-release github-upload
-
-github-release:
-	github-release release \
-		--user $(github_account) \
-		--repo $(app_name) \
-		--target $(branch) \
-		--tag v$(version) \
-		--name "$(app_name) v$(version)"
-
-github-upload:
-	github-release upload \
-		--user $(github_account) \
-		--repo $(app_name) \
-		--tag v$(version) \
-		--name "$(app_name)-$(version).tar.gz" \
-		--file $(build_dir)/$(app_name)-$(version).tar.gz
+release: appstore
 
 # creating .tar.gz + signature
-appstore: dev-setup lint build-js-production
+appstore: dev-setup lint build-js-production composer
 	mkdir -p $(sign_dir)
 	rsync -a \
 	--exclude=/build \
+	--exclude=/babel.config.js \
+	--exclude=/cypress.json \
+	--exclude=/.php-cs-fixer.cache \
+	--exclude=/.nextcloudignore \
+	--exclude=/.php-cs-fixer.dist.php \
+	--exclude=/psalm.xml \
+	--exclude=/cypress.json \
 	--exclude=/docs \
 	--exclude=/translationfiles \
 	--exclude=/.tx \
@@ -111,6 +99,7 @@ appstore: dev-setup lint build-js-production
 	--exclude=/l10n/l10n.pl \
 	--exclude=/CONTRIBUTING.md \
 	--exclude=/issue_template.md \
+	--exclude=/krankerl.toml \
 	--exclude=/README.md \
 	--exclude=/.gitattributes \
 	--exclude=/.gitignore \
@@ -118,9 +107,6 @@ appstore: dev-setup lint build-js-production
 	--exclude=/.travis.yml \
 	--exclude=/Makefile \
 	$(project_dir)/ $(sign_dir)/$(app_name)
-	tar -czf $(build_dir)/$(app_name)-$(version).tar.gz \
+	tar -czf $(build_dir)/$(app_name).tar.gz \
 		-C $(sign_dir) $(app_name)
-	@if [ -f $(cert_dir)/$(app_name).key ]; then \
-		echo "Signing package…"; \
-		openssl dgst -sha512 -sign $(cert_dir)/$(app_name).key $(build_dir)/$(app_name)-$(version).tar.gz | openssl base64; \
-	fi
+
