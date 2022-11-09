@@ -63,8 +63,12 @@ clean-dev:
 	rm -rf node_modules
 
 composer:
-	composer install --prefer-dist
-	composer update --prefer-dist
+	composer install --prefer-dist --no-dev
+	composer upgrade --prefer-dist --no-dev
+
+composer-dev:
+	composer install --prefer-dist --dev
+	composer upgrade --prefer-dist --dev
 
 release: appstore
 
@@ -80,6 +84,7 @@ appstore: dev-setup lint build-js-production composer
 	--exclude=/.php-cs-fixer.dist.php \
 	--exclude=/psalm.xml \
 	--exclude=/cypress.json \
+	--exclude=/cypress \
 	--exclude=/docs \
 	--exclude=/translationfiles \
 	--exclude=/.tx \

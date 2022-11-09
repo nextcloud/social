@@ -1,4 +1,0 @@
-[package]
-before_cmds = [
-	'make release'
-]
