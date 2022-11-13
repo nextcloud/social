@@ -35,7 +35,7 @@
 		"@nextcloud/l10n": "^1.6.0",
 		"@nextcloud/logger": "^2.4.0",
 		"@nextcloud/moment": "^1.2.1",
-		"@nextcloud/router": "^1.2.0",
+		"@nextcloud/router": "^2.0.0",
 		"@nextcloud/stylelint-config": "^2.2.0",
 		"@nextcloud/vue": "^7.0.1",
 		"@nextcloud/vue-richtext": "^2.0.4",
