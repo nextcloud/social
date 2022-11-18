@@ -108,8 +108,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
 		}
 
-		$this->selectAlias($pf . '.nid', 'cacheactor_nid')
-			 ->selectAlias($pf . '.id', 'cacheactor_id')
+		$this->selectAlias($pf . '.id', 'cacheactor_id')
 			 ->selectAlias($pf . '.type', 'cacheactor_type')
 			 ->selectAlias($pf . '.account', 'cacheactor_account')
 			 ->selectAlias($pf . '.following', 'cacheactor_following')
