@@ -34,11 +34,11 @@ namespace OCA\Social\Command;
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\UnknownTimelineException;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCP\IUserManager;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -145,18 +145,12 @@ class Timeline extends ExtendedBase {
 
 
 	/**
-	 * @param Person $actor
-	 * @param string $timeline
+	 * @param TimelineOptions $options
 	 *
-	 * @throws Exception
+	 * @throws DateTimeException
 	 */
 	private function displayUnsupportedStream(TimelineOptions $options) {
 		switch ($options->getTimeline()) {
-			case 'direct':
-				$stream = $this->streamRequest->getTimelineDirect(0, $options->getLimit());
-				$this->outputStreams($stream);
-				break;
-
 			case 'notifications':
 				$stream = $this->streamRequest->getTimelineNotifications(0, $options->getLimit());
 				$this->outputStreams($stream);

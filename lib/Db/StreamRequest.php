@@ -334,22 +334,33 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getTimeline(TimelineOptions $options): array {
 		switch (strtolower($options->getTimeline())) {
 			case 'home':
-				return $this->getTimelineHome($options);
+				$result = $this->getTimelineHome($options);
+				break;
+			case 'direct':
+				$result = $this->getTimelineDirect($options);
+				break;
 			case 'public':
 				$options->setLocal(false);
-
-				return $this->getTimelinePublic($options);
+				$result = $this->getTimelinePublic($options);
+				break;
 			case 'local':
 				$options->setLocal(true);
+				$result = $this->getTimelinePublic($options);
+				break;
 
-				return $this->getTimelinePublic($options);
+			default:
+				return [];
 		}
 
-		return [];
+		if ($options->isInverted()) {
+			$result = array_reverse($result);
+		}
+
+		return $result;
 	}
 
 	/**
-	 * Should returns:
+	 * Should return:
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
@@ -357,7 +368,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
-	public function getTimelineHome(TimelineOptions $options): array {
+	private function getTimelineHome(TimelineOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->setChunk(1);
 
@@ -370,17 +381,37 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinStreamAction('sa');
 		$qb->filterDuplicate();
 
-		$result = $this->getStreamsFromRequest($qb);
-		if ($options->isInverted()) {
-			$result = array_reverse($result);
-		}
-
-		return $result;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
 	/**
-	 * Should returns:
+	 * Should return:
+	 *  * Private message.
+	 *  - group messages. (not yet)
+	 *
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineDirect(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql();
+
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->paginate($options);
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$viewer = $qb->getViewer();
+		$qb->selectDestFollowing('sd', '');
+		$qb->limitToDest($viewer->getId(), 'dm', '', 'sd');
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+
+	/**
+	 * Should return:
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
@@ -412,7 +443,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * Should returns:
+	 * Should return:
 	 *  * Public/Unlisted/Followers-only post where current $actor is tagged,
 	 *  - Events: (not yet)
 	 *    - people liking or re-posting your posts (not yet)
@@ -444,7 +475,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * Should returns:
+	 * Should return:
 	 *  * public message from actorId.
 	 *  - to followers-only if follower is logged. (not yet (check ?))
 	 *
@@ -474,7 +505,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * Should returns:
+	 * Should return:
 	 *  * Private message.
 	 *  - group messages. (not yet)
 	 *
@@ -484,7 +515,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineDirect(int $since = 0, int $limit = 5): array {
+	public function getTimelineDirect_dep(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -506,9 +537,8 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @param TimelineOptions $options
 	 *
 	 * @return Stream[]
-	 * @throws DateTimeException
 	 */
-	public function getTimelinePublic(TimelineOptions $options): array {
+	private function getTimelinePublic(TimelineOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->paginate($options);
 
@@ -524,12 +554,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
 
-		$result = $this->getStreamsFromRequest($qb);
-		if ($options->isInverted()) {
-			$result = array_reverse($result);
-		}
-
-		return $result;
+		return $this->getStreamsFromRequest($qb);
 	}
 
 
@@ -598,7 +623,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * Should returns:
+	 * Should return:
 	 *  - All public post related to a tag (not yet)
 	 *  - direct message related to a tag (not yet)
 	 *  - message to followers related to a tag (not yet)

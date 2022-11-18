@@ -30,13 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -53,6 +46,13 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 
 class StreamService {
 	private StreamRequest $streamRequest;
@@ -400,7 +400,10 @@ class StreamService {
 	 * @throws DateTimeException
 	 * @deprecated
 	 */
-	public function getStreamHome(int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+	public function getStreamHome(
+		int $since = 0,
+		int $limit = 5,
+		int $format = Stream::FORMAT_ACTIVITYPUB
 	): array {
 		return $this->streamRequest->getTimelineHome_dep($since, $limit, $format);
 	}
@@ -451,7 +454,7 @@ class StreamService {
 	 * @deprecated
 	 */
 	public function getStreamDirect(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineDirect($since, $limit);
+		return $this->streamRequest->getTimelineDirect_dep($since, $limit);
 	}
 
 
