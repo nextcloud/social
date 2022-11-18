@@ -359,7 +359,6 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimelineHome(TimelineOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
-		$qb->setChunk(1);
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
@@ -396,7 +395,6 @@ class StreamRequest extends StreamRequestBuilder {
 		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
 	): array {
 		$qb = $this->getStreamSelectSql($format);
-		$qb->setChunk(1);
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitPaginate($since, $limit);

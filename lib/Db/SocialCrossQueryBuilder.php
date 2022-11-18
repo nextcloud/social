@@ -56,7 +56,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		if ($aliasDest !== '') {
 			$this->from(CoreRequestBuilder::TABLE_STREAM_DEST, $aliasDest);
-//			$this->inChunk($aliasDest);
 		}
 		if ($aliasFollowing !== '') {
 			$this->from(CoreRequestBuilder::TABLE_FOLLOWS, $aliasFollowing);
@@ -277,7 +276,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim'));
 
 		$on = $expr->andX();
-//		$this->inChunk('sa', $on);
 		$viewer = $this->getViewer();
 		$idPrim = $this->prim($viewer->getId());
 
