@@ -48,6 +48,7 @@ OC.L10N.register(
     "Delete" : "Löschen",
     "Edit" : "Bearbeiten",
     "No description added" : "Keine Beschreibung hinzugefügt",
+    "Describe for the visually impaired" : "Für Sehbehinderte beschreiben",
     "Close" : "Schließen",
     "Unfollow" : "Entfolgen",
     "Follow" : "Folgen",
