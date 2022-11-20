@@ -121,7 +121,7 @@ class NoteCreate extends Base {
 	 *
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('userid');
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
@@ -142,5 +142,7 @@ class NoteCreate extends Base {
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";
+
+		return 0;
 	}
 }

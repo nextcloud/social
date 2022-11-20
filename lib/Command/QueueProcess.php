@@ -87,12 +87,13 @@ class QueueProcess extends Base {
 	 * @param InputInterface $input
 	 * @param OutputInterface $output
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$output->writeLn('processing requests queue');
 		$this->processRequestQueue($output);
 
 		$output->writeLn('processing stream queue');
 		$this->processStreamQueue($output);
+
 		return 0;
 	}
 

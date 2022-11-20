@@ -92,7 +92,7 @@ class StreamDetails extends ExtendedBase {
 	 *
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$output = new ConsoleOutput();
 		$this->output = $output->section();
 
@@ -110,7 +110,7 @@ class StreamDetails extends ExtendedBase {
 		if ($this->asJson) {
 			$this->output->writeln(json_encode($details, JSON_PRETTY_PRINT));
 
-			return;
+			return 0;
 		}
 
 		$this->outputStream($stream);
@@ -133,5 +133,7 @@ class StreamDetails extends ExtendedBase {
 		$this->output->writeln('* <info>Direct</info>: ' . json_encode($direct, JSON_PRETTY_PRINT));
 		$this->output->writeln('* <info>Public</info>: ' . ($details->isPublic() ? 'true' : 'false'));
 		$this->output->writeln('* <info>Federated</info>: ' . ($details->isFederated() ? 'true' : 'false'));
+
+		return 0;
 	}
 }

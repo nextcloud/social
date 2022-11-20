@@ -67,7 +67,7 @@ class CacheRefresh extends Base {
 	/**
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$result = $this->accountService->blindKeyRotation();
 		$output->writeLn($result . ' key pairs refreshed');
 
@@ -85,5 +85,7 @@ class CacheRefresh extends Base {
 
 		$result = $this->hashtagService->manageHashtags();
 		$output->writeLn($result . ' hashtags updated');
+
+		return 0;
 	}
 }

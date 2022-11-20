@@ -76,7 +76,7 @@ class AccountFollowing extends Base {
 	/**
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('userId');
 		$account = $input->getArgument('account');
 
@@ -91,5 +91,7 @@ class AccountFollowing extends Base {
 		} else {
 			$this->followService->followAccount($actor, $account);
 		}
+
+		return 0;
 	}
 }

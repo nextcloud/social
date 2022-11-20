@@ -130,7 +130,7 @@ class MigrateAlpha3 extends Base {
 	/**
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$tables = $this->checkTables();
 
 		if ($input->getOption('force-remove-old-tables')) {
@@ -138,13 +138,13 @@ class MigrateAlpha3 extends Base {
 				$this->dropTable($table);
 			}
 
-			return;
+			return 0;
 		}
 
 		if (empty($tables)) {
 			$output->writeln('Nothing to migrate.');
 
-			return;
+			return 0;
 		}
 
 		$defTables = '';
@@ -157,7 +157,7 @@ class MigrateAlpha3 extends Base {
 		);
 
 		if (!$this->confirmExecute($input, $output)) {
-			return;
+			return 0;
 		}
 
 		$this->done = [];
@@ -166,6 +166,8 @@ class MigrateAlpha3 extends Base {
 		if ($input->getOption('remove-migrated-tables')) {
 			$this->dropDeprecatedTables($input, $output);
 		}
+
+		return 0;
 	}
 
 
