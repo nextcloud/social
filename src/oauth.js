@@ -1,10 +1,5 @@
-<?php
 /**
- * @copyright Copyright (c) 2019 Julius Härtl <jus@bitgrid.net>
- *
- * @author Jonas Sulzer <jonas@violoncello.ch>
- * @author Julius Härtl <jus@bitgrid.net>
- *
+ * @copyright 2022 Carl Schwan <carl@carlschwan.eu>
  * @license GNU AGPL version 3 or any later version
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,10 +14,25 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-\OCP\Util::addScript('social', 'social-oauth');
-?>
+import Vue from 'vue'
+import OAuth2Authorize from './views/OAuth2Authorize.vue'
 
-<div id="social-oauth2"></div>
+// CSP config for webpack dynamic chunk loading
+// eslint-disable-next-line
+__webpack_nonce__ = btoa(OC.requestToken)
+
+// Correct the root of the app for chunk loading
+// OC.linkTo matches the apps folders
+// eslint-disable-next-line
+__webpack_public_path__ = OC.linkTo('social', 'js/')
+
+Vue.prototype.t = t
+Vue.prototype.n = n
+Vue.prototype.OC = OC
+Vue.prototype.OCA = OCA
+
+new Vue({
+	render: h => h(OAuth2Authorize),
+}).$mount('#social-oauth2')

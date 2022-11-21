@@ -46,6 +46,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -60,6 +61,7 @@ class OAuthController extends Controller {
 	private ClientService $clientService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
+	private IInitialState $initialState;
 
 	public function __construct(
 		IRequest $request,
@@ -70,7 +72,8 @@ class OAuthController extends Controller {
 		CacheActorService $cacheActorService,
 		ClientService $clientService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
+		IInitialState $initialState
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -82,6 +85,7 @@ class OAuthController extends Controller {
 		$this->clientService = $clientService;
 		$this->configService = $configService;
 		$this->logger = $logger;
+		$this->initialState = $initialState;
 
 		$body = file_get_contents('php://input');
 		$logger->debug('[OAuthController] input: ' . $body);
@@ -174,7 +178,6 @@ class OAuthController extends Controller {
 		string $response_type,
 		string $scope = 'read'
 	): Response {
-		try {
 			$user = $this->userSession->getUser();
 
 			// check actor exists
@@ -185,7 +188,8 @@ class OAuthController extends Controller {
 			}
 
 			// check client exists in db
-			$this->clientService->getFromClientId($client_id);
+			$client = $this->clientService->getFromClientId($client_id);
+			$this->initialState->provideInitialState('appName', $client->getAppName());
 
 			return new TemplateResponse(Application::APP_NAME, 'oauth2', [
 				'request' =>
@@ -196,16 +200,6 @@ class OAuthController extends Controller {
 						'scope' => $scope
 					]
 			]);
-
-		} catch (Exception $e) {
-			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
-
-			return new TemplateResponse(
-				Application::APP_NAME,
-				'oauth2',
-				['error' => $e->getMessage()]
-			);
-		}
 	}
 
 
