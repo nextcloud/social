@@ -1,21 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="4.30.0@d0bc6e25d89f649e4f36a534f330f8bb4643dd69">
+<files psalm-version="4.26.0@6998fabb2bf528b65777bf9941920888d23c03ac">
   <file src="lib/AP.php">
     <InvalidScalarArgument occurrences="1">
       <code>$level</code>
     </InvalidScalarArgument>
-  </file>
-  <file src="lib/Migration/Version0003Date20200823023900.php">
-    <UndefinedDocblockClass occurrences="1">
-      <code>DBALException</code>
-    </UndefinedDocblockClass>
-  </file>
-  <file src="lib/Migration/Version0003Date20200823023911.php">
-    <UndefinedClass occurrences="3">
-      <code>SchemaException</code>
-      <code>SchemaException</code>
-      <code>Type</code>
-    </UndefinedClass>
   </file>
   <file src="lib/Model/ActivityPub/ACore.php">
     <InvalidArgument occurrences="1">
