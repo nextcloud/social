@@ -45,6 +45,8 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -59,6 +61,7 @@ class OAuthController extends Controller {
 	private ClientService $clientService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
+	private IInitialState $initialState;
 
 	public function __construct(
 		IRequest $request,
@@ -69,7 +72,8 @@ class OAuthController extends Controller {
 		CacheActorService $cacheActorService,
 		ClientService $clientService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
+		IInitialState $initialState
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -81,6 +85,7 @@ class OAuthController extends Controller {
 		$this->clientService = $clientService;
 		$this->configService = $configService;
 		$this->logger = $logger;
+		$this->initialState = $initialState;
 
 		$body = file_get_contents('php://input');
 		$logger->debug('[OAuthController] input: ' . $body);
@@ -173,13 +178,47 @@ class OAuthController extends Controller {
 		string $redirect_uri,
 		string $response_type,
 		string $scope = 'read'
+	): Response {
+			$user = $this->userSession->getUser();
+
+			// check actor exists
+			$this->accountService->getActorFromUserId($user->getUID());
+
+			if ($response_type !== 'code') {
+				throw new ClientNotFoundException('invalid response type');
+			}
+
+			// check client exists in db
+			$client = $this->clientService->getFromClientId($client_id);
+			$this->initialState->provideInitialState('appName', $client->getAppName());
+
+			return new TemplateResponse(Application::APP_NAME, 'oauth2', [
+				'request' =>
+					[
+						'clientId' => $client_id,
+						'redirectUri' => $redirect_uri,
+						'responseType' => $response_type,
+						'scope' => $scope
+					]
+			]);
+	}
+
+
+	/**
+	 * @NoAdminRequired
+	 */
+	public function authorizing(
+		string $client_id,
+		string $redirect_uri,
+		string $response_type,
+		string $scope = 'read'
 	): DataResponse {
 		try {
 			$user = $this->userSession->getUser();
 			$account = $this->accountService->getActorFromUserId($user->getUID());
 
 			if ($response_type !== 'code') {
-				return new DataResponse(['error' => 'invalid_type'], Http::STATUS_BAD_REQUEST);
+				throw new ClientNotFoundException('invalid response type');
 			}
 
 			$client = $this->clientService->getFromClientId($client_id);
@@ -205,18 +244,12 @@ class OAuthController extends Controller {
 
 			// TODO : finalize result if no redirect_url
 			return new DataResponse(
-				[
-					'code' => $code,
-					//				'access_token' => '',
-					//				"token_type"   => "Bearer",
-					//				"scope"        => "read write follow push",
-					//				"created_at"   => 1573979017
-				], Http::STATUS_OK
+				['code' => $code], Http::STATUS_OK
 			);
 		} catch (Exception $e) {
 			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
 
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
 
