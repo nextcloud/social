@@ -91,6 +91,7 @@ class Timeline extends ExtendedBase {
 		$this->setName('social:stream')
 			 ->addArgument('userId', InputArgument::REQUIRED, 'viewer')
 			 ->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
+			 ->addOption('local', '', InputOption::VALUE_NONE, 'public')
 			 ->addOption('count', '', InputOption::VALUE_REQUIRED, 'number of elements', '5')
 			 ->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
 			 ->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
@@ -133,10 +134,12 @@ class Timeline extends ExtendedBase {
 				->setMaxId(intval($input->getOption('max_id')));
 
 		try {
-			$options->setTimeline($input->getArgument('timeline'));
+			if ($input->getOption('local')) {
+				$options->setLocal(true);
+			}
+			$options->setTimeline($timeline = $input->getArgument('timeline'));
 			$this->outputStreams($this->streamRequest->getTimeline($options));
 		} catch (UnknownTimelineException $e) {
-			echo $input->getArgument('timeline');
 			$this->displayUnsupportedStream($options);
 		}
 

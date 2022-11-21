@@ -56,7 +56,6 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 
 	public static array $availableTimelines = [
 		'home',
-		'local',
 		'public'
 	];
 

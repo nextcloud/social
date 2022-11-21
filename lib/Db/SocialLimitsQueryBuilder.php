@@ -313,7 +313,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * @param bool $local
 	 */
 	public function limitToLocal(bool $local) {
-		$this->limitToDBField('local', ($local) ? '1' : '0');
+		$this->limitToDBFieldInt('local', ($local) ? 1 : 0);
 	}
 
 

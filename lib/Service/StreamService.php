@@ -370,8 +370,12 @@ class StreamService {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamById(string $id, bool $asViewer = false): Stream {
-		return $this->streamRequest->getStreamById($id, $asViewer);
+	public function getStreamById(
+		string $id,
+		bool $asViewer = false,
+		int $format = ACore::FORMAT_ACTIVITYPUB
+	): Stream {
+		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
 
 

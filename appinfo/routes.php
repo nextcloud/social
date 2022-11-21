@@ -81,6 +81,7 @@ return [
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
+		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController

@@ -188,15 +188,23 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $id
+	 * @param bool $asViewer
+	 * @param int $format
+	 *
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamById(string $id, bool $asViewer = false): Stream {
+	public function getStreamById(
+		string $id,
+		bool $asViewer = false,
+		int $format = ACore::FORMAT_ACTIVITYPUB
+	): Stream {
 		if ($id === '') {
 			throw new StreamNotFoundException();
 		};
 
-		$qb = $this->getStreamSelectSql();
+		$qb = $this->getStreamSelectSql($format);
 		$qb->limitToIdPrim($qb->prim($id));
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
@@ -340,11 +348,6 @@ class StreamRequest extends StreamRequestBuilder {
 				$result = $this->getTimelineDirect($options);
 				break;
 			case 'public':
-				$options->setLocal(false);
-				$result = $this->getTimelinePublic($options);
-				break;
-			case 'local':
-				$options->setLocal(true);
 				$result = $this->getTimelinePublic($options);
 				break;
 
