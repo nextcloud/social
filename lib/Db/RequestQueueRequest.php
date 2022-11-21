@@ -66,9 +66,9 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		   ->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
 		   ->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
 		   ->setValue(
-			'instance', $qb->createNamedParameter(
-				json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
-			)
+		   	'instance', $qb->createNamedParameter(
+		   		json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
+		   	)
 		   )
 		   ->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
 		   ->setValue('status', $qb->createNamedParameter($queue->getStatus()))
@@ -133,8 +133,8 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_RUNNING))
 		   ->set(
-			'last',
-			$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		   	'last',
+		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);

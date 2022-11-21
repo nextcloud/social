@@ -45,8 +45,6 @@ use OCP\Migration\SimpleMigrationStep;
  * @package OCA\Social\Migration
  */
 class Version1000Date20221118000001 extends SimpleMigrationStep {
-
-
 	/**
 	 * @param IOutput $output
 	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`

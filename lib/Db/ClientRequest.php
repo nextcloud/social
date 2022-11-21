@@ -56,7 +56,7 @@ class ClientRequest extends ClientRequestBuilder {
 		$qb->setValue('app_name', $qb->createNamedParameter($client->getAppName()))
 		   ->setValue('app_website', $qb->createNamedParameter($client->getAppWebsite()))
 		   ->setValue(
-			'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
+		   	'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
 		   )
 		   ->setValue('app_client_id', $qb->createNamedParameter($client->getAppClientId()))
 		   ->setValue('app_client_secret', $qb->createNamedParameter($client->getAppClientSecret()))

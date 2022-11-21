@@ -77,9 +77,9 @@ class StreamRequest extends StreamRequestBuilder {
 			/** @var Note $stream */
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
 			   ->setValue(
-				'attachments', $qb->createNamedParameter(
-					json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
-				)
+			   	'attachments', $qb->createNamedParameter(
+			   		json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+			   	)
 			   );
 		}
 
@@ -735,19 +735,19 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
 		   ->setValue(
-			'to_array', $qb->createNamedParameter(
-				json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES)
-			)
+		   	'to_array', $qb->createNamedParameter(
+		   		json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES)
+		   	)
 		   )
 		   ->setValue(
-			'cc', $qb->createNamedParameter(
-				json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-			)
+		   	'cc', $qb->createNamedParameter(
+		   		json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
+		   	)
 		   )
 		   ->setValue(
-			'bcc', $qb->createNamedParameter(
-				json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES)
-			)
+		   	'bcc', $qb->createNamedParameter(
+		   		json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES)
+		   	)
 		   )
 		   ->setValue('content', $qb->createNamedParameter($stream->getContent()))
 		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))
@@ -763,13 +763,13 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
 		   ->setValue('cache', $qb->createNamedParameter($cache))
 		   ->setValue(
-			'filter_duplicate',
-			$qb->createNamedParameter(($stream->isFilterDuplicate()) ? '1' : '0')
+		   	'filter_duplicate',
+		   	$qb->createNamedParameter(($stream->isFilterDuplicate()) ? '1' : '0')
 		   )
 		   ->setValue(
-			'instances', $qb->createNamedParameter(
-				json_encode($stream->getInstancePaths(), JSON_UNESCAPED_SLASHES)
-			)
+		   	'instances', $qb->createNamedParameter(
+		   		json_encode($stream->getInstancePaths(), JSON_UNESCAPED_SLASHES)
+		   	)
 		   )
 		   ->setValue('local', $qb->createNamedParameter(($stream->isLocal()) ? '1' : '0'));
 
@@ -780,8 +780,8 @@ class StreamRequest extends StreamRequestBuilder {
 				'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
 			)
 			   ->setValue(
-				'creation',
-				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			   	'creation',
+			   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 			   );
 		} catch (Exception $e) {
 		}

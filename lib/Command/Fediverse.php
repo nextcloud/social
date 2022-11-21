@@ -58,8 +58,8 @@ class Fediverse extends Base {
 		parent::configure();
 		$this->setName('social:fediverse')
 			 ->addOption(
-				'type', 't', InputArgument::OPTIONAL,
-				'Change the type of access management', ''
+			 	'type', 't', InputArgument::OPTIONAL,
+			 	'Change the type of access management', ''
 			 )
 			 ->addArgument('action', InputArgument::OPTIONAL, 'add/remove/test address', '')
 			 ->addArgument('address', InputArgument::OPTIONAL, 'address/host', '')
