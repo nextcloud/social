@@ -32,10 +32,10 @@ declare(strict_types=1);
 namespace OCA\Social\Migration;
 
 use Closure;
-use OCP\DB\Types;
+use Doctrine\DBAL\Schema\SchemaException;
 use Exception;
 use OCP\DB\ISchemaWrapper;
-use OCP\IDBConnection;
+use OCP\DB\Types;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
@@ -44,16 +44,7 @@ use OCP\Migration\SimpleMigrationStep;
  *
  * @package OCA\Social\Migration
  */
-class Version0003Date20200611000001 extends SimpleMigrationStep {
-	private IDBConnection $connection;
-
-
-	/**
-	 * @param IDBConnection $connection
-	 */
-	public function __construct(IDBConnection $connection) {
-		$this->connection = $connection;
-	}
+class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 
 	/**
@@ -62,9 +53,9 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 	 * @param array $options
 	 *
 	 * @return ISchemaWrapper
+	 * @throws SchemaException
 	 */
-	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options
-	): ISchemaWrapper {
+	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ISchemaWrapper {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
@@ -101,29 +92,30 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createActions(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_action')) {
+		if ($schema->hasTable('social_action')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_action');
+		$table = $schema->createTable('social_action');
 		$table->addColumn(
-			'id', 'string',
+			'id', Types::TEXT,
 			[
-				'notnull' => false,
-				'length' => 1000
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'id_prim', 'string',
+			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -131,31 +123,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'actor_id', 'string',
+			'actor_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'actor_id_prim', 'string',
-			[
-				'notnull' => false,
-				'length' => 128,
-				'default' => ''
-			]
-		);
-		$table->addColumn(
-			'object_id', 'string',
-			[
-				'notnull' => false,
-				'length' => 1000,
-				'default' => ''
-			]
-		);
-		$table->addColumn(
-			'object_id_prim', 'string',
+			'actor_id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -163,7 +138,22 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'object_id', Types::TEXT,
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'object_id_prim', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 128,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -176,44 +166,45 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createActors(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_actor')) {
+		if ($schema->hasTable('social_actor')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_actor');
+		$table = $schema->createTable('social_actor');
 
 		$table->addColumn(
-			'id', 'string',
+			'id', Types::TEXT,
 			[
-				'notnull' => false,
-				'length' => 1000
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'id_prim', 'string',
+			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128
 			]
 		);
 		$table->addColumn(
-			'user_id', 'string',
+			'user_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63,
 			]
 		);
 		$table->addColumn(
-			'preferred_username', 'string',
+			'preferred_username', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
 			]
 		);
 		$table->addColumn(
-			'name', 'string',
+			'name', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -240,14 +231,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'avatar_version', 'integer',
+			'avatar_version', Types::INTEGER,
 			[
 				'notnull' => false,
 				'length' => 2,
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -259,29 +250,30 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createFollows(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_follow')) {
+		if ($schema->hasTable('social_follow')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_follow');
+		$table = $schema->createTable('social_follow');
 		$table->addColumn(
-			'id', 'string',
+			'id', Types::TEXT,
 			[
-				'notnull' => false,
-				'length' => 1000
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'id_prim', 'string',
+			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -289,31 +281,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'actor_id', 'string',
+			'actor_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'actor_id_prim', 'string',
-			[
-				'notnull' => false,
-				'length' => 128,
-				'default' => ''
-			]
-		);
-		$table->addColumn(
-			'object_id', 'string',
-			[
-				'notnull' => false,
-				'length' => 1000,
-				'default' => ''
-			]
-		);
-		$table->addColumn(
-			'object_id_prim', 'string',
+			'actor_id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -321,15 +296,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'follow_id', 'string',
+			'object_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'follow_id_prim', 'string',
+			'object_id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -337,14 +311,29 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'accepted', 'boolean',
+			'follow_id', Types::TEXT,
+			[
+				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'follow_id_prim', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 128,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'accepted', Types::BOOLEAN,
 			[
 				'notnull' => true,
 				'default' => false
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -358,25 +347,26 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createHashtags(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_hashtag')) {
+		if ($schema->hasTable('social_hashtag')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_hashtag');
+		$table = $schema->createTable('social_hashtag');
 		$table->addColumn(
-			'hashtag', 'string',
+			'hashtag', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63
 			]
 		);
 		$table->addColumn(
-			'trend', 'string',
+			'trend', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 500,
 				'default' => ''
 			]
 		);
@@ -387,15 +377,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createInstance(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_instance')) {
+		if ($schema->hasTable('social_instance')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_instance');
+		$table = $schema->createTable('social_instance');
 		$table->addColumn(
-			'local', 'smallint',
+			'local', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 1,
@@ -404,14 +396,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'uri', 'string',
+			'uri', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 255,
 			]
 		);
 		$table->addColumn(
-			'title', 'string',
+			'title', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 255,
@@ -419,7 +411,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'version', 'string',
+			'version', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -427,21 +419,21 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'short_description', 'text',
+			'short_description', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'description', 'text',
+			'description', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'email', 'string',
+			'email', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 255,
@@ -449,28 +441,28 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'urls', 'text',
+			'urls', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => '[]'
 			]
 		);
 		$table->addColumn(
-			'stats', 'text',
+			'stats', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => '[]'
 			]
 		);
 		$table->addColumn(
-			'usage', 'text',
+			'usage', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => '[]'
 			]
 		);
 		$table->addColumn(
-			'image', 'string',
+			'image', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 255,
@@ -478,14 +470,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'languages', 'text',
+			'languages', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => '[]'
 			]
 		);
 		$table->addColumn(
-			'contact', 'string',
+			'contact', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -493,7 +485,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'account_prim', 'string',
+			'account_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -501,7 +493,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -514,45 +506,42 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createStreams(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_stream')) {
+		if ($schema->hasTable('social_stream')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_stream');
+		$table = $schema->createTable('social_stream');
 
 		$table->addColumn(
-			'nid', 'bigint',
+			'nid', Types::BIGINT,
 			[
-				'length' => 11,
-				'unsigned' => true,
-			]
-		);
-		$table->addColumn(
-			'id', 'string',
-			[
-				'notnull' => false,
-				'length' => 1000
-			]
-		);
-		$table->addColumn(
-			'chunk', Types::SMALLINT,
-			[
-				'default' => 1,
-				'length' => 1,
+				'length' => 20,
 				'unsigned' => true
+				//				'autoincrement' => true,
+				//				'customSchemaOptions' => [
+				//					'unique' => true
+				//				]
 			]
 		);
 		$table->addColumn(
-			'id_prim', 'string',
+			'id', Types::TEXT,
+			[
+				'notnull' => false
+			]
+		);
+		$table->addColumn(
+			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -568,10 +557,9 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'to', 'string',
+			'to', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
@@ -611,7 +599,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'published', 'string',
+			'published', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -619,21 +607,20 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'published_time', 'datetime',
+			'published_time', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
 		);
 		$table->addColumn(
-			'attributed_to', 'string',
+			'attributed_to', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'attributed_to_prim', 'string',
+			'attributed_to_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -641,15 +628,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'in_reply_to', 'string',
+			'in_reply_to', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'in_reply_to_prim', 'string',
+			'in_reply_to_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -657,23 +643,21 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'activity_id', 'string',
+			'activity_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'object_id', 'string',
+			'object_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'object_id_prim', 'string',
+			'object_id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -723,29 +707,29 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
 		);
 		$table->addColumn(
-			'local', 'boolean',
+			'local', Types::BOOLEAN,
 			[
 				'notnull' => false,
 				'default' => false
 			]
 		);
 		$table->addColumn(
-			'filter_duplicate', 'boolean',
+			'filter_duplicate', Types::BOOLEAN,
 			[
 				'notnull' => false,
 				'default' => false
 			]
 		);
 
+		$table->setPrimaryKey(['nid']);
 		$table->addUniqueIndex(['id_prim']);
 		$table->addUniqueIndex(['nid']);
-		$table->addIndex(['chunk'], 'chunk');
 		$table->addUniqueIndex(
 			[
 				'id_prim',
@@ -764,37 +748,38 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createCacheActors(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_cache_actor')) {
+		if ($schema->hasTable('social_cache_actor')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_cache_actor');
+		$table = $schema->createTable('social_cache_actor');
+//		$table->addColumn(
+//			'nid', Types::BIGINT,
+//			[
+//				'autoincrement' => true,
+//				'length' => 11,
+//				'unsigned' => true,
+//			]
+//		);
 		$table->addColumn(
-			'nid', 'bigint',
+			'id', Types::TEXT,
 			[
-				'autoincrement' => true,
-				'length' => 11,
-				'unsigned' => true,
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'id', 'string',
-			[
-				'notnull' => false,
-				'length' => 1000
-			]
-		);
-		$table->addColumn(
-			'id_prim', 'string',
+			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -802,7 +787,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'account', 'string',
+			'account', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -810,70 +795,63 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'local', 'boolean',
+			'local', Types::BOOLEAN,
 			[
 				'notnull' => true,
 				'default' => false
 			]
 		);
 		$table->addColumn(
-			'following', 'string',
+			'following', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'followers', 'string',
+			'followers', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'inbox', 'string',
+			'inbox', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'shared_inbox', 'string',
+			'shared_inbox', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'outbox', 'string',
+			'outbox', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'featured', 'string',
+			'featured', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'url', 'string',
+			'url', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'preferred_username', 'string',
+			'preferred_username', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -881,7 +859,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'name', 'string',
+			'name', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -889,10 +867,9 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'icon_id', 'string',
+			'icon_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
@@ -924,42 +901,44 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
 		);
 
+		$table->setPrimaryKey(['id_prim']);
 		$table->addUniqueIndex(['id_prim']);
-		$table->addUniqueIndex(['nid']);
+//		$table->addUniqueIndex(['nid']);
 	}
 
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createCacheDocuments(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_cache_doc')) {
+		if ($schema->hasTable('social_cache_doc')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_cache_doc');
+		$table = $schema->createTable('social_cache_doc');
 		$table->addColumn(
-			'id', 'string',
+			'id', Types::TEXT,
 			[
-				'notnull' => false,
-				'length' => 1000
+				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'id_prim', 'string',
+			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -967,15 +946,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'parent_id', 'string',
+			'parent_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => '',
 			]
 		);
 		$table->addColumn(
-			'media_type', 'string',
+			'media_type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63,
@@ -983,7 +961,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'mime_type', 'string',
+			'mime_type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63,
@@ -991,18 +969,16 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'url', 'string',
+			'url', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'local_copy', 'string',
+			'local_copy', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
@@ -1014,27 +990,27 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'public', 'boolean',
+			'public', Types::BOOLEAN,
 			[
 				'notnull' => false,
 				'default' => false
 			]
 		);
 		$table->addColumn(
-			'error', 'smallint',
+			'error', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 1,
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
 		);
 		$table->addColumn(
-			'caching', 'datetime',
+			'caching', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -1046,15 +1022,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createClient(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_client')) {
+		if ($schema->hasTable('social_client')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_client');
+		$table = $schema->createTable('social_client');
 		$table->addColumn(
-			'id', 'integer',
+			'id', Types::INTEGER,
 			[
 				'autoincrement' => true,
 				'notnull' => true,
@@ -1063,7 +1041,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'app_name', 'string',
+			'app_name', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -1071,7 +1049,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'app_website', 'string',
+			'app_website', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 255,
@@ -1079,22 +1057,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'app_redirect_uris', 'text',
+			'app_redirect_uris', Types::TEXT,
 			[
 				'notnull' => false,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'app_client_id', 'string',
-			[
-				'notnull' => false,
-				'length' => 63,
-				'default' => ''
-			]
-		);
-		$table->addColumn(
-			'app_client_secret', 'string',
+			'app_client_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63,
@@ -1102,20 +1072,28 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'app_scopes', 'text',
+			'app_client_secret', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'app_scopes', Types::TEXT,
 			[
 				'notnull' => false
 			]
 		);
 
 		$table->addColumn(
-			'auth_scopes', 'text',
+			'auth_scopes', Types::TEXT,
 			[
 				'notnull' => false
 			]
 		);
 		$table->addColumn(
-			'auth_account', 'string',
+			'auth_account', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -1123,7 +1101,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'auth_user_id', 'string',
+			'auth_user_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -1131,7 +1109,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'auth_code', 'string',
+			'auth_code', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -1139,7 +1117,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'token', 'string',
+			'token', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,
@@ -1147,13 +1125,13 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'last_update', 'datetime',
+			'last_update', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
 		);
 		$table->addColumn(
-			'creation', 'datetime',
+			'creation', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -1166,15 +1144,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createRequestQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_req_queue')) {
+		if ($schema->hasTable('social_req_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_req_queue');
+		$table = $schema->createTable('social_req_queue');
 		$table->addColumn(
-			'id', 'bigint',
+			'id', Types::BIGINT,
 			[
 				'autoincrement' => true,
 				'notnull' => true,
@@ -1183,17 +1163,16 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'token', 'string',
+			'token', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63,
 			]
 		);
 		$table->addColumn(
-			'author', 'string',
+			'author', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
@@ -1208,12 +1187,11 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			'instance', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 500,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'priority', 'smallint',
+			'priority', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 1,
@@ -1221,7 +1199,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'status', 'smallint',
+			'status', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 1,
@@ -1229,7 +1207,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'tries', 'smallint',
+			'tries', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 2,
@@ -1237,7 +1215,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'last', 'datetime',
+			'last', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -1249,13 +1227,15 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createStreamActions(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_stream_act')) {
+		if ($schema->hasTable('social_stream_act')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_stream_act');
+		$table = $schema->createTable('social_stream_act');
 
 		$table->addColumn(
 			'id', Types::INTEGER,
@@ -1267,23 +1247,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'chunk', Types::SMALLINT,
-			[
-				'default' => 1,
-				'length' => 1,
-				'unsigned' => true
-			]
-		);
-		$table->addColumn(
-			'actor_id', 'string',
+			'actor_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'actor_id_prim', 'string',
+			'actor_id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -1291,24 +1262,23 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'stream_id', 'string',
+			'stream_id', Types::TEXT,
 			[
 				'notnull' => false,
-				'length' => 1000,
 				'default' => ''
 			]
 		);
 		$table->addColumn(
-			'stream_id_prim', 'string',
+			'stream_id_prim', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
 				'default' => ''
 			]
 		);
-		$table->addColumn('liked', 'boolean', ['default' => false]);
-		$table->addColumn('boosted', 'boolean', ['default' => false]);
-		$table->addColumn('replied', 'boolean', ['default' => false]);
+		$table->addColumn('liked', Types::BOOLEAN, ['default' => false]);
+		$table->addColumn('boosted', Types::BOOLEAN, ['default' => false]);
+		$table->addColumn('replied', Types::BOOLEAN, ['default' => false]);
 		$table->addColumn(
 			'values', Types::TEXT,
 			[
@@ -1318,30 +1288,23 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id']);
-		$table->addIndex(['chunk'], 'chunk_act');
 		$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
 	}
 
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createStreamDest(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_stream_dest')) {
+		if ($schema->hasTable('social_stream_dest')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_stream_dest');
+		$table = $schema->createTable('social_stream_dest');
 		$table->addColumn(
-			'chunk', Types::SMALLINT,
-			[
-				'default' => 1,
-				'length' => 1,
-				'unsigned' => true
-			]
-		);
-		$table->addColumn(
-			'stream_id', 'string',
+			'stream_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -1349,7 +1312,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'actor_id', 'string',
+			'actor_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -1357,7 +1320,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 15,
@@ -1365,7 +1328,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'subtype', 'string',
+			'subtype', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 7,
@@ -1373,7 +1336,6 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 
-		$table->addIndex(['chunk'], 'chunk_dest');
 		$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
 		$table->addIndex(['type', 'subtype'], 'ts');
 	}
@@ -1381,15 +1343,17 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 
 	/**
 	 * @param ISchemaWrapper $schema
+	 *
+	 * @throws SchemaException
 	 */
 	private function createStreamQueue(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_stream_queue')) {
+		if ($schema->hasTable('social_stream_queue')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_stream_queue');
+		$table = $schema->createTable('social_stream_queue');
 		$table->addColumn(
-			'id', 'bigint',
+			'id', Types::BIGINT,
 			[
 				'autoincrement' => true,
 				'notnull' => true,
@@ -1398,14 +1362,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'token', 'string',
+			'token', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 63
 			]
 		);
 		$table->addColumn(
-			'stream_id', 'string',
+			'stream_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 255,
@@ -1413,7 +1377,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'type', 'string',
+			'type', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 31,
@@ -1421,7 +1385,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'status', 'smallint',
+			'status', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 1,
@@ -1429,7 +1393,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'tries', 'smallint',
+			'tries', Types::SMALLINT,
 			[
 				'notnull' => false,
 				'length' => 2,
@@ -1437,7 +1401,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'last', 'datetime',
+			'last', Types::DATETIME,
 			[
 				'notnull' => false,
 			]
@@ -1450,14 +1414,14 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 	 * @param ISchemaWrapper $schema
 	 */
 	private function createStreamTags(ISchemaWrapper $schema) {
-		if ($schema->hasTable('social_3_stream_tag')) {
+		if ($schema->hasTable('social_stream_tag')) {
 			return;
 		}
 
-		$table = $schema->createTable('social_3_stream_tag');
+		$table = $schema->createTable('social_stream_tag');
 
 		$table->addColumn(
-			'stream_id', 'string',
+			'stream_id', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 128,
@@ -1465,7 +1429,7 @@ class Version0003Date20200611000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
-			'hashtag', 'string',
+			'hashtag', Types::STRING,
 			[
 				'notnull' => false,
 				'length' => 127,

@@ -48,6 +48,7 @@ use OCA\Social\Service\MiscService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
+use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -56,26 +57,26 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Db
  */
 class CoreRequestBuilder {
-	public const TABLE_REQUEST_QUEUE = 'social_3_req_queue';
-	public const TABLE_INSTANCE = 'social_3_instance';
+	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_INSTANCE = 'social_instance';
 
-	public const TABLE_ACTORS = 'social_3_actor';
-	public const TABLE_STREAM = 'social_3_stream';
-	public const TABLE_STREAM_DEST = 'social_3_stream_dest';
-	public const TABLE_STREAM_TAGS = 'social_3_stream_tag';
-	public const TABLE_STREAM_QUEUE = 'social_3_stream_queue';
-	public const TABLE_STREAM_ACTIONS = 'social_3_stream_act';
+	public const TABLE_ACTORS = 'social_actor';
+	public const TABLE_STREAM = 'social_stream';
+	public const TABLE_STREAM_DEST = 'social_stream_dest';
+	public const TABLE_STREAM_TAGS = 'social_stream_tag';
+	public const TABLE_STREAM_QUEUE = 'social_stream_queue';
+	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 
-	public const TABLE_HASHTAGS = 'social_3_hashtag';
-	public const TABLE_FOLLOWS = 'social_3_follow';
-	public const TABLE_ACTIONS = 'social_3_action';
+	public const TABLE_HASHTAGS = 'social_hashtag';
+	public const TABLE_FOLLOWS = 'social_follow';
+	public const TABLE_ACTIONS = 'social_action';
 
-	public const TABLE_CACHE_ACTORS = 'social_3_cache_actor';
-	public const TABLE_CACHE_DOCUMENTS = 'social_3_cache_doc';
+	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
+	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
 
-	public const TABLE_CLIENT = 'social_3_client';
-	public const TABLE_CLIENT_AUTH = 'social_3_client_auth';
-	public const TABLE_CLIENT_TOKEN = 'social_3_client_token';
+	public const TABLE_CLIENT = 'social_client';
+	public const TABLE_CLIENT_AUTH = 'social_client_auth';
+	public const TABLE_CLIENT_TOKEN = 'social_client_token';
 
 
 	private array $tables = [
@@ -105,7 +106,10 @@ class CoreRequestBuilder {
 	protected ?string $defaultSelectAlias = null;
 
 	public function __construct(
-		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator, ConfigService $configService,
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		ConfigService $configService,
 		MiscService $miscService
 	) {
 		$this->dbConnection = $connection;
@@ -736,8 +740,7 @@ class CoreRequestBuilder {
 
 		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
 		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
-		$qb->selectAlias($pf . '.nid', 'cacheactor_nid')
-		   ->selectAlias($pf . '.id', 'cacheactor_id')
+		$qb->selectAlias($pf . '.id', 'cacheactor_id')
 		   ->selectAlias($pf . '.type', 'cacheactor_type')
 		   ->selectAlias($pf . '.account', 'cacheactor_account')
 		   ->selectAlias($pf . '.following', 'cacheactor_following')
@@ -777,8 +780,7 @@ class CoreRequestBuilder {
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
-		$qb->selectAlias('ca.nid', 'cacheactor_nid')
-		   ->selectAlias('ca.id', 'cacheactor_id')
+		$qb->selectAlias('ca.id', 'cacheactor_id')
 		   ->selectAlias('ca.type', 'cacheactor_type')
 		   ->selectAlias('ca.account', 'cacheactor_account')
 		   ->selectAlias('ca.following', 'cacheactor_following')
@@ -1052,8 +1054,8 @@ class CoreRequestBuilder {
 		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
 		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 		   ->leftJoin(
-		   	$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-		   	$andX
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
+			$andX
 		   );
 	}
 
@@ -1129,7 +1131,7 @@ class CoreRequestBuilder {
 	 */
 	public function emptyAll() {
 		/** @var ISchemaWrapper|SchemaWrapper $schema */
-		$schema = new SchemaWrapper($this->dbConnection);
+		$schema = new SchemaWrapper(Server::get(OC\DB\Connection::class));
 		foreach ($this->tables as $table) {
 			if ($schema->hasTable($table)) {
 				$qb = $this->dbConnection->getQueryBuilder();
@@ -1145,7 +1147,7 @@ class CoreRequestBuilder {
 	 */
 	public function uninstallSocialTables() {
 		/** @var ISchemaWrapper|SchemaWrapper $schema */
-		$schema = new SchemaWrapper($this->dbConnection);
+		$schema = new SchemaWrapper(Server::get(OC\DB\Connection::class));
 		foreach ($this->tables as $table) {
 			if ($schema->hasTable($table)) {
 				$schema->dropTable($table);

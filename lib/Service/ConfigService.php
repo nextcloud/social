@@ -55,7 +55,6 @@ class ConfigService {
 	public const CLOUD_URL = 'cloud_url';
 	public const SOCIAL_URL = 'social_url';
 	public const SOCIAL_ADDRESS = 'social_address';
-	public const DATABASE_CHUNK_SIZE = 'db_chunk_size';
 
 	public const SOCIAL_SERVICE = 'service';
 	public const SOCIAL_MAX_SIZE = 'max_size';
@@ -78,8 +77,7 @@ class ConfigService {
 		self::SOCIAL_MAX_SIZE => 10,
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
 		self::SOCIAL_ACCESS_LIST => '[]',
-		self::SOCIAL_SELF_SIGNED => '0',
-		self::DATABASE_CHUNK_SIZE => 10000
+		self::SOCIAL_SELF_SIGNED => '0'
 	];
 
 	public array $accessTypeList = [

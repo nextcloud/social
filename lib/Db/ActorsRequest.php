@@ -53,13 +53,13 @@ class ActorsRequest extends ActorsRequestBuilder {
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
 		   ->setValue('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
 		   ->setValue(
-		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+			'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 		   )
 		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
 		   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
 		   ->setValue(
-		   	'creation',
-		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			'creation',
+			$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
 		   );
 
 		$qb->executeStatement();

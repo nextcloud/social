@@ -77,7 +77,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.nid', 'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox',
+			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox',
 			'ca.outbox', 'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username', 'ca.name', 'ca.summary',
 			'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
 		)

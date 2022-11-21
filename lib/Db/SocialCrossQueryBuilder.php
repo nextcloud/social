@@ -56,7 +56,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		if ($aliasDest !== '') {
 			$this->from(CoreRequestBuilder::TABLE_STREAM_DEST, $aliasDest);
-//			$this->inChunk($aliasDest);
 		}
 		if ($aliasFollowing !== '') {
 			$this->from(CoreRequestBuilder::TABLE_FOLLOWS, $aliasFollowing);
@@ -109,8 +108,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
 		}
 
-		$this->selectAlias($pf . '.nid', 'cacheactor_nid')
-			 ->selectAlias($pf . '.id', 'cacheactor_id')
+		$this->selectAlias($pf . '.id', 'cacheactor_id')
 			 ->selectAlias($pf . '.type', 'cacheactor_type')
 			 ->selectAlias($pf . '.account', 'cacheactor_account')
 			 ->selectAlias($pf . '.following', 'cacheactor_following')
@@ -185,8 +183,8 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias('cd.error', 'cachedocument_error')
 			 ->selectAlias('cd.creation', 'cachedocument_creation')
 			 ->leftJoin(
-			 	$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
-			 	$expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
+				$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
+				$expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
 			 );
 	}
 
@@ -277,7 +275,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim'));
 
 		$on = $expr->andX();
-//		$this->inChunk('sa', $on);
 		$viewer = $this->getViewer();
 		$idPrim = $this->prim($viewer->getId());
 

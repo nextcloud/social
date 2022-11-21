@@ -34,7 +34,6 @@ namespace OCA\Social\Db;
 use OCA\Social\Tools\Db\ExtendedQueryBuilder;
 use OC\SystemConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -47,7 +46,6 @@ use Psr\Log\LoggerInterface;
 class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 	protected IURLGenerator $urlGenerator;
 	private ?Person $viewer = null;
-	private int $chunk = 0;
 
 	public function __construct(
 		IDBConnection $connection, SystemConfig $systemConfig, LoggerInterface $logger, IURLGenerator $urlGenerator
@@ -57,32 +55,6 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 		$this->urlGenerator = $urlGenerator;
 	}
 
-	public function setChunk(int $chunk): self {
-		$this->chunk = $chunk;
-		$this->inChunk();
-
-		return $this;
-	}
-
-	public function getChunk(): int {
-		return $this->chunk;
-	}
-
-	/**
-	 * Limit the request to a chunk
-	 */
-	public function inChunk(string $alias = '', ?ICompositeExpression $expr = null): void {
-		if ($this->getChunk() === 0) {
-			return;
-		}
-
-		if ($expr !== null) {
-			$expr->add($this->exprLimitToDBFieldInt('chunk', $this->getChunk(), $alias));
-
-			return;
-		}
-		$this->limitToDBFieldInt('chunk', $this->getChunk(), $alias);
-	}
 
 	public function hasViewer(): bool {
 		return ($this->viewer !== null);
