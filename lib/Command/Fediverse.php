@@ -69,11 +69,11 @@ class Fediverse extends Base {
 	/**
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$this->output = $output;
 
 		if ($this->typeAccess($input->getOption('type'))) {
-			return;
+			return 0;
 		}
 
 		$this->output->writeln(
@@ -108,6 +108,8 @@ class Fediverse extends Base {
 			default:
 				throw new Exception('specify action: add, remove, list, reset');
 		}
+
+		return 0;
 	}
 
 	/**

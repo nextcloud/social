@@ -75,7 +75,7 @@ class AccountCreate extends Base {
 	/**
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('userId');
 
 		if (($handle = $input->getOption('handle')) === null) {
@@ -87,5 +87,7 @@ class AccountCreate extends Base {
 		}
 
 		$this->accountService->createActor($userId, $handle);
+
+		return 0;
 	}
 }

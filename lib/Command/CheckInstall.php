@@ -31,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Command;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Db\StreamDestRequest;
@@ -42,6 +41,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PushService;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IUserManager;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputInterface;
@@ -97,9 +97,9 @@ class CheckInstall extends Base {
 	/**
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		if ($this->askRegenerateIndex($input, $output)) {
-			return;
+			return 0;
 		}
 
 //		if ($this->checkPushApp($input, $output)) {
@@ -114,6 +114,8 @@ class CheckInstall extends Base {
 		$output->writeln('');
 		$output->writeln('- Your current configuration: ');
 		$output->writeln(json_encode($this->configService->getConfig(), JSON_PRETTY_PRINT));
+
+		return 0;
 	}
 
 	/**

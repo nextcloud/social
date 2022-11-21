@@ -85,7 +85,7 @@ class QueueStatus extends Base {
 	 *
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$token = $input->getOption('token');
 
 		if ($token === null) {
@@ -97,5 +97,7 @@ class QueueStatus extends Base {
 		foreach ($requests as $request) {
 			$output->writeLn(json_encode($request));
 		}
+
+		return 0;
 	}
 }

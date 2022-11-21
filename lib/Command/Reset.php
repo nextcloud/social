@@ -91,7 +91,7 @@ class Reset extends Base {
 	 *
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$helper = $this->getHelper('question');
 		$output->writeln(
 			'<error>Beware, this operation will delete all content from the Social App.</error>'
@@ -102,7 +102,7 @@ class Reset extends Base {
 		);
 
 		if (!$helper->ask($input, $output, $question)) {
-			return;
+			return 0;
 		}
 
 		$question = new ConfirmationQuestion(
@@ -110,7 +110,7 @@ class Reset extends Base {
 			'/^(y|Y)/i'
 		);
 		if (!$helper->ask($input, $output, $question)) {
-			return;
+			return 0;
 		}
 
 
@@ -124,7 +124,7 @@ class Reset extends Base {
 				$output->writeln('<error>' . $e->getMessage() . '</error>');
 			}
 
-			return;
+			return 0;
 		}
 
 
@@ -136,7 +136,7 @@ class Reset extends Base {
 		} catch (Exception $e) {
 			$output->writeln('<error>' . $e->getMessage() . '</error>');
 
-			return;
+			return 0;
 		}
 
 		$this->checkService->checkInstallationStatus(true);
@@ -152,13 +152,15 @@ class Reset extends Base {
 		$newCloudAddress = $helper->ask($input, $output, $question);
 
 		if ($newCloudAddress === $cloudAddress) {
-			return;
+			return 0;
 		}
 
 		$this->configService->setCloudUrl($newCloudAddress);
 
 		$output->writeln('');
 		$output->writeln('New address: <info>' . $newCloudAddress . '</info>');
+
+		return 0;
 	}
 
 

@@ -85,7 +85,7 @@ class NoteBoost extends Base {
 	 *
 	 * @throws Exception
 	 */
-	protected function execute(InputInterface $input, OutputInterface $output) {
+	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$userId = $input->getArgument('user_id');
 		$noteId = $input->getArgument('note_id');
 
@@ -101,5 +101,7 @@ class NoteBoost extends Base {
 
 		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 		echo 'token: ' . $token . "\n";
+
+		return 0;
 	}
 }
