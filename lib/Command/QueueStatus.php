@@ -73,7 +73,7 @@ class QueueStatus extends Base {
 		parent::configure();
 		$this->setName('social:queue:status')
 			 ->addOption(
-			 	'token', 't', InputOption::VALUE_OPTIONAL, 'token of a request'
+				'token', 't', InputOption::VALUE_OPTIONAL, 'token of a request'
 			 )
 			 ->setDescription('Return status on the request queue');
 	}

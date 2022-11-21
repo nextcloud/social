@@ -1054,8 +1054,8 @@ class CoreRequestBuilder {
 		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
 		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 		   ->leftJoin(
-		   	$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-		   	$andX
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
+			$andX
 		   );
 	}
 

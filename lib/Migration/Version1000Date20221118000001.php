@@ -521,10 +521,10 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			[
 				'length' => 20,
 				'unsigned' => true
-//				'autoincrement' => true,
-//				'customSchemaOptions' => [
-//					'unique' => true
-//				]
+				//				'autoincrement' => true,
+				//				'customSchemaOptions' => [
+				//					'unique' => true
+				//				]
 			]
 		);
 		$table->addColumn(
