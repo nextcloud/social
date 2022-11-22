@@ -18,6 +18,7 @@ OC.L10N.register(
     "Close" : "Lukk",
     "No results found" : "Ingen resultater funnet",
     "Reply" : "Svar",
+    "Deny" : "ikke tillatt",
     "Hello" : "Hallo",
     "Continue" : "Fortsett",
     "User not found" : "Fant ikke brukeren",

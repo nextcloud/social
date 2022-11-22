@@ -69,6 +69,7 @@ OC.L10N.register(
     "Reply" : "Odgovori",
     "Boost" : "Potisni naprej",
     "Like" : "Priljubljeno",
+    "Deny" : "Zavrni",
     "Follow on Nextcloud Social" : "Sledi na Nextcloud Social",
     "Hello" : "Pozdravljeni",
     "Please confirm that you want to follow this account:" : "Potrdite, da želite slediti računu:",

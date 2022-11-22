@@ -84,6 +84,7 @@ OC.L10N.register(
     "Failed to get Social notifications" : "Chyba pri získavaní upozornení z aplikácie Social",
     "{account} is following you" : "{account} vás nasleduje",
     "{account} liked your post" : "{account} sa ľúbi váš príspevok",
+    "Deny" : "Zamietnuť",
     "Follow on Nextcloud Social" : "Sledovať Nextcloud Social",
     "Hello" : "Ahoj",
     "Please confirm that you want to follow this account:" : "Potvrďte, že chcete sledovať tento účet:",

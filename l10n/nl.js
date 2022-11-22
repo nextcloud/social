@@ -70,6 +70,7 @@ OC.L10N.register(
     "Reply" : "Antwoord",
     "Boost" : "Boost",
     "Like" : "Leuk vinden",
+    "Deny" : "Weigeren",
     "Follow on Nextcloud Social" : "Volg op Nextcloud Social",
     "Hello" : "Hallo",
     "Please confirm that you want to follow this account:" : "Bevestig dat je dit account wilt volgen:",

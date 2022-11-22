@@ -8,6 +8,7 @@ OC.L10N.register(
     "Delete" : "ລຶບ",
     "Edit" : "ແກ້ໄຂ",
     "Close" : "ປິດ",
+    "Deny" : "ປະຕິເສດ",
     "Continue" : "ສືບຕໍ່"
 },
 "nplurals=1; plural=0;");

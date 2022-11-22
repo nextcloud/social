@@ -17,6 +17,7 @@ OC.L10N.register(
     "Edit" : "Rediger",
     "Close" : "Luk",
     "Reply" : "Besvar",
+    "Deny" : "Afvis",
     "Hello" : "Hej",
     "Continue" : "Fortsæt",
     "User not found" : "Bruger ikke fundet",

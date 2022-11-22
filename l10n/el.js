@@ -69,6 +69,7 @@ OC.L10N.register(
     "Reply" : "Απάντηση",
     "Boost" : "Ενίσχυση",
     "Like" : "Αρέσει",
+    "Deny" : "Απόρριψη",
     "Follow on Nextcloud Social" : "Ακολουθήστε στο Nextcloud Social",
     "Hello" : "Γεια σας",
     "Please confirm that you want to follow this account:" : "Παρακαλώ επιβεβαιώστε πως θέλετε να ακολουθήσετε αυτόν τον λογαριασμό:",

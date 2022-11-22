@@ -39,6 +39,7 @@ OC.L10N.register(
     "No liked posts found" : "לא נמצאו פוסטים שאהבת",
     "Reply" : "תגובה",
     "Like" : "אהבתי",
+    "Deny" : "לדחות",
     "Follow on Nextcloud Social" : "עקוב ב NextCloud חברתי",
     "Hello" : "שלום",
     "Please confirm that you want to follow this account:" : "נא לאשר שרצונך הוא לעקוב אחר חשבון זה:",

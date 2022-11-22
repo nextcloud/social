@@ -15,6 +15,7 @@ OC.L10N.register(
     "Edit" : "Sunting",
     "Close" : "Tutup",
     "Reply" : "Balas",
+    "Deny" : "Tolak",
     "Hello" : "Halo",
     "Continue" : "Lanjutkan"
 },

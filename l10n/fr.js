@@ -80,6 +80,7 @@ OC.L10N.register(
     "Failed to get Social notifications" : "Impossible d'obtenir les notifications Social ",
     "{account} is following you" : "{account} vous suit",
     "{account} liked your post" : "{account} a aimé votre post",
+    "Deny" : "Interdire",
     "Follow on Nextcloud Social" : "Suivre sur Nextcloud Social",
     "Hello" : "Bonjour",
     "Please confirm that you want to follow this account:" : "Veuillez confirmer que vous souhaitez suivre ce compte :",

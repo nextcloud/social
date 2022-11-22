@@ -13,6 +13,7 @@ OC.L10N.register(
     "Edit" : "Përpuno",
     "Close" : "Mbylleni",
     "Reply" : "Përgjigju",
+    "Deny" : "Refuzo",
     "Hello" : "Përshëndetje",
     "Continue" : "Vazhdo",
     "More actions" : "Më tepër veprime "

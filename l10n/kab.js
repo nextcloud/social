@@ -7,6 +7,7 @@ OC.L10N.register(
     "Delete" : "Kkes",
     "Edit" : "Ẓreg",
     "Close" : "Mdel",
+    "Deny" : "Agwi",
     "Continue" : "Continuer"
 },
 "nplurals=2; plural=(n != 1);");

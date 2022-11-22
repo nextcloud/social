@@ -82,6 +82,7 @@
     "Failed to get Social notifications" : "Nepodařilo se získat upozornění z aplikace Social",
     "{account} is following you" : "{account} vás následuje",
     "{account} liked your post" : "{account} se líbí váš příspěvek",
+    "Deny" : "Odepřít",
     "Follow on Nextcloud Social" : "Sledovat na Nexcloud Social",
     "Hello" : "Dobrý den",
     "Please confirm that you want to follow this account:" : "Potvrďte, že opravdu chcete sledovat tento účet:",
