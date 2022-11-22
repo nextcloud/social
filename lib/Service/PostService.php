@@ -97,7 +97,7 @@ class PostService {
 	 * @throws StreamNotFoundException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function createPost(Post $post, &$token = ''): ACore {
+	public function createPost(Post $post, string &$token = ''): ACore {
 		$this->fixRecipientAndHashtags($post);
 
 		$note = new Note();

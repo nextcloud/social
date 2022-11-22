@@ -119,10 +119,10 @@ class MigrateAlpha3 extends Base {
 		$this->setName('social:migrate:alpha3')
 			 ->setDescription('Trying to migrate old data to Alpha3')
 			 ->addOption(
-				'remove-migrated-tables', '', InputOption::VALUE_NONE, 'Remove old table once copy is done'
+			 	'remove-migrated-tables', '', InputOption::VALUE_NONE, 'Remove old table once copy is done'
 			 )
 			 ->addOption(
-				'force-remove-old-tables', '', InputOption::VALUE_NONE, 'Force remove old tables'
+			 	'force-remove-old-tables', '', InputOption::VALUE_NONE, 'Force remove old tables'
 			 );
 	}
 

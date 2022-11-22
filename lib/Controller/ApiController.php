@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
@@ -41,19 +40,23 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Model\Client\Status;
+use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
-use OCA\Social\Service\MiscService;
+use OCA\Social\Service\PostService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class ApiController
@@ -64,35 +67,45 @@ class ApiController extends Controller {
 	use TNCDataResponse;
 
 	private IUserSession $userSession;
+	private LoggerInterface $logger;
 	private InstanceService $instanceService;
 	private ClientService $clientService;
 	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
 	private FollowService $followService;
 	private StreamService $streamService;
+	private PostService $postService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+
 	private string $bearer = '';
 	private ?SocialClient $client = null;
 	private ?Person $viewer = null;
 
 	public function __construct(
-		IRequest $request, IUserSession $userSession, InstanceService $instanceService,
-		ClientService $clientService, AccountService $accountService, CacheActorService $cacheActorService,
-		FollowService $followService, StreamService $streamService, ConfigService $configService,
-		MiscService $miscService
+		IRequest $request,
+		IUserSession $userSession,
+		LoggerInterface $logger,
+		InstanceService $instanceService,
+		ClientService $clientService,
+		AccountService $accountService,
+		CacheActorService $cacheActorService,
+		FollowService $followService,
+		StreamService $streamService,
+		PostService $postService,
+		ConfigService $configService
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
 		$this->userSession = $userSession;
+		$this->logger = $logger;
 		$this->instanceService = $instanceService;
 		$this->clientService = $clientService;
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->followService = $followService;
 		$this->streamService = $streamService;
+		$this->postService = $postService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 
 		$authHeader = trim($this->request->getHeader('Authorization'));
 		if (strpos($authHeader, ' ')) {
@@ -212,25 +225,67 @@ class ApiController extends Controller {
 
 
 	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function statusNew(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = file_get_contents('php://input');
+			$this->logger->debug('[ApiController] newStatus: ' . $input);
+
+			$status = new Status();
+			$status->import($this->convertInput($input));
+
+			$post = new Post($this->accountService->getActorFromUserId($this->currentSession()));
+			$post->setContent($status->getStatus());
+			$post->setType($status->getVisibility());
+
+			$activity = $this->postService->createPost($post);
+			$activity->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($activity, Http::STATUS_OK);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while statusNew', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+
+	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
 	 * @param string $timeline
+	 * @param bool $local
 	 * @param int $limit
 	 * @param int $max_id
 	 * @param int $min_id
+	 *
 	 * @return DataResponse
 	 */
-	public function timelines(string $timeline, int $limit = 20, int $max_id = 0, int $min_id = 0): DataResponse {
-		$options = new TimelineOptions($this->request);
-		$options->setFormat(Stream::FORMAT_LOCAL);
-		$options->setTimeline($timeline);
-		$options->setLimit($limit);
-		$options->setMaxId($max_id);
-		$options->setMinId($min_id);
-
+	public function timelines(
+		string $timeline,
+		bool $local = false,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0
+	): DataResponse {
 		try {
 			$this->initViewer(true);
+
+			$options = new TimelineOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setTimeline($timeline);
+			$options->setLocal($local);
+			$options->setLimit($limit);
+			$options->setMaxId($max_id);
+			$options->setMinId($min_id);
+
 			$posts = $this->streamService->getTimeline($options);
 
 			return new DataResponse($posts, Http::STATUS_OK);
@@ -251,8 +306,8 @@ class ApiController extends Controller {
 		try {
 			$userId = $this->currentSession();
 
-			$this->miscService->log(
-				'[ApiController] initViewer: ' . $userId . ' (bearer=' . $this->bearer . ')', 0
+			$this->logger->debug(
+				'[ApiController] initViewer: ' . $userId . ' (bearer=' . $this->bearer . ')'
 			);
 
 			$account = $this->accountService->getActorFromUserId($userId);
@@ -271,6 +326,32 @@ class ApiController extends Controller {
 		}
 
 		return false;
+	}
+
+
+	private function convertInput(string $input): array {
+		$contentType = $this->request->getHeader('Content-Type');
+
+		$pos = strpos($contentType, ';');
+		if ($pos > 0) {
+			$contentType = substr($contentType, 0, $pos);
+		}
+
+		switch ($contentType) {
+			case 'application/json':
+				return json_decode($input, true);
+
+			case 'application/x-www-form-urlencoded':
+				return $this->request->getParams();
+
+			default: // in case of no header ...
+				$result = json_decode($input, true);
+				if (is_array($result)) {
+					return $result;
+				}
+
+				return $this->request->getParams();
+		}
 	}
 
 

@@ -56,9 +56,9 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		   ->setValue('stream_id', $qb->createNamedParameter($action->getStreamId()))
 		   ->setValue('stream_id_prim', $qb->createNamedParameter($this->prim($action->getStreamId())))
 		   ->setValue(
-			'values', $qb->createNamedParameter(
-				json_encode($values, JSON_UNESCAPED_SLASHES)
-			)
+		   	'values', $qb->createNamedParameter(
+		   		json_encode($values, JSON_UNESCAPED_SLASHES)
+		   	)
 		   )
 		   ->setValue('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
 		   ->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))

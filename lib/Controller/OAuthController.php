@@ -179,28 +179,28 @@ class OAuthController extends Controller {
 		string $response_type,
 		string $scope = 'read'
 	): Response {
-			$user = $this->userSession->getUser();
+		$user = $this->userSession->getUser();
 
-			// check actor exists
-			$this->accountService->getActorFromUserId($user->getUID());
+		// check actor exists
+		$this->accountService->getActorFromUserId($user->getUID());
 
-			if ($response_type !== 'code') {
-				throw new ClientNotFoundException('invalid response type');
-			}
+		if ($response_type !== 'code') {
+			throw new ClientNotFoundException('invalid response type');
+		}
 
-			// check client exists in db
-			$client = $this->clientService->getFromClientId($client_id);
-			$this->initialState->provideInitialState('appName', $client->getAppName());
+		// check client exists in db
+		$client = $this->clientService->getFromClientId($client_id);
+		$this->initialState->provideInitialState('appName', $client->getAppName());
 
-			return new TemplateResponse(Application::APP_NAME, 'oauth2', [
-				'request' =>
-					[
-						'clientId' => $client_id,
-						'redirectUri' => $redirect_uri,
-						'responseType' => $response_type,
-						'scope' => $scope
-					]
-			]);
+		return new TemplateResponse(Application::APP_NAME, 'oauth2', [
+			'request' =>
+				[
+					'clientId' => $client_id,
+					'redirectUri' => $redirect_uri,
+					'responseType' => $response_type,
+					'scope' => $scope
+				]
+		]);
 	}
 
 
