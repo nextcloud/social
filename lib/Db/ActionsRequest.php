@@ -31,12 +31,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -53,6 +53,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function save(ACore $like): void {
 		$qb = $this->getActionsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
+		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($like->getId())))
 		   ->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
 		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
 		   ->setValue('type', $qb->createNamedParameter($like->getType()))
@@ -66,8 +67,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 			);
 		} catch (Exception $e) {
 		}
-
-		$this->generatePrimaryKey($qb, $like->getId());
 
 		$qb->executeStatement();
 	}

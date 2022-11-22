@@ -31,20 +31,20 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
 use OC\DB\SchemaWrapper;
-use OCP\DB\ISchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCP\DB\ISchemaWrapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
@@ -57,44 +57,203 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Db
  */
 class CoreRequestBuilder {
-	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
-	public const TABLE_INSTANCE = 'social_instance';
-
-	public const TABLE_ACTORS = 'social_actor';
-	public const TABLE_STREAM = 'social_stream';
-	public const TABLE_STREAM_DEST = 'social_stream_dest';
-	public const TABLE_STREAM_TAGS = 'social_stream_tag';
-	public const TABLE_STREAM_QUEUE = 'social_stream_queue';
-	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
-
-	public const TABLE_HASHTAGS = 'social_hashtag';
-	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_ACTIONS = 'social_action';
-
+	public const TABLE_ACTORS = 'social_actor';
 	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
 	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
-
 	public const TABLE_CLIENT = 'social_client';
-	public const TABLE_CLIENT_AUTH = 'social_client_auth';
-	public const TABLE_CLIENT_TOKEN = 'social_client_token';
+	public const TABLE_FOLLOWS = 'social_follow';
+	public const TABLE_HASHTAGS = 'social_hashtag';
+	public const TABLE_INSTANCE = 'social_instance';
+	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_STREAM = 'social_stream';
+	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
+	public const TABLE_STREAM_DEST = 'social_stream_dest';
+	public const TABLE_STREAM_QUEUE = 'social_stream_queue';
+	public const TABLE_STREAM_TAGS = 'social_stream_tag';
 
-
-	private array $tables = [
-		self::TABLE_REQUEST_QUEUE,
-		self::TABLE_ACTORS,
-		self::TABLE_STREAM,
-		self::TABLE_HASHTAGS,
-		self::TABLE_FOLLOWS,
-		self::TABLE_ACTIONS,
-		self::TABLE_CACHE_ACTORS,
-		self::TABLE_CACHE_DOCUMENTS,
-		self::TABLE_STREAM_QUEUE,
-		self::TABLE_STREAM_DEST,
-		self::TABLE_STREAM_TAGS,
-		self::TABLE_STREAM_ACTIONS,
-		self::TABLE_CLIENT,
-		self::TABLE_CLIENT_AUTH,
-		self::TABLE_CLIENT_TOKEN
+	public static array $tables = [
+		self::TABLE_ACTIONS => [
+			'id_prim',
+			'id',
+			'type',
+			'actor_id',
+			'actor_id_prim',
+			'object_id',
+			'object_id_prim',
+			'creation'
+		],
+		self::TABLE_ACTORS => [
+			'id_prim',
+			'id',
+			'user_id',
+			'preferred_username',
+			'name',
+			'summary',
+			'public_key',
+			'private_key',
+			'avatar_version',
+			'creation'
+		],
+		self::TABLE_CACHE_ACTORS => [
+			'id_prim',
+			'id',
+			'type',
+			'account',
+			'local',
+			'following',
+			'followers',
+			'inbox',
+			'shared_index',
+			'outbox',
+			'featured',
+			'url',
+			'preferred_username',
+			'name',
+			'icon_id',
+			'summary',
+			'public_key',
+			'source',
+			'details',
+			'creation'
+		],
+		self::TABLE_CACHE_DOCUMENTS => [
+			'id_prim',
+			'id',
+			'type',
+			'parent_id',
+			'media_type',
+			'mime_type',
+			'url',
+			'local_copy',
+			'resized_copy',
+			'public',
+			'error',
+			'creation',
+			'caching'
+		],
+		self::TABLE_CLIENT => [
+			'id',
+			'app_name',
+			'app_website',
+			'app_redirect_uris',
+			'app_client_id',
+			'app_client_secret',
+			'app_scopes',
+			'auth_scopes',
+			'auth_account',
+			'auth_user_id',
+			'auth_code',
+			'token',
+			'last_update',
+			'creation'
+		],
+		self::TABLE_FOLLOWS => [
+			'id_prim',
+			'id',
+			'type',
+			'actor_id',
+			'actor_id_prim',
+			'object_id',
+			'object_id_prim',
+			'follow_id',
+			'follow_id_prim',
+			'accepted',
+			'creation'
+		],
+		self::TABLE_HASHTAGS => [
+			'hashtag',
+			'trend'
+		],
+		self::TABLE_INSTANCE => [
+			'uri',
+			'local',
+			'title',
+			'version',
+			'short_description',
+			'description',
+			'email',
+			'urls',
+			'stats',
+			'usage',
+			'image',
+			'languages',
+			'contact',
+			'account_prim',
+			'creation'
+		],
+		self::TABLE_REQUEST_QUEUE => [
+			'id',
+			'token',
+			'author',
+			'activity',
+			'instance',
+			'priority',
+			'status',
+			'tries',
+			'last'
+		],
+		self::TABLE_STREAM => [
+			'nid',
+			'id',
+			'id_prim',
+			'type',
+			'subtype',
+			'to',
+			'to_array',
+			'cc',
+			'bcc',
+			'content',
+			'summary',
+			'published',
+			'published_time',
+			'attributed_to',
+			'attributed_to_prim',
+			'in_reply_to',
+			'in_reply_to_prim',
+			'activity_id',
+			'object_id',
+			'object_id_prim',
+			'hashtags',
+			'details',
+			'source',
+			'instances',
+			'attachments',
+			'cache',
+			'creation',
+			'local',
+			'filter_duplicate'
+		],
+		self::TABLE_STREAM_ACTIONS => [
+			'id',
+			'actor_id',
+			'actor_id_prim',
+			'stream_id',
+			'stream_id_prim',
+			'liked',
+			'boosted',
+			'replied',
+			'values'
+		],
+		self::TABLE_STREAM_DEST => [
+			'stream_id',
+			'actor_id',
+			'type',
+			'subtype'
+		],
+		self::TABLE_STREAM_QUEUE => [
+			'id',
+			'token',
+			'stream_id',
+			'type',
+			'status',
+			'tries',
+			'last'
+		],
+		self::TABLE_STREAM_TAGS => [
+			'stream_id',
+			'hashtag'
+		],
 	];
 
 	protected LoggerInterface $logger;
@@ -152,32 +311,6 @@ class CoreRequestBuilder {
 	 */
 	public function setViewer(Person $viewer) {
 		$this->viewer = $viewer;
-	}
-
-
-	/**
-	 * @param string $id
-	 *
-	 * @return string
-	 * @deprecated
-	 */
-	public function prim(string $id): string {
-		if ($id === '') {
-			return '';
-		}
-
-		return hash('sha512', $id);
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
-	 * @param string $id
-	 *
-	 * @deprecated - not that useful, the raw line should be implemented instead of calling this method !
-	 */
-	public function generatePrimaryKey(IQueryBuilder $qb, string $id) {
-		$qb->setValue('id_prim', $qb->createNamedParameter($this->prim($id)));
 	}
 
 
@@ -904,7 +1037,7 @@ class CoreRequestBuilder {
 		$on = $expr->andX();
 		$on->add(
 			$expr->eq(
-				'sa.actor_id_prim', $qb->createNamedParameter($this->prim($this->viewer->getId()))
+				'sa.actor_id_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
 			)
 		);
 		$on->add($orX);
@@ -1131,8 +1264,8 @@ class CoreRequestBuilder {
 	 */
 	public function emptyAll() {
 		/** @var ISchemaWrapper|SchemaWrapper $schema */
-		$schema = new SchemaWrapper(Server::get(OC\DB\Connection::class));
-		foreach ($this->tables as $table) {
+		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
+		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$qb = $this->dbConnection->getQueryBuilder();
 				$qb->delete($table);
@@ -1147,8 +1280,8 @@ class CoreRequestBuilder {
 	 */
 	public function uninstallSocialTables() {
 		/** @var ISchemaWrapper|SchemaWrapper $schema */
-		$schema = new SchemaWrapper(Server::get(OC\DB\Connection::class));
-		foreach ($this->tables as $table) {
+		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
+		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$schema->dropTable($table);
 			}

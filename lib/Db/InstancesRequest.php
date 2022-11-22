@@ -67,7 +67,7 @@ class InstancesRequest extends InstancesRequestBuilder {
 			->setValue('usage', $qb->createNamedParameter(json_encode($instance->getUsage())))
 			->setValue('image', $qb->createNamedParameter($instance->getImage()))
 			->setValue('languages', $qb->createNamedParameter(json_encode($instance->getLanguages())))
-			->setValue('account_prim', $qb->createNamedParameter($instance->getAccountPrim() ? $this->prim($instance->getAccountPrim()) : null));
+			->setValue('account_prim', $qb->createNamedParameter($instance->getAccountPrim() ? $qb->prim($instance->getAccountPrim()) : null));
 		$qb->executeStatement();
 	}
 

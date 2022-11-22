@@ -47,6 +47,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function save(Document $document): void {
 		$qb = $this->getCacheDocumentsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($document->getId()))
+		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($document->getId())))
 		   ->setValue('type', $qb->createNamedParameter($document->getType()))
 		   ->setValue('url', $qb->createNamedParameter($document->getUrl()))
 		   ->setValue('media_type', $qb->createNamedParameter($document->getMediaType()))
@@ -64,8 +65,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			);
 		} catch (Exception $e) {
 		}
-
-		$this->generatePrimaryKey($qb, $document->getId());
 
 		$qb->executeStatement();
 	}

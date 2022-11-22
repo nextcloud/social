@@ -61,9 +61,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
 		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
 		   ->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'))
-		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($follow->getActorId())))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($this->prim($follow->getObjectId())))
-		   ->setValue('follow_id_prim', $qb->createNamedParameter($this->prim($follow->getFollowId())));
+		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($follow->getActorId())))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($follow->getObjectId())))
+		   ->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($follow->getFollowId())));
 
 		try {
 			$qb->setValue(
@@ -86,9 +86,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 		   ->setValue('object_id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('follow_id', $qb->createNamedParameter($actor->getId()))
 		   ->setValue('accepted', $qb->createNamedParameter('1'))
-		   ->setValue('actor_id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
-		   ->setValue('follow_id_prim', $qb->createNamedParameter($this->prim($actor->getId())));
+		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+		   ->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())));
 
 		try {
 			$qb->setValue(

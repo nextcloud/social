@@ -32,13 +32,12 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-	protected function getCacheDocumentsInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getCacheDocumentsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_CACHE_DOCUMENTS);
 
 		return $qb;
@@ -47,8 +46,8 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 */
-	protected function getCacheDocumentsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getCacheDocumentsUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS);
 
 		return $qb;
@@ -76,8 +75,8 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 */
-	protected function getCacheDocumentsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getCacheDocumentsDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_CACHE_DOCUMENTS);
 
 		return $qb;
