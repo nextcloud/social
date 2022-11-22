@@ -84,6 +84,7 @@ OC.L10N.register(
     "Failed to get Social notifications" : "Social jakinarazpenak lortzeak huts egin du",
     "{account} is following you" : "{account} zu jarraitzen ari da",
     "{account} liked your post" : "{account} zure argitalpena atsegin du",
+    "Deny" : "Ukatu",
     "Follow on Nextcloud Social" : "Jarraitu Nextcloud Social bidez",
     "Hello" : "Kaixo",
     "Please confirm that you want to follow this account:" : "Baieztatu kontu hau jarraitu nahi duzula:",

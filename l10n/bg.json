@@ -82,6 +82,7 @@
     "Failed to get Social notifications" : "Неуспешно получаване на известия от Social",
     "{account} is following you" : "{account} ви следва",
     "{account} liked your post" : "{account} хареса публикацията ви",
+    "Deny" : "Не",
     "Follow on Nextcloud Social" : "Следвайте в Nextcloud Social",
     "Hello" : "Здравейте",
     "Please confirm that you want to follow this account:" : "Моля, потвърдете, че искате да следвате този профил:",

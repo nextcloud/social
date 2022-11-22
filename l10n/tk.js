@@ -6,6 +6,7 @@ OC.L10N.register(
     "Notifications" : "Duýduryşlar",
     "Delete" : "Pozmak",
     "Edit" : "Redaktirläň",
-    "Close" : "Ýap"
+    "Close" : "Ýap",
+    "Deny" : "inkär et"
 },
 "nplurals=2; plural=(n != 1);");

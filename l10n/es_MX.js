@@ -14,6 +14,7 @@ OC.L10N.register(
     "Edit" : "Editar",
     "Close" : "Cerrar",
     "Reply" : "Responder",
+    "Deny" : "Denegar",
     "Continue" : "Continuar",
     "User not found" : "No se encontró el usuario",
     "More actions" : "Más acciones"

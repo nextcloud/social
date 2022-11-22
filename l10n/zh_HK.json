@@ -82,6 +82,7 @@
     "Failed to get Social notifications" : "未能獲取 Social 通告",
     "{account} is following you" : "{account} 正在追蹤您",
     "{account} liked your post" : "{account} 喜歡了您的帖子",
+    "Deny" : "拒絕",
     "Follow on Nextcloud Social" : "在 Nextcloud Social 上關注",
     "Hello" : "嗨",
     "Please confirm that you want to follow this account:" : "請確認您要關注此賬戶：",

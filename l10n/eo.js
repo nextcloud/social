@@ -13,6 +13,7 @@ OC.L10N.register(
     "Edit" : "Modifi",
     "Close" : "Malfermi",
     "Reply" : "Respondi",
+    "Deny" : "Rifuzi",
     "Continue" : "Daŭrigi",
     "User not found" : "Netrovita uzanto",
     "More actions" : "Pliaj agoj"

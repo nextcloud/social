@@ -16,6 +16,7 @@ OC.L10N.register(
     "Edit" : "Chỉnh sửa",
     "Close" : "Đóng",
     "Reply" : "Trả l",
+    "Deny" : "Từ chối",
     "Hello" : "Xin chào",
     "Continue" : "Tiếp tục",
     "User not found" : "Không tìm thấy người dùng",

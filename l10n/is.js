@@ -65,6 +65,7 @@ OC.L10N.register(
     "Reply" : "Svara",
     "Boost" : "Endurbirta",
     "Like" : "Líkar",
+    "Deny" : "Neita",
     "Follow on Nextcloud Social" : "Fylgstu með á Nextcloud samfélagsnetinu",
     "Hello" : "Halló",
     "Please confirm that you want to follow this account:" : "Endilega staðfestu að þú viljir fylgjast með þessum aðgangi:",

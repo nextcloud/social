@@ -84,6 +84,7 @@ OC.L10N.register(
     "Failed to get Social notifications" : "获取 Social 通知失败",
     "{account} is following you" : "{account} 正在关注你",
     "{account} liked your post" : "{account} 喜欢您的帖子",
+    "Deny" : "禁止",
     "Follow on Nextcloud Social" : "关注 Nextcloud 社交",
     "Hello" : "您好",
     "Please confirm that you want to follow this account:" : "请确认您要关注此账号：",

@@ -84,6 +84,7 @@ OC.L10N.register(
     "Failed to get Social notifications" : "A közösségi értesítések lekérése sikertelen",
     "{account} is following you" : "{account} követi Önt",
     "{account} liked your post" : "{account} kedveli a bejegyzését",
+    "Deny" : "Megtagadás",
     "Follow on Nextcloud Social" : "Követés a Nextcloud Közösségen",
     "Hello" : "Üdv",
     "Please confirm that you want to follow this account:" : "Erősítse meg, hogy követi ezt a fiókot:",

@@ -82,6 +82,7 @@
     "Failed to get Social notifications" : "Fallo al obtener las notificaciones de Social",
     "{account} is following you" : "{account} te sigue",
     "{account} liked your post" : "{account} hizo like a tu publicación",
+    "Deny" : "Denegar",
     "Follow on Nextcloud Social" : "Seguir en Nextcloud Social",
     "Hello" : "Hola",
     "Please confirm that you want to follow this account:" : "Por favor confirme que desea seguir esta cuenta:",

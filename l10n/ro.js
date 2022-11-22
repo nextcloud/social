@@ -14,6 +14,7 @@ OC.L10N.register(
     "Edit" : "Editează",
     "Close" : "Închide",
     "Reply" : "Răspunde",
+    "Deny" : "Refuzați",
     "Hello" : "Bună",
     "Continue" : "Continuă",
     "User not found" : "Utilizatorul nu a fost găsit",

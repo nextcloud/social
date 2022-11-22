@@ -72,6 +72,7 @@ OC.L10N.register(
     "Reply" : "返信",
     "Boost" : "ブースト",
     "Like" : "いいね！",
+    "Deny" : "拒否",
     "Follow on Nextcloud Social" : "Nextcloud ソーシャルでフォローする",
     "Hello" : "こんにちは",
     "Please confirm that you want to follow this account:" : "このアカウントをフォローすることを確認してください。",

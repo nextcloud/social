@@ -84,6 +84,7 @@ OC.L10N.register(
     "Failed to get Social notifications" : "Sosyal ağ bildirimleri alınamadı",
     "{account} is following you" : "{account} sizi takip ediyor",
     "{account} liked your post" : "{account} iletinizi beğendi",
+    "Deny" : "Reddet",
     "Follow on Nextcloud Social" : "Nextcloud Sosyal Ağı Üzerinde Takip Et",
     "Hello" : "Merhaba",
     "Please confirm that you want to follow this account:" : "Lütfen şu hesabı takip etmek istediğinizi onaylayın:",

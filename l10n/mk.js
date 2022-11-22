@@ -19,6 +19,7 @@ OC.L10N.register(
     "posts" : "објави",
     "No results found" : "Нема пронајдено резултати",
     "Reply" : "Одговор",
+    "Deny" : "Забрани",
     "Hello" : "Здраво",
     "Continue" : "Продолжи",
     "User not found" : "Корисникот не е пронајден",

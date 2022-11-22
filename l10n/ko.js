@@ -18,6 +18,7 @@ OC.L10N.register(
     "Close" : "닫기",
     "No results found" : "결과 없음",
     "Reply" : "답장",
+    "Deny" : "거부",
     "Hello" : "안녕하세요",
     "Continue" : "Continue",
     "User not found" : "사용자를 찾을 수 없음",

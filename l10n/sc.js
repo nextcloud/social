@@ -68,6 +68,7 @@ OC.L10N.register(
     "Reply" : "Risponde",
     "Boost" : "Boost",
     "Like" : "M'agradat",
+    "Deny" : "Nega",
     "Follow on Nextcloud Social" : "Sighi in Nextcloud Sotziale",
     "Hello" : "Oe",
     "Please confirm that you want to follow this account:" : "Cunfirma chi disìgias sighire custu contu:",
