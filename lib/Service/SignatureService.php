@@ -163,7 +163,9 @@ class SignatureService {
 		$signingElements = [];
 		foreach ($elements as $element) {
 			$signingElements[] = $element . ': ' . $data[$element];
-			$request->addHeader($element, $data[$element]);
+			if ($element !== '(request-target)') {
+				$request->addHeader($element, $data[$element]);
+			}
 		}
 
 		return implode("\n", $signingElements);
