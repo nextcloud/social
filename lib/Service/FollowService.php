@@ -55,21 +55,17 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\InstancePath;
+use Psr\Log\LoggerInterface;
 
 class FollowService {
 	use TArrayTools;
 
 
 	private FollowsRequest $followsRequest;
-
 	private ActivityService $activityService;
-
 	private CacheActorService $cacheActorService;
-
 	private ConfigService $configService;
-
-	private MiscService $miscService;
-
+	private LoggerInterface $logger;
 
 	private ?Person $viewer = null;
 
@@ -81,17 +77,20 @@ class FollowService {
 	 * @param ActivityService $activityService
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
-	 * @param MiscService $miscService
+	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
-		FollowsRequest $followsRequest, ActivityService $activityService,
-		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService
+		FollowsRequest $followsRequest,
+		ActivityService $activityService,
+		CacheActorService $cacheActorService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 

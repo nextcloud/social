@@ -30,14 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
@@ -58,6 +50,14 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -190,12 +190,9 @@ class ActivityService {
 	 * @throws SocialAppConfigException
 	 */
 	public function request(ACore $activity): string {
-//		$this->saveActivity($activity);
-
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
-		$token =
-			$this->requestQueueService->generateRequestQueue($instancePaths, $activity, $author);
+		$token = $this->requestQueueService->generateRequestQueue($instancePaths, $activity, $author);
 
 		if ($token === '') {
 			return '<request token not needed>';
@@ -212,8 +209,7 @@ class ActivityService {
 			return $token;
 		}
 
-		$requests =
-			$this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
+		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 		if (sizeof($requests) > 0) {
 			$this->curlService->asyncWithToken($token);
 		}
@@ -245,6 +241,7 @@ class ActivityService {
 			$this->logger->error("Error while trying to init request", [
 				'exception' => $e,
 			]);
+
 			return;
 		}
 

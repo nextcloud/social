@@ -107,7 +107,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 */
 	public function getFromToken(string $token, int $status = -1): array {
 		$qb = $this->getRequestQueueSelectSql();
-		$this->limitToToken($qb, $token);
+		$qb->limitToToken($token);
 
 		if ($status > -1) {
 			$this->limitToStatus($qb, $status);
