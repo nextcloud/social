@@ -69,10 +69,10 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 	}
 
 	public function prim(string $id): string {
-		if ($id === '') {
+		if ($id === '' || substr($id, 0, 4) !== 'http') {
 			return '';
 		}
 
-		return hash('sha512', $id);
+		return md5($id);
 	}
 }

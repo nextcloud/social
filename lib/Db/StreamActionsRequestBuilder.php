@@ -48,8 +48,8 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getStreamActionInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamActionInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_STREAM_ACTIONS);
 
 		return $qb;
@@ -61,8 +61,8 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getStreamActionUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamActionUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_STREAM_ACTIONS);
 
 		return $qb;
@@ -93,8 +93,8 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getStreamActionDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getStreamActionDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAM_ACTIONS);
 
 		return $qb;

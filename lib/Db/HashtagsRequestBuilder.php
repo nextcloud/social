@@ -48,8 +48,8 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getHashtagsInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getHashtagsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_HASHTAGS);
 
 		return $qb;
@@ -61,8 +61,8 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getHashtagsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getHashtagsUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_HASHTAGS);
 
 		return $qb;
@@ -93,8 +93,8 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getHashtagsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getHashtagsDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_HASHTAGS);
 
 		return $qb;

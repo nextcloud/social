@@ -44,8 +44,8 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActorsInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_ACTORS);
 
 		return $qb;
@@ -57,8 +57,8 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActorsUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_ACTORS);
 
 		return $qb;
@@ -92,8 +92,8 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getActorsDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getActorsDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_ACTORS);
 
 		return $qb;

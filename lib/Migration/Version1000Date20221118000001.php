@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 /**
  * Nextcloud - Social Support
  *
@@ -10,7 +9,7 @@ declare(strict_types=1);
  * later. See the COPYING file.
  *
  * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
+ * @copyright 2022, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
  *
  * This program is free software: you can redistribute it and/or modify
@@ -28,22 +27,15 @@ declare(strict_types=1);
  *
  */
 
-
 namespace OCA\Social\Migration;
 
 use Closure;
 use Doctrine\DBAL\Schema\SchemaException;
-use Exception;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\Types;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
-/**
- * Class Version0003Date20200611000001
- *
- * @package OCA\Social\Migration
- */
 class Version1000Date20221118000001 extends SimpleMigrationStep {
 	/**
 	 * @param IOutput $output
@@ -78,17 +70,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 
 	/**
-	 * @param IOutput $output
-	 * @param Closure $schemaClosure The `\Closure` returns a `ISchemaWrapper`
-	 * @param array $options
-	 *
-	 * @throws Exception
-	 */
-	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options) {
-	}
-
-
-	/**
 	 * @param ISchemaWrapper $schema
 	 *
 	 * @throws SchemaException
@@ -109,7 +90,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128
+				'length' => 32
 			]
 		);
 		$table->addColumn(
@@ -131,7 +112,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'actor_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -146,7 +127,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'object_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -184,7 +165,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128
+				'length' => 32
 			]
 		);
 		$table->addColumn(
@@ -267,7 +248,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128
+				'length' => 32
 			]
 		);
 		$table->addColumn(
@@ -289,7 +270,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'actor_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -304,7 +285,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'object_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -319,7 +300,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'follow_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -486,7 +467,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'account_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -519,10 +500,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			[
 				'length' => 20,
 				'unsigned' => true
-				//				'autoincrement' => true,
-				//				'customSchemaOptions' => [
-				//					'unique' => true
-				//				]
 			]
 		);
 		$table->addColumn(
@@ -535,7 +512,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128
+				'length' => 32
 			]
 		);
 		$table->addColumn(
@@ -621,7 +598,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'attributed_to_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -636,7 +613,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'in_reply_to_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -658,7 +635,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'object_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -755,14 +732,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->createTable('social_cache_actor');
-//		$table->addColumn(
-//			'nid', Types::BIGINT,
-//			[
-//				'autoincrement' => true,
-//				'length' => 11,
-//				'unsigned' => true,
-//			]
-//		);
 		$table->addColumn(
 			'id', Types::TEXT,
 			[
@@ -773,7 +742,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128
+				'length' => 32
 			]
 		);
 		$table->addColumn(
@@ -907,7 +876,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['id_prim']);
 		$table->addUniqueIndex(['id_prim']);
-//		$table->addUniqueIndex(['nid']);
 	}
 
 
@@ -932,7 +900,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128
+				'length' => 32
 			]
 		);
 		$table->addColumn(
@@ -1015,7 +983,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
-//		$table->addUniqueIndex(['url'], 'unique_url');
 	}
 
 	/**
@@ -1255,7 +1222,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'actor_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -1270,7 +1237,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'stream_id_prim', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -1305,7 +1272,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'stream_id', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -1313,7 +1280,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'actor_id', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);
@@ -1422,7 +1389,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'stream_id', Types::STRING,
 			[
 				'notnull' => false,
-				'length' => 128,
+				'length' => 32,
 				'default' => ''
 			]
 		);

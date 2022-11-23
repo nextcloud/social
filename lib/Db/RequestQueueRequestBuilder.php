@@ -43,8 +43,8 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getRequestQueueInsertSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getRequestQueueInsertSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_REQUEST_QUEUE);
 
 		return $qb;
@@ -56,8 +56,8 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getRequestQueueUpdateSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getRequestQueueUpdateSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_REQUEST_QUEUE);
 
 		return $qb;
@@ -91,8 +91,8 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return IQueryBuilder
 	 */
-	protected function getRequestQueueDeleteSql(): IQueryBuilder {
-		$qb = $this->dbConnection->getQueryBuilder();
+	protected function getRequestQueueDeleteSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_REQUEST_QUEUE);
 
 		return $qb;

@@ -47,7 +47,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsInsertSql();
 
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($this->prim($actor->getId())))
+		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
 		   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
 		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
 		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
