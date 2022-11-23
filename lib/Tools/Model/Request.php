@@ -472,7 +472,7 @@ class Request implements JsonSerializable {
 	 * @return array
 	 */
 	public function getHeaders(): array {
-		return array_merge(['User-Agent' => $this->getUserAgent()], $this->headers);
+		return array_merge(['user-agent' => $this->getUserAgent()], $this->headers);
 	}
 
 	/**

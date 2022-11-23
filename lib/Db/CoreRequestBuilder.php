@@ -36,6 +36,7 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
+use OC\DB\Connection;
 use OC\DB\SchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -44,7 +45,6 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCP\DB\ISchemaWrapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
@@ -1187,8 +1187,8 @@ class CoreRequestBuilder {
 		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
 		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 		   ->leftJoin(
-		   	$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-		   	$andX
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
+			   $andX
 		   );
 	}
 
@@ -1263,7 +1263,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function emptyAll() {
-		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
+		$schema = new SchemaWrapper(Server::get(Connection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$qb = $this->dbConnection->getQueryBuilder();
@@ -1278,7 +1278,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function uninstallSocialTables() {
-		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
+		$schema = new SchemaWrapper(Server::get(Connection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$schema->dropTable($table);

@@ -1187,6 +1187,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id']);
+		$table->addIndex(['token']);
 	}
 
 
@@ -1372,6 +1373,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->setPrimaryKey(['id']);
+		$table->addIndex(['token']);
 	}
 
 

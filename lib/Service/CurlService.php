@@ -342,7 +342,7 @@ class CurlService {
 	 * @throws RequestServerException
 	 */
 	public function retrieveJsonOrig(NCRequest $request): array {
-		$result = $this->doRequestOrig($request);
+		$result = $this->doRequest($request);
 
 		if (strpos($request->getContentType(), 'application/xrd') === 0) {
 			$xml = simplexml_load_string($result);
@@ -374,7 +374,10 @@ class CurlService {
 			$curl = $this->initRequest($request);
 
 			$result = curl_exec($curl);
-			$this->logger->debug('[>>] ' . json_encode($request) . ' result: ' . json_encode($result));
+			$this->logger->debug(
+				'[>>] ' . json_encode($request)
+				. '   result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']: ' . json_encode($result)
+			);
 
 			if (in_array(curl_errno($curl), $ignoreProtocolOnErrors)) {
 				continue;
