@@ -75,8 +75,7 @@ class RequestQueueService {
 	 *
 	 * @return string
 	 */
-	public function generateRequestQueue(array $instancePaths, ACore $item, string $author
-	): string {
+	public function generateRequestQueue(array $instancePaths, ACore $item, string $author): string {
 		$activity = json_encode($item, JSON_UNESCAPED_SLASHES);
 
 		$token = '';
@@ -99,6 +98,9 @@ class RequestQueueService {
 
 
 	/**
+	 * deciding if we run request on main thread,
+	 * based on set priority, and number of request linked to one token
+	 *
 	 * @param string $token
 	 *
 	 * @return RequestQueue

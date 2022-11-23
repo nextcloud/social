@@ -1263,7 +1263,6 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function emptyAll() {
-		/** @var ISchemaWrapper|SchemaWrapper $schema */
 		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
@@ -1279,7 +1278,6 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function uninstallSocialTables() {
-		/** @var ISchemaWrapper|SchemaWrapper $schema */
 		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {

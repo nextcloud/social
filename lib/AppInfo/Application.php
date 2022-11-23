@@ -76,40 +76,5 @@ class Application extends App implements IBootstrap {
 		$manager = $context->getServerContainer()
 						   ->getNotificationManager();
 		$manager->registerNotifierService(Notifier::class);
-
-		try {
-			$context->injectFn(Closure::fromCallable([$this, 'checkUpgradeStatus']));
-		} catch (Throwable $e) {
-		}
-	}
-
-
-	/**
-	 * Register Navigation Tab
-	 *
-	 * @param IServerContainer $container
-	 */
-	protected function checkUpgradeStatus(IServerContainer $container) {
-		$upgradeChecked = $container->getConfig()
-									->getAppValue(Application::APP_NAME, 'update_checked', '');
-
-		if ($upgradeChecked === '0.3') {
-			return;
-		}
-
-		try {
-			$configService = $container->query(ConfigService::class);
-			$updateService = $container->query(UpdateService::class);
-		} catch (QueryException $e) {
-			return;
-		}
-
-		/** @var ISchemaWrapper $schema */
-		$schema = new SchemaWrapper($container->get(IDBConnection::class));
-		if ($schema->hasTable('social_a2_stream')) {
-			$updateService->checkUpdateStatus();
-		}
-
-		$configService->setAppValue('update_checked', '0.3');
 	}
 }

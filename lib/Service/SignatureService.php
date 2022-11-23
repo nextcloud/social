@@ -125,7 +125,7 @@ class SignatureService {
 	 * @param RequestQueue $queue
 	 *
 	 * @throws ActorDoesNotExistException
-	 * @throws SocialAppConfigException // TODO: implement in TNCRequest ?
+	 * @throws SocialAppConfigException
 	 */
 	public function signRequest(NCRequest $request, RequestQueue $queue): void {
 		$date = gmdate(self::DATE_HEADER);
