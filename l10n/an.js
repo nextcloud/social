@@ -7,6 +7,7 @@ OC.L10N.register(
     "Notifications" : "Notificazions",
     "Delete" : "Borrar",
     "Close" : "Zarrar",
+    "Deny" : "Denegar",
     "Continue" : "Continar"
 },
 "nplurals=2; plural=(n != 1);");
