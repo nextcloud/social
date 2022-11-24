@@ -43,13 +43,9 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Follow extends ACore implements JsonSerializable, IQueryRow {
 	public const TYPE = 'Follow';
 
-
 	private string $followId = '';
-
 	private string $followIdPrim = '';
-
 	private bool $accepted = false;
-
 
 	/**
 	 * Follow constructor.

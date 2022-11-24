@@ -52,6 +52,7 @@ use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
+use OCP\AppFramework\Http;
 use Psr\Log\LoggerInterface;
 
 class CurlService {
@@ -239,41 +240,20 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveObject($id): array {
-		$this->logger->debug('retrieveObject', ['id' => $id]);
+		$this->logger->debug('retrieveObject id=' . $id);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new NCRequest($url['path'], Request::TYPE_GET);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
 
-		$this->logger->debug('retrieveObject', ['request' => $request]);
-
 		$result = $this->retrieveJson($request);
-		$this->logger->notice('retrieveObject, request result', ['request' => $request]);
 
 		if (is_array($result)) {
 			$result['_host'] = $request->getHost();
 		}
 
 		return $result;
-	}
-
-
-	/**
-	 * @param NCRequest $request
-	 *
-	 * @return array
-	 * @throws RequestContentException
-	 * @throws RequestNetworkException
-	 */
-	public function retrieveJson(NCRequest $request): array {
-		try {
-			return $this->retrieveJsonOrig($request);
-		} catch (RequestNetworkException | RequestContentException $e) {
-			$this->logger->notice('during retrieveJson', ['request' => $request, 'exception' => $e]);
-
-			throw $e;
-		}
 	}
 
 
@@ -340,8 +320,10 @@ class CurlService {
 	 * @throws RequestResultNotJsonException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
+	 * @throws SocialAppConfigException
+	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveJsonOrig(NCRequest $request): array {
+	public function retrieveJson(NCRequest $request): array {
 		$result = $this->doRequest($request);
 
 		if (strpos($request->getContentType(), 'application/xrd') === 0) {
@@ -388,6 +370,9 @@ class CurlService {
 			}
 
 			$this->parseRequestResult($curl, $request);
+			if ($request->getResultCode() >= 300) {
+				throw new RequestContentException(json_encode($request), $request->getResultCode());
+			}
 			break;
 		}
 
@@ -513,10 +498,6 @@ class CurlService {
 		$contentType = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
 		$request->setContentType((!is_string($contentType)) ? '' : $contentType);
 		$request->setResultCode($code);
-
-		$this->parseRequestResultCode301($code, $request);
-		$this->parseRequestResultCode4xx($code, $request);
-		$this->parseRequestResultCode5xx($code, $request);
 	}
 
 
@@ -533,51 +514,6 @@ class CurlService {
 				$errno . ' - ' . curl_error($curl) . ' - ' . json_encode(
 					$request, JSON_UNESCAPED_SLASHES
 				), $errno
-			);
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 * @param Request $request
-	 *
-	 * @throws RequestContentException
-	 */
-	private function parseRequestResultCode301(int $code, Request $request) {
-		if ($code === 301) {
-			throw new RequestContentException(
-				'301 - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
-			);
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 * @param Request $request
-	 *
-	 * @throws RequestContentException
-	 */
-	private function parseRequestResultCode4xx(int $code, Request $request) {
-		if ($code === 404 || $code === 410) {
-			throw new RequestContentException(
-				$code . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
-			);
-		}
-	}
-
-
-	/**
-	 * @param int $code
-	 * @param Request $request
-	 *
-	 * @throws RequestServerException
-	 */
-	private function parseRequestResultCode5xx(int $code, Request $request) {
-		if ($code === 500) {
-			throw new RequestServerException(
-				$code . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES)
 			);
 		}
 	}

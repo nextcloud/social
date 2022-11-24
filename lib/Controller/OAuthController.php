@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 /**
  * Nextcloud - Social Support
  *
@@ -57,7 +56,6 @@ class OAuthController extends Controller {
 	private IURLGenerator $urlGenerator;
 	private InstanceService $instanceService;
 	private AccountService $accountService;
-	private CacheActorService $cacheActorService;
 	private ClientService $clientService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
@@ -69,7 +67,6 @@ class OAuthController extends Controller {
 		IURLGenerator $urlGenerator,
 		InstanceService $instanceService,
 		AccountService $accountService,
-		CacheActorService $cacheActorService,
 		ClientService $clientService,
 		ConfigService $configService,
 		LoggerInterface $logger,
@@ -81,7 +78,6 @@ class OAuthController extends Controller {
 		$this->urlGenerator = $urlGenerator;
 		$this->instanceService = $instanceService;
 		$this->accountService = $accountService;
-		$this->cacheActorService = $cacheActorService;
 		$this->clientService = $clientService;
 		$this->configService = $configService;
 		$this->logger = $logger;
