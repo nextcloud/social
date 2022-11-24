@@ -31,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
@@ -41,11 +40,6 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -61,6 +55,12 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 
 /**
  * Class FollowInterface
@@ -77,7 +77,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	public function __construct(
 		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
-		 MiscService $miscService
+		MiscService $miscService
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -140,9 +140,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		$follow->checkOrigin($follow->getActorId());
 
 		try {
-			$knownFollow =
-				$this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
-
+			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
 			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
 				$this->confirmFollowRequest($follow);
 			}

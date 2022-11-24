@@ -30,15 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonLdException;
@@ -58,6 +49,16 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Http;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -65,6 +66,7 @@ use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IRequest;
 use OCP\Server;
+use Psr\Log\LoggerInterface;
 use stdClass;
 
 class SignatureService {
@@ -83,20 +85,20 @@ class SignatureService {
 	private ActorsRequest $actorsRequest;
 	private CurlService $curlService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		ActorsRequest $actorsRequest,
 		CacheActorService $cacheActorService,
 		CurlService $curlService,
 		ConfigService $configService,
-		MiscService $miscService
+		LoggerInterface $logger
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -195,7 +197,7 @@ class SignatureService {
 	 * @return string
 	 */
 	private function generateDigest(string $data): string {
-		$encoded = hash("sha256", utf8_encode($data), true);
+		$encoded = hash("sha256", $data, true);
 
 		return 'SHA-256=' . base64_encode($encoded);
 	}
@@ -242,14 +244,19 @@ class SignatureService {
 		}
 
 		if ($this->generateDigest($data) !== $request->getHeader('digest')) {
-			throw new SignatureException('issue with digest');
+			throw new SignatureException(
+				'issue with digest -- sent: ' .
+				$request->getHeader('digest') . ', expected: ' . $this->generateDigest($data)
+			);
 		}
 
 		try {
 			return $this->checkRequestSignature($request, $data);
-		} catch (RequestContentException $e) {
-			throw new SignatureIsGoneException();
 		} catch (SignatureException $e) {
+		} catch (RequestContentException $e) {
+			if ($e->getCode() === Http::STATUS_GONE) {
+				throw new SignatureIsGoneException();
+			}
 		}
 
 		return '';
@@ -304,10 +311,6 @@ class SignatureService {
 
 			return true;
 		} catch (LinkedDataSignatureMissingException $e) {
-			$this->miscService->log(
-				'Notice: LinkedDataSignatureMissingException while checkObject : ' . $e->getMessage()
-				. ' --- ' . json_encode($object), 1
-			);
 		}
 
 		return false;

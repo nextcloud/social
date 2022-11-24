@@ -30,12 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCLogger;
-use OCA\Social\Tools\Traits\TNCDataResponse;
-use OCA\Social\Tools\Traits\TAsync;
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
-use OCP\AppFramework\Http;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -44,20 +39,26 @@ use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Traits\TAsync;
+use OCA\Social\Tools\Traits\TNCDataResponse;
+use OCA\Social\Tools\Traits\TNCLogger;
+use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 class ActivityPubController extends Controller {
 	use TNCDataResponse;
@@ -75,14 +76,20 @@ class ActivityPubController extends Controller {
 	private FollowService $followService;
 	private StreamService $streamService;
 	private ConfigService $configService;
-	private MiscService $miscService;
 
 	public function __construct(
-		IRequest $request, SocialPubController $socialPubController, FediverseService $fediverseService,
-		CacheActorService $cacheActorService, SignatureService $signatureService,
-		StreamQueueService $streamQueueService, ImportService $importService, AccountService $accountService,
-		FollowService $followService, StreamService $streamService, ConfigService $configService,
-		MiscService $miscService
+		IRequest $request,
+		SocialPubController $socialPubController,
+		FediverseService $fediverseService,
+		CacheActorService $cacheActorService,
+		SignatureService $signatureService,
+		StreamQueueService $streamQueueService,
+		ImportService $importService,
+		AccountService $accountService,
+		FollowService $followService,
+		StreamService $streamService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		parent::__construct(Application::APP_NAME, $request);
 
@@ -96,7 +103,7 @@ class ActivityPubController extends Controller {
 		$this->followService = $followService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -165,7 +172,7 @@ class ActivityPubController extends Controller {
 	public function sharedInbox(): Response {
 		try {
 			$body = file_get_contents('php://input');
-			$this->miscService->log('[<<] sharedInbox: ' . $body, 1);
+			$this->logger->debug('[<<] sharedInbox: ' . $body);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
@@ -187,7 +194,7 @@ class ActivityPubController extends Controller {
 			// or it will feed the logs.
 			exit();
 		} catch (SignatureIsGoneException $e) {
-			return $this->fail($e, [], Http::STATUS_GONE, false);
+			return $this->success();
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -208,7 +215,7 @@ class ActivityPubController extends Controller {
 	public function inbox(string $username): Response {
 		try {
 			$body = file_get_contents('php://input');
-			$this->debug('[<<] inbox', ['body' => $body]);
+			$this->logger->debug('[<<] inbox', ['body' => $body]);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
@@ -232,7 +239,7 @@ class ActivityPubController extends Controller {
 			// or it will feed the logs.
 			exit();
 		} catch (SignatureIsGoneException $e) {
-			return $this->fail($e, [], Http::STATUS_GONE);
+			return $this->success();
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
