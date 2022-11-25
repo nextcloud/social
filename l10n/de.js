@@ -84,6 +84,8 @@ OC.L10N.register(
     "Failed to get Social notifications" : "Fehler beim Empfangen von Social-Benachrichtigungen",
     "{account} is following you" : "{account} folgt dir",
     "{account} liked your post" : "{account} gefällt dein Beitrag",
+    "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} hätte gerne Zugriff auf dein Konto. Es ist eine Anwendung eines Drittanbieters.",
+    "If you do not trust it, then you should not authorize it." : "Wenn du hier nicht vertraust, solltest du dies nicht autorisieren.",
     "Deny" : "Verweigern",
     "Follow on Nextcloud Social" : "Auf Nextcloud Social folgen",
     "Hello" : "Hallo",
