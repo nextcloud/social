@@ -30,7 +30,7 @@
     "phpunit/phpunit": "^9.5",
     "nextcloud/coding-standard": "^1.0.0",
     "nextcloud/ocp": "dev-master",
-    "vimeo/psalm": "^4.22.0"
+    "vimeo/psalm": "^5.1.0"
   },
   "scripts": {
     "lint": "find . -name \\*.php -not -path './vendor/*' -not -path './build/*' -print0 | xargs -0 -n1 php -l",
