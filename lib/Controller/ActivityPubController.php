@@ -39,7 +39,6 @@ use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -76,6 +75,7 @@ class ActivityPubController extends Controller {
 	private FollowService $followService;
 	private StreamService $streamService;
 	private ConfigService $configService;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		IRequest $request,

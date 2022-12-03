@@ -198,23 +198,6 @@ class ApiController extends Controller {
 	 * @PublicPage
 	 *
 	 * @return DataResponse
-	 */
-	public function notifications(): DataResponse {
-		try {
-			$this->initViewer(true);
-
-			return new DataResponse([], Http::STATUS_OK);
-		} catch (Exception $e) {
-			return $this->error($e->getMessage());
-		}
-	}
-
-
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 *
-	 * @return DataResponse
 	 * @throws InstanceDoesNotExistException
 	 */
 	public function instance(): DataResponse {
@@ -273,18 +256,133 @@ class ApiController extends Controller {
 		bool $local = false,
 		int $limit = 20,
 		int $max_id = 0,
-		int $min_id = 0
+		int $min_id = 0,
+		int $since = 0
 	): DataResponse {
 		try {
 			$this->initViewer(true);
 
 			$options = new TimelineOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline($timeline);
-			$options->setLocal($local);
-			$options->setLimit($limit);
-			$options->setMaxId($max_id);
-			$options->setMinId($min_id);
+			$options->setTimeline($timeline)
+					->setLocal($local)
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since);
+
+			$posts = $this->streamService->getTimeline($options);
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param int $limit
+	 * @param int $max_id
+	 * @param int $min_id
+	 * @param int $since
+	 *
+	 * @return DataResponse
+	 */
+	public function favourites(
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$options = new TimelineOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setTimeline(TimelineOptions::TIMELINE_FAVOURITES)
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since);
+
+			$posts = $this->streamService->getTimeline($options);
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 */
+	public function notifications(
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0,
+		array $types = [],
+		array $exclude_types = [],
+		string $accountId = ''
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$options = new TimelineOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setTimeline(TimelineOptions::TIMELINE_NOTIFICATIONS)
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since)
+					->setTypes($types)
+					->setExcludeTypes($exclude_types)
+					->setAccountId($accountId);
+
+			$posts = $this->streamService->getTimeline($options);
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @return DataResponse
+	 */
+	public function tag(
+		string $hashtag,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0,
+		bool $local = false,
+		bool $only_media = false
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$options = new TimelineOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setTimeline('hashtag')
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since)
+					->setLocal($local)
+					->setOnlyMedia($only_media)
+					->setArgument($hashtag);
 
 			$posts = $this->streamService->getTimeline($options);
 

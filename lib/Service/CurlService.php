@@ -52,7 +52,6 @@ use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
-use OCP\AppFramework\Http;
 use Psr\Log\LoggerInterface;
 
 class CurlService {

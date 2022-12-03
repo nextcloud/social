@@ -32,7 +32,6 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\StreamQueue;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
@@ -41,7 +40,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getStreamQueueInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -54,7 +53,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getStreamQueueUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -88,7 +87,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getStreamQueueDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();

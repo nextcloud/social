@@ -44,21 +44,34 @@ use OCP\IRequest;
 class TimelineOptions extends CoreOptions implements JsonSerializable {
 	use TArrayTools;
 
+	public const TIMELINE_HOME = 'home';
+	public const TIMELINE_PUBLIC = 'public';
+	public const TIMELINE_DIRECT = 'direct';
+	public const TIMELINE_FAVOURITES = 'favourites';
+	public const TIMELINE_HASHTAG = 'hashtag';
+	public const TIMELINE_NOTIFICATIONS = 'notifications';
+
 	private string $timeline = '';
 	private bool $local = false;
 	private bool $remote = false;
 	private bool $onlyMedia = false;
 	private int $minId = 0;
 	private int $maxId = 0;
-	private int $sinceId = 0;
+	private int $since = 0;
 	private int $limit = 20;
 	private bool $inverted = false;
+	private string $argument = '';
+	private array $types = [];
+	private array $excludeTypes = [];
+	private string $accountId = '';
 
 	public static array $availableTimelines = [
-		'home',
-		'public'
+		self::TIMELINE_HOME,
+		self::TIMELINE_PUBLIC,
+		self::TIMELINE_DIRECT,
+		self::TIMELINE_FAVOURITES,
+		self::TIMELINE_NOTIFICATIONS
 	];
-
 
 	/**
 	 * TimelineOptions constructor.
@@ -197,17 +210,17 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @return int
 	 */
-	public function getSinceId(): int {
-		return $this->sinceId;
+	public function getSince(): int {
+		return $this->since;
 	}
 
 	/**
-	 * @param int $sinceId
+	 * @param int $since
 	 *
 	 * @return TimelineOptions
 	 */
-	public function setSinceId(int $sinceId): self {
-		$this->sinceId = $sinceId;
+	public function setSince(int $since): self {
+		$this->since = $since;
 
 		return $this;
 	}
@@ -252,6 +265,83 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 
 
 	/**
+	 * @param string $argument
+	 *
+	 * @return TimelineOptions
+	 */
+	public function setArgument(string $argument): self {
+		$this->argument = $argument;
+
+		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getArgument(): string {
+		return $this->argument;
+	}
+
+
+	/**
+	 * @param array $types
+	 *
+	 * @return TimelineOptions
+	 */
+	public function setTypes(array $types): self {
+		$this->types = $types;
+
+		return $this;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getTypes(): array {
+		return $this->types;
+	}
+
+
+	/**
+	 * @param array $excludeTypes
+	 *
+	 * @return TimelineOptions
+	 */
+	public function setExcludeTypes(array $excludeTypes): self {
+		$this->excludeTypes = $excludeTypes;
+
+		return $this;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function getExcludeTypes(): array {
+		return $this->excludeTypes;
+	}
+
+
+	/**
+	 * @param string $accountId
+	 *
+	 * @return TimelineOptions
+	 */
+	public function setAccountId(string $accountId): self {
+		$this->accountId = $accountId;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return string
+	 */
+	public function getAccountId(): string {
+		return $this->accountId;
+	}
+
+
+	/**
 	 * @param array $arr
 	 *
 	 * @return TimelineOptions
@@ -262,8 +352,9 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 		$this->setRemote($this->getBool('only_media', $arr, $this->isOnlyMedia()));
 		$this->setMinId($this->getInt('min_id', $arr, $this->getMinId()));
 		$this->setMaxId($this->getInt('max_id', $arr, $this->getMaxId()));
-		$this->setSinceId($this->getInt('since_id', $arr, $this->getSinceId()));
+		$this->setSince($this->getInt('since', $arr, $this->getSince()));
 		$this->setLimit($this->getInt('limit', $arr, $this->getLimit()));
+		$this->setArgument($this->get('argument', $arr, $this->getArgument()));
 
 		return $this;
 	}
@@ -281,8 +372,9 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 				'only_media' => $this->isOnlyMedia(),
 				'min_id' => $this->getMinId(),
 				'max_id' => $this->getMaxId(),
-				'since_id' => $this->getSinceId(),
-				'limit' => $this->getLimit()
+				'since' => $this->getSince(),
+				'limit' => $this->getLimit(),
+				'argument' => $this->getArgument()
 			];
 	}
 }

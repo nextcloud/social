@@ -62,6 +62,7 @@ class ExtendedBase extends Base {
 	protected function outputStreams(array $streams) {
 		if ($this->asJson) {
 			$this->output->writeln(json_encode($streams, JSON_PRETTY_PRINT));
+			return;
 		}
 
 		$table = new Table($this->output);

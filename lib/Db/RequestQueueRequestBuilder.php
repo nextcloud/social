@@ -32,7 +32,6 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\RequestQueue;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
@@ -41,7 +40,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getRequestQueueInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -54,7 +53,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getRequestQueueUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -89,7 +88,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getRequestQueueDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();

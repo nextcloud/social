@@ -36,7 +36,6 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
-use OC\DB\Connection;
 use OC\DB\SchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -65,6 +64,7 @@ class CoreRequestBuilder {
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_INSTANCE = 'social_instance';
+	public const TABLE_NOTIFICATION = 'social_notif';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
@@ -1013,11 +1013,11 @@ class CoreRequestBuilder {
 
 
 	/**
-	 * @param IQueryBuilder $qb
+	 * @param SocialQueryBuilder $qb
 	 *
 	 * @deprecated
 	 */
-	protected function leftJoinStreamAction(IQueryBuilder &$qb) {
+	protected function leftJoinStreamAction(SocialQueryBuilder &$qb) {
 		if ($qb->getType() !== QueryBuilder::SELECT || $this->viewer === null) {
 			return;
 		}
@@ -1187,8 +1187,8 @@ class CoreRequestBuilder {
 		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
 		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 		   ->leftJoin(
-			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-			   $andX
+		   	$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
+		   	$andX
 		   );
 	}
 
@@ -1263,7 +1263,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function emptyAll() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$qb = $this->dbConnection->getQueryBuilder();
@@ -1278,7 +1278,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function uninstallSocialTables() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$schema->dropTable($table);

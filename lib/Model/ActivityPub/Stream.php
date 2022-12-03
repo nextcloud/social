@@ -30,14 +30,17 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-use OCA\Social\Tools\IQueryRow;
-use OCA\Social\Tools\Model\Cache;
-use OCA\Social\Tools\Model\CacheItem;
 use DateTime;
 use Exception;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Model\Cache;
+use OCA\Social\Tools\Model\CacheItem;
 use OCA\Social\Traits\TDetails;
 
 /**
@@ -495,5 +498,36 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return array_merge(parent::exportAsLocal(), $result);
+	}
+
+
+	public function exportAsNotification(): array {
+		switch ($this->getSubType()) {
+			case Like::TYPE:
+				$type = 'favourites';
+				break;
+			case Announce::TYPE:
+				$type = 'mention';
+				break;
+			case Follow::TYPE:
+				$type = 'follow';
+				break;
+			default:
+				$type = '';
+		}
+
+		$result = [
+			'id' => $this->getId(),
+			'type' => $type,
+			'created_at' => $this->getOriginCreationTime(),
+			'status' => $this->getDetails('post')
+		];
+
+		if ($this->hasActor()) {
+			$actor = $this->getActor();
+			$result['account'] = $actor->exportAsLocal();
+		}
+
+		return array_merge(parent::exportAsNotification(), $result);
 	}
 }

@@ -56,6 +56,13 @@
       <code>$this-&gt;instance</code>
     </NullableReturnStatement>
   </file>
+  <file src="lib/Db/CoreRequestBuilder.php">
+    <UndefinedMethod occurrences="3">
+      <code>dropTable</code>
+      <code>hasTable</code>
+      <code>hasTable</code>
+    </UndefinedMethod>
+  </file>
   <file src="lib/Service/CheckService.php">
     <RedundantCast occurrences="1">
       <code>(bool)($this-&gt;cache-&gt;get(self::CACHE_PREFIX . 'wellknown') === 'true')</code>
@@ -71,6 +78,9 @@
     <RedundantCondition occurrences="1">
       <code>is_array($result)</code>
     </RedundantCondition>
+    <TypeDoesNotContainType occurrences="1">
+      <code>$this-&gt;maxDownloadSizeReached === true</code>
+    </TypeDoesNotContainType>
   </file>
   <file src="lib/Service/FollowService.php">
     <InvalidReturnStatement occurrences="2">
