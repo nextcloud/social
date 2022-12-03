@@ -30,9 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
-use OCA\Social\Tools\Traits\TArrayTools;
-use OCA\Social\Tools\Traits\TPathTools;
-use OCA\Social\Tools\Traits\TStringTools;
 use JsonSerializable;
 use OCA\Social\Exceptions\ActivityCantBeVerifiedException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -40,6 +37,9 @@ use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TPathTools;
+use OCA\Social\Tools\Traits\TStringTools;
 
 class ACore extends Item implements JsonSerializable {
 	use TArrayTools;
@@ -63,6 +63,7 @@ class ACore extends Item implements JsonSerializable {
 
 	public const FORMAT_ACTIVITYPUB = 1;
 	public const FORMAT_LOCAL = 2;
+	public const FORMAT_NOTIFICATION = 3;
 
 
 	/** @var null Item */
@@ -681,6 +682,10 @@ class ACore extends Item implements JsonSerializable {
 			return $this->exportAsLocal();
 		}
 
+		if ($this->getExportFormat() === self::FORMAT_NOTIFICATION) {
+			return $this->exportAsNotification();
+		}
+
 		return $this->exportAsActivityPub();
 	}
 
@@ -759,6 +764,21 @@ class ACore extends Item implements JsonSerializable {
 	public function exportAsLocal(): array {
 		$result = [
 			'id' => $this->getId(),
+		];
+
+		if ($this->getNid() > 0) {
+			$result['id'] = (string)$this->getNid();
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function exportAsNotification(): array {
+		$result = [
+			'id' => $this->getId()
 		];
 
 		if ($this->getNid() > 0) {

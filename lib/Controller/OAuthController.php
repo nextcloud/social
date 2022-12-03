@@ -36,7 +36,6 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
-use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;

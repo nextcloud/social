@@ -431,7 +431,7 @@ class StreamService {
 	 * @deprecated
 	 */
 	public function getStreamNotifications(int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineNotifications($since, $limit);
+		return $this->streamRequest->getTimelineNotifications_dep($since, $limit);
 	}
 
 

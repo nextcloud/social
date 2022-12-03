@@ -33,12 +33,10 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\UnknownTimelineException;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCP\IUserManager;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -88,15 +86,15 @@ class Timeline extends ExtendedBase {
 	 */
 	protected function configure() {
 		parent::configure();
-		$this->setName('social:stream')
+		$this->setName('social:timeline')
 			 ->addArgument('userId', InputArgument::REQUIRED, 'viewer')
 			 ->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
 			 ->addOption('local', '', InputOption::VALUE_NONE, 'public')
-			 ->addOption('count', '', InputOption::VALUE_REQUIRED, 'number of elements', '5')
 			 ->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
 			 ->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
+			 ->addOption('since', '', InputOption::VALUE_REQUIRED, 'since', 0)
+			 ->addOption('limit', '', InputOption::VALUE_REQUIRED, 'limit', 5)
 			 ->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
-			 ->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
 			 ->setDescription('Get stream by timeline and viewer');
 	}
 
@@ -111,7 +109,7 @@ class Timeline extends ExtendedBase {
 		$output = new ConsoleOutput();
 		$this->output = $output->section();
 
-		$this->asJson = $input->getOption('json');
+		$this->asJson = (strtolower($input->getOption('output')) === 'json');
 		$this->crop = intval($input->getOption('crop'));
 
 		$userId = $input->getArgument('userId');
@@ -129,46 +127,17 @@ class Timeline extends ExtendedBase {
 
 		$options = new TimelineOptions();
 		$options->setFormat(Stream::FORMAT_LOCAL);
-		$options->setLimit(intval($input->getOption('count')))
+		$options->setLimit(intval($input->getOption('limit')))
 				->setMinId(intval($input->getOption('min_id')))
-				->setMaxId(intval($input->getOption('max_id')));
+				->setMaxId(intval($input->getOption('max_id')))
+				->setSince(intval($input->getOption('since')));
 
-		try {
-			if ($input->getOption('local')) {
-				$options->setLocal(true);
-			}
-			$options->setTimeline($timeline = $input->getArgument('timeline'));
-			$this->outputStreams($this->streamRequest->getTimeline($options));
-		} catch (UnknownTimelineException $e) {
-			$this->displayUnsupportedStream($options);
+		if ($input->getOption('local')) {
+			$options->setLocal(true);
 		}
+		$options->setTimeline($input->getArgument('timeline'));
+		$this->outputStreams($this->streamRequest->getTimeline($options));
 
 		return 0;
-	}
-
-
-	/**
-	 * @param TimelineOptions $options
-	 *
-	 * @throws DateTimeException
-	 */
-	private function displayUnsupportedStream(TimelineOptions $options) {
-		switch ($options->getTimeline()) {
-			case 'notifications':
-				$stream = $this->streamRequest->getTimelineNotifications(0, $options->getLimit());
-				$this->outputStreams($stream);
-				break;
-
-			case 'liked':
-				$stream = $this->streamRequest->getTimelineLiked(0, $options->getLimit());
-				$this->outputStreams($stream);
-				break;
-
-			default:
-				throw new Exception(
-					'Unknown timeline. Try ' . implode(', ', TimelineOptions::$availableTimelines)
-					. ', direct, notifications, liked'
-				);
-		}
 	}
 }

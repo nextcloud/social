@@ -338,24 +338,38 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamFromRequest($qb);
 	}
 
-
+	/**
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
 	public function getTimeline(TimelineOptions $options): array {
 		switch (strtolower($options->getTimeline())) {
-			case 'home':
+			case TimelineOptions::TIMELINE_HOME:
 				$result = $this->getTimelineHome($options);
 				break;
-			case 'direct':
+			case TimelineOptions::TIMELINE_DIRECT:
 				$result = $this->getTimelineDirect($options);
 				break;
-			case 'public':
+			case TimelineOptions::TIMELINE_FAVOURITES:
+				$result = $this->getTimelineFavourites($options);
+				break;
+			case TimelineOptions::TIMELINE_HASHTAG:
+				$result = $this->getTimelineHashtag($options, $options->getArgument());
+				break;
+			case TimelineOptions::TIMELINE_NOTIFICATIONS:
+				$options->setFormat(ACore::FORMAT_NOTIFICATION);
+				$result = $this->getTimelineNotifications($options);
+				break;
+			case TimelineOptions::TIMELINE_PUBLIC:
 				$result = $this->getTimelinePublic($options);
 				break;
-
 			default:
 				return [];
 		}
 
 		if ($options->isInverted()) {
+			// in cae we inverted the order during the request, we revert the results
 			$result = array_reverse($result);
 		}
 
@@ -413,6 +427,64 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineFavourites(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$actor = $qb->getViewer();
+		$expr = $qb->expr();
+
+		$qb->limitToType(Note::TYPE);
+		$qb->paginate($options);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$qb->selectStreamActions('sa');
+		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
+		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
+		$qb->andWhere($expr->eq('sa.liked', $qb->createNamedParameter(1)));
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+
+	/**
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineHashtag(TimelineOptions $options, string $hashtag): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+
+		return [];
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+
+	/**
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineNotifications(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$actor = $qb->getViewer();
+
+		$qb->limitToType(SocialAppNotification::TYPE);
+		$qb->paginate($options);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+
+	/**
 	 * Should return:
 	 *  * Own posts,
 	 *  * Followed accounts
@@ -456,8 +528,9 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 * @throws DateTimeException
+	 * @deprecated
 	 */
-	public function getTimelineNotifications(int $since = 0, int $limit = 5): array {
+	public function getTimelineNotifications_dep(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 
 		$actor = $qb->getViewer();

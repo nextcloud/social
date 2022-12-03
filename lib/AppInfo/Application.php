@@ -31,11 +31,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
-use Closure;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
-use OCA\Social\Service\ConfigService;
-use OCA\Social\Service\UpdateService;
 use OCA\Social\WellKnown\WebfingerHandler;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Dashboard\SocialWidget;
@@ -43,13 +40,7 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
-use OCP\AppFramework\QueryException;
 use OCP\Profile\BeforeTemplateRenderedEvent;
-use OCP\IDBConnection;
-use OCP\IServerContainer;
-use OC\DB\SchemaWrapper;
-use OCP\DB\ISchemaWrapper;
-use Throwable;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 

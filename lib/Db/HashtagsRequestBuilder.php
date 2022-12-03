@@ -32,7 +32,6 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Tools\Traits\TArrayTools;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class HashtagsRequestBuilder
@@ -46,7 +45,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getHashtagsInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -59,7 +58,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getHashtagsUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -91,7 +90,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getHashtagsDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();

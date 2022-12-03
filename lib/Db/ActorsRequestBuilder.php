@@ -33,7 +33,6 @@ namespace OCA\Social\Db;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
@@ -42,7 +41,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Insert request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getActorsInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -55,7 +54,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getActorsUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -90,7 +89,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
 	protected function getActorsDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
