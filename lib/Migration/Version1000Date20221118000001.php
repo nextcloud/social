@@ -919,6 +919,14 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'parent_id_prim', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 32,
+				'default' => '',
+			]
+		);
+		$table->addColumn(
 			'media_type', Types::STRING,
 			[
 				'notnull' => false,
@@ -1138,6 +1146,14 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'author', Types::TEXT,
 			[
 				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'author_prim', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 32,
 				'default' => ''
 			]
 		);

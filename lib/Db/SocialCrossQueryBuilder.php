@@ -293,7 +293,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $aliasDest
 	 * @param string $alias
 	 */
-	public function innerJoinSteamDest(
+	public function innerJoinStreamDest(
 		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
 	) {
 		$this->andWhere($this->exprInnerJoinStreamDest($type, $field, $aliasDest, $alias));

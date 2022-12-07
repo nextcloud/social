@@ -30,8 +30,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use OCA\Social\Exceptions\StreamDestDoesNotExistException;
+use OCA\Social\Model\StreamDest;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class StreamDestRequestBuilder
@@ -56,9 +58,9 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamDestUpdateSql(): IQueryBuilder {
+	protected function getStreamDestUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_STREAM_DEST);
 
@@ -75,7 +77,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type')
+		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type', 'sd.subtype')
 		   ->from(self::TABLE_STREAM_DEST, 'sd');
 
 		$this->defaultSelectAlias = 'sd';
@@ -88,9 +90,9 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getStreamDestDeleteSql(): IQueryBuilder {
+	protected function getStreamDestDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAM_DEST);
 
@@ -112,5 +114,45 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 		$qb->setDefaultSelectAlias('sd');
 
 		return $qb;
+	}
+
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return StreamDest
+	 * @throws StreamDestDoesNotExistException
+	 */
+	public function getStreamDestFromRequest(SocialQueryBuilder $qb): StreamDest {
+		/** @var StreamDest $result */
+		try {
+			$result = $qb->getRow([$this, 'parseStreamDestSelectSql']);
+		} catch (RowNotFoundException $e) {
+			throw new StreamDestDoesNotExistException();
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param SocialQueryBuilder $qb
+	 *
+	 * @return StreamDest[]
+	 */
+	public function getStreamDestsFromRequest(SocialQueryBuilder $qb): array {
+		return $qb->getRows([$this, 'parseStreamDestSelectSql']);
+	}
+
+
+	/**
+	 * @param array $data
+	 *
+	 * @return StreamDest
+	 */
+	public function parseStreamDestSelectSql(array $data): StreamDest {
+		$streamDest = new StreamDest();
+		$streamDest->importFromDatabase($data);
+
+		return $streamDest;
 	}
 }

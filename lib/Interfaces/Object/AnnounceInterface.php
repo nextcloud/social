@@ -174,7 +174,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$knownItem->setAttributedTo($actor->getId());
 			if (!$knownItem->hasCc($actor->getFollowers())) {
 				$knownItem->addCc($actor->getFollowers());
-				$this->streamRequest->update($knownItem);
+				$this->streamRequest->update($knownItem, true);
 			}
 
 			try {
@@ -226,7 +226,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			if (empty($knownItem->getCcArray())) {
 				$this->streamRequest->deleteById($knownItem->getId(), Announce::TYPE);
 			} else {
-				$this->streamRequest->update($knownItem);
+				$this->streamRequest->update($knownItem, true);
 			}
 		} catch (StreamNotFoundException|ItemUnknownException|SocialAppConfigException $e) {
 		}
@@ -292,7 +292,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			'boosts', $this->actionsRequest->countActions($post->getId(), Announce::TYPE)
 		);
 
-		$this->streamRequest->update($post);
+		$this->streamRequest->update($post, true);
 	}
 
 	/**

@@ -241,7 +241,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function deleteCacheById(string $id) {
 		$qb = $this->getCacheActorsDeleteSql();
-		$this->limitToIdString($qb, $id);
+		$qb->limitToIdPrim($qb->prim($id));
 
 		$qb->execute();
 	}

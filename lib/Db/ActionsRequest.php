@@ -153,13 +153,21 @@ class ActionsRequest extends ActionsRequestBuilder {
 	}
 
 
-//	/**
-//	 * @param string $objectId
-//	 */
-//	public function deleteLikes(string $objectId) {
-//		$qb = $this->getActionsDeleteSql();
-//		$this->limitToObjectId($qb, $objectId);
-//
-//		$qb->execute();
-//	}
+	public function deleteByActor(string $actorId): void {
+		$qb = $this->getActionsDeleteSql();
+		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
+
+		$qb->execute();
+	}
+
+
+	public function moveAccount(string $actorId, string $newId): void {
+		$qb = $this->getActionsUpdateSql();
+		$qb->set('actor_id', $qb->createNamedParameter($newId))
+		   ->set('actor_id_prim', $qb->createNamedParameter($qb->prim($newId)));
+
+		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
+
+		$qb->execute();
+	}
 }
