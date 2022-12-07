@@ -45,6 +45,7 @@
 
 	<commands>
 		<command>OCA\Social\Command\AccountCreate</command>
+		<command>OCA\Social\Command\AccountDelete</command>
 		<command>OCA\Social\Command\AccountFollowing</command>
 		<command>OCA\Social\Command\CacheRefresh</command>
 		<command>OCA\Social\Command\CheckInstall</command>

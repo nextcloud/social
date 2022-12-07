@@ -97,19 +97,23 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 	}
 
-	public function update(Stream $stream): void {
+	public function update(Stream $stream, bool $generateDest = false): void {
 		$qb = $this->getStreamUpdateSql();
 
 		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
+		$qb->set('to', $qb->createNamedParameter($stream->getTo()));
 		$qb->set(
-			'cc', $qb->createNamedParameter(
-				json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-			)
+			'cc', $qb->createNamedParameter(json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES))
+		);
+		$qb->set(
+			'to_array', $qb->createNamedParameter(json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES))
 		);
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 		$qb->executeStatement();
 
-		$this->streamDestRequest->generateStreamDest($stream);
+		if ($generateDest) {
+			$this->streamDestRequest->generateStreamDest($stream);
+		}
 	}
 
 	public function updateCache(Stream $stream, Cache $cache): void {
@@ -224,6 +228,19 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $idPrim
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function getStream(string $idPrim): Stream {
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToIdPrim($idPrim);
+
+		return $this->getStreamFromRequest($qb);
+	}
+
+	/**
 	 * @param string $id
 	 * @param int $since
 	 * @param int $limit
@@ -306,7 +323,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToType(Note::TYPE);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$cursor = $qb->execute();
@@ -329,7 +346,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToType(Note::TYPE);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
 		$qb->orderBy('id', 'desc');
@@ -567,7 +584,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToAttributedTo($actorId);
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$accountIsViewer = ($qb->hasViewer() && $qb->getViewer()->getId() === $actorId);
 		$qb->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
@@ -625,7 +642,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinStreamAction();
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
 
 		return $this->getStreamsFromRequest($qb);
@@ -656,7 +673,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinStreamAction();
 
 		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
 
 		return $this->getStreamsFromRequest($qb);
@@ -773,6 +790,19 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $actorId
+	 */
+	public function updateAuthor(string $actorId, string $newId) {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('attributed_to', $qb->createNamedParameter($newId))
+		   ->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($newId)));
+		$qb->limitToAttributedTo($actorId, true);
+
+		$qb->executeStatement();
+	}
+
+
+	/**
 	 * Insert a new Stream in the database.
 	 *
 	 * @param Stream $stream
@@ -862,5 +892,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->generatePrimaryKey($stream->getId(), 'id_prim');
 
 		return $qb;
+	}
+
+
+	public function getRelatedToActor(string $actorId) {
 	}
 }
