@@ -157,7 +157,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb = $this->getActionsDeleteSql();
 		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -168,6 +168,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 
 		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

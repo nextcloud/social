@@ -200,7 +200,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb->executeStatement();
 	}
 
-	public function deleteByAuthor(string $actorId) {
+	public function deleteByAuthor(string $actorId): void {
 		$qb = $this->getRequestQueueDeleteSql();
 		$qb->limitToDBField('author_prim', $qb->prim($actorId));
 

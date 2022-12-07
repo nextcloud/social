@@ -307,7 +307,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * @param string $actorId
 	 * @param Person $new
 	 */
-	public function moveAccountFollowers(string $actorId, Person $new) {
+	public function moveAccountFollowers(string $actorId, Person $new): void {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('object_id', $qb->createNamedParameter($new->getId()))
 		   ->set('object_id_prim', $qb->createNamedParameter($qb->prim($new->getId())))
@@ -324,7 +324,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * @param string $actorId
 	 * @param Person $new
 	 */
-	public function moveAccountFollowing(string $actorId, Person $new) {
+	public function moveAccountFollowing(string $actorId, Person $new): void {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('actor_id', $qb->createNamedParameter($new->getId()))
 		   ->set('actor_id_prim', $qb->createNamedParameter($qb->prim($new->getId())));

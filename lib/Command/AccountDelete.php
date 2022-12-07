@@ -63,7 +63,7 @@ class AccountDelete extends Base {
 		$this->configService = $configService;
 	}
 
-	protected function configure() {
+	protected function configure(): void {
 		parent::configure();
 		$this->setName('social:account:delete')
 			 ->addArgument('account', InputArgument::REQUIRED, 'Social Local Account')

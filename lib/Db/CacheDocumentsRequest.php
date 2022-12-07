@@ -242,7 +242,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->execute();
 	}
 
-	public function deleteByParent(string $parentId) {
+	public function deleteByParent(string $parentId): void {
 		$qb = $this->getCacheDocumentsDeleteSql();
 		$qb->limitToDBField('parent_id_prim', $qb->prim($parentId));
 
@@ -257,6 +257,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->limitToDBField('parent_id_prim', $qb->prim($actorId));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

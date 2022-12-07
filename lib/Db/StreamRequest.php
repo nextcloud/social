@@ -798,7 +798,7 @@ class StreamRequest extends StreamRequestBuilder {
 		   ->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($newId)));
 		$qb->limitToAttributedTo($actorId, true);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
