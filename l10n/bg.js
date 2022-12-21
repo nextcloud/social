@@ -102,10 +102,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud е вече част от федерираните социални мрежи!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Ние автоматично създадохме Social профил за вас. Вашият  идентификатор за Social е същият като вашия Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Понеже си нов потребител в Social, последвай официялният акаунт на  Nextcloud account, за да не пропуснеш новини от развитието на проекта",
-    "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz",
-    "You haven't receive any notifications yet" : "Все още не сте получили никакви известия",
-    "You haven't tooted yet" : "Все още не сте тутвали /публикували/",
-    "More actions" : "Още действия",
-    "Delete post" : "Изтриване на публикацията"
+    "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz"
 },
 "nplurals=2; plural=(n != 1);");

@@ -51,7 +51,6 @@ OC.L10N.register(
     "Continue" : "Continuar",
     "User not found" : "Utilizador não encontrado",
     "Sorry, we could not find the account of {userId}" : "Pedimos desculpa, não conseguimos encontrar a conta com {userId}",
-    "Follow Nextcloud on mastodon.xyz" : "Siga Nextcloud em mastodon.xyz",
-    "More actions" : "Mais acções"
+    "Follow Nextcloud on mastodon.xyz" : "Siga Nextcloud em mastodon.xyz"
 },
 "nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

@@ -26,7 +26,6 @@ OC.L10N.register(
     "You are following this account" : "이 계정을 팔로우하고 있습니다",
     "Continue" : "Continue",
     "User not found" : "사용자를 찾을 수 없음",
-    "Sorry, we could not find the account of {userId}" : "{userId} 계정을 찾을 수 없습니다",
-    "More actions" : "더 많은 동작"
+    "Sorry, we could not find the account of {userId}" : "{userId} 계정을 찾을 수 없습니다"
 },
 "nplurals=1; plural=0;");

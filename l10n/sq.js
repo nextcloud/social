@@ -15,7 +15,6 @@ OC.L10N.register(
     "Reply" : "Përgjigju",
     "Deny" : "Refuzo",
     "Hello" : "Përshëndetje",
-    "Continue" : "Vazhdo",
-    "More actions" : "Më tepër veprime "
+    "Continue" : "Vazhdo"
 },
 "nplurals=2; plural=(n != 1);");

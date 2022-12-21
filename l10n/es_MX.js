@@ -16,7 +16,6 @@ OC.L10N.register(
     "Reply" : "Responder",
     "Deny" : "Denegar",
     "Continue" : "Continuar",
-    "User not found" : "No se encontró el usuario",
-    "More actions" : "Más acciones"
+    "User not found" : "No se encontró el usuario"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

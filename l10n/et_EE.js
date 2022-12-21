@@ -14,7 +14,6 @@ OC.L10N.register(
     "Close" : "Sulge",
     "Reply" : "Vasta",
     "Continue" : "Jätka",
-    "User not found" : "Kasutajat ei leitud",
-    "Delete post" : "Kustuta postitus"
+    "User not found" : "Kasutajat ei leitud"
 },
 "nplurals=2; plural=(n != 1);");

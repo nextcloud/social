@@ -12,7 +12,6 @@ OC.L10N.register(
     "Edit" : "Editar",
     "Close" : "Zarrar",
     "Reply" : "Rempuesta",
-    "Continue" : "Siguir",
-    "More actions" : "Más aiciones"
+    "Continue" : "Siguir"
 },
 "nplurals=2; plural=(n != 1);");

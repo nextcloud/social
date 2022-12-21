@@ -21,7 +21,6 @@ OC.L10N.register(
     "Reply" : "Respondre",
     "Hello" : "Adieu",
     "Continue" : "Contunhar",
-    "User not found" : "Utilizaire pas trobat",
-    "More actions" : "Mai d’accions"
+    "User not found" : "Utilizaire pas trobat"
 },
 "nplurals=2; plural=(n > 1);");

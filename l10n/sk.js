@@ -98,10 +98,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud sa stáva súčasťou združených sociálnych sietí!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automaticky sme pre vás vytvorili účet na Social. Vaše ID v Social je rovnaké ako vaše ID združeného cloudu:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Preto, že ste nový na Social, začnite sledovať oficiálny účet Nextcloud, aby vám nič neušlo",
-    "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz",
-    "You haven't receive any notifications yet" : "Zatiaľ ste nedostali žiadne upozornenia",
-    "You haven't tooted yet" : "Zatiaľ ste nič nenapísali",
-    "More actions" : "Viac akcií",
-    "Delete post" : "Odstrániť príspevok"
+    "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz"
 },
 "nplurals=4; plural=(n % 1 == 0 && n == 1 ? 0 : n % 1 == 0 && n >= 2 && n <= 4 ? 1 : n % 1 != 0 ? 2: 3);");

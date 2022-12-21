@@ -14,7 +14,6 @@ OC.L10N.register(
     "Close" : "დახურვა",
     "Reply" : "პასუხი",
     "Hello" : "გამარჯობა",
-    "Continue" : "გაგრძელება",
-    "More actions" : "მეტი ქმედება"
+    "Continue" : "გაგრძელება"
 },
 "nplurals=2; plural=(n!=1);");

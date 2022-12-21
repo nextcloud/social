@@ -79,10 +79,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud verður hluti af samfélagsnetum í skýjasambandi!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Við útbjuggum sjálfvirkt samfélagsnetsaðgang fyrir þíg. Samfélagsnetsauðkennið þitt er það sama og skýjasambandsauðkennið þitt (Federated Cloud ID):",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Þar sem þú ert nýr á samfélagsnetinu, byrjaðu þá á því að fylgjast með opinbera Nextcloud aðgangnum svo þú missir ekki af neinu fréttnæmu",
-    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz",
-    "You haven't receive any notifications yet" : "Þú hefur ennþá ekki fengið neinar tilkynningar",
-    "You haven't tooted yet" : "Þú hefur ekki tíst neitt ennþá",
-    "More actions" : "Fleiri aðgerðir",
-    "Delete post" : "Eyða færslu"
+    "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz"
 },
 "nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);");

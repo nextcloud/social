@@ -100,10 +100,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud birleşik sosyal ağların bir parçası haline geliyor!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Sizin için otomatik olarak bir sosyal ağ hesabı oluşturduk. Sosyal Ağ Kodunuz Birleşik Bulut Kodunuz ile aynıdır:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Sosyal ağ kullanmaya yeni başladığınızdan, haberleri kaçırmamak için resmi Nextcloud hesabını takibe başlayın",
-    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et",
-    "You haven't receive any notifications yet" : "Henüz size bir bildirim gönderilmemiş",
-    "You haven't tooted yet" : "Henüz uyarılmamışsınız",
-    "More actions" : "Diğer işlemler",
-    "Delete post" : "İletiyi sil"
+    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et"
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }

@@ -100,10 +100,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud becomes part of the federated social networks!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news",
-    "Follow Nextcloud on mastodon.xyz" : "Follow Nextcloud on mastodon.xyz",
-    "You haven't receive any notifications yet" : "You haven't receive any notifications yet",
-    "You haven't tooted yet" : "You haven't tooted yet",
-    "More actions" : "More actions",
-    "Delete post" : "Delete post"
+    "Follow Nextcloud on mastodon.xyz" : "Follow Nextcloud on mastodon.xyz"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

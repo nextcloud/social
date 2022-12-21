@@ -100,10 +100,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 成為聯盟社交網絡的一部分！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我們會自動為您創建一個社交賬戶。您的 Social ID 與您的聯盟式雲端 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鑑於您剛來到 Social，請先關注 Nextcloud 官方賬戶，這樣您將不會錯過任何新聞",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud",
-    "You haven't receive any notifications yet" : "您還沒有收到任何通知",
-    "You haven't tooted yet" : "您還沒有發貼過",
-    "More actions" : "更多操作",
-    "Delete post" : "刪除帖子"
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

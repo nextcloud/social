@@ -80,10 +80,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud divenit parte de is retes sotziales federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Amus creadu in manera automàtica unu contu de Sotziale pro te. S'ID tuo est su matessi ID de sa nue virtuale federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dae chi ses nou in Sotziale, cumintza sighende su contu ufitziale de Nextcloud a manera chi non ti perdas is noas",
-    "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz",
-    "You haven't receive any notifications yet" : "No as retzidu peruna notìfica ancora",
-    "You haven't tooted yet" : "No as naradu ancora nudda",
-    "More actions" : "Àteras atziones",
-    "Delete post" : "Elìmina cummentu"
+    "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

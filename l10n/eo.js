@@ -15,7 +15,6 @@ OC.L10N.register(
     "Reply" : "Respondi",
     "Deny" : "Rifuzi",
     "Continue" : "Daŭrigi",
-    "User not found" : "Netrovita uzanto",
-    "More actions" : "Pliaj agoj"
+    "User not found" : "Netrovita uzanto"
 },
 "nplurals=2; plural=(n != 1);");

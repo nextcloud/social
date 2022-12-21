@@ -7,6 +7,7 @@
     "Profile" : "Profil",
     "In reply to" : "som svar til",
     "Add attachment" : "Tilføj vedhæftelse",
+    "Add emoji" : "Tilføj emoji",
     "Visibility" : "Synlighed",
     "Post" : "Indlæg",
     "Public" : "Offentlig",
@@ -18,7 +19,6 @@
     "Deny" : "Afvis",
     "Hello" : "Hej",
     "Continue" : "Fortsæt",
-    "User not found" : "Bruger ikke fundet",
-    "More actions" : "Flere handlinger"
+    "User not found" : "Bruger ikke fundet"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

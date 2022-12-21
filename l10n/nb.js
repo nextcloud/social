@@ -9,6 +9,7 @@ OC.L10N.register(
     "Profile" : "Profil",
     "In reply to" : "Som svar på",
     "Add attachment" : "Legg til vedlegg",
+    "Add emoji" : "Legg til emoji",
     "Visibility" : "Synlighet",
     "Post" : "Send",
     "Public" : "Offentlig",
@@ -21,7 +22,6 @@ OC.L10N.register(
     "Deny" : "ikke tillatt",
     "Hello" : "Hallo",
     "Continue" : "Fortsett",
-    "User not found" : "Fant ikke brukeren",
-    "More actions" : "Flere handlinger"
+    "User not found" : "Fant ikke brukeren"
 },
 "nplurals=2; plural=(n != 1);");

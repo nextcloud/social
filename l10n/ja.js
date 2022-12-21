@@ -86,10 +86,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloudは分散SNSの一部になります！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "「ソーシャル」アカウントが自動に作成してあげました。あなたの「ソーシャル」IDクはラウド連携IDと同じです：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "「ソーシャル」は初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
-    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
-    "You haven't receive any notifications yet" : "受信された通知はありません",
-    "You haven't tooted yet" : "あなたはまだtootしていません",
-    "More actions" : "その他のアクション",
-    "Delete post" : "削除日時"
+    "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする"
 },
 "nplurals=1; plural=0;");

@@ -19,7 +19,6 @@ OC.L10N.register(
     "Deny" : "Từ chối",
     "Hello" : "Xin chào",
     "Continue" : "Tiếp tục",
-    "User not found" : "Không tìm thấy người dùng",
-    "More actions" : "Nhiều hành động hơn"
+    "User not found" : "Không tìm thấy người dùng"
 },
 "nplurals=1; plural=0;");

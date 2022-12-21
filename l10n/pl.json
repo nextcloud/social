@@ -100,10 +100,6 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud staje się częścią federacyjnych sieci społecznościowych!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Automatycznie utworzyliśmy dla Ciebie konto w Społeczności. Twój ID Społeczności jest taki sam, jak ID Chmury Federacyjnej:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ponieważ jesteś nowym użytkownikiem Społeczności, zacznij od oficjalnego konta Nextcloud, aby nie przeoczyć żadnych wiadomości",
-    "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz",
-    "You haven't receive any notifications yet" : "Nie otrzymałeś jeszcze żadnych powiadomień",
-    "You haven't tooted yet" : "Jeszcze nie napisałeś niczego",
-    "More actions" : "Więcej akcji",
-    "Delete post" : "Usuń wpis"
+    "Follow Nextcloud on mastodon.xyz" : "Obserwuj Nextcloud na mastodon.xyz"
 },"pluralForm" :"nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);"
 }

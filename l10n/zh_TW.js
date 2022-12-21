@@ -102,10 +102,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 變成聯盟式社群網路的一部分了！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我們會自動為您建立「社交」的帳號。您的「社交」ID 與您的雲端聯盟 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "因為您是「社交」新手，因此請先追蹤官方的 Nextcloud 帳號，這樣您就不會漏掉任何新聞",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上追蹤 Nextcloud",
-    "You haven't receive any notifications yet" : "您尚未收到任何通知",
-    "You haven't tooted yet" : "您還沒有嘟文",
-    "More actions" : "更多動作",
-    "Delete post" : "刪除貼文"
+    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上追蹤 Nextcloud"
 },
 "nplurals=1; plural=0;");

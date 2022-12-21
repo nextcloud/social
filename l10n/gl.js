@@ -82,10 +82,6 @@ OC.L10N.register(
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud pasa a formar parte das redes sociais federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Creamos de xeito automático unha conta Social para vostede. O seu ID Social é o mesmo que o seu ID de nube federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Xa que vostede é novo en Social, pode comezar seguindo a conta oficial de Nextcloud así non perderá ningunha nova",
-    "Follow Nextcloud on mastodon.xyz" : "Siga a Nextcloud en mastodon.xyz",
-    "You haven't receive any notifications yet" : "Aínda non recibiu ningunha notificación",
-    "You haven't tooted yet" : "Vostede aínda non participou",
-    "More actions" : "Máis accións",
-    "Delete post" : "Eliminar mensaxe"
+    "Follow Nextcloud on mastodon.xyz" : "Siga a Nextcloud en mastodon.xyz"
 },
 "nplurals=2; plural=(n != 1);");
