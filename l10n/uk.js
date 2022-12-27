@@ -9,6 +9,7 @@ OC.L10N.register(
     "Profile" : "Профіль",
     "In reply to" : "У відповідь",
     "Add attachment" : "Додати вкладення",
+    "Add emoji" : "Додати емоційку",
     "Visibility" : "Видимість",
     "Post" : "Розмістити",
     "Public" : "Публічне",
