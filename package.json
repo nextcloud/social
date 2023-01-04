@@ -40,6 +40,8 @@
 		"@nextcloud/vue": "^7.3.0",
 		"@nextcloud/vue-richtext": "^2.0.4",
 		"he": "^1.2.0",
+		"linkify-plugin-mention": "^4.1.0",
+		"linkify-string": "^4.1.0",
 		"linkifyjs": "^4.0.2",
 		"sass": "^1.57.1",
 		"tributejs": "^5.1.3",
