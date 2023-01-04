@@ -120,6 +120,7 @@
 				<div class="emptySpace" />
 				<NcButton :value="currentVisibilityPostLabel"
 					:disabled="!canPost"
+					native-type="submit"
 					type="primary"
 					@click.prevent="createPost">
 					<template #icon>
