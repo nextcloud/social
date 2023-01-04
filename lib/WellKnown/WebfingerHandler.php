@@ -101,7 +101,7 @@ class WebfingerHandler implements IHandler {
 	 * @return IResponse|null
 	 */
 	public function handleWebfinger(IRequestContext $context): ?IResponse {
-		$subject = $context->getHttpRequest()->getParam('resource');
+		$subject = $context->getHttpRequest()->getParam('resource') ?? '';
 		if (strpos($subject, 'acct:') === 0) {
 			$subject = substr($subject, 5);
 		}
