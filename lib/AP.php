@@ -185,7 +185,7 @@ class AP {
 	 */
 	public function getItemFromData(array $data, ACore $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
-			throw new RedundancyLimitException($level);
+			throw new RedundancyLimitException((string)$level);
 		}
 
 		$item = $this->getSimpleItemFromData($data);
