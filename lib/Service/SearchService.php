@@ -31,10 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TNCLogger;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Traits\TArrayTools;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class SearchService
@@ -43,7 +43,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
  */
 class SearchService {
 	use TArrayTools;
-	use TNCLogger;
 
 
 	public const SEARCH_ACCOUNTS = 1;
@@ -51,14 +50,10 @@ class SearchService {
 	public const SEARCH_CONTENT = 4;
 	public const SEARCH_ALL = 7;
 
-
 	private CacheActorService $cacheActorService;
-
 	private HashtagService $hashtagService;
-
 	private ConfigService $configService;
-
-	private MiscService $miscService;
+	private LoggerInterface $logger;
 
 
 	/**
@@ -67,16 +62,18 @@ class SearchService {
 	 * @param CacheActorService $cacheActorService
 	 * @param HashtagService $hashtagService
 	 * @param ConfigService $configService
-	 * @param MiscService $miscService
+	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
-		CacheActorService $cacheActorService, HashtagService $hashtagService,
-		ConfigService $configService, MiscService $miscService
+		CacheActorService $cacheActorService,
+		HashtagService $hashtagService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		$this->cacheActorService = $cacheActorService;
 		$this->hashtagService = $hashtagService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -100,7 +97,7 @@ class SearchService {
 		try {
 			$this->cacheActorService->getFromAccount($search);
 		} catch (Exception $e) {
-			$this->exception($e, self::$NOTICE, ['search' => $search]);
+			$this->logger->notice('searchAccounts', ['exception' => $e, 'search' => $search]);
 		}
 
 		return $this->cacheActorService->searchCachedAccounts($search);

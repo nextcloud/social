@@ -158,10 +158,7 @@ class RequestQueue implements JsonSerializable {
 	}
 
 
-	/**
-	 * @return InstancePath
-	 */
-	public function getInstance(): InstancePath {
+	public function getInstance(): ?InstancePath {
 		return $this->instance;
 	}
 

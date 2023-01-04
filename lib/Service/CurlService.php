@@ -238,7 +238,7 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveObject($id): array {
+	public function retrieveObject(string $id): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
@@ -430,8 +430,6 @@ class CurlService {
 
 	/**
 	 * @param Request $request
-	 *
-	 * @return resource
 	 */
 	private function generateCurlRequest(Request $request) {
 		$url = $request->getUsedProtocol() . '://' . $request->getHost() . $request->getParsedUrl();

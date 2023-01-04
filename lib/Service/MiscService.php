@@ -58,7 +58,7 @@ class MiscService {
 	 * @param $message
 	 * @param int $level
 	 */
-	public function log($message, $level = 2) {
+	public function log(string $message, $level = 2) {
 		$data = array(
 			'app' => Application::APP_NAME,
 			'level' => $level
