@@ -30,9 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub;
 
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Tools\Traits\TArrayTools;
 
 class Item {
 	use TArrayTools;
@@ -59,7 +59,6 @@ class Item {
 	private string $actorId = '';
 	private string $iconId = '';
 	private string $objectId = '';
-	private string $target = '';
 	private bool $completeDetails = false;
 	private string $source = '';
 	private bool $local = false;
@@ -530,15 +529,6 @@ class Item {
 		return $this;
 	}
 
-	public function getTarget(): string {
-		return $this->target;
-	}
-
-	public function setTarget(string $target): Item {
-		$this->target = $target;
-
-		return $this;
-	}
 
 	/**
 	 * @return string

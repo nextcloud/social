@@ -189,7 +189,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * @param string $alias
 	 */
 	public function limitToActorIdPrim(string $actorId, string $alias = '') {
-		$this->limitToDBField('actor_id_prim', $actorId, false, $alias);
+		$this->limitToDBField('actor_id', $actorId, false, $alias);
 	}
 
 
@@ -278,7 +278,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 */
 	public function limitToAttributedTo(string $actorId, bool $prim = false) {
 		if ($prim) {
-			$this->limitToDBField('attributed_to_prim', $this->prim($actorId));
+			$this->limitToDBField('attributed_to_prim', $this->prim($actorId), false);
 
 			return;
 		}
@@ -437,7 +437,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	) {
 		if (!$this->hasViewer()) {
 			$this->selectDestFollowing($aliasDest);
-			$this->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+			$this->innerJoinSteamDest('recipient', 'id_prim', 'sd', 's');
 			$this->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest);
 
 			return;

@@ -31,16 +31,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
-use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCP\DB\Exception as DBException;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\StreamDest;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Tools\Traits\TStringTools;
-use OCP\DB\Exception as DBException;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -56,8 +54,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	private CacheActorService $cacheActorService;
 
 	public function __construct(
-		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
-		CacheActorService $cacheActorService,
+		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator, CacheActorService $cacheActorService,
 		ConfigService $configService, MiscService $miscService
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
@@ -156,49 +153,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	}
 
 	public function emptyStreamDest(): void {
-		$qb = $this->getQueryBuilder();
+		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete(self::TABLE_STREAM_DEST);
-
-		$qb->executeStatement();
-	}
-
-
-	/**
-	 * @param string $actorId
-	 *
-	 * @return StreamDest[]
-	 */
-	public function getRelatedToActor(Person $actor): array {
-		$qb = $this->getStreamDestSelectSql();
-		$orX = $qb->expr()->orX();
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getId())));
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowers())));
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowing())));
-		$qb->where($orX);
-
-		return $this->getStreamDestsFromRequest($qb);
-	}
-
-
-	/**
-	 * @param string $actorId
-	 */
-	public function deleteRelatedToActor(string $actorId): void {
-		$qb = $this->getStreamDestDeleteSql();
-		$qb->limitToActorId($qb->prim($actorId));
-
-		$qb->executeStatement();
-	}
-
-
-
-	/**
-	 * @param string $actorId
-	 */
-	public function moveActor(string $actorId, string $newId): void {
-		$qb = $this->getStreamDestUpdateSql();
-		$qb->set('actor_id', $qb->createNamedParameter($qb->prim($newId)));
-		$qb->limitToActorId($qb->prim($actorId));
 
 		$qb->executeStatement();
 	}

@@ -36,6 +36,7 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class FollowsRequestBuilder
@@ -62,9 +63,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return SocialQueryBuilder
+	 * @return IQueryBuilder
 	 */
-	protected function getFollowsUpdateSql(): SocialQueryBuilder {
+	protected function getFollowsUpdateSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_FOLLOWS);
 
@@ -113,9 +114,9 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return SocialQueryBuilder
+	 * @return IQueryBuilder
 	 */
-	protected function getFollowsDeleteSql(): SocialQueryBuilder {
+	protected function getFollowsDeleteSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_FOLLOWS);
 

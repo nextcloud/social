@@ -31,26 +31,21 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Actor;
 
-use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\RequestQueueRequest;
-use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ActorService;
 use OCA\Social\Service\ConfigService;
-use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Service\MiscService;
 
 /**
  * Class PersonService
@@ -60,36 +55,24 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class PersonInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private ActionsRequest $actionsRequest;
 	private CacheActorsRequest $cacheActorsRequest;
-	private CacheDocumentsRequest $cacheDocumentsRequest;
-	private FollowsRequest $followsRequest;
-	private RequestQueueRequest $requestQueueRequest;
 	private StreamRequest $streamRequest;
-	private StreamDestRequest $streamDestRequest;
+	private FollowsRequest $followsRequest;
 	private ActorService $actorService;
 	private ConfigService $configService;
+	private MiscService $miscService;
 
 	public function __construct(
-		ActionsRequest $actionsRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		CacheDocumentsRequest $cacheDocumentsRequest,
-		FollowsRequest $followsRequest,
-		RequestQueueRequest $requestQueueRequest,
-		StreamRequest $streamRequest,
-		StreamDestRequest $streamDestRequest,
-		ActorService $actorService,
-		ConfigService $configService
+		CacheActorsRequest $cacheActorsRequest, StreamRequest $streamRequest,
+		FollowsRequest $followsRequest, ActorService $actorService, ConfigService $configService,
+		MiscService $miscService
 	) {
-		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->followsRequest = $followsRequest;
-		$this->requestQueueRequest = $requestQueueRequest;
 		$this->streamRequest = $streamRequest;
-		$this->streamDestRequest = $streamDestRequest;
+		$this->followsRequest = $followsRequest;
 		$this->actorService = $actorService;
 		$this->configService = $configService;
+		$this->miscService = $miscService;
 	}
 
 	/**
@@ -119,14 +102,8 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		/** @var Person $item */
 		$activity->checkOrigin($item->getId());
 
-		switch ($activity->getType()) {
-			case Update::TYPE:
-				$this->updateActor($item, $activity);
-				break;
-
-			case Delete::TYPE:
-				$this->deleteActor($item);
-				break;
+		if ($activity->getType() === Update::TYPE) {
+			$this->updateActor($item, $activity);
 		}
 	}
 
@@ -141,74 +118,12 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
-	public function deleteActor(Person $actor): void {
-		$this->actionsRequest->deleteByActor($actor->getId());
-		$this->cacheActorsRequest->deleteCacheById($actor->getId());
-		$this->cacheDocumentsRequest->deleteByParent($actor->getId());
-		$this->requestQueueRequest->deleteByAuthor($actor->getId());
-		$this->followsRequest->deleteRelatedId($actor->getId());
-
-		$this->deleteStreamFromActor($actor);
+	public function delete(ACore $item): void {
+		/** @var Person $item */
+		$this->cacheActorsRequest->deleteCacheById($item->getId());
+		$this->streamRequest->deleteByAuthor($item->getId());
+		$this->followsRequest->deleteRelatedId($item->getId());
 	}
-
-
-	/**
-	 * @param Person $actor
-	 */
-	private function deleteStreamFromActor(Person $actor): void {
-		// first, we delete all post generate by actor
-		$this->streamRequest->deleteByAuthor($actor->getId());
-
-		// then we look for link to the actor as dest
-		foreach ($this->streamDestRequest->getRelatedToActor($actor) as $streamDest) {
-			if ($streamDest->getType() !== 'recipient') {
-				continue;
-			}
-
-			try {
-				$stream = $this->streamRequest->getStream($streamDest->getStreamId());
-			} catch (StreamNotFoundException $e) {
-				continue;
-			}
-
-			// upgrading to[] and cc[] without the deleted actor and follow uri
-			switch ($streamDest->getSubtype()) {
-				case 'to':
-					if ($stream->getTo() === $actor->getId()) {
-						$this->removeStreamAndRelated($streamDest->getStreamId());
-					}
-
-					$arr = array_diff(
-						$stream->getToArray(),
-						[$actor->getId(), $actor->getFollowers(), $actor->getFollowing()]
-					);
-					if (!empty(array_diff($stream->getToArray(), $arr))) {
-						$stream->setToArray($arr);
-						$this->streamRequest->update($stream);
-					}
-					break;
-				case 'cc':
-					$arr = array_diff(
-						$stream->getCcArray(),
-						[$actor->getId(), $actor->getFollowers(), $actor->getFollowing()]
-					);
-					if (!empty(array_diff($stream->getCcArray(), $arr))) {
-						$stream->setCcArray($arr);
-						$this->streamRequest->update($stream);
-					}
-					break;
-			}
-		}
-
-		$this->streamDestRequest->deleteRelatedToActor($actor->getId());
-	}
-
-
-	// get stream's relative and remove everything
-	private function removeStreamAndRelated(string $idPrim): void {
-		$this->streamRequest->deleteById($idPrim);
-	}
-
 
 	private function updateActor(Person $actor, ACore $activity) {
 		$actor->setCreation($activity->getOriginCreationTime());

@@ -31,11 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class ActionsRequestBuilder
@@ -105,8 +105,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	 */
 	protected function getActionsDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
-		$qb->delete(self::TABLE_ACTIONS)
-		   ->setDefaultSelectAlias('a');
+		$qb->delete(self::TABLE_ACTIONS);
 
 		return $qb;
 	}

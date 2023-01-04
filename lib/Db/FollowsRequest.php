@@ -31,12 +31,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -285,10 +285,13 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function deleteRelatedId(string $actorId) {
 		$qb = $this->getFollowsDeleteSql();
-		$orX = $qb->expr()->orX();
-		$orX->add($qb->exprLimitToDBField('actor_id_prim', $qb->prim($actorId)));
-		$orX->add($qb->exprLimitToDBField('object_id_prim', $qb->prim($actorId)));
-		$qb->where($orX);
+		$this->limitToActorId($qb, $actorId);
+
+		$qb->execute();
+
+		$qb = $this->getFollowsDeleteSql();
+		$this->limitToObjectId($qb, $actorId);
+
 		$qb->execute();
 	}
 
@@ -300,37 +303,5 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->limitToIdString($qb, $id);
 
 		$qb->execute();
-	}
-
-
-	/**
-	 * @param string $actorId
-	 * @param Person $new
-	 */
-	public function moveAccountFollowers(string $actorId, Person $new): void {
-		$qb = $this->getFollowsUpdateSql();
-		$qb->set('object_id', $qb->createNamedParameter($new->getId()))
-		   ->set('object_id_prim', $qb->createNamedParameter($qb->prim($new->getId())))
-		   ->set('follow_id', $qb->createNamedParameter($new->getFollowers()))
-		   ->set('follow_id_prim', $qb->createNamedParameter($qb->prim($new->getFollowers())));
-
-		$qb->limitToObjectIdPrim($qb->prim($actorId));
-
-		$qb->executeStatement();
-	}
-
-
-	/**
-	 * @param string $actorId
-	 * @param Person $new
-	 */
-	public function moveAccountFollowing(string $actorId, Person $new): void {
-		$qb = $this->getFollowsUpdateSql();
-		$qb->set('actor_id', $qb->createNamedParameter($new->getId()))
-		   ->set('actor_id_prim', $qb->createNamedParameter($qb->prim($new->getId())));
-
-		$qb->limitToActorIdPrim($qb->prim($actorId));
-
-		$qb->executeStatement();
 	}
 }

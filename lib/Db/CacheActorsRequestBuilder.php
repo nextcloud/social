@@ -96,9 +96,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Delete request
 	 *
-	 * @return SocialQueryBuilder
+	 * @return IQueryBuilder
 	 */
-	protected function getCacheActorsDeleteSql(): SocialQueryBuilder {
+	protected function getCacheActorsDeleteSql(): IQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_CACHE_ACTORS);
 

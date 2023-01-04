@@ -70,7 +70,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 		$this->miscService->log(
 			'Updating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1
 		);
-		$this->streamRequest->update($notification, true);
+		$this->streamRequest->update($notification);
 	}
 
 	public function delete(ACore $item): void {

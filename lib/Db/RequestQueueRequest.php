@@ -47,7 +47,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * Create a new Queue in the database.
 	 *
 	 * @param RequestQueue[] $queues
-	 *
 	 * @throws Exception
 	 */
 	public function multiple(array $queues): void {
@@ -65,7 +64,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb = $this->getRequestQueueInsertSql();
 		$qb->setValue('token', $qb->createNamedParameter($queue->getToken()))
 		   ->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
-		   ->setValue('author_prim', $qb->createNamedParameter($qb->prim($queue->getAuthor())))
 		   ->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
 		   ->setValue(
 		   	'instance', $qb->createNamedParameter(
@@ -199,21 +197,4 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
-	public function deleteByAuthor(string $actorId): void {
-		$qb = $this->getRequestQueueDeleteSql();
-		$qb->limitToDBField('author_prim', $qb->prim($actorId));
-
-		$qb->executeStatement();
-	}
-
-//	public function moveAccount(string $actorId, string $newId, string $instance): void {
-//		$qb = $this->getRequestQueueUpdateSql();
-//		$qb->set('author', $qb->createNamedParameter($newId))
-//		   ->set('author_prim', $qb->createNamedParameter($qb->prim($newId)))
-//		   ->set('instance', $qb->createNamedParameter($instance));
-//		$qb->limitToDBField('author_prim', $qb->prim($actorId));
-//
-//		$qb->execute();
-//	}
 }

@@ -173,7 +173,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 			'likes', $this->actionsRequest->countActions($post->getId(), Like::TYPE)
 		);
 
-		$this->streamRequest->update($post, true);
+		$this->streamRequest->update($post);
 	}
 
 

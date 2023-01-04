@@ -36,7 +36,6 @@ use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Exception;
 use OC;
-use OC\DB\Connection;
 use OC\DB\SchemaWrapper;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -1264,10 +1263,10 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function emptyAll() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
-				$qb = $this->getQueryBuilder();
+				$qb = $this->dbConnection->getQueryBuilder();
 				$qb->delete($table);
 				$qb->execute();
 			}
@@ -1279,7 +1278,7 @@ class CoreRequestBuilder {
 	 * this just empty all tables from the app.
 	 */
 	public function uninstallSocialTables() {
-		$schema = new SchemaWrapper(Server::get(Connection::class));
+		$schema = new SchemaWrapper(Server::get(IDBConnection::class));
 		foreach (array_keys(self::$tables) as $table) {
 			if ($schema->hasTable($table)) {
 				$schema->dropTable($table);
@@ -1294,7 +1293,7 @@ class CoreRequestBuilder {
 	 *
 	 */
 	public function uninstallFromMigrations() {
-		$qb = $this->getQueryBuilder();
+		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete('migrations');
 		$qb->where($this->exprLimitToDBField($qb, 'app', 'social', true, true));
 
@@ -1305,12 +1304,12 @@ class CoreRequestBuilder {
 	 *
 	 */
 	public function uninstallFromJobs() {
-		$qb = $this->getQueryBuilder();
+		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete('jobs');
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Cache', true, true));
 		$qb->execute();
 
-		$qb = $this->getQueryBuilder();
+		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->delete('jobs');
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
 		$qb->execute();

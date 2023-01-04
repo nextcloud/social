@@ -56,7 +56,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 		   ->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
-		   ->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
 		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
 		try {
@@ -84,7 +83,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
 		   ->set('parent_id', $qb->createNamedParameter($document->getParentId()))
-		   ->set('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
 		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
 		try {
@@ -240,23 +238,5 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$this->limitToIdString($qb, $id);
 
 		$qb->execute();
-	}
-
-	public function deleteByParent(string $parentId): void {
-		$qb = $this->getCacheDocumentsDeleteSql();
-		$qb->limitToDBField('parent_id_prim', $qb->prim($parentId));
-
-		$qb->executeStatement();
-	}
-
-
-	public function moveAccount(string $actorId, string $newId): void {
-		$qb = $this->getCacheDocumentsUpdateSql();
-		$qb->set('parent_id', $qb->createNamedParameter($newId))
-		   ->set('parent_id_prim', $qb->createNamedParameter($qb->prim($newId)));
-
-		$qb->limitToDBField('parent_id_prim', $qb->prim($actorId));
-
-		$qb->executeStatement();
 	}
 }
