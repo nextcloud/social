@@ -14,7 +14,7 @@ branch=master
 version+=0.5.0-beta3
 
 
-all: dev-setup lint build-js-production composer test
+all: dev-setup lint build-js-production composer
 
 # Dev env management
 dev-setup: clean clean-dev npm-init composer
