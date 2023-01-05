@@ -177,7 +177,7 @@ class CacheActorService {
 		if ($instance !== ''
 			&& $this->configService->getCloudHost() !== $instance
 			&& $this->configService->getSocialAddress() !== $instance) {
-			throw new CacheActorDoesNotExistException('Address does is not local');
+			throw new CacheActorDoesNotExistException('Address is not local');
 		}
 
 		$actor = $this->actorsRequest->getFromUsername($account);
