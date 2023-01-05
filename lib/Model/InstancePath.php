@@ -46,6 +46,7 @@ class InstancePath implements JsonSerializable {
 	public const TYPE_INBOX = 1;
 	public const TYPE_GLOBAL = 2;
 	public const TYPE_FOLLOWERS = 3;
+	public const TYPE_ALL = 4;
 
 	public const PRIORITY_NONE = 0;
 	public const PRIORITY_LOW = 1;

@@ -33,12 +33,10 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
-use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCP\IUserManager;
-use OCP\Server;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -76,12 +74,7 @@ class AccountDelete extends Base {
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$account = $input->getArgument('account');
 
-		// TODO: broadcast to other instance
-		throw new Exception('not fully available');
-		
-		$actor = $this->cacheActorService->getFromLocalAccount($account);
-		$personInterface = Server::get(PersonInterface::class);
-		$personInterface->deleteActor($actor->getId());
+		$this->accountService->deleteActor($account);
 
 		return 0;
 	}

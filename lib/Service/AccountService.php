@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OC\User\NoUserException;
+use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -43,11 +44,17 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Interfaces\Actor\PersonInterface;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Accounts\IAccountManager;
+use OCP\IUser;
 use OCP\IUserManager;
 use OCP\IUserSession;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class ActorService
@@ -56,7 +63,7 @@ use OCP\IUserSession;
  */
 class AccountService {
 	public const KEY_PAIR_LIFESPAN = 7;
-
+	public const TIME_RETENTION = 3600; // seconds before fully delete account
 	use TArrayTools;
 
 	private IUserManager $userManager;
@@ -66,10 +73,12 @@ class AccountService {
 	private FollowsRequest $followsRequest;
 	private StreamRequest $streamRequest;
 	private ActorService $actorService;
+	private ActivityService $activityService;
+	private AccountService $accountService;
 	private SignatureService $signatureService;
 	private DocumentService $documentService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		IUserManager $userManager,
@@ -79,10 +88,11 @@ class AccountService {
 		FollowsRequest $followsRequest,
 		StreamRequest $streamRequest,
 		ActorService $actorService,
+		ActivityService $activityService,
 		DocumentService $documentService,
 		SignatureService $signatureService,
 		ConfigService $configService,
-		MiscService $miscService
+		LoggerInterface $logger
 	) {
 		$this->userManager = $userManager;
 		$this->userSession = $userSession;
@@ -91,10 +101,11 @@ class AccountService {
 		$this->followsRequest = $followsRequest;
 		$this->streamRequest = $streamRequest;
 		$this->actorService = $actorService;
+		$this->activityService = $activityService;
 		$this->documentService = $documentService;
 		$this->signatureService = $signatureService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -156,7 +167,7 @@ class AccountService {
 	 * @throws ItemAlreadyExistsException
 	 */
 	public function getActorFromUserId(string $userId, bool $create = false): Person {
-		$this->miscService->confirmUserId($userId);
+		$this->confirmUserId($userId);
 		try {
 			$actor = $this->actorsRequest->getFromUserId($userId);
 		} catch (ActorDoesNotExistException $e) {
@@ -191,11 +202,16 @@ class AccountService {
 	 * @throws UrlCloudException
 	 */
 	public function createActor(string $userId, string $username) {
-		$this->miscService->confirmUserId($userId);
+		$this->confirmUserId($userId);
 		$this->checkActorUsername($username);
 
 		try {
-			$this->actorsRequest->getFromUsername($username);
+			$actor = $this->actorsRequest->getFromUsername($username);
+			if ($actor->getDeleted() > 0) {
+				throw new AccountAlreadyExistsException(
+					'actor with that name was deleted but is still in retention. Please try again later'
+				);
+			}
 			throw new AccountAlreadyExistsException('actor with that name already exist');
 		} catch (ActorDoesNotExistException $e) {
 			/* we do nohtin */
@@ -220,6 +236,46 @@ class AccountService {
 
 		// generate loopback
 		$this->followsRequest->generateLoopbackAccount($actor);
+	}
+
+
+	/**
+	 * @param string $handle
+	 *
+	 * @throws ItemUnknownException
+	 * @throws SocialAppConfigException
+	 */
+	public function deleteActor(string $handle): void {
+		try {
+			$actor = $this->actorsRequest->getFromUsername($handle);
+		} catch (ActorDoesNotExistException $e) {
+			return;
+		}
+
+		// set as deleted locally
+		$this->actorsRequest->setAsDeleted($actor->getPreferredUsername());
+
+		// delete related data
+		/** @var PersonInterface $interface */
+		$interface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+		$interface->deleteActor($actor);
+
+		// broadcast delete event
+		$delete = new Delete();
+		$delete->setId($actor->getId() . '#delete');
+		$delete->setActorId($actor->getId());
+		$delete->setToArray([ACore::CONTEXT_PUBLIC]);
+		$delete->setObjectId($actor->getId());
+		$delete->addInstancePath(
+			new InstancePath(
+				$actor->getInbox(),
+				InstancePath::TYPE_ALL,
+				InstancePath::PRIORITY_LOW
+			)
+		);
+		$this->signatureService->signObject($actor, $delete);
+
+		$this->activityService->request($delete);
 	}
 
 
@@ -305,9 +361,7 @@ class AccountService {
 				$actor->setName($displayNameProperty->getValue());
 			}
 		} catch (Exception $e) {
-			$this->miscService->log(
-				'Issue while trying to updateCacheLocalActorName: ' . $e->getMessage(), 1
-			);
+			$this->logger->error('Issue while trying to updateCacheLocalActorName: ' . $e->getMessage());
 		}
 	}
 
@@ -319,6 +373,29 @@ class AccountService {
 		$accepted = 'qwertyuiopasdfghjklzxcvbnm';
 
 		return;
+	}
+
+
+	/**
+	 * @return int
+	 * @throws Exception
+	 */
+	public function manageDeletedActors(): int {
+		$entries = $this->actorsRequest->getAll();
+		$deleted = 0;
+		foreach ($entries as $item) {
+			// delete after an hour
+			if ($item->getDeleted() === 0) {
+				continue;
+			}
+
+			if ($item->getDeleted() < (time() - self::TIME_RETENTION)) {
+				$this->actorsRequest->delete($item->getPreferredUsername());
+				$deleted++;
+			}
+		}
+
+		return $deleted;
 	}
 
 
@@ -358,5 +435,24 @@ class AccountService {
 		}
 
 		return $count;
+	}
+
+
+	/**
+	 * @param string $userId
+	 *
+	 * @return IUser
+	 * @throws NoUserException
+	 */
+	public function confirmUserId(string &$userId): IUser {
+		$user = $this->userManager->get($userId);
+
+		if ($user === null) {
+			throw new NoUserException('user does not exist');
+		}
+
+		$userId = $user->getUID();
+
+		return $user;
 	}
 }

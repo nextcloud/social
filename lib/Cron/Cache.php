@@ -67,7 +67,12 @@ class Cache extends TimedJob {
 	 */
 	protected function run($argument) {
 		try {
-			$this->accountService->blindKeyRotation();
+//			$this->accountService->blindKeyRotation();
+		} catch (Exception $e) {
+		}
+
+		try {
+			$this->accountService->manageDeletedActors();
 		} catch (Exception $e) {
 		}
 
