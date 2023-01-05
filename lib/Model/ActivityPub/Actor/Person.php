@@ -31,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Actor;
 
-use OCA\Social\Tools\IQueryRow;
 use DateTime;
 use Exception;
 use JsonSerializable;
@@ -42,6 +41,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Traits\TDetails;
 
 /**
@@ -62,53 +62,30 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 
 	private string $userId = '';
-
 	private string $name = '';
-
 	private string $preferredUsername = '';
-
 	private string $displayName = '';
-
 	private string $description = '';
-
 	private string $publicKey = '';
-
 	private string $privateKey = '';
-
 	private int $creation = 0;
-
+	private int $deleted = 0;
 	private string $account = '';
-
 	private string $following = '';
-
 	private string $followers = '';
-
 	private string $inbox = '';
-
 	private string $outbox = '';
-
 	private string $sharedInbox = '';
-
 	private string $featured = '';
-
 	private string $avatar = '';
-
 	private string $header = '';
-
 	private bool $locked = false;
-
 	private bool $bot = false;
-
 	private bool $discoverable = false;
-
 	private string $privacy = 'public';
-
 	private bool $sensitive = false;
-
 	private string $language = 'en';
-
 	private int $avatarVersion = -1;
-
 	private string $viewerLink = '';
 
 	/**
@@ -302,6 +279,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setCreation(int $creation): self {
 		$this->creation = $creation;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return int
+	 */
+	public function getDeleted(): int {
+		return $this->deleted;
+	}
+
+	/**
+	 * @param int $deleted
+	 *
+	 * @return Person
+	 */
+	public function setDeleted(int $deleted): self {
+		$this->deleted = $deleted;
 
 		return $this;
 	}
@@ -661,8 +657,21 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			 ->setDetailsAll($this->getArray('details', $data, []));
 
 		try {
-			$dTime = new DateTime($this->get('creation', $data, 'yesterday'));
-			$this->setCreation($dTime->getTimestamp());
+			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));
+			$this->setCreation($cTime->getTimestamp());
+		} catch (Exception $e) {
+		}
+
+		try {
+			$deletedValue = $this->get('deleted', $data);
+			if ($deletedValue === '') {
+				return;
+			}
+			$dTime = new DateTime();
+			$deleted = $dTime->getTimestamp();
+			if ($deleted > 0) {
+				$this->setDeleted($deleted);
+			}
 		} catch (Exception $e) {
 		}
 	}

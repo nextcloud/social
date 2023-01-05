@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -74,30 +75,32 @@ class ActivityService {
 
 	private StreamRequest $streamRequest;
 	private FollowsRequest $followsRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 	private SignatureService $signatureService;
 	private RequestQueueService $requestQueueService;
-	private AccountService $accountService;
 	private ConfigService $configService;
 	private CurlService $curlService;
-	private MiscService $miscService;
 	private LoggerInterface $logger;
 
 	private ?array $failInstances = null;
 
 	public function __construct(
-		StreamRequest $streamRequest, FollowsRequest $followsRequest,
-		SignatureService $signatureService, RequestQueueService $requestQueueService,
-		AccountService $accountService, CurlService $curlService, ConfigService $configService,
-		MiscService $miscService, LoggerInterface $logger
+		StreamRequest $streamRequest,
+		FollowsRequest $followsRequest,
+		CacheActorsRequest $cacheActorsRequest,
+		SignatureService $signatureService,
+		RequestQueueService $requestQueueService,
+		CurlService $curlService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->followsRequest = $followsRequest;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->requestQueueService = $requestQueueService;
-		$this->accountService = $accountService;
 		$this->signatureService = $signatureService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 		$this->logger = $logger;
 	}
 
@@ -254,15 +257,15 @@ class ActivityService {
 		} catch (UnauthorizedFediverseException | RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (ActorDoesNotExistException | RequestContentException | RequestResultSizeException $e) {
-			$this->miscService->log(
+			$this->logger->notice(
 				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
-				. $e->getMessage(), 1
+				. $e->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
 		} catch (RequestNetworkException | RequestServerException $e) {
-			$this->miscService->log(
+			$this->logger->notice(
 				'Temporary error while managing request: RequestServerException - ' . json_encode($request)
-				. ' - ' . get_class($e) . ': ' . $e->getMessage(), 1
+				. ' - ' . get_class($e) . ': ' . $e->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
 			$this->failInstances[] = $host;
@@ -279,12 +282,19 @@ class ActivityService {
 	private function generateInstancePaths(ACore $activity): array {
 		$instancePaths = [];
 		foreach ($activity->getInstancePaths() as $instancePath) {
-			if ($instancePath->getType() === InstancePath::TYPE_FOLLOWERS) {
-				$instancePaths = array_merge(
-					$instancePaths, $this->generateInstancePathsFollowers($instancePath)
-				);
-			} else {
-				$instancePaths[] = $instancePath;
+			switch ($instancePath->getType()) {
+				case InstancePath::TYPE_FOLLOWERS:
+					$instancePaths =
+						array_merge($instancePaths, $this->generateInstancePathsFollowers($instancePath));
+					break;
+
+				case InstancePath::TYPE_ALL:
+					$instancePaths = array_merge($instancePaths, $this->generateInstancePathsAll());
+					break;
+
+				default:
+					$instancePaths[] = $instancePath;
+					break;
 			}
 		}
 
@@ -318,13 +328,29 @@ class ActivityService {
 			$instancePaths[] = new InstancePath(
 				$sharedInbox, InstancePath::TYPE_GLOBAL, $instancePath->getPriority()
 			);
-//			$result[] = $this->generateRequest(
-//				new InstancePath($sharedInbox, InstancePath::TYPE_GLOBAL), $activity
-//			);
 		}
 
 		return $instancePaths;
 	}
+
+
+	/**
+	 * @return InstancePath[]
+	 */
+	private function generateInstancePathsAll(): array {
+		$sharedInboxes = $this->cacheActorsRequest->getSharedInboxes();
+		$instancePaths = [];
+		foreach ($sharedInboxes as $sharedInbox) {
+			$instancePaths[] = new InstancePath(
+				$sharedInbox,
+				InstancePath::TYPE_GLOBAL,
+				InstancePath::PRIORITY_LOW
+			);
+		}
+
+		return $instancePaths;
+	}
+
 
 	private function generateRequestFromQueue(RequestQueue $queue): NCRequest {
 		$path = $queue->getInstance();

@@ -32,6 +32,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -62,6 +63,7 @@ class CacheActorService {
 	use TArrayTools;
 
 	private \OCP\IURLGenerator $urlGenerator;
+	private ActorsRequest $actorsRequest;
 	private CacheActorsRequest $cacheActorsRequest;
 	private CurlService $curlService;
 	private FediverseService $fediverseService;
@@ -73,6 +75,7 @@ class CacheActorService {
 	 */
 	public function __construct(
 		IUrlGenerator $urlGenerator,
+		ActorsRequest $actorsRequest,
 		CacheActorsRequest $cacheActorsRequest,
 		CurlService $curlService,
 		FediverseService $fediverseService,
@@ -80,6 +83,7 @@ class CacheActorService {
 		LoggerInterface $logger
 	) {
 		$this->urlGenerator = $urlGenerator;
+		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->curlService = $curlService;
 		$this->fediverseService = $fediverseService;
@@ -170,13 +174,18 @@ class CacheActorService {
 			list($account, $instance) = explode('@', $account, 2);
 		}
 
-		if ($instance === ''
-			|| $this->configService->getCloudHost() === $instance
-			|| $this->configService->getSocialAddress() === $instance) {
-			return $this->cacheActorsRequest->getFromLocalAccount($account);
+		if ($instance !== ''
+			&& $this->configService->getCloudHost() !== $instance
+			&& $this->configService->getSocialAddress() !== $instance) {
+			throw new CacheActorDoesNotExistException('Address is not local');
 		}
 
-		throw new CacheActorDoesNotExistException('Address does is not local');
+		$actor = $this->actorsRequest->getFromUsername($account);
+		if ($actor->getDeleted() > 0) {
+			throw new CacheActorDoesNotExistException('Account is deleted');
+		}
+
+		return $this->cacheActorsRequest->getFromLocalAccount($account);
 	}
 
 	/**

@@ -40,6 +40,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class ActorsRequest extends ActorsRequestBuilder {
 	/**
 	 * Create a new Person in the database.
+	 *
 	 * @throws SocialAppConfigException
 	 */
 	public function create(Person $actor): void {
@@ -119,9 +120,9 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function getFromId(string $id): Person {
 		$qb = $this->getActorsSelectSql();
-		$this->limitToIdString($qb, $id);
+		$qb->limitToIdString($id);
 
-		$cursor = $qb->executeQuery();
+		$cursor = $qb->execute();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -155,6 +156,28 @@ class ActorsRequest extends ActorsRequestBuilder {
 		}
 
 		return $this->parseActorsSelectSql($data);
+	}
+
+
+	public function setAsDeleted(string $handle): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set(
+			'deleted',
+			$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+		);
+		$qb->limitToPreferredUsername($handle);
+
+		$qb->execute();
+	}
+
+	/**
+	 * @param string $handle
+	 */
+	public function delete(string $handle): void {
+		$qb = $this->getActorsDeleteSql();
+		$qb->limitToPreferredUsername($handle);
+
+		$qb->execute();
 	}
 
 

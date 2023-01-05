@@ -31,9 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
-use OCP\IUser;
 use OCP\IUserManager;
 use OCP\Util;
 use Psr\Log\LoggerInterface;
@@ -75,24 +73,5 @@ class MiscService {
 		$ver = Util::getVersion();
 
 		return $ver[0];
-	}
-
-
-	/**
-	 * @param string $userId
-	 *
-	 * @return IUser
-	 * @throws NoUserException
-	 */
-	public function confirmUserId(string &$userId): IUser {
-		$user = $this->userManager->get($userId);
-
-		if ($user === null) {
-			throw new NoUserException('user does not exist');
-		}
-
-		$userId = $user->getUID();
-
-		return $user;
 	}
 }

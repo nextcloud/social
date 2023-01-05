@@ -222,6 +222,12 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 				'notnull' => false,
 			]
 		);
+		$table->addColumn(
+			'deleted', Types::DATETIME,
+			[
+				'notnull' => false,
+			]
+		);
 
 		$table->setPrimaryKey(['id_prim']);
 	}

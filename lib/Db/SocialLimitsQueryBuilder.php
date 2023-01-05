@@ -336,7 +336,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$pf = $this->getDefaultSelectAlias();
 
 		if ($options->getSince() > 0) {
-			$options->setInverted(true);
 			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getSince())));
 		}
 
@@ -345,6 +344,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		}
 
 		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
 			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMinId())));
 		}
 

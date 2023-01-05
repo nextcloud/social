@@ -34,8 +34,8 @@ use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\DB\Exception as DBException;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public const CACHE_TTL = 60 * 24; // 1d
@@ -244,5 +244,23 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->limitToIdPrim($qb->prim($id));
 
 		$qb->execute();
+	}
+
+
+	/**
+	 * @return array
+	 */
+	public function getSharedInboxes(): array {
+		$qb = $this->getQueryBuilder();
+		$qb->selectDistinct('shared_inbox')
+		   ->from(self::TABLE_CACHE_ACTORS);
+		$inbox = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$inbox[] = $data['shared_inbox'];
+		}
+		$cursor->closeCursor();
+
+		return $inbox;
 	}
 }
