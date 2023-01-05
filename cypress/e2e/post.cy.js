@@ -20,25 +20,23 @@
  *
  */
 
-let userId = 'janedoe' + Date.now();
+const userId = 'janedoe' + Date.now()
 
 describe('Create posts', function() {
 
 	before(function() {
 		// ensure that the admin account is initialized for social
 		cy.login('admin', 'admin', '/apps/social/')
-		
+
 		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
+		cy.logout()
+
 		cy.login(userId, 'p4ssw0rd', '/apps/social/')
 		cy.get('.app-content').should('be.visible')
 	})
 
 	afterEach(function() {
 		cy.screenshot()
-	})
-
-	beforeEach(() => {
-		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
 	})
 
 	it('See the empty content illustration', function() {
@@ -49,19 +47,19 @@ describe('Create posts', function() {
 		cy.visit('/apps/social/')
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
-		cy.get('.new-post input[type=submit]')
+		cy.get('.new-post button[type=submit]')
 			.should('be.disabled')
 		cy.get('.new-post').find('[contenteditable]').type('Hello world')
-		cy.get('.new-post input[type=submit]')
+		cy.get('.new-post button[type=submit]')
 			.should('not.be.disabled')
-		cy.get('.new-post input[type=submit]')
+		cy.get('.new-post button[type=submit]')
 			.click()
 		cy.wait('@postMessage')
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world')
 	})
 
 	it('No longer see the empty content illustration', function() {
-		cy.get('.emptycontent').should('not.be.visible')
+		cy.get('.emptycontent').should('not.exist')
 	})
 
 	it('Write a post to followers with shift enter', function() {
@@ -78,11 +76,11 @@ describe('Create posts', function() {
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
-		cy.get('.new-post').find('[contenteditable]').type('@adm', {delay: 500})
+		cy.get('.new-post').find('[contenteditable]').type('@adm', { delay: 500 })
 		cy.get('.tribute-container').should('be.visible')
 		cy.get('.tribute-container ul li:first').contains('admin')
-		cy.get('.new-post').find('[contenteditable]').type('{enter} Hello there', {delay: 100, force: true})
-		cy.get('.new-post input[type=submit]')
+		cy.get('.new-post').find('[contenteditable]').type('{enter} Hello there', { delay: 100, force: true })
+		cy.get('.new-post button[type=submit]')
 			.click()
 		cy.wait('@postMessage')
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', '@admin')
@@ -93,9 +91,9 @@ describe('Create posts', function() {
 		cy.server()
 		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
 		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
-		cy.get('.new-post').find('[contenteditable]').click({force: true}).type('@adm{enter} Hello world', {delay: 500, force: true})
+		cy.get('.new-post').find('[contenteditable]').click({ force: true }).type('@adm{enter} Hello world', { delay: 500, force: true })
 		cy.wait(500)
-		cy.get('.new-post input[type=submit]').should('not.be.disabled')
+		cy.get('.new-post button[type=submit]').should('not.be.disabled')
 		const visibilityButton = cy.get('.new-post .options > div > button')
 		visibilityButton.should('have.class', 'icon-contacts-dark')
 
@@ -105,7 +103,7 @@ describe('Create posts', function() {
 		visibilityButton.click()
 		cy.get('.new-post-form .popovermenu').should('not.be.visible')
 
-		cy.get('.new-post input[type=submit]')
+		cy.get('.new-post button[type=submit]')
 			.click()
 		cy.wait('@postMessage')
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world').should('contain', '@admin')

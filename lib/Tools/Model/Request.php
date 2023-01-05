@@ -455,7 +455,10 @@ class Request implements JsonSerializable {
 	}
 
 
-	public function addHeader($key, $value): Request {
+	/**
+	 * @psalm-param string $key
+	 */
+	public function addHeader(string $key, string $value): Request {
 		$header = $this->get($key, $this->headers);
 		if ($header !== '') {
 			$header .= ', ' . $value;

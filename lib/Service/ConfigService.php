@@ -276,8 +276,10 @@ class ConfigService {
 	 * @param $key
 	 *
 	 * @return mixed
+	 *
+	 * @psalm-param string $key
 	 */
-	public function getSystemValue($key) {
+	public function getSystemValue(string $key) {
 		return $this->config->getSystemValue($key, '');
 	}
 

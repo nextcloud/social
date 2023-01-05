@@ -30,14 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Traits\TNCLogger;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
@@ -51,7 +43,15 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class CacheActorService
@@ -60,28 +60,31 @@ use OCP\IURLGenerator;
  */
 class CacheActorService {
 	use TArrayTools;
-	use TNCLogger;
 
 	private \OCP\IURLGenerator $urlGenerator;
 	private CacheActorsRequest $cacheActorsRequest;
 	private CurlService $curlService;
 	private FediverseService $fediverseService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+	private LoggerInterface $logger;
 
 	/**
-	 * CacheService constructor.
+	 * CacheActorService constructor.
 	 */
 	public function __construct(
-		IUrlGenerator $urlGenerator, CacheActorsRequest $cacheActorsRequest, CurlService $curlService,
-		FediverseService $fediverseService, ConfigService $configService, MiscService $miscService
+		IUrlGenerator $urlGenerator,
+		CacheActorsRequest $cacheActorsRequest,
+		CurlService $curlService,
+		FediverseService $fediverseService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->curlService = $curlService;
 		$this->fediverseService = $fediverseService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -127,7 +130,7 @@ class CacheActorService {
 		} catch (CacheActorDoesNotExistException $e) {
 			$object = $this->curlService->retrieveObject($id);
 
-			$this->debug('object retrieved', ['id' => $id, 'object' => $object]);
+			$this->logger->debug('object retrieved', ['id' => $id, 'object' => $object]);
 
 			/** @var Person $actor */
 			$actor = AP::$activityPub->getItemFromData($object);
@@ -205,14 +208,14 @@ class CacheActorService {
 		} catch (CacheActorDoesNotExistException $e) {
 		}
 
-		$this->debug('getFromAccount', ['account' => $account, 'retrieve' => $retrieve]);
+		$this->logger->debug('getFromAccount', ['account' => $account, 'retrieve' => $retrieve]);
 
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
 
-			$this->debug('Found Actor', ['account' => $account, 'actor' => $actor]);
+			$this->logger->debug('Found Actor', ['account' => $account, 'actor' => $actor]);
 		} catch (CacheActorDoesNotExistException $e) {
-			$this->debug('Actor not found', ['account' => $account]);
+			$this->logger->debug('Actor not found', ['account' => $account]);
 
 			if (!$retrieve) {
 				throw new CacheActorDoesNotExistException();
@@ -221,7 +224,7 @@ class CacheActorService {
 			$actor = $this->curlService->retrieveAccount($account);
 			$actor->setAccount($account);
 			try {
-				$this->warning('Saving Actor', false, ['actor' => $actor]);
+				$this->logger->debug('Saving Actor', ['actor' => $actor]);
 
 				$this->save($actor);
 			} catch (Exception $e) {

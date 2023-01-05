@@ -203,16 +203,19 @@ class CacheDocumentService {
 
 
 	/**
-	 * @param $content
+	 * @param string $content
 	 */
-	private function resizeImage(&$content) {
+	private function resizeImage(string &$content) {
 		try {
 			$image = ImageResize::createFromString($content);
 			$image->quality_jpg = 100;
 			$image->quality_png = 9;
 
 			$image->resizeToBestFit(self::RESIZED_WIDTH, self::RESIZED_HEIGHT);
-			$content = $image->getImageAsString();
+			$newContent = $image->getImageAsString();
+			if (!$newContent) {
+				$content = $newContent;
+			}
 		} catch (ImageResizeException $e) {
 		}
 	}

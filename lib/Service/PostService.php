@@ -97,7 +97,7 @@ class PostService {
 	 * @throws StreamNotFoundException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function createPost(Post $post, string &$token = ''): ACore {
+	public function createPost(Post $post, string &$token = ''): ?ACore {
 		$this->fixRecipientAndHashtags($post);
 
 		$note = new Note();
@@ -130,10 +130,10 @@ class PostService {
 	private function generateDocumentsFromAttachments(Note $note, Post $post) {
 		$documents = [];
 		if (!isset($_FILES['attachments'])) {
-			return [];
+			return;
 		}
-		if (is_array($_FILES["attachments"]["error"])) {
-			foreach ($_FILES["attachments"]["error"] as $key => $error) {
+		if (is_array($_FILES['attachments']['error'])) {
+			foreach ($_FILES['attachments']['error'] as $key => $error) {
 				if ($error == UPLOAD_ERR_OK) {
 					try {
 						$document = $this->generateDocumentFromAttachment($note, $key);

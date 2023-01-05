@@ -78,11 +78,10 @@
 </template>
 
 <script>
+// eslint-disable-next-line no-unused-vars
 import * as linkify from 'linkifyjs'
-// eslint-disable-next-line
-import pluginMention from 'linkifyjs/plugins/mention'
-// eslint-disable-next-line
-import 'linkifyjs/string'
+import 'linkify-plugin-mention'
+import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
@@ -96,8 +95,6 @@ import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
 import RichText from '@nextcloud/vue-richtext'
-
-pluginMention(linkify)
 
 export default {
 	name: 'TimelinePost',

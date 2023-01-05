@@ -451,7 +451,7 @@ class SignatureService {
 	 *
 	 * @return array
 	 */
-	private function parseSignatureHeader($signatureHeader) {
+	private function parseSignatureHeader(string $signatureHeader) {
 		$sign = [];
 
 		$entries = explode(',', $signatureHeader);
@@ -504,7 +504,7 @@ class SignatureService {
 	 * @return string
 	 * @throws InvalidOriginException
 	 */
-	private function getKeyOrigin($id) {
+	private function getKeyOrigin(string $id) {
 		$host = parse_url($id, PHP_URL_HOST);
 		if (is_string($host) && ($host !== '')) {
 			return $host;

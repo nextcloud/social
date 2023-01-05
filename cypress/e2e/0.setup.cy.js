@@ -1,13 +1,9 @@
-let userId = 'janedoe' + Date.now();
+const userId = 'janedoe' + Date.now()
 
 describe('Social app setup', function() {
 	before(function() {
 		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
 		cy.login(userId, 'p4ssw0rd')
-	})
-
-	beforeEach(() => {
-		Cypress.Cookies.preserveOnce('nc_username', 'nc_token', 'nc_session_id', 'oc_sessionPassphrase');
 	})
 
 	it('See the welcome message', function() {
@@ -26,7 +22,7 @@ describe('Social app setup', function() {
 		cy.get('.app-navigation').contains('Direct messages').click()
 		cy.get('.emptycontent').should('be.visible').contains('No direct messages found')
 		cy.get('.app-navigation').contains('Profile').click()
-		cy.get('.emptycontent').should('be.visible').contains('You haven\'t tooted yet')
+		cy.get('.emptycontent').should('be.visible').contains('You have not tooted yet')
 	})
 
 })

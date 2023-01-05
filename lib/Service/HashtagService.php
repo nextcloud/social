@@ -39,7 +39,6 @@ use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Model\ActivityPub\Stream;
 
 class HashtagService {
 	public const TREND_1H = 3600;
@@ -155,10 +154,9 @@ class HashtagService {
 	/**
 	 * @param int $timestamp
 	 *
-	 * @return Stream[]
+	 * @return int[]
 	 * @throws DateTimeException
-	 * @throws ItemUnknownException
-	 * @throws SocialAppConfigException
+	 * @psalm-return array<int>
 	 */
 	private function getTrendSince(int $timestamp): array {
 		$result = [];

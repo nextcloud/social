@@ -50,7 +50,6 @@ use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TAsync;
 use OCA\Social\Tools\Traits\TNCDataResponse;
-use OCA\Social\Tools\Traits\TNCLogger;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -63,7 +62,6 @@ class ActivityPubController extends Controller {
 	use TNCDataResponse;
 	use TStringTools;
 	use TAsync;
-	use TNCLogger;
 
 	private SocialPubController $socialPubController;
 	private FediverseService $fediverseService;

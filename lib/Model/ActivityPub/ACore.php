@@ -70,17 +70,12 @@ class ACore extends Item implements JsonSerializable {
 	private $parent = null;
 
 	private string $requestToken = '';
-
 	private array $entries = [];
-
-	private ?\OCA\Social\Model\ActivityPub\ACore $object = null;
-
+	private ?ACore $object = null;
 	private ?Document $icon = null;
 
 	private bool $displayW3ContextSecurity = false;
-
 	private ?LinkedDataSignature $signature = null;
-
 	private int $format = self::FORMAT_ACTIVITYPUB;
 
 
@@ -151,9 +146,9 @@ class ACore extends Item implements JsonSerializable {
 	}
 
 	/**
-	 * @return ACore
+	 * @return null|self
 	 */
-	public function getObject(): ACore {
+	public function getObject(): ?ACore {
 		return $this->object;
 	}
 
@@ -162,7 +157,7 @@ class ACore extends Item implements JsonSerializable {
 	 *
 	 * @return ACore
 	 */
-	public function setObject(ACore &$object): ACore {
+	public function setObject(ACore $object): self {
 		$object->setParent($this);
 		$this->object = $object;
 
@@ -205,10 +200,7 @@ class ACore extends Item implements JsonSerializable {
 		return ($this->icon !== null);
 	}
 
-	/**
-	 * @return Document
-	 */
-	public function getIcon(): Document {
+	public function getIcon(): ?Document {
 		return $this->icon;
 	}
 
@@ -217,7 +209,7 @@ class ACore extends Item implements JsonSerializable {
 	 *
 	 * @return ACore
 	 */
-	public function setIcon(Document &$icon): ACore {
+	public function setIcon(Document $icon): ACore {
 		$icon->setParent($this);
 		$this->icon = $icon;
 
@@ -255,14 +247,11 @@ class ACore extends Item implements JsonSerializable {
 	/**
 	 * @return bool
 	 */
-	public function gotSignature(): bool {
+	public function hasSignature(): bool {
 		return ($this->signature !== null);
 	}
 
-	/**
-	 * @return LinkedDataSignature
-	 */
-	public function getSignature(): LinkedDataSignature {
+	public function getSignature(): ?LinkedDataSignature {
 		return $this->signature;
 	}
 
@@ -694,14 +683,14 @@ class ACore extends Item implements JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsActivityPub(): array {
-		if ($this->gotSignature()) {
+		if ($this->hasSignature()) {
 			$this->entries['signature'] = $this->getSignature();
 		}
 
 		if ($this->isRoot()) {
 			$context = [self::CONTEXT_ACTIVITYSTREAMS];
 
-			if ($this->gotSignature() || $this->isDisplayW3ContextSecurity()) {
+			if ($this->hasSignature() || $this->isDisplayW3ContextSecurity()) {
 				array_push($context, self::CONTEXT_SECURITY);
 			}
 

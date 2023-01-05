@@ -228,10 +228,7 @@ class Instance implements IQueryRow, JsonSerializable {
 		return ($this->contactAccount !== null);
 	}
 
-	/**
-	 * @return Person
-	 */
-	public function getContactAccount(): Person {
+	public function getContactAccount(): ?Person {
 		return $this->contactAccount;
 	}
 

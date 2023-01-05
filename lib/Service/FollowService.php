@@ -232,7 +232,9 @@ class FollowService {
 	/**
 	 * @param Person $actor
 	 *
-	 * @return Person[]
+	 * @return Follow[]
+	 *
+	 * @psalm-return array<Follow>
 	 */
 	public function getFollowers(Person $actor): array {
 		return $this->followsRequest->getFollowersByActorId($actor->getId());
@@ -257,7 +259,9 @@ class FollowService {
 	/**
 	 * @param Person $actor
 	 *
-	 * @return Person[]
+	 * @return Follow[]
+	 *
+	 * @psalm-return array<Follow>
 	 */
 	public function getFollowing(Person $actor): array {
 		return $this->followsRequest->getFollowingByActorId($actor->getId());

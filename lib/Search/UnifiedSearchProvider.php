@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Search;
 
-use OCA\Social\Tools\Traits\TNCLogger;
 use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
@@ -58,30 +57,17 @@ class UnifiedSearchProvider implements IProvider {
 	public const PROVIDER_ID = 'social';
 	public const ORDER = 12;
 
-
 	use TArrayTools;
-	use TNCLogger;
-
 
 	private IL10N $l10n;
-
 	private IURLGenerator $urlGenerator;
-
 	private StreamService $streamService;
-
 	private FollowService $followService;
-
 	private CacheActorService $cacheActorService;
-
 	private AccountService $accountService;
-
 	private SearchService $searchService;
-
 	private ConfigService $configService;
-
 	private MiscService $miscService;
-
-
 	private ?Person $viewer = null;
 
 

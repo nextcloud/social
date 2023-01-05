@@ -544,7 +544,7 @@ class StreamService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function getAuthorFromPostId($noteId) {
+	public function getAuthorFromPostId(string $noteId) {
 		$note = $this->streamRequest->getStreamById($noteId);
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());

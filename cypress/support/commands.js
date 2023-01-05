@@ -20,37 +20,45 @@
  *
  */
 
-import { addMatchImageSnapshotCommand } from 'cypress-image-snapshot/command'
 import axios from '@nextcloud/axios'
-
-addMatchImageSnapshotCommand()
 
 const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
 
 Cypress.Commands.add('login', (user, password, route = '/apps/files') => {
-	cy.clearCookies();
+	Cypress.Cookies.defaults({
+		preserve: /^(oc|nc)/,
+	})
 	cy.visit(route)
 	cy.get('input[name=user]').type(user)
 	cy.get('input[name=password]').type(password)
-	cy.get('#submit-wrapper input[type=submit]').click()
+	cy.get('form[name=login] [type=submit]').click()
 	cy.url().should('include', route)
 })
 
 Cypress.Commands.add('logout', () => {
-	if (Cypress.$("input[name=user]").length > 0) {
-		// already logged out
-	} else {
-		cy.get('#expanddiv li[data-id="logout"] a').then(logout => {
-			if (logout) {
-				cy.visit(logout[0].href)
+	cy.getCookies()
+		.then(cookies => {
+			if (cookies.length === 0) {
+				cy.log('Not logged, skipping logout...')
+				return
 			}
+
+			return cy.get('body')
+				.then($body => {
+					const $settingsButton = $body.find('#settings #expand')
+					if ($settingsButton.length === 0) {
+						cy.log('Not logged in.')
+						return
+					}
+
+					$settingsButton.click()
+					cy.contains('Log out').click()
+				})
 		})
-	}
 })
 
 Cypress.Commands.add('nextcloudCreateUser', (user, password) => {
-	cy.clearCookies();
 	cy.request({
 		method: 'POST',
 		url: `${Cypress.env('baseUrl')}/ocs/v1.php/cloud/users?format=json`,
@@ -61,13 +69,12 @@ Cypress.Commands.add('nextcloudCreateUser', (user, password) => {
 		},
 		auth: { user: 'admin', pass: 'admin' },
 		headers: {
-			'OCS-ApiRequest': 'true',
 			'Content-Type': 'application/x-www-form-urlencoded',
-			Authorization: `Basic ${btoa('admin:admin')}`,
+			'OCS-ApiRequest': 'true',
+			Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}`,
 		},
-	}).then(response => {
-		cy.log(`Created user ${user}`, response.status)
 	})
+	cy.clearCookies()
 })
 
 Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
@@ -82,7 +89,7 @@ Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
 					headers: {
 						requesttoken: window.OC.requestToken,
 						'Content-Type': mimeType,
-					}
+					},
 				}).then(response => {
 					cy.log(`Uploaded ${fileName}`, response)
 				})
@@ -122,7 +129,7 @@ Cypress.Commands.add('deleteFile', fileName => {
  * Create a share link and return the share url
  *
  * @param {string} path the file/folder path
- * @returns {string} the share link url
+ * @return {string} the share link url
  */
 Cypress.Commands.add('createLinkShare', path => {
 	return cy.window().then(async window => {
@@ -133,26 +140,15 @@ Cypress.Commands.add('createLinkShare', path => {
 			}, {
 				headers: {
 					requesttoken: window.OC.requestToken,
-				}
+				},
 			})
 			if (!('ocs' in request.data) || !('token' in request.data.ocs.data && request.data.ocs.data.token.length > 0)) {
 				throw request
 			}
 			cy.log('Share link created', request.data.ocs.data.token)
 			return cy.wrap(request.data.ocs.data.token)
-		} catch(error) {
+		} catch (error) {
 			console.error(error)
 		}
 	}).should('have.length', 15)
-})
-
-Cypress.Commands.overwrite('matchImageSnapshot', (originalFn, subject, name, options) => {
-	// hide avatar because random colour break the visual regression tests
-	cy.window().then(window => {
-		const avatarDiv = window.document.querySelector('.avatardiv')
-		if (avatarDiv) {
-			avatarDiv.remove()
-		}
-	})
-	return originalFn(subject, name, options)
 })

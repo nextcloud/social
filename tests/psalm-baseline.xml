@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="4.30.0@d0bc6e25d89f649e4f36a534f330f8bb4643dd69">
-  <file src="lib/AP.php">
-    <InvalidScalarArgument occurrences="1">
-      <code>$level</code>
-    </InvalidScalarArgument>
-  </file>
+<files psalm-version="5.4.0@62db5d4f6a7ae0a20f7cc5a4952d730272fc0863">
   <file src="lib/Model/ActivityPub/ACore.php">
     <InvalidArgument occurrences="1">
       <code>['a', 'p', 'span', 'br']</code>
@@ -12,20 +7,15 @@
     <InvalidClass occurrences="1">
       <code>Acore</code>
     </InvalidClass>
-    <InvalidNullableReturnType occurrences="4">
+    <InvalidNullableReturnType occurrences="1">
       <code>ACore</code>
       <code>ACore</code>
-      <code>Document</code>
-      <code>LinkedDataSignature</code>
     </InvalidNullableReturnType>
     <InvalidPropertyAssignmentValue occurrences="1">
       <code>$parent</code>
     </InvalidPropertyAssignmentValue>
-    <NullableReturnStatement occurrences="4">
-      <code>$this-&gt;icon</code>
-      <code>$this-&gt;object</code>
+    <NullableReturnStatement occurrences="1">
       <code>$this-&gt;parent</code>
-      <code>$this-&gt;signature</code>
     </NullableReturnStatement>
     <TypeDoesNotContainNull occurrences="1">
       <code>$v === null</code>
@@ -40,28 +30,13 @@
       <code>$object = $cache-&gt;getItem($this-&gt;getObjectId())</code>
     </RedundantCondition>
   </file>
-  <file src="lib/Model/Instance.php">
-    <InvalidNullableReturnType occurrences="1">
-      <code>Person</code>
-    </InvalidNullableReturnType>
-    <NullableReturnStatement occurrences="1">
-      <code>$this-&gt;contactAccount</code>
-    </NullableReturnStatement>
-  </file>
-  <file src="lib/Model/RequestQueue.php">
-    <InvalidNullableReturnType occurrences="1">
-      <code>InstancePath</code>
-    </InvalidNullableReturnType>
-    <NullableReturnStatement occurrences="1">
-      <code>$this-&gt;instance</code>
-    </NullableReturnStatement>
-  </file>
   <file src="lib/Db/CoreRequestBuilder.php">
     <UndefinedMethod occurrences="3">
       <code>dropTable</code>
       <code>hasTable</code>
       <code>hasTable</code>
     </UndefinedMethod>
+    <InvalidArgument occurrences="2"/>
   </file>
   <file src="lib/Service/CheckService.php">
     <RedundantCast occurrences="1">
@@ -81,36 +56,16 @@
     <TypeDoesNotContainType occurrences="1">
       <code>$this-&gt;maxDownloadSizeReached === true</code>
     </TypeDoesNotContainType>
-  </file>
-  <file src="lib/Service/FollowService.php">
-    <InvalidReturnStatement occurrences="2">
-      <code>$this-&gt;followsRequest-&gt;getFollowersByActorId($actor-&gt;getId())</code>
-      <code>$this-&gt;followsRequest-&gt;getFollowingByActorId($actor-&gt;getId())</code>
-    </InvalidReturnStatement>
-    <InvalidReturnType occurrences="2">
-      <code>Person[]</code>
-      <code>Person[]</code>
-    </InvalidReturnType>
-  </file>
-  <file src="lib/Service/HashtagService.php">
-    <InvalidReturnStatement occurrences="1">
-      <code>$result</code>
-    </InvalidReturnStatement>
-    <InvalidReturnType occurrences="1">
-      <code>Stream[]</code>
-    </InvalidReturnType>
+    <InvalidArgument occurrences="8"/>
   </file>
   <file src="lib/Service/PostService.php">
-    <InvalidNullableReturnType occurrences="1">
-      <code>ACore</code>
-    </InvalidNullableReturnType>
-    <NullableReturnStatement occurrences="1">
-      <code>$activity</code>
-    </NullableReturnStatement>
     <UndefinedMethod occurrences="2">
       <code>setAttributedTo</code>
       <code>setContent</code>
     </UndefinedMethod>
+    <TypeDoesNotContainType occurrences="1">
+      <code>is_array($_FILES['attachments']['error'])</code>
+    </TypeDoesNotContainType>
   </file>
   <file src="lib/Service/SearchService.php">
     <InvalidOperand occurrences="3">
@@ -130,10 +85,5 @@
       <code>$username === null</code>
       <code>$username === null</code>
     </TypeDoesNotContainNull>
-  </file>
-  <file src="lib/Tools/Traits/TNCLogger.php">
-    <UndefinedClass occurrences="1">
-      <code>HintException</code>
-    </UndefinedClass>
   </file>
 </files>
