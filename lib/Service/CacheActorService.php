@@ -222,7 +222,7 @@ class CacheActorService {
 		try {
 			$actor = $this->cacheActorsRequest->getFromAccount($account);
 
-			$this->logger->debug('Found Actor', ['account' => $account, 'actor' => $actor]);
+			$this->logger->debug('Found Actor', ['account' => $account, 'actor' => $actor->getSource()]);
 		} catch (CacheActorDoesNotExistException $e) {
 			$this->logger->debug('Actor not found', ['account' => $account]);
 
@@ -233,7 +233,7 @@ class CacheActorService {
 			$actor = $this->curlService->retrieveAccount($account);
 			$actor->setAccount($account);
 			try {
-				$this->logger->debug('Saving Actor', ['actor' => $actor]);
+				$this->logger->debug('Saving Actor', ['actor' => $actor->getSource()]);
 
 				$this->save($actor);
 			} catch (Exception $e) {
