@@ -83,21 +83,18 @@ class SearchService {
 	 * @return Person[]
 	 */
 	public function searchAccounts(string $search): array {
-		$result = [];
 		$type = $this->getTypeFromSearch($search);
 
 		if ($search === '' || !$type & self::SEARCH_ACCOUNTS) {
-			return $result;
+			return [];
 		}
 
-		if (substr($search, 0, 1) === '@') {
-			$search = substr($search, 1);
-		}
+		$search = ltrim($search, '@');
 
 		try {
+			// search and cache eventual exact account first
 			$this->cacheActorService->getFromAccount($search);
 		} catch (Exception $e) {
-			$this->logger->notice('searchAccounts', ['exception' => $e, 'search' => $search]);
 		}
 
 		return $this->cacheActorService->searchCachedAccounts($search);
