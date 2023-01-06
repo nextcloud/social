@@ -125,7 +125,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 				break;
 
 			case Delete::TYPE:
-				$this->deleteActor($item);
+				$this->delete($item);
 				break;
 		}
 	}
@@ -141,14 +141,19 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
-	public function deleteActor(Person $actor): void {
-		$this->actionsRequest->deleteByActor($actor->getId());
-		$this->cacheActorsRequest->deleteCacheById($actor->getId());
-		$this->cacheDocumentsRequest->deleteByParent($actor->getId());
-		$this->requestQueueRequest->deleteByAuthor($actor->getId());
-		$this->followsRequest->deleteRelatedId($actor->getId());
 
-		$this->deleteStreamFromActor($actor);
+	public function delete(ACore $item): void {
+		if (!($item instanceof Person)) {
+			return;
+		}
+
+		$this->actionsRequest->deleteByActor($item->getId());
+		$this->cacheActorsRequest->deleteCacheById($item->getId());
+		$this->cacheDocumentsRequest->deleteByParent($item->getId());
+		$this->requestQueueRequest->deleteByAuthor($item->getId());
+		$this->followsRequest->deleteRelatedId($item->getId());
+
+		$this->deleteStreamFromActor($item);
 	}
 
 

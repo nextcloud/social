@@ -247,10 +247,8 @@ class CurlService {
 		$request->setProtocol($url['scheme']);
 
 		$result = $this->retrieveJson($request);
-
-		if (is_array($result)) {
-			$result['_host'] = $request->getHost();
-		}
+		$result['_host'] = $request->getHost();
+		$result['_resultCode'] = $request->getResultCode();
 
 		return $result;
 	}

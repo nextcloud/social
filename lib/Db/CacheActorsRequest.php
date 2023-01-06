@@ -38,7 +38,7 @@ use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
-	public const CACHE_TTL = 60 * 24; // 1d
+	public const CACHE_TTL = 60 * 24 * 10; // 10d
 
 
 	/**
