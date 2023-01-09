@@ -211,11 +211,11 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->searchInAccount($qb, $search);
+		$qb->searchInAccount($search);
 		/** @var SocialQueryBuilder $qb */
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
-		$this->limitResults($qb, 25);
+		$qb->limitResults(25);
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
