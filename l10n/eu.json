@@ -93,7 +93,7 @@
     "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Urrats hau beharrezkoa da erabiltzailea ez duelako zertan zure zerbitzari berean erregistratuta egon. Zure hasiera-zerbitzarira bideratuko dizugu kontu hau jarraitu dezazun.",
     "User not found" : "Ez da erabiltzailea aurkitu",
     "Sorry, we could not find the account of {userId}" : "Sentitzen dugu, ezin izan dugu {userId} erabiltzailearen kontua aurkitu",
-    "Nextcloud becomes part of the federated social networks!" : "Nexcloud federatutako sare sozialekin bat egiten du!",
+    "Nextcloud becomes part of the federated social networks!" : "Nexcloudek federatutako sare sozialekin bat egiten du!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Kontu sozial bat sortu dugu automatikoki zuretzat. Zure ID soziala federatutako Cloud IDaren berdina da:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Social-era iritsi berria zarenez, hasi Nextcloud kontu ofiziala jarraituz berririk ez galtzeko",
     "Follow Nextcloud on mastodon.xyz" : "Jarraitu Nextcloud mastodon.xyz zerbitzarian"
