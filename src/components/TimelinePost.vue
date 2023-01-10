@@ -25,10 +25,7 @@
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="item.content" class="post-message">
-			<RichText :text="source"
-				:autolink="true"
-				:reference-limit="2"
-				:arguments="richParameters" />
+			<MessageContent :source="source" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.actor_info.summary" />
@@ -95,6 +92,7 @@ import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
 import RichText from '@nextcloud/vue-richtext'
+import MessageContent from './MessageContent.js'
 
 export default {
 	name: 'TimelinePost',
@@ -108,6 +106,7 @@ export default {
 		Heart,
 		HeartOutline,
 		RichText,
+		MessageContent,
 	},
 	mixins: [currentUser],
 	props: {
@@ -124,11 +123,12 @@ export default {
 		source() {
 			if (!this.item.source && this.item.content) {
 				// local posts don't have a source json
-				console.debug(this.item.content)
-				return this.item.content
+				return {
+					content: this.item.content,
+					tag: [],
+				}
 			}
-			console.debug(JSON.parse(this.item.source))
-			return JSON.parse(this.item.source).content
+			return JSON.parse(this.item.source)
 		},
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
