@@ -23,19 +23,30 @@
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
 	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
-		<NcButton v-if="isCurrentUserFollowing"
-			:class="{'icon-loading-small': followLoading}"
-			@click="unfollow()"
-			@mouseover="followingText=t('social', 'Unfollow')"
-			@mouseleave="followingText=t('social', 'Following')">
-			<template #icon>
-				<Check :size="32" />
-			</template>
-			{{ followingText }}
-		</NcButton>
+		<div v-if="isCurrentUserFollowing"
+			class="follow-button-container">
+			<NcButton :disabled="loading"
+				class="follow-button follow-button--following"
+				type="success">
+				<template #icon>
+					<Check :size="32" />
+				</template>
+				{{ t('social', 'Following') }}
+			</NcButton>
+			<NcButton :disabled="loading"
+				class="follow-button follow-button--unfollow"
+				type="error"
+				@click="unfollow()">
+				<template #icon>
+					<CloseOctagon :size="32" />
+				</template>
+				{{ t('social', 'Unfollow') }}
+			</NcButton>
+		</div>
 		<NcButton v-else
-			:class="{'icon-loading-small': followLoading}"
-			class="primary"
+			:disabled="loading"
+			type="primary"
+			class="follow-button"
 			@click="follow">
 			{{ t('social', 'Follow') }}
 		</NcButton>
@@ -46,12 +57,14 @@
 import accountMixins from '../mixins/accountMixins.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import Check from 'vue-material-design-icons/Check.vue'
+import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 
 export default {
 	name: 'FollowButton',
 	components: {
 		Check,
+		CloseOctagon,
 		NcButton,
 	},
 	mixins: [
@@ -70,28 +83,58 @@ export default {
 	},
 	data() {
 		return {
-			followingText: t('social', 'Following'),
+			loading: false,
 		}
 	},
 	computed: {
-		followLoading() {
-			return false
-		},
 		isCurrentUserFollowing() {
 			return this.$store.getters.isFollowingUser(this.account)
 		},
 	},
 	methods: {
-		follow() {
-			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account })
+		async follow() {
+			try {
+				this.loading = true
+				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account })
+			} catch {
+			} finally {
+				this.loading = false
+			}
 		},
-		unfollow() {
-			this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
+		async unfollow() {
+			try {
+				this.loading = true
+				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
+			} catch {
+			} finally {
+				this.loading = false
+			}
 		},
 	},
 }
 </script>
-<style scoped>
+<style scoped lang="scss">
+	.follow-button {
+		width: 150px !important;
+	}
+
+	.follow-button-container {
+		.follow-button--following {
+			display: flex;
+		}
+		.follow-button--unfollow {
+			display: none;
+		}
+
+		&:hover {
+			.follow-button--following {
+				display: none;
+			}
+			.follow-button--unfollow {
+				display: flex;
+			}
+		}
+	}
 	.user-entry {
 		padding: 20px;
 		margin-bottom: 10px;
