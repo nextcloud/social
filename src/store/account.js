@@ -36,7 +36,7 @@ const addAccount = (state, { actorId, data }) => {
 		details: {
 			following: false,
 			follower: false,
-		}
+		},
 	}, state.accounts[actorId], data))
 	Vue.set(state.accountIdMap, data.account, data.id)
 }
@@ -53,10 +53,13 @@ const mutations = {
 		const users = []
 		for (const index in data) {
 			const actor = data[index].actor_info
-			addAccount(state, {
-				actorId: actor.id,
-				data: actor,
-			})
+			if (typeof actor !== 'undefined' && account !== actor.account) {
+				users.push(actor.id)
+				addAccount(state, {
+					actorId: actor.id,
+					data: actor,
+				})
+			}
 		}
 		Vue.set(state.accounts[_getActorIdForAccount(account)], 'followersList', users)
 	},
