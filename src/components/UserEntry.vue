@@ -53,7 +53,7 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-html="item.summary" />
 			</div>
-			<FollowButton :account="item.account" />
+			<FollowButton :account="item.account" :uid="cloudId" />
 		</div>
 	</div>
 </template>
@@ -96,37 +96,30 @@ export default {
 	},
 }
 </script>
-<style scoped>
+<style scoped lang="scss">
+.entry-content {
+	height: 50px;
+	display: flex;
+	align-items: center;
+
 	.user-avatar {
-		margin: 5px;
-		margin-right: 10px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.post-author {
-		font-weight: bold;
-	}
-
-	.entry-content {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
+		margin-right: 10px;
+		flex-shrink: 0;
 	}
 
 	.user-details {
 		flex-grow: 1;
-	}
 
-	.user-description {
-		opacity: 0.7;
-	}
+		.post-author {
+			font-weight: bold;
+		}
 
-	button {
-		margin-left: 10px;
-		min-width: 110px;
+		.user-description {
+			opacity: 0.7;
+		}
 	}
+}
 
-	button * {
-		cursor: pointer;
-	}
 </style>
