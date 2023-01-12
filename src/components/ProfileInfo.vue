@@ -32,7 +32,7 @@
 			:size="128" />
 		<h2>{{ displayName }}</h2>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile--sections">
+		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile__info user-profile__sections">
 			<li>
 				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
 					{{ getCount('post') }} {{ t('social', 'posts') }}
@@ -49,14 +49,18 @@
 				</router-link>
 			</li>
 		</ul>
-		<p>@{{ accountInfo.account }}</p>
-		<p v-if="accountInfo.website">
-			Website: <a :href="accountInfo.website.value">
-				{{ accountInfo.website.value }}
-			</a>
+		<p class="user-profile__info">
+			<a :href="accountInfo.url" target="_blank">@{{ accountInfo.account }}</a>
 		</p>
-		<FollowButton :account="accountInfo.account" :uid="uid" />
-		<NcButton v-if="serverData.public" class="primary" @click="followRemote">
+
+		<p v-if="accountInfo.website" class="user-profile__info">
+			{{ t('social', 'Website') }}: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a>
+		</p>
+
+		<FollowButton class="user-profile__info" :account="accountInfo.account" :uid="uid" />
+		<NcButton v-if="serverData.public"
+			class="user-profile__info primary"
+			@click="followRemote">
 			{{ t('social', 'Follow') }}
 		</NcButton>
 	</div>
@@ -126,7 +130,7 @@ export default {
 }
 
 </script>
-<style scoped>
+<style scoped lang="scss">
 	.user-profile {
 		display: flex;
 		flex-wrap: wrap;
@@ -137,28 +141,36 @@ export default {
 		padding-top: 20px;
 		align-items: center;
 		margin-bottom: 20px;
-	}
-	h2 {
-		margin-bottom: 5px;
-	}
 
-	.user-profile--sections {
-		display: flex;
-	}
-	.user-profile--sections li {
-		flex-grow: 1;
-	}
-	.user-profile--sections li a {
-		padding: 10px;
-		padding-left: 24px;
-		display: inline-block;
-		background-position: 0 center;
-		height: 40px;
-		opacity: .6;
-	}
-	.user-profile--sections li a.router-link-exact-active,
-	.user-profile--sections li a:focus{
-		opacity: 1;
-		border-bottom: 1px solid var(--color-main-text);
+		&__info {
+			margin-bottom: 12px;
+
+			a:hover {
+				text-decoration: underline;
+			}
+		}
+
+		&__sections {
+			display: flex;
+
+			li {
+				flex-grow: 1;
+
+				a {
+					padding: 10px;
+					padding-left: 24px;
+					display: inline-block;
+					background-position: 0 center;
+					height: 40px;
+					opacity: .6;
+
+					&.router-link-exact-active,
+					&:focus {
+						opacity: 1;
+						border-bottom: 1px solid var(--color-main-text);
+					}
+				}
+			}
+		}
 	}
 </style>
