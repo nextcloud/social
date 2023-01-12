@@ -51,6 +51,7 @@ use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Http;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
@@ -132,7 +133,16 @@ class CacheActorService {
 
 			$actor = $this->cacheActorsRequest->getFromId($id);
 		} catch (CacheActorDoesNotExistException $e) {
-			$object = $this->curlService->retrieveObject($id);
+			try {
+				$object = $this->curlService->retrieveObject($id);
+			} catch (RequestContentException $e) {
+				// in case of refresh but remote tells us that actor is gone, we delete it.
+				if ($refresh && $e->getCode() === Http::STATUS_GONE) {
+					$this->delete($this->cacheActorsRequest->getFromId($id));
+				}
+
+				throw $e;
+			}
 
 			$this->logger->debug('object retrieved', ['id' => $id, 'object' => $object]);
 
@@ -301,6 +311,19 @@ class CacheActorService {
 		try {
 			$interface = AP::$activityPub->getInterfaceFromType($actor->getType());
 			$interface->save($actor);
+		} catch (ItemUnknownException $e) {
+		}
+	}
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return void
+	 */
+	private function delete(Person $actor): void {
+		try {
+			$interface = AP::$activityPub->getInterfaceFromType($actor->getType());
+			$interface->delete($actor);
 		} catch (ItemUnknownException $e) {
 		}
 	}
