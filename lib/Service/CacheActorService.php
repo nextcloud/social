@@ -152,7 +152,7 @@ class CacheActorService {
 				throw new InvalidResourceException();
 			}
 
-			if ($id !== $actor->getId()) {
+			if (parse_url($id, PHP_URL_HOST) !== parse_url($actor->getId(), PHP_URL_HOST)) {
 				throw new InvalidOriginException(
 					'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actor->getId()
 				);

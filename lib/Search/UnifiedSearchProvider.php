@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Search;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -38,15 +37,16 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\Search\IProvider;
 use OCP\Search\ISearchQuery;
 use OCP\Search\SearchResult;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class UnifiedSearchProvider
@@ -67,7 +67,8 @@ class UnifiedSearchProvider implements IProvider {
 	private AccountService $accountService;
 	private SearchService $searchService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+	private LoggerInterface $logger;
+
 	private ?Person $viewer = null;
 
 
@@ -82,12 +83,18 @@ class UnifiedSearchProvider implements IProvider {
 	 * @param AccountService $accountService
 	 * @param SearchService $searchService
 	 * @param ConfigService $configService
-	 * @param MiscService $miscService
+	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
-		IL10N $l10n, IURLGenerator $urlGenerator, StreamService $streamService, FollowService $followService,
-		CacheActorService $cacheActorService, AccountService $accountService, SearchService $searchService,
-		ConfigService $configService, MiscService $miscService
+		IL10N $l10n,
+		IURLGenerator $urlGenerator,
+		StreamService $streamService,
+		FollowService $followService,
+		CacheActorService $cacheActorService,
+		AccountService $accountService,
+		SearchService $searchService,
+		ConfigService $configService,
+		LoggerInterface $logger
 	) {
 		$this->l10n = $l10n;
 		$this->urlGenerator = $urlGenerator;
@@ -97,7 +104,7 @@ class UnifiedSearchProvider implements IProvider {
 		$this->accountService = $accountService;
 		$this->searchService = $searchService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -140,11 +147,12 @@ class UnifiedSearchProvider implements IProvider {
 		$search = trim($query->getTerm());
 
 		$result = array_merge(
+			$this->convertAccounts($this->searchService->searchUri($search)),
 			$this->convertAccounts($this->searchService->searchAccounts($search)),
 			$this->convertHashtags($this->searchService->searchHashtags($search))
 		);
 
-//			$this->searchService->searchStreamContent($search)
+//	$this->searchService->searchStreamContent($search)
 
 		return SearchResult::paginated(
 			$this->l10n->t('Social'), $result, ($query->getCursor() ?? 0) + $query->getLimit()
