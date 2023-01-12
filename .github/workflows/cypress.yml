@@ -93,3 +93,14 @@ jobs:
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           # https://github.com/cypress-io/github-action/issues/124
           COMMIT_INFO_MESSAGE: ${{ github.event.pull_request.title }}
+
+      - name: Extract NC logs
+        if: always()
+        run: docker-compose --project-directory cypress logs > nextcloud.log
+
+      - name: Upload NC logs
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: nc_logs_${{ matrix.containers }}
+          path: nextcloud.log
