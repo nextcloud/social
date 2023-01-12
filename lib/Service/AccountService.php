@@ -325,7 +325,7 @@ class AccountService {
 	/**
 	 * @param Person $actor
 	 */
-	public function addLocalActorDetailCount(Person &$actor) {
+	public function addLocalActorDetailCount(Person $actor) {
 		$lastPostCreation = '';
 		try {
 			$lastPost = $this->streamRequest->lastNoteFromActorId($actor->getId());
