@@ -153,11 +153,6 @@ class NavigationController extends Controller {
 			$this->configService->setSocialUrl();
 		}
 
-		if ($serverData['isAdmin']) {
-			$checks = $this->checkService->checkDefault();
-			$serverData['checks'] = $checks;
-		}
-
 		/*
 		 * Create social user account if it doesn't exist yet
 		 */
@@ -170,6 +165,11 @@ class NavigationController extends Controller {
 			// well, should not happens
 		} catch (SocialAppConfigException $e) {
 			// neither.
+		}
+
+		if ($serverData['isAdmin']) {
+			$checks = $this->checkService->checkDefault();
+			$serverData['checks'] = $checks;
 		}
 
 		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
