@@ -194,9 +194,8 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromLocalAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$this->limitToPreferredUsername($qb, $account);
-		$this->limitToLocal($qb, true);
-		/** @var SocialQueryBuilder $qb */
+		$qb->limitToPreferredUsername($account);
+		$qb->limitToLocal(true);
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 

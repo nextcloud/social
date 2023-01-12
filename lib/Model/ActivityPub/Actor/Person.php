@@ -664,7 +664,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		try {
 			$deletedValue = $this->get('deleted', $data);
-			if ($deletedValue === '') {
+			if ($deletedValue === '' || $deletedValue === '0000-00-00 00:00:00') {
 				return;
 			}
 			$dTime = new DateTime();
