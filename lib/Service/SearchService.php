@@ -45,10 +45,11 @@ class SearchService {
 	use TArrayTools;
 
 
-	public const SEARCH_ACCOUNTS = 1;
-	public const SEARCH_HASHTAGS = 2;
-	public const SEARCH_CONTENT = 4;
-	public const SEARCH_ALL = 7;
+	public const SEARCH_URI = 1;
+	public const SEARCH_ACCOUNTS = 2;
+	public const SEARCH_HASHTAGS = 4;
+	public const SEARCH_CONTENT = 8;
+	public const SEARCH_ALL = 15;
 
 	private CacheActorService $cacheActorService;
 	private HashtagService $hashtagService;
@@ -74,6 +75,25 @@ class SearchService {
 		$this->hashtagService = $hashtagService;
 		$this->configService = $configService;
 		$this->logger = $logger;
+	}
+
+
+	/**
+	 * @param string $search
+	 *
+	 * @return Person[]
+	 */
+	public function searchUri(string $search): array {
+		$type = $this->getTypeFromSearch($search);
+
+		if ($search !== '' && $type & self::SEARCH_URI) {
+			try {
+				return [$this->cacheActorService->getFromId($search)];
+			} catch (Exception $e) {
+			}
+		}
+
+		return [];
 	}
 
 
@@ -154,6 +174,10 @@ class SearchService {
 				return self::SEARCH_HASHTAGS;
 
 			default:
+				if (substr($search, 0, 4) === 'http') {
+					return self::SEARCH_URI;
+				}
+
 				return self::SEARCH_ALL;
 		}
 	}
