@@ -34,6 +34,7 @@ OC.L10N.register(
     "posts" : "ieraksts",
     "following" : "seko",
     "followers" : "sekotāji",
+    "Website" : "Mājaslapa",
     "Searching for" : "Meklēt",
     "No posts found" : "Atrasta jauns ieraksts",
     "No direct messages found" : "Tiešie ziņojumi nav atrasti",

@@ -22,6 +22,7 @@ OC.L10N.register(
     "Follow" : "Sekti",
     "posts" : "įrašai",
     "followers" : "sekėjų",
+    "Website" : "Svetainė",
     "No results found" : "Nerasta jokių rezultatų",
     "There were no results for your search:" : "Jūsų paieška negrąžino jokių rezultatų:",
     "Searching for" : "Ieškoma",

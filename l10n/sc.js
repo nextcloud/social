@@ -48,6 +48,7 @@ OC.L10N.register(
     "posts" : "cummentos",
     "following" : "sighende",
     "followers" : "sighidores",
+    "Website" : "Situ ìnternet",
     "No results found" : "Perunu resurtadu agatadu",
     "There were no results for your search:" : "Sa chirca tua no at dadu resurtados:",
     "Searching for" : "Chirca",

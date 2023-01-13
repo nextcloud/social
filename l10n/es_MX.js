@@ -13,6 +13,7 @@ OC.L10N.register(
     "Delete" : "Eliminar",
     "Edit" : "Editar",
     "Close" : "Cerrar",
+    "Website" : "Sitio web",
     "Reply" : "Responder",
     "Deny" : "Denegar",
     "Continue" : "Continuar",

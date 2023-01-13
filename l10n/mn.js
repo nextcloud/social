@@ -11,6 +11,7 @@ OC.L10N.register(
     "Delete" : "Устгах",
     "Edit" : "засварлах",
     "Close" : "Хаах",
+    "Website" : "Веб сайт",
     "Reply" : "хариулт",
     "Continue" : "үргэлжлүүлэх"
 },

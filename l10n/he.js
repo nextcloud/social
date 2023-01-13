@@ -32,6 +32,7 @@ OC.L10N.register(
     "Unfollow" : "בטל עוקב",
     "Follow" : "עקוב",
     "posts" : "פוסטים",
+    "Website" : "אתר אינטרנט",
     "No results found" : "לא נמצאו תוצאות",
     "No posts found" : "לא נמצאו רשומות",
     "No direct messages found" : "לא נמצאו הודעות ישירות",

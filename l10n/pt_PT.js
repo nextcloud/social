@@ -36,6 +36,7 @@ OC.L10N.register(
     "posts" : "publicações",
     "following" : "a seguir",
     "followers" : "seguidores",
+    "Website" : "Website",
     "Searching for" : "À procura de",
     "No posts found" : "Nenhuma publicação encontrada",
     "Posts from people you follow will show up here" : "Publicações de pessoas que segue serão apresentadas aqui",

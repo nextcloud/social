@@ -13,6 +13,7 @@ OC.L10N.register(
     "Delete" : "Șterge",
     "Edit" : "Editează",
     "Close" : "Închide",
+    "Website" : "Site web",
     "Reply" : "Răspunde",
     "Deny" : "Refuzați",
     "Hello" : "Bună",

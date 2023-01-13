@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "posty",
     "following" : "śledzeni",
     "followers" : "śledzący",
+    "Website" : "Strona internetowa",
     "No results found" : "Nie znaleziono wyników",
     "There were no results for your search:" : "Brak wyników dla Twojego wyszukiwania:",
     "Searching for" : "Wyszukiwanie",

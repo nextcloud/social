@@ -50,6 +50,7 @@ OC.L10N.register(
     "posts" : "berichten",
     "following" : "volgend",
     "followers" : "volgers",
+    "Website" : "Website",
     "No results found" : "Geen resultaten gevonden",
     "There were no results for your search:" : "Geen resultaten voor je zoekterm:",
     "Searching for" : "Zoeken naar",

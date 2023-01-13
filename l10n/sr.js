@@ -46,6 +46,7 @@ OC.L10N.register(
     "posts" : "објаве",
     "following" : "прати",
     "followers" : "пратиоца",
+    "Website" : "Веб страна",
     "No results found" : "Нема пронађених резултата",
     "There were no results for your search:" : "Нема резултата за претрагу:",
     "Searching for" : "Тражим",

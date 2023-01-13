@@ -7,6 +7,7 @@ OC.L10N.register(
     "Delete" : "Pozmak",
     "Edit" : "Redaktirläň",
     "Close" : "Ýap",
+    "Website" : "Website",
     "Deny" : "inkär et"
 },
 "nplurals=2; plural=(n != 1);");

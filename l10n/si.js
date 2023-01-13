@@ -8,6 +8,7 @@ OC.L10N.register(
     "Public" : "පොදු",
     "Edit" : "සංස්කරණය",
     "Close" : "වසන්න",
+    "Website" : "වියමන අඩවිය",
     "Reply" : "පිළිතුර"
 },
 "nplurals=2; plural=(n != 1);");

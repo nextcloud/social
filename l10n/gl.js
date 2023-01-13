@@ -48,6 +48,7 @@ OC.L10N.register(
     "posts" : "mensaxes",
     "following" : "seguindo",
     "followers" : "seguidores",
+    "Website" : "Sitio web",
     "No results found" : "Non se atoparon resultados",
     "There were no results for your search:" : "Non houbo resultados para a súa busca:",
     "Searching for" : "Buscando",

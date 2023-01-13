@@ -17,6 +17,7 @@ OC.L10N.register(
     "Delete" : "Slett",
     "Edit" : "Rediger",
     "Close" : "Lukk",
+    "Website" : "Nettsted",
     "No results found" : "Ingen resultater funnet",
     "Reply" : "Svar",
     "Deny" : "ikke tillatt",

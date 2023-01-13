@@ -46,6 +46,7 @@ OC.L10N.register(
     "posts" : "Inlägg",
     "following" : "följer",
     "followers" : "följare",
+    "Website" : "Hemsida",
     "No results found" : "Inga resultat funna",
     "There were no results for your search:" : "Det var inga resultat för din sökning:",
     "Searching for" : "Sök efter",

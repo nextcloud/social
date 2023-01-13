@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "Forigi",
     "Edit" : "Modifi",
     "Close" : "Malfermi",
+    "Website" : "Retejo",
     "Reply" : "Respondi",
     "Deny" : "Rifuzi",
     "Continue" : "Daŭrigi",

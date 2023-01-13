@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "Fshi",
     "Edit" : "Përpuno",
     "Close" : "Mbylleni",
+    "Website" : "Faqe web-i",
     "Reply" : "Përgjigju",
     "Deny" : "Refuzo",
     "Hello" : "Përshëndetje",

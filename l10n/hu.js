@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "bejegyzés",
     "following" : "követett",
     "followers" : "követők",
+    "Website" : "Weboldal",
     "No results found" : "Nincs találat",
     "There were no results for your search:" : "Nincsenek találatok a keresésre:",
     "Searching for" : "Keresés erre:",

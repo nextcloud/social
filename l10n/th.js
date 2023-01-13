@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "ลบ",
     "Edit" : "แก้ไข",
     "Close" : "ปิด",
+    "Website" : "เว็บไซต์",
     "Reply" : "ตอบกลับ",
     "Hello" : "สวัสดี",
     "Continue" : "ดำเนินการต่อ"

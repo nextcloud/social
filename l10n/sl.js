@@ -49,6 +49,7 @@ OC.L10N.register(
     "posts" : "objave",
     "following" : "sledenje",
     "followers" : "sledilci",
+    "Website" : "Spletna stran",
     "No results found" : "Ni najdenih zadetkov",
     "There were no results for your search:" : "Ni najdenih zadetkov iskanja:",
     "Searching for" : "Iskanje",

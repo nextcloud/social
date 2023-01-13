@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "mezuak",
     "following" : "jarraitzen",
     "followers" : "jarraitzaileak",
+    "Website" : "Webgunea",
     "No results found" : "Ez da emaitzarik aurkitu",
     "There were no results for your search:" : "Ez da emaitzarik aurkitu zure bilaketarentzat:",
     "Searching for" : "Bilaketa",

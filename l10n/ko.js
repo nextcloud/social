@@ -17,6 +17,7 @@ OC.L10N.register(
     "Delete" : "삭제",
     "Edit" : "편집",
     "Close" : "닫기",
+    "Website" : "웹 사이트",
     "No results found" : "결과 없음",
     "Reply" : "답장",
     "{account} is following you" : "{account}이(가) 당신을 팔로우함",

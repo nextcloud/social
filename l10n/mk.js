@@ -17,6 +17,7 @@ OC.L10N.register(
     "Edit" : "Уреди",
     "Close" : "Затвори",
     "posts" : "објави",
+    "Website" : "Веб страна",
     "No results found" : "Нема пронајдено резултати",
     "Reply" : "Одговор",
     "Deny" : "Забрани",

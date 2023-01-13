@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "貼文",
     "following" : "正在追蹤",
     "followers" : "追蹤者",
+    "Website" : "網站",
     "No results found" : "沒有結果",
     "There were no results for your search:" : "沒有搜尋結果：",
     "Searching for" : "搜尋",

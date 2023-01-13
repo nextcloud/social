@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "帖子",
     "following" : "正在关注",
     "followers" : "关注者",
+    "Website" : "网站",
     "No results found" : "未找到结果",
     "There were no results for your search:" : "您的搜索没有结果：",
     "Searching for" : "搜索",

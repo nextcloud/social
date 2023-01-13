@@ -32,6 +32,7 @@ OC.L10N.register(
     "Follow" : "Seguir",
     "posts" : "publicaciones",
     "following" : "siguiendo",
+    "Website" : "Sitio web",
     "Reply" : "Responder",
     "Deny" : "Rechazar",
     "Continue" : "Continuar"

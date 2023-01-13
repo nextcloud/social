@@ -50,6 +50,7 @@ OC.L10N.register(
     "posts" : "投稿",
     "following" : "フォロー中",
     "followers" : "フォロワー",
+    "Website" : "ウェブサイト",
     "No results found" : "結果が見つかりません",
     "There were no results for your search:" : "検索結果はありませんでした",
     "Searching for" : "検索中",

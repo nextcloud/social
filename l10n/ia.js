@@ -11,6 +11,7 @@ OC.L10N.register(
     "Delete" : "Deler",
     "Edit" : "Modificar",
     "Close" : "Clauder",
+    "Website" : "Sito web",
     "Reply" : "Responder"
 },
 "nplurals=2; plural=(n != 1);");

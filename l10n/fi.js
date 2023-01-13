@@ -46,6 +46,7 @@ OC.L10N.register(
     "posts" : "julkaisut",
     "following" : "seuraa",
     "followers" : "seuraajat",
+    "Website" : "Verkkosivu",
     "No results found" : "Ei tuloksia",
     "There were no results for your search:" : "Hakusi ei tuottanut tuloksia:",
     "Searching for" : "Haetaan",

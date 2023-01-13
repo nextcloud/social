@@ -45,6 +45,7 @@ OC.L10N.register(
     "posts" : "پست ها",
     "following" : "دنبال شوندگان",
     "followers" : "دنبال کنندگان",
+    "Website" : "پایگاه وب",
     "No results found" : "هیچ نتیجه ای یافت نشد",
     "There were no results for your search:" : "هیچ نتیجه ای برای جستجوی شما وجود ندارد:",
     "Searching for" : "در جستجوی",

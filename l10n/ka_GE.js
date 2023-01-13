@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "წაშლა",
     "Edit" : "შეცვლა",
     "Close" : "დახურვა",
+    "Website" : "ვებ-საიტი",
     "Reply" : "პასუხი",
     "Hello" : "გამარჯობა",
     "Continue" : "გაგრძელება"

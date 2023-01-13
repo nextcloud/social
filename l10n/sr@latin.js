@@ -7,6 +7,7 @@ OC.L10N.register(
     "Delete" : "Obriši",
     "Edit" : "Izmeni",
     "Close" : "Zatvori",
+    "Website" : "Sajt",
     "Reply" : "Odgovori",
     "Deny" : "Odbij",
     "Hello" : "Zdravo"

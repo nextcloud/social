@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "ileti",
     "following" : "takip edilenler",
     "followers" : "takip edenler",
+    "Website" : "Web sitesi",
     "No results found" : "Herhangi bir sonuç bulunamadı",
     "There were no results for your search:" : "Aramanızdan bir sonuç alınamadı:",
     "Searching for" : "Şu ifade aranıyor",

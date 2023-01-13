@@ -50,6 +50,7 @@ OC.L10N.register(
     "posts" : "commenti",
     "following" : "segui già",
     "followers" : "seguaci",
+    "Website" : "Sito web",
     "No results found" : "Nessun risultato trovato",
     "There were no results for your search:" : "Non ci sono stati risultati per la tua ricerca:",
     "Searching for" : "Ricerca",

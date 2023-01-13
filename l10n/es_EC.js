@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "Borrar",
     "Edit" : "Editar",
     "Close" : "Cerrar",
+    "Website" : "Sitio web",
     "Reply" : "Responder",
     "Continue" : "Continuar",
     "User not found" : "No se encontró el usuario"

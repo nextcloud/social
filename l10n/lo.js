@@ -8,6 +8,7 @@ OC.L10N.register(
     "Delete" : "ລຶບ",
     "Edit" : "ແກ້ໄຂ",
     "Close" : "ປິດ",
+    "Website" : "ເວັບໄຊ",
     "Deny" : "ປະຕິເສດ",
     "Continue" : "ສືບຕໍ່"
 },

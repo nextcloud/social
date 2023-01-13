@@ -49,6 +49,7 @@ OC.L10N.register(
     "posts" : "δημοσιεύσεις",
     "following" : "ακολουθεί",
     "followers" : "ακόλουθοι",
+    "Website" : "Ιστοσελίδα",
     "No results found" : "Κανένα αποτέλεσμα",
     "There were no results for your search:" : "Κανένα αποτέλεσμα της αναζήτησής σας:",
     "Searching for" : "Αναζήτηση για",

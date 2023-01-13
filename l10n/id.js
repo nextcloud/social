@@ -14,6 +14,7 @@ OC.L10N.register(
     "Delete" : "Hapus",
     "Edit" : "Sunting",
     "Close" : "Tutup",
+    "Website" : "Situs",
     "Reply" : "Balas",
     "Deny" : "Tolak",
     "Hello" : "Halo",

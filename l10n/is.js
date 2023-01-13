@@ -45,6 +45,7 @@ OC.L10N.register(
     "posts" : "færslur",
     "following" : "fylgir",
     "followers" : "fylgjendur",
+    "Website" : "Vefsvæði",
     "No results found" : "Engar niðurstöður fundust",
     "There were no results for your search:" : "Engar niðurstöður samsvara leitinni þinni:",
     "Searching for" : "Leita að",

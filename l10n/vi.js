@@ -15,6 +15,7 @@ OC.L10N.register(
     "Delete" : "Xóa",
     "Edit" : "Chỉnh sửa",
     "Close" : "Đóng",
+    "Website" : "Website",
     "Reply" : "Trả l",
     "Deny" : "Từ chối",
     "Hello" : "Xin chào",

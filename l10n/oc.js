@@ -18,6 +18,7 @@ OC.L10N.register(
     "Edit" : "Modificar",
     "Close" : "Tampar",
     "Follow" : "Seguir",
+    "Website" : "Site web",
     "Reply" : "Respondre",
     "Hello" : "Adieu",
     "Continue" : "Contunhar",

@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "Kustuta",
     "Edit" : "Redigeeri",
     "Close" : "Sulge",
+    "Website" : "Veebileht",
     "Reply" : "Vasta",
     "Continue" : "Jätka",
     "User not found" : "Kasutajat ei leitud"

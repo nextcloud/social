@@ -7,6 +7,7 @@ OC.L10N.register(
     "Delete" : "Kkes",
     "Edit" : "Ẓreg",
     "Close" : "Mdel",
+    "Website" : "Asmel web",
     "Deny" : "Agwi",
     "Continue" : "Continuer"
 },
