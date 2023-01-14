@@ -39,7 +39,7 @@
 		"@nextcloud/moment": "^1.2.1",
 		"@nextcloud/router": "^2.0.1",
 		"@nextcloud/stylelint-config": "^2.3.0",
-		"@nextcloud/vue": "^7.3.0",
+		"@nextcloud/vue": "^7.4.0",
 		"@nextcloud/vue-richtext": "^2.0.4",
 		"he": "^1.2.0",
 		"linkify-plugin-mention": "^4.1.0",
