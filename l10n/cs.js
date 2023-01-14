@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "zprávy",
     "following" : "sleduji",
     "followers" : "sledující",
+    "Website" : "Webová stránka",
     "No results found" : "Nenalezeny žádné výsledky",
     "There were no results for your search:" : "Vyhledávání nic nenašlo:",
     "Searching for" : "Hledání",

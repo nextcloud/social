@@ -12,6 +12,7 @@ OC.L10N.register(
     "Delete" : "Skrap",
     "Edit" : "Wysig",
     "Close" : "Sluit",
+    "Website" : "Webwerf",
     "Reply" : "Antwoord",
     "Continue" : "Gaan voort"
 },

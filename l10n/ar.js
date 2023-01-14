@@ -32,6 +32,7 @@ OC.L10N.register(
     "posts" : "منشورات",
     "following" : "يتابِع",
     "followers" : "متابِعون",
+    "Website" : "موقع الويب",
     "No results found" : "دون أية نتيجة",
     "Searching for" : "البحث عن",
     "No posts found" : "لم يتم العثور على منشورات",

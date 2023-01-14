@@ -11,6 +11,7 @@ OC.L10N.register(
     "Delete" : "Desaniciar",
     "Edit" : "Editar",
     "Close" : "Zarrar",
+    "Website" : "Sitiu web",
     "Reply" : "Rempuesta",
     "Continue" : "Siguir"
 },

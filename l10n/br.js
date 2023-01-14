@@ -11,6 +11,7 @@ OC.L10N.register(
     "Delete" : "Lemel",
     "Edit" : "Cheñch",
     "Close" : "Serriñ",
+    "Website" : "Lec'hien web",
     "Reply" : "Respont",
     "Deny" : "Difennet",
     "Continue" : "Kendec'hel"

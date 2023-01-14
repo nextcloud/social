@@ -9,6 +9,7 @@ OC.L10N.register(
     "Delete" : "মুছে",
     "Edit" : "সম্পাদনা",
     "Close" : "বন্ধ",
+    "Website" : "ওয়েবসাইট",
     "Reply" : "জবাব",
     "Continue" : "চালিয়ে যাও"
 },

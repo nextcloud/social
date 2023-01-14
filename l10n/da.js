@@ -17,6 +17,7 @@ OC.L10N.register(
     "Delete" : "Slet",
     "Edit" : "Rediger",
     "Close" : "Luk",
+    "Website" : "Hjemmeside",
     "Reply" : "Besvar",
     "Deny" : "Afvis",
     "Hello" : "Hej",

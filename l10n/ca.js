@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "publicacions",
     "following" : "s'està seguint",
     "followers" : "seguidors",
+    "Website" : "Lloc web",
     "No results found" : "No s'han trobat resultats",
     "There were no results for your search:" : "No hi ha resultats per la vostra cerca:",
     "Searching for" : "S'està cercant",

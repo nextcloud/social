@@ -55,6 +55,7 @@ OC.L10N.register(
     "posts" : "Публикации",
     "following" : "последователи",
     "followers" : "Последователи",
+    "Website" : "Уеб сайт",
     "No results found" : "Няма намерени резултати",
     "There were no results for your search:" : "Нямаше резултати за вашето търсене:",
     "Searching for" : "Търсене за",
