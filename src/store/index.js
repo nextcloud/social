@@ -1,10 +1,10 @@
-/*
+/**
  * @copyright Copyright (c) 2018 John Molakvoæ <skjnldsv@protonmail.com>
  *
  * @author John Molakvoæ <skjnldsv@protonmail.com>
  * @author Julius Härtl <jus@bitgrid.net>
  *
- * @license GNU AGPL version 3 or any later version
+ * @license AGPL-3.0-or-later
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -22,7 +22,7 @@
  */
 
 import Vue from 'vue'
-import Vuex from 'vuex'
+import Vuex, { Store } from 'vuex'
 import timeline from './timeline.js'
 import account from './account.js'
 import settings from './settings.js'
@@ -31,7 +31,7 @@ Vue.use(Vuex)
 
 const debug = process.env.NODE_ENV !== 'production'
 
-export default new Vuex.Store({
+export default new Store({
 	modules: {
 		timeline,
 		account,

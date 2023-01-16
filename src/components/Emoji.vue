@@ -22,12 +22,19 @@ export default {
 		return {}
 	},
 	computed: {
+		/**
+		 * @return {string}
+		 */
 		icon() {
 			return twemoji.convert.toCodePoint(this.emoji.indexOf(U200D) < 0
 				? this.emoji.replace(UFE0Fg, '')
 				: this.emoji
 			)
 		},
+
+		/**
+		 * @return {string}
+		 */
 		emojiUrl() {
 			return generateFilePath('social', 'img', 'twemoji/' + this.icon + '.svg')
 		},

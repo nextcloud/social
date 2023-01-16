@@ -1,6 +1,12 @@
 import Vue from 'vue'
 import Emoji from './Emoji.vue'
 
+/**
+ * @typedef {object} MessageSource
+ * @property {Array} tag
+ * @property {string} content
+ */
+
 export default Vue.component('MessageContent', {
 	props: {
 		source: {
@@ -23,8 +29,8 @@ export default Vue.component('MessageContent', {
  *
  * All attributes other than `href` for links are stripped from the source
  *
- * @param createElement
- * @param source
+ * @param {Function} createElement
+ * @param {MessageSource} source
  */
 export function formatMessage(createElement, source) {
 	if (!source.tag) {
@@ -42,9 +48,9 @@ export function formatMessage(createElement, source) {
 
 /**
  *
- * @param createElement
- * @param node
- * @param context
+ * @param {Function} createElement
+ * @param {HTMLElement} node
+ * @param {object} context
  */
 function domToVue(createElement, node, context) {
 	switch (node.tagName) {
@@ -55,9 +61,10 @@ function domToVue(createElement, node, context) {
 	case 'SPAN':
 		return cleanCopy(createElement, node, context)
 	case 'A':
+		// @ts-ignore - if tagName === 'A' then node is instance of HTMLLinkElement
 		return cleanLink(createElement, node, context)
 	default:
-		return transformText(createElement, node.textContent)
+		return transformText(createElement, node.textContent ?? '')
 	}
 }
 
@@ -66,8 +73,8 @@ const hashTagRegex = /(\W|^)(#\w+)/i
 
 /**
  *
- * @param createElement
- * @param text
+ * @param {Function} createElement
+ * @param {string} text
  */
 function transformText(createElement, text) {
 	return transformTextRegex(text, [
@@ -124,9 +131,9 @@ function transformText(createElement, text) {
 /**
  * copy a node without any attributes and cleaning all children
  *
- * @param createElement
- * @param node
- * @param context
+ * @param {Function} createElement
+ * @param {HTMLElement} node
+ * @param {object} context
  */
 function cleanCopy(createElement, node, context) {
 	const children = Array.from(node.childNodes).map(node => domToVue(createElement, node, context))
@@ -135,17 +142,18 @@ function cleanCopy(createElement, node, context) {
 
 /**
  *
- * @param createElement
- * @param node
- * @param context
+ * @param {Function} createElement
+ * @param {HTMLLinkElement} node
+ * @param {object} context
+ * @param {Array} context.mentions
  */
 function cleanLink(createElement, node, context) {
 	const type = getLinkType(node.className)
 	const attributes = {}
+	const tag = matchMention(context.mentions, node.getAttribute('href') ?? '', node.textContent ?? '')
 
 	switch (type) {
 	case 'mention':
-		var tag = matchMention(context.mentions, node.getAttribute('href'), node.textContent)
 		if (tag) {
 			attributes.rel = 'nofollow noopener noreferrer'
 			attributes.target = '_blank'
@@ -163,7 +171,7 @@ function cleanLink(createElement, node, context) {
 				props: {
 					to: {
 						name: 'tags',
-						params: { tag: node.textContent.slice(1) },
+						params: { tag: node.textContent?.slice(1) },
 					},
 				},
 			},
@@ -180,7 +188,7 @@ function cleanLink(createElement, node, context) {
 
 /**
  *
- * @param className
+ * @param {string} className
  */
 function getLinkType(className) {
 	const parts = className.split(' ')
@@ -195,9 +203,9 @@ function getLinkType(className) {
 
 /**
  *
- * @param tags
- * @param mentionHref
- * @param mentionText
+ * @param {Array} tags
+ * @param {string} mentionHref
+ * @param {string} mentionText
  */
 function matchMention(tags, mentionHref, mentionText) {
 	const mentionUrl = new URL(mentionHref)
@@ -225,8 +233,8 @@ const emojiRe = /(?:\ud83d\udc68\ud83c\udffb\u200d\ud83e\udd1d\u200d\ud83d\udc68
 
 /**
  *
- * @param text
- * @param handlers
+ * @param {string} text
+ * @param {Array} handlers
  */
 function transformTextRegex(text, handlers) {
 	const parts = []

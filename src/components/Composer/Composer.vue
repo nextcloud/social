@@ -126,7 +126,7 @@
 					<template #icon>
 						<Send title="" :size="22" decorative />
 					</template>
-					<template>{{ postTo }}</template>
+					{{ postTo }}
 				</NcButton>
 			</div>
 		</form>

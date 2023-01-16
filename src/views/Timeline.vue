@@ -4,7 +4,7 @@
 			<div v-if="showInfo" class="social__welcome">
 				<a class="close icon-close" href="#" @click="hideInfo()">
 					<span class="hidden-visually">
-						Close
+						{{ t('social', 'Close') }}
 					</span>
 				</a>
 				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
