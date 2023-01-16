@@ -83,6 +83,7 @@ return [
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
+		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController

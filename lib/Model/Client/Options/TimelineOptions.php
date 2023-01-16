@@ -47,6 +47,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	public const TIMELINE_HOME = 'home';
 	public const TIMELINE_PUBLIC = 'public';
 	public const TIMELINE_DIRECT = 'direct';
+	public const TIMELINE_ACCOUNT = 'account';
 	public const TIMELINE_FAVOURITES = 'favourites';
 	public const TIMELINE_HASHTAG = 'hashtag';
 	public const TIMELINE_NOTIFICATIONS = 'notifications';
@@ -67,6 +68,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 
 	public static array $availableTimelines = [
 		self::TIMELINE_HOME,
+		self::TIMELINE_ACCOUNT,
 		self::TIMELINE_PUBLIC,
 		self::TIMELINE_DIRECT,
 		self::TIMELINE_FAVOURITES,
@@ -349,7 +351,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	public function fromArray(array $arr): self {
 		$this->setLocal($this->getBool('local', $arr, $this->isLocal()));
 		$this->setRemote($this->getBool('remote', $arr, $this->isRemote()));
-		$this->setRemote($this->getBool('only_media', $arr, $this->isOnlyMedia()));
+		$this->setOnlyMedia($this->getBool('only_media', $arr, $this->isOnlyMedia()));
 		$this->setMinId($this->getInt('min_id', $arr, $this->getMinId()));
 		$this->setMaxId($this->getInt('max_id', $arr, $this->getMaxId()));
 		$this->setSince($this->getInt('since', $arr, $this->getSince()));
@@ -367,6 +369,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 		return
 			[
 				'timeline' => $this->getTimeline(),
+				'accountId' => $this->getAccountId(),
 				'local' => $this->isLocal(),
 				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),

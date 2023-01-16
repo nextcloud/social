@@ -284,6 +284,47 @@ class ApiController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
+	 * @param string $account
+	 * @param int $limit
+	 * @param int $max_id
+	 * @param int $min_id
+	 *
+	 * @return DataResponse
+	 */
+	public function accountStatuses(
+		string $account,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$local = $this->cacheActorService->getFromLocalAccount($account);
+
+			$options = new TimelineOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setTimeline(TimelineOptions::TIMELINE_ACCOUNT)
+					->setAccountId($local->getId())
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since);
+
+			$posts = $this->streamService->getTimeline($options);
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
 	 * @param int $limit
 	 * @param int $max_id
 	 * @param int $min_id
