@@ -93,18 +93,12 @@ export default {
 </script>
 
 <style scoped>
+.social__timeline {
+	max-width: 600px;
+	margin: 15px auto;
+}
 
-	.social__timeline {
-		max-width: 600px;
-		margin: 15px auto;
-	}
-
-	#app-content {
-		position: relative;
-	}
-
-</style>
-
-<style>
-
+#app-content {
+	position: relative;
+}
 </style>

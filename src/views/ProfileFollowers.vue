@@ -68,6 +68,7 @@ export default {
 		display: flex;
 		flex-wrap: wrap;
 	}
+
 	.user-entry {
 		width: 100%;
 		padding: 20px;

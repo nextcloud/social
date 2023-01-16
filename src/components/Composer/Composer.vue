@@ -669,8 +669,7 @@ export default {
 		right: 0;
 		top: 2;
 	}
-</style>
-<style>
+
 	/* Tribute-specific styles TODO: properly scope component css */
 	.tribute-container {
 		position: absolute;
@@ -685,71 +684,72 @@ export default {
 		z-index: 999999;
 		border-radius: 4px;
 		box-shadow: 0 1px 3px var(--color-box-shadow);
-	}
 
-	.tribute-container ul {
-		margin: 0;
-		margin-top: 2px;
-		padding: 0;
-		list-style: none;
-		background: var(--color-main-background);
-		border-radius: 4px;
-		background-clip: padding-box;
-		overflow: hidden;
-	}
+		ul {
+			margin: 0;
+			margin-top: 2px;
+			padding: 0;
+			list-style: none;
+			background: var(--color-main-background);
+			border-radius: 4px;
+			background-clip: padding-box;
+			overflow: hidden;
+		}
 
-	.tribute-container li {
-		color: var(--color-text);
-		padding: 5px 10px;
-		cursor: pointer;
-		font-size: 14px;
-		display: flex;
-	}
+		li {
+			color: var(--color-text);
+			padding: 5px 10px;
+			cursor: pointer;
+			font-size: 14px;
+			display: flex;
 
-	.tribute-container li span {
-		display: block;
-	}
+			span {
+				display: block;
+			}
 
-	.tribute-container li.highlight,
-	.tribute-container li:hover {
-		background: var(--color-primary);
-		color: var(--color-primary-text);
-	}
+			&.highlight,
+			&:hover {
+				background: var(--color-primary);
+				color: var(--color-primary-text);
+			}
 
-	.tribute-container li img {
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		overflow: hidden;
-		margin-right: 10px;
-		margin-left: -3px;
-		margin-top: 3px;
-	}
+			img {
+				width: 32px;
+				height: 32px;
+				border-radius: 50%;
+				overflow: hidden;
+				margin-right: 10px;
+				margin-left: -3px;
+				margin-top: 3px;
+			}
 
-	.tribute-container li span {
-		font-weight: bold;
-	}
+			span {
+				font-weight: bold;
+			}
 
-	.tribute-container li.no-match {
-		cursor: default;
-	}
+			&.no-match {
+				cursor: default;
+			}
 
-	.tribute-container .menu-highlighted {
-		font-weight: bold;
-	}
+		}
 
-	.tribute-container .account,
-	.tribute-container li.highlight .account,
-	.tribute-container li:hover .account {
-		font-weight: normal;
-		color: var(--color-text-light);
-		opacity: 0.5;
-	}
+		.menu-highlighted {
+			font-weight: bold;
+		}
 
-	.tribute-container li.highlight .account,
-	.tribute-container li:hover .account {
-		color: var(--color-primary-text) !important;
-		opacity: .6;
+		.account,
+		li.highlight .account,
+		li:hover .account {
+			font-weight: normal;
+			color: var(--color-text-light);
+			opacity: 0.5;
+		}
+
+		li.highlight .account,
+		li:hover .account {
+			color: var(--color-primary-text) !important;
+			opacity: .6;
+		}
 	}
 
 	.message .mention {
@@ -760,15 +760,15 @@ export default {
 		padding-left: 2px;
 		padding-bottom: 1px;
 		padding-right: 5px;
-	}
 
-	.mention img {
-		width: 16px;
-		border-radius: 50%;
-		overflow: hidden;
-		margin-right: 3px;
-		vertical-align: middle;
-		margin-top: -1px;
+		img {
+			width: 16px;
+			border-radius: 50%;
+			overflow: hidden;
+			margin-right: 3px;
+			vertical-align: middle;
+			margin-top: -1px;
+		}
 	}
 
 	.hashtag {

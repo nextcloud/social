@@ -149,6 +149,7 @@ export default {
 		transition: all .5s ease-out;
 		max-height: 200px;
 	}
+
 	.slide-fade-leave-to {
 		max-height: 0;
 		opacity: 0;
