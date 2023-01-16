@@ -23,10 +23,13 @@
  *
  */
 
-import logger from '../services/logger.js'
-import axios from '@nextcloud/axios'
 import Vue from 'vue'
+
+import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { showError } from '@nextcloud/dialogs'
+
+import logger from '../services/logger.js'
 
 /**
  * @property {object} timeline - The posts' collection
@@ -48,8 +51,10 @@ const state = {
 	 */
 	params: {},
 	account: '',
-	/* Tells whether the composer should be displayed or not.
+	/**
+	 * Tells whether the composer should be displayed or not.
 	 * It's up to the view to honor this status or not.
+	 *
 	 * @member {boolean}
 	 */
 	composerDisplayStatus: false,
@@ -153,7 +158,7 @@ const actions = {
 			})
 			logger.info('Post created with token ' + data.result.token)
 		} catch (error) {
-			OC.Notification.showTemporary('Failed to create a post')
+			showError('Failed to create a post')
 			logger.error('Failed to create a post', { error: error.response })
 		}
 	},
@@ -162,7 +167,7 @@ const actions = {
 			context.commit('removePost', post)
 			logger.info('Post deleted with token ' + response.data.result.token)
 		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to delete the post')
+			showError('Failed to delete the post')
 			logger.error('Failed to delete the post', { error })
 		})
 	},
@@ -172,7 +177,7 @@ const actions = {
 				context.commit('likePost', { post, parentAnnounce })
 				resolve(response)
 			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to like post')
+				showError('Failed to like post')
 				logger.error('Failed to like post', { error: error.response })
 				reject(error)
 			})
@@ -186,7 +191,7 @@ const actions = {
 				context.commit('removePost', post)
 			}
 		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to unlike post')
+			showError('Failed to unlike post')
 			logger.error('Failed to unlike post', { error })
 		})
 	},
@@ -197,7 +202,7 @@ const actions = {
 				logger.info('Post boosted with token ' + response.data.result.token)
 				resolve(response)
 			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to create a boost post')
+				showError('Failed to create a boost post')
 				logger.error('Failed to create a boost post', { error: error.response })
 				reject(error)
 			})
@@ -208,43 +213,62 @@ const actions = {
 			context.commit('unboostPost', { post, parentAnnounce })
 			logger.info('Boost deleted with token ' + response.data.result.token)
 		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to delete the boost')
+			showError('Failed to delete the boost')
 			logger.error('Failed to delete the boost', { error })
 		})
 	},
 	refreshTimeline(context) {
 		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
 	},
-	fetchTimeline(context, { sinceTimestamp }) {
-
-		if (typeof sinceTimestamp === 'undefined') {
-			sinceTimestamp = state.since - 1
+	/**
+	 *
+	 * @param {object} context
+	 * @param {object} params - see https://docs.joinmastodon.org/methods/timelines
+	 * @param {number} [params.since_id] - Fetch results newer than ID
+	 * @param {number} [params.max_id] - Fetch results older than ID
+	 * @param {number} [params.min_id] - Fetch results immediately newer than ID
+	 * @param {number} [params.limit] - Maximum number of results to return. Defaults to 20 statuses. Max 40 statuses
+	 * @param {number} [params.local] - Show only local statuses? Defaults to false.
+	 * @return {Promise<object>}
+	 */
+	async fetchTimeline(context, params = {}) {
+		if (params.since_id === undefined) {
+			params.since_id = state.since_id - 1
 		}
 
-		// Compute URl to get the data
+		if (params.limit === undefined) {
+			params.limit = 15
+		}
+
+		// Compute URL to get the data
 		let url = ''
-		if (state.type === 'account') {
-			url = generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
-		} else if (state.type === 'tags') {
-			url = generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
-		} else if (state.type === 'single-post') {
-			url = generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=` + sinceTimestamp)
-		} else {
-			url = generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
+		switch (state.type) {
+		case 'account':
+			// TODO: wait for maxence
+			url = generateUrl(`apps/social/api/v1/timelines/${state.account}`, params)
+			break
+		case 'tags':
+			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`, params)
+			break
+		case 'single-post':
+			// TODO: wait for maxence
+			url = generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}`, params)
+			break
+		default:
+			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`, params)
 		}
 
 		// Get the data and add them to the timeline
-		return axios.get(url).then((response) => {
+		const response = await axios.get(url)
 
-			if (response.status === -1) {
-				throw response.message
-			}
+		if (response.status === -1) {
+			throw response.message
+		}
 
-			// Add results to timeline
-			context.commit('addToTimeline', response.data.result)
+		// Add results to timeline
+		context.commit('addToTimeline', response.data.result)
 
-			return response.data
-		})
+		return response.data
 	},
 	addToTimeline(context, data) {
 		context.commit('addToTimeline', data)
