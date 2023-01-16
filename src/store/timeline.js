@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
  * @file Timeline related store
@@ -6,7 +6,7 @@
  * @author Julius Härtl <jus@bitgrid.net>
  * @author Jonas Sulzer <jonas@violoncello.ch>
  *
- * @license GNU AGPL version 3 or any later version
+ * @license AGPL-3.0-or-later
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -30,7 +30,7 @@ import { generateUrl } from '@nextcloud/router'
 
 /**
  * @property {object} timeline - The posts' collection
- * @property {int} since - Time (EPOCH) of the most recent post
+ * @property {number} since - Time (EPOCH) of the most recent post
  * @property {string} type - Timeline's type: 'home', 'single-post',...
  * @property {object} params - Timeline's parameters
  * @property {string} account -

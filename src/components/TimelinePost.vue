@@ -91,7 +91,6 @@ import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
-import RichText from '@nextcloud/vue-richtext'
 import MessageContent from './MessageContent.js'
 
 export default {
@@ -105,7 +104,6 @@ export default {
 		Reply,
 		Heart,
 		HeartOutline,
-		RichText,
 		MessageContent,
 	},
 	mixins: [currentUser],
@@ -154,7 +152,7 @@ export default {
 	},
 	methods: {
 		/**
-		 * @param e
+		 * @param {MouseEvent} e - The click event
 		 * @function getSinglePostTimeline
 		 * @description Opens the timeline of the post clicked
 		 */

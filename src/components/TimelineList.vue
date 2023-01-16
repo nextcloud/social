@@ -154,17 +154,17 @@ export default {
 </script>
 
 <style scoped>
-	.list-item {
-	}
-	.list-enter-active, .list-leave-active {
-		transition: all .5s;
-	}
-	.list-enter {
-		opacity: 0;
-		transform: translateY(-30px);
-	}
-	.list-leave-to {
-		opacity: 0;
-		transform: translateX(-100px);
-	}
+.list-enter-active, .list-leave-active {
+	transition: all .5s;
+}
+
+.list-enter {
+	opacity: 0;
+	transform: translateY(-30px);
+}
+
+.list-leave-to {
+	opacity: 0;
+	transform: translateX(-100px);
+}
 </style>

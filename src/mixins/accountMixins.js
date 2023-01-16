@@ -1,9 +1,9 @@
-/*
+/**
  * @copyright Copyright (c) 2019 Cyrille Bollu <cyrpub@bollu.be>
  *
  * @author Cyrille Bollu <cyrpub@bollu.be>
  *
- * @license GNU AGPL version 3 or any later version
+ * @license AGPL-3.0-or-later
  *
  * @file provides global account related methods
  *
@@ -31,16 +31,18 @@ export default {
 		serverData,
 	],
 	computed: {
-		/** @function  Returns the complete account name */
+		/** @return {string} the complete account name */
 		profileAccount() {
 			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
 		},
-		/** @functions Returns detailed information about an account (account must be loaded in the store first) */
+
+		/** @return detailed information about an account (account must be loaded in the store first) */
 		accountInfo() {
 			return this.$store.getters.getAccount(this.profileAccount)
 		},
+
 		/**
-		 * @function Somewhat duplicate with accountInfo(), but needed (for some reason) to avoid glitches
+		 * Somewhat duplicate with accountInfo(), but needed (for some reason) to avoid glitches
 		 * where components would first show "user not found" before display an account's account info
 		 */
 		accountLoaded() {

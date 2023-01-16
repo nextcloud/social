@@ -1,8 +1,8 @@
 module.exports = {
 	extends: [
-		'@nextcloud'
+		'@nextcloud',
 	],
 	globals: {
-		appName: true
-	}
-};
+		appName: true,
+	},
+}

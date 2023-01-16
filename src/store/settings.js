@@ -36,6 +36,5 @@ const getters = {
 		return state.serverData
 	},
 }
-const actions = {}
 
-export default { state, mutations, getters, actions }
+export default { state, mutations, getters }

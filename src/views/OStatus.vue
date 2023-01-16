@@ -123,9 +123,11 @@ export default {
 	h2, p {
 		color: var(--color-primary-text);
 	}
+
 	p .icon {
 		display: inline-block;
 	}
+
 	.avatardiv {
 		vertical-align: -4px;
 		margin-right: 3px;
