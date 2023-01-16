@@ -55,7 +55,6 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 
 class StreamService {
-
 	private StreamRequest $streamRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
