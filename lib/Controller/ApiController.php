@@ -248,6 +248,7 @@ class ApiController extends Controller {
 	 * @param int $limit
 	 * @param int $max_id
 	 * @param int $min_id
+	 * @param int $since_id
 	 *
 	 * @return DataResponse
 	 */
@@ -257,7 +258,7 @@ class ApiController extends Controller {
 		int $limit = 20,
 		int $max_id = 0,
 		int $min_id = 0,
-		int $since = 0
+		int $since_id = 0
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -269,7 +270,7 @@ class ApiController extends Controller {
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
-					->setSince($since);
+					->setSince($since_id);
 
 			$posts = $this->streamService->getTimeline($options);
 
@@ -287,7 +288,7 @@ class ApiController extends Controller {
 	 * @param int $limit
 	 * @param int $max_id
 	 * @param int $min_id
-	 * @param int $since
+	 * @param int $since_id
 	 *
 	 * @return DataResponse
 	 */
@@ -295,7 +296,7 @@ class ApiController extends Controller {
 		int $limit = 20,
 		int $max_id = 0,
 		int $min_id = 0,
-		int $since = 0
+		int $since_id = 0
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -306,7 +307,7 @@ class ApiController extends Controller {
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
-					->setSince($since);
+					->setSince($since_id);
 
 			$posts = $this->streamService->getTimeline($options);
 
@@ -327,7 +328,7 @@ class ApiController extends Controller {
 		int $limit = 20,
 		int $max_id = 0,
 		int $min_id = 0,
-		int $since = 0,
+		int $since_id = 0,
 		array $types = [],
 		array $exclude_types = [],
 		string $accountId = ''
@@ -341,7 +342,7 @@ class ApiController extends Controller {
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
-					->setSince($since)
+					->setSince($since_id)
 					->setTypes($types)
 					->setExcludeTypes($exclude_types)
 					->setAccountId($accountId);
@@ -366,7 +367,7 @@ class ApiController extends Controller {
 		int $limit = 20,
 		int $max_id = 0,
 		int $min_id = 0,
-		int $since = 0,
+		int $since_id = 0,
 		bool $local = false,
 		bool $only_media = false
 	): DataResponse {
@@ -379,7 +380,7 @@ class ApiController extends Controller {
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
-					->setSince($since)
+					->setSince($since_id)
 					->setLocal($local)
 					->setOnlyMedia($only_media)
 					->setArgument($hashtag);
