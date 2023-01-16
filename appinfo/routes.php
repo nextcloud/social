@@ -84,6 +84,7 @@ return [
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
+		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController

@@ -362,6 +362,9 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function getTimeline(TimelineOptions $options): array {
 		switch (strtolower($options->getTimeline())) {
+			case TimelineOptions::TIMELINE_ACCOUNT:
+				$result = $this->getTimelineAccount($options);
+				break;
 			case TimelineOptions::TIMELINE_HOME:
 				$result = $this->getTimelineHome($options);
 				break;
@@ -441,6 +444,43 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
+
+
+
+
+	/**
+	 * Should returns:
+	 *  - public message from actorId.
+	 *  - followers-only if logged and follower.
+	 *
+	 * @param TimelineOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineAccount(TimelineOptions $options): array {
+		$qb = $this->getStreamSelectSql();
+
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->paginate($options);
+
+		$actorId = $options->getAccountId();
+		if ($actorId === '') {
+			return [];
+		}
+
+		$qb->limitToAttributedTo($actorId, true);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$accountIsViewer = ($qb->hasViewer() && $qb->getViewer()->getId() === $actorId);
+		$qb->limitToDest($accountIsViewer ? '' : ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
 
 
 	/**
@@ -577,7 +617,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
-	public function getTimelineAccount(string $actorId, int $since = 0, int $limit = 5): array {
+	public function getTimelineAccount_dep(string $actorId, int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitPaginate($since, $limit);
 

@@ -36,6 +36,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCP\IUserManager;
 use Symfony\Component\Console\Input\InputArgument;
@@ -53,6 +54,7 @@ class Timeline extends ExtendedBase {
 	private IUserManager $userManager;
 	private StreamRequest $streamRequest;
 	private AccountService $accountService;
+	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
 
 	private ?int $count = null;
@@ -70,6 +72,7 @@ class Timeline extends ExtendedBase {
 		IUserManager $userManager,
 		StreamRequest $streamRequest,
 		AccountService $accountService,
+		CacheActorService $cacheActorService,
 		ConfigService $configService
 	) {
 		parent::__construct();
@@ -77,6 +80,7 @@ class Timeline extends ExtendedBase {
 		$this->userManager = $userManager;
 		$this->streamRequest = $streamRequest;
 		$this->accountService = $accountService;
+		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
 	}
 
@@ -94,6 +98,7 @@ class Timeline extends ExtendedBase {
 			 ->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
 			 ->addOption('since', '', InputOption::VALUE_REQUIRED, 'since', 0)
 			 ->addOption('limit', '', InputOption::VALUE_REQUIRED, 'limit', 5)
+			 ->addOption('account', '', InputOption::VALUE_REQUIRED, 'account', '')
 			 ->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
 			 ->setDescription('Get stream by timeline and viewer');
 	}
@@ -136,6 +141,12 @@ class Timeline extends ExtendedBase {
 			$options->setLocal(true);
 		}
 		$options->setTimeline($input->getArgument('timeline'));
+
+		if ($input->getOption('account') !== '') {
+			$local = $this->cacheActorService->getFromLocalAccount($input->getOption('account'));
+			$options->setAccountId($local->getId());
+		}
+
 		$this->outputStreams($this->streamRequest->getTimeline($options));
 
 		return 0;

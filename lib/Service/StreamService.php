@@ -56,20 +56,9 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 
 class StreamService {
 	private StreamRequest $streamRequest;
-
 	private ActivityService $activityService;
-
-	private AccountService $accountService;
-
-	private SignatureService $signatureService;
-
-	private StreamQueueService $streamQueueService;
-
 	private CacheActorService $cacheActorService;
-
 	private ConfigService $configService;
-
-	private MiscService $miscService;
 
 
 	/**
@@ -77,27 +66,19 @@ class StreamService {
 	 *
 	 * @param StreamRequest $streamRequest
 	 * @param ActivityService $activityService
-	 * @param AccountService $accountService
-	 * @param SignatureService $signatureService
-	 * @param StreamQueueService $streamQueueService
 	 * @param CacheActorService $cacheActorService
 	 * @param ConfigService $configService
-	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamRequest $streamRequest, ActivityService $activityService,
-		AccountService $accountService, SignatureService $signatureService,
-		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		StreamRequest $streamRequest,
+		ActivityService $activityService,
+		CacheActorService $cacheActorService,
+		ConfigService $configService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
-		$this->accountService = $accountService;
-		$this->signatureService = $signatureService;
-		$this->streamQueueService = $streamQueueService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 
@@ -268,9 +249,7 @@ class StreamService {
 			$note->addTag(
 				[
 					'type' => 'Hashtag',
-					'href' => $this->configService->getSocialUrl() . 'tag/' . strtolower(
-						$hashtag
-					),
+					'href' => $this->configService->getSocialUrl() . 'tag/' . strtolower($hashtag),
 					'name' => '#' . $hashtag
 				]
 			);
@@ -445,7 +424,7 @@ class StreamService {
 	 * @deprecated
 	 */
 	public function getStreamAccount(string $actorId, int $since = 0, int $limit = 5): array {
-		return $this->streamRequest->getTimelineAccount($actorId, $since, $limit);
+		return $this->streamRequest->getTimelineAccount_dep($actorId, $since, $limit);
 	}
 
 
