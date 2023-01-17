@@ -5,13 +5,21 @@
 
 name: Pull request checks
 
-on: pull_request
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened]
 
 permissions:
   contents: read
 
+concurrency:
+  group: fixup-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   commit-message-check:
+    if: github.event.pull_request.draft == false
+
     permissions:
       pull-requests: write
     name: Block fixup and squash commits
@@ -20,6 +28,6 @@ jobs:
 
     steps:
       - name: Run check
-        uses: xt0rted/block-autosquash-commits-action@v2
+        uses: xt0rted/block-autosquash-commits-action@79880c36b4811fe549cfffe20233df88876024e7 # v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
