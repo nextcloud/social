@@ -721,7 +721,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$result =
 			[
 				"username" => $this->getPreferredUsername(),
-				"acct" => $this->getAccount(),
+				"acct" => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),
 				"display_name" => $this->getDisplayName(),
 				"locked" => $this->isLocked(),
 				"bot" => $this->isBot(),
@@ -731,7 +731,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				"note" => $this->getDescription(),
 				"url" => $this->getId(),
 				"avatar" => $this->getAvatar(),
-				//				"avatar_static"   => "https://files.mastodon.social/accounts/avatars/000/126/222/original/50785214e44d10cc.jpeg",
 				"avatar_static" => $this->getAvatar(),
 				"header" => $this->getHeader(),
 				"header_static" => $this->getHeader(),
