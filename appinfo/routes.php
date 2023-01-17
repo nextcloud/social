@@ -79,11 +79,12 @@ return [
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
+		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 		['name' => 'Api#favourites', 'url' => '/api/v1/favourites/', 'verb' => 'GET'],
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
-		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
+		['name' => 'Api#statusGet', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET'],
 
 		// Api for local front-end

@@ -172,7 +172,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		try {
 			$result = $qb->getRow([$this, 'parseStreamSelectSql']);
 		} catch (RowNotFoundException $e) {
-			throw new StreamNotFoundException($e->getMessage());
+			throw new StreamNotFoundException('stream not found');
 		}
 
 		return $result;

@@ -285,6 +285,28 @@ class ApiController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
+	 * @param int $nid
+	 *
+	 * @return DataResponse
+	 */
+	public function statusGet(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$item = $this->streamService->getStreamByNid($nid);
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
 	 * @param string $account
 	 * @param int $limit
 	 * @param int $max_id
