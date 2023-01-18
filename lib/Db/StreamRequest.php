@@ -228,6 +228,26 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $id
+	 * @param bool $asViewer
+	 * @param int $format
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function getStreamByNid(int $nid): Stream {
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToNid($nid);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$qb->limitToViewer('sd', 'f', true, true);
+		$qb->leftJoinStreamAction('sa');
+
+		return $this->getStreamFromRequest($qb);
+	}
+
+
+	/**
 	 * @param string $idPrim
 	 *
 	 * @return Stream
@@ -446,8 +466,6 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 
-
-
 	/**
 	 * Should returns:
 	 *  - public message from actorId.
@@ -480,7 +498,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 
 	/**

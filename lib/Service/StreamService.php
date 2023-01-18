@@ -360,6 +360,18 @@ class StreamService {
 
 	/**
 	 * @param string $id
+	 * @param bool $asViewer
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function getStreamByNid(int $nid): Stream {
+		return $this->streamRequest->getStreamByNid($nid);
+	}
+
+
+	/**
+	 * @param string $id
 	 * @param int $since
 	 * @param int $limit
 	 * @param bool $asViewer

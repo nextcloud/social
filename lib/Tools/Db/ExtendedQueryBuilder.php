@@ -86,6 +86,11 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	}
 
 
+	public function limitToNid(int $id): void {
+		$this->limitToDBFieldInt('nid', $id);
+	}
+
+
 	/**
 	 * @param array $ids
 	 *
