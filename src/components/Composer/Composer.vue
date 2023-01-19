@@ -402,11 +402,12 @@ export default {
 			this.$refs.fileUploadInput.click()
 		},
 		handleFileChange(event) {
-			const previewUrl = URL.createObjectURL(event.target.files[0])
-			this.previewUrls.push({
-				description: '',
-				url: previewUrl,
-				result: event.target.files[0],
+			event.target.files.forEach((file) => {
+				this.previewUrls.push({
+					description: '',
+					url: URL.createObjectURL(file),
+					result: file,
+				})
 			})
 		},
 		removeAttachment(idx) {
@@ -481,8 +482,8 @@ export default {
 			formData.append('type', this.type)
 			for (const preview of this.previewUrls) {
 				// TODO send the summary and other props too
-				formData.append('attachments', preview.result)
-				formData.append('attachmentDescriptions', preview.description)
+				formData.append('attachments[]', preview.result)
+				formData.append('attachmentDescriptions[]', preview.description)
 			}
 			if (this.replyTo) {
 				formData.append('replyTo', this.replyTo.id)

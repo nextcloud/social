@@ -1,9 +1,15 @@
 <template>
-	<masonry>
-		<div v-for="(item, index) in attachments" :key="index">
-			<img :src="imageUrl(item)" @click="showModal(index)">
+	<div class="post-attachments">
+		<div v-for="(item, index) in attachments"
+			:key="index"
+			class="post-attachment"
+			@click="showModal(index)">
+			<img v-if="item.mimeType.startsWith('image/')" :src="imageUrl(item)">
+			<div v-else>
+				{{ item }}
+			</div>
 		</div>
-		<NcModal v-show="modal"
+		<NcModal v-if="modal"
 			:has-previous="current > 0"
 			:has-next="current < (attachments.length - 1)"
 			size="full"
@@ -14,11 +20,10 @@
 				<canvas ref="modalCanvas" />
 			</div>
 		</NcModal>
-	</masonry>
+	</div>
 </template>
 
 <script>
-
 import serverData from '../mixins/serverData.js'
 import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
 import { generateUrl } from '@nextcloud/router'
@@ -101,3 +106,28 @@ export default {
 	},
 }
 </script>
+<style lang="scss" scoped>
+.post-attachments {
+	margin-top: 12px;
+	width: 100%;
+	display: flex;
+	gap: 12px;
+	overflow-x: scroll;
+
+	.post-attachment {
+		height: 100px;
+		object-fit: cover;
+		border-radius: var(--border-radius-large);
+		overflow: hidden;
+
+		> * {
+			cursor: pointer;
+		}
+
+		img {
+			width: 100%;
+			height: 100%;
+		}
+	}
+}
+</style>

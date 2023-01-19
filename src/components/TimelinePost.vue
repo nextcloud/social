@@ -220,7 +220,6 @@ export default {
 		font-size: 15px;
 		line-height: 1.6em;
 		position: relative;
-		width: 100%;
 
 		::v-deep a.widget-default {
 			text-decoration: none !important;
@@ -274,13 +273,6 @@ export default {
 		.icon-boosted {
 			opacity: 1;
 		}
-	}
-
-	span {
-		/* opacity: 0.5; */
-	}
-	.entry-content {
-		display: flex;
 	}
 
 	.post-header {
