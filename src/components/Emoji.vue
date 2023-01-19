@@ -16,10 +16,10 @@ const UFE0Fg = /\uFE0F/g
 export default {
 	name: 'Emoji',
 	props: {
-		emoji: { type: String, default: '' },
-	},
-	data() {
-		return {}
+		emoji: {
+			type: String,
+			 default: '',
+		},
 	},
 	computed: {
 		/**

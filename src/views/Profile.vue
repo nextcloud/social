@@ -24,7 +24,7 @@
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
+		<router-view v-if="accountLoaded && accountInfo && isLocal" name="details" />
 		<NcEmptyContent v-if="accountLoaded && !accountInfo"
 			:title="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
@@ -57,19 +57,22 @@ export default {
 	data() {
 		return {
 			state: [],
+			/** @type {string|null} */
 			uid: null,
 		}
 	},
 	computed: {
+		/** @return {import('../types/Mastodon').Status[]} */
 		timeline() {
 			return this.$store.getters.getTimeline
 		},
+		/** @return {string} */
 		emptyContentImage() {
 			return generateFilePath('social', 'img', 'undraw/profile.svg')
 		},
 	},
 	// Start fetching account information before mounting the component
-	beforeMount() {
+	async beforeMount() {
 		this.uid = this.$route.params.account || this.serverData.account
 
 		// Are we authenticated?
@@ -82,9 +85,10 @@ export default {
 
 		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
 		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
-			this.uid = response.account
-		})
+		/** @type {[import('../types/Mastodon').Account]} */
+		const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
+		this.uid = response.acct
+		await this.$store.dispatch('fetchAccountRelationshipInfo', [this.accountInfo.id])
 	},
 }
 </script>

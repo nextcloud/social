@@ -60,14 +60,6 @@ export default new Router({
 			],
 		},
 		{
-			path: '/:index(index.php/)?apps/social/@:account/:localId',
-			components: {
-				default: TimelineSinglePost,
-			},
-			props: true,
-			name: 'single-post',
-		},
-		{
 			path: '/:index(index.php/)?apps/social/@:account',
 			components: {
 				default: Profile,
@@ -98,6 +90,14 @@ export default new Router({
 					},
 				},
 			],
+		},
+		{
+			path: '/:index(index.php/)?apps/social/@:account/:localId',
+			components: {
+				default: TimelineSinglePost,
+			},
+			props: true,
+			name: 'single-post',
 		},
 		{
 			path: '/:index(index.php/)?apps/social/ostatus/follow',

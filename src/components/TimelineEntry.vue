@@ -1,36 +1,39 @@
 <template>
 	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']">
-		<div v-if="item.type === 'SocialAppNotification'" class="notification">
+		<div v-if="isNotification" class="notification">
 			<Bell :size="22" />
 			<span class="notification-action">
 				{{ actionSummary }}
 			</span>
 		</div>
-		<template v-else-if="item.type === 'Announce'">
+		<template v-else-if="isBoost">
 			<div class="container-icon-boost boost">
 				<span class="icon-boost" />
 			</div>
 			<div class="boost">
-				<router-link v-if="!isProfilePage && item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-					<span v-tooltip.bottom="item.actor_info.account" class="post-author">
-						{{ userDisplayName(item.actor_info) }}
+				<router-link v-if="!isProfilePage && item.account"
+					:to="{ name: 'profile', params: { account: item.account.username } }">
+					<span v-tooltip.bottom="item.account.acct" class="post-author">
+						{{ item.account.display_name }}
 					</span>
 				</router-link>
-				<a v-else :href="item.attributedTo">
+				<a v-else :href="item.account.id">
 					<span class="post-author-id">
-						{{ item.attributedTo }}
+						{{ item.account.id }}
 					</span>
 				</a>
-				{{ boosted }}
+				{{ t('social', 'boosted') }}
 			</div>
 		</template>
-		<UserEntry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
+		<UserEntry v-if="isNotification && notificationIsAboutAnAccount"
+			:key="item.account.id"
+			:item="item.account" />
 		<template v-else>
 			<div class="wrapper">
 				<TimelineAvatar class="entry__avatar" :item="entryContent" />
 				<TimelinePost class="entry__content"
 					:item="entryContent"
-					:parent-announce="isBoost" />
+					:type="type" />
 			</div>
 		</template>
 	</div>
@@ -41,6 +44,7 @@ import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import Bell from 'vue-material-design-icons/Bell.vue'
+import { translate } from '@nextcloud/l10n'
 
 export default {
 	name: 'TimelineEntry',
@@ -51,77 +55,91 @@ export default {
 		Bell,
 	},
 	props: {
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
 		item: {
 			type: Object,
 			default: () => {},
+		},
+		type: {
+			type: String,
+			required: true,
 		},
 		isProfilePage: {
 			type: Boolean,
 			default: false,
 		},
 	},
-	data() {
-		return {
-		}
-	},
 	computed: {
+		/**
+		 * @return {import('../types/Mastodon.js').Status}
+		 */
 		entryContent() {
-			if (this.item.type === 'Announce') {
-				return this.item.cache[this.item.object].object
-			} else if (this.item.type === 'SocialAppNotification') {
-				return this.item.details.post
+			if (this.isNotification) {
+				return this.notification.status
 			} else {
 				return this.item
 			}
 		},
+		/** @return {boolean} */
+		isNotification() {
+			return this.item.type !== undefined
+		},
+		/**
+		 * @return {boolean}
+		 */
 		isBoost() {
-			if (this.item.type === 'Announce') {
-				return this.item
-			}
-			return {}
+			return this.reblog !== null
 		},
+		/** @return {import('../types/Mastodon.js').Notification} */
+		notification() {
+			return this.item
+		},
+		/** @return {import('../types/Mastodon.js').Status} */
+		status() {
+			return this.item
+		},
+		/** @return {boolean} */
+		notificationIsAboutAnAccount() {
+			return this.notification.type in ['follow', 'follow_request', 'admin.sign_up', 'admin.report']
+		},
+		/**
+		 * @return {boolean}
+		 */
 		hasHeader() {
-			return this.item.type === 'Announce' || this.item.type === 'SocialAppNotification'
+			return this.isBoost || this.isNotification
 		},
-		boosted() {
-			return t('social', 'boosted')
-		},
+		/**
+		 * @return {string}
+		 */
 		actionSummary() {
-
-			let summary = this.item.summary
-			for (const key in this.item.details) {
-
-				const keyword = '{' + key + '}'
-				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
-
-					let concatination = ''
-					for (const stringKey in this.item.details[key]) {
-
-						if (this.item.details[key].length > 3 && stringKey === '3') {
-							// ellipses the actors' list to 3 actors when it's big
-							concatination = concatination.substring(0, concatination.length - 2)
-							concatination += ' and ' + (this.item.details[key].length - 3).toString() + ' other(s), '
-							break
-						} else {
-							concatination += this.item.details[key][stringKey] + ', '
-						}
-					}
-
-					concatination = concatination.substring(0, concatination.length - 2)
-					summary = summary.replace(keyword, concatination)
-
-				} else {
-					summary = summary.replace(keyword, this.item.details[key])
-				}
+			switch (this.notification.type) {
+			case 'mention':
+				return t('social', '{account} mentioned you', { account: this.notification.account.acct })
+			case 'status':
+				return t('social', '{account} has posted a status', { account: this.notification.account.acct })
+			case 'reblog':
+				return t('social', '{account} boosted your post', { account: this.notification.account.acct })
+			case 'follow':
+				return t('social', '{account} started following you', { account: this.notification.account.acct })
+			case 'follow_request':
+				return t('social', '{account} requested to follow you', { account: this.notification.account.acct })
+			case 'favourite':
+				return t('social', '{account} like you post', { account: this.notification.account.acct })
+			case 'poll':
+				return t('social', '{account} as ended the poll', { account: this.notification.account.acct })
+			case 'update':
+				return t('social', '{account} edit a status', { account: this.notification.account.acct })
+			case 'admin.sign_up':
+				return t('social', '{account} signed up', { account: this.notification.account.acct })
+			case 'admin.report':
+				return t('social', '{account} filled a report', { account: this.notification.account.acct })
+			default:
+				return ''
 			}
-
-			return summary
 		},
 	},
 	methods: {
-		userDisplayName(actorInfo) {
-			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
-		},
+		t: translate,
 	},
 }
 </script>

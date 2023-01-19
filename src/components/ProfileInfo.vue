@@ -22,7 +22,7 @@
 
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<NcAvatar v-if="accountInfo.local"
+		<NcAvatar v-if="isLocal"
 			:user="localUid"
 			:disable-tooltip="true"
 			:size="128" />
@@ -32,32 +32,32 @@
 			:size="128" />
 		<h2>{{ displayName }}</h2>
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<ul v-if="accountInfo.details && accountInfo.local" class="user-profile__info user-profile__sections">
+		<ul v-if="isLocal" class="user-profile__info user-profile__sections">
 			<li>
 				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
-					{{ getCount('post') }} {{ t('social', 'posts') }}
+					{{ accountInfo.statuses_count }} {{ t('social', 'posts') }}
 				</router-link>
 			</li>
 			<li>
 				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">
-					{{ getCount('following') }}  {{ t('social', 'following') }}
+					{{ accountInfo.following_count }}  {{ t('social', 'following') }}
 				</router-link>
 			</li>
 			<li>
 				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">
-					{{ getCount('followers') }}  {{ t('social', 'followers') }}
+					{{ accountInfo.followers_count }}  {{ t('social', 'followers') }}
 				</router-link>
 			</li>
 		</ul>
 		<p class="user-profile__info">
-			<a :href="accountInfo.url" target="_blank">@{{ accountInfo.account }}</a>
+			<a :href="accountInfo.url" target="_blank">@{{ accountInfo.acct }}</a>
 		</p>
 
-		<p v-if="accountInfo.website" class="user-profile__info">
-			{{ t('social', 'Website') }}: <a :href="accountInfo.website.value">{{ accountInfo.website.value }}</a>
+		<p v-if="website" class="user-profile__info">
+			{{ t('social', 'Website') }}: <a :href="website.value">{{ website.value }}</a>
 		</p>
 
-		<FollowButton class="user-profile__info" :account="accountInfo.account" :uid="uid" />
+		<FollowButton class="user-profile__info" :account="accountInfo.acct" :uid="uid" />
 		<NcButton v-if="serverData.public"
 			class="user-profile__info primary"
 			@click="followRemote">
@@ -72,9 +72,9 @@ import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import currentUser from '../mixins/currentUserMixin.js'
-import follow from '../mixins/follow.js'
 import FollowButton from './FollowButton.vue'
 import { generateUrl } from '@nextcloud/router'
+import { translate } from '@nextcloud/l10n'
 
 export default {
 	name: 'ProfileInfo',
@@ -87,7 +87,6 @@ export default {
 		accountMixins,
 		currentUser,
 		serverData,
-		follow,
 	],
 	props: {
 		uid: {
@@ -101,31 +100,30 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {string} */
 		localUid() {
 			// Returns only the local part of a username
 			return (this.uid.indexOf('@') === -1) ? this.uid : this.uid.slice(0, this.uid.indexOf('@'))
 		},
+		/** @return {string} */
 		displayName() {
-			if (typeof this.accountInfo.name !== 'undefined' && this.accountInfo.name !== '') {
-				return this.accountInfo.name
-			}
-			if (typeof this.accountInfo.preferredUsername !== 'undefined' && this.accountInfo.preferredUsername !== '') {
-				return this.accountInfo.preferredUsername
-			}
-			return this.profileAccount
+			return this.accountInfo.display_name ?? this.accountInfo.username ?? this.profileAccount
 		},
-		getCount() {
-			const account = this.accountInfo
-			return (field) => account.details.count ? account.details.count[field] : ''
-		},
+		/** @return {string} */
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
+		},
+		/** @return {import('../types/Mastodon.js').Field} */
+		website() {
+			return this.accountInfo.fields.find(field => field.name === 'Website')
 		},
 	},
 	methods: {
 		followRemote() {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
+
+		t: translate,
 	},
 }
 

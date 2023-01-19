@@ -592,7 +592,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public function exportAsNotification(): array {
 		switch ($this->getSubType()) {
 			case Like::TYPE:
-				$type = 'favourites';
+				$type = 'favourite';
 				break;
 			case Announce::TYPE:
 				$type = 'mention';

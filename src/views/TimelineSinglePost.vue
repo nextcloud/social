@@ -2,7 +2,7 @@
 	<div class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<Composer v-show="composerDisplayStatus" />
-		<TimelineEntry class="main-post" :item="mainPost" />
+		<TimelineEntry class="main-post" :item="mainPost" type="single-post" />
 		<TimelineList v-if="timeline" :type="$route.params.type" />
 	</div>
 </template>
@@ -72,14 +72,14 @@ export default {
 		this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account).then((response) => {
 			// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
 			// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-			this.uid = response.account
+			this.uid = response.username
 		})
 
 		// Fetch single post timeline
 		const params = {
 			account: this.account,
 			id: window.location.href,
-			localId: window.location.href.split('/')[window.location.href.split('/').length - 1],
+			localId: this.mainPost.id,
 			type: 'single-post',
 		}
 		this.$store.dispatch('changeTimelineType', {

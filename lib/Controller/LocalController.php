@@ -37,6 +37,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -537,8 +538,9 @@ class LocalController extends Controller {
 
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$actor->setCompleteDetails(true);
+			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return $this->success(['account' => $actor]);
+			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -588,8 +590,9 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$actor = $this->cacheActorService->getFromAccount($account);
+			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return $this->success(['account' => $actor]);
+			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

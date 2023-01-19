@@ -106,9 +106,11 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {import('vue').PropType<import('../types/Mastodon.js').Account>} */
 		timeline() {
 			return this.$store.getters.getTimeline
 		},
+		/** @return {{items: {id: string, icon: object, title: string, to: { name: string } }, loading: boolean}} */
 		menu() {
 			const defaultCategories = [
 				{
@@ -152,7 +154,7 @@ export default {
 					title: t('social', 'Liked'),
 					to: {
 						name: 'timeline',
-						params: { type: 'liked' },
+						params: { type: 'favourites' },
 					},
 				},
 				{
@@ -262,4 +264,11 @@ export default {
 		text-decoration: underline;
 	}
 
+</style>
+<style lang="css">
+img.emoji {
+	margin: 3px;
+	width: 16px;
+	vertical-align: text-bottom;
+}
 </style>

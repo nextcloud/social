@@ -1,87 +1,46 @@
 <template>
 	<div class="preview-item-wrapper">
-		<div class="preview-item" :style="backgroundStyle">
+		<div class="preview-item">
+			<MediaAttachment :attachment="preview.data" />
+
 			<div class="preview-item__actions">
-				<NcButton type="tertiary-no-background" @click="$emit('delete', index)">
+				<NcButton type="tertiary-no-background" @click="$emit('delete', randomKey)">
 					<template #icon>
 						<Close :size="16" fill-color="white" />
 					</template>
 					<span>{{ t('social', 'Delete') }}</span>
 				</NcButton>
-				<!--
-				<NcButton type="tertiary-no-background" @click="showModal">
-					<template #icon>
-						<Edit :size="16" fill-color="white" />
-					</template>
-					<span>{{ t('social', 'Edit') }}</span>
-				</NcButton>
-				-->
 			</div>
-
-			<!--
-			<div v-if="preview.description.length === 0" class="description-warning">
-				{{ t('social', 'No description added') }}
-			</div>
-
-			<NcModal v-if="modal" size="small" @close="closeModal">
-				<div class="modal__content">
-					<label :for="`image-description-${index}`">
-						{{ t('social', 'Describe for the visually impaired') }}
-					</label>
-					<textarea :id="`image-description-${index}`" v-model="preview.description" />
-					<NcButton type="primary" @click="closeModal">
-						{{ t('social', 'Close') }}
-					</NcButton>
-				</div>
-			</NcModal>
-			-->
 		</div>
 	</div>
 </template>
 
 <script>
 import Close from 'vue-material-design-icons/Close.vue'
-// import Edit from 'vue-material-design-icons/Pencil.vue'
-// import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import { translate } from '@nextcloud/l10n'
+import MediaAttachment from '../MediaAttachment.vue'
 
 export default {
 	name: 'PreviewGridItem',
 	components: {
 		Close,
-		// Edit,
-		// NcModal,
 		NcButton,
+		MediaAttachment,
 	},
 	props: {
+		/** @type {import('vue').PropType<import('./Composer.vue').LocalAttachment>} */
 		preview: {
 			type: Object,
 			required: true,
 		},
-		index: {
-			type: Number,
+		randomKey: {
+			type: String,
 			required: true,
 		},
 	},
-	data() {
-		return {
-			modal: false,
-		}
-	},
-	computed: {
-		backgroundStyle() {
-			return {
-				backgroundImage: `url("${this.preview.url}")`,
-			}
-		},
-	},
 	methods: {
-		showModal() {
-			this.modal = true
-		},
-		closeModal() {
-			this.modal = false
-		},
+		t: translate,
 	},
 }
 </script>
@@ -95,7 +54,7 @@ export default {
 
 .preview-item {
 	border-radius: var(--border-radius-large);
-	background-color: #000;
+	background: var(--color-background-darker);
 	background-position: 50%;
 	background-size: cover;
 	background-repeat: no-repeat;
@@ -109,6 +68,9 @@ export default {
 	}
 
 	&__actions {
+		position: absolute;
+		top: 0;
+		width: 100%;
 		background: linear-gradient(180deg,rgba(0,0,0,.8),rgba(0,0,0,.35) 80%,transparent);
 		display: flex;
 		align-items: flex-start;

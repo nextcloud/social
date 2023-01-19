@@ -57,6 +57,7 @@ import UserEntry from './UserEntry.vue'
 import axios from '@nextcloud/axios'
 import Trend from 'vuetrend'
 import { generateUrl } from '@nextcloud/router'
+import { translate } from '@nextcloud/l10n'
 
 export default {
 	name: 'Search',
@@ -80,6 +81,7 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {import('../types/Mastodon.js').Account[]} */
 		allResults() {
 			if (this.results.accounts) {
 				if (this.results.accounts.exact) {
@@ -138,6 +140,8 @@ export default {
 		remoteSearch(term) {
 			return axios.get(generateUrl('apps/social/api/v1/global/account/info?account=' + term))
 		},
+
+		t: translate,
 	},
 }
 </script>

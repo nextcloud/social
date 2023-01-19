@@ -451,7 +451,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineDirect(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql();
+		$qb = $this->getStreamSelectSql($options->getFormat());
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
@@ -476,7 +476,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineAccount(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql();
+		$qb = $this->getStreamSelectSql($options->getFormat());
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
