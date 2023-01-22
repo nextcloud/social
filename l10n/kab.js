@@ -8,6 +8,7 @@ OC.L10N.register(
     "Edit" : "Ẓreg",
     "Close" : "Mdel",
     "Website" : "Asmel web",
+    "Reply" : "Err",
     "Deny" : "Agwi",
     "Continue" : "Continuer"
 },
