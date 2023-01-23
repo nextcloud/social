@@ -8,7 +8,7 @@ OC.L10N.register(
     "Notifications" : "การแจ้งเตือน",
     "Post" : "โพสต์",
     "Public" : "สาธารณะ",
-    "Uploading..." : "กำลังอัพโหลด...",
+    "Uploading..." : "กำลังอัปโหลด...",
     "Delete" : "ลบ",
     "Edit" : "แก้ไข",
     "Close" : "ปิด",
