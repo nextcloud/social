@@ -25,7 +25,6 @@
 	<div class="new-post" data-id="">
 		<input id="file-upload"
 			ref="fileUploadInput"
-			multiple
 			type="file"
 			tabindex="-1"
 			aria-hidden="true"
@@ -83,6 +82,7 @@
 			<div class="options">
 				<NcButton v-tooltip="t('social', 'Add attachment')"
 					type="tertiary"
+					:disabled="previewUrls.length >= 1"
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
 					<template #icon>
