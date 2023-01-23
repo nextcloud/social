@@ -119,6 +119,7 @@ export default {
 		object-fit: cover;
 		border-radius: var(--border-radius-large);
 		overflow: hidden;
+		flex-shrink: 0;
 
 		> * {
 			cursor: pointer;
