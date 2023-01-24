@@ -3,7 +3,7 @@ OC.L10N.register(
     {
     "Help" : "ช่วยเหลือ",
     "Open documentation" : "เปิดเอกสารประกอบ",
-    "Finish setup" : "ติดตั้งเลย",
+    "Finish setup" : "ติดตั้งให้เสร็จ",
     "Home" : "หน้าหลัก",
     "Notifications" : "การแจ้งเตือน",
     "Post" : "โพสต์",
