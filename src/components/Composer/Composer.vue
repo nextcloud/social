@@ -25,7 +25,6 @@
 	<div class="new-post" data-id="">
 		<input id="file-upload"
 			ref="fileUploadInput"
-			multiple
 			type="file"
 			tabindex="-1"
 			aria-hidden="true"
@@ -83,6 +82,7 @@
 			<div class="options">
 				<NcButton v-tooltip="t('social', 'Add attachment')"
 					type="tertiary"
+					:disabled="previewUrls.length >= 1"
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
 					<template #icon>
@@ -402,11 +402,12 @@ export default {
 			this.$refs.fileUploadInput.click()
 		},
 		handleFileChange(event) {
-			const previewUrl = URL.createObjectURL(event.target.files[0])
-			this.previewUrls.push({
-				description: '',
-				url: previewUrl,
-				result: event.target.files[0],
+			event.target.files.forEach((file) => {
+				this.previewUrls.push({
+					description: '',
+					url: URL.createObjectURL(file),
+					result: file,
+				})
 			})
 		},
 		removeAttachment(idx) {
@@ -421,7 +422,6 @@ export default {
 			}
 			this.post += this.$twemoji.parse(emoji) + ' '
 			this.$refs.composerInput.innerHTML += this.$twemoji.parse(emoji) + ' '
-			this.$refs.emojiPicker.hide()
 		},
 		togglePopoverMenu() {
 			this.menuOpened = !this.menuOpened
@@ -476,14 +476,12 @@ export default {
 
 			const formData = new FormData()
 			formData.append('content', content)
-			formData.append('to', to)
-			formData.append('hashtags', hashtags)
+			to.forEach(to => formData.append('to[]', to))
+			hashtags.forEach(hashtag => formData.append('hashtags[]', hashtag))
 			formData.append('type', this.type)
-			for (const preview of this.previewUrls) {
-				// TODO send the summary and other props too
-				formData.append('attachments', preview.result)
-				formData.append('attachmentDescriptions', preview.description)
-			}
+			this.previewUrls.forEach(preview => formData.append('attachments[]', preview.result))
+			this.previewUrls.forEach(preview => formData.append('attachmentDescriptions[]', preview.description))
+
 			if (this.replyTo) {
 				formData.append('replyTo', this.replyTo.id)
 			}
@@ -556,122 +554,146 @@ export default {
 </script>
 
 <style scoped lang="scss">
-	.new-post {
-		padding: 10px;
-		background-color: var(--color-main-background);
-		position: sticky;
-		z-index: 100;
-		margin-bottom: 10px;
-		top: 0;
+.new-post {
+	padding: 10px;
+	background-color: var(--color-main-background);
+	position: sticky;
+	z-index: 100;
+	margin-bottom: 10px;
+	top: 0;
 
-		&-form {
-			flex-grow: 1;
-			position: relative;
-			top: -10px;
-			margin-left: 39px;
-			&__emoji-picker {
-				z-index: 1;
-			}
-		}
-	}
-
-	.new-post-author {
-		padding: 5px;
-		display: flex;
-		flex-wrap: wrap;
-
-		.post-author {
-			padding: 6px;
-
-			.post-author-name {
-				font-weight: bold;
-			}
-
-			.post-author-id {
-				opacity: .7;
-			}
-		}
-	}
-
-	.reply-to {
-		background-image: url(../../../img/reply.svg);
-		background-position: 8px 12px;
-		background-repeat: no-repeat;
-		margin-left: 39px;
-		margin-bottom: 20px;
-		overflow: hidden;
-		background-color: var(--color-background-hover);
-		border-radius: var(--border-radius-large);
-		padding: 5px;
-		padding-left: 30px;
-
-		.reply-info {
-			display: flex;
-			align-items: center;
-		}
-		.close-button {
-			margin-left: auto;
-			opacity: .7;
-			min-width: 30px;
-			min-height: 30px;
-			height: 30px;
-			width: 30px !important;
-		}
-	}
-
-	.message {
-		width: 100%;
-		padding-right: 44px;
-		min-height: 70px;
-		min-width: 2px;
-		display: block;
-	}
-
-	[contenteditable=true]:empty:before {
-		content: attr(placeholder);
-		display: block; /* For Firefox */
-		opacity: .5;
-	}
-
-	input[type=submit].inline {
-		width: 44px;
-		height: 44px;
-		margin: 0;
-		padding: 13px;
-		background-color: transparent;
-		border: none;
-		opacity: 0.3;
-		position: absolute;
-		bottom: 0;
-		right: 0;
-	}
-
-	.options {
-		display: flex;
-		align-items: flex-end;
-		width: 100%;
-		margin-top: 0.5rem;
-	}
-
-	.emptySpace {
-		flex-grow:1;
-	}
-
-	.popovermenu-parent {
+	&-form {
+		flex-grow: 1;
 		position: relative;
+		top: -10px;
+		margin-left: 39px;
+		&__emoji-picker {
+			z-index: 1;
+		}
 	}
-	.popovermenu {
-		top: 55px;
-	}
+}
 
-	.attachment-picker-wrapper {
-		position: absolute;
-		right: 0;
-		top: 2;
-	}
+.new-post-author {
+	padding: 5px;
+	display: flex;
+	flex-wrap: wrap;
 
-	/* Tribute-specific styles TODO: properly scope component css */
-	.tribute-container {
+	.post-author {
+		padding: 6px;
+
+		.post-author-name {
+			font-weight: bold;
+		}
+
+		.post-author-id {
+			opacity: .7;
+		}
+	}
+}
+
+.reply-to {
+	background-image: url(../../../img/reply.svg);
+	background-position: 8px 12px;
+	background-repeat: no-repeat;
+	margin-left: 39px;
+	margin-bottom: 20px;
+	overflow: hidden;
+	background-color: var(--color-background-hover);
+	border-radius: var(--border-radius-large);
+	padding: 5px;
+	padding-left: 30px;
+
+	.reply-info {
+		display: flex;
+		align-items: center;
+	}
+	.close-button {
+		margin-left: auto;
+		opacity: .7;
+		min-width: 30px;
+		min-height: 30px;
+		height: 30px;
+		width: 30px !important;
+	}
+}
+
+.message {
+	width: 100%;
+	padding-right: 44px;
+	min-height: 70px;
+	min-width: 2px;
+	display: block;
+
+	:deep(.mention) {
+		color: var(--color-primary-element);
+		background-color: var(--color-background-dark);
+		border-radius: 5px;
+		padding-top: 1px;
+		padding-left: 2px;
+		padding-bottom: 1px;
+		padding-right: 5px;
+
+		img {
+			width: 16px;
+			border-radius: 50%;
+			overflow: hidden;
+			margin-right: 3px;
+			vertical-align: middle;
+			margin-top: -1px;
+		}
+	}
+}
+
+[contenteditable=true]:empty:before {
+	content: attr(placeholder);
+	display: block; /* For Firefox */
+	opacity: .5;
+}
+
+input[type=submit].inline {
+	width: 44px;
+	height: 44px;
+	margin: 0;
+	padding: 13px;
+	background-color: transparent;
+	border: none;
+	opacity: 0.3;
+	position: absolute;
+	bottom: 0;
+	right: 0;
+}
+
+.options {
+	display: flex;
+	align-items: flex-end;
+	width: 100%;
+	margin-top: 0.5rem;
+}
+
+.emptySpace {
+	flex-grow:1;
+}
+
+.popovermenu-parent {
+	position: relative;
+}
+.popovermenu {
+	top: 55px;
+}
+
+.attachment-picker-wrapper {
+	position: absolute;
+	right: 0;
+	top: 2;
+}
+
+.hashtag {
+	text-decoration: underline;
+}
+</style>
+<style lang="scss">
+/* Tribute-specific styles TODO: properly scope component css */
+.tribute-container {
 		position: absolute;
 		top: 0;
 		left: 0;
@@ -694,43 +716,42 @@ export default {
 			border-radius: 4px;
 			background-clip: padding-box;
 			overflow: hidden;
-		}
 
-		li {
-			color: var(--color-text);
-			padding: 5px 10px;
-			cursor: pointer;
-			font-size: 14px;
-			display: flex;
+			li {
+				color: var(--color-text);
+				padding: 5px 10px;
+				cursor: pointer;
+				font-size: 14px;
+				display: flex;
 
-			span {
-				display: block;
+				span {
+					display: block;
+				}
+
+				&.highlight,
+				&:hover {
+					background: var(--color-primary);
+					color: var(--color-primary-text);
+				}
+
+				img {
+					width: 32px;
+					height: 32px;
+					border-radius: 50%;
+					overflow: hidden;
+					margin-right: 10px;
+					margin-left: -3px;
+					margin-top: 3px;
+				}
+
+				span {
+					font-weight: bold;
+				}
+
+				&.no-match {
+					cursor: default;
+				}
 			}
-
-			&.highlight,
-			&:hover {
-				background: var(--color-primary);
-				color: var(--color-primary-text);
-			}
-
-			img {
-				width: 32px;
-				height: 32px;
-				border-radius: 50%;
-				overflow: hidden;
-				margin-right: 10px;
-				margin-left: -3px;
-				margin-top: 3px;
-			}
-
-			span {
-				font-weight: bold;
-			}
-
-			&.no-match {
-				cursor: default;
-			}
-
 		}
 
 		.menu-highlighted {
@@ -750,28 +771,5 @@ export default {
 			color: var(--color-primary-text) !important;
 			opacity: .6;
 		}
-	}
-
-	.message .mention {
-		color: var(--color-primary-element);
-		background-color: var(--color-background-dark);
-		border-radius: 5px;
-		padding-top: 1px;
-		padding-left: 2px;
-		padding-bottom: 1px;
-		padding-right: 5px;
-
-		img {
-			width: 16px;
-			border-radius: 50%;
-			overflow: hidden;
-			margin-right: 3px;
-			vertical-align: middle;
-			margin-top: -1px;
-		}
-	}
-
-	.hashtag {
-		text-decoration: underline;
-	}
+}
 </style>

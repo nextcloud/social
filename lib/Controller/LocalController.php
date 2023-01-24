@@ -124,14 +124,10 @@ class LocalController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 */
-	public function postCreate(string $content = '', $to = null, string $type = null, ?string $replyTo = null, $attachments = null, ?string $hashtags = null): DataResponse {
+	public function postCreate(string $content = '', array $to = [], string $type = null, ?string $replyTo = null, $attachments = null, array $hashtags = []): DataResponse {
 		$content = $content ?: '';
-		$to = is_string($to) ? [$to] : $to;
-		$to = $to ?? [];
 		$replyTo = $replyTo ?? '';
 		$type = $type ?? Stream::TYPE_PUBLIC;
-		$hashtags = $hashtags === '' ? [] : $hashtags;
-		$hashtags = $hashtags ?? [];
 		$attachments = $attachments ?? [];
 
 		try {

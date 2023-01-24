@@ -27,8 +27,8 @@
 		<UserEntry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
 		<template v-else>
 			<div class="wrapper">
-				<TimelineAvatar :item="entryContent" />
-				<TimelinePost class="message"
+				<TimelineAvatar class="entry__avatar" :item="entryContent" />
+				<TimelinePost class="entry__content"
 					:item="entryContent"
 					:parent-announce="isBoost" />
 			</div>
@@ -130,8 +130,18 @@ export default {
 		display: flex;
 		margin: auto;
 		padding: 0;
+
 		&:focus {
 			background-color: rgba(47, 47, 47, 0.068);
+		}
+
+		.entry__avatar {
+			flex-shrink: 0;
+		}
+
+		.entry__content {
+			flex-grow: 1;
+			width: 0;
 		}
 	}
 
