@@ -546,7 +546,7 @@ class ACore extends Item implements JsonSerializable {
 				return $value;
 
 			case self::AS_CONTENT:
-				$value = strip_tags($value, ['a', 'p', 'span', 'br']);
+				$value = strip_tags($value, '<a><p><span><br>');
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
 
 				return $value;

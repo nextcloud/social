@@ -105,7 +105,7 @@ class PostService {
 		$this->streamService->assignItem($note, $actor, $post->getType());
 
 		$note->setAttributedTo($actor->getId());
-		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
+		$note->setContent(str_replace(array("\r\n", "\r", "\n"), "<br />", htmlentities($post->getContent(), ENT_QUOTES)));
 
 		$this->generateDocumentsFromAttachments($note, $post);
 
