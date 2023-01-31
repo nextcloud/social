@@ -44,6 +44,7 @@ OC.L10N.register(
     "Uploading..." : "Uploaden...",
     "Delete" : "Verwijder",
     "Edit" : "Bewerk",
+    "No description added" : "Geen beschrijving toegevoegd",
     "Close" : "Sluiten",
     "Unfollow" : "Ontvolgen",
     "Follow" : "Volgen",
