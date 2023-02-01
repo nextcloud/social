@@ -16,6 +16,7 @@ OC.L10N.register(
     "Website" : "Sitio web",
     "Reply" : "Responder",
     "Deny" : "Denegar",
+    "Hello" : "Hola",
     "Continue" : "Continuar",
     "User not found" : "No se encontró el usuario"
 },
