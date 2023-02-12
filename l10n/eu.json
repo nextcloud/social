@@ -84,6 +84,8 @@
     "{account} is following you" : "{account} zu jarraitzen ari da",
     "{account} liked your post" : "{account} zure argitalpena atsegin du",
     "Authorization required" : "Baimena beharrezkoa",
+    "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName}-k zure kontura sartzeko baimena nahi du. Hirugarrenen aplikazioa da.",
+    "If you do not trust it, then you should not authorize it." : "Ez bazara fidatzen, ez zenuke baimendu behar.",
     "Authorize" : "Baimendu",
     "Deny" : "Ukatu",
     "Follow on Nextcloud Social" : "Jarraitu Nextcloud Social bidez",
