@@ -13,6 +13,7 @@ OC.L10N.register(
     "Visibility" : "Synlighet",
     "Post" : "Send",
     "Public" : "Offentlig",
+    "Direct" : "Direkte",
     "Uploading..." : "Laster opp …",
     "Delete" : "Slett",
     "Edit" : "Rediger",
