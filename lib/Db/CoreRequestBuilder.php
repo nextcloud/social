@@ -119,15 +119,19 @@ class CoreRequestBuilder {
 			'creation'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [
+			'nid',
 			'id_prim',
 			'id',
 			'type',
+			'account',
 			'parent_id',
 			'media_type',
 			'mime_type',
 			'url',
 			'local_copy',
 			'resized_copy',
+			'blurhash',
+			'description',
 			'public',
 			'error',
 			'creation',
@@ -1188,8 +1192,8 @@ class CoreRequestBuilder {
 		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
 		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 		   ->leftJoin(
-		   	$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-		   	$andX
+			   $this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
+			   $andX
 		   );
 	}
 

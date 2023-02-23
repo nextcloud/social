@@ -357,6 +357,14 @@ class StreamService {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
 
+	// TODO: returns context for status
+	public function getContextByNid(int $nid): array {
+		return [
+			'ancestors' => [],
+			'descendants' => []
+		];
+	}
+
 
 	/**
 	 * @param string $id

@@ -39,15 +39,11 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public const CACHING_TIMEOUT = 5; // 5 min
 
-	/**
-	 * Insert cache about an Actor in database.
-	 *
-	 * @param Document $document
-	 */
 	public function save(Document $document): void {
 		$qb = $this->getCacheDocumentsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($document->getId()))
 		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($document->getId())))
+		   ->setValue('account', $qb->createNamedParameter($document->getAccount()))
 		   ->setValue('type', $qb->createNamedParameter($document->getType()))
 		   ->setValue('url', $qb->createNamedParameter($document->getUrl()))
 		   ->setValue('media_type', $qb->createNamedParameter($document->getMediaType()))
@@ -55,6 +51,8 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('error', $qb->createNamedParameter($document->getError()))
 		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
+		   ->setValue('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+		   ->setValue('description', $qb->createNamedParameter($document->getDescription()))
 		   ->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
 		   ->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
 		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
@@ -68,6 +66,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		}
 
 		$qb->executeStatement();
+		$document->setNid($qb->getLastInsertId());
 	}
 
 
@@ -83,6 +82,8 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->set('error', $qb->createNamedParameter($document->getError()))
 		   ->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
 		   ->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
+		   ->set('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+		   ->set('description', $qb->createNamedParameter($document->getDescription()))
 		   ->set('parent_id', $qb->createNamedParameter($document->getParentId()))
 		   ->set('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
 		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
@@ -95,7 +96,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$this->limitToIdString($qb, $document->getId());
+		$qb->limitToIdPrim($qb->prim($document->getId()));
 		$qb->executeStatement();
 	}
 
@@ -126,6 +127,8 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$this->limitToIdString($qb, $document->getId());
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()));
 		$qb->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
+		$qb->set('blurhash', $qb->createNamedParameter($document->getBlurHash()));
+		$qb->set('description', $qb->createNamedParameter($document->getDescription()));
 		$qb->set('error', $qb->createNamedParameter($document->getError()));
 
 		$qb->executeStatement();
@@ -155,16 +158,37 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 
 	/**
-	 * @param string $id
+	 * @param array $mediaIds
+	 * @param string $account - limit to account
 	 *
+	 * @return Document[]
+	 */
+	public function getFromArray(array $mediaIds, string $account = ''): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$qb->limitToDBFieldArray('nid', $mediaIds);
+		$qb->limitToAccount($account);
+
+		$documents = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/**
+	 * @param string $id
 	 * @param bool $public
+	 * @param bool $useNid
 	 *
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
 	 */
 	public function getById(string $id, bool $public = false) {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$this->limitToIdString($qb, $id);
+		$qb->limitToIdPrim($qb->prim($id));
 
 		if ($public === true) {
 			$this->limitToPublic($qb);

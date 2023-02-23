@@ -139,7 +139,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
-		$table->addUniqueIndex(['actor_id_prim', 'object_id_prim', 'type'], 'aot');
+		$table->addUniqueIndex(['actor_id_prim', 'object_id_prim', 'type'], 'apopt');
 	}
 
 
@@ -897,6 +897,15 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 		$table = $schema->createTable('social_cache_doc');
 		$table->addColumn(
+			'nid', Types::BIGINT,
+			[
+				'autoincrement' => true,
+				'notnull' => true,
+				'length' => 14,
+				'unsigned' => true,
+			]
+		);
+		$table->addColumn(
 			'id', Types::TEXT,
 			[
 				'notnull' => false
@@ -966,6 +975,21 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			'resized_copy', Types::TEXT,
 			[
 				'notnull' => false,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'blurhash', Types::STRING,
+			[
+				'notnull' => true,
+				'length' => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'description', Types::TEXT,
+			[
+				'notnull' => true,
 				'default' => ''
 			]
 		);
