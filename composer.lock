@@ -8,11 +8,11 @@
     "packages": [
         {
             "name": "friendica/json-ld",
-            "version": "1.1.1",
+            "version": "1.1.2",
             "source": {
                 "type": "git",
                 "url": "https://git.friendi.ca/friendica/php-json-ld",
-                "reference": "ca3916d10d2ad9073b3b1eae383978dbe828e1e1"
+                "reference": "5f6ea87b261d346e57f03457ae906e6835f0205f"
             },
             "require": {
                 "ext-json": "*",
@@ -48,7 +48,7 @@
                 "Semantic Web",
                 "jsonld"
             ],
-            "time": "2018-10-08T20:41:00+00:00"
+            "time": "2023-02-20T21:56:16+00:00"
         },
         {
             "name": "gumlet/php-image-resize",
