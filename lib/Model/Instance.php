@@ -92,7 +92,7 @@ class Instance implements IQueryRow, JsonSerializable {
 	}
 
 	public function getVersion(): string {
-		return $this->version;
+		return '4.1.0 (compatible; NextCloud ' . $this->version . ')';
 	}
 
 	public function setVersion(string $version): self {
