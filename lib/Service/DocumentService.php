@@ -243,9 +243,6 @@ class DocumentService {
 	}
 
 
-	public function getByLocalId(int $id, string &$mimeType = '', bool $public = false): ISimpleFile {
-	}
-
 
 	/**
 	 * @return int
