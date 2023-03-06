@@ -282,13 +282,6 @@ class StreamService {
 	}
 
 
-	/**
-	 * @param Note $note
-	 * @param Document[] $documents
-	 */
-	public function addAttachments(Note $note, array $documents) {
-		$note->setAttachments($documents);
-	}
 
 
 	/**

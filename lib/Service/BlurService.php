@@ -33,7 +33,6 @@ use GdImage;
 use kornrunner\Blurhash\Blurhash;
 
 class BlurService {
-
 	public function __construct() {
 	}
 

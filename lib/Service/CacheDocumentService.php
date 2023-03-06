@@ -219,8 +219,6 @@ class CacheDocumentService {
 
 	/**
 	 * @param string $content
-	 *
-	 * @return string
 	 */
 	private function resizeImage(Document $document, string &$content): void {
 		try {

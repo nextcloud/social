@@ -386,5 +386,4 @@ class Document extends ACore implements JsonSerializable {
 
 		return $media;
 	}
-
 }

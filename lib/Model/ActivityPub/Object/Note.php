@@ -30,12 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-use Exception;
 use JsonSerializable;
-use OCA\Social\AP;
-use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 

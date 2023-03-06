@@ -68,7 +68,7 @@ class AttachmentMetaDim implements JsonSerializable {
 		return $this;
 	}
 
-	public function getHeight(): int {
+	public function getHeight(): ?int {
 		return $this->height;
 	}
 

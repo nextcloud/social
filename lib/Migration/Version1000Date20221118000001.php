@@ -1020,7 +1020,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 
-		$table->setPrimaryKey(['id_prim']);
+		$table->setPrimaryKey(['nid']);
 	}
 
 	/**

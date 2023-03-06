@@ -44,7 +44,6 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\Client\MediaAttachment;
-use OCA\Social\Model\Post;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Model\Cache;
