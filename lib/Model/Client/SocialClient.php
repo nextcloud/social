@@ -45,33 +45,19 @@ use JsonSerializable;
 class SocialClient implements IQueryRow, JsonSerializable {
 	use TArrayTools;
 
-
 	private int $id = 0;
-
 	private string $appName = '';
-
 	private string $appWebsite = '';
-
 	private array $appRedirectUris = [];
-
 	private string $appClientId = '';
-
 	private string $appClientSecret = '';
-
 	private array $appScopes = [];
-
 	private array $authScopes = [];
-
 	private string $authAccount = '';
-
 	private string $authUserId = '';
-
 	private string $authCode = '';
-
 	private int $lastUpdate = -1;
-
 	private string $token = '';
-
 	private int $creation = -1;
 
 //	/** @var array */

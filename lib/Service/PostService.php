@@ -106,13 +106,14 @@ class PostService {
 
 		$note->setAttributedTo($actor->getId());
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
+		$note->setAttachments($post->getMedias());
 
-		$this->generateDocumentsFromAttachments($note, $post);
+//		$this->generateDocumentsFromAttachments($note, $post);
 
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
-		$this->streamService->addAttachments($note, $post->getDocuments());
+//		$this->streamService->addAttachments($note, $post->getDocuments());
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);

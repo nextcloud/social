@@ -41,7 +41,6 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\TimelineOptions;
@@ -98,7 +97,7 @@ class StreamService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function assignItem(Acore &$stream, Person $actor, string $type) {
+	public function assignItem(Acore $stream, Person $actor, string $type) {
 		$stream->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
 		$stream->setPublished(date("c"));
 
@@ -282,13 +281,6 @@ class StreamService {
 	}
 
 
-	/**
-	 * @param Note $note
-	 * @param Document[] $documents
-	 */
-	public function addAttachments(Note $note, array $documents) {
-		$note->setAttachments($documents);
-	}
 
 
 	/**
@@ -355,6 +347,14 @@ class StreamService {
 		int $format = ACore::FORMAT_ACTIVITYPUB
 	): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
+	}
+
+	// TODO: returns context for status
+	public function getContextByNid(int $nid): array {
+		return [
+			'ancestors' => [],
+			'descendants' => []
+		];
 	}
 
 

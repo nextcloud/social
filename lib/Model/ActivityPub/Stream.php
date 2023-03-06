@@ -33,10 +33,17 @@ namespace OCA\Social\Model\ActivityPub;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Model\Cache;
@@ -67,6 +74,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $language = 'en';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
+	private array $attachments = [];
 	private bool $sensitive = false;
 	private string $conversation = '';
 	private ?Cache $cache = null;
@@ -193,6 +201,25 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setInReplyTo(string $inReplyTo): Stream {
 		$this->inReplyTo = $inReplyTo;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return MediaAttachment[]
+	 */
+	public function getAttachments(): array {
+		return $this->attachments;
+	}
+
+	/**
+	 * @param MediaAttachment[] $attachments
+	 *
+	 * @return self
+	 */
+	public function setAttachments(array $attachments): self {
+		$this->attachments = $attachments;
 
 		return $this;
 	}
@@ -372,7 +399,54 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setObjectId($this->get('object', $data, ''));
 		$this->setConversation($this->validate(self::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
+		try {
+			$this->importAttachments($this->getArray('attachments', $data, []));
+		} catch (ItemAlreadyExistsException $e) {
+		}
 		$this->convertPublished();
+	}
+
+
+	/**
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function importAttachments(array $list): void {
+		$new = [];
+		foreach ($list as $item) {
+//			try {
+//				$attachment = AP::$activityPub->getItemFromData($item, $this);
+//			} catch (Exception $e) {
+//				continue;
+//			}
+//
+//			if ($attachment->getType() !== Document::TYPE
+//				&& $attachment->getType() !== Image::TYPE) {
+//				continue;
+//			}
+//
+//			try {
+//				$attachment->setUrl(
+//					$this->validateEntryString(ACore::AS_URL, $attachment->getUrl())
+//				);
+//			} catch (InvalidResourceEntryException $e) {
+//				continue;
+//			}
+//
+//			if ($attachment->getUrl() === '') {
+//				continue;
+//			}
+//
+//			try {
+//				$interface = AP::$activityPub->getInterfaceFromType($attachment->getType());
+//			} catch (ItemUnknownException $e) {
+//				continue;
+//			}
+//
+//			$interface->save($attachment);
+//			$new[] = $attachment;
+		}
+
+		$this->setAttachments($new);
 	}
 
 
@@ -395,6 +469,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 		$this->setDetailsAll($this->getArray('details', $data, []));
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
+		$this->setAttachments($this->getArray('attachments', $data, []));
 
 		$cache = new Cache();
 		$cache->import($this->getArray('cache', $data, []));
@@ -438,10 +513,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 					'publishedTime' => $this->getPublishedTime()
 				]
 			);
-
-//			$result['cc'] = '';
-//			$result['bcc'] = '';
-//			$result['to'] = '';
 		}
 
 		$this->cleanArray($result);
@@ -488,6 +559,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			"reblog" => null,
+			'media_attachments' => $this->getAttachments(),
 			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
 		];
 
@@ -529,5 +601,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return array_merge(parent::exportAsNotification(), $result);
+	}
+
+
+	public function jsonSerialize(): array {
+		$result = parent::jsonSerialize();
+
+		$result['media_attachments'] = $this->getAttachments();
+
+//		if ($this->isCompleteDetails()) {
+//			$result['attachments'] = $this->getAttachments();
+//		}
+
+		return $result;
 	}
 }

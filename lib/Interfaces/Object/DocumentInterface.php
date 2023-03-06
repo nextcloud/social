@@ -74,7 +74,9 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 			$this->cacheDocumentsRequest->getById($item->getId());
 			$this->cacheDocumentsRequest->update($item);
 		} catch (CacheDocumentDoesNotExistException $e) {
-			if (!$this->cacheDocumentsRequest->isDuplicate($item)) {
+			// parentId / url can only be empty on new document, meaning owner cannot be empty here
+			if (($item->getUrl() === '' && $item->getParentId() === '' && $item->getAccount() !== '')
+				|| !$this->cacheDocumentsRequest->isDuplicate($item)) {
 				$this->cacheDocumentsRequest->save($item);
 			}
 		}

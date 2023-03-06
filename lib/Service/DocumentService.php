@@ -31,12 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
@@ -53,6 +47,12 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -164,9 +164,9 @@ class DocumentService {
 			$document->setError(self::ERROR_SIZE);
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (RequestContentException $e) {
-			$this->cacheDocumentsRequest->deleteById($id);
+			$this->cacheDocumentsRequest->deleteById($document->getId());
 		} catch (UnauthorizedFediverseException $e) {
-			$this->cacheDocumentsRequest->deleteById($id);
+			$this->cacheDocumentsRequest->deleteById($document->getId());
 		} catch (RequestNetworkException $e) {
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (RequestServerException $e) {
@@ -208,12 +208,40 @@ class DocumentService {
 	 * @throws MalformedArrayException
 	 * @throws SocialAppConfigException
 	 */
-	public function getFromCache(string $id, string &$mimeType = '', bool $public = false): ISimpleFile {
+	public function getFromCache(
+		string $id, string &$mimeType = '', bool $public = false
+	): ISimpleFile {
 		$document = $this->cacheRemoteDocument($id, $public);
 		$mimeType = $document->getMimeType();
 
 		return $this->cacheService->getContentFromCache($document->getLocalCopy());
 	}
+
+	/**
+	 * @param string $uuid
+	 *
+	 * @return ISimpleFile
+	 * @throws NotFoundException
+	 */
+	public function getFromUuid(string $uuid): ISimpleFile {
+		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $uuid)
+			!== 1) {
+			throw new NotFoundException('invalid document');
+		}
+
+		return $this->cacheService->getFromUuid($uuid);
+	}
+
+	/**
+	 * @param array $getMediaIds
+	 * @param string $account
+	 *
+	 * @return Document[]
+	 */
+	public function getMediaFromArray(array $getMediaIds, string $account = ''): array {
+		return $this->cacheDocumentsRequest->getFromArray($getMediaIds, $account);
+	}
+
 
 
 	/**

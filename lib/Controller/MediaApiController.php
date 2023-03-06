@@ -38,7 +38,6 @@ class MediaApiController extends Controller {
 			'url' => '',
 			'preview_url' => '',
 			'remote_url' => null,
-			'text_url' => '',
 			'description' => '',
 		]);
 	}

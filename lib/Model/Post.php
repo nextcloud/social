@@ -30,10 +30,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class Post
@@ -52,6 +53,8 @@ class Post implements JsonSerializable {
 
 	/** @var string[] */
 	private array $attachments = [];
+	/** @var MediaAttachment[] */
+	private array $medias = [];
 
 	/** @var Document[] */
 	private array $documents = [];
@@ -180,12 +183,28 @@ class Post implements JsonSerializable {
 	/**
 	 * @param string[] $attachments
 	 *
-	 * @return Post
+	 * @return self
 	 */
-	public function setAttachments(array $attachments): Post {
+	public function setAttachments(array $attachments): self {
 		$this->attachments = $attachments;
 
 		return $this;
+	}
+
+	/**
+	 * @param MediaAttachment[] $medias
+	 */
+	public function setMedias(array $medias): self {
+		$this->medias = $medias;
+
+		return $this;
+	}
+
+	/**
+	 * @return MediaAttachment[]
+	 */
+	public function getMedias(): array {
+		return $this->medias;
 	}
 
 
