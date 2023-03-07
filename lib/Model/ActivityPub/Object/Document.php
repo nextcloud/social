@@ -57,6 +57,7 @@ class Document extends ACore implements JsonSerializable {
 	private string $localCopy = '';
 	private string $resizedCopy = '';
 	private string $blurHash = '';
+	private ?AttachmentMeta $meta = null;
 	private string $description = '';
 	private int $caching = 0;
 	private bool $public = false;
@@ -193,6 +194,16 @@ class Document extends ACore implements JsonSerializable {
 		return $this->blurHash;
 	}
 
+	public function setMeta(AttachmentMeta $meta): self {
+		$this->meta = $meta;
+
+		return $this;
+	}
+
+	public function getMeta(): ?AttachmentMeta {
+		return $this->meta;
+	}
+
 	public function setDescription(string $description): self {
 		$this->description = $description;
 
@@ -326,6 +337,12 @@ class Document extends ACore implements JsonSerializable {
 			} catch (Exception $e) {
 			}
 		}
+
+		if ($this->get('meta', $data) !== '') {
+			$meta = new AttachmentMeta();
+			$meta->import($this->getArray('meta', $data));
+			$this->setMeta($meta);
+		}
 	}
 
 	/**
@@ -375,12 +392,16 @@ class Document extends ACore implements JsonSerializable {
 			$media->setRemoteUrl($this->getUrl());
 		}
 
-		$meta = new AttachmentMeta();
-		$meta->setOriginal(new AttachmentMetaDim($this->getLocalCopySize()))
-			 ->setSmall(new AttachmentMetaDim($this->getResizedCopySize()))
-			 ->setFocus(new AttachmentMetaFocus(0, 0));
+		if ($this->getMeta() === null) {
+			$meta = new AttachmentMeta();
+			$meta->setOriginal(new AttachmentMetaDim($this->getLocalCopySize()))
+				 ->setSmall(new AttachmentMetaDim($this->getResizedCopySize()))
+				 ->setFocus(new AttachmentMetaFocus(0, 0));
 
-		$media->setMeta($meta)
+			$this->setMeta($meta);
+		}
+
+		$media->setMeta($this->getMeta())
 			  ->setDescription($this->getDescription())
 			  ->setBlurHash($this->getBlurHash());
 

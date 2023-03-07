@@ -32,10 +32,10 @@ namespace OCA\Social\Model\Client;
 use JsonSerializable;
 
 class AttachmentMetaFocus implements JsonSerializable {
-	private ?float $x;
-	private ?float $y;
+	private float $x;
+	private float $y;
 
-	public function __construct(?float $x = null, ?float $y = null) {
+	public function __construct(float $x = 0, float $y = 0) {
 		$this->x = $x;
 		$this->y = $y;
 	}
@@ -46,7 +46,7 @@ class AttachmentMetaFocus implements JsonSerializable {
 		return $this;
 	}
 
-	public function getX(): ?float {
+	public function getX(): float {
 		return $this->x;
 	}
 
@@ -56,16 +56,14 @@ class AttachmentMetaFocus implements JsonSerializable {
 		return $this;
 	}
 
-	public function getY(): ?float {
+	public function getY(): float {
 		return $this->y;
 	}
 
 	public function jsonSerialize(): array {
-		return array_filter(
-			[
-				'x' => $this->getX(),
-				'y' => $this->getY()
-			]
-		);
+		return [
+			'x' => $this->getX(),
+			'y' => $this->getY()
+		];
 	}
 }

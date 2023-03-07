@@ -119,7 +119,7 @@ class PostService {
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
 
-		$this->miscService->log('Activity: ' . json_encode($activity));
+		$this->logger->debug('Activity: ' . json_encode($activity));
 
 		return $activity;
 	}
