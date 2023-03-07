@@ -18,7 +18,7 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.6.0-beta2</version>
+	<version>0.6.0-beta3</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>

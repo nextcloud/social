@@ -90,7 +90,7 @@ class StreamActionService {
 	 * @param string $key
 	 * @param bool $value
 	 */
-	public function setActionBool(string $actorId, string $streamId, string $key, bool $value) {
+	public function setActionBool(string $actorId, string $streamId, string $key, bool $value): void {
 		$action = $this->loadAction($actorId, $streamId);
 		$action->updateValueBool($key, $value);
 		$this->saveAction($action);

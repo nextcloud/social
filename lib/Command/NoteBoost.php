@@ -35,7 +35,6 @@ use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\BoostService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -51,18 +50,17 @@ class NoteBoost extends Base {
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private BoostService $boostService;
-	private MiscService $miscService;
 
 	public function __construct(
-		AccountService $accountService, StreamService $streamService, BoostService $boostService,
-		MiscService $miscService
+		AccountService $accountService,
+		StreamService $streamService,
+		BoostService $boostService
 	) {
 		parent::__construct();
 
 		$this->streamService = $streamService;
 		$this->boostService = $boostService;
 		$this->accountService = $accountService;
-		$this->miscService = $miscService;
 	}
 
 

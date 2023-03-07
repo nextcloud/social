@@ -33,15 +33,10 @@ namespace OCA\Social\Model\ActivityPub;
 use DateTime;
 use Exception;
 use JsonSerializable;
-use OCA\Social\AP;
-use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
-use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
@@ -70,6 +65,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	private string $activityId = '';
 	private string $content = '';
+	private string $visibility = '';
 	private string $spoilerText = '';
 	private string $language = 'en';
 	private string $attributedTo = '';
@@ -128,6 +124,24 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->content = $content;
 
 		return $this;
+	}
+
+	/**
+	 * @param string $visibility
+	 *
+	 * @return Stream
+	 */
+	public function setVisibility(string $visibility): self {
+		$this->visibility = $visibility;
+
+		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getVisibility(): string {
+		return $this->visibility;
 	}
 
 
@@ -470,6 +484,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setDetailsAll($this->getArray('details', $data, []));
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
 		$this->setAttachments($this->getArray('attachments', $data, []));
+		$this->setVisibility($this->get('visibility', $data));
 
 		$cache = new Cache();
 		$cache->import($this->getArray('cache', $data, []));
@@ -545,7 +560,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			"content" => $this->getContent(),
 			"sensitive" => $this->isSensitive(),
 			"spoiler_text" => $this->getSpoilerText(),
-			"visibility" => 'unlisted',
+			"visibility" => $this->getVisibility(),
 			"language" => $this->getLanguage(),
 			"in_reply_to_id" => null,
 			"in_reply_to_account_id" => null,
@@ -560,7 +575,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'url' => $this->getId(),
 			"reblog" => null,
 			'media_attachments' => $this->getAttachments(),
-			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
+			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'noindex' => false
 		];
 
 		// TODO - store created_at full string with milliseconds ?
@@ -592,7 +608,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'id' => $this->getId(),
 			'type' => $type,
 			'created_at' => $this->getOriginCreationTime(),
-			'status' => $this->getDetails('post')
+			'status' => $this->getDetails('post'),
 		];
 
 		if ($this->hasActor()) {

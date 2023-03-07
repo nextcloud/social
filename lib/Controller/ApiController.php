@@ -46,6 +46,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
@@ -85,6 +86,7 @@ class ApiController extends Controller {
 	private DocumentService $documentService;
 	private FollowService $followService;
 	private StreamService $streamService;
+	private ActionService $actionService;
 	private PostService $postService;
 	private ConfigService $configService;
 
@@ -105,6 +107,7 @@ class ApiController extends Controller {
 		DocumentService $documentService,
 		FollowService $followService,
 		StreamService $streamService,
+		ActionService $actionService,
 		PostService $postService,
 		ConfigService $configService
 	) {
@@ -121,6 +124,7 @@ class ApiController extends Controller {
 		$this->documentService = $documentService;
 		$this->followService = $followService;
 		$this->streamService = $streamService;
+		$this->actionService = $actionService;
 		$this->postService = $postService;
 		$this->configService = $configService;
 
@@ -256,9 +260,14 @@ class ApiController extends Controller {
 			}
 
 			$activity = $this->postService->createPost($post);
-			$activity->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return new DataResponse($activity, Http::STATUS_OK);
+			$item = $this->streamService->getStreamById(
+				$activity->getObjectId(),
+				true,
+				ACore::FORMAT_LOCAL
+			);
+
+			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
 			$this->logger->warning('issues while statusNew', ['exception' => $e]);
 
@@ -465,10 +474,36 @@ class ApiController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
+	 * @param int $nid
+	 * @param string $action
+	 *
+	 * @return DataResponse
+	 */
+	public function statusAction(int $nid, string $act): DataResponse {
+		try {
+			$this->initViewer(true);
+			$item = $this->actionService->action($this->viewer->getId(), $nid, $act);
+
+			if ($item === null) {
+				$item = $this->streamService->getStreamByNid($nid);
+			}
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
 	 * @param string $account
 	 * @param int $limit
 	 * @param int $max_id
 	 * @param int $min_id
+	 * @param int $since
 	 *
 	 * @return DataResponse
 	 */

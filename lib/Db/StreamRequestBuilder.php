@@ -31,9 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -42,6 +39,9 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class StreamRequestBuilder
@@ -92,9 +92,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
 		   ->addSelect(
-		   	's.nid', 's.type', 's.subtype', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
-		   	's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
-		   	's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
+		   	's.nid', 's.type', 's.subtype', 's.visibility', 's.to', 's.to_array', 's.cc',
+		   	's.bcc', 's.content', 's.summary', 's.attachments', 's.published', 's.published_time',
+		   	's.cache', 's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
 		   	's.instances', 's.creation', 's.filter_duplicate', 's.details', 's.hashtags'
 		   )
 		   ->from(self::TABLE_STREAM, 's');

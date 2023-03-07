@@ -107,6 +107,7 @@ class PostService {
 		$note->setAttributedTo($actor->getId());
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
 		$note->setAttachments($post->getMedias());
+		$note->setVisibility($post->getType());
 
 //		$this->generateDocumentsFromAttachments($note, $post);
 
