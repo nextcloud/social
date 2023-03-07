@@ -891,6 +891,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamInsertSql();
 		$qb->setValue('nid', $qb->createNamedParameter($stream->getNid()))
 		   ->setValue('id', $qb->createNamedParameter($stream->getId()))
+		   ->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
 		   ->setValue('type', $qb->createNamedParameter($stream->getType()))
 		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))

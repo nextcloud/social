@@ -90,6 +90,8 @@ return [
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
 		['name' => 'Api#statusGet', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
+		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
+
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET'],
 
 		// Api for local front-end

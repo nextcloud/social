@@ -40,6 +40,21 @@ class Version1000Date20230217000002 extends SimpleMigrationStep {
 		/** @var ISchemaWrapper $schema */
 		$schema = $schemaClosure();
 
+		if ($schema->hasTable('social_stream')) {
+			$table = $schema->getTable('social_stream');
+
+			if (!$table->hasColumn('visibility')) {
+				$table->addColumn(
+					'visibility', Types::STRING,
+					[
+						'notnull' => false,
+						'length' => 31,
+						'default' => ''
+					]
+				);
+			}
+		}
+
 		if ($schema->hasTable('social_cache_doc')) {
 			$table = $schema->getTable('social_cache_doc');
 

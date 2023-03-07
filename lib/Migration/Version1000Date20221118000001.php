@@ -538,6 +538,14 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'visibility', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 31,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
 			'to', Types::TEXT,
 			[
 				'notnull' => false,
