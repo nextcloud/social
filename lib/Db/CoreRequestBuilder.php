@@ -130,6 +130,7 @@ class CoreRequestBuilder {
 			'url',
 			'local_copy',
 			'resized_copy',
+			'meta',
 			'blurhash',
 			'description',
 			'public',

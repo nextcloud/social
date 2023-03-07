@@ -30,8 +30,11 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class AttachmentMetaDim implements JsonSerializable {
+	use TArrayTools;
+
 	private ?int $width = null;
 	private ?int $height = null;
 	private string $size = '';
@@ -40,7 +43,11 @@ class AttachmentMetaDim implements JsonSerializable {
 	private ?float $bitrate = null;
 	private ?float $frameRate = null;
 
-	public function __construct(array $dim) {
+	public function __construct(array $dim = []) {
+		if (sizeof($dim) !== 2) {
+			return;
+		}
+
 		$width = (int)$dim[0];
 		$height = (int)$dim[1];
 
@@ -120,6 +127,18 @@ class AttachmentMetaDim implements JsonSerializable {
 
 	public function getFrameRate(): ?float {
 		return $this->frameRate;
+	}
+
+	public function import(array $data): self {
+		$this->setWidth($this->getInt('width', $data))
+			 ->setHeight($this->getInt('height', $data))
+			 ->setSize($this->get('size', $data))
+			 ->setAspect($this->getFloat('aspect', $data))
+			 ->setDuration($this->getInt('duration', $data))
+			 ->setBitrate($this->getInt('bitrate', $data))
+			 ->setFrameRate($this->getFloat('frame_rate', $data));
+
+		return $this;
 	}
 
 	public function jsonSerialize(): array {

@@ -204,6 +204,23 @@ class AttachmentMeta implements JsonSerializable {
 		return $this->blurHash;
 	}
 
+
+	public function import(array $data): self {
+		$original = new AttachmentMetaDim();
+		$original->import($this->getArray('original', $data));
+		$this->setOriginal($original);
+
+		$small = new AttachmentMetaDim();
+		$small->import($this->getArray('small', $data));
+		$this->setSmall($small);
+
+		$focus = new AttachmentMetaFocus($this->getInt('focus.x', $data), $this->getInt('focus.y', $data));
+		$this->setFocus($focus);
+
+		return $this;
+	}
+
+
 	public function jsonSerialize(): array {
 		return array_filter(
 			[

@@ -62,8 +62,8 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'cd.nid', 'cd.id', 'cd.type', 'cd.parent_id', 'cd.account',
 			'cd.media_type', 'cd.mime_type', 'cd.url', 'cd.local_copy', 'cd.public',
-			'cd.error', 'cd.creation', 'cd.caching', 'cd.resized_copy', 'cd.blurhash',
-			'cd.description'
+			'cd.error', 'cd.creation', 'cd.caching', 'cd.resized_copy', 'cd.meta',
+			'cd.blurhash', 'cd.description'
 		)
 		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 

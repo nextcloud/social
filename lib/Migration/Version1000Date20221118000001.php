@@ -987,6 +987,13 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'meta', Types::TEXT,
+			[
+				'notnull' => true,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
 			'blurhash', Types::STRING,
 			[
 				'notnull' => true,

@@ -57,6 +57,12 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		   ->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
 		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
+		// generate Meta
+		$document->convertToMediaAttachment();
+		if ($document->getMeta() !== null) {
+			$qb->setValue('meta', $qb->createNamedParameter(json_encode($document->getMeta())));
+		}
+
 		try {
 			$qb->setValue(
 				'creation',
