@@ -318,21 +318,25 @@ class FollowService {
 	}
 
 	/**
-	 * @param int $actorNid
-	 * @param string $actorId
+	 * @param int $objectNid
+	 * @param string $objectId
 	 * @param Follow[] $follows
 	 *
 	 * @return Relationship
 	 */
-	private function generateRelationship(int $actorNid, string $actorId, array $follows): Relationship {
-		$relationship = new Relationship($actorNid);
+	private function generateRelationship(int $objectNid, string $objectId, array $follows): Relationship {
+		$relationship = new Relationship($objectNid);
 
 		foreach ($follows as $follow) {
 			if ($follow->getType() === Follow::TYPE) {
-				if ($follow->getObjectId() === $actorId) {
-					$relationship->setFollowing(true);
+				if ($follow->getObjectId() === $objectId) {
+					if ($follow->isAccepted()) {
+						$relationship->setFollowing(true);
+					} else {
+						$relationship->setRequested(true);
+					}
 				}
-				if ($follow->getActorId() === $actorId) {
+				if ($follow->getActorId() === $objectId && $follow->isAccepted()) {
 					$relationship->setFollowedBy(true);
 				}
 			}
