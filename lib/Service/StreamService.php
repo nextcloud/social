@@ -43,7 +43,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -405,11 +405,11 @@ class StreamService {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Note[]
 	 */
-	public function getTimeline(TimelineOptions $options): array {
+	public function getTimeline(ProbeOptions $options): array {
 		return $this->streamRequest->getTimeline($options);
 	}
 

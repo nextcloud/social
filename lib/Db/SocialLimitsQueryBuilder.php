@@ -36,7 +36,7 @@ use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 
 /**
@@ -45,15 +45,8 @@ use OCP\DB\QueryBuilder\ICompositeExpression;
  * @package OCA\Social\Db
  */
 class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
-	/**
-	 * Limit the request to the Type
-	 *
-	 * @param string $type
-	 *
-	 * @return SocialQueryBuilder
-	 */
-	public function limitToType(string $type): self {
-		$this->limitToDBField('type', $type, true);
+	public function limitToType(string $type, string $alias = ''): self {
+		$this->limitToDBField('type', $type, true, $alias);
 
 		return $this;
 	}
@@ -328,10 +321,10 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 */
-	public function paginate(TimelineOptions $options) {
+	public function paginate(ProbeOptions $options) {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 

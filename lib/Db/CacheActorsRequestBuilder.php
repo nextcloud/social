@@ -30,11 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
@@ -72,14 +73,15 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql(): SocialQueryBuilder {
+	protected function getCacheActorsSelectSql(int $format = Stream::FORMAT_ACTIVITYPUB): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
+		$qb->setFormat($format);
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox',
-			'ca.outbox', 'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username', 'ca.name', 'ca.summary',
-			'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
+			'ca.nid', 'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
+			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username',
+			'ca.name', 'ca.summary', 'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
 
@@ -87,7 +89,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @deprecated */
 		$this->defaultSelectAlias = 'ca';
-		$qb->setDefaultSelectAlias('ca');
 
 		return $qb;
 	}
@@ -147,6 +148,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	public function parseCacheActorsSelectSql(array $data, SocialQueryBuilder $qb): Person {
 		$actor = new Person();
 		$actor->importFromDatabase($data);
+		$actor->setExportFormat($qb->getFormat());
 
 		$this->assignViewerLink($qb, $actor);
 

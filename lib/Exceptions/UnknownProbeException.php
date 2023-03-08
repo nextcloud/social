@@ -31,5 +31,5 @@ namespace OCA\Social\Exceptions;
 
 use Exception;
 
-class UnknownTimelineException extends Exception {
+class UnknownProbeException extends Exception {
 }

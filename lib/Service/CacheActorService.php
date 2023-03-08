@@ -44,6 +44,7 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -326,5 +327,15 @@ class CacheActorService {
 			$interface->delete($actor);
 		} catch (ItemUnknownException $e) {
 		}
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActors(ProbeOptions $options): array {
+		return $this->cacheActorsRequest->probeActors($options);
 	}
 }
