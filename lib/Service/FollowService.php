@@ -30,8 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -41,11 +39,6 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -55,6 +48,14 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\Relationship;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use Psr\Log\LoggerInterface;
 
 class FollowService {
@@ -290,5 +291,57 @@ class FollowService {
 	 */
 	public function getFollowersFromFollowId(string $recipient): array {
 		return $this->followsRequest->getFollowersByFollowId($recipient);
+	}
+
+	/**
+	 * @return Relationship[]
+	 */
+	public function getRelationships(array $nids): array {
+		$actorNids = $relationships = [];
+
+		// retrieve actorIds from list of Nid
+		foreach ($this->cacheActorService->getFromNids($nids) as $actor) {
+			$actorNids[$actor->getNid()] = $actor->getId();
+		}
+
+		$follows = $this->followsRequest->getFollows(array_values($actorNids));
+		foreach ($actorNids as $actorNid => $actorId) {
+			if ($actorNid === $this->viewer->getNid()) {
+				continue; // ignore current session
+			}
+
+			// might be resource heavy, need to be checked/optimized ?
+			$relationships[] = $this->generateRelationship($actorNid, $actorId, $follows);
+		}
+
+		return $relationships;
+	}
+
+	/**
+	 * @param int $objectNid
+	 * @param string $objectId
+	 * @param Follow[] $follows
+	 *
+	 * @return Relationship
+	 */
+	private function generateRelationship(int $objectNid, string $objectId, array $follows): Relationship {
+		$relationship = new Relationship($objectNid);
+
+		foreach ($follows as $follow) {
+			if ($follow->getType() === Follow::TYPE) {
+				if ($follow->getObjectId() === $objectId) {
+					if ($follow->isAccepted()) {
+						$relationship->setFollowing(true);
+					} else {
+						$relationship->setRequested(true);
+					}
+				}
+				if ($follow->getActorId() === $objectId && $follow->isAccepted()) {
+					$relationship->setFollowedBy(true);
+				}
+			}
+		}
+
+		return $relationship;
 	}
 }

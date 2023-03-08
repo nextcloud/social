@@ -333,4 +333,29 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		$qb->executeStatement();
 	}
+
+
+	/**
+	 * Returns everything related to a list of actorIds.
+	 * Looking at actor_id_prim and object_id_prim.
+	 *
+	 * @param array $actorIds
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollows(array $actorIds): array {
+		$qb = $this->getFollowsSelectSql();
+		$qb->limitToType(Follow::TYPE);
+
+		$prims = [];
+		foreach ($actorIds as $actorId) {
+			$prims[] = $qb->prim($actorId);
+		}
+
+		$orX = $qb->expr()->orX();
+		$orX->add($qb->exprLimitInArray('actor_id_prim', $prims));
+		$orX->add($qb->exprLimitInArray('object_id_prim', $prims));
+
+		return $this->getFollowsFromRequest($qb);
+	}
 }

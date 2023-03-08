@@ -345,4 +345,20 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
+
+	/**
+	 * As of today, returned format is not important. Remove this line if this method
+	 * is used somewhere else with the need of a specific format
+	 *
+	 * @param array $ids
+	 *
+	 * @return array
+	 */
+	public function getFromNids(array $ids): array {
+		$qb = $this->getCacheActorsSelectSql();
+
+		$qb->limitInArray('nid', $ids);
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
 }
