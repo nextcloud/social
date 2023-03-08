@@ -23,6 +23,7 @@ OC.L10N.register(
     "Following" : "Пратим",
     "In reply to" : "Као одговор на",
     "Add attachment" : "Додај прилог",
+    "Visibility" : "Видљивост",
     "Post" : "Објави",
     "Post to followers" : "Објави пратиоцима",
     "Post publicly" : "Објави јавно",
