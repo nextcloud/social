@@ -34,6 +34,8 @@ use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -261,5 +263,86 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$cursor->closeCursor();
 
 		return $inbox;
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActors(ProbeOptions $options): array {
+		switch (strtolower($options->getProbe())) {
+			case ProbeOptions::FOLLOWING:
+				$result = $this->probeActorsFollowing($options);
+				break;
+			case ProbeOptions::FOLLOWERS:
+				$result = $this->probeActorsFollowers($options);
+				break;
+			default:
+				return [];
+		}
+
+		if ($options->isInverted()) {
+			// in case we inverted the order during the request, we revert the results
+			$result = array_reverse($result);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActorsFollowing(ProbeOptions $options): array {
+		$qb = $this->getCacheActorsSelectSql($options->getFormat());
+
+		$qb->paginate($options);
+
+		$qb->leftJoin(
+			$qb->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_FOLLOWS,
+			'ca_f',
+			// object_id of follow is equal to actor's id
+			$qb->expr()->eq('ca.id_prim', 'ca_f.object_id_prim')
+		);
+
+		// follow must be accepted
+		$qb->limitToType(Follow::TYPE, 'ca_f');
+		$qb->limitToAccepted(true, 'ca_f');
+		// actor_id of follow is equal to requested account
+		$qb->limitToActorIdPrim($qb->prim($options->getAccountId()), 'ca_f');
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActorsFollowers(ProbeOptions $options): array {
+		$qb = $this->getCacheActorsSelectSql($options->getFormat());
+
+		$qb->paginate($options);
+
+		$qb->leftJoin(
+			$qb->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_FOLLOWS,
+			'ca_f',
+			// actor_id of follow is equal to actor's id
+			$qb->expr()->eq('ca.id_prim', 'ca_f.actor_id_prim')
+		);
+
+		// follow must be accepted
+		$qb->limitToType(Follow::TYPE, 'ca_f');
+		$qb->limitToAccepted(true, 'ca_f');
+		// object_id of follow is equal to requested account
+		$qb->limitToObjectIdPrim($qb->prim($options->getAccountId()), 'ca_f');
+
+		return $this->getCacheActorsFromRequest($qb);
 	}
 }

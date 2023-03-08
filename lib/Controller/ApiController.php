@@ -36,12 +36,13 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
@@ -412,9 +413,23 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			if (!in_array(
+				strtolower($timeline),
+				[
+					ProbeOptions::HOME,
+					ProbeOptions::ACCOUNT,
+					ProbeOptions::PUBLIC,
+					ProbeOptions::DIRECT,
+					ProbeOptions::FAVOURITES,
+					ProbeOptions::NOTIFICATIONS
+				]
+			)) {
+				throw new UnknownProbeException('unknown timeline');
+			}
+
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline($timeline)
+			$options->setProbe($timeline)
 					->setLocal($local)
 					->setLimit($limit)
 					->setMaxId($max_id)
@@ -519,9 +534,9 @@ class ApiController extends Controller {
 
 			$local = $this->cacheActorService->getFromLocalAccount($account);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline(TimelineOptions::TIMELINE_ACCOUNT)
+			$options->setProbe(ProbeOptions::ACCOUNT)
 					->setAccountId($local->getId())
 					->setLimit($limit)
 					->setMaxId($max_id)
@@ -531,6 +546,77 @@ class ApiController extends Controller {
 			$posts = $this->streamService->getTimeline($options);
 
 			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollowing(
+		string $account,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+			$local = $this->cacheActorService->getFromLocalAccount($account);
+
+			$options = new ProbeOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setProbe(ProbeOptions::FOLLOWING)
+					->setAccountId($local->getId())
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since);
+
+			return new DataResponse($this->cacheActorService->probeActors($options), Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollowers(
+		string $account,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$local = $this->cacheActorService->getFromLocalAccount($account);
+
+			$options = new ProbeOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setProbe(ProbeOptions::FOLLOWERS)
+					->setAccountId($local->getId())
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since);
+
+			return new DataResponse($this->cacheActorService->probeActors($options), Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}
@@ -557,9 +643,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline(TimelineOptions::TIMELINE_FAVOURITES)
+			$options->setProbe(ProbeOptions::FAVOURITES)
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
@@ -592,9 +678,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline(TimelineOptions::TIMELINE_NOTIFICATIONS)
+			$options->setProbe(ProbeOptions::NOTIFICATIONS)
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
@@ -630,9 +716,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline('hashtag')
+			$options->setProbe('hashtag')
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)

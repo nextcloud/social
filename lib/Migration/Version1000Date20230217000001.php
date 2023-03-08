@@ -47,6 +47,14 @@ class Version1000Date20230217000001 extends SimpleMigrationStep {
 			}
 		}
 
+		if ($schema->hasTable('social_cache_actor')) {
+			$table = $schema->getTable('social_cache_actor');
+
+			if (!$table->hasColumn('nid')) {
+				$table->dropPrimaryKey();
+			}
+		}
+
 		return $schema;
 	}
 }

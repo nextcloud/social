@@ -93,6 +93,8 @@ return [
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
 
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET'],
+		['name' => 'Api#accountFollowers', 'url' => '/api/v1/accounts/{account}/followers', 'verb' => 'GET'],
+		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController
@@ -124,14 +126,14 @@ return [
 		['name' => 'Local#currentFollowing', 'url' => '/api/v1/current/following', 'verb' => 'GET'],
 
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/{username}/info', 'verb' => 'GET'],
-		[
-			'name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers',
-			'verb' => 'GET'
-		],
-		[
-			'name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following',
-			'verb' => 'GET'
-		],
+		//		[
+		//			'name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers',
+		//			'verb' => 'GET'
+		//		],
+		//		[
+		//			'name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following',
+		//			'verb' => 'GET'
+		//		],
 
 		['name' => 'Local#globalAccountInfo', 'url' => '/api/v1/global/account/info', 'verb' => 'GET'],
 		['name' => 'Local#globalActorInfo', 'url' => '/api/v1/global/actor/info', 'verb' => 'GET'],

@@ -32,27 +32,29 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client\Options;
 
 use JsonSerializable;
-use OCA\Social\Exceptions\UnknownTimelineException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IRequest;
 
 /**
- * Class TimelineOptions
+ * Class ProbeOptions
  *
  * @package OCA\Social\Model\Client\Options
  */
-class TimelineOptions extends CoreOptions implements JsonSerializable {
+class ProbeOptions extends CoreOptions implements JsonSerializable {
 	use TArrayTools;
 
-	public const TIMELINE_HOME = 'home';
-	public const TIMELINE_PUBLIC = 'public';
-	public const TIMELINE_DIRECT = 'direct';
-	public const TIMELINE_ACCOUNT = 'account';
-	public const TIMELINE_FAVOURITES = 'favourites';
-	public const TIMELINE_HASHTAG = 'hashtag';
-	public const TIMELINE_NOTIFICATIONS = 'notifications';
+	public const HOME = 'home';
+	public const PUBLIC = 'public';
+	public const DIRECT = 'direct';
+	public const ACCOUNT = 'account';
+	public const FAVOURITES = 'favourites';
+	public const HASHTAG = 'hashtag';
+	public const NOTIFICATIONS = 'notifications';
 
-	private string $timeline = '';
+	public const FOLLOWERS = 'followers';
+	public const FOLLOWING = 'following';
+
+	private string $probe = '';
 	private bool $local = false;
 	private bool $remote = false;
 	private bool $onlyMedia = false;
@@ -66,17 +68,9 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	private array $excludeTypes = [];
 	private string $accountId = '';
 
-	public static array $availableTimelines = [
-		self::TIMELINE_HOME,
-		self::TIMELINE_ACCOUNT,
-		self::TIMELINE_PUBLIC,
-		self::TIMELINE_DIRECT,
-		self::TIMELINE_FAVOURITES,
-		self::TIMELINE_NOTIFICATIONS
-	];
 
 	/**
-	 * TimelineOptions constructor.
+	 * ProbeOptions constructor.
 	 *
 	 * @param IRequest|null $request
 	 */
@@ -90,25 +84,17 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @return string
 	 */
-	public function getTimeline(): string {
-		return $this->timeline;
+	public function getProbe(): string {
+		return $this->probe;
 	}
 
 	/**
-	 * @param string $timeline
+	 * @param string $probe
 	 *
-	 * @return TimelineOptions
-	 * @throws UnknownTimelineException
+	 * @return ProbeOptions
 	 */
-	public function setTimeline(string $timeline): self {
-		$timeline = strtolower($timeline);
-		if (!in_array($timeline, self::$availableTimelines)) {
-			throw new UnknownTimelineException(
-				'unknown timeline: ' . implode(', ', self::$availableTimelines)
-			);
-		}
-
-		$this->timeline = $timeline;
+	public function setProbe(string $probe): self {
+		$this->probe = strtolower($probe);
 
 		return $this;
 	}
@@ -124,7 +110,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param bool $local
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setLocal(bool $local): self {
 		$this->local = $local;
@@ -143,7 +129,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param bool $remote
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setRemote(bool $remote): self {
 		$this->remote = $remote;
@@ -162,7 +148,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param bool $onlyMedia
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setOnlyMedia(bool $onlyMedia): self {
 		$this->onlyMedia = $onlyMedia;
@@ -181,7 +167,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param int $minId
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setMinId(int $minId): self {
 		$this->minId = $minId;
@@ -200,7 +186,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param int $maxId
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setMaxId(int $maxId): self {
 		$this->maxId = $maxId;
@@ -219,7 +205,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param int $since
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setSince(int $since): self {
 		$this->since = $since;
@@ -238,7 +224,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param int $limit
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setLimit(int $limit): self {
 		$this->limit = $limit;
@@ -257,7 +243,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param bool $inverted
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setInverted(bool $inverted): self {
 		$this->inverted = $inverted;
@@ -269,7 +255,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param string $argument
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setArgument(string $argument): self {
 		$this->argument = $argument;
@@ -288,7 +274,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param array $types
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setTypes(array $types): self {
 		$this->types = $types;
@@ -307,7 +293,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param array $excludeTypes
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setExcludeTypes(array $excludeTypes): self {
 		$this->excludeTypes = $excludeTypes;
@@ -326,7 +312,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param string $accountId
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function setAccountId(string $accountId): self {
 		$this->accountId = $accountId;
@@ -346,7 +332,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	/**
 	 * @param array $arr
 	 *
-	 * @return TimelineOptions
+	 * @return ProbeOptions
 	 */
 	public function fromArray(array $arr): self {
 		$this->setLocal($this->getBool('local', $arr, $this->isLocal()));
@@ -368,7 +354,7 @@ class TimelineOptions extends CoreOptions implements JsonSerializable {
 	public function jsonSerialize(): array {
 		return
 			[
-				'timeline' => $this->getTimeline(),
+				'probe' => $this->getProbe(),
 				'accountId' => $this->getAccountId(),
 				'local' => $this->isLocal(),
 				'remote' => $this->isRemote(),

@@ -39,7 +39,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -376,32 +376,32 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	public function getTimeline(TimelineOptions $options): array {
-		switch (strtolower($options->getTimeline())) {
-			case TimelineOptions::TIMELINE_ACCOUNT:
+	public function getTimeline(ProbeOptions $options): array {
+		switch (strtolower($options->getProbe())) {
+			case ProbeOptions::ACCOUNT:
 				$result = $this->getTimelineAccount($options);
 				break;
-			case TimelineOptions::TIMELINE_HOME:
+			case ProbeOptions::HOME:
 				$result = $this->getTimelineHome($options);
 				break;
-			case TimelineOptions::TIMELINE_DIRECT:
+			case ProbeOptions::DIRECT:
 				$result = $this->getTimelineDirect($options);
 				break;
-			case TimelineOptions::TIMELINE_FAVOURITES:
+			case ProbeOptions::FAVOURITES:
 				$result = $this->getTimelineFavourites($options);
 				break;
-			case TimelineOptions::TIMELINE_HASHTAG:
+			case ProbeOptions::HASHTAG:
 				$result = $this->getTimelineHashtag($options, $options->getArgument());
 				break;
-			case TimelineOptions::TIMELINE_NOTIFICATIONS:
+			case ProbeOptions::NOTIFICATIONS:
 				$options->setFormat(ACore::FORMAT_NOTIFICATION);
 				$result = $this->getTimelineNotifications($options);
 				break;
-			case TimelineOptions::TIMELINE_PUBLIC:
+			case ProbeOptions::PUBLIC:
 				$result = $this->getTimelinePublic($options);
 				break;
 			default:
@@ -409,7 +409,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		if ($options->isInverted()) {
-			// in cae we inverted the order during the request, we revert the results
+			// in case we inverted the order during the request, we revert the results
 			$result = array_reverse($result);
 		}
 
@@ -421,11 +421,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineHome(TimelineOptions $options): array {
+	private function getTimelineHome(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -446,11 +446,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Private message.
 	 *  - group messages. (not yet)
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineDirect(TimelineOptions $options): array {
+	private function getTimelineDirect(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql();
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -471,11 +471,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  - public message from actorId.
 	 *  - followers-only if logged and follower.
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineAccount(TimelineOptions $options): array {
+	private function getTimelineAccount(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql();
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -501,11 +501,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineFavourites(TimelineOptions $options): array {
+	private function getTimelineFavourites(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$actor = $qb->getViewer();
 		$expr = $qb->expr();
@@ -524,11 +524,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineHashtag(TimelineOptions $options, string $hashtag): array {
+	private function getTimelineHashtag(ProbeOptions $options, string $hashtag): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 
 		return [];
@@ -538,11 +538,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineNotifications(TimelineOptions $options): array {
+	private function getTimelineNotifications(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$actor = $qb->getViewer();
 
@@ -682,11 +682,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 * Should return:
 	 *  * All local public/federated posts
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelinePublic(TimelineOptions $options): array {
+	private function getTimelinePublic(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->paginate($options);
 

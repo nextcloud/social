@@ -217,7 +217,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getFollowersByActorId(string $actorId): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToOBjectId($qb, $actorId);
+		$this->limitToObjectId($qb, $actorId);
 		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
