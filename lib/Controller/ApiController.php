@@ -514,6 +514,24 @@ class ApiController extends Controller {
 	 * @NoCSRFRequired
 	 * @PublicPage
 	 *
+	 * @param array $id
+	 *
+	 * @return DataResponse
+	 */
+	public function relationships(array $id): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse($this->followService->getRelationships($id), Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
 	 * @param string $account
 	 * @param int $limit
 	 * @param int $max_id

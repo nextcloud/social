@@ -338,4 +338,9 @@ class CacheActorService {
 	public function probeActors(ProbeOptions $options): array {
 		return $this->cacheActorsRequest->probeActors($options);
 	}
+
+
+	public function getFromNids(array $ids):array {
+		return $this->cacheActorsRequest->getFromNids($ids);
+	}
 }

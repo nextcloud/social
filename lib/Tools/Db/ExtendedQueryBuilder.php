@@ -526,4 +526,31 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		return $rows;
 	}
+
+	/**
+	 * @param string $field
+	 * @param array $value
+	 * @param string $alias
+	 */
+	public function limitInArray(string $field, array $value, string $alias = ''): void {
+		$this->andWhere($this->exprLimitInArray($field, $value, $alias));
+	}
+
+
+	/**
+	 * @param string $field
+	 * @param array $values
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	public function exprLimitInArray(string $field, array $values, string $alias = ''): string {
+		if ($this->getType() === DBALQueryBuilder::SELECT) {
+			$field = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.' . $field;
+		}
+
+		$expr = $this->expr();
+
+		return $expr->in($field, $this->createNamedParameter($values, IQueryBuilder::PARAM_STR_ARRAY));
+	}
 }
