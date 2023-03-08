@@ -495,7 +495,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		parent::importFromCache($data);
 
 		$actor = new Person();
-		$actor->importFromCache($data['actor_info']);
+		$actor->importFromCache($data['actor_info'] ?? []);
 		$this->setActor($actor);
 		$this->setCompleteDetails(true);
 	}
@@ -605,16 +605,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$status = null;
-		if ($statusPost = $this->getDetails('post')) {
-			if (!empty($statusPost)) {
-				$status = new Stream();
-				$status->importFromCache($statusPost);
-				$status->setExportFormat(self::FORMAT_LOCAL);
-			}
+		$statusPost = $this->getDetails('post');
+		if (!empty($statusPost)) {
+			$status = new Stream();
+			echo json_encode($statusPost);
+			$status->importFromCache($statusPost);
+			$status->setNid($this->getDetailInt('nid'));
+			$status->setExportFormat(self::FORMAT_LOCAL);
 		}
 
 		$result = [
-			'id' => $this->getId(),
+			'id' => (string)$this->getNid(),
 			'type' => $type,
 			'created_at' => $this->getOriginCreationTime(),
 			'status' => $status,
