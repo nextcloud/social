@@ -420,8 +420,7 @@ class ApiController extends Controller {
 					ProbeOptions::ACCOUNT,
 					ProbeOptions::PUBLIC,
 					ProbeOptions::DIRECT,
-					ProbeOptions::FAVOURITES,
-					ProbeOptions::NOTIFICATIONS
+					ProbeOptions::FAVOURITES
 				]
 			)) {
 				throw new UnknownProbeException('unknown timeline');

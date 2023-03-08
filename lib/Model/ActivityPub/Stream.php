@@ -604,11 +604,20 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				$type = '';
 		}
 
+		$status = null;
+		if ($statusPost = $this->getDetails('post')) {
+			if (!empty($statusPost)) {
+				$status = new Stream();
+				$status->importFromCache($statusPost);
+				$status->setExportFormat(self::FORMAT_LOCAL);
+			}
+		}
+
 		$result = [
 			'id' => $this->getId(),
 			'type' => $type,
 			'created_at' => $this->getOriginCreationTime(),
-			'status' => $this->getDetails('post'),
+			'status' => $status,
 		];
 
 		if ($this->hasActor()) {
