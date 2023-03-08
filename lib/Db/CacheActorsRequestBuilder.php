@@ -148,6 +148,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	public function parseCacheActorsSelectSql(array $data, SocialQueryBuilder $qb): Person {
 		$actor = new Person();
 		$actor->importFromDatabase($data);
+		$actor->setExportFormat($qb->getFormat());
 
 		$this->assignViewerLink($qb, $actor);
 
