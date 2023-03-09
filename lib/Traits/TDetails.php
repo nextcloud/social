@@ -113,6 +113,10 @@ trait TDetails {
 	}
 
 
+	public function getDetailInt(string $detail, int $default = 0): int {
+		return $this->details[$detail] ?? $default;
+	}
+
 	/**
 	 * @param string $detail
 	 * @param string $value

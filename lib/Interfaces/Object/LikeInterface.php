@@ -204,6 +204,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
 //			$notification->setDetail('url', '');
 			$notification->setDetailItem('post', $post);
+			$notification->setDetailInt('nid', $post->getNid());
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())
 						 ->setSubType(Like::TYPE)
