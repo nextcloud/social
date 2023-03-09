@@ -56,8 +56,8 @@ class CacheDocumentService {
 	use TArrayTools;
 	use TStringTools;
 
-	public const RESIZED_WIDTH = 420;
-	public const RESIZED_HEIGHT = 180;
+	public const RESIZED_WIDTH = 800;
+	public const RESIZED_HEIGHT = 800;
 
 	private IAppData $appData;
 	private CurlService $curlService;
