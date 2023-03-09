@@ -606,7 +606,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$status = null;
 		if ($statusPost = $this->getDetails('post')) {
-			if (!empty($statusPost)) {
+			if (sizeof($statusPost) > 0) {
 				$status = new Stream();
 				$status->importFromCache($statusPost);
 				$status->setExportFormat(self::FORMAT_LOCAL);
