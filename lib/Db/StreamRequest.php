@@ -955,4 +955,22 @@ class StreamRequest extends StreamRequestBuilder {
 
 	public function getRelatedToActor(string $actorId) {
 	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return array
+	 */
+	public function getDescendants(string $id): array {
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->limitToViewer('sd', 'f', true);
+		$qb->limitToInReplyTo($id, true);
+
+		$qb->filterDuplicate();
+
+		return $this->getStreamsFromRequest($qb);
+	}
 }

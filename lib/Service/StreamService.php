@@ -59,6 +59,7 @@ class StreamService {
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
 
+	private const ANCESTOR_LIMIT = 5;
 
 	/**
 	 * NoteService constructor.
@@ -349,11 +350,29 @@ class StreamService {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
 
-	// TODO: returns context for status
+
+	/**
+	 * @param int $nid
+	 *
+	 * @return array
+	 * @throws StreamNotFoundException
+	 */
 	public function getContextByNid(int $nid): array {
+		$curr = $post = $this->streamRequest->getStreamByNid($nid);
+
+		$ancestors = [];
+		for ($i = 0; $i < self::ANCESTOR_LIMIT; $i++) {
+			if ($curr->getInReplyTo() === '') {
+				break;
+			}
+
+			$curr = $this->streamRequest->getStreamById($curr->getInReplyTo());
+			$ancestors[] = $curr;
+		}
+
 		return [
-			'ancestors' => [],
-			'descendants' => []
+			'ancestors' => array_reverse($ancestors),
+			'descendants' => $this->streamRequest->getDescendants($post->getId())
 		];
 	}
 
