@@ -23,162 +23,234 @@
 import axios from '@nextcloud/axios'
 import { set } from 'vue'
 import { generateUrl } from '@nextcloud/router'
+import { showError } from '@nextcloud/dialogs'
+import logger from '../services/logger.js'
 
 const state = {
-	currentAccount: {},
+	currentAccount: '',
+	/** @type {Object<string, import('../types/Mastodon.js').Account>} */
 	accounts: {},
+	/** @type {Object<string, string[]>} */
+	accountsFollowers: {},
+	/** @type {Object<string, string[]>} */
+	accountsFollowings: {},
+	/** @type {Object<string, Partial<import('../types/Mastodon.js').Relationship>>} */
+	accountsRelationships: {},
+	/** @type {Object<string, string>} */
 	accountIdMap: {},
 }
+
+/**
+ * @param {typeof state} state
+ * @param {object} payload
+ * @param {string} payload.actorId
+ * @param {import('../types/Mastodon').Account} payload.data
+ */
 const addAccount = (state, { actorId, data }) => {
-	set(state.accounts, actorId, Object.assign({
-		followersList: [],
-		followingList: [],
-		details: {
-			following: false,
-			follower: false,
-		},
-	}, state.accounts[actorId], data))
-	set(state.accountIdMap, data.account, data.id)
+	set(state.accounts, actorId, { ...state.accounts[actorId], ...data })
+	set(state.accountsFollowers, actorId, [])
+	set(state.accountsFollowings, actorId, [])
+	const accountId = (data.acct.indexOf('@') === -1) ? data.acct + '@' + new URL(data.url).hostname : data.acct
+	set(state.accountIdMap, accountId, data.url)
 }
 const _getActorIdForAccount = (account) => state.accountIdMap[account]
 
+/** @type {import('vuex').MutationTree<state, any>} */
 const mutations = {
+	/**
+	 * @param state
+	 * @param {string} account
+	 */
 	setCurrentAccount(state, account) {
 		state.currentAccount = account
 	},
+	/**
+	 * @param state
+	 * @param {object} payload
+	 * @param {string} payload.actorId
+	 * @param {import('../types/Mastodon').Account} payload.data
+	 */
 	addAccount(state, { actorId, data }) {
 		addAccount(state, { actorId, data })
 	},
+	/**
+	 * @param state
+	 * @param {object} payload
+	 * @param {string} payload.actorId
+	 * @param {import('../types/Mastodon').Relationship} payload.data
+	 */
+	addRelationship(state, { actorId, data }) {
+		set(state.accountsRelationships, actorId, data)
+	},
+	/**
+	 * @param  state
+	 * @param {object} root
+	 * @param {string} root.account
+	 * @param {import('../types/Mastodon.js').Account[]} root.data
+	 */
 	addFollowers(state, { account, data }) {
 		const users = []
-		for (const index in data) {
-			const actor = data[index].actor_info
-			if (typeof actor !== 'undefined' && account !== actor.account) {
-				users.push(actor.id)
-				addAccount(state, {
-					actorId: actor.id,
-					data: actor,
-				})
-			}
+		for (const actor of data) {
+			users.push(actor.url)
+			addAccount(state, {
+				actorId: actor.url,
+				data: actor,
+			})
 		}
-		set(state.accounts[_getActorIdForAccount(account)], 'followersList', users)
+		set(state.accountsFollowers, _getActorIdForAccount(account), users)
 	},
+	/**
+	 * @param  state
+	 * @param {object} root
+	 * @param {string} root.account
+	 * @param {import('../types/Mastodon.js').Account[]} root.data
+	 */
 	addFollowing(state, { account, data }) {
 		const users = []
-		for (const index in data) {
-			const actor = data[index].actor_info
-			if (typeof actor !== 'undefined' && account !== actor.account) {
-				users.push(actor.id)
-				addAccount(state, {
-					actorId: actor.id,
-					data: actor,
-				})
-			}
+		for (const actor of data) {
+			users.push(actor.url)
+			addAccount(state, {
+				actorId: actor.url,
+				data: actor,
+			})
 		}
-		set(state.accounts[_getActorIdForAccount(account)], 'followingList', users)
+		set(state.accountsFollowings, _getActorIdForAccount(account), users)
 	},
 	followAccount(state, accountToFollow) {
-		set(state.accounts[_getActorIdForAccount(accountToFollow)].details, 'following', true)
+		state.accountsFollowings[_getActorIdForAccount(accountToFollow)].push(accountToFollow)
+		set(state.accountsRelationships[state.accounts[_getActorIdForAccount(accountToFollow)].id], 'following', true)
 	},
 	unfollowAccount(state, accountToUnfollow) {
-		set(state.accounts[_getActorIdForAccount(accountToUnfollow)].details, 'following', false)
+		const followingList = state.accountsFollowings[_getActorIdForAccount(accountToUnfollow)]
+		followingList.splice(followingList.indexOf(accountToUnfollow), 1)
+		set(state.accountsRelationships[state.accounts[_getActorIdForAccount(accountToUnfollow)].id], 'following', false)
 	},
 }
 
+/** @type {import('vuex').GetterTree<state, any>} */
 const getters = {
 	getAllAccounts(state) {
-		return (account) => { return state.accounts }
+		return () => { return state.accounts }
 	},
 	getAccount(state, getters) {
-		return (account) => {
+		return (/** @type {string} */ account) => {
 			return state.accounts[_getActorIdForAccount(account)]
 		}
 	},
+	getRelationshipWith(state, getters) {
+		return (/** @type {string} */ accountId) => {
+			return state.accountsRelationships[accountId]
+		}
+	},
+	currentAccount(state, getters) {
+		return getters.getAccount(state.currentAccount)
+	},
 	accountFollowing(state) {
-		return (account, isFollowing) => _getActorIdForAccount(isFollowing) in state.accounts[_getActorIdForAccount(account)]
+		return (/** @type {string} */ account, /** @type {boolean} */ isFollowing) => _getActorIdForAccount(isFollowing) in state.accounts[_getActorIdForAccount(account)]
 	},
 	accountLoaded(state) {
-		return (account) => state.accounts[_getActorIdForAccount(account)]
+		return (/** @type {string} */ account) => state.accounts[_getActorIdForAccount(account)]
 	},
 	getAccountFollowers(state) {
-		return (id) => state.accounts[_getActorIdForAccount(id)].followersList.map((actorId) => state.accounts[actorId])
+		return (/** @type {string} */ id) => state.accountsFollowers[_getActorIdForAccount(id)].map((actorId) => state.accounts[actorId])
 	},
 	getAccountFollowing(state) {
-		return (id) => state.accounts[_getActorIdForAccount(id)].followingList.map((actorId) => state.accounts[actorId])
+		return (/** @type {string} */ id) => state.accountsFollowings[_getActorIdForAccount(id)].map((actorId) => state.accounts[actorId])
 	},
 	getActorIdForAccount() {
 		return _getActorIdForAccount
 	},
 	isFollowingUser(state) {
-		return (followingAccount) => {
-			const account = state.accounts[_getActorIdForAccount(followingAccount)]
-			return account && account.details ? account.details.following : false
-		}
+		return (/** @type {string} */ followingAccount) => state.accountsRelationships[_getActorIdForAccount(followingAccount)]?.following || false
 	},
 }
 
+/** @type {import('vuex').ActionTree<state, any>} */
 const actions = {
-	fetchAccountInfo(context, account) {
-		return axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`)).then((response) => {
-			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
-			return response.data.result.account
-		}).catch(() => {
-			OC.Notification.showTemporary(`Failed to load account details ${account}`)
-		})
+	async fetchAccountInfo(context, account) {
+		try {
+			const response = await axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`))
+			context.commit('addAccount', { actorId: response.data.url, data: response.data })
+			return response.data
+		} catch (error) {
+			logger.error('Failed to load local account details', { error })
+			showError(`Failed to load local account details ${account}`)
+		}
 	},
-	fetchPublicAccountInfo(context, uid) {
-		return axios.get(generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
-			context.commit('addAccount', { actorId: response.data.result.account.id, data: response.data.result.account })
-			return response.data.result.account
-		}).catch(() => {
-			OC.Notification.showTemporary(`Failed to load account details ${uid}`)
-		})
+	async fetchAccountRelationshipInfo(context, ids) {
+		try {
+			const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: ids } })
+			response.data.forEach(account => context.commit('addRelationship', { actorId: account.id, data: account }))
+			return response.data
+		} catch (error) {
+			logger.error('Failed to load relationship info', { error })
+			showError('Failed to load relationship info')
+		}
+	},
+	async fetchPublicAccountInfo(context, uid) {
+		try {
+			const response = await axios.get(generateUrl(`apps/social/api/v1/account/${uid}/info`))
+			context.commit('addAccount', { actorId: response.data.url, data: response.data })
+			return response.data
+		} catch (error) {
+			logger.error('Failed to load public account details', { error })
+			showError(`Failed to load public account details ${uid}`)
+		}
 	},
 	fetchCurrentAccountInfo({ commit, dispatch }, account) {
 		commit('setCurrentAccount', account)
 		dispatch('fetchAccountInfo', account)
 	},
-	followAccount(context, { currentAccount, accountToFollow }) {
-		return axios.put(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow)).then((response) => {
+	async followAccount(context, { currentAccount, accountToFollow }) {
+		try {
+			const response = await axios.put(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow))
 			if (response.data.status === -1) {
 				return Promise.reject(response)
 			}
 			context.commit('followAccount', accountToFollow)
-			return Promise.resolve(response)
-		}).catch((error) => {
-			OC.Notification.showTemporary(`Failed to follow user ${accountToFollow}`)
-			console.error(`Failed to follow user ${accountToFollow}`, error)
-		})
-
+			return response
+		} catch (error) {
+			showError(`Failed to follow user ${accountToFollow}`)
+			logger.error(`Failed to follow user ${accountToFollow}`, { error })
+		}
 	},
-	unfollowAccount(context, { currentAccount, accountToUnfollow }) {
-		return axios.delete(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow)).then((response) => {
+	async unfollowAccount(context, { currentAccount, accountToUnfollow }) {
+		try {
+			const response = await axios.delete(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow))
 			if (response.data.status === -1) {
 				return Promise.reject(response)
 			}
 			context.commit('unfollowAccount', accountToUnfollow)
-			return Promise.resolve(response)
-		}).catch((error) => {
-			OC.Notification.showTemporary(`Failed to unfollow user ${accountToUnfollow}`)
-			console.error(`Failed to unfollow user ${accountToUnfollow}`, error.response.data)
-			return Promise.reject(error.response.data)
-		})
+			return response
+		} catch (error) {
+			showError(`Failed to unfollow user ${accountToUnfollow}`)
+			logger.error(`Failed to unfollow user ${accountToUnfollow}`, { error })
+			return error
+		}
 	},
-	fetchAccountFollowers(context, account) {
+	async fetchAccountFollowers(context, account) {
 		// TODO: fetching followers/following information of remotes is currently not supported
 		const parts = account.split('@')
 		const uid = (parts.length === 2 ? parts[0] : account)
-		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/followers`)).then((response) => {
-			context.commit('addFollowers', { account, data: response.data.result })
-		})
+		try {
+			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${uid}/followers`))
+			context.commit('addFollowers', { account, data: response.data })
+		} catch (error) {
+			showError('Failed to fetch followers list')
+			logger.error(`Failed to fetch followers list for user ${account}`, { error })
+		}
 	},
-	fetchAccountFollowing(context, account) {
+	async fetchAccountFollowing(context, account) {
 		// TODO: fetching followers/following information of remotes is currently not supported
 		const parts = account.split('@')
 		const uid = (parts.length === 2 ? parts[0] : account)
-		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/following`)).then((response) => {
-			context.commit('addFollowing', { account, data: response.data.result })
-		})
+		try {
+			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${uid}/following`))
+			context.commit('addFollowing', { account, data: response.data })
+		} catch (error) {
+			showError('Failed to fetch following list')
+			logger.error(`Failed to fetch following list for user ${account}`, { error })
+		}
 	},
 }
 

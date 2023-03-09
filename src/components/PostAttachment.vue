@@ -1,12 +1,14 @@
 <template>
 	<div class="post-attachments">
-		<div v-for="(item, index) in attachments"
-			:key="index"
-			class="post-attachment"
-			@click="showModal(index)">
-			<img v-if="item.mimeType.startsWith('image/')" :src="imageUrl(item)">
-			<div v-else>
-				{{ item }}
+		<div class="attachments-container">
+			<div v-for="(item, index) in attachementsSlice"
+				:key="index"
+				class="attachment"
+				@click="showModal(index)">
+				<MediaAttachment :attachment="item" />
+			</div>
+			<div v-if="attachments.length > 4" class="attachment more-attachments">
+				+
 			</div>
 		</div>
 		<NcModal v-if="modal"
@@ -14,10 +16,10 @@
 			:has-next="current < (attachments.length - 1)"
 			size="full"
 			@close="closeModal"
-			@previous="showPrevious"
-			@next="showNext">
-			<div class="modal__content">
-				<canvas ref="modalCanvas" />
+			@previous="current--"
+			@next="current++">
+			<div class="attachment__viewer">
+				<img :src="attachments[current].url" :alt="attachments[current].description">
 			</div>
 		</NcModal>
 	</div>
@@ -26,17 +28,19 @@
 <script>
 import serverData from '../mixins/serverData.js'
 import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
-import { generateUrl } from '@nextcloud/router'
+import MediaAttachment from './MediaAttachment.vue'
 
 export default {
 	name: 'PostAttachment',
 	components: {
 		NcModal,
+		MediaAttachment,
 	},
 	mixins: [
 		serverData,
 	],
 	props: {
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment[]>} */
 		attachments: {
 			type: Array,
 			default: Array,
@@ -45,90 +49,72 @@ export default {
 	data() {
 		return {
 			modal: false,
-			current: '',
+			current: 0,
 		}
 	},
-	methods: {
-		/**
-		 * @function imageUrl
-		 * @description Returns the URL where to get a resized version of the attachement
-		 * @param {object} item - The attachment
-		 * @return {string} The URL
-		 */
-		imageUrl(item) {
-			if (this.serverData.public) {
-				return generateUrl('/apps/social/document/public/resized?id=' + item.id)
+	computed: {
+		/** @return {import('../types/Mastodon.js').MediaAttachment[]} */
+		attachementsSlice() {
+			if (this.attachments.length <= 4) {
+				return this.attachments
 			} else {
-				return generateUrl('/apps/social/document/get/resized?id=' + item.id)
+				return this.attachments.slice(0, 3)
 			}
 		},
-		/**
-		 * @function displayImage
-		 * @description Displays the currently selected attachment's image
-		 */
-		displayImage() {
-			const canvas = this.$refs.modalCanvas
-			const ctx = canvas.getContext('2d')
-			const img = new Image()
-			img.onload = function() {
-				let width = img.width
-				let height = img.height
-				if (width > window.innerWidth) {
-					height = height * (window.innerWidth / width)
-					width = window.innerWidth
-				}
-				if (height > window.innerHeight) {
-					width = width * (window.innerHeight / height)
-					height = window.innerHeight
-				}
-				canvas.width = width
-				canvas.height = height
-				ctx.drawImage(img, 0, 0, width, height)
-			}
-			img.src = generateUrl('/apps/social/document/get?id=' + this.attachments[this.current].id)
-		},
-		showModal(idx) {
-			this.current = idx
-			this.displayImage()
+	},
+	methods: {
+		showModal(index) {
+			this.current = index
 			this.modal = true
 		},
 		closeModal() {
 			this.modal = false
-		},
-		showPrevious() {
-			this.current--
-			this.displayImage()
-		},
-		showNext() {
-			this.current++
-			this.displayImage()
 		},
 	},
 }
 </script>
 <style lang="scss" scoped>
 .post-attachments {
-	margin-top: 12px;
-	width: 100%;
-	display: flex;
-	gap: 12px;
-	overflow-x: scroll;
-
-	.post-attachment {
-		height: 100px;
-		object-fit: cover;
+	.attachments-container {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2px;
+		margin-top: 12px;
+		width: 100%;
 		border-radius: var(--border-radius-large);
 		overflow: hidden;
-		flex-shrink: 0;
+		height: 40vh;
 
-		> * {
+		.attachment {
+			flex-grow: 1;
+			flex-shrink: 1;
+			flex-basis: calc(50% - 2px);
 			cursor: pointer;
 		}
 
-		img {
-			width: 100%;
-			height: 100%;
+		.more-attachments {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 42px;
+			line-height: 0px;
 		}
+	}
+}
+
+.attachment__viewer {
+	display: flex;
+	height: 100%;
+	width: 100%;
+	align-content: center;
+	justify-items: center;
+	padding: 10%;
+	box-sizing: border-box;
+
+	img {
+		height: 100%;
+		width: 100%;
+		object-fit: contain;
 	}
 }
 </style>

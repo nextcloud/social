@@ -34,7 +34,6 @@
 <script>
 import Composer from './../components/Composer/Composer.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
-import follow from './../mixins/follow.js'
 import TimelineList from './../components/TimelineList.vue'
 
 export default {
@@ -45,7 +44,6 @@ export default {
 	},
 	mixins: [
 		CurrentUserMixin,
-		follow,
 	],
 	data() {
 		return {

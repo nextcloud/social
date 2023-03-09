@@ -554,7 +554,7 @@ class ApiController extends Controller {
 		int $limit = 20,
 		int $max_id = 0,
 		int $min_id = 0,
-		int $since = 0
+		int $since_id = 0
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -568,7 +568,7 @@ class ApiController extends Controller {
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
-					->setSince($since);
+					->setSince($since_id);
 
 			$posts = $this->streamService->getTimeline($options);
 

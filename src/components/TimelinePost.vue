@@ -2,35 +2,40 @@
 	<div class="post-content">
 		<div class="post-header">
 			<div class="post-author-wrapper">
-				<router-link v-if="item.actor_info"
+				<!-- TODO -->
+				<router-link v-if="item.account"
 					:to="{ name: 'profile',
-						params: { account: (item.local && item.type!=='SocialAppNotification') ? item.actor_info.preferredUsername : item.actor_info.account }
+						params: { account: (isLocal && !isNotification) ? item.account.display_name : item.account.username }
 					}">
 					<span class="post-author">
-						{{ userDisplayName(item.actor_info) }}
+						{{ item.account.display_name }}
 					</span>
 					<span class="post-author-id">
-						@{{ item.actor_info.account }}
+						@{{ item.account.username }}
 					</span>
 				</router-link>
-				<a v-else :href="item.attributedTo">
+				<a v-else :href="item.account.id">
 					<span class="post-author-id">
-						{{ item.attributedTo }}
+						{{ item.account.id }}
 					</span>
 				</a>
 			</div>
-			<a :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp" @click="getSinglePostTimeline">
+			<a :data-timestamp="timestamp"
+				class="post-timestamp live-relative-timestamp"
+				:title="formattedDate"
+				@click="getSinglePostTimeline">
 				{{ relativeTimestamp }}
 			</a>
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="item.content" class="post-message">
-			<MessageContent :source="source" />
+			<MessageContent :item="item" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
-		<div v-else class="post-message" v-html="item.actor_info.summary" />
+		<div v-else class="post-message" v-html="item.account.note" />
 		<div v-if="hasAttachments" class="post-attachments">
-			<PostAttachment :attachments="item.attachment" />
+			<!-- TODO: clean media_attachments -->
+			<PostAttachment :attachments="item.media_attachments || []" />
 		</div>
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<NcButton v-tooltip="t('social', 'Reply')"
@@ -64,7 +69,7 @@
 				</template>
 			</NcButton>
 			<NcActions>
-				<NcActionButton v-if="item.actor_info.account === cloudId"
+				<NcActionButton v-if="item.account !== undefined && item.account.acct === currentAccount.acct"
 					icon="icon-delete"
 					@click="remove()">
 					{{ t('social', 'Delete') }}
@@ -90,7 +95,6 @@ import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
-import { generateUrl } from '@nextcloud/router'
 import MessageContent from './MessageContent.js'
 
 export default {
@@ -108,46 +112,74 @@ export default {
 	},
 	mixins: [currentUser],
 	props: {
-		item: { type: Object, default: () => {} },
-		parentAnnounce: { type: Object, default: () => {} },
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
+		item: {
+			type: Object,
+			default: () => {},
+		},
+		type: {
+			type: String,
+			required: true,
+		},
 	},
 	computed: {
+		/**
+		 * @return {string}
+		 */
 		relativeTimestamp() {
-			return moment(this.item.published).fromNow()
+			return moment(this.item.created_at).fromNow()
 		},
+		/**
+		 * @return {string}
+		 */
+		formattedDate() {
+			return moment(this.item.created_at).format('LLL')
+		},
+		/**
+		 * @return {number}
+		 */
 		timestamp() {
-			return Date.parse(this.item.published)
+			return Date.parse(this.item.created_at)
 		},
-		source() {
-			if (!this.item.source && this.item.content) {
-				// local posts don't have a source json
-				return {
-					content: this.item.content,
-					tag: [],
-				}
-			}
-			return JSON.parse(this.item.source)
-		},
-		avatarUrl() {
-			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
-		},
+		/**
+		 * @return {boolean}
+		 */
 		hasAttachments() {
-			return (typeof this.item.attachment !== 'undefined')
+			// TODO: clean media_attachments
+			return (this.item.media_attachments || []).length > 0
 		},
+		/**
+		 * @return {boolean}
+		 */
 		isBoosted() {
-			if (typeof this.item.action === 'undefined') {
-				return false
-			}
-			return !!this.item.action.values.boosted
+			return this.item.reblogged === true
 		},
+		/**
+		 * @return {boolean}
+		 */
+
 		isLiked() {
-			if (typeof this.item.action === 'undefined') {
-				return false
-			}
-			return !!this.item.action.values.liked
+			return this.item.favourited === true
 		},
+		/**
+		 * @return {object}
+		 */
 		richParameters() {
 			return {}
+		},
+		/**
+		 * @return {boolean}
+		 */
+		isLocal() {
+			return !this.item.account.acct.includes('@')
+		},
+		/** @return {import('../types/Mastodon.js').Account} */
+		currentAccount() {
+			return this.$store.getters.currentAccount
+		},
+		/** @return {boolean} */
+		isNotification() {
+			return this.item.type !== undefined
 		},
 	},
 	methods: {
@@ -158,21 +190,22 @@ export default {
 		 */
 		getSinglePostTimeline(e) {
 			// Display internal or external post
-			if (!this.item.local) {
-				if (this.item.type === 'Note') {
+			if (!this.isLocal) {
+				if (this.type === 'Note') {
 					window.open(this.item.id)
-				} else if (this.item.type === 'Announce') {
+				} else if (this.type === 'Announce') {
+					// TODO
 					window.open(this.item.object)
 				} else {
-					logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
+					logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
 				}
 			} else {
 				this.$router.push({
 					name: 'single-post',
 					params: {
-						account: this.item.actor_info.preferredUsername,
+						account: this.item.account.display_name,
 						id: this.item.id,
-						localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
+						localId: this.item.uri.split('/').pop(),
 						type: 'single-post',
 					},
 				})
@@ -188,7 +221,7 @@ export default {
 		boost() {
 			const params = {
 				post: this.item,
-				parentAnnounce: this.parentAnnounce,
+				parentAnnounce: this.reblog,
 			}
 			if (this.isBoosted) {
 				this.$store.dispatch('postUnBoost', params)
@@ -202,7 +235,7 @@ export default {
 		like() {
 			const params = {
 				post: this.item,
-				parentAnnounce: this.parentAnnounce,
+				parentAnnounce: this.reblog,
 			}
 			if (this.isLiked) {
 				this.$store.dispatch('postUnlike', params)

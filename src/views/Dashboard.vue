@@ -75,6 +75,7 @@ export default {
 	},
 
 	computed: {
+		/** @return {object[]} */
 		items() {
 			return this.notifications.map((n) => {
 				return {
@@ -88,11 +89,13 @@ export default {
 				}
 			})
 		},
+		/** @return {number} */
 		lastTimestamp() {
 			return this.notifications.length
 				? this.notifications[0].publishedTime
 				: 0
 		},
+		/** @return {string} */
 		emptyContentMessage() {
 			if (this.state === 'error') {
 				return t('social', 'Error getting Social notifications')
@@ -101,6 +104,7 @@ export default {
 			}
 			return ''
 		},
+		/** @return {string} */
 		emptyContentIcon() {
 			if (this.state === 'error') {
 				return 'icon-close'

@@ -21,10 +21,10 @@
   -->
 
 <template>
-	<NcAvatar v-if="actor.local"
+	<NcAvatar v-if="isLocal"
 		:size="size"
-		:user="actor.preferredUsername"
-		:display-name="actor.account"
+		:user="actor.username"
+		:display-name="actor.acct"
 		:disable-tooltip="true"
 		:show-user-status="false" />
 	<NcAvatar v-else
@@ -44,8 +44,15 @@ export default {
 		NcAvatar,
 	},
 	props: {
-		actor: { type: Object, default: () => {} },
-		size: { type: Number, default: 32 },
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Account>} */
+		actor: {
+			type: Object,
+			default: () => {},
+		},
+		size: {
+			type: Number,
+			default: 32,
+		},
 	},
 	data() {
 		return {
@@ -53,8 +60,15 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {string} */
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		},
+		/**
+		 * @return {boolean}
+		 */
+		isLocal() {
+			return !this.actor.acct.includes('@')
 		},
 	},
 }

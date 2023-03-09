@@ -26,6 +26,8 @@
 		<input id="file-upload"
 			ref="fileUploadInput"
 			type="file"
+			accept="image/*"
+			multiple="true"
 			tabindex="-1"
 			aria-hidden="true"
 			class="hidden-visually"
@@ -47,8 +49,8 @@
 		<div v-if="replyTo" class="reply-to">
 			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
-				<ActorAvatar :actor="replyTo.actor_info" :size="16" />
-				<strong>{{ replyTo.actor_info.account }}</strong>
+				<ActorAvatar :actor="replyTo.account" :size="16" />
+				<strong>{{ replyTo.account.acct }}</strong>
 				<NcButton type="tertiary"
 					class="close-button"
 					:aria-label="t('social', 'Close reply')"
@@ -64,25 +66,24 @@
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<VueTribute :options="tributeOptions">
-				<!-- eslint-disable-next-line vue/valid-v-model -->
 				<div ref="composerInput"
-					v-contenteditable:post.dangerousHTML="canType && !loading"
+					:disabled="loading"
 					class="message"
 					placeholder="What would you like to share?"
 					:class="{'icon-loading': loading}"
 					@keyup.prevent.enter="keyup"
+					@input="updateStatusContent"
 					@tribute-replaced="updatePostFromTribute" />
 			</VueTribute>
 
 			<PreviewGrid :uploading="false"
 				:upload-progress="0.4"
-				:miniatures="previewUrls"
+				:miniatures="attachments"
 				@deleted="deletePreview" />
 
 			<div class="options">
 				<NcButton v-tooltip="t('social', 'Add attachment')"
 					type="tertiary"
-					:disabled="previewUrls.length >= 1"
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
 					<template #icon>
@@ -94,7 +95,7 @@
 					<NcEmojiPicker ref="emojiPicker"
 						:search="search"
 						:close-on-select="false"
-						:container="container"
+						container="#content-vue"
 						@select="insert">
 						<NcButton v-tooltip="t('social', 'Add emoji')"
 							type="tertiary"
@@ -107,18 +108,11 @@
 					</NcEmojiPicker>
 				</div>
 
-				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
-					<NcButton v-tooltip="t('social', 'Visibility')"
-						type="tertiary"
-						:class="currentVisibilityIconClass"
-						@click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu">
-						<NcPopoverMenu :menu="visibilityPopover" />
-					</div>
-				</div>
-
+				<VisibilitySelect :type.sync="type" />
 				<div class="emptySpace" />
-				<NcButton :value="currentVisibilityPostLabel"
+				<SubmitStatusButton :type="type" :disabled="canPost || loading" @click="createPost" />
+
+				<!-- <NcButton :value="currentVisibilityPostLabel"
 					:disabled="!canPost"
 					native-type="submit"
 					type="primary"
@@ -127,7 +121,7 @@
 						<Send title="" :size="22" decorative />
 					</template>
 					{{ postTo }}
-				</NcButton>
+				</NcButton> -->
 			</div>
 		</form>
 	</div>
@@ -136,12 +130,11 @@
 <script>
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
-import Send from 'vue-material-design-icons/Send.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import FileUpload from 'vue-material-design-icons/FileUpload.vue'
+import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
-import NcPopoverMenu from '@nextcloud/vue/dist/Components/NcPopoverMenu.js'
 import NcEmojiPicker from '@nextcloud/vue/dist/Components/NcEmojiPicker.js'
 import VueTribute from 'vue-tribute'
 import he from 'he'
@@ -151,11 +144,18 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
+import VisibilitySelect from './VisibilitySelect.vue'
+import SubmitStatusButton from './SubmitStatusButton.vue'
+
+/**
+ * @typedef LocalAttachment
+ * @property {File} file - The file object from the input element.
+ * @property {import('../../types/Mastodon.js').MediaAttachment} data - The attachment information from the server.
+ */
 
 export default {
 	name: 'Composer',
 	components: {
-		NcPopoverMenu,
 		NcAvatar,
 		NcEmojiPicker,
 		NcButton,
@@ -163,25 +163,24 @@ export default {
 		FileUpload,
 		VueTribute,
 		EmoticonOutline,
-		Send,
 		Close,
 		PreviewGrid,
+		VisibilitySelect,
+		SubmitStatusButton,
 	},
 	directives: {
 		FocusOnCreate,
 	},
 	mixins: [CurrentUserMixin],
-	props: {},
 	data() {
 		return {
+			statusContent: '',
 			type: localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
-			post: '',
-			miniatures: [], // miniatures of images stored in postAttachments
-			postAttachments: [], // The toot's attachments
-			previewUrls: [],
-			canType: true,
+			/** @type {Object<string, LocalAttachment>} */
+			attachments: {},
 			search: '',
+			/** @type {import('../../types/Mastodon.js').Status} */
 			replyTo: null,
 			tributeOptions: {
 				spaceSelectsMatch: true,
@@ -201,25 +200,23 @@ export default {
 							return '<span class="mention" contenteditable="false">'
 								+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
 						},
-						values: (text, cb) => {
-							const users = []
-
+						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
-								cb(users)
+								populate([])
 							}
-							this.remoteSearchAccounts(text).then((result) => {
-								for (const i in result.data.result.accounts) {
-									const user = result.data.result.accounts[i]
-									users.push({
-										key: user.preferredUsername,
-										value: user.account,
-										url: user.url,
-										avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`),
-									})
-								}
-								cb(users)
-							})
-						},
+
+							const response = await this.remoteSearchAccounts(text)
+
+							const users = response.data.result.accounts.map((user) => ({
+								key: user.preferredUsername,
+								value: user.account,
+								url: user.url,
+								avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`),
+							}))
+
+							console.debug('[Composer] Found users for', text, response.data.result, users)
+							populate(users)
+						}, 200),
 					},
 					{
 						trigger: '#',
@@ -237,29 +234,20 @@ export default {
 							return '<span class="hashtag" contenteditable="false">'
 								+ '<a href="' + generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
 						},
-						values: (text, cb) => {
-							const tags = []
-
+						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
-								cb(tags)
+								populate([])
 							}
-							this.remoteSearchHashtags(text).then((result) => {
-								if (result.data.result.exact) {
-									tags.push({
-										key: result.data.result.exact,
-										value: result.data.result.exact,
-									})
-								}
-								for (const i in result.data.result.tags) {
-									const tag = result.data.result.tags[i]
-									tags.push({
-										key: tag.hashtag,
-										value: tag.hashtag,
-									})
-								}
-								cb(tags)
-							})
-						},
+
+							const response = await this.remoteSearchHashtags(text)
+							const tags = [
+								...(response.data.result.exact && !Array.isArray(response.data.result.exact) ? [{ key: response.data.result.exact, value: response.data.result.exact }] : []),
+								...response.data.result.tags.map(({ hashtag }) => ({ key: hashtag, value: hashtag })),
+							]
+
+							console.debug('[Composer] Found tags for', text, response.data.result, tags)
+							populate(tags)
+						}, 200),
 					},
 				],
 				noMatchTemplate() {
@@ -272,123 +260,15 @@ export default {
 					}
 				},
 			},
-			menuOpened: false,
-
 		}
 	},
 	computed: {
-		postTo() {
-			switch (this.type) {
-			case 'public':
-			case 'unlisted':
-				return t('social', 'Post')
-			case 'followers':
-				return t('social', 'Post to followers')
-			case 'direct':
-				return t('social', 'Post to mentioned users')
-			}
-			return ''
-		},
-		currentVisibilityIconClass() {
-			return this.visibilityIconClass(this.type)
-		},
-		visibilityIconClass() {
-			return (type) => {
-				if (typeof type === 'undefined') {
-					type = this.type
-				}
-				switch (type) {
-				case 'public':
-					return 'icon-link'
-				case 'followers':
-					return 'icon-contacts-dark'
-				case 'direct':
-					return 'icon-external'
-				case 'unlisted':
-					return 'icon-password'
-				}
-			}
-		},
-		currentVisibilityPostLabel() {
-			return this.visibilityPostLabel(this.type)
-		},
-		visibilityPostLabel() {
-			return (type) => {
-				if (typeof type === 'undefined') {
-					type = this.type
-				}
-				switch (type) {
-				case 'public':
-					return t('social', 'Post publicly')
-				case 'followers':
-					return t('social', 'Post to followers')
-				case 'direct':
-					return t('social', 'Post to recipients')
-				case 'unlisted':
-					return t('social', 'Post unlisted')
-				}
-			}
-		},
-		activeState() {
-			return (type) => {
-				if (type === this.type) {
-					return true
-				} else {
-					return false
-				}
-			}
-		},
-		visibilityPopover() {
-			return [
-				{
-					action: () => {
-						this.switchType('public')
-					},
-					icon: this.visibilityIconClass('public'),
-					active: this.activeState('public'),
-					text: t('social', 'Public'),
-					longtext: t('social', 'Post to public timelines'),
-				},
-				{
-					action: () => {
-						this.switchType('unlisted')
-					},
-					icon: this.visibilityIconClass('unlisted'),
-					active: this.activeState('unlisted'),
-					text: t('social', 'Unlisted'),
-					longtext: t('social', 'Do not post to public timelines'),
-				},
-				{
-					action: () => {
-						this.switchType('followers')
-					},
-					icon: this.visibilityIconClass('followers'),
-					active: this.activeState('followers'),
-					text: t('social', 'Followers'),
-					longtext: t('social', 'Post to followers only'),
-				},
-				{
-					action: () => {
-						this.switchType('direct')
-					},
-					icon: this.visibilityIconClass('direct'),
-					active: this.activeState('direct'),
-					text: t('social', 'Direct'),
-					longtext: t('social', 'Post to mentioned users only'),
-				},
-			]
-		},
-		container() {
-			return '#content-vue'
-		},
-		containerElement() {
-			return document.querySelector(this.container)
-		},
+		/** @return {boolean} */
 		canPost() {
-			if (this.previewUrls.length > 0) {
+			if (Object.keys(this.attachments).length > 0) {
 				return true
 			}
-			return this.post.length !== 0 && this.post !== '<br>'
+			return this.statusContent.length !== 0 && this.statusContent !== '<br>'
 		},
 	},
 	mounted() {
@@ -398,95 +278,63 @@ export default {
 		})
 	},
 	methods: {
+		updateStatusContent() {
+			this.statusContent = this.$refs.composerInput.innerHTML
+		},
 		clickImportInput() {
 			this.$refs.fileUploadInput.click()
 		},
+		/** @param {InputEvent} event */
 		handleFileChange(event) {
-			event.target.files.forEach((file) => {
-				this.previewUrls.push({
-					description: '',
-					url: URL.createObjectURL(file),
-					result: file,
+			/** @type {HTMLInputElement} */
+			const target = event.target
+			Array.from(target.files).forEach(async (file) => {
+				const url = URL.createObjectURL(file)
+				this.$set(this.attachments, url, {
+					file,
+					data: null,
 				})
+				this.$set(this.attachments[url], 'data', await this.$store.dispatch('createMedia', file))
 			})
 		},
-		removeAttachment(idx) {
-			this.previewUrls.splice(idx, 1)
-		},
 		insert(emoji) {
+			console.debug('[Composer] insert emoji', emoji)
 			if (typeof emoji === 'object') {
 				const category = Object.keys(emoji)[0]
 				const emojis = emoji[category]
 				const firstEmoji = Object.keys(emojis)[0]
 				emoji = emojis[firstEmoji]
 			}
-			this.post += this.$twemoji.parse(emoji) + ' '
-			this.$refs.composerInput.innerHTML += this.$twemoji.parse(emoji) + ' '
-		},
-		togglePopoverMenu() {
-			this.menuOpened = !this.menuOpened
-		},
-		hidePopoverMenu() {
-			this.menuOpened = false
-		},
-		switchType(type) {
-			this.type = type
-			this.menuOpened = false
-			localStorage.setItem('social.lastPostType', type)
-		},
-		getPostData() {
-			const element = this.$refs.composerInput.cloneNode(true)
-			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
-				const em = document.createTextNode(emoji.getAttribute('alt'))
-				emoji.replaceWith(em)
-			})
 
-			const contentHtml = element.innerHTML
+			/** @type {Element} */
+			const lastChild = this.$refs.composerInput.lastChild
+			const div = document.createElement('div')
+			div.innerHTML = this.$twemoji.parse(emoji) + ' '
 
-			// Extract mentions from content and create an array out of them
-			const to = []
-			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
-			let match = null
-			do {
-				match = mentionRegex.exec(contentHtml)
-				if (match) {
-					to.push(match[1])
+			if (lastChild === null) {
+				this.$refs.composerInput.innerHTML = div.innerHTML
+			} else {
+
+				// Content usually ends with </br> or </>
+				// This makes sure that we put the emoji before those tags.
+				switch (lastChild.tagName) {
+				case 'BR':
+					lastChild.before(div.firstChild)
+					break
+				case 'DIV':
+					switch (lastChild.lastChild.tagName) {
+					case 'BR':
+						lastChild.lastChild.before(div.firstChild)
+						break
+					default:
+						lastChild.append(div.firstChild)
+					}
+					break
+				default:
+					lastChild.after(div.firstChild)
 				}
-			} while (match)
-
-			// Add author of original post in case of reply
-			if (this.replyTo !== null) {
-				to.push(this.replyTo.actor_info.account)
 			}
-
-			// Extract hashtags from content and create an array ot of them
-			const hashtagRegex = />#([^<]+)</g
-			const hashtags = []
-			match = null
-			do {
-				match = hashtagRegex.exec(contentHtml)
-				if (match) {
-					hashtags.push(match[1])
-				}
-			} while (match)
-
-			// Remove all html tags but </div> (wich we turn in newlines) and decode the remaining html entities
-			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
-			content = he.decode(content)
-
-			const formData = new FormData()
-			formData.append('content', content)
-			to.forEach(to => formData.append('to[]', to))
-			hashtags.forEach(hashtag => formData.append('hashtags[]', hashtag))
-			formData.append('type', this.type)
-			this.previewUrls.forEach(preview => formData.append('attachments[]', preview.result))
-			this.previewUrls.forEach(preview => formData.append('attachmentDescriptions[]', preview.description))
-
-			if (this.replyTo) {
-				formData.append('replyTo', this.replyTo.id)
-			}
-
-			return formData
+			this.updateStatusContent()
 		},
 		keyup(event) {
 			if (event.shiftKey || event.ctrlKey) {
@@ -494,45 +342,44 @@ export default {
 			}
 		},
 		updatePostFromTribute(event) {
-			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
-			this.$refs.composerInput.oninput(event)
+			console.debug('[Composer] update from tribute', event)
+			this.updateStatusContent()
 		},
 		async createPost(event) {
-
-			const postData = this.getPostData()
-
-			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
-			const regex = /@([-\w]+)$/
-			const lastMention = postData.get('content').match(regex)
-			if (lastMention) {
-
-				// Ask the server for matching accounts, and wait for the results
-				const result = await this.remoteSearchAccounts(lastMention[1])
-
-				// Validate the last mention only when it matches a single account
-				if (result.data.result.accounts.length === 1) {
-					postData.set('content', postData.get('content').replace(regex, '@' + result.data.result.accounts[0].account))
-					postData.set('to', postData.get('to').push(result.data.result.accounts[0].account))
-				}
-			}
-
-			// Abort if the post is a direct message and no valid mentions were found
-			// if (this.type === 'direct' && postData.get('to').length === 0) {
-			// OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
-			// return
-			// }
-
-			// Post message
-			this.loading = true
-			this.$store.dispatch('post', postData).then((response) => {
-				this.loading = false
-				this.replyTo = null
-				this.post = ''
-				this.$refs.composerInput.innerText = this.post
-				this.previewUrls = []
-				this.$store.dispatch('refreshTimeline')
+			// Replace emoji <img> tag with actual emojis.
+			// They will be replaced again with twemoji during rendering
+			const element = this.$refs.composerInput.cloneNode(true)
+			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
+				const em = document.createTextNode(emoji.getAttribute('alt'))
+				emoji.replaceWith(em)
 			})
 
+			let status = element.innerHTML.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
+			status = he.decode(status)
+
+			const statusData = {
+				content_type: '',
+				media_ids: Object.values(this.attachments).map(preview => preview.data.id),
+				sensitive: false,
+				spoiler_text: '',
+				status,
+				in_reply_to_id: this.replyTo?.id,
+				visibility: this.type,
+			}
+
+			console.debug('[Composer] Posting status', statusData)
+
+			// Post message
+			try {
+				this.loading = true
+				await this.$store.dispatch('post', statusData)
+			} finally {
+				this.loading = false
+				this.replyTo = null
+				this.$refs.composerInput.innerText = ''
+				this.attachments = {}
+				this.$store.dispatch('refreshTimeline')
+			}
 		},
 		closeReply() {
 			this.replyTo = null
@@ -540,13 +387,13 @@ export default {
 			this.$store.commit('setComposerDisplayStatus', false)
 		},
 		remoteSearchAccounts(text) {
-			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
+			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), { params: { search: text } })
 		},
 		remoteSearchHashtags(text) {
-			return axios.get(generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
+			return axios.get(generateUrl('apps/social/api/v1/global/tags/search'), { params: { search: text } })
 		},
-		deletePreview(index) {
-			this.previewUrls.splice(index, 1)
+		deletePreview(key) {
+			this.$delete(this.attachments, key)
 		},
 	},
 }

@@ -23,7 +23,10 @@
 <template>
 	<div class="social__timeline">
 		<transition-group name="list" tag="div">
-			<TimelineEntry v-for="entry in timeline" :key="entry.id" :item="entry" />
+			<TimelineEntry v-for="entry in timeline"
+				:key="entry.id"
+				:item="entry"
+				:type="type" />
 		</transition-group>
 		<InfiniteLoading ref="infiniteLoading" @infinite="infiniteHandler">
 			<div slot="spinner">
@@ -41,10 +44,13 @@
 
 <script>
 import InfiniteLoading from 'vue-infinite-loading'
+
+import { showError } from '@nextcloud/dialogs'
+
 import TimelineEntry from './TimelineEntry.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
-import Logger from '../logger.js'
+import logger from '../services/logger.js'
 
 export default {
 	name: 'TimelineList',
@@ -55,7 +61,10 @@ export default {
 	},
 	mixins: [CurrentUserMixin],
 	props: {
-		type: { type: String, default: () => 'home' },
+		type: {
+			type: String,
+			default: () => 'home',
+		},
 	},
 	data() {
 		return {
@@ -87,7 +96,7 @@ export default {
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
 				},
-				liked: {
+				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
 				},
@@ -121,9 +130,13 @@ export default {
 			}
 
 			// Fallback
-			Logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
+			logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
 			return this.emptyContent.default
 		},
+
+		/**
+		 * @return {import('../store/timeline.js').APObject[]}
+		 */
 		timeline() {
 			return this.$store.getters.getTimeline
 		},
@@ -132,22 +145,19 @@ export default {
 
 	},
 	methods: {
-		infiniteHandler($state) {
-			this.$store.dispatch('fetchTimeline', {
-				account: this.currentUser.uid,
-			}).then((response) => {
-				if (response.status === -1) {
-					OC.Notification.showTemporary('Failed to load more timeline entries')
-					console.error('Failed to load more timeline entries', response)
-					$state.complete()
-					return
-				}
-				response.result.length > 0 ? $state.loaded() : $state.complete()
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to load more timeline entries')
-				console.error('Failed to load more timeline entries', error)
+		async infiniteHandler($state) {
+			try {
+				const response = await this.$store.dispatch('fetchTimeline', {
+					account: this.currentUser.uid,
+					max_id: this.timeline.length > 0 ? Number.parseInt(this.timeline[this.timeline.length - 1].id) : undefined,
+				})
+
+				response.length > 0 ? $state.loaded() : $state.complete()
+			} catch (error) {
+				showError('Failed to load more timeline entries')
+				logger.error('Failed to load more timeline entries', { error })
 				$state.complete()
-			})
+			}
 		},
 	},
 }
