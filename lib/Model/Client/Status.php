@@ -39,6 +39,7 @@ class Status implements \JsonSerializable {
 	private string $visibility = '';
 	private string $spoilerText = '';
 	private array $mediaIds = [];
+	private int $inReplyToId = 0;
 	private string $status = '';
 
 	//"media_ids": [],
@@ -134,6 +135,16 @@ class Status implements \JsonSerializable {
 		return $this->mediaIds;
 	}
 
+	public function setInReplyToId(int $inReplyToId): self {
+		$this->inReplyToId = $inReplyToId;
+
+		return $this;
+	}
+
+	public function getInReplyToId(): int {
+		return $this->inReplyToId;
+	}
+
 
 	/**
 	 * @param string $status
@@ -160,6 +171,7 @@ class Status implements \JsonSerializable {
 		$this->setVisibility($this->get('visibility', $data));
 		$this->setSpoilerText($this->get('spoiler_text', $data));
 		$this->setMediaIds($this->getArray('media_ids', $data));
+		$this->setInReplyToId($this->getInt('in_reply_to_id', $data));
 		$this->setStatus($this->get('status', $data));
 
 		return $this;

@@ -36,6 +36,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -258,6 +259,15 @@ class ApiController extends Controller {
 						$this->viewer->getPreferredUsername()
 					))
 				);
+			}
+
+			if ($status->getInReplyToId() > 0) {
+				try {
+					$replyTo = $this->streamService->getStreamByNid($status->getInReplyToId());
+					$post->setReplyTo($replyTo->getId());
+				} catch (StreamNotFoundException $e) {
+					$this->logger->debug('reply to post not found');
+				}
 			}
 
 			$activity = $this->postService->createPost($post);
