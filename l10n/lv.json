@@ -13,6 +13,8 @@
     "Local timeline" : "Lokālā laika josla",
     "Global timeline" : "Globālā laika josla",
     "Following" : "Seko",
+    "Uploading..." : "Augšupielādē...",
+    "Delete" : "Dzēst",
     "Post" : "Pievienot",
     "Post to followers" : "Ieraksts sekotājiem",
     "Post publicly" : "Publisks ieraksts",
@@ -23,10 +25,6 @@
     "Followers" : "Sekotāji",
     "Direct" : "Tieši",
     "Post to mentioned users only" : "Ieraksts tikai pieminētajiem lietotājiem",
-    "Uploading..." : "Augšupielādē...",
-    "Delete" : "Dzēst",
-    "Edit" : "Rediģēt",
-    "Close" : "Aizvērt",
     "Unfollow" : "Atsekot",
     "Follow" : "Sekot",
     "posts" : "ieraksts",
@@ -37,6 +35,7 @@
     "No posts found" : "Atrasta jauns ieraksts",
     "No direct messages found" : "Tiešie ziņojumi nav atrasti",
     "Reply" : "Atbildēt",
+    "Close" : "Aizvērt",
     "Continue" : "Turpināt",
     "User not found" : "Lietotājs nav atrasts"
 },"pluralForm" :"nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);"

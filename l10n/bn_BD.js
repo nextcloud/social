@@ -7,10 +7,9 @@ OC.L10N.register(
     "Notifications" : "বার্তাসমূহ",
     "Uploading..." : "আপলোড করা হচ্ছে..........",
     "Delete" : "মুছে",
-    "Edit" : "সম্পাদনা",
-    "Close" : "বন্ধ",
     "Website" : "ওয়েবসাইট",
     "Reply" : "জবাব",
+    "Close" : "বন্ধ",
     "Continue" : "চালিয়ে যাও"
 },
 "nplurals=2; plural=(n != 1);");

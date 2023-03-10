@@ -7,8 +7,7 @@ OC.L10N.register(
     "Notifications" : "Xəbərdarlıqlar",
     "Uploading..." : "Serverə yüklənir...",
     "Delete" : "Sil",
-    "Edit" : "Dəyişiklik et",
-    "Close" : "Bağla",
-    "Reply" : "Cavab"
+    "Reply" : "Cavab",
+    "Close" : "Bağla"
 },
 "nplurals=2; plural=(n != 1);");

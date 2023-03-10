@@ -11,6 +11,8 @@
     "Profile" : "Perfil",
     "Local timeline" : "Línea de tiempo local",
     "Global timeline" : "Línea de tiempo global",
+    "Uploading..." : "Cargando...",
+    "Delete" : "Eliminar",
     "Post" : "Publicar",
     "Post to followers" : "Publicar en seguidores",
     "Post publicly" : "Publicar públicamente",
@@ -23,16 +25,13 @@
     "Post to followers only" : "Publicar solo en seguidores",
     "Direct" : "Directo",
     "Post to mentioned users only" : "Publicar solo para los usuarios mencionados",
-    "Uploading..." : "Cargando...",
-    "Delete" : "Eliminar",
-    "Edit" : "Editar",
-    "Close" : "Cerrar",
     "Follow" : "Seguir",
     "posts" : "publicaciones",
     "following" : "siguiendo",
     "Website" : "Sitio web",
     "Reply" : "Responder",
     "Deny" : "Rechazar",
+    "Close" : "Cerrar",
     "Continue" : "Continuar"
 },"pluralForm" :"nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;"
 }

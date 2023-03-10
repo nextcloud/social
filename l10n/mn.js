@@ -5,14 +5,13 @@ OC.L10N.register(
     "Open documentation" : "бичиг баримт нээх",
     "Home" : "Нүүр",
     "Notifications" : "Мэдэгдэл",
-    "Post" : "Зарлах",
-    "Public" : "Нийтийн",
     "Uploading..." : "Байршуулж байна...",
     "Delete" : "Устгах",
-    "Edit" : "засварлах",
-    "Close" : "Хаах",
+    "Post" : "Зарлах",
+    "Public" : "Нийтийн",
     "Website" : "Веб сайт",
     "Reply" : "хариулт",
+    "Close" : "Хаах",
     "Continue" : "үргэлжлүүлэх"
 },
 "nplurals=2; plural=(n != 1);");

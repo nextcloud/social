@@ -5,7 +5,6 @@ OC.L10N.register(
     "Finish setup" : "அமைப்பை முடிக்க",
     "Home" : "அகம்",
     "Delete" : "நீக்குக",
-    "Edit" : "தொகுக்க",
     "Close" : "மூடுக",
     "Continue" : "Continue"
 },

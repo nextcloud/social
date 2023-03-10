@@ -7,13 +7,12 @@ OC.L10N.register(
     "Home" : "Heim",
     "Notifications" : "Meldingar",
     "Add attachment" : "Legg til vedlegg",
-    "Post" : "Publiser",
     "Uploading..." : "Lastar opp …",
     "Delete" : "Slett",
-    "Edit" : "Rediger",
-    "Close" : "Lukk",
+    "Post" : "Publiser",
     "Reply" : "Svare",
     "Hello" : "Hallo",
+    "Close" : "Lukk",
     "Continue" : "Gå vidare"
 },
 "nplurals=2; plural=(n != 1);");

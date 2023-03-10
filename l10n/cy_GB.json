@@ -3,12 +3,11 @@
     "Finish setup" : "Gorffen sefydlu",
     "Home" : "Cartref",
     "Notifications" : "Hysbysiadau",
-    "Visibility" : "Gwelededd",
     "Uploading..." : "Yn llwytho i fyny...",
     "Delete" : "Dileu",
-    "Edit" : "Golygu",
-    "Close" : "Cau",
+    "Visibility" : "Gwelededd",
     "Website" : "Gwefan",
+    "Close" : "Cau",
     "User not found" : "Defnyddiwr heb ei ganfod"
 },"pluralForm" :"nplurals=4; plural=(n==1) ? 0 : (n==2) ? 1 : (n != 8 && n != 11) ? 2 : 3;"
 }

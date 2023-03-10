@@ -6,15 +6,14 @@ OC.L10N.register(
     "Finish setup" : "კონფიგურაციის დასრულება",
     "Home" : "სახლი",
     "Notifications" : "შეტყობინებები",
-    "Post" : "პოსტი",
-    "Public" : "ღია",
     "Uploading..." : "მიმდინარეობს ატვირთვა...",
     "Delete" : "წაშლა",
-    "Edit" : "შეცვლა",
-    "Close" : "დახურვა",
+    "Post" : "პოსტი",
+    "Public" : "ღია",
     "Website" : "ვებ-საიტი",
     "Reply" : "პასუხი",
     "Hello" : "გამარჯობა",
+    "Close" : "დახურვა",
     "Continue" : "გაგრძელება"
 },
 "nplurals=2; plural=(n!=1);");

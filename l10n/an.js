@@ -6,8 +6,8 @@ OC.L10N.register(
     "Home" : "Casa",
     "Notifications" : "Notificazions",
     "Delete" : "Borrar",
-    "Close" : "Zarrar",
     "Deny" : "Denegar",
+    "Close" : "Zarrar",
     "Continue" : "Continar"
 },
 "nplurals=2; plural=(n != 1);");

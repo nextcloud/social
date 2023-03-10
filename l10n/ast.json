@@ -4,13 +4,12 @@
     "Finish setup" : "Finar la configuración ",
     "Home" : "Aniciu",
     "Notifications" : "Notificaciones",
-    "Post" : "Espublizar",
     "Uploading..." : "Xubiendo...",
     "Delete" : "Desaniciar",
-    "Edit" : "Editar",
-    "Close" : "Zarrar",
+    "Post" : "Espublizar",
     "Website" : "Sitiu web",
     "Reply" : "Rempuesta",
+    "Close" : "Zarrar",
     "Continue" : "Siguir"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

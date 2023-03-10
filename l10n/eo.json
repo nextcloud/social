@@ -4,15 +4,14 @@
     "Finish setup" : "Fini la instalon",
     "Home" : "Hejmo",
     "Notifications" : "Sciigoj",
-    "Post" : "Sendi",
-    "Public" : "Publika",
     "Uploading..." : "Alŝutante...",
     "Delete" : "Forigi",
-    "Edit" : "Modifi",
-    "Close" : "Malfermi",
+    "Post" : "Sendi",
+    "Public" : "Publika",
     "Website" : "Retejo",
     "Reply" : "Respondi",
     "Deny" : "Rifuzi",
+    "Close" : "Malfermi",
     "Continue" : "Daŭrigi",
     "User not found" : "Netrovita uzanto"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"

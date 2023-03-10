@@ -6,8 +6,7 @@ OC.L10N.register(
     "Home" : "ئۆي",
     "Uploading..." : "يۈكلەۋاتىدۇ…",
     "Delete" : "ئۆچۈر",
-    "Edit" : "تەھرىر",
-    "Close" : "ياپ",
-    "Reply" : "جاۋاب قايتۇر"
+    "Reply" : "جاۋاب قايتۇر",
+    "Close" : "ياپ"
 },
 "nplurals=2; plural=(n != 1);");

@@ -6,16 +6,15 @@
     "Notifications" : "Pemberitahuan",
     "Profile" : "Profil",
     "In reply to" : "Membalas kepada",
-    "Post" : "Post",
-    "Public" : "Publik",
     "Uploading..." : "Mengunggah...",
     "Delete" : "Hapus",
-    "Edit" : "Sunting",
-    "Close" : "Tutup",
+    "Post" : "Post",
+    "Public" : "Publik",
     "Website" : "Situs",
     "Reply" : "Balas",
     "Deny" : "Tolak",
     "Hello" : "Halo",
+    "Close" : "Tutup",
     "Continue" : "Lanjutkan"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

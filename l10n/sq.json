@@ -4,16 +4,15 @@
     "Finish setup" : "Përfundoje rregullimin",
     "Home" : "Kryefaqja",
     "Notifications" : "Njoftimet",
-    "Post" : "Posto",
-    "Public" : "Publik",
     "Uploading..." : "Duke ngarkuar...",
     "Delete" : "Fshi",
-    "Edit" : "Përpuno",
-    "Close" : "Mbylleni",
+    "Post" : "Posto",
+    "Public" : "Publik",
     "Website" : "Faqe web-i",
     "Reply" : "Përgjigju",
     "Deny" : "Refuzo",
     "Hello" : "Përshëndetje",
+    "Close" : "Mbylleni",
     "Continue" : "Vazhdo"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
