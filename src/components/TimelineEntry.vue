@@ -114,17 +114,17 @@ export default {
 			case 'mention':
 				return t('social', '{account} mentioned you', { account: this.notification.account.acct })
 			case 'status':
-				return t('social', '{account} has posted a status', { account: this.notification.account.acct })
+				return t('social', '{account} posted a status', { account: this.notification.account.acct })
 			case 'reblog':
 				return t('social', '{account} boosted your post', { account: this.notification.account.acct })
 			case 'follow':
-				return t('social', '{account} started following you', { account: this.notification.account.acct })
+				return t('social', '{account} started to follow you', { account: this.notification.account.acct })
 			case 'follow_request':
 				return t('social', '{account} requested to follow you', { account: this.notification.account.acct })
 			case 'favourite':
-				return t('social', '{account} like you post', { account: this.notification.account.acct })
+				return t('social', '{account} liked your post', { account: this.notification.account.acct })
 			case 'poll':
-				return t('social', '{account} has ended the poll', { account: this.notification.account.acct })
+				return t('social', '{account} ended the poll', { account: this.notification.account.acct })
 			case 'update':
 				return t('social', '{account} edited a status', { account: this.notification.account.acct })
 			case 'admin.sign_up':
