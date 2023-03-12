@@ -126,13 +126,13 @@ export default {
 			case 'favourite':
 				return t('social', '{account} like you post', { account: this.notification.account.acct })
 			case 'poll':
-				return t('social', '{account} as ended the poll', { account: this.notification.account.acct })
+				return t('social', '{account} has ended the poll', { account: this.notification.account.acct })
 			case 'update':
-				return t('social', '{account} edit a status', { account: this.notification.account.acct })
+				return t('social', '{account} edited a status', { account: this.notification.account.acct })
 			case 'admin.sign_up':
 				return t('social', '{account} signed up', { account: this.notification.account.acct })
 			case 'admin.report':
-				return t('social', '{account} filled a report', { account: this.notification.account.acct })
+				return t('social', '{account} filed a report', { account: this.notification.account.acct })
 			default:
 				return ''
 			}
