@@ -84,11 +84,9 @@ export default {
 		isNotification() {
 			return this.item.type !== undefined
 		},
-		/**
-		 * @return {boolean}
-		 */
+		/** @return {boolean} */
 		isBoost() {
-			return this.reblog !== null
+			return this.status.reblog !== null
 		},
 		/** @return {import('../types/Mastodon.js').Notification} */
 		notification() {
