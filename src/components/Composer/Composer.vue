@@ -110,7 +110,7 @@
 
 				<VisibilitySelect :type.sync="type" />
 				<div class="emptySpace" />
-				<SubmitStatusButton :type="type" :disabled="canPost || loading" @click="createPost" />
+				<SubmitStatusButton :type="type" :disabled="!canPost || loading" @click="createPost" />
 
 				<!-- <NcButton :value="currentVisibilityPostLabel"
 					:disabled="!canPost"
