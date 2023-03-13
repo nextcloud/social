@@ -23,7 +23,7 @@
 
 <template>
 	<NcButton :value="currentVisibilityPostLabel"
-		:disabled="!disabled"
+		:disabled="disabled"
 		native-type="submit"
 		type="primary"
 		@click.prevent="handleClick">
