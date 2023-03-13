@@ -193,22 +193,22 @@ function getLinkType(className) {
 
 /**
  *
- * @param {Array} tags
+ * @param {import('../types/Mastodon').StatusMention[]} tags
  * @param {string} mentionHref
  * @param {string} mentionText
  */
-function matchMention(tags, mentionHref, mentionText) {
+function matchMention(tags = [], mentionHref, mentionText) {
 	const mentionUrl = new URL(mentionHref)
 	for (const tag of tags) {
-		if (mentionText === tag.name) {
+		if (mentionText === tag.acct) {
 			return tag
 		}
 
 		// since the mention link href is not always equal to the href in the tag
 		// we instead match the server and username separate
-		const tagUrl = new URL(tag.href)
+		const tagUrl = new URL(tag.url)
 		if (tagUrl.host === mentionUrl.host) {
-			const [, name] = tag.name.split('@')
+			const [, name] = tag.acct.split('@')
 			if (name === mentionText || '@' + name === mentionText) {
 				return tag
 			}
