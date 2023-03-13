@@ -367,6 +367,7 @@ class StreamService {
 			}
 
 			$curr = $this->streamRequest->getStreamById($curr->getInReplyTo());
+			$curr->setExportFormat(ACore::FORMAT_LOCAL);
 			$ancestors[] = $curr;
 		}
 

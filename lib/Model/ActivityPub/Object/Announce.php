@@ -82,7 +82,7 @@ class Announce extends Stream implements JsonSerializable {
 				$object = $object->getObject();
 				/** @var Stream $item */
 				$item = AP::$activityPub->getItemFromType($this->get('type', $object, Stream::TYPE));
-				$item->importFromCache($object);
+				$item->importFromLocal($object);
 				$result['reblog'] = $item->exportAsLocal();
 				$result['content'] = $item->getContent();
 			}

@@ -136,6 +136,22 @@ class MediaAttachment implements JsonSerializable {
 	}
 
 
+	public function import(array $data): self {
+		$this->setId($this->get('id', $data));
+		$this->setType($this->get('type', $data));
+		$this->setUrl($this->get('type', $data));
+		$this->setPreviewUrl($this->get('type', $data));
+		$this->setRemoteUrl($this->get('type', $data));
+		$this->setDescription($this->get('type', $data));
+		$this->setBlurHash($this->get('blurhash', $data));
+
+		$meta = new AttachmentMeta();
+		$meta->import($this->getArray('meta', $data));
+		$this->setMeta($meta);
+
+		return $this;
+	}
+
 	public function jsonSerialize(): array {
 		return array_filter(
 			[

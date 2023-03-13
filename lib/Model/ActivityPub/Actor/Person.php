@@ -636,6 +636,47 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 	}
 
+	/**
+	 * @param array $data
+	 *
+	 * @return $this
+	 */
+	public function importFromLocal(array $data): self {
+		parent::importFromLocal($data);
+
+		$this->setId($this->get('url', $data));
+		$this->setPreferredUsername($this->get('username', $data));
+		$this->setAccount($this->get('acct', $data));
+		$this->setDisplayName($this->get('display_name', $data));
+		$this->setLocked($this->getBool('locked', $data));
+		$this->setBot($this->getBool('bot', $data));
+		$this->setDiscoverable($this->getBool('discoverable', $data));
+		$this->setDescription($this->get('note', $data));
+		$this->setUrl($this->get('url', $data));
+
+		$this->setAvatar($this->get('avatar', $data));
+		$this->setHeader($this->get('header', $data));
+
+		$this->setPrivacy($this->get('source.privacy', $data));
+		$this->setSensitive($this->getBool('source.sensitive', $data));
+		$this->setLanguage($this->get('source.language', $data));
+
+		try {
+			$dTime = new DateTime($this->get('created_at', $data, 'yesterday'));
+			$this->setCreation($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
+
+		$count = [
+			'followers' => $this->getInt('followers_count', $data),
+			'following' => $this->getInt('following_count', $data),
+			'post' => $this->getInt('statuses_count', $data),
+			'last_post_creation' => $this->get('last_status_at', $data)
+		];
+		$this->setDetailArray('count', $count);
+
+		return $this;
+	}
 
 	/**
 	 * @param array $data
@@ -720,34 +761,35 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$details = $this->getDetailsAll();
 		$result =
 			[
-				"username" => $this->getPreferredUsername(),
-				"acct" => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),
-				"display_name" => $this->getDisplayName(),
-				"locked" => $this->isLocked(),
-				"bot" => $this->isBot(),
-				"discoverable" => $this->isDiscoverable(),
-				"group" => false,
-				"created_at" => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
-				"note" => $this->getDescription(),
-				"url" => $this->getId(),
-				"avatar" => $this->getAvatar(),
-				"avatar_static" => $this->getAvatar(),
-				"header" => $this->getHeader(),
-				"header_static" => $this->getHeader(),
-				"followers_count" => $this->getInt('count.followers', $details),
-				"following_count" => $this->getInt('count.following', $details),
-				"statuses_count" => $this->getInt('count.post', $details),
-				"last_status_at" => $this->get('last_post_creation', $details),
-				"source" => [
-					"privacy" => $this->getPrivacy(),
-					"sensitive" => $this->isSensitive(),
-					"language" => $this->getLanguage(),
-					"note" => $this->getDescription(),
-					"fields" => [],
-					"follow_requests_count" => 0
+				'id' => (string)$this->getNid(),
+				'username' => $this->getPreferredUsername(),
+				'acct' => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),
+				'display_name' => $this->getDisplayName(),
+				'locked' => $this->isLocked(),
+				'bot' => $this->isBot(),
+				'discoverable' => $this->isDiscoverable(),
+				'group' => false,
+				'created_at' => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
+				'note' => $this->getDescription(),
+				'url' => $this->getId(),
+				'avatar' => $this->getAvatar(),
+				'avatar_static' => $this->getAvatar(),
+				'header' => $this->getHeader(),
+				'header_static' => $this->getHeader(),
+				'followers_count' => $this->getInt('count.followers', $details),
+				'following_count' => $this->getInt('count.following', $details),
+				'statuses_count' => $this->getInt('count.post', $details),
+				'last_status_at' => $this->get('last_post_creation', $details),
+				'source' => [
+					'privacy' => $this->getPrivacy(),
+					'sensitive' => $this->isSensitive(),
+					'language' => $this->getLanguage(),
+					'note' => $this->getDescription(),
+					'fields' => [],
+					'follow_requests_count' => 0
 				],
-				"emojis" => [],
-				"fields" => []
+				'emojis' => [],
+				'fields' => []
 			];
 
 		return array_merge(parent::exportAsLocal(), $result);

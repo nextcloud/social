@@ -31,9 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Object;
 
-use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
@@ -44,11 +41,6 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -65,6 +57,14 @@ use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamQueueService;
+use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class AnnounceInterface
@@ -178,9 +178,9 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			}
 
 			try {
-				$post = $this->streamRequest->getStreamById($item->getObjectId());
+				$post = $this->streamRequest->getStreamById($item->getObjectId(), false, ACore::FORMAT_LOCAL);
 			} catch (StreamNotFoundException $e) {
-				return; // should not happens.
+				return; // should not happen.
 			}
 
 			$this->updateDetails($post);
@@ -256,7 +256,11 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 						$actor = $this->cacheActorService->getFromId($item->getActorId());
 					}
 
-					$post = $this->streamRequest->getStreamById($item->getObjectId());
+					$post = $this->streamRequest->getStreamById(
+						$item->getObjectId(),
+						false,
+						ACore::FORMAT_LOCAL
+					);
 					$this->updateDetails($post);
 					$this->generateNotification($post, $actor);
 				} catch (Exception $e) {
@@ -321,7 +325,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 //			$notification->setDetail('url', '');
 
 			$notification->setDetailItem('post', $post);
-			$notification->setDetailInt('nid', $post->getNid());
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())
 						 ->setSubType(Announce::TYPE)

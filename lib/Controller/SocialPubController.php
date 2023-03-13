@@ -172,18 +172,21 @@ class SocialPubController extends Controller {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function displayPost(string $username, string $token): TemplateResponse {
+	public function displayPost(string $username, int $token): TemplateResponse {
 		try {
 			$viewer = $this->accountService->getCurrentViewer();
 			$this->streamService->setViewer($viewer);
 		} catch (AccountDoesNotExistException $e) {
 		}
 
-		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+//		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
-		$stream = $this->streamService->getStreamById($postId, true);
+		$stream = $this->streamService->getStreamByNid($token);
+		if (strtolower($stream->getActor()->getDisplayName()) !== strtolower($username)) {
+			throw new StreamNotFoundException();
+		}
+
 		$data = [
-			'id' => $postId,
 			'application' => 'Social'
 		];
 
