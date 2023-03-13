@@ -67,7 +67,7 @@
 		<form class="new-post-form" @submit.prevent="createPost">
 			<VueTribute :options="tributeOptions">
 				<div ref="composerInput"
-					:disabled="loading"
+					:contenteditable="!loading"
 					class="message"
 					placeholder="What would you like to share?"
 					:class="{'icon-loading': loading}"
