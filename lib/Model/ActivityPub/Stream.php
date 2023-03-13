@@ -115,6 +115,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this->content;
 	}
 
+
 	/**
 	 * @param string $content
 	 *
@@ -491,13 +492,57 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setCache($cache);
 	}
 
-	public function importFromCache(array $data) {
-		parent::importFromCache($data);
+	public function importFromLocal(array $data) {
+		parent::importFromLocal($data);
 
+		$this->setId($this->get('url', $data));
+		$this->setUrl($this->get('url', $data));
+		$this->setLocal($this->getBool('local', $data));
+		$this->setContent($this->get('content', $data));
+		$this->setSensitive($this->getBool('sensitive', $data));
+		$this->setSpoilerText($this->get('spoiler_text', $data));
+		$this->setVisibility($this->get('visibility', $data));
+		$this->setLanguage($this->get('language', $data));
+
+		$action = new StreamAction();
+		$action->setValues(
+			[
+				StreamAction::LIKED => $this->getBool('favourited', $data),
+				StreamAction::BOOSTED => $this->getBool('reblogged', $data)
+			]
+		);
+		$this->setAction($action);
+
+		try {
+			$dTime = new DateTime($this->get('created_at', $data, 'yesterday'));
+			$this->setPublishedTime($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
+
+//		"in_reply_to_id" => null,
+//			"in_reply_to_account_id" => null,
+//			'replies_count' => 0,
+//			'reblogs_count' => 0,
+//			'favourites_count' => 0,
+//			'muted' => false,
+//			'bookmarked' => false,
+//			"reblog" => null,
+//			'noindex' => false
+
+		$attachments = [];
+		foreach ($this->getArray('media_attachments', $data) as $dataAttachment) {
+			$attachment = new MediaAttachment();
+			$attachment->import($dataAttachment);
+			$attachments[] = $attachment;
+		}
+		$this->setAttachments($attachments);
+
+		// import from cache with new format !
 		$actor = new Person();
-		$actor->importFromCache($data['actor_info'] ?? []);
+		$actor->importFromLocal($this->getArray('account', $data));
+		$actor->setExportFormat(ACore::FORMAT_LOCAL);
 		$this->setActor($actor);
-		$this->setCompleteDetails(true);
+//		$this->setCompleteDetails(true);
 	}
 
 
@@ -608,8 +653,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$statusPost = $this->getDetails('post');
 		if (sizeof($statusPost) > 0) {
 			$status = new Stream();
-			$status->importFromCache($statusPost);
-			$status->setNid($this->getDetailInt('nid'));
+			$status->importFromLocal($statusPost);
 			$status->setExportFormat(self::FORMAT_LOCAL);
 		}
 

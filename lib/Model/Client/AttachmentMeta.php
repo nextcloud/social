@@ -204,8 +204,29 @@ class AttachmentMeta implements JsonSerializable {
 		return $this->blurHash;
 	}
 
-
 	public function import(array $data): self {
+		if (array_key_exists('width', $data)) {
+			$this->setWidth($this->getInt('width', $data));
+		}
+		if (array_key_exists('height', $data)) {
+			$this->setHeight($this->getInt('height', $data));
+		}
+		if (array_key_exists('aspect', $data)) {
+			$this->setAspect($this->getInt('aspect', $data));
+		}
+		if (array_key_exists('duration', $data)) {
+			$this->setDuration($this->getInt('duration', $data));
+		}
+
+		$this->setSize($this->get('size', $data));
+		$this->setLength($this->get('length', $data));
+		$this->setFps($this->getFloat('fps', $data));
+		$this->setAudioEncode($this->get('audio_encode', $data));
+		$this->setAudioBitrate($this->get('audio_bitrate', $data));
+		$this->setAudioChannels($this->get('audio_channels', $data));
+		$this->setDescription($this->get('description', $data));
+		$this->setBlurHash($this->get('blurhash', $data));
+
 		$original = new AttachmentMetaDim();
 		$original->import($this->getArray('original', $data));
 		$this->setOriginal($original);
