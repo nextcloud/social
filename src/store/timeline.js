@@ -112,56 +112,52 @@ const mutations = {
 	 * @param state
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	likePost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
+	likePost(state, { post }) {
+		if (state.timeline[post.id] !== undefined) {
 			Vue.set(state.timeline[post.id], 'favourited', true)
 		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object], 'favourited', true)
+		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
+			Vue.set(state.timeline[post.reblog.id], 'favourited', true)
 		}
 	},
 	/**
 	 * @param state
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	unlikePost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
+	unlikePost(state, { post }) {
+		if (state.timeline[post.id] !== undefined) {
 			Vue.set(state.timeline[post.id], 'favourited', false)
 		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object, 'favourited', false)
+		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
+			Vue.set(state.timeline[post.reblog.id], 'favourited', false)
 		}
 	},
 	/**
 	 * @param state
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	boostPost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
+	boostPost(state, { post }) {
+		if (state.timeline[post.id] !== undefined) {
 			Vue.set(state.timeline[post.id], 'reblogged', true)
 		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object, 'reblogged', true)
+		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
+			Vue.set(state.timeline[post.reblog.id], 'reblogged', true)
 		}
 	},
 	/**
 	 * @param state
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	unboostPost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
+	unboostPost(state, { post }) {
+		if (state.timeline[post.id] !== undefined) {
 			Vue.set(state.timeline[post.id], 'reblogged', false)
 		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object, 'reblogged', false)
+		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
+			Vue.set(state.timeline[post.reblog.id], 'reblogged', false)
 		}
 	},
 }
@@ -231,7 +227,7 @@ const actions = {
 	async post(context, post) {
 		try {
 			const { data } = await axios.post(generateUrl('apps/social/api/v1/statuses'), post)
-			logger.info('Post created with token ' + data.id)
+			logger.info('Post created', data.id)
 		} catch (error) {
 			showError('Failed to create a post')
 			logger.error('Failed to create a post', { error })
@@ -241,84 +237,96 @@ const actions = {
 	 * @param context
 	 * @param {import('../types/Mastodon.js').Status} post
 	 */
-	postDelete(context, post) {
-		return axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.uri}`)).then((response) => {
+	async postDelete(context, post) {
+		try {
 			context.commit('removePost', post)
+			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
-		}).catch((error) => {
+		} catch (error) {
+			context.commit('addToTimeline', [post])
 			showError('Failed to delete the post')
 			logger.error('Failed to delete the post', { error })
-		})
+		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	postLike(context, { post, parentAnnounce }) {
-		return new Promise((resolve, reject) => {
-			axios.post(generateUrl(`apps/social/api/v1/post/like?postId=${post.uri}`)).then((response) => {
-				context.commit('likePost', { post, parentAnnounce })
-				resolve(response)
-			}).catch((error) => {
-				showError('Failed to like post')
-				logger.error('Failed to like post', { error })
-				reject(error)
-			})
-		})
+	async postLike(context, { post }) {
+		try {
+			context.commit('likePost', { post })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/favourite`))
+			logger.info('Post liked')
+			context.commit('addToTimeline', [response.data])
+			return response
+		} catch (error) {
+			context.commit('unlikePost', { post })
+			showError('Failed to like post')
+			logger.error('Failed to like post', { error })
+		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	postUnlike(context, { post, parentAnnounce }) {
-		return axios.delete(generateUrl(`apps/social/api/v1/post/like?postId=${post.uri}`)).then((response) => {
-			context.commit('unlikePost', { post, parentAnnounce })
+	async postUnlike(context, { post }) {
+		try {
 			// Remove post from list if we are in the 'liked' timeline
 			if (state.type === 'liked') {
 				context.commit('removePost', post)
 			}
-		}).catch((error) => {
+			context.commit('unlikePost', { post })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/unfavourite`))
+			logger.info('Post unliked')
+			context.commit('addToTimeline', [response.data])
+			return response
+		} catch (error) {
+			// Readd post from list if we are in the 'liked' timeline
+			if (state.type === 'liked') {
+				context.commit('addToTimeline', [post])
+			}
+			context.commit('likePost', { post })
 			showError('Failed to unlike post')
 			logger.error('Failed to unlike post', { error })
-		})
+		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	postBoost(context, { post, parentAnnounce }) {
-		return new Promise((resolve, reject) => {
-			axios.post(generateUrl(`apps/social/api/v1/post/boost?postId=${post.uri}`)).then((response) => {
-				context.commit('boostPost', { post, parentAnnounce })
-				logger.info('Post boosted with token ' + response.data.result.token)
-				resolve(response)
-			}).catch((error) => {
-				showError('Failed to create a boost post')
-				logger.error('Failed to create a boost post', { error })
-				reject(error)
-			})
-		})
+	async postBoost(context, { post }) {
+		try {
+			context.commit('boostPost', { post })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/reblog`))
+			logger.info('Post boosted')
+			context.commit('addToTimeline', [response.data])
+			return response
+		} catch (error) {
+			context.commit('unboostPost', { post })
+			showError('Failed to create a boost post')
+			logger.error('Failed to create a boost post', { error })
+		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
 	 * @param {import('../types/Mastodon.js').Status} root0.post
-	 * @param {object} root0.parentAnnounce
 	 */
-	postUnBoost(context, { post, parentAnnounce }) {
-		return axios.delete(generateUrl(`apps/social/api/v1/post/boost?postId=${post.uri}`)).then((response) => {
-			context.commit('unboostPost', { post, parentAnnounce })
-			logger.info('Boost deleted with token ' + response.data.result.token)
-		}).catch((error) => {
+	async postUnBoost(context, { post }) {
+		try {
+			context.commit('unboostPost', { post })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/unreblog`))
+			logger.info('Boost deleted')
+			context.commit('addToTimeline', [response.data])
+			return response
+		} catch (error) {
+			context.commit('boostPost', { post })
 			showError('Failed to delete the boost')
 			logger.error('Failed to delete the boost', { error })
-		})
+		}
 	},
 	refreshTimeline(context) {
 		return this.dispatch('fetchTimeline')
