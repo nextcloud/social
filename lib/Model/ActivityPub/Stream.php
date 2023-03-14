@@ -33,10 +33,15 @@ namespace OCA\Social\Model\ActivityPub;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
@@ -44,6 +49,8 @@ use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Model\Cache;
 use OCA\Social\Tools\Model\CacheItem;
 use OCA\Social\Traits\TDetails;
+use OCP\IURLGenerator;
+use OCP\Server;
 
 /**
  * Class Stream
@@ -415,7 +422,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setConversation($this->validate(self::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
 		try {
-			$this->importAttachments($this->getArray('attachments', $data, []));
+			$this->importAttachments($this->getArray('attachment', $data, []));
 		} catch (ItemAlreadyExistsException $e) {
 		}
 		$this->convertPublished();
@@ -426,39 +433,42 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @throws ItemAlreadyExistsException
 	 */
 	public function importAttachments(array $list): void {
+		$urlGenerator = Server::get(IURLGenerator::class);
+		
 		$new = [];
 		foreach ($list as $item) {
-//			try {
-//				$attachment = AP::$activityPub->getItemFromData($item, $this);
-//			} catch (Exception $e) {
-//				continue;
-//			}
-//
-//			if ($attachment->getType() !== Document::TYPE
-//				&& $attachment->getType() !== Image::TYPE) {
-//				continue;
-//			}
-//
-//			try {
-//				$attachment->setUrl(
-//					$this->validateEntryString(ACore::AS_URL, $attachment->getUrl())
-//				);
-//			} catch (InvalidResourceEntryException $e) {
-//				continue;
-//			}
-//
-//			if ($attachment->getUrl() === '') {
-//				continue;
-//			}
-//
-//			try {
-//				$interface = AP::$activityPub->getInterfaceFromType($attachment->getType());
-//			} catch (ItemUnknownException $e) {
-//				continue;
-//			}
-//
-//			$interface->save($attachment);
-//			$new[] = $attachment;
+			try {
+				/** @var Document $attachment */
+				$attachment = AP::$activityPub->getItemFromData($item, $this);
+			} catch (Exception $e) {
+				continue;
+			}
+
+			if ($attachment->getType() !== Document::TYPE
+				&& $attachment->getType() !== Image::TYPE) {
+				continue;
+			}
+
+			try {
+				$attachment->setUrl(
+					$this->validateEntryString(ACore::AS_URL, $attachment->getUrl())
+				);
+			} catch (InvalidResourceEntryException $e) {
+				continue;
+			}
+
+			if ($attachment->getUrl() === '') {
+				continue;
+			}
+
+			try {
+				$interface = AP::$activityPub->getInterfaceFromType($attachment->getType());
+			} catch (ItemUnknownException $e) {
+				continue;
+			}
+
+			$interface->save($attachment);
+			$new[] = $attachment->convertToMediaAttachment($urlGenerator);
 		}
 
 		$this->setAttachments($new);

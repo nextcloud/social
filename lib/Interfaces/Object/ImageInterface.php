@@ -33,6 +33,7 @@ namespace OCA\Social\Interfaces\Object;
 
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\MiscService;
 
 class ImageInterface extends DocumentInterface implements IActivityPubInterface {
@@ -43,8 +44,9 @@ class ImageInterface extends DocumentInterface implements IActivityPubInterface 
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CacheDocumentsRequest $cacheDocumentsRequest, MiscService $miscService
+		CacheDocumentsRequest $cacheDocumentsRequest,
+		CacheDocumentService $cacheDocumentService
 	) {
-		parent::__construct($cacheDocumentsRequest, $miscService);
+		parent::__construct($cacheDocumentService, $cacheDocumentsRequest);
 	}
 }
