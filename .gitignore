@@ -9,3 +9,4 @@ cypress/screenshots
 cypress/snapshots
 
 .php-cs-fixer.cache
+.vscode/settings.json
