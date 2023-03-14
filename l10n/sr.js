@@ -23,6 +23,7 @@ OC.L10N.register(
     "Following" : "Пратим",
     "In reply to" : "Као одговор на",
     "Add attachment" : "Додај прилог",
+    "Add emoji" : "Додај емођи",
     "Uploading..." : "Отпремам…",
     "Delete" : "Избриши",
     "Post" : "Објави",
