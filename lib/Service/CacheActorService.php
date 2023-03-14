@@ -34,6 +34,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -177,6 +178,7 @@ class CacheActorService {
 	 * @return Person
 	 * @throws CacheActorDoesNotExistException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	public function getFromLocalAccount(string $account): Person {
 		$instance = '';
