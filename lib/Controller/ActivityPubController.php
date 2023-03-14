@@ -354,7 +354,7 @@ class ActivityPubController extends Controller {
 		}
 
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->socialPubController->displayPost($username, $token);
+			return $this->socialPubController->displayPost($username, (int)$token);
 		}
 
 		try {

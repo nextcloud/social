@@ -317,6 +317,7 @@ class ApiController extends Controller {
 			$this->logger->debug('[ApiController] mediaNew: ' . json_encode($file));
 
 			$document = new Document();
+			$document->setLocal(true);
 			$document->setAccount($this->viewer->getPreferredUsername());
 			$document->setUrlCloud($this->configService->getCloudUrl());
 			$document->generateUniqueId('/documents/local');
