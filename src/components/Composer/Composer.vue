@@ -60,9 +60,7 @@
 					</template>
 				</NcButton>
 			</p>
-			<div class="reply-to-preview">
-				{{ replyTo.content }}
-			</div>
+			<MessageContent :item="replyTo" />
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
 			<VueTribute :options="tributeOptions">
@@ -146,6 +144,7 @@ import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
 import VisibilitySelect from './VisibilitySelect.vue'
 import SubmitStatusButton from './SubmitStatusButton.vue'
+import MessageContent from '../MessageContent.js'
 
 /**
  * @typedef LocalAttachment
@@ -167,6 +166,7 @@ export default {
 		PreviewGrid,
 		VisibilitySelect,
 		SubmitStatusButton,
+		MessageContent,
 	},
 	directives: {
 		FocusOnCreate,
