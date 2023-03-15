@@ -91,7 +91,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			$iconId = $actor->getIconId();
 		}
 
-		$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
+		$qb->setValue('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
 		$qb->generatePrimaryKey($actor->getId());
 
 		try {
@@ -143,9 +143,8 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			$iconId = $actor->getIconId();
 		}
 
-		$qb->set('icon_id', $qb->createNamedParameter($iconId));
-
-		$this->limitToIdString($qb, $actor->getId());
+		$qb->set('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
+		$qb->limitToIdString($actor->getId());
 
 		return $qb->executeStatement();
 	}
@@ -226,10 +225,12 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @return Person[]
 	 * @throws Exception
 	 */
-	public function getRemoteActorsToUpdate(): array {
+	public function getRemoteActorsToUpdate(bool $force = false): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToLocal($qb, false);
-		$this->limitToCreation($qb, self::CACHE_TTL);
+		if (!$force) {
+			$this->limitToCreation($qb, self::CACHE_TTL);
+		}
 
 		return $this->getCacheActorsFromRequest($qb);
 	}

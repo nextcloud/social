@@ -291,8 +291,8 @@ class CacheActorService {
 	 * @return int
 	 * @throws Exception
 	 */
-	public function manageCacheRemoteActors(): int {
-		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate();
+	public function manageCacheRemoteActors(bool $force = false): int {
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate($force);
 
 		foreach ($update as $item) {
 			try {

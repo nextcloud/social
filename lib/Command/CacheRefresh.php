@@ -38,6 +38,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class CacheRefresh extends Base {
@@ -61,7 +62,8 @@ class CacheRefresh extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:cache:refresh')
-			 ->setDescription('Update the cache');
+			 ->setDescription('Update the cache')
+			->addOption('force', 'f', InputOption::VALUE_NONE, 'enforce update of cached account');
 	}
 
 	/**
@@ -80,7 +82,7 @@ class CacheRefresh extends Base {
 		$result = $this->cacheActorService->missingCacheRemoteActors();
 		$output->writeLn($result . ' remote accounts created');
 
-		$result = $this->cacheActorService->manageCacheRemoteActors();
+		$result = $this->cacheActorService->manageCacheRemoteActors($input->getOption('force'));
 		$output->writeLn($result . ' remote accounts updated');
 
 		$result = $this->documentService->manageCacheDocuments();

@@ -185,7 +185,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias('cd.creation', 'cachedocument_creation')
 			 ->leftJoin(
 			 	$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
-			 	$expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
+			 	$expr->eq($pf . '.' . $fieldDocumentId, 'cd.id_prim')
 			 );
 	}
 
