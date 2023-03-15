@@ -26,6 +26,7 @@ declare(strict_types=1);
 namespace OCA\Social\WellKnown;
 
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -109,7 +110,7 @@ class WebfingerHandler implements IHandler {
 		$actor = null;
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
-		} catch (SocialAppConfigException $e) {
+		} catch (ActorDoesNotExistException | SocialAppConfigException $e) {
 			return null;
 		} catch (CacheActorDoesNotExistException $e) {
 		}
