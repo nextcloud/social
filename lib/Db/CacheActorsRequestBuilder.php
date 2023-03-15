@@ -36,7 +36,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tools\Exceptions\RowNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
