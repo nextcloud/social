@@ -11,17 +11,12 @@
 				<span class="icon-boost" />
 			</div>
 			<div class="boost">
-				<router-link v-if="!isProfilePage && item.account"
-					:to="{ name: 'profile', params: { account: item.account.username } }">
-					<span v-tooltip.bottom="item.account.acct" class="post-author">
+				<router-link v-if="item.account"
+					:to="{ name: 'profile', params: { account: item.account.acct } }">
+					<span :title="item.account.acct" class="post-author">
 						{{ item.account.display_name }}
 					</span>
 				</router-link>
-				<a v-else :href="item.account.id">
-					<span class="post-author-id">
-						{{ item.account.id }}
-					</span>
-				</a>
 				{{ t('social', 'boosted') }}
 			</div>
 		</template>
@@ -63,10 +58,6 @@ export default {
 		type: {
 			type: String,
 			required: true,
-		},
-		isProfilePage: {
-			type: Boolean,
-			default: false,
 		},
 	},
 	computed: {
