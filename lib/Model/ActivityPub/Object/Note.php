@@ -31,8 +31,11 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Object;
 
 use JsonSerializable;
+use OCA\Social\AP;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 
 class Note extends Stream implements JsonSerializable {
@@ -56,6 +59,35 @@ class Note extends Stream implements JsonSerializable {
 		return $this;
 	}
 
+	public function fillMentions(): void {
+		$personInterface = AP::$activityPub->getInterfaceFromType(Person::TYPE);
+		$mentions = [];
+
+		foreach ($this->getTags('Mention') as $item) {
+			$username = ltrim($this->get('name', $item), '@');
+			$mention = [
+				'id' => 0,
+				'username' => $username,
+				'url' => $this->get('href', $item),
+				'acct' => $username,
+			];
+
+			try {
+				/** @var Person $actor */
+				$actor = $personInterface->getItemById($mention['url']);
+				$mention['id'] = (string)$actor->getNid();
+				$mention['username'] = $actor->getPreferredUsername();
+				$mention['acct'] = $actor->getAccount();
+			} catch (ItemNotFoundException $e) {
+			}
+
+			$mentions[] = $mention;
+		}
+
+		$this->setDetailArray('mentions', $mentions);
+	}
+
+
 	public function fillHashtags(): void {
 		$tags = $this->getTags('Hashtag');
 		$hashtags = [];
@@ -78,6 +110,7 @@ class Note extends Stream implements JsonSerializable {
 		parent::import($data);
 
 		$this->fillHashtags();
+		$this->fillMentions();
 	}
 
 

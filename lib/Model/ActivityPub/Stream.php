@@ -78,6 +78,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
 	private array $attachments = [];
+	private array $mentions = [];
 	private bool $sensitive = false;
 	private string $conversation = '';
 	private ?Cache $cache = null;
@@ -242,6 +243,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setAttachments(array $attachments): self {
 		$this->attachments = $attachments;
+
+		return $this;
+	}
+
+
+	public function getMentions(): array {
+		return $this->mentions;
+	}
+
+	public function setMentions(array $mentions): self {
+		$this->mentions = $mentions;
 
 		return $this;
 	}
@@ -434,7 +446,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function importAttachments(array $list): void {
 		$urlGenerator = Server::get(IURLGenerator::class);
-		
+
 		$new = [];
 		foreach ($list as $item) {
 			try {
@@ -495,6 +507,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setDetailsAll($this->getArray('details', $data, []));
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
 		$this->setAttachments($this->getArray('attachments', $data, []));
+		$this->setMentions($this->getDetails('mentions'));
 		$this->setVisibility($this->get('visibility', $data));
 
 		$cache = new Cache();
@@ -546,6 +559,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$attachments[] = $attachment;
 		}
 		$this->setAttachments($attachments);
+
+		$this->setMentions($this->getArray('mentions', $data));
 
 		// import from cache with new format !
 		$actor = new Person();
@@ -619,6 +634,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			"language" => $this->getLanguage(),
 			"in_reply_to_id" => null,
 			"in_reply_to_account_id" => null,
+			'mentions' => $this->getMentions(),
 			'replies_count' => 0,
 			'reblogs_count' => 0,
 			'favourites_count' => 0,
