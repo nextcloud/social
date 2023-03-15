@@ -722,27 +722,39 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsActivityPub(): array {
+
+		$data = [
+			'aliases' => [
+				$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
+				$this->getUrlSocial() . 'users/' . $this->getPreferredUsername()
+			],
+			'preferredUsername' => $this->getPreferredUsername(),
+			'name' => $this->getName(),
+			'inbox' => $this->getInbox(),
+			'outbox' => $this->getOutbox(),
+			'account' => $this->getAccount(),
+			'following' => $this->getFollowing(),
+			'followers' => $this->getFollowers(),
+			'endpoints' => ['sharedInbox' => $this->getSharedInbox()],
+			'publicKey' => [
+				'id' => $this->getId() . '#main-key',
+				'owner' => $this->getId(),
+				'publicKeyPem' => $this->getPublicKey()
+			]
+		];
+
+		if ($this->hasIcon()) {
+			$icon = $this->getIcon();
+			$data['icon'] = [
+				'type' => $icon->getType(),
+				'mediaType' => $icon->getMediaType(),
+				'url' => $icon->getUrl()
+			];
+		}
+
 		$result = array_merge(
 			parent::exportAsActivityPub(),
-			[
-				'aliases' => [
-					$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
-					$this->getUrlSocial() . 'users/' . $this->getPreferredUsername()
-				],
-				'preferredUsername' => $this->getPreferredUsername(),
-				'name' => $this->getName(),
-				'inbox' => $this->getInbox(),
-				'outbox' => $this->getOutbox(),
-				'account' => $this->getAccount(),
-				'following' => $this->getFollowing(),
-				'followers' => $this->getFollowers(),
-				'endpoints' => ['sharedInbox' => $this->getSharedInbox()],
-				'publicKey' => [
-					'id' => $this->getId() . '#main-key',
-					'owner' => $this->getId(),
-					'publicKeyPem' => $this->getPublicKey()
-				]
-			]
+			$data
 		);
 
 		if ($this->isCompleteDetails()) {

@@ -170,8 +170,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		}
 
 		$expr = $this->expr();
-		$func = $this->func();
-
 		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
 		$this->selectAlias('cd.id', 'cachedocument_id')
 			 ->selectAlias('cd.type', 'cachedocument_type')
