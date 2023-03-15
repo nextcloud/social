@@ -2,10 +2,9 @@
 	<div class="post-content">
 		<div class="post-header">
 			<div class="post-author-wrapper">
-				<!-- TODO -->
 				<router-link v-if="item.account"
 					:to="{ name: 'profile',
-						params: { account: (isLocal && !isNotification) ? item.account.display_name : item.account.username }
+						params: { account: item.account.acct }
 					}">
 					<span class="post-author">
 						{{ item.account.display_name }}
@@ -14,11 +13,6 @@
 						@{{ item.account.username }}
 					</span>
 				</router-link>
-				<a v-else :href="item.account.id">
-					<span class="post-author-id">
-						{{ item.account.id }}
-					</span>
-				</a>
 			</div>
 			<a :data-timestamp="timestamp"
 				class="post-timestamp live-relative-timestamp"
@@ -34,7 +28,6 @@
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.account.note" />
 		<div v-if="hasAttachments" class="post-attachments">
-			<!-- TODO: clean media_attachments -->
 			<PostAttachment :attachments="item.media_attachments || []" />
 		</div>
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
