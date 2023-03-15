@@ -697,6 +697,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
 			 ->setDetailsAll($this->getArray('details', $data, []));
 
+		if ($this->hasIcon()) {
+			$this->setAvatar($this->getIcon()->getUrl());
+		} else {
+			$this->setAvatar($this->getAvatar());
+		}
+
 		try {
 			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));
 			$this->setCreation($cTime->getTimestamp());
