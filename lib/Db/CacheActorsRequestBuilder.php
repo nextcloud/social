@@ -58,9 +58,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheActorsUpdateSql(): IQueryBuilder {
+	protected function getCacheActorsUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_ACTORS);
 
