@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
  * @author Julius Härtl <jus@bitgrid.net>
@@ -22,31 +22,29 @@
 
 const userId = 'janedoe' + Date.now()
 
-describe('Create posts', function() {
+describe('Create posts', function () {
 
-	before(function() {
+	before(function () {
 		// ensure that the admin account is initialized for social
-		cy.login('admin', 'admin', '/apps/social/')
+		// cy.login('admin', 'admin', '/apps/social/')
 
-		cy.nextcloudCreateUser(userId, 'p4ssw0rd')
-		cy.logout()
-
-		cy.login(userId, 'p4ssw0rd', '/apps/social/')
-		cy.get('.app-content').should('be.visible')
+		cy.createRandomUser()
+			.then((user) => {
+				cy.login(user)
+				cy.visit('/apps/social')
+				cy.get('.app-content').should('be.visible')
+			})
 	})
 
-	afterEach(function() {
-		cy.screenshot()
+	it('See the empty content illustration', function () {
+		cy.get('.social__welcome').find('.icon-close').click()
+		cy.get('.app-social .empty-content').should('be.visible').contains('No posts found')
+		cy.reload()
 	})
 
-	it('See the empty content illustration', function() {
-		cy.get('.emptycontent').should('be.visible').contains('No posts found')
-	})
-
-	it('Write a post to followers', function() {
+	it('Write a post to followers', function () {
 		cy.visit('/apps/social/')
-		cy.server()
-		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+		cy.intercept('POST', '/index.php/apps/social/api/v1/statuses').as('postMessage')
 		cy.get('.new-post button[type=submit]')
 			.should('be.disabled')
 		cy.get('.new-post').find('[contenteditable]').type('Hello world')
@@ -58,24 +56,20 @@ describe('Create posts', function() {
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world')
 	})
 
-	it('No longer see the empty content illustration', function() {
-		cy.get('.emptycontent').should('not.exist')
+	it('No longer see the empty content illustration', function () {
+		cy.get('.app-social .empty-content').should('not.exist')
 	})
 
-	it('Write a post to followers with shift enter', function() {
-		cy.visit('/apps/social/')
-		cy.server()
-		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
+	it('Write a post to followers with shift enter', function () {
+		cy.intercept('POST', '/index.php/apps/social/api/v1/statuses').as('postMessage')
 		cy.get('.new-post').find('[contenteditable]').type('Hello world 2{shift}{enter}')
 		cy.wait('@postMessage')
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', 'Hello world 2')
 	})
 
-	it('Write a post to @admin', function() {
-		cy.visit('/apps/social/')
-		cy.server()
-		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
-		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
+	it('Write a post to @admin', function () {
+		cy.intercept('POST', '/index.php/apps/social/api/v1/statuses').as('postMessage')
+		cy.intercept('GET', '/index.php/apps/social/api/v1/global/accounts/search')
 		cy.get('.new-post').find('[contenteditable]').type('@adm', { delay: 500 })
 		cy.get('.tribute-container').should('be.visible')
 		cy.get('.tribute-container ul li:first').contains('admin')
@@ -86,11 +80,9 @@ describe('Create posts', function() {
 		cy.get('.social__timeline div.timeline-entry:first-child').should('contain', '@admin')
 	})
 
-	it('Opens the menu and shows that followers is selected by default', function() {
-		cy.visit('/apps/social/')
-		cy.server()
-		cy.route('POST', '/index.php/apps/social/api/v1/post').as('postMessage')
-		cy.route('GET', '/index.php/apps/social/api/v1/global/accounts/search')
+	it('Opens the menu and shows that followers is selected by default', function () {
+		cy.intercept('POST', '/index.php/apps/social/api/v1/statuses').as('postMessage')
+		cy.intercept('GET', '/index.php/apps/social/api/v1/global/accounts/search')
 		cy.get('.new-post').find('[contenteditable]').click({ force: true }).type('@adm{enter} Hello world', { delay: 500, force: true })
 		cy.wait(500)
 		cy.get('.new-post button[type=submit]').should('not.be.disabled')

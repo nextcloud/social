@@ -105,9 +105,9 @@ class CurlService {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
-		if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
-			throw new InvalidResourceException('account format is not valid');
-		}
+		// if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
+		// 	throw new InvalidResourceException('account format is not valid');
+		// }
 
 		$exploded = explode('@', $account);
 

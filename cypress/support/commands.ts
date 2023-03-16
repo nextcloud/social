@@ -21,61 +21,15 @@
  */
 
 import axios from '@nextcloud/axios'
+import { addCommands, User } from '@nextcloud/cypress'
+import { basename } from 'path'
+
+// Add custom commands
+import 'cypress-wait-until'
+addCommands()
 
 const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
-
-Cypress.Commands.add('login', (user, password, route = '/apps/files') => {
-	Cypress.Cookies.defaults({
-		preserve: /^(oc|nc)/,
-	})
-	cy.visit(route)
-	cy.get('input[name=user]').type(user)
-	cy.get('input[name=password]').type(password)
-	cy.get('form[name=login] [type=submit]').click()
-	cy.url().should('include', route)
-})
-
-Cypress.Commands.add('logout', () => {
-	cy.getCookies()
-		.then(cookies => {
-			if (cookies.length === 0) {
-				cy.log('Not logged, skipping logout...')
-				return
-			}
-
-			return cy.get('body')
-				.then($body => {
-					const $settingsButton = $body.find('#settings #expand')
-					if ($settingsButton.length === 0) {
-						cy.log('Not logged in.')
-						return
-					}
-
-					$settingsButton.click()
-					cy.contains('Log out').click()
-				})
-		})
-})
-
-Cypress.Commands.add('nextcloudCreateUser', (user, password) => {
-	cy.request({
-		method: 'POST',
-		url: `${Cypress.env('baseUrl')}/ocs/v1.php/cloud/users?format=json`,
-		form: true,
-		body: {
-			userid: user,
-			password,
-		},
-		auth: { user: 'admin', pass: 'admin' },
-		headers: {
-			'Content-Type': 'application/x-www-form-urlencoded',
-			'OCS-ApiRequest': 'true',
-			Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}`,
-		},
-	})
-	cy.clearCookies()
-})
 
 Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
 	// get fixture
