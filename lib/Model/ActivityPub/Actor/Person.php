@@ -420,6 +420,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return string
 	 */
 	public function getName(): string {
+		if ($this->name === '') {
+			return $this->preferredUsername;
+		}
+
 		return $this->name;
 	}
 
@@ -781,7 +785,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'id' => (string)$this->getNid(),
 				'username' => $this->getPreferredUsername(),
 				'acct' => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),
-				'display_name' => $this->getDisplayName(),
+				'display_name' => $this->getName(),
 				'locked' => $this->isLocked(),
 				'bot' => $this->isBot(),
 				'discoverable' => $this->isDiscoverable(),
