@@ -140,7 +140,14 @@ class Timeline extends ExtendedBase {
 		if ($input->getOption('local')) {
 			$options->setLocal(true);
 		}
-		$options->setProbe($input->getArgument('timeline'));
+
+		$timeline = $input->getArgument('timeline');
+		if (str_starts_with($timeline, '#')) {
+			$options->setProbe(ProbeOptions::HASHTAG)
+					->setArgument(substr($timeline, 1));
+		} else {
+			$options->setProbe($timeline);
+		}
 
 		if ($input->getOption('account') !== '') {
 			$local = $this->cacheActorService->getFromLocalAccount($input->getOption('account'));

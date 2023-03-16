@@ -395,7 +395,7 @@ class StreamRequest extends StreamRequestBuilder {
 				$result = $this->getTimelineFavourites($options);
 				break;
 			case ProbeOptions::HASHTAG:
-				$result = $this->getTimelineHashtag($options, $options->getArgument());
+				$result = $this->getTimelineHashtag($options);
 				break;
 			case ProbeOptions::NOTIFICATIONS:
 				$options->setFormat(ACore::FORMAT_NOTIFICATION);
@@ -528,10 +528,20 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineHashtag(ProbeOptions $options, string $hashtag): array {
+	private function getTimelineHashtag(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->limitToType(Note::TYPE);
+		$qb->paginate($options);
 
-		return [];
+		$expr = $qb->expr();
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToStreamTags('st', 's.id_prim');
+		$qb->andWhere($qb->exprLimitToDBField('hashtag', $options->getArgument(), true, false, 'st'));
+
+		$qb->limitToViewer('sd', 'f', true);
+		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+
+		$qb->leftJoinStreamAction('sa');
 
 		return $this->getStreamsFromRequest($qb);
 	}
