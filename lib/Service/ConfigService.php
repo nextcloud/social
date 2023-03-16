@@ -31,12 +31,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
-use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -415,16 +415,19 @@ class ConfigService {
 	public function configureRequest(NCRequest $request): void {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
 
-		if ($request->getType() === Request::TYPE_GET) {
-			$request->addHeader(
-				'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-			);
-		}
+		// do not add json headers if required
+		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
+			if ($request->getType() === Request::TYPE_GET) {
+				$request->addHeader(
+					'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+				);
+			}
 
-		if ($request->getType() === Request::TYPE_POST) {
-			$request->addHeader(
-				'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-			);
+			if ($request->getType() === Request::TYPE_POST) {
+				$request->addHeader(
+					'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+				);
+			}
 		}
 
 		$request->setLocalAddressAllowed(true);

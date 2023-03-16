@@ -126,6 +126,7 @@ class CurlService {
 		$request = new NCRequest($path);
 		$request->addParam('resource', 'acct:' . $account);
 		$request->setHost($host);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 		$request->setProtocols($protocols);
 		$result = $this->retrieveJson($request);
 
@@ -152,6 +153,7 @@ class CurlService {
 		$request = new NCRequest('/.well-known/host-meta');
 		$request->setHost($host);
 		$request->setProtocols($protocols);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
 		$this->logger->debug('hostMeta', ['host' => $host, 'protocols' => $protocols]);
 
