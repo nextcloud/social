@@ -11,8 +11,7 @@
 				<span class="icon-boost" />
 			</div>
 			<div class="boost">
-				<router-link v-if="item.account"
-					:to="{ name: 'profile', params: { account: item.account.acct } }">
+				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
 					<span :title="item.account.acct" class="post-author">
 						{{ item.account.display_name }}
 					</span>

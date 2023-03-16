@@ -1,7 +1,7 @@
 <template>
 	<div class="post-content">
 		<div class="post-header">
-			<div class="post-author-wrapper">
+			<div class="post-author-wrapper" :title="item.account.acct">
 				<router-link v-if="item.account"
 					:to="{ name: 'profile',
 						params: { account: item.account.acct }
@@ -21,7 +21,6 @@
 				{{ relativeTimestamp }}
 			</a>
 		</div>
-		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
