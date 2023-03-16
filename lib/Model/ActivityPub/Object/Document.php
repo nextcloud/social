@@ -371,22 +371,26 @@ class Document extends ACore implements JsonSerializable {
 	 */
 	public function convertToMediaAttachment(?IURLGenerator $urlGenerator = null): MediaAttachment {
 		$media = new MediaAttachment();
+		$media->setId((string)$this->getNid());
 
-		[$type, $mime] = explode('/', $this->getMediaType(), 2);
-		$media->setId((string)$this->getNid())
-			  ->setType($type);
+		$mime = '';
+		if (strpos($this->getMediaType(), '/')) {
+			[$type, $mime] = explode('/', $this->getMediaType(), 2);
+			$media->setType($type);
+			$mime = (strlen($mime) < 7) ? '.' . $mime : ''; // mime is ignored if too long.
+		}
 
 		if (!is_null($urlGenerator)) {
 			$media->setUrl(
 				$urlGenerator->linkToRouteAbsolute(
 					'social.Api.mediaOpen',
-					['uuid' => $this->getLocalCopy() . '.' . $mime]
+					['uuid' => $this->getLocalCopy() . $mime]
 				)
 			);
 			$media->setPreviewUrl(
 				$urlGenerator->linkToRouteAbsolute(
 					'social.Api.mediaOpen',
-					['uuid' => $this->getResizedCopy() . '.' . $mime]
+					['uuid' => $this->getResizedCopy() . $mime]
 				)
 			);
 			$media->setRemoteUrl($this->getUrl());
