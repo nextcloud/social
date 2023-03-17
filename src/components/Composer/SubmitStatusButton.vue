@@ -46,7 +46,7 @@ export default {
 		Send,
 	},
 	props: {
-		type: {
+		visibility: {
 			type: String,
 			required: true,
 		},
@@ -58,7 +58,7 @@ export default {
 	computed: {
 		/** @return {string} */
 		postTo() {
-			switch (this.type) {
+			switch (this.visibility) {
 			case 'public':
 			case 'unlisted':
 				return t('social', 'Post')
@@ -71,15 +71,15 @@ export default {
 		},
 		/** @return {string} */
 		currentVisibilityPostLabel() {
-			return this.visibilityPostLabel(this.type)
+			return this.visibilityPostLabel(this.visibility)
 		},
 		/** @return {Function} */
 		visibilityPostLabel() {
-			return (type) => {
-				if (typeof type === 'undefined') {
-					type = this.type
+			return (visibility) => {
+				if (visibility === undefined) {
+					visibility = this.visibility
 				}
-				switch (type) {
+				switch (visibility) {
 				case 'public':
 					return t('social', 'Post publicly')
 				case 'followers':
@@ -100,38 +100,3 @@ export default {
 }
 
 </script>
-
-<style scoped lang="scss">
-.new-post {
-	padding: 10px;
-	background-color: var(--color-main-background);
-	position: sticky;
-	z-index: 100;
-	margin-bottom: 10px;
-	top: 0;
-
-	&-form {
-		flex-grow: 1;
-		position: relative;
-		top: -10px;
-		margin-left: 39px;
-		&__emoji-picker {
-			z-index: 1;
-		}
-	}
-}
-
-input[type=submit].inline {
-	width: 44px;
-	height: 44px;
-	margin: 0;
-	padding: 13px;
-	background-color: transparent;
-	border: none;
-	opacity: 0.3;
-	position: absolute;
-	bottom: 0;
-	right: 0;
-}
-
-</style>
