@@ -14,6 +14,9 @@
 					</span>
 				</router-link>
 			</div>
+			<div class="post-visibility"
+				:class="{ [visibility.icon]: true }"
+				:title="visibility.text" />
 			<a :data-timestamp="timestamp"
 				class="post-timestamp live-relative-timestamp"
 				:title="formattedDate"
@@ -28,14 +31,14 @@
 		<div v-else class="post-message" v-html="item.account.note" />
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<NcButton v-tooltip="t('social', 'Reply')"
+			<NcButton :title="t('social', 'Reply')"
 				type="tertiary-no-background"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
 				</template>
 			</NcButton>
-			<NcButton v-tooltip="t('social', 'Boost')"
+			<NcButton :title="t('social', 'Boost')"
 				type="tertiary-no-background"
 				@click="boost">
 				<template #icon>
@@ -43,7 +46,7 @@
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"
-				v-tooltip="t('social', 'Like')"
+				:title="t('social', 'Like')"
 				type="tertiary-no-background"
 				@click="like">
 				<template #icon>
@@ -51,7 +54,7 @@
 				</template>
 			</NcButton>
 			<NcButton v-if="isLiked"
-				v-tooltip="t('social', 'Undo Like')"
+				:title="t('social', 'Undo Like')"
 				type="tertiary-no-background"
 				@click="like">
 				<template #icon>
@@ -86,6 +89,7 @@ import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
+import visibilitiesInfo from './VisibilitiesInfos.js'
 
 export default {
 	name: 'TimelinePost',
@@ -171,6 +175,10 @@ export default {
 		isNotification() {
 			return this.item.type !== undefined
 		},
+		/** @return {object} */
+		visibility() {
+			return visibilitiesInfo.find(({ id }) => this.item.visibility === id)
+		},
 	},
 	methods: {
 		/**
@@ -238,6 +246,7 @@ export default {
 </script>
 <style scoped lang="scss">
 	@import '@nextcloud/vue-richtext/dist/style.css';
+
 	.post-content {
 		padding: 4px 4px 4px 8px;
 		font-size: 15px;
@@ -252,20 +261,51 @@ export default {
 			border-radius: 8px;
 			background-color: var(--color-background-hover);
 		}
+
+		.post-header {
+			display: flex;
+			gap: 8px;
+			flex-direction: row;
+			justify-content: space-between;
+
+			.post-author-wrapper {
+				&:hover {
+					text-decoration: underline;
+				}
+
+				.post-author {
+					font-weight: bold;
+
+				}
+
+				.post-author-id {
+					color: var(--color-text-lighter);
+				}
+			}
+
+			.post-visibility {
+				flex-grow: 1;
+				opacity: 0.5;
+				background-position: right;
+			}
+
+			.post-timestamp {
+				text-align: right;
+				color: var(--color-text-lighter);
+
+				&:hover {
+					text-decoration: underline;
+				}
+			}
+		}
 	}
 
-	.post-author {
-		font-weight: bold;
-	}
+	.post-message :deep(a) {
+		overflow-wrap: anywhere;
 
-	.post-author-id {
-		opacity: .7;
-	}
-
-	.post-timestamp {
-		width: 120px;
-		text-align: right;
-		flex-grow: 2;
+		&:hover {
+			text-decoration: underline;
+		}
 	}
 
 	.post-actions {
@@ -279,6 +319,7 @@ export default {
 			height: 34px;
 			display: inline-block;
 		}
+
 		.icon-reply,
 		.icon-boost,
 		.icon-boosted,
@@ -293,24 +334,9 @@ export default {
 				opacity: 1;
 			}
 		}
+
 		.icon-boosted {
 			opacity: 1;
 		}
-	}
-
-	.post-header {
-		display: flex;
-		flex-direction: row;
-		justify-content: space-between;
-	}
-
-	.post-timestamp {
-		opacity: .7;
-	}
-</style>
-<style>
-	.post-message a {
-		text-decoration: underline;
-		overflow-wrap: anywhere;
 	}
 </style>

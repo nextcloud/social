@@ -1,7 +1,7 @@
 <template>
 	<div class="social__wrapper">
 		<transition name="slide-fade">
-			<div v-if="true || showInfo" class="social__welcome">
+			<div v-if="showInfo" class="social__welcome">
 				<a class="close icon-close" href="#" @click="hideInfo()">
 					<span class="hidden-visually">
 						{{ t('social', 'Close') }}
