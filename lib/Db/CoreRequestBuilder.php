@@ -869,39 +869,6 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $alias
-	 *
-	 * @deprecated
-	 */
-	protected function selectCacheActors(IQueryBuilder &$qb, string $alias = 'ca') {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
-		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
-		$qb->selectAlias($pf . '.id', 'cacheactor_id')
-		   ->selectAlias($pf . '.type', 'cacheactor_type')
-		   ->selectAlias($pf . '.account', 'cacheactor_account')
-		   ->selectAlias($pf . '.following', 'cacheactor_following')
-		   ->selectAlias($pf . '.followers', 'cacheactor_followers')
-		   ->selectAlias($pf . '.inbox', 'cacheactor_inbox')
-		   ->selectAlias($pf . '.shared_inbox', 'cacheactor_shared_inbox')
-		   ->selectAlias($pf . '.outbox', 'cacheactor_outbox')
-		   ->selectAlias($pf . '.featured', 'cacheactor_featured')
-		   ->selectAlias($pf . '.url', 'cacheactor_url')
-		   ->selectAlias($pf . '.preferred_username', 'cacheactor_preferred_username')
-		   ->selectAlias($pf . '.name', 'cacheactor_name')
-		   ->selectAlias($pf . '.summary', 'cacheactor_summary')
-		   ->selectAlias($pf . '.public_key', 'cacheactor_public_key')
-		   ->selectAlias($pf . '.source', 'cacheactor_source')
-		   ->selectAlias($pf . '.creation', 'cacheactor_creation')
-		   ->selectAlias($pf . '.local', 'cacheactor_local');
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param Person $author
 	 * @param string $alias
