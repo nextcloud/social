@@ -66,6 +66,8 @@ export default {
 		entryContent() {
 			if (this.isNotification) {
 				return this.notification.status
+			} else if (this.isBoost) {
+				return this.status.reblog
 			} else {
 				return this.item
 			}
