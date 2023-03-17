@@ -44,7 +44,7 @@ export default {
 		NcButton,
 	},
 	props: {
-		type: {
+		visibility: {
 			type: String,
 			required: true,
 		},
@@ -64,7 +64,7 @@ export default {
 	computed: {
 		/** @return {string} */
 		currentVisibilityIconClass() {
-			return this.typeToClass[this.type]
+			return this.typeToClass[this.visibility]
 		},
 		/** @return {Array} */
 		visibilityPopover() {
@@ -72,28 +72,28 @@ export default {
 				{
 					action: () => this.switchType('public'),
 					icon: this.typeToClass.public,
-					active: this.type === 'public',
+					active: this.visibility === 'public',
 					text: t('social', 'Public'),
 					longtext: t('social', 'Post to public timelines'),
 				},
 				{
 					action: () => this.switchType('unlisted'),
 					icon: this.typeToClass.unlisted,
-					active: this.type === 'unlisted',
+					active: this.visibility === 'unlisted',
 					text: t('social', 'Unlisted'),
 					longtext: t('social', 'Do not post to public timelines'),
 				},
 				{
 					action: () => this.switchType('followers'),
 					icon: this.typeToClass.followers,
-					active: this.type === 'followers',
+					active: this.visibility === 'followers',
 					text: t('social', 'Followers'),
 					longtext: t('social', 'Post to followers only'),
 				},
 				{
 					action: () => this.switchType('direct'),
 					icon: this.typeToClass.direct,
-					active: this.type === 'direct',
+					active: this.visibility === 'direct',
 					text: t('social', 'Direct'),
 					longtext: t('social', 'Post to mentioned users only'),
 				},
@@ -109,10 +109,10 @@ export default {
 			this.menuOpened = false
 		},
 
-		switchType(type) {
-			this.$emit('update:type', type)
+		switchType(visibility) {
+			this.$emit('update:visibility', visibility)
 			this.menuOpened = false
-			localStorage.setItem('social.lastPostType', type)
+			localStorage.setItem('social.lastPostType', visibility)
 		},
 
 		t: translate,

@@ -106,9 +106,9 @@
 					</NcEmojiPicker>
 				</div>
 
-				<VisibilitySelect :type.sync="type" />
+				<VisibilitySelect :visibility.sync="visibility" />
 				<div class="emptySpace" />
-				<SubmitStatusButton :type="type" :disabled="!canPost || loading" @click="createPost" />
+				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
 
 				<!-- <NcButton :value="currentVisibilityPostLabel"
 					:disabled="!canPost"
@@ -175,7 +175,7 @@ export default {
 	data() {
 		return {
 			statusContent: '',
-			type: localStorage.getItem('social.lastPostType') || 'followers',
+			visibility: localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			/** @type {Object<string, LocalAttachment>} */
 			attachments: {},
@@ -274,7 +274,7 @@ export default {
 	mounted() {
 		this.$root.$on('composer-reply', (data) => {
 			this.replyTo = data
-			this.type = 'direct'
+			this.visibility = data.visibility
 		})
 	},
 	methods: {
@@ -364,7 +364,7 @@ export default {
 				spoiler_text: '',
 				status,
 				in_reply_to_id: this.replyTo?.id,
-				visibility: this.type,
+				visibility: this.visibility,
 			}
 
 			console.debug('[Composer] Posting status', statusData)
