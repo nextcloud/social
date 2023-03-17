@@ -41,7 +41,7 @@
 				type="tertiary-no-background"
 				@click="boost">
 				<template #icon>
-					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'var(--color-main-text)'" />
+					<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"
