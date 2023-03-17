@@ -80,7 +80,7 @@
 				@deleted="deletePreview" />
 
 			<div class="options">
-				<NcButton v-tooltip="t('social', 'Add attachment')"
+				<NcButton :title="t('social', 'Add attachment')"
 					type="tertiary"
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
@@ -95,7 +95,7 @@
 						:close-on-select="false"
 						container="#content-vue"
 						@select="insert">
-						<NcButton v-tooltip="t('social', 'Add emoji')"
+						<NcButton :title="t('social', 'Add emoji')"
 							type="tertiary"
 							:aria-haspopup="true"
 							:aria-label="t('social', 'Add emoji')">
@@ -519,13 +519,6 @@ input[type=submit].inline {
 
 .emptySpace {
 	flex-grow:1;
-}
-
-.popovermenu-parent {
-	position: relative;
-}
-.popovermenu {
-	top: 55px;
 }
 
 .attachment-picker-wrapper {
