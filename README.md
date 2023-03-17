@@ -2,6 +2,8 @@
 
 **🎉 Nextcloud becomes part of the federated social networks!**
 
+⚠️ **This application is currently in beta stage.**
+
 ![](img/screenshot.png)
 
 - **🙋 Find your friends:** No matter if they use [☁ Nextcloud Social](https://github.com/nextcloud/social#nextcloud-social), [🐘 Mastodon](https://joinmastodon.org), [🅿️ Pleroma](https://pleroma.social) and soon [📺 PeerTube](https://joinpeertube.org) or [📷 PixelFed](https://pixelfed.org) – you can follow them!

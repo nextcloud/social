@@ -1,13 +1,15 @@
 <template>
 	<div class="social__wrapper">
 		<transition name="slide-fade">
-			<div v-if="showInfo" class="social__welcome">
+			<div v-if="true || showInfo" class="social__welcome">
 				<a class="close icon-close" href="#" @click="hideInfo()">
 					<span class="hidden-visually">
 						{{ t('social', 'Close') }}
 					</span>
 				</a>
 				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
+				<p>{{ t('social', 'This application is currently in beta stage.') }}</p>
+				<br>
 				<p>
 					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:') }}
 					<span class="social-id">
