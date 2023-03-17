@@ -26,9 +26,7 @@
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.account.note" />
-		<div v-if="hasAttachments" class="post-attachments">
-			<PostAttachment :attachments="item.media_attachments || []" />
-		</div>
+		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<NcButton v-tooltip="t('social', 'Reply')"
 				type="tertiary-no-background"

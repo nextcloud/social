@@ -265,9 +265,14 @@ export default {
 	computed: {
 		/** @return {boolean} */
 		canPost() {
+			if (Object.values(this.attachments).some(({ data }) => data === null)) {
+				return false
+			}
+
 			if (Object.keys(this.attachments).length > 0) {
 				return true
 			}
+
 			return this.statusContent.length !== 0 && this.statusContent !== '<br>'
 		},
 	},
