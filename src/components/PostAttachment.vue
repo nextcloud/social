@@ -7,7 +7,7 @@
 				@click="showModal(index)">
 				<MediaAttachment :attachment="item" />
 			</div>
-			<div v-if="attachments.length > 4" class="attachment more-attachments">
+			<div v-if="attachments.length > 4" class="attachment more-attachments" @click="showModal(3)">
 				+
 			</div>
 		</div>
@@ -83,13 +83,14 @@ export default {
 		width: 100%;
 		border-radius: var(--border-radius-large);
 		overflow: hidden;
-		height: 40vh;
+		background: var(--color-background-dark);
 
 		.attachment {
 			flex-grow: 1;
 			flex-shrink: 1;
 			flex-basis: calc(50% - 2px);
 			cursor: pointer;
+			height: 20vh;
 		}
 
 		.more-attachments {
@@ -98,6 +99,10 @@ export default {
 			justify-content: center;
 			font-size: 42px;
 			line-height: 0px;
+
+			&:hover {
+				background: var(--color-background-darker);
+			}
 		}
 	}
 }
