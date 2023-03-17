@@ -59,7 +59,7 @@ function domToVue(createElement, node, context) {
 	}
 }
 
-const mentionRegex = /(\W|^)((@\w+)@[\w.-_]+)/i
+const mentionRegex = /(\W|^)((@\w+)@[\w.\-_]+)/ig
 const hashTagRegex = /(\W|^)(#\w+)/i
 
 /**
