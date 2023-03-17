@@ -50,11 +50,11 @@
 			</li>
 		</ul>
 		<p class="user-profile__info">
-			<a :href="accountInfo.url" target="_blank">@{{ accountInfo.acct }}</a>
+			<a :href="accountInfo.url" target="_blank">@{{ accountInfo.acct }}<OpenInNew :size="15" /></a>
 		</p>
 
 		<p v-if="website" class="user-profile__info">
-			{{ t('social', 'Website') }}: <a :href="website.value">{{ website.value }}</a>
+			{{ t('social', 'Website') }}: <a :href="website.value">{{ website.value }}<OpenInNew :size="15" /></a>
 		</p>
 
 		<FollowButton class="user-profile__info" :account="accountInfo.acct" :uid="uid" />
@@ -67,14 +67,15 @@
 </template>
 
 <script>
+import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import { generateUrl } from '@nextcloud/router'
+import { translate } from '@nextcloud/l10n'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
-import { generateUrl } from '@nextcloud/router'
-import { translate } from '@nextcloud/l10n'
 
 export default {
 	name: 'ProfileInfo',
@@ -82,6 +83,7 @@ export default {
 		FollowButton,
 		NcAvatar,
 		NcButton,
+		OpenInNew,
 	},
 	mixins: [
 		accountMixins,
@@ -142,10 +144,18 @@ export default {
 
 		&__info {
 			margin-bottom: 12px;
+			display: flex;
+			gap: 4px;
 
-			a:hover {
-				text-decoration: underline;
+			a {
+				display: flex;
+				gap: 4px;
+
+				&:hover {
+					text-decoration: underline;
+				}
 			}
+
 		}
 
 		&__sections {
