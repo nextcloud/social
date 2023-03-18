@@ -18,13 +18,6 @@ OC.L10N.register(
     "Uploading..." : "عملية التحميل جارية …",
     "Delete" : "إزالة",
     "Post" : "إرسال",
-    "Public" : "للعامة",
-    "Unlisted" : "غير مدرج",
-    "Do not post to public timelines" : "لا تنشره على الخيوط العامة",
-    "Followers" : "المتابِعون",
-    "Post to followers only" : "انشر لمتابِعيك فقط",
-    "Direct" : "مباشر",
-    "Post to mentioned users only" : "أنشر فقط إلى المستخدمين المذكورين",
     "Unfollow" : "إلغاء المتابعة",
     "Follow" : "تابع",
     "posts" : "منشورات",
@@ -46,6 +39,13 @@ OC.L10N.register(
     "Continue" : "المتابعة",
     "User not found" : "لم يتم العثور على المستخدم",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "تم الانشاء التلقائي لـ حساب اجتماعي لك. معرفك الاجتماعي هو نفسه معرف السحابة المتحدة او Federated Cloud ID",
-    "Follow Nextcloud on mastodon.xyz" : "تابع Nextcloud على mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "تابع Nextcloud على mastodon.xyz",
+    "Public" : "للعامة",
+    "Unlisted" : "غير مدرج",
+    "Do not post to public timelines" : "لا تنشره على الخيوط العامة",
+    "Followers" : "المتابِعون",
+    "Post to followers only" : "انشر لمتابِعيك فقط",
+    "Direct" : "مباشر",
+    "Post to mentioned users only" : "أنشر فقط إلى المستخدمين المذكورين"
 },
 "nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;");

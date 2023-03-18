@@ -9,11 +9,11 @@ OC.L10N.register(
     "Uploading..." : "Üleslaadimine...",
     "Delete" : "Kustuta",
     "Post" : "Postita",
-    "Public" : "Avalik",
     "Website" : "Veebileht",
     "Reply" : "Vasta",
     "Close" : "Sulge",
     "Continue" : "Jätka",
-    "User not found" : "Kasutajat ei leitud"
+    "User not found" : "Kasutajat ei leitud",
+    "Public" : "Avalik"
 },
 "nplurals=2; plural=(n != 1);");

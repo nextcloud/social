@@ -20,13 +20,6 @@ OC.L10N.register(
     "Post publicly" : "Publicar públicamente",
     "Post to recipients" : "Publicar en destinatarios",
     "Post unlisted" : "Publicar sin listar",
-    "Public" : "Público",
-    "Unlisted" : "No listado",
-    "Do not post to public timelines" : "No publicar en líneas de tiempo públicas",
-    "Followers" : "Seguidores",
-    "Post to followers only" : "Publicar solo en seguidores",
-    "Direct" : "Directo",
-    "Post to mentioned users only" : "Publicar solo para los usuarios mencionados",
     "Follow" : "Seguir",
     "posts" : "publicaciones",
     "following" : "siguiendo",
@@ -34,6 +27,13 @@ OC.L10N.register(
     "Reply" : "Responder",
     "Deny" : "Rechazar",
     "Close" : "Cerrar",
-    "Continue" : "Continuar"
+    "Continue" : "Continuar",
+    "Public" : "Público",
+    "Unlisted" : "No listado",
+    "Do not post to public timelines" : "No publicar en líneas de tiempo públicas",
+    "Followers" : "Seguidores",
+    "Post to followers only" : "Publicar solo en seguidores",
+    "Direct" : "Directo",
+    "Post to mentioned users only" : "Publicar solo para los usuarios mencionados"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

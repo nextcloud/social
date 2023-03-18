@@ -9,11 +9,11 @@ OC.L10N.register(
     "Uploading..." : "მიმდინარეობს ატვირთვა...",
     "Delete" : "წაშლა",
     "Post" : "პოსტი",
-    "Public" : "ღია",
     "Website" : "ვებ-საიტი",
     "Reply" : "პასუხი",
     "Hello" : "გამარჯობა",
     "Close" : "დახურვა",
-    "Continue" : "გაგრძელება"
+    "Continue" : "გაგრძელება",
+    "Public" : "ღია"
 },
 "nplurals=2; plural=(n!=1);");

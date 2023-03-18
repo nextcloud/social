@@ -22,11 +22,6 @@ OC.L10N.register(
     "Post publicly" : "Publisks ieraksts",
     "Post to recipients" : "Ieraksts saņēmējam",
     "Post unlisted" : "Nerindots ieraksts",
-    "Public" : "Publiska",
-    "Unlisted" : "Nerindots",
-    "Followers" : "Sekotāji",
-    "Direct" : "Tieši",
-    "Post to mentioned users only" : "Ieraksts tikai pieminētajiem lietotājiem",
     "Unfollow" : "Atsekot",
     "Follow" : "Sekot",
     "posts" : "ieraksts",
@@ -39,6 +34,11 @@ OC.L10N.register(
     "Reply" : "Atbildēt",
     "Close" : "Aizvērt",
     "Continue" : "Turpināt",
-    "User not found" : "Lietotājs nav atrasts"
+    "User not found" : "Lietotājs nav atrasts",
+    "Public" : "Publiska",
+    "Unlisted" : "Nerindots",
+    "Followers" : "Sekotāji",
+    "Direct" : "Tieši",
+    "Post to mentioned users only" : "Ieraksts tikai pieminētajiem lietotājiem"
 },
 "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);");

@@ -11,14 +11,13 @@ OC.L10N.register(
     "Uploading..." : "tải lên...",
     "Delete" : "Xóa",
     "Post" : "Đăng",
-    "Visibility" : "Hiển thị",
-    "Public" : "Công khai",
     "Website" : "Website",
     "Reply" : "Trả l",
     "Deny" : "Từ chối",
     "Hello" : "Xin chào",
     "Close" : "Đóng",
     "Continue" : "Tiếp tục",
-    "User not found" : "Không tìm thấy người dùng"
+    "User not found" : "Không tìm thấy người dùng",
+    "Public" : "Công khai"
 },
 "nplurals=1; plural=0;");

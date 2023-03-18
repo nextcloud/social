@@ -6,10 +6,10 @@
     "Uploading..." : "Байршуулж байна...",
     "Delete" : "Устгах",
     "Post" : "Зарлах",
-    "Public" : "Нийтийн",
     "Website" : "Веб сайт",
     "Reply" : "хариулт",
     "Close" : "Хаах",
-    "Continue" : "үргэлжлүүлэх"
+    "Continue" : "үргэлжлүүлэх",
+    "Public" : "Нийтийн"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

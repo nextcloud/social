@@ -8,9 +8,9 @@ OC.L10N.register(
     "Uploading..." : "Incargante...",
     "Delete" : "Deler",
     "Post" : "Publicar",
-    "Public" : "Public",
     "Website" : "Sito web",
     "Reply" : "Responder",
-    "Close" : "Clauder"
+    "Close" : "Clauder",
+    "Public" : "Public"
 },
 "nplurals=2; plural=(n != 1);");

@@ -9,10 +9,10 @@ OC.L10N.register(
     "Uploading..." : "Subiendo...",
     "Delete" : "Borrar",
     "Post" : "Publicar",
-    "Public" : "Público",
     "Website" : "Sitio web",
     "Reply" : "Responder",
     "Close" : "Cerrar",
-    "Continue" : "Continuar"
+    "Continue" : "Continuar",
+    "Public" : "Público"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

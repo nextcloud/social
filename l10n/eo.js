@@ -9,12 +9,12 @@ OC.L10N.register(
     "Uploading..." : "Alŝutante...",
     "Delete" : "Forigi",
     "Post" : "Sendi",
-    "Public" : "Publika",
     "Website" : "Retejo",
     "Reply" : "Respondi",
     "Deny" : "Rifuzi",
     "Close" : "Malfermi",
     "Continue" : "Daŭrigi",
-    "User not found" : "Netrovita uzanto"
+    "User not found" : "Netrovita uzanto",
+    "Public" : "Publika"
 },
 "nplurals=2; plural=(n != 1);");

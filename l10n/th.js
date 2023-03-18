@@ -9,11 +9,11 @@ OC.L10N.register(
     "Uploading..." : "กำลังอัปโหลด...",
     "Delete" : "ลบ",
     "Post" : "โพสต์",
-    "Public" : "สาธารณะ",
     "Website" : "เว็บไซต์",
     "Reply" : "ตอบกลับ",
     "Hello" : "สวัสดี",
     "Close" : "ปิด",
-    "Continue" : "ดำเนินการต่อ"
+    "Continue" : "ดำเนินการต่อ",
+    "Public" : "สาธารณะ"
 },
 "nplurals=1; plural=0;");

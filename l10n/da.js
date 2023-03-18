@@ -13,14 +13,13 @@ OC.L10N.register(
     "Uploading..." : "Uploader...",
     "Delete" : "Slet",
     "Post" : "Indlæg",
-    "Visibility" : "Synlighed",
-    "Public" : "Offentlig",
     "Website" : "Hjemmeside",
     "Reply" : "Besvar",
     "Deny" : "Afvis",
     "Hello" : "Hej",
     "Close" : "Luk",
     "Continue" : "Fortsæt",
-    "User not found" : "Bruger ikke fundet"
+    "User not found" : "Bruger ikke fundet",
+    "Public" : "Offentlig"
 },
 "nplurals=2; plural=(n != 1);");

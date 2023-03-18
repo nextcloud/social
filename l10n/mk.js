@@ -12,8 +12,6 @@ OC.L10N.register(
     "Uploading..." : "Подигнувам...",
     "Delete" : "Избриши",
     "Post" : "Испрати",
-    "Visibility" : "Видливост",
-    "Public" : "Јавна",
     "posts" : "објави",
     "Website" : "Веб страна",
     "No results found" : "Нема пронајдено резултати",
@@ -22,6 +20,7 @@ OC.L10N.register(
     "Hello" : "Здраво",
     "Close" : "Затвори",
     "Continue" : "Продолжи",
-    "User not found" : "Корисникот не е пронајден"
+    "User not found" : "Корисникот не е пронајден",
+    "Public" : "Јавна"
 },
 "nplurals=2; plural=(n % 10 == 1 && n % 100 != 11) ? 0 : 1;");

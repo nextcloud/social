@@ -8,10 +8,10 @@ OC.L10N.register(
     "Uploading..." : "Байршуулж байна...",
     "Delete" : "Устгах",
     "Post" : "Зарлах",
-    "Public" : "Нийтийн",
     "Website" : "Веб сайт",
     "Reply" : "хариулт",
     "Close" : "Хаах",
-    "Continue" : "үргэлжлүүлэх"
+    "Continue" : "үргэлжлүүлэх",
+    "Public" : "Нийтийн"
 },
 "nplurals=2; plural=(n != 1);");

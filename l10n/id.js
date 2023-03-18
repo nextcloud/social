@@ -11,12 +11,12 @@ OC.L10N.register(
     "Uploading..." : "Mengunggah...",
     "Delete" : "Hapus",
     "Post" : "Post",
-    "Public" : "Publik",
     "Website" : "Situs",
     "Reply" : "Balas",
     "Deny" : "Tolak",
     "Hello" : "Halo",
     "Close" : "Tutup",
-    "Continue" : "Lanjutkan"
+    "Continue" : "Lanjutkan",
+    "Public" : "Publik"
 },
 "nplurals=1; plural=0;");

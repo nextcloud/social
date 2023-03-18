@@ -9,12 +9,12 @@ OC.L10N.register(
     "Uploading..." : "Duke ngarkuar...",
     "Delete" : "Fshi",
     "Post" : "Posto",
-    "Public" : "Publik",
     "Website" : "Faqe web-i",
     "Reply" : "Përgjigju",
     "Deny" : "Refuzo",
     "Hello" : "Përshëndetje",
     "Close" : "Mbylleni",
-    "Continue" : "Vazhdo"
+    "Continue" : "Vazhdo",
+    "Public" : "Publik"
 },
 "nplurals=2; plural=(n != 1);");

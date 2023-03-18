@@ -7,7 +7,6 @@ OC.L10N.register(
     "Notifications" : "Hysbysiadau",
     "Uploading..." : "Yn llwytho i fyny...",
     "Delete" : "Dileu",
-    "Visibility" : "Gwelededd",
     "Website" : "Gwefan",
     "Close" : "Cau",
     "User not found" : "Defnyddiwr heb ei ganfod"

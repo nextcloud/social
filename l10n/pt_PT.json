@@ -18,15 +18,6 @@
     "Post publicly" : "Publicar publicamente",
     "Post to recipients" : "Publicar para destinatários",
     "Post unlisted" : "Publicar não listada",
-    "Visibility" : "Visibilidade",
-    "Public" : "Público",
-    "Post to public timelines" : "Publicar em linha temporal pública",
-    "Unlisted" : "Remover da lista",
-    "Do not post to public timelines" : "Não publicar em linhas temporais públicas",
-    "Followers" : "Seguidores",
-    "Post to followers only" : "Publicar apenas para seguidores",
-    "Direct" : "Directo",
-    "Post to mentioned users only" : "Publicar apenas para utilizadores mencionados",
     "Unfollow" : "Não seguir",
     "Follow" : "Seguir",
     "posts" : "publicações",
@@ -49,6 +40,14 @@
     "Continue" : "Continuar",
     "User not found" : "Utilizador não encontrado",
     "Sorry, we could not find the account of {userId}" : "Pedimos desculpa, não conseguimos encontrar a conta com {userId}",
-    "Follow Nextcloud on mastodon.xyz" : "Siga Nextcloud em mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "Siga Nextcloud em mastodon.xyz",
+    "Public" : "Público",
+    "Post to public timelines" : "Publicar em linha temporal pública",
+    "Unlisted" : "Remover da lista",
+    "Do not post to public timelines" : "Não publicar em linhas temporais públicas",
+    "Followers" : "Seguidores",
+    "Post to followers only" : "Publicar apenas para seguidores",
+    "Direct" : "Directo",
+    "Post to mentioned users only" : "Publicar apenas para utilizadores mencionados"
 },"pluralForm" :"nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;"
 }

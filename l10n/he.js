@@ -24,9 +24,6 @@ OC.L10N.register(
     "Post to followers" : "פרסום לעוקבים",
     "Post publicly" : "פרסום ציבורי",
     "Post to recipients" : "פרסום לנמענים",
-    "Public" : "ציבורי",
-    "Followers" : "עוקבים",
-    "Direct" : "ישיר",
     "Unfollow" : "בטל עוקב",
     "Follow" : "עקוב",
     "posts" : "פוסטים",
@@ -47,6 +44,9 @@ OC.L10N.register(
     "Continue" : "המשך",
     "User not found" : "המשתמש לא נמצא",
     "Sorry, we could not find the account of {userId}" : "לא הצלחנו למצוא את החשבון של {userId}, עמך הסליחה",
-    "Follow Nextcloud on mastodon.xyz" : "ניתן לעקוב אחר Nextcloud ב־mastodon.xyz"
+    "Follow Nextcloud on mastodon.xyz" : "ניתן לעקוב אחר Nextcloud ב־mastodon.xyz",
+    "Public" : "ציבורי",
+    "Followers" : "עוקבים",
+    "Direct" : "ישיר"
 },
 "nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n == 2 && n % 1 == 0) ? 1: (n % 10 == 0 && n % 1 == 0 && n > 10) ? 2 : 3;");

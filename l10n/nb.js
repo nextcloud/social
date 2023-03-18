@@ -13,9 +13,6 @@ OC.L10N.register(
     "Uploading..." : "Laster opp …",
     "Delete" : "Slett",
     "Post" : "Send",
-    "Visibility" : "Synlighet",
-    "Public" : "Offentlig",
-    "Direct" : "Direkte",
     "Website" : "Nettsted",
     "No results found" : "Ingen resultater funnet",
     "Reply" : "Svar",
@@ -23,6 +20,8 @@ OC.L10N.register(
     "Hello" : "Hallo",
     "Close" : "Lukk",
     "Continue" : "Fortsett",
-    "User not found" : "Fant ikke brukeren"
+    "User not found" : "Fant ikke brukeren",
+    "Public" : "Offentlig",
+    "Direct" : "Direkte"
 },
 "nplurals=2; plural=(n != 1);");

@@ -12,15 +12,14 @@ OC.L10N.register(
     "Add emoji" : "Apondre emoji",
     "Delete" : "Suprimir",
     "Post" : "Publicar",
-    "Visibility" : "Visibilitat",
-    "Public" : "Public",
-    "Followers" : "Seguidors",
     "Follow" : "Seguir",
     "Website" : "Site web",
     "Reply" : "Respondre",
     "Hello" : "Adieu",
     "Close" : "Tampar",
     "Continue" : "Contunhar",
-    "User not found" : "Utilizaire pas trobat"
+    "User not found" : "Utilizaire pas trobat",
+    "Public" : "Public",
+    "Followers" : "Seguidors"
 },
 "nplurals=2; plural=(n > 1);");
