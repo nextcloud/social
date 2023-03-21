@@ -70,6 +70,7 @@ export default {
 		return {
 			infoHidden: false,
 			state: [],
+			intervalId: -1,
 			emptyContent: {
 				default: {
 					image: 'img/undraw/posts.svg',
@@ -141,8 +142,11 @@ export default {
 			return this.$store.getters.getTimeline
 		},
 	},
-	beforeMount() {
-
+	mounted() {
+		this.intervalId = setInterval(() => this.fetchNewStatuses(), 30 * 1000)
+	},
+	destroyed() {
+		clearInterval(this.intervalId)
 	},
 	methods: {
 		async infiniteHandler($state) {
@@ -157,6 +161,21 @@ export default {
 				showError('Failed to load more timeline entries')
 				logger.error('Failed to load more timeline entries', { error })
 				$state.complete()
+			}
+		},
+		async fetchNewStatuses() {
+			try {
+				const response = await this.$store.dispatch('fetchTimeline', {
+					account: this.currentUser.uid,
+					min_id: this.timeline[0]?.id ?? undefined,
+				})
+
+				if (response.length > 0) {
+					this.fetchNewStatuses()
+				}
+			} catch (error) {
+				showError('Failed to load newer timeline entries')
+				logger.error('Failed to load newer timeline entries', { error })
 			}
 		},
 	},
