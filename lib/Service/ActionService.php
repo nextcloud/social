@@ -31,14 +31,15 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\Traits\TStringTools;
 
 class ActionService {
 	use TStringTools;
 
 	private StreamService $streamService;
+	private BoostService $boostService;
 	private StreamActionService $streamActionService;
 
 	private const TRANSLATE = 'translate';
@@ -69,9 +70,11 @@ class ActionService {
 
 	public function __construct(
 		StreamService $streamService,
+		BoostService $boostService,
 		StreamActionService $streamActionService
 	) {
 		$this->streamService = $streamService;
+		$this->boostService = $boostService;
 		$this->streamActionService = $streamActionService;
 	}
 
@@ -86,7 +89,7 @@ class ActionService {
 	 * @return Stream|null
 	 * @throws InvalidActionException
 	 */
-	public function action(string $actorId, int $nid, string $action): ?Stream {
+	public function action(Person $actor, int $nid, string $action): ?Stream {
 		if (!in_array($action, self::$availableStatusAction)) {
 			throw new InvalidActionException();
 		}
@@ -98,19 +101,19 @@ class ActionService {
 				return $this->translate($nid);
 
 			case self::FAVOURITE:
-				$this->favourite($actorId, $post->getId());
+				$this->favourite($actor, $post->getId());
 				break;
 
 			case self::UNFAVOURITE:
-				$this->favourite($actorId, $post->getId(), false);
+				$this->favourite($actor, $post->getId(), false);
 				break;
 
 			case self::REBLOG:
-				$this->reblog($actorId, $post->getId());
+				$this->reblog($actor, $post->getId());
 				break;
 
 			case self::UNREBLOG:
-				$this->reblog($actorId, $post->getId(), false);
+				$this->reblog($actor, $post->getId(), false);
 				break;
 		}
 
@@ -130,11 +133,13 @@ class ActionService {
 		return $this->streamService->getStreamByNid($nid);
 	}
 
-	private function favourite(string $actorId, string $postId, bool $enabled = true): void {
-		$this->streamActionService->setActionBool($actorId, $postId, StreamAction::LIKED, $enabled);
+	private function favourite(Person $actor, string $postId, bool $enabled = true): void {
+		$this->boostService->delete($actor, $postId);
+//		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, $enabled);
 	}
 
-	private function reblog(string $actorId, string $postId, bool $enabled = true): void {
-		$this->streamActionService->setActionBool($actorId, $postId, StreamAction::BOOSTED, $enabled);
+	private function reblog(Person $actor, string $postId, bool $enabled = true): void {
+		$this->boostService->create($actor, $postId);
+		//$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, $enabled);
 	}
 }

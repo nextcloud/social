@@ -507,7 +507,7 @@ class ApiController extends Controller {
 	public function statusAction(int $nid, string $act): DataResponse {
 		try {
 			$this->initViewer(true);
-			$item = $this->actionService->action($this->viewer->getId(), $nid, $act);
+			$item = $this->actionService->action($this->viewer, $nid, $act);
 
 			if ($item === null) {
 				$item = $this->streamService->getStreamByNid($nid);

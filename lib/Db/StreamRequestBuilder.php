@@ -89,15 +89,14 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->setFormat($format);
 
-		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
-		   ->addSelect(
-		   	's.nid', 's.type', 's.subtype', 's.visibility', 's.to', 's.to_array', 's.cc',
-		   	's.bcc', 's.content', 's.summary', 's.attachments', 's.published', 's.published_time',
-		   	's.cache', 's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
-		   	's.instances', 's.creation', 's.filter_duplicate', 's.details', 's.hashtags'
-		   )
 		   ->from(self::TABLE_STREAM, 's');
+		foreach (self::$tables[self::TABLE_STREAM] as $field) {
+			if ($field === 'id') {
+				continue;
+			}
+			$qb->addSelect('s.' . $field);
+		}
 
 		$qb->setDefaultSelectAlias('s');
 
@@ -149,7 +148,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		$follow = $expr->andX();
 		$follow->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow')));
-		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
+		// might be overkill to check object_id and also seems to filter boosted message
+//		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
 		$orX->add($follow);
 
 		$loopback = $expr->andX();
@@ -217,10 +217,16 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_');
 			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);
+		} catch (InvalidResourceException $e) {
+		}
+
+		try {
+			$object = $qb->parseLeftJoinStream($data, 'objectstream_');
+			$item->setObject($object);
 		} catch (InvalidResourceException $e) {
 		}
 

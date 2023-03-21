@@ -15,7 +15,7 @@
 				</router-link>
 			</div>
 			<div class="post-visibility"
-				:class="{ [visibility.icon]: true }"
+				:class="{ [visibility?.icon ?? '']: true }"
 				:title="visibility.text" />
 			<a :data-timestamp="timestamp"
 				class="post-timestamp live-relative-timestamp"
