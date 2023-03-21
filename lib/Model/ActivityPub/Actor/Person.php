@@ -184,11 +184,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return string
 	 */
 	public function getAvatar(): string {
-		if ($this->hasIcon()) {
-			return $this->getIcon()
-						->getId();
-		}
-
 		return $this->avatar;
 	}
 
@@ -700,12 +695,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			 ->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
 			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
 			 ->setDetailsAll($this->getArray('details', $data, []));
-
-		if ($this->hasIcon()) {
-			$this->setAvatar($this->getIcon()->getUrl());
-		} else {
-			$this->setAvatar($this->getAvatar());
-		}
 
 		try {
 			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));
