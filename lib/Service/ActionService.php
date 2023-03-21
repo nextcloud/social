@@ -40,6 +40,7 @@ class ActionService {
 
 	private StreamService $streamService;
 	private BoostService $boostService;
+	private LikeService $likeService;
 	private StreamActionService $streamActionService;
 
 	private const TRANSLATE = 'translate';
@@ -71,10 +72,12 @@ class ActionService {
 	public function __construct(
 		StreamService $streamService,
 		BoostService $boostService,
+		LikeService $likeService,
 		StreamActionService $streamActionService
 	) {
 		$this->streamService = $streamService;
 		$this->boostService = $boostService;
+		$this->likeService = $likeService;
 		$this->streamActionService = $streamActionService;
 	}
 
@@ -134,8 +137,11 @@ class ActionService {
 	}
 
 	private function favourite(Person $actor, string $postId, bool $enabled = true): void {
-		$this->boostService->delete($actor, $postId);
-//		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, $enabled);
+		if ($enabled) {
+			$this->likeService->create($actor, $postId);
+		} else {
+			$this->likeService->delete($actor, $postId);
+		}
 	}
 
 	private function reblog(Person $actor, string $postId, bool $enabled = true): void {
