@@ -65,6 +65,10 @@ export default {
 			type: String,
 			default: () => 'home',
 		},
+		showParents: {
+			type: Boolean,
+			default: false,
+		},
 	},
 	data() {
 		return {
@@ -139,7 +143,11 @@ export default {
 		 * @return {import('../store/timeline.js').APObject[]}
 		 */
 		timeline() {
-			return this.$store.getters.getTimeline
+			if (this.showParents) {
+				return this.$store.getters.getParentsTimeline
+			} else {
+				return this.$store.getters.getTimeline
+			}
 		},
 	},
 	mounted() {

@@ -2,6 +2,7 @@
 	<div class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<Composer v-show="composerDisplayStatus" />
+		<TimelineList v-if="timeline" :show-parents="true" :type="$route.params.type" />
 		<TimelineEntry class="main-post" :item="mainPost" type="single-post" />
 		<TimelineList v-if="timeline" :type="$route.params.type" />
 	</div>

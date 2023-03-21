@@ -37,6 +37,10 @@ const state = {
 	 */
 	timeline: {},
 	/**
+	 * @type {Object<string, import('../types/Mastodon.js').Status>} timeline - The parents posts' collection
+	 */
+	parentsTimeline: {},
+	/**
 	 * @type {string} type - Timeline's type: 'home', 'single-post',...
 	 */
 	type: 'home',
@@ -65,14 +69,16 @@ const state = {
 const mutations = {
 	/**
 	 * @param state
-	 * @param {import('../types/Mastodon.js').Status[]} data
+	 * @param {import ('../types/Mastodon.js').Status[]|import('../types/Mastodon.js').Context} data
 	 */
 	addToTimeline(state, data) {
-		// TODO: fix to handle ancestors
-		if (data.descendants) {
-			data = data.descendants
+		if (Array.isArray(data)) {
+			data.forEach((post) => Vue.set(state.timeline, post.id, post))
+			state.parentsTimeline = {}
+		} else {
+			data.descendants.forEach((post) => Vue.set(state.timeline, post.id, post))
+			data.ancestors.forEach((post) => Vue.set(state.parentsTimeline, post.id, post))
 		}
-		data.forEach((post) => Vue.set(state.timeline, post.id, post))
 	},
 	/**
 	 * @param state
@@ -169,6 +175,11 @@ const getters = {
 	},
 	getTimeline(state) {
 		return Object.values(state.timeline).sort(function(a, b) {
+			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+		})
+	},
+	getParentsTimeline(state) {
+		return Object.values(state.parentsTimeline).sort(function(a, b) {
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 		})
 	},
