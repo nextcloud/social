@@ -109,17 +109,6 @@
 				<VisibilitySelect :visibility.sync="visibility" />
 				<div class="emptySpace" />
 				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
-
-				<!-- <NcButton :value="currentVisibilityPostLabel"
-					:disabled="!canPost"
-					native-type="submit"
-					type="primary"
-					@click.prevent="createPost">
-					<template #icon>
-						<Send title="" :size="22" decorative />
-					</template>
-					{{ postTo }}
-				</NcButton> -->
 			</div>
 		</form>
 	</div>
@@ -172,10 +161,21 @@ export default {
 		FocusOnCreate,
 	},
 	mixins: [CurrentUserMixin],
+	props: {
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|null>} */
+		initialMention: {
+			type: Object,
+			default: null,
+		},
+		defaultVisibility: {
+			type: String,
+			default: localStorage.getItem('social.lastPostType') || 'followers',
+		},
+	},
 	data() {
 		return {
 			statusContent: '',
-			visibility: localStorage.getItem('social.lastPostType') || 'followers',
+			visibility: this.defaultVisibility,
 			loading: false,
 			/** @type {Object<string, LocalAttachment>} */
 			attachments: {},
@@ -197,8 +197,13 @@ export default {
 								+ '</div>'
 						},
 						selectTemplate(item) {
-							return '<span class="mention" contenteditable="false">'
-								+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
+							return `
+								<span class="mention" contenteditable="false">
+									<a href="${item.original.url}" target="_blank">
+										<img src="${item.original.avatar}"/>
+										@${item.original.value}
+									</a>
+								</span>`
 						},
 						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
@@ -281,6 +286,17 @@ export default {
 			this.replyTo = data
 			this.visibility = data.visibility
 		})
+
+		if (this.initialMention !== null) {
+			this.$refs.composerInput.innerHTML = `
+				<span class="mention" contenteditable="false">
+					<a href="${this.initialMention.url}" target="_blank">
+						<img src="${!this.initialMention.acct.includes('@') ? generateUrl(`/avatar/${this.initialMention.username}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${this.initialMention.acct}`)}"/>
+						@${this.initialMention.acct}
+					</a>
+				</span>&nbsp;`
+			this.updateStatusContent()
+		}
 	},
 	methods: {
 		updateStatusContent() {
@@ -402,7 +418,6 @@ export default {
 		},
 	},
 }
-
 </script>
 
 <style scoped lang="scss">

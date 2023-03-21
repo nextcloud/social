@@ -23,6 +23,9 @@
 <template>
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
+
+		<Composer v-if="accountInfo" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
+
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<router-view v-if="accountLoaded && accountInfo && isLocal" name="details" />
 		<NcEmptyContent v-if="accountLoaded && !accountInfo"
@@ -38,17 +41,19 @@
 </template>
 
 <script>
-import ProfileInfo from './../components/ProfileInfo.vue'
 import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import { generateFilePath } from '@nextcloud/router'
+import ProfileInfo from './../components/ProfileInfo.vue'
+import Composer from './../components/Composer/Composer.vue'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
-import { generateFilePath } from '@nextcloud/router'
 
 export default {
 	name: 'Profile',
 	components: {
 		NcEmptyContent,
 		ProfileInfo,
+		Composer,
 	},
 	mixins: [
 		accountMixins,
@@ -69,6 +74,10 @@ export default {
 		/** @return {string} */
 		emptyContentImage() {
 			return generateFilePath('social', 'img', 'undraw/profile.svg')
+		},
+		/** @return {import('../types/Mastodon.js').Account} */
+		currentAccount() {
+			return this.$store.getters.currentAccount
 		},
 	},
 	// Start fetching account information before mounting the component
