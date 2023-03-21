@@ -630,7 +630,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			"content" => $this->getContent(),
 			"sensitive" => $this->isSensitive(),
 			"spoiler_text" => $this->getSpoilerText(),
-			"visibility" => $this->getVisibility(),
+			'visibility' => ($this->getVisibility() === '') ? 'unknown' : $this->getVisibility(),
 			"language" => $this->getLanguage(),
 			"in_reply_to_id" => null,
 			"in_reply_to_account_id" => null,
