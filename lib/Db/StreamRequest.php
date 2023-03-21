@@ -435,6 +435,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
 
 		$qb->leftJoinStreamAction('sa');
+		$qb->leftJoinObjectStatus();
 		$qb->filterDuplicate();
 
 		return $this->getStreamsFromRequest($qb);
@@ -478,7 +479,7 @@ class StreamRequest extends StreamRequestBuilder {
 	private function getTimelineAccount(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 
-		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->limitToType(Note::TYPE);
 		$qb->paginate($options);
 
 		$actorId = $options->getAccountId();
@@ -979,7 +980,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToViewer('sd', 'f', true);
 		$qb->limitToInReplyTo($id, true);
 
-		$qb->filterDuplicate();
+		//$qb->filterDuplicate();
 
 		return $this->getStreamsFromRequest($qb);
 	}

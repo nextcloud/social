@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
@@ -44,6 +43,7 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Traits\TStringTools;
 
 /**
  * Class BoostService
@@ -121,6 +121,7 @@ class BoostService {
 		}
 
 		$announce->addCc($actor->getFollowers());
+
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
 

@@ -105,7 +105,6 @@ class CoreRequestBuilder {
 			'following',
 			'followers',
 			'inbox',
-			'shared_index',
 			'outbox',
 			'featured',
 			'url',
@@ -873,7 +872,7 @@ class CoreRequestBuilder {
 	 * @param Person $author
 	 * @param string $alias
 	 *
-	 * @deprecated ?
+	 * @deprecated - use SocialCrossQueryBuilder:leftJoinCacheActor
 	 */
 	protected function leftJoinCacheActors(
 		IQueryBuilder &$qb, string $fieldActorId, Person $author = null, string $alias = ''

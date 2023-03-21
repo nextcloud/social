@@ -37,6 +37,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 
 /**
@@ -129,7 +130,35 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias($pf . '.creation', 'cacheactor_creation')
 			 ->selectAlias($pf . '.local', 'cacheactor_local');
 
-		$this->leftJoinCacheDocuments('icon_id', $pf, 'cacheactor_', 'cacd');
+		$this->leftJoinCacheDocuments('icon_id', $pf, 'cacheactor_cachedocument_', 'cacd');
+	}
+
+
+	/**
+	 * @param array $data
+	 * @param string $prefix
+	 *
+	 * @return Stream
+	 * @throws InvalidResourceException
+	 */
+	public function parseLeftJoinStream(array $data, string $prefix = ''): Stream {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (str_starts_with($k, $prefix)) {
+				$new[substr($k, strlen($prefix))] = $v;
+			}
+		}
+
+		$stream = new Stream();
+		$stream->importFromDatabase($new);
+		if ($stream->getId() === '') {
+			throw new InvalidResourceException();
+		}
+
+		$actor = $this->parseLeftJoinCacheActors($data, $prefix . 'cacheactor_');
+		$stream->setActor($actor);
+
+		return $stream;
 	}
 
 
@@ -140,7 +169,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @throws InvalidResourceException
 	 */
 	public function parseLeftJoinCacheActors(array $data, string $prefix = ''): Person {
-		$prefix .= 'cacheactor_';
 		$new = [];
 
 		foreach ($data as $k => $v) {
@@ -159,6 +187,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		try {
 			$icon = $this->parseLeftJoinCacheDocuments($data, $prefix);
 			$actor->setIcon($icon);
+			// TODO: store avatar/header within table cache_actor
 			$uuid = ($icon->getResizedCopy() === '') ? $icon->getLocalCopy() : $icon->getResizedCopy();
 			$actor->setAvatar(
 				$this->urlGenerator->linkToRouteAbsolute(
@@ -180,17 +209,16 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	public function leftJoinCacheDocuments(
 		string $linkField,
 		string $linkAlias = '',
-		string $prefix = '',
+		string $prefix = 'cachedocument_',
 		string $alias = 'cd'
 	) {
 		if ($this->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
 
-		$prefix .= 'cachedocument_';
-
 		$expr = $this->expr();
 		$pf = (($linkAlias === '') ? $this->getDefaultSelectAlias() : $linkAlias);
+
 		$this->selectAlias($alias . '.id', $prefix . 'id')
 			 ->selectAlias($alias . '.type', $prefix . 'type')
 			 ->selectAlias($alias . '.mime_type', $prefix . 'mime_type')
@@ -202,8 +230,8 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias($alias . '.error', $prefix . 'error')
 			 ->selectAlias($alias . '.creation', $prefix . 'creation')
 			 ->leftJoin(
-				 $this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, $alias,
-				 $expr->eq($pf . '.' . $linkField, $alias . '.id_prim')
+			 	$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, $alias,
+			 	$expr->eq($pf . '.' . $linkField, $alias . '.id_prim')
 			 );
 	}
 
@@ -232,6 +260,80 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		}
 
 		return $document;
+	}
+
+
+	/**
+	 * @param string $alias
+	 */
+	public function leftJoinObjectStatus(
+		string $link = 'object_id_prim',
+		string $alias = '',
+		string $leftAlias = 'os'
+	) {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
+
+		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_STREAM] as $field) {
+			$this->selectAlias($leftAlias . '.' . $field, 'objectstream_' . $field);
+		}
+
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_STREAM,
+			$leftAlias,
+			$this->expr()->eq($pf . $link, $leftAlias . '.id_prim')
+		);
+
+		$this->leftJoinCacheActor(
+			'attributed_to_prim',
+			$leftAlias,
+			'osca',
+			'objectstream_'
+		);
+	}
+
+
+	/**
+	 * @param string $link
+	 * @param string $alias
+	 * @param string $leftAlias
+	 * @param string $prefix
+	 * @param Person|null $author
+	 */
+	protected function leftJoinCacheActor(
+		string $link = 'attributed_to_prim',
+		string $alias = '',
+		string $leftAlias = 'ca',
+		string $prefix = '',
+		?Person $author = null
+	) {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
+
+		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_CACHE_ACTORS] as $field) {
+			$this->selectAlias($leftAlias . '.' . $field, $prefix . 'cacheactor_' . $field);
+		}
+
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_CACHE_ACTORS,
+			$leftAlias,
+			$this->expr()->eq($pf . '.' . $link, $leftAlias . '.id_prim')
+		);
+
+		$this->leftJoinCacheDocuments(
+			'icon_id',
+			$leftAlias,
+			$prefix . 'cacheactor_cachedocument_',
+			$leftAlias . 'cacd'
+		);
 	}
 
 

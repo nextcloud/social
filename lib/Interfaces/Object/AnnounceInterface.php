@@ -233,8 +233,10 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	}
 
 	public function event(ACore $item, string $source): void {
+		return;
 		/** @var Stream $item */
 		switch ($source) {
+			// do we still need this ?
 			case 'updateCache':
 				$objectId = $item->getObjectId();
 				try {
@@ -244,10 +246,17 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 					return;
 				}
 
-				$to = $this->get('attributedTo', $cachedItem->getObject(), '');
-				if ($to !== '') {
-					$this->streamRequest->updateAttributedTo($item->getId(), $to);
-				}
+				//
+			//
+			//
+			//
+			//
+				// pourquoi update !????
+
+//				$to = $this->get('attributedTo', $cachedItem->getObject(), '');
+//				if ($to !== '') {
+//					$this->streamRequest->updateAttributedTo($item->getId(), $to);
+//				}
 
 				try {
 					if ($item->hasActor()) {

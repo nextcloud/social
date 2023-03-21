@@ -38,9 +38,10 @@ namespace OCA\Social\Db;
  */
 class SocialFiltersQueryBuilder extends SocialLimitsQueryBuilder {
 	/**
-	 *
+	 * @deprecated ?
 	 */
 	public function filterDuplicate() {
+		return;
 		if (!$this->hasViewer()) {
 			return;
 		}
@@ -50,7 +51,7 @@ class SocialFiltersQueryBuilder extends SocialLimitsQueryBuilder {
 
 		$expr = $this->expr();
 		$filter = $expr->orX();
-		$filter->add($this->exprLimitToDBFieldInt('filter_duplicate', 0, 's'));
+//		$filter->add($this->exprLimitToDBFieldInt('filter_duplicate', 0, 's'));
 
 		$follower = $expr->andX();
 		$follower->add($this->exprLimitToDBField('attributed_to_prim', $this->prim($viewer->getId()), false));

@@ -164,7 +164,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$follow->importFromDatabase($data);
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_');
 			$actor->setCompleteDetails(true);
 			$this->assignDetails($actor, $data);
 
