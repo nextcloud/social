@@ -105,7 +105,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function create(Person $actor, string $postId, &$token = ''): ACore {
+	public function create(Person $actor, string $postId, string &$token = ''): ACore {
 		/** @var Announce $announce */
 		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
 		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
@@ -169,7 +169,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function delete(Person $actor, string $postId, &$token = ''): ACore {
+	public function delete(Person $actor, string $postId, string &$token = ''): ACore {
 		$undo = new Undo();
 		$this->streamService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);
@@ -188,7 +188,7 @@ class BoostService {
 
 			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
 			$interface->delete($announce);
-//			$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
+			$this->streamRequest->deleteById($announce->getId(), Announce::TYPE);
 			$this->signatureService->signObject($actor, $undo);
 
 			$token = $this->activityService->request($undo);
