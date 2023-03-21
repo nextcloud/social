@@ -60,7 +60,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
-		$context->registerDashboardWidget(SocialWidget::class);
+//		$context->registerDashboardWidget(SocialWidget::class);
 	}
 
 	public function boot(IBootContext $context): void {
