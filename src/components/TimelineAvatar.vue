@@ -4,9 +4,8 @@
 			class="messages__avatar__icon"
 			:show-user-status="false"
 			menu-position="left"
-			:user="userTest"
-			:display-name="item.account.acct"
-			:url="item.account.avatar"
+			:user="item.account.username"
+			:display-name="item.account.display_name"
 			:disable-tooltip="true" />
 		<NcAvatar v-else
 			:url="item.account.avatar"
