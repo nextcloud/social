@@ -109,7 +109,9 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	public function getItem(ACore $item): ACore {
 		try {
 			return $this->actionsRequest->getAction(
-				$item->getActorId(), $item->getObjectId(), Like::TYPE
+				$item->getActorId(),
+				$item->getObjectId(),
+				Like::TYPE
 			);
 		} catch (ActionDoesNotExistException $e) {
 		}

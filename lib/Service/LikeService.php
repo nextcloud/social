@@ -108,7 +108,7 @@ class LikeService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function create(Person $actor, string $postId, &$token = ''): ACore {
+	public function create(Person $actor, string $postId, string &$token = ''): ACore {
 		/** @var Like $like */
 		$like = AP::$activityPub->getItemFromType(Like::TYPE);
 		$like->setId($actor->getId() . '#like/' . $this->uuid(8));
@@ -160,7 +160,7 @@ class LikeService {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function delete(Person $actor, string $postId, &$token = ''): ACore {
+	public function delete(Person $actor, string $postId, string &$token = ''): ACore {
 		$undo = new Undo();
 		$undo->setActor($actor);
 
