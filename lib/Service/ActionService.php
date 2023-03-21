@@ -139,7 +139,10 @@ class ActionService {
 	}
 
 	private function reblog(Person $actor, string $postId, bool $enabled = true): void {
-		$this->boostService->create($actor, $postId);
-		//$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, $enabled);
+		if ($enabled) {
+			$this->boostService->create($actor, $postId);
+		} else {
+			$this->boostService->delete($actor, $postId);
+		}
 	}
 }
