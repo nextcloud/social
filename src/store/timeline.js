@@ -173,12 +173,12 @@ const getters = {
 		return state.composerDisplayStatus
 	},
 	getTimeline(state) {
-		return Object.values(state.timeline).sort(function (a, b) {
+		return Object.values(state.timeline).sort(function(a, b) {
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 		})
 	},
 	getParentsTimeline(state) {
-		return Object.values(state.parentsTimeline).sort(function (a, b) {
+		return Object.values(state.parentsTimeline).sort(function(a, b) {
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 		})
 	},
@@ -360,27 +360,27 @@ const actions = {
 		// Compute URL to get the data
 		let url = ''
 		switch (state.type) {
-			case 'account':
-				url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
-				break
-			case 'tags':
-				url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
-				break
-			case 'single-post':
-				url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
-				break
-			case 'timeline':
-				url = generateUrl('apps/social/api/v1/timelines/public')
-				params.local = true
-				break
-			case 'federated':
-				url = generateUrl('apps/social/api/v1/timelines/public')
-				break
-			case 'notifications':
-				url = generateUrl('apps/social/api/v1/notifications')
-				break
-			default:
-				url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
+		case 'account':
+			url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
+			break
+		case 'tags':
+			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
+			break
+		case 'single-post':
+			url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
+			break
+		case 'timeline':
+			url = generateUrl('apps/social/api/v1/timelines/public')
+			params.local = true
+			break
+		case 'federated':
+			url = generateUrl('apps/social/api/v1/timelines/public')
+			break
+		case 'notifications':
+			url = generateUrl('apps/social/api/v1/notifications')
+			break
+		default:
+			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
 		}
 
 		// Get the data and add them to the timeline
