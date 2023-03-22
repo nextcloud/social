@@ -63,7 +63,7 @@
 				</template>
 			</NcButton>
 			<NcActions>
-				<NcActionButton v-if="item.account !== undefined && item.account.acct === currentAccount.acct"
+				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
 					icon="icon-delete"
 					@click="remove()">
 					{{ t('social', 'Delete') }}
@@ -204,7 +204,6 @@ export default {
 					params: {
 						account: this.item.account.display_name,
 						id: this.item.id,
-						localId: this.item.uri.split('/').pop(),
 						type: 'single-post',
 					},
 				})
@@ -249,17 +248,17 @@ export default {
 	@import '@nextcloud/vue-richtext/dist/style.css';
 
 	.post-content {
-		padding: 4px 4px 4px 8px;
+		padding: 4px 8px;
 		font-size: 15px;
 		line-height: 1.6em;
 		position: relative;
+		border-radius: 8px;
 
 		::v-deep a.widget-default {
 			text-decoration: none !important;
 		}
 
 		&:hover {
-			border-radius: 8px;
 			background-color: var(--color-background-hover);
 		}
 

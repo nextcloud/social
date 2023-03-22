@@ -2,9 +2,12 @@
 	<div class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<Composer v-show="composerDisplayStatus" />
-		<TimelineList v-if="timeline" :show-parents="true" :type="$route.params.type" />
+		<TimelineList v-if="timeline"
+			:show-parents="true"
+			:type="$route.params.type"
+			:reverse-order="true" />
 		<TimelineEntry class="main-post" :item="mainPost" type="single-post" />
-		<TimelineList v-if="timeline" :type="$route.params.type" />
+		<TimelineList v-if="timeline" class="descendants" :type="$route.params.type" />
 	</div>
 </template>
 
@@ -61,13 +64,8 @@ export default {
 		},
 	},
 	beforeMount() {
-
 		// Get data of post clicked on
-		if (typeof this.$route.params.id === 'undefined') {
-			this.mainPost = loadState('social', 'item')
-		} else {
-			this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id)
-		}
+		this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id) || loadState('social', 'item')
 
 		// Fetch information of the related account
 		this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account).then((response) => {
@@ -79,8 +77,7 @@ export default {
 		// Fetch single post timeline
 		const params = {
 			account: this.account,
-			id: window.location.href,
-			localId: this.mainPost.id,
+			id: this.$route.params.id,
 			type: 'single-post',
 		}
 		this.$store.dispatch('changeTimelineType', {
@@ -94,9 +91,20 @@ export default {
 </script>
 
 <style scoped>
+.social__wrapper {
+	padding-bottom: 25%;
+}
+
 .social__timeline {
-	max-width: 600px;
-	margin: 15px auto;
+	margin-left: 16px;
+}
+
+.main-post {
+	background: var(--color-background-dark);
+	border-radius: 8px;
+	padding: 16px;
+	box-sizing: content-box;
+	margin: 16px 0;
 }
 
 #app-content {

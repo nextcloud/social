@@ -92,7 +92,7 @@ export default new Router({
 			],
 		},
 		{
-			path: '/:index(index.php/)?apps/social/@:account/:localId',
+			path: '/:index(index.php/)?apps/social/@:account/:id',
 			components: {
 				default: TimelineSinglePost,
 			},

@@ -28,7 +28,7 @@
 				:item="entry"
 				:type="type" />
 		</transition-group>
-		<InfiniteLoading ref="infiniteLoading" @infinite="infiniteHandler">
+		<InfiniteLoading ref="infiniteLoading" :direction="reverseOrder ? 'top' : 'bottom'" @infinite="infiniteHandler">
 			<div slot="spinner">
 				<div class="icon-loading" />
 			</div>
@@ -36,7 +36,7 @@
 				<div class="list-end" />
 			</div>
 			<div slot="no-results">
-				<EmptyContent v-if="timeline.length === 0" :item="emptyContentData" />
+				<EmptyContent v-if="timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
 			</div>
 		</InfiniteLoading>
 	</div>
@@ -66,6 +66,10 @@ export default {
 			default: () => 'home',
 		},
 		showParents: {
+			type: Boolean,
+			default: false,
+		},
+		reverseOrder: {
 			type: Boolean,
 			default: false,
 		},
@@ -114,7 +118,7 @@ export default {
 					title: t('social', 'No posts found for this tag'),
 				},
 				'single-post': {
-					title: t('social', 'No replies found'),
+					title: this.showParents ? '' : t('social', 'No replies found'),
 				},
 			},
 		}
@@ -140,13 +144,22 @@ export default {
 		},
 
 		/**
-		 * @return {import('../store/timeline.js').APObject[]}
+		 * @return {import('../types/Mastodon').Status[]}
 		 */
 		timeline() {
+			/** @type {import('../types/Mastodon').Status[]} */
+			let timeline = []
+
 			if (this.showParents) {
-				return this.$store.getters.getParentsTimeline
+				timeline = this.$store.getters.getParentsTimeline
 			} else {
-				return this.$store.getters.getTimeline
+				timeline = this.$store.getters.getTimeline
+			}
+
+			if (this.reverseOrder) {
+				return timeline.reverse()
+			} else {
+				return timeline
 			}
 		},
 	},
@@ -158,11 +171,21 @@ export default {
 	},
 	methods: {
 		async infiniteHandler($state) {
+			const params = {
+				account: this.currentUser.uid,
+			}
+
+			if (this.timeline.length !== 0) {
+				if (this.reverseOrder) {
+					params.min_id = Number.parseInt(this.timeline[0].id)
+				} else {
+					params.max_id = Number.parseInt(this.timeline[this.timeline.length - 1].id)
+				}
+			}
+
 			try {
-				const response = await this.$store.dispatch('fetchTimeline', {
-					account: this.currentUser.uid,
-					max_id: this.timeline.length > 0 ? Number.parseInt(this.timeline[this.timeline.length - 1].id) : undefined,
-				})
+				/** @type {import('../types/Mastodon').Context} */
+				const response = await this.$store.dispatch('fetchTimeline', params)
 
 				response.length > 0 ? $state.loaded() : $state.complete()
 			} catch (error) {
@@ -172,10 +195,15 @@ export default {
 			}
 		},
 		async fetchNewStatuses() {
+			// No need to load new parents as they will not change.
+			if (this.showParents) {
+				return
+			}
+
 			try {
 				const response = await this.$store.dispatch('fetchTimeline', {
 					account: this.currentUser.uid,
-					min_id: this.timeline[0]?.id ?? undefined,
+					min_id: this.timeline[0]?.id,
 				})
 
 				if (response.length > 0) {
