@@ -1,12 +1,15 @@
 <template>
-	<div class="social__wrapper">
+	<div ref="socialWrapper" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<Composer v-show="composerDisplayStatus" />
 		<TimelineList v-if="timeline"
 			:show-parents="true"
 			:type="$route.params.type"
 			:reverse-order="true" />
-		<TimelineEntry class="main-post" :item="mainPost" type="single-post" />
+		<TimelineEntry ref="mainPost"
+			class="main-post"
+			:item="mainPost"
+			type="single-post" />
 		<TimelineList v-if="timeline" class="descendants" :type="$route.params.type" />
 	</div>
 </template>
@@ -57,10 +60,25 @@ export default {
 		},
 		/**
 		 * @description Returns the timeline currently loaded in the store
-		 * @return {object}
+		 * @return {import('../types/Mastodon').Status}
 		 */
 		timeline() {
 			return this.$store.getters.getTimeline
+		},
+		/**
+		 * @description Returns the parents timeline currently loaded in the store
+		 * @return {import('../types/Mastodon').Status}
+		 */
+		parentsTimeline() {
+			return this.$store.getters.getParentsTimeline
+		},
+	},
+	watch: {
+		// Make sure to scroll mainPost into view on first load so it is not hidden after the parents.
+		parentsTimeline(_, previousValue) {
+			if (previousValue.length === 0 && this.$refs.socialWrapper.parentElement.scrollTop === 0) {
+				this.$nextTick(() => this.$refs.mainPost.$el.scrollIntoView())
+			}
 		},
 	},
 	async beforeMount() {
