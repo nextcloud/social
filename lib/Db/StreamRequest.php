@@ -980,6 +980,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToViewer('sd', 'f', true);
 		$qb->limitToInReplyTo($id, true);
 
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		//$qb->filterDuplicate();
 
 		return $this->getStreamsFromRequest($qb);
