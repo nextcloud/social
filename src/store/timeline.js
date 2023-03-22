@@ -184,8 +184,10 @@ const getters = {
 	},
 	getPostFromTimeline(state) {
 		return (postId) => {
-			if (typeof state.timeline[postId] !== 'undefined') {
+			if (state.timeline[postId] !== undefined) {
 				return state.timeline[postId]
+			} else if (state.parentsTimeline[postId] !== undefined) {
+				return state.parentsTimeline[postId]
 			} else {
 				logger.warn('Could not find post in timeline', { postId })
 			}
