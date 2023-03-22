@@ -1,6 +1,5 @@
 <template>
 	<div ref="socialWrapper" class="social__wrapper">
-		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 		<Composer v-show="composerDisplayStatus" />
 		<TimelineList v-if="timeline"
 			:show-parents="true"
@@ -16,7 +15,6 @@
 
 <script>
 import Composer from '../components/Composer/Composer.vue'
-import ProfileInfo from '../components/ProfileInfo.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
 import currentUserMixin from '../mixins/currentUserMixin.js'
@@ -28,7 +26,6 @@ export default {
 	name: 'TimelineSinglePost',
 	components: {
 		Composer,
-		ProfileInfo,
 		TimelineEntry,
 		TimelineList,
 	},
