@@ -158,6 +158,12 @@
  */
 
 /**
+ * @typedef Context - https://docs.joinmastodon.org/entities/Context
+ * @property {Status[]} ancestors - Parents in the thread.
+ * @property {Status[]} descendants - Children in the thread.
+ */
+
+/**
  * @typedef Notification - https://docs.joinmastodon.org/entities/Notification
  * @property {string} id - Ex: "https://example.com/users/@tommy""
  * @property {"mention"|"status"|"reblog"|"follow"|"follow_request"|"favourite"|"poll"|"update"|"admin.sign_up"|"admin.report"} type - Ex: "2016-03-16T14:34:26.392Z"

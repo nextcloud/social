@@ -37,6 +37,10 @@ const state = {
 	 */
 	timeline: {},
 	/**
+	 * @type {Object<string, import('../types/Mastodon.js').Status>} timeline - The parents posts' collection
+	 */
+	parentsTimeline: {},
+	/**
 	 * @type {string} type - Timeline's type: 'home', 'single-post',...
 	 */
 	type: 'home',
@@ -44,7 +48,6 @@ const state = {
 	 * @type {object} params - Timeline's parameters
 	 * @property {string} params.account ???
 	 * @property {string} params.id
-	 * @property {string} params.localId
 	 * @property {string} params.type ???
 	 */
 	params: {},
@@ -65,14 +68,15 @@ const state = {
 const mutations = {
 	/**
 	 * @param state
-	 * @param {import('../types/Mastodon.js').Status[]} data
+	 * @param {import ('../types/Mastodon.js').Status[]|import('../types/Mastodon.js').Context} data
 	 */
 	addToTimeline(state, data) {
-		// TODO: fix to handle ancestors
-		if (data.descendants) {
-			data = data.descendants
+		if (Array.isArray(data)) {
+			data.forEach((post) => Vue.set(state.timeline, post.id, post))
+		} else {
+			data.descendants.forEach((post) => Vue.set(state.timeline, post.id, post))
+			data.ancestors.forEach((post) => Vue.set(state.parentsTimeline, post.id, post))
 		}
-		data.forEach((post) => Vue.set(state.timeline, post.id, post))
 	},
 	/**
 	 * @param state
@@ -83,6 +87,7 @@ const mutations = {
 	},
 	resetTimeline(state) {
 		state.timeline = {}
+		state.parentsTimeline = {}
 	},
 	/**
 	 * @param state
@@ -172,10 +177,17 @@ const getters = {
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 		})
 	},
+	getParentsTimeline(state) {
+		return Object.values(state.parentsTimeline).sort(function(a, b) {
+			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+		})
+	},
 	getPostFromTimeline(state) {
 		return (postId) => {
-			if (typeof state.timeline[postId] !== 'undefined') {
+			if (state.timeline[postId] !== undefined) {
 				return state.timeline[postId]
+			} else if (state.parentsTimeline[postId] !== undefined) {
+				return state.parentsTimeline[postId]
 			} else {
 				logger.warn('Could not find post in timeline', { postId })
 			}
@@ -357,7 +369,7 @@ const actions = {
 			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
 			break
 		case 'single-post':
-			url = generateUrl(`apps/social/api/v1/statuses/${state.params.localId}/context`)
+			url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
 			break
 		case 'timeline':
 			url = generateUrl('apps/social/api/v1/timelines/public')
