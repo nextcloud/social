@@ -38,12 +38,22 @@
 				<template #icon>
 					<Reply :size="20" />
 				</template>
+				<template #default>
+					<span v-if="item.replies_count !== 0">
+						{{ item.replies_count }}
+					</span>
+				</template>
 			</NcButton>
 			<NcButton :title="t('social', 'Boost')"
 				type="tertiary-no-background"
 				@click="boost">
 				<template #icon>
 					<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+				</template>
+				<template #default>
+					<span v-if="item.reblogs_count !== 0">
+						{{ item.reblogs_count }}
+					</span>
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"
@@ -52,6 +62,11 @@
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
+				</template>
+				<template #default>
+					<span v-if="item.favourites_count !== 0">
+						{{ item.favourites_count }}
+					</span>
 				</template>
 			</NcButton>
 			<NcButton v-if="isLiked"
