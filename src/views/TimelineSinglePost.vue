@@ -74,7 +74,7 @@ export default {
 		// Make sure to scroll mainPost into view on first load so it is not hidden after the parents.
 		parentsTimeline(_, previousValue) {
 			if (previousValue.length === 0 && this.$refs.socialWrapper.parentElement.scrollTop === 0) {
-				this.$nextTick(() => this.$refs.mainPost.$el.scrollIntoView())
+				this.$nextTick(() => this.$refs.mainPost.$el.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 			}
 		},
 	},
@@ -89,6 +89,12 @@ export default {
 				id: this.$route.params.id,
 				type: 'single-post',
 			},
+		})
+
+		this.$root.$on('composer-reply', (item) => {
+			this.$nextTick(() => {
+				this.$refs.socialWrapper.querySelector(`[data-social-status="${item.id}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' })
+			})
 		})
 
 		// Fetch information of the related account

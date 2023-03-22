@@ -1,5 +1,5 @@
 <template>
-	<div class="post-content">
+	<div class="post-content" :data-social-status="item.id">
 		<div class="post-header">
 			<div class="post-author-wrapper" :title="item.account.acct">
 				<router-link v-if="item.account"
