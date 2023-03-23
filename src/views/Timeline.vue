@@ -25,7 +25,7 @@
 				</div>
 			</div>
 		</transition>
-		<Composer v-if="type !== 'notifications' && type !== 'single-post'" />
+		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
 		<h2 v-if="type === 'tags'">
 			#{{ $route.params.tag }}
 		</h2>
