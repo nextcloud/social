@@ -75,10 +75,15 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->saveStream($stream);
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
+
+			$attachments = [];
+			foreach ($stream->getAttachments() as $item) {
+				$attachments[] = $item->asLocal(); // get attachment ready for local
+			}
+
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
 			   ->setValue(
-			   	'attachments', $qb->createNamedParameter(
-			   		json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+			   	'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
 			   	)
 			   );
 		}

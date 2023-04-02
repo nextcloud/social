@@ -109,8 +109,6 @@ class PostService {
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
 
-//		$this->generateDocumentsFromAttachments($note, $post);
-
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());

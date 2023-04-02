@@ -30,6 +30,8 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class MediaAttachment implements JsonSerializable {
@@ -44,6 +46,7 @@ class MediaAttachment implements JsonSerializable {
 	private ?AttachmentMeta $meta = null;
 	private string $description = '';
 	private string $blurHash = '';
+	private int $exportFormat = ACore::FORMAT_LOCAL;
 
 	public function setId(string $id): self {
 		$this->id = $id;
@@ -136,6 +139,17 @@ class MediaAttachment implements JsonSerializable {
 	}
 
 
+	public function setExportFormat(int $exportFormat): self {
+		$this->exportFormat = $exportFormat;
+
+		return $this;
+	}
+
+	public function getExportFormat(): int {
+		return $this->exportFormat;
+	}
+
+
 	public function import(array $data): self {
 		$this->setId($this->get('id', $data));
 		$this->setType($this->get('type', $data));
@@ -153,6 +167,14 @@ class MediaAttachment implements JsonSerializable {
 	}
 
 	public function jsonSerialize(): array {
+		if ($this->getExportFormat() === ACore::FORMAT_LOCAL) {
+			return $this->asLocal();
+		}
+
+		return $this->asDocument();
+	}
+
+	public function asLocal(): array {
 		return array_filter(
 			[
 				'id' => $this->getId(),
@@ -165,5 +187,25 @@ class MediaAttachment implements JsonSerializable {
 				"blurhash" => $this->getBlurHash()
 			]
 		);
+	}
+
+	/**
+	 * quick implementation of converting MediaAttachment to Document. Can be improved.
+	 *
+	 * @return array
+	 */
+	public function asDocument(): array {
+		$original = $this->getMeta()->getOriginal();
+
+		return
+			[
+				'type' => Document::TYPE,
+				'mediaType' => '',
+				'url' => $this->getUrl(),
+				'name' => null,
+				'blurhash' => $this->getBlurHash(),
+				'width' => ($original === null) ? 0 : $original->getWidth() ?? 0,
+				'height' => ($original === null) ? 0 : $original->getHeight() ?? 0
+			];
 	}
 }

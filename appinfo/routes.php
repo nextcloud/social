@@ -116,8 +116,6 @@ return [
 
 		['name' => 'Local#postLike', 'url' => '/api/v1/post/like', 'verb' => 'POST'],
 		['name' => 'Local#postUnlike', 'url' => '/api/v1/post/like', 'verb' => 'DELETE'],
-		['name' => 'Local#postBoost', 'url' => '/api/v1/post/boost', 'verb' => 'POST'],
-		['name' => 'Local#postUnboost', 'url' => '/api/v1/post/boost', 'verb' => 'DELETE'],
 
 		['name' => 'Local#actionFollow', 'url' => '/api/v1/current/follow', 'verb' => 'PUT'],
 		['name' => 'Local#actionUnfollow', 'url' => '/api/v1/current/follow', 'verb' => 'DELETE'],
