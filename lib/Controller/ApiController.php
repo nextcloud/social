@@ -253,7 +253,10 @@ class ApiController extends Controller {
 			if (!empty($status->getMediaIds())) {
 				$post->setMedias(
 					array_map(function (Document $document): MediaAttachment {
-						return $document->convertToMediaAttachment($this->urlGenerator);
+						return $document->convertToMediaAttachment(
+							$this->urlGenerator,
+							ACore::FORMAT_ACTIVITYPUB
+						);
 					}, $this->documentService->getMediaFromArray(
 						$status->getMediaIds(),
 						$this->viewer->getPreferredUsername()

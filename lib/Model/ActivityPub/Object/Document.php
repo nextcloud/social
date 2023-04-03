@@ -369,9 +369,13 @@ class Document extends ACore implements JsonSerializable {
 	/**
 	 * @return MediaAttachment
 	 */
-	public function convertToMediaAttachment(?IURLGenerator $urlGenerator = null): MediaAttachment {
+	public function convertToMediaAttachment(
+		?IURLGenerator $urlGenerator = null,
+		int $exportFormat = self::FORMAT_LOCAL
+	): MediaAttachment {
 		$media = new MediaAttachment();
-		$media->setId((string)$this->getNid());
+		$media->setId((string)$this->getNid())
+			  ->setExportFormat($exportFormat);
 
 		$mime = '';
 		if (strpos($this->getMediaType(), '/')) {

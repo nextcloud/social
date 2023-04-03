@@ -702,11 +702,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
-		$result['media_attachments'] = $this->getAttachments();
-
-//		if ($this->isCompleteDetails()) {
-//			$result['attachments'] = $this->getAttachments();
-//		}
+//		$result['media_attachments'] = $this->getAttachments();
+		$result['attachment'] = $this->getAttachments();
 
 		return $result;
 	}
