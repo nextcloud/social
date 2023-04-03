@@ -355,7 +355,6 @@ class StreamService {
 	 * @param int $nid
 	 *
 	 * @return array
-	 * @throws StreamNotFoundException
 	 */
 	public function getContextByNid(int $nid): array {
 		$curr = $post = $this->streamRequest->getStreamByNid($nid);
@@ -366,9 +365,13 @@ class StreamService {
 				break;
 			}
 
-			$curr = $this->streamRequest->getStreamById($curr->getInReplyTo());
-			$curr->setExportFormat(ACore::FORMAT_LOCAL);
-			$ancestors[] = $curr;
+			try {
+				$curr = $this->streamRequest->getStreamById($curr->getInReplyTo(), true);
+				$curr->setExportFormat(ACore::FORMAT_LOCAL);
+				$ancestors[] = $curr;
+			} catch (StreamNotFoundException $e) {
+				break; // ancestor might be out of range for viewer
+			}
 		}
 
 		return [
