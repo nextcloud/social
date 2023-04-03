@@ -333,6 +333,23 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $id
+	 *
+	 * @return int
+	 */
+	public function countRepliesTo(string $id): int {
+		$qb = $this->countNotesSelectSql();
+		$qb->limitToInReplyTo($id, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int

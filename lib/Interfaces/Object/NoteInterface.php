@@ -90,6 +90,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
 			$this->streamRequest->save($note);
+			$this->updateDetails($note);
 			$this->pushService->onNewStream($note->getId());
 		}
 	}
@@ -97,5 +98,21 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	public function delete(ACore $item): void {
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
+	}
+
+
+	public function updateDetails(Note $stream): void {
+		if ($stream->getInReplyTo() === '') {
+			return;
+		}
+
+		try {
+			$orig = $this->streamRequest->getStreamById($stream->getInReplyTo());
+			$count = $this->streamRequest->countRepliesTo($stream->getInReplyTo());
+			$orig->setDetailInt('replies', $count);
+
+			$this->streamRequest->update($orig);
+		} catch (StreamNotFoundException $e) {
+		}
 	}
 }
