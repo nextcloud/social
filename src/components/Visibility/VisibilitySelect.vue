@@ -34,7 +34,7 @@
 			<template #icon>
 				<VisibilityIcon :visibility="visibilityDetails.id" :size="20" />
 			</template>
-			{{ visibilityDetails.longtext }}
+			{{ visibilityDetails.description }}
 		</NcActionButton>
 	</NcActions>
 </template>
