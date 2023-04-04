@@ -14,10 +14,10 @@
 					</span>
 				</router-link>
 			</div>
-			<div v-if="visibility"
+			<VisibilityIcon v-if="visibility"
+				:title="visibility.text"
 				class="post-visibility"
-				:class="{ [visibility.icon]: true }"
-				:title="visibility.text" />
+				:visibility="visibility.id" />
 			<a :data-timestamp="timestamp"
 				class="post-timestamp live-relative-timestamp"
 				:title="formattedDate"
@@ -105,7 +105,8 @@ import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
-import visibilitiesInfo from './VisibilitiesInfos.js'
+import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
+import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 
 export default {
 	name: 'TimelinePost',
@@ -119,6 +120,7 @@ export default {
 		Heart,
 		HeartOutline,
 		MessageContent,
+		VisibilityIcon,
 	},
 	mixins: [currentUser],
 	props: {
@@ -284,6 +286,8 @@ export default {
 			justify-content: space-between;
 
 			.post-author-wrapper {
+				flex-grow: 1;
+
 				&:hover {
 					text-decoration: underline;
 				}
@@ -299,7 +303,6 @@ export default {
 			}
 
 			.post-visibility {
-				flex-grow: 1;
 				opacity: 0.5;
 				background-position: right;
 			}
