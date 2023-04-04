@@ -82,8 +82,7 @@ export default {
 </script>
 <style scoped>
 .selected-visibility {
-	border: 1px solid var(--color-success);
-	border-left-width: 4px;
+	outline: 1px solid var(--color-success);
 	border-radius: 6px;
 	background: var(--color-background-hover);
 }
