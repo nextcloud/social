@@ -44,7 +44,8 @@
 					</span>
 				</template>
 			</NcButton>
-			<NcButton :title="t('social', 'Boost')"
+			<NcButton v-if="item.visibility === 'public' || item.visibility === 'followers'"
+				:title="t('social', 'Boost')"
 				type="tertiary-no-background"
 				@click="boost">
 				<template #icon>
