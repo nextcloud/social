@@ -1,6 +1,5 @@
 import { translate as t } from '@nextcloud/l10n'
 
-
 /**
  * @typedef {object} Visibility
  * @property {string} id - One of 'public', 'followers', 'direct', 'unlisted'
