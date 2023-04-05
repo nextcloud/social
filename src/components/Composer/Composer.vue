@@ -278,27 +278,42 @@ export default {
 				return true
 			}
 
-			return this.statusContent.length !== 0 && this.statusContent !== '<br>'
+			return !this.statusIsEmpty
+		},
+		/** @return {boolean} */
+		statusIsEmpty() {
+			return this.statusContent.length === 0 || this.statusContent === '<br>'
 		},
 	},
 	mounted() {
-		this.$root.$on('composer-reply', (data) => {
+		this.$root.$on('composer-reply', (/** @type {import('../../types/Mastodon.js').Status} */data) => {
 			this.replyTo = data
+			this.prefillMessageWithMention(data.account)
 			this.visibility = data.visibility
 		})
 
 		if (this.initialMention !== null) {
-			this.$refs.composerInput.innerHTML = `
-				<span class="mention" contenteditable="false">
-					<a href="${this.initialMention.url}" target="_blank">
-						<img src="${!this.initialMention.acct.includes('@') ? generateUrl(`/avatar/${this.initialMention.username}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${this.initialMention.acct}`)}"/>
-						@${this.initialMention.acct}
-					</a>
-				</span>&nbsp;`
-			this.updateStatusContent()
+			this.prefillMessageWithMention(this.initialMention)
 		}
 	},
 	methods: {
+		/**
+		 * @param {import('../../types/Mastodon.js').Account} account
+		 */
+		prefillMessageWithMention(account) {
+			if (!this.statusIsEmpty) {
+				return
+			}
+
+			this.$refs.composerInput.innerHTML = `
+				<span class="mention" contenteditable="false">
+					<a href="${account.url}" target="_blank">
+						<img src="${!account.acct.includes('@') ? generateUrl(`/avatar/${account.username}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${account.acct}`)}"/>
+						@${account.acct}
+					</a>
+				</span>&nbsp;`
+			this.updateStatusContent()
+		},
 		updateStatusContent() {
 			this.statusContent = this.$refs.composerInput.innerHTML
 		},
