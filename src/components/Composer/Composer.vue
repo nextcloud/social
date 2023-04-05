@@ -85,7 +85,7 @@
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
 					<template #icon>
-						<FileUpload :size="22" decorative title="" />
+						<Paperclip :size="22" decorative title="" />
 					</template>
 				</NcButton>
 
@@ -118,7 +118,7 @@
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
-import FileUpload from 'vue-material-design-icons/FileUpload.vue'
+import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
@@ -131,7 +131,7 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
-import VisibilitySelect from './VisibilitySelect.vue'
+import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
 
@@ -148,7 +148,7 @@ export default {
 		NcEmojiPicker,
 		NcButton,
 		ActorAvatar,
-		FileUpload,
+		Paperclip,
 		VueTribute,
 		EmoticonOutline,
 		Close,
