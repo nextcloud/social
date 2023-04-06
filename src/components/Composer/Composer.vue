@@ -301,7 +301,7 @@ export default {
 		 * @param {import('../../types/Mastodon.js').Account} account
 		 */
 		prefillMessageWithMention(account) {
-			if (!this.statusIsEmpty) {
+			if (!this.statusIsEmpty || this.$refs.composerInput === undefined) {
 				return
 			}
 
@@ -413,6 +413,7 @@ export default {
 				this.loading = false
 				this.replyTo = null
 				this.$refs.composerInput.innerText = ''
+				this.updateStatusContent()
 				this.attachments = {}
 				this.$store.dispatch('refreshTimeline')
 			}
