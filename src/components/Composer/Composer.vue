@@ -169,13 +169,13 @@ export default {
 		},
 		defaultVisibility: {
 			type: String,
-			default: localStorage.getItem('social.lastPostType') || 'followers',
+			default: undefined,
 		},
 	},
 	data() {
 		return {
 			statusContent: '',
-			visibility: this.defaultVisibility,
+			visibility: this.defaultVisibility || localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			/** @type {Object<string, LocalAttachment>} */
 			attachments: {},
