@@ -57,7 +57,10 @@ Vue.use(VueMasonry)
 
 /* eslint-disable-next-line no-new */
 new Vue({
+	el: '#content',
+	// eslint-disable-next-line vue/match-component-file-name
+	name: 'SocialRoot',
 	router,
 	render: h => h(App),
 	store,
-}).$mount('#content')
+})
