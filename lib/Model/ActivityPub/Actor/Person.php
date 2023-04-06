@@ -685,6 +685,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
 			 ->setUserId($this->get('user_id', $data, ''))
 			 ->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
+			 ->setDescription($this->validate(self::AS_CONTENT, 'summary', $data))
 			 ->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
 			 ->setPublicKey($this->get('public_key', $data, ''))
 			 ->setPrivateKey($this->get('private_key', $data, ''))
