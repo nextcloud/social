@@ -36,7 +36,6 @@ OC.L10N.register(
     "Post publicly" : "公開張貼",
     "Post to recipients" : "張貼給接收者",
     "Post unlisted" : "不公開張貼",
-    "Change visibility" : "變更能見度",
     "Unfollow" : "取消追蹤",
     "Follow" : "追蹤",
     "posts" : "貼文",
@@ -103,12 +102,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "因為您是「社交」新手，因此請先追蹤官方的 Nextcloud 帳號，這樣您就不會漏掉任何新聞",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上追蹤 Nextcloud",
     "Public" : "公開",
-    "Post to public timelines" : "張貼到公開時間軸",
     "Unlisted" : "不公開",
-    "Do not post to public timelines" : "不要張貼到公開時間軸",
     "Followers" : "追蹤者",
-    "Post to followers only" : "僅張貼給追蹤者",
-    "Direct" : "直接",
-    "Post to mentioned users only" : "僅張貼給提及的使用者"
+    "Direct" : "直接"
 },
 "nplurals=1; plural=0;");

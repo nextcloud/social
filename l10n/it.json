@@ -73,12 +73,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Poiché sei nuovo di Sociale, inizia seguendo l'account ufficiale di Nextcloud in modo da non perdere le novità",
     "Follow Nextcloud on mastodon.xyz" : "Segui Nextcloud su mastodon.xyz",
     "Public" : "Pubblico",
-    "Post to public timelines" : "Commenta su linee temporali pubbliche",
     "Unlisted" : "Non elencato",
-    "Do not post to public timelines" : "Non commentare su linee temporali pubbliche",
     "Followers" : "Seguaci",
-    "Post to followers only" : "Commenta solo per i seguaci",
-    "Direct" : "Diretto",
-    "Post to mentioned users only" : "Commenta solo per gli utenti menzionati"
+    "Direct" : "Diretto"
 },"pluralForm" :"nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;"
 }

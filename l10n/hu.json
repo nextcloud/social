@@ -34,7 +34,6 @@
     "Post publicly" : "Nyilvános közzététel",
     "Post to recipients" : "Közzététel a címzetteknek",
     "Post unlisted" : "A bejegyzés nem nyilvános",
-    "Change visibility" : "Láthatóság módosítása",
     "Unfollow" : "Követés megszüntetése",
     "Follow" : "Követés",
     "posts" : "bejegyzés",
@@ -101,12 +100,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Mivel Ön még nem ismeri a Közösség alkalmazást, kezdje el a hivatalos Nextcloud-fiók követésével, hogy ne maradjon le egyetlen hírről sem",
     "Follow Nextcloud on mastodon.xyz" : "Kövesse a Nextcloudot a mastodon.xyz-n",
     "Public" : "Nyilvános",
-    "Post to public timelines" : "Közzététel a nyilvános idővonalakon",
     "Unlisted" : "Nem nyilvános",
-    "Do not post to public timelines" : "Ne tegye közzé a nyilvános idővonalakon",
     "Followers" : "Követők",
-    "Post to followers only" : "Közzététel csak a követők számára",
-    "Direct" : "Közvetlen",
-    "Post to mentioned users only" : "Közzététel csak az említett felhasználóknak"
+    "Direct" : "Közvetlen"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

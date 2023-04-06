@@ -87,12 +87,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鉴于您刚来到社交应用，请先关注 Nextcloud 官方账号，这样您将不会错过任何新闻",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud",
     "Public" : "公开",
-    "Post to public timelines" : "发帖到公开时间线",
     "Unlisted" : "不公开",
-    "Do not post to public timelines" : "不发帖到公开时间线",
     "Followers" : "仅关注者",
-    "Post to followers only" : "仅向关注者发帖",
-    "Direct" : "私信",
-    "Post to mentioned users only" : "仅向被提及的用户发帖"
+    "Direct" : "私信"
 },
 "nplurals=1; plural=0;");

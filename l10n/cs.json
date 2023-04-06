@@ -33,7 +33,6 @@
     "Post publicly" : "Poslat veřejně",
     "Post to recipients" : "Poslat adresátům",
     "Post unlisted" : "Poslat skrytě",
-    "Change visibility" : "Změnit viditelnost",
     "Unfollow" : "Přestat sledovat",
     "Follow" : "Sledovat",
     "posts" : "zprávy",
@@ -100,12 +99,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Protože jste na Social noví, začněte sledováním oficiálního účtu Nextcloudu, aby vám nic neušlo.",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nexcloud na mastodon.xyz",
     "Public" : "Veřejně",
-    "Post to public timelines" : "Poslat zcela veřejně na všechny servery",
     "Unlisted" : "Skrytě",
-    "Do not post to public timelines" : "Poslat skrytě. Zpráva bude k dispozici jen uživatelům s přímým odkazem. ",
     "Followers" : "Sledujícím",
-    "Post to followers only" : "Poslat jen sledujícím",
-    "Direct" : "Přímo",
-    "Post to mentioned users only" : "Poslat pouze zmíněným uživatelům"
+    "Direct" : "Přímo"
 },"pluralForm" :"nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n >= 2 && n <= 4 && n % 1 == 0) ? 1: (n % 1 != 0 ) ? 2 : 3;"
 }

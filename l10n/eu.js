@@ -91,12 +91,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Social-era iritsi berria zarenez, hasi Nextcloud kontu ofiziala jarraituz berririk ez galtzeko",
     "Follow Nextcloud on mastodon.xyz" : "Jarraitu Nextcloud mastodon.xyz zerbitzarian",
     "Public" : "Publikoa",
-    "Post to public timelines" : "Argitaratu denbora-lerro publikoetan",
     "Unlisted" : "Zerrendatu gabea",
-    "Do not post to public timelines" : "Ez argitaratu denbora-lerro publikoetan",
     "Followers" : "Jarraitzaileak",
-    "Post to followers only" : "Argitaratu jarraitzaileentzat soilik",
-    "Direct" : "Zuzena",
-    "Post to mentioned users only" : "Argitaratu aipatutako erabiltzaileentzat soilik"
+    "Direct" : "Zuzena"
 },
 "nplurals=2; plural=(n != 1);");

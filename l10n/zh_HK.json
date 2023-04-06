@@ -34,7 +34,6 @@
     "Post publicly" : "公開發帖",
     "Post to recipients" : "向被提及者發帖",
     "Post unlisted" : "不公開發帖",
-    "Change visibility" : "切換可見性",
     "Unfollow" : "取消關注",
     "Follow" : "關注",
     "posts" : "帖子",
@@ -101,12 +100,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鑑於您剛來到 Social，請先關注 Nextcloud 官方賬戶，這樣您將不會錯過任何新聞",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud",
     "Public" : "公開",
-    "Post to public timelines" : "發帖到公開時間線",
     "Unlisted" : "不公開",
-    "Do not post to public timelines" : "不發帖到公開時間線",
     "Followers" : "僅關注者",
-    "Post to followers only" : "僅向關注者發帖",
-    "Direct" : "私信",
-    "Post to mentioned users only" : "僅向被提及的用戶發帖"
+    "Direct" : "私信"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

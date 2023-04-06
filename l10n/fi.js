@@ -65,12 +65,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Koska olet uusi käyttäjä, aloita seuraamalla virallista Nextcloud -tiliä ettet jää uutisista paitsi",
     "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa",
     "Public" : "Julkinen",
-    "Post to public timelines" : "Julkaise julkisille aikajanoille",
     "Unlisted" : "Listaamaton",
-    "Do not post to public timelines" : "Älä julkaise julkisille aikajanoille",
     "Followers" : "Seuraajat",
-    "Post to followers only" : "Julkaise vain seuraajille",
-    "Direct" : "Suoraan",
-    "Post to mentioned users only" : "Julkaise vain mainituille käyttäjille"
+    "Direct" : "Suoraan"
 },
 "nplurals=2; plural=(n != 1);");

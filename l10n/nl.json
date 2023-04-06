@@ -73,12 +73,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Omdat je nieuw bent in Social, begin je door het officiële Nextcloud account te volgen, zodat je geen nieuws mist.",
     "Follow Nextcloud on mastodon.xyz" : "Volg Nextcloud op mastodon.xyz",
     "Public" : "Openbaar",
-    "Post to public timelines" : "Plaatsen op openbare tijdlijnen",
     "Unlisted" : "Niet geregistreerd",
-    "Do not post to public timelines" : "Niet plaatsen op openbare tijdlijnen",
     "Followers" : "Volgers",
-    "Post to followers only" : "Plaatsen alleen naar volgers",
-    "Direct" : "Direct",
-    "Post to mentioned users only" : "Alleen aan vermelde gebruikers sturen"
+    "Direct" : "Direct"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

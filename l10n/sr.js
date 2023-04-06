@@ -36,7 +36,6 @@ OC.L10N.register(
     "Post publicly" : "Објави јавно",
     "Post to recipients" : "Објави примаоцима",
     "Post unlisted" : "Објави неизлистано",
-    "Change visibility" : "Промени видљивост",
     "Unfollow" : "Отпрати",
     "Follow" : "Запрати",
     "posts" : "објаве",
@@ -103,12 +102,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Пошто сте нови на Друштвеној апликацији, почните тако што ћете запратити званични Некстклауд налог да не бисте пропустили ниједну новост",
     "Follow Nextcloud on mastodon.xyz" : "Запратите Некстклауд на mastodon.xyz инстанци",
     "Public" : "Јавно",
-    "Post to public timelines" : "Објављуј на јавне лајне",
     "Unlisted" : "Неизлистано",
-    "Do not post to public timelines" : "Не објављуј на јавне лајне",
     "Followers" : "Пратиоци",
-    "Post to followers only" : "Пошаљи само пратиоцима",
-    "Direct" : "Директно",
-    "Post to mentioned users only" : "Објави само поменутим корисницима"
+    "Direct" : "Директно"
 },
 "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");

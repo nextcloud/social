@@ -67,12 +67,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Eftersom du är ny här kan du börja med att följa det officiella Nextcloud-kontot så att du inte missar några nyheter",
     "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz",
     "Public" : "Offentlig",
-    "Post to public timelines" : "Skicka till offentliga tidslinjer",
     "Unlisted" : "Olistad",
-    "Do not post to public timelines" : "Skicka inte till offentliga tidslinjer",
     "Followers" : "Följare",
-    "Post to followers only" : "Skicka bara till följare",
-    "Direct" : "Direkt",
-    "Post to mentioned users only" : "Skicka endast till nämnda användare"
+    "Direct" : "Direkt"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

@@ -34,7 +34,6 @@
     "Post publicly" : "Herkese açık olarak gönder",
     "Post to recipients" : "Alıcılara gönder",
     "Post unlisted" : "Listelenmemişlere gönder",
-    "Change visibility" : "Görünürlüğü değiştir",
     "Unfollow" : "Takibi bırak",
     "Follow" : "Takip et",
     "posts" : "ileti",
@@ -101,12 +100,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Sosyal ağ kullanmaya yeni başladığınızdan, haberleri kaçırmamak için resmi Nextcloud hesabını takibe başlayın",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et",
     "Public" : "Herkese açık",
-    "Post to public timelines" : "Herkese açık zaman tünellerine gönder",
     "Unlisted" : "Listelenmemiş",
-    "Do not post to public timelines" : "Herkese açık zaman tünellerine gönderme",
     "Followers" : "Takipçiler",
-    "Post to followers only" : "Yalnızca takipçilere gönder",
-    "Direct" : "Doğrudan",
-    "Post to mentioned users only" : "Yalnızca anılan kullanıcılara gönder"
+    "Direct" : "Doğrudan"
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }

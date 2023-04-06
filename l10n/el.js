@@ -74,12 +74,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Καθως είστε νέοι στο Social, ξεκινήστε ακολουθώντας τον επίσημο λογαριασμό του Nextcloud για να μην χάσετε καμιά είδηση",
     "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz",
     "Public" : "Δημόσιο",
-    "Post to public timelines" : "Δημοσίευση στο δημόσιο χρονολόγιο",
     "Unlisted" : "Μή καταχωρημένο",
-    "Do not post to public timelines" : "Να μην δημοσιευτεί στο δημόσιο χρονολόγιο",
     "Followers" : "Ακόλουθοι",
-    "Post to followers only" : "Δημοσίευση στους ακόλουθους μόνο",
-    "Direct" : "Άμεσα",
-    "Post to mentioned users only" : "Δημοσίευση μόνο στους χρήστες που αναφέρθηκαν"
+    "Direct" : "Άμεσα"
 },
 "nplurals=2; plural=(n != 1);");

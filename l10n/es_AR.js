@@ -30,10 +30,7 @@ OC.L10N.register(
     "Continue" : "Continuar",
     "Public" : "Público",
     "Unlisted" : "No listado",
-    "Do not post to public timelines" : "No publicar en líneas de tiempo públicas",
     "Followers" : "Seguidores",
-    "Post to followers only" : "Publicar solo en seguidores",
-    "Direct" : "Directo",
-    "Post to mentioned users only" : "Publicar solo para los usuarios mencionados"
+    "Direct" : "Directo"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

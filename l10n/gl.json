@@ -89,12 +89,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Xa que vostede é novo en Social, pode comezar seguindo a conta oficial de Nextcloud así non perderá ningunha nova",
     "Follow Nextcloud on mastodon.xyz" : "Siga a Nextcloud en mastodon.xyz",
     "Public" : "Pública",
-    "Post to public timelines" : "Publicar en liñas temporais públicas",
     "Unlisted" : "Sen listar",
-    "Do not post to public timelines" : "Non publicar en liñas temporais públicas",
     "Followers" : "Seguidores",
-    "Post to followers only" : "Mensaxe só para seguidores",
-    "Direct" : "Directa",
-    "Post to mentioned users only" : "Mensaxe só para os usuarios mencionados"
+    "Direct" : "Directa"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

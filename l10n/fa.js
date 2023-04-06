@@ -69,12 +69,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "از آنجا که تازه وارد Social شده اید ، با دنبال کردن حساب رسمی نکست کلود شروع کنید تا هیچ خبری از دست ندهید",
     "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید",
     "Public" : "عمومی",
-    "Post to public timelines" : "ارسال به جدول زمانی عمومی",
     "Unlisted" : "لیست نشده",
-    "Do not post to public timelines" : "در زمان بندی های عمومی ارسال نکنید",
     "Followers" : "دنبال کنندگان",
-    "Post to followers only" : "ارسال فقط به دنبال کنندگان",
-    "Direct" : "مستقیم",
-    "Post to mentioned users only" : "فقط برای کاربران ذکر شده ارسال کنید"
+    "Direct" : "مستقیم"
 },
 "nplurals=2; plural=(n > 1);");

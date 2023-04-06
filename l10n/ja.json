@@ -75,12 +75,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "「ソーシャル」は初めてですか？最新ニュースを見逃さないよう公式Nextcloudアカウントをフォローしましょう。",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
     "Public" : "公開",
-    "Post to public timelines" : "公開タイムラインへ投稿",
     "Unlisted" : "限定公開",
-    "Do not post to public timelines" : "公開タイムラインへ投稿しない",
     "Followers" : "フォロワー",
-    "Post to followers only" : "フォロワーだけに公開",
-    "Direct" : "ダイレクト",
-    "Post to mentioned users only" : "反応したユーザーのみに投稿"
+    "Direct" : "ダイレクト"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

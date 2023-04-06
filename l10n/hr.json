@@ -71,12 +71,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Budući da ste novi korisnik aplikacije Social, počnite pratiti službeni račun Nextclouda kako ne biste propustili nijednu vijest",
     "Follow Nextcloud on mastodon.xyz" : "Pratite Nextcloud na mastodon.xyz",
     "Public" : "Javna",
-    "Post to public timelines" : "Objavi na javne vremenske trake",
     "Unlisted" : "Neuvršteno",
-    "Do not post to public timelines" : "Ne objavljuj na javne vremenske trake",
     "Followers" : "Pratitelji",
-    "Post to followers only" : "Objavi samo pratiteljima",
-    "Direct" : "Izravno",
-    "Post to mentioned users only" : "Objavi samo spomenutim korisnicima"
+    "Direct" : "Izravno"
 },"pluralForm" :"nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;"
 }

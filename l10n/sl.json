@@ -72,12 +72,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Ker ste še novi na družbenem omrežju Social, začnite s sledenjem uradnega računa Nextcloud, da ne zamudite novosti in sporočil.",
     "Follow Nextcloud on mastodon.xyz" : "Sledi Nextcloud na mastodon.xyz",
     "Public" : "Javno",
-    "Post to public timelines" : "Objavi na javno časovnico",
     "Unlisted" : "Nenavedeno",
-    "Do not post to public timelines" : "Ne objavi na javnih časovnicah",
     "Followers" : "Za sledilce",
-    "Post to followers only" : "Objavi le za sledilce",
-    "Direct" : "Neposredno izbranim",
-    "Post to mentioned users only" : "Objavi le za omenjene uporabnike"
+    "Direct" : "Neposredno izbranim"
 },"pluralForm" :"nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);"
 }

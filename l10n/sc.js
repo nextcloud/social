@@ -73,12 +73,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dae chi ses nou in Sotziale, cumintza sighende su contu ufitziale de Nextcloud a manera chi non ti perdas is noas",
     "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz",
     "Public" : "Pùblicu",
-    "Post to public timelines" : "Cummenta in lìnias temporales pùblicas",
     "Unlisted" : "No elencadu",
-    "Do not post to public timelines" : "Non cummentes in lìnias temporales pùblicas",
     "Followers" : "Sighidores",
-    "Post to followers only" : "Cummenta isceti pro is sighidores",
-    "Direct" : "Deretu",
-    "Post to mentioned users only" : "Cummenta isceti pro is utentes mentovados"
+    "Direct" : "Deretu"
 },
 "nplurals=2; plural=(n != 1);");

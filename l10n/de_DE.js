@@ -36,7 +36,6 @@ OC.L10N.register(
     "Post publicly" : "Öffentlich posten",
     "Post to recipients" : "An Empfänger posten",
     "Post unlisted" : "Post wird nicht mehr aufgelistet",
-    "Change visibility" : "Sichtbarkeit ändern",
     "Unfollow" : "Entfolgen",
     "Follow" : "Folgen",
     "posts" : "Posts",
@@ -103,12 +102,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Sie sind neu bei Social, von daher empfehlen wir Ihnen dem Nextcloud-Konto zu folgen und so keine Neuigkeiten zu verpassen",
     "Follow Nextcloud on mastodon.xyz" : "Nextcloud auf mastodon.xyz folgen",
     "Public" : "Öffentlich",
-    "Post to public timelines" : "In öffentliche Zeitleisten posten",
     "Unlisted" : "Nicht aufgelistet",
-    "Do not post to public timelines" : "Nicht in öffentliche Zeitleisten posten",
     "Followers" : "Followers",
-    "Post to followers only" : "Nur an Follower posten",
-    "Direct" : "Direkt",
-    "Post to mentioned users only" : "Nur an erwähnte Benutzer posten"
+    "Direct" : "Direkt"
 },
 "nplurals=2; plural=(n != 1);");

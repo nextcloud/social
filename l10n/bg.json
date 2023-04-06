@@ -34,7 +34,6 @@
     "Post publicly" : "Публикувай ",
     "Post to recipients" : "Публикувах за получателите",
     "Post unlisted" : "Публикацията не е включена в списъка",
-    "Change visibility" : "Промяна на видимостта",
     "Unfollow" : "Не следвай",
     "Follow" : "Последвай",
     "posts" : "Публикации",
@@ -101,12 +100,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Понеже си нов потребител в Social, последвай официялният акаунт на  Nextcloud account, за да не пропуснеш новини от развитието на проекта",
     "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz",
     "Public" : "Публично",
-    "Post to public timelines" : "Публикуване в публични времеви линии",
     "Unlisted" : "Не е включено в списъка",
-    "Do not post to public timelines" : "Да не се публикува в публични времеви линии",
     "Followers" : "Последователи",
-    "Post to followers only" : "Публикувай само за последователите ти",
-    "Direct" : "Директно",
-    "Post to mentioned users only" : "Публикувай само към споменатите потребители"
+    "Direct" : "Директно"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

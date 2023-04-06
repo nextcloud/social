@@ -68,12 +68,8 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Þar sem þú ert nýr á samfélagsnetinu, byrjaðu þá á því að fylgjast með opinbera Nextcloud aðgangnum svo þú missir ekki af neinu fréttnæmu",
     "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz",
     "Public" : "Opinbert",
-    "Post to public timelines" : "Senda á opinberar tímalínur",
     "Unlisted" : "Óskráð",
-    "Do not post to public timelines" : "Ekki senda á opinberar tímalínur",
     "Followers" : "Fylgjendur",
-    "Post to followers only" : "Senda einungis á fylgjendur",
-    "Direct" : "Beint",
-    "Post to mentioned users only" : "Senda einungis á notendur sem minnst er á"
+    "Direct" : "Beint"
 },"pluralForm" :"nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);"
 }

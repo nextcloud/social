@@ -87,12 +87,8 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Preto, že ste nový na Social, začnite sledovať oficiálny účet Nextcloud, aby vám nič neušlo",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz",
     "Public" : "Verejné",
-    "Post to public timelines" : "Zverejniť na verejných časových osiach",
     "Unlisted" : "Skryto",
-    "Do not post to public timelines" : "Nezverejniť na verejných časových osiach",
     "Followers" : "Nasledovníci",
-    "Post to followers only" : "Príspevok iba pre sledovateľov",
-    "Direct" : "Priamo",
-    "Post to mentioned users only" : "Príspevok iba pre uvedených používateľov"
+    "Direct" : "Priamo"
 },
 "nplurals=4; plural=(n % 1 == 0 && n == 1 ? 0 : n % 1 == 0 && n >= 2 && n <= 4 ? 1 : n % 1 != 0 ? 2: 3);");
