@@ -1,7 +1,7 @@
 <template>
 	<div>
 		<h2>Social</h2>
-		<transition-group name="list" tag="div">
+		<transition-group name="list" tag="ul">
 			<TimelineEntry v-for="entry in timeline"
 				:key="entry.id"
 				:item="entry" />

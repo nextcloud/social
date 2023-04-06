@@ -1,5 +1,5 @@
 <template>
-	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']">
+	<li :class="['timeline-entry', hasHeader ? 'with-header' : '']">
 		<div v-if="isNotification" class="notification">
 			<Bell :size="22" />
 			<span class="notification-action">
@@ -30,7 +30,7 @@
 					:type="type" />
 			</div>
 		</template>
-	</div>
+	</li>
 </template>
 
 <script>
