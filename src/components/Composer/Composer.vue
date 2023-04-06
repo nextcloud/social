@@ -308,7 +308,7 @@ export default {
 			this.$refs.composerInput.innerHTML = `
 				<span class="mention" contenteditable="false">
 					<a href="${account.url}" target="_blank">
-						<img src="${!account.acct.includes('@') ? generateUrl(`/avatar/${account.username}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${account.acct}`)}"/>
+						<img src="${account.avatar}"/>
 						@${account.acct}
 					</a>
 				</span>&nbsp;`
