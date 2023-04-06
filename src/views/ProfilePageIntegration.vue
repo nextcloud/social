@@ -42,16 +42,14 @@ export default {
 	beforeMount() {
 		const uid = this.userId
 
-		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
-			this.accountInfo = response.data.result.account
+		axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${uid}`)).then(({ data }) => {
+			this.accountInfo = data
 			logger.log(this.accountInfo)
 		})
 
-		const since = Math.floor(Date.now() / 1000) + 1
-
-		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/stream?limit=25&since=${since}`)).then(({ data }) => {
+		axios.get(generateUrl(`apps/social/api/v1/accounts/${uid}/statuses`)).then(({ data }) => {
+			this.timeline = data
 			logger.log(this.timeline)
-			this.timeline = data.result
 		})
 	},
 }
