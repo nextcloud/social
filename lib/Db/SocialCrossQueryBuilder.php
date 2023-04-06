@@ -225,6 +225,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			 ->selectAlias($alias . '.media_type', $prefix . 'media_type')
 			 ->selectAlias($alias . '.url', $prefix . 'url')
 			 ->selectAlias($alias . '.local_copy', $prefix . 'local_copy')
+			 ->selectAlias($alias . '.resized_copy', $prefix . 'resized_copy')
 			 ->selectAlias($alias . '.caching', $prefix . 'caching')
 			 ->selectAlias($alias . '.public', $prefix . 'public')
 			 ->selectAlias($alias . '.error', $prefix . 'error')

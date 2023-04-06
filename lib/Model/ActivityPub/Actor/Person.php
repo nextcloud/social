@@ -43,6 +43,8 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Traits\TDetails;
+use OCP\IURLGenerator;
+use OCP\Server;
 
 /**
  * Class Actor
@@ -184,6 +186,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return string
 	 */
 	public function getAvatar(): string {
+		if ($this->hasIcon()) {
+			return $this->getIcon()
+						->getUrl();
+		}
+
 		return $this->avatar;
 	}
 
@@ -769,6 +776,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
+		if ($this->hasIcon()) {
+			$avatar = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
+		}
+
 		$details = $this->getDetailsAll();
 		$result =
 			[
@@ -783,10 +794,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'created_at' => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				'note' => $this->getDescription(),
 				'url' => $this->getId(),
-				'avatar' => $this->getAvatar(),
-				'avatar_static' => $this->getAvatar(),
-				'header' => $this->getHeader(),
-				'header_static' => $this->getHeader(),
+				'avatar' => $avatar ?? $this->getAvatar(),
+				'avatar_static' => $avatar ?? $this->getAvatar(),
+				'header' => $avatar ?? $this->getHeader(),
+				'header_static' => $avatar ?? $this->getHeader(),
 				'followers_count' => $this->getInt('count.followers', $details),
 				'following_count' => $this->getInt('count.following', $details),
 				'statuses_count' => $this->getInt('count.post', $details),

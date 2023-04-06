@@ -366,7 +366,29 @@ class Document extends ACore implements JsonSerializable {
 		return $result;
 	}
 
+
+	public function getMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
+		$mime = ($mime === '') ? '' : '.' . $mime;
+
+		return $urlGenerator->linkToRouteAbsolute(
+			'social.Api.mediaOpen',
+			['uuid' => $this->getLocalCopy() . $mime]
+		);
+	}
+
+	public function getResizedMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
+		$mime = ($mime === '') ? '' : '.' . $mime;
+
+		return $urlGenerator->linkToRouteAbsolute(
+			'social.Api.mediaOpen',
+			['uuid' => $this->getResizedCopy() . $mime]
+		);
+	}
+
+
 	/**
+	 * @param IURLGenerator|null $urlGenerator
+	 *
 	 * @return MediaAttachment
 	 */
 	public function convertToMediaAttachment(
@@ -381,24 +403,14 @@ class Document extends ACore implements JsonSerializable {
 		if (strpos($this->getMediaType(), '/')) {
 			[$type, $mime] = explode('/', $this->getMediaType(), 2);
 			$media->setType($type);
-			$mime = (strlen($mime) < 7) ? '.' . $mime : ''; // mime is ignored if too long.
 		}
 
 		if (!is_null($urlGenerator)) {
-			$media->setUrl(
-				$urlGenerator->linkToRouteAbsolute(
-					'social.Api.mediaOpen',
-					['uuid' => $this->getLocalCopy() . $mime]
-				)
-			);
-			$media->setPreviewUrl(
-				$urlGenerator->linkToRouteAbsolute(
-					'social.Api.mediaOpen',
-					['uuid' => $this->getResizedCopy() . $mime]
-				)
-			);
-			$media->setRemoteUrl($this->getUrl());
+			$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
+			$media->setPreviewUrl($this->getResizedMediaUrl($urlGenerator, $mime));
 		}
+
+		$media->setRemoteUrl($this->getUrl());
 
 		if ($this->getMeta() === null) {
 			$meta = new AttachmentMeta();
