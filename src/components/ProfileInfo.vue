@@ -27,7 +27,7 @@
 			:disable-tooltip="true"
 			:size="128" />
 		<NcAvatar v-else
-			:url="avatarUrl"
+			:url="accountInfo.avatar"
 			:disable-tooltip="true"
 			:size="128" />
 		<h2>{{ displayName }}</h2>
