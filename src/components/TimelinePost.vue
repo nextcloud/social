@@ -269,7 +269,6 @@ export default {
 		padding: 4px 8px;
 		font-size: 15px;
 		line-height: 1.6em;
-		position: relative;
 		border-radius: 8px;
 
 		::v-deep a.widget-default {
@@ -304,7 +303,7 @@ export default {
 			}
 
 			.post-visibility {
-				opacity: 0.5;
+				color: var(--color-text-lighter);
 				background-position: right;
 			}
 

@@ -43,11 +43,14 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang='scss'>
 .post-avatar {
-	position: relative;
 	padding: 5px 10px 10px 5px;
 	height: 52px;
 	width: 52px;
+
+	.avatardiv {
+		position: static;
+	}
 }
 </style>
