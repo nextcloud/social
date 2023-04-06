@@ -146,10 +146,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 */
 	public function parseCacheActorsSelectSql(array $data, SocialQueryBuilder $qb): Person {
 		$actor = new Person();
-		$actor->importFromDatabase($data);
 		$actor->setExportFormat($qb->getFormat());
-
-		$this->assignViewerLink($qb, $actor);
 
 		try {
 			$icon = $qb->parseLeftJoinCacheDocuments($data);
@@ -157,6 +154,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		} catch (InvalidResourceException $e) {
 		}
 
+		$actor->importFromDatabase($data);
+
+		$this->assignViewerLink($qb, $actor);
 		$this->assignDetails($actor, $data);
 
 		return $actor;
