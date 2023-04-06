@@ -357,7 +357,7 @@ class AccountService {
 		try {
 			$account = $this->accountManager->getAccount($user);
 			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
-			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
+			if ($displayNameProperty->getScope() === IAccountManager::SCOPE_PUBLISHED) {
 				$actor->setName($displayNameProperty->getValue());
 			}
 		} catch (Exception $e) {
