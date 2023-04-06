@@ -47,6 +47,7 @@ import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
 import NcDashboardWidget from '@nextcloud/vue/dist/Components/NcDashboardWidget.js'
 import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import { notificationSummary } from '../services/notifications.js'
 
 export default {
 	name: 'Dashboard',
@@ -121,25 +122,19 @@ export default {
 	},
 
 	methods: {
-		fetchNotifications() {
-			const req = {
-				params: {
-					limit: 10,
-				},
-			}
-			const url = generateUrl('/apps/social/api/v1/stream/notifications')
-			// TODO check why 'since' param is in fact 'until'
-			/* if (this.lastDate) {
-				req.params.since = this.lastTimestamp,
-			} */
-			axios.get(url, req).then((response) => {
-				if (response.data?.result) {
-					this.processNotifications(response.data.result)
+		async fetchNotifications() {
+			const url = generateUrl('apps/social/api/v1/notifications')
+
+			try {
+
+				const response = await axios.get(url)
+				if (response.data) {
+					this.processNotifications(response.data)
 					this.state = 'ok'
 				} else {
 					this.state = 'error'
 				}
-			}).catch((error) => {
+			} catch (error) {
 				clearInterval(this.loop)
 				if (error.response?.status && error.response.status >= 400) {
 					showError(t('social', 'Failed to get Social notifications'))
@@ -148,8 +143,9 @@ export default {
 					// there was an error in notif processing
 					console.error(error)
 				}
-			})
+			}
 		},
+		/** @param {import('../types/Mastodon.js').Notification[]} newNotifications */
 		processNotifications(newNotifications) {
 			if (this.lastTimestamp !== 0) {
 				// just add those which are more recent than our most recent one
@@ -166,55 +162,46 @@ export default {
 				this.notifications = this.filter(newNotifications)
 			}
 		},
+		/** @param {import('../types/Mastodon.js').Notification[]} notifications */
 		filter(notifications) {
 			return notifications
-			// TODO check if we need to filter
-			/* return notifications.filter((n) => {
-				return (n.type === 'something' || n.subtype === 'somethingElse')
-			}) */
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getMainText(n) {
-			if (n.subtype === 'Follow') {
-				return t('social', '{account} is following you', { account: this.getActorName(n) })
-			}
-			if (n.subtype === 'Like') {
-				return t('social', '{account} liked your post', { account: this.getActorName(n) })
-			}
+			return notificationSummary(n)
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getAvatarUrl(n) {
-			return undefined
-			// TODO get external and internal avatars
-			/* return this.getActorAccountName(n)
-				? generateUrl('???')
-				: undefined */
+			return n.account.avatar
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getActorName(n) {
-			return n.actor_info && n.actor_info.type === 'Person' && n.actor_info.preferredUsername
-				? n.actor_info.preferredUsername
-				: ''
+			return n.account.display_name
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getActorAccountName(n) {
-			return n.actor_info && n.actor_info.type === 'Person' && n.actor_info.account
-				? n.actor_info.account
-				: ''
+			return n.account.acct
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getNotificationTarget(n) {
-			if (n.subtype === 'Follow') {
+			if (n.type === 'follow') {
 				return generateUrl('/apps/social/@' + this.getActorAccountName(n) + '/')
 			}
 			return this.showMoreUrl
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getSubline(n) {
-			if (n.subtype === 'Follow') {
+			if (n.type === 'follow') {
 				return this.getActorAccountName(n)
 			}
-			if (n.subtype === 'Like') {
+			if (n.type === 'favourite') {
 				return this.getActorAccountName(n)
 			}
 			return ''
 		},
+		/** @param {import('../types/Mastodon.js').Notification} n */
 		getNotificationTypeImage(n) {
-			if (n.subtype === 'Follow') {
+			if (n.type === 'follow') {
 				return generateUrl('/svg/social/add_user')
 			}
 			return ''

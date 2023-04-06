@@ -208,10 +208,10 @@ export default {
 		getSinglePostTimeline(e) {
 			// Display internal or external post
 			if (!this.isLocal) {
+				// TODO - fix
 				if (this.type === 'Note') {
 					window.open(this.item.id)
 				} else if (this.type === 'Announce') {
-					// TODO
 					window.open(this.item.object)
 				} else {
 					logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })

@@ -34,11 +34,12 @@
 </template>
 
 <script>
+import Bell from 'vue-material-design-icons/Bell.vue'
+import { translate } from '@nextcloud/l10n'
 import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
-import Bell from 'vue-material-design-icons/Bell.vue'
-import { translate } from '@nextcloud/l10n'
+import { notificationSummary } from '../services/notifications.js'
 
 export default {
 	name: 'TimelineEntry',
@@ -102,30 +103,7 @@ export default {
 		 * @return {string}
 		 */
 		actionSummary() {
-			switch (this.notification.type) {
-			case 'mention':
-				return t('social', '{account} mentioned you', { account: this.notification.account.acct })
-			case 'status':
-				return t('social', '{account} posted a status', { account: this.notification.account.acct })
-			case 'reblog':
-				return t('social', '{account} boosted your post', { account: this.notification.account.acct })
-			case 'follow':
-				return t('social', '{account} started to follow you', { account: this.notification.account.acct })
-			case 'follow_request':
-				return t('social', '{account} requested to follow you', { account: this.notification.account.acct })
-			case 'favourite':
-				return t('social', '{account} liked your post', { account: this.notification.account.acct })
-			case 'poll':
-				return t('social', '{account} ended the poll', { account: this.notification.account.acct })
-			case 'update':
-				return t('social', '{account} edited a status', { account: this.notification.account.acct })
-			case 'admin.sign_up':
-				return t('social', '{account} signed up', { account: this.notification.account.acct })
-			case 'admin.report':
-				return t('social', '{account} filed a report', { account: this.notification.account.acct })
-			default:
-				return ''
-			}
+			return notificationSummary(this.notification)
 		},
 	},
 	methods: {
