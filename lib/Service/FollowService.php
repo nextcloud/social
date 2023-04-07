@@ -56,18 +56,19 @@ use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
 class FollowService {
 	use TArrayTools;
 
 
+	private IURLGenerator $urlGenerator;
 	private FollowsRequest $followsRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
-
 	private ?Person $viewer = null;
 
 
@@ -81,12 +82,14 @@ class FollowService {
 	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
+		IURLGenerator $urlGenerator,
 		FollowsRequest $followsRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
 		LoggerInterface $logger
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->followsRequest = $followsRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
@@ -250,8 +253,14 @@ class FollowService {
 	public function getFollowersCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
 		$collection->setId($actor->getFollowers());
-		$collection->setTotalItems(20);
-		$collection->setFirst('...');
+		$collection->setTotalItems($this->getInt('followers', $actor->getDetails('count')));
+
+		$first = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.followers',
+			['username' => $actor->getPreferredUsername()]
+		)
+				 . '?page=1';
+		$collection->setFirst($first);
 
 		return $collection;
 	}
@@ -276,9 +285,15 @@ class FollowService {
 	 */
 	public function getFollowingCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
-//		$collection->setId($actor->getFollowers());
-//		$collection->setTotalItems(20);
-//		$collection->setFirst('...');
+		$collection->setId($actor->getFollowing());
+		$collection->setTotalItems($this->getInt('following', $actor->getDetails('count')));
+
+		$first = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.following',
+			['username' => $actor->getPreferredUsername()]
+		)
+				 . '?page=1';
+		$collection->setFirst($first);
 
 		return $collection;
 	}
