@@ -75,6 +75,7 @@ OC.L10N.register(
     "Boost" : "轉嘟",
     "Like" : "喜歡",
     "Undo Like" : "還原喜歡",
+    "Choose a visibility" : "選擇能見度",
     "Go to Social app" : "前往 Social 應用程式",
     "Error getting Social notifications" : "取得 Social 通知時發生錯誤",
     "No Social notifications!" : "沒有 Social 通知！",
@@ -102,8 +103,12 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "因為您是「社交」新手，因此請先追蹤官方的 Nextcloud 帳號，這樣您就不會漏掉任何新聞",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上追蹤 Nextcloud",
     "Public" : "公開",
+    "Visible for all" : "所有人均可見",
     "Unlisted" : "不公開",
+    "Visible for all, but opted-out of discovery features" : "所有人均可見，但選擇退出探索功能",
     "Followers" : "追蹤者",
-    "Direct" : "直接"
+    "Visible to followers only" : "僅對追隨者可見",
+    "Direct" : "直接",
+    "Visible to mentioned users only" : "僅被提及的使用者可見"
 },
 "nplurals=1; plural=0;");

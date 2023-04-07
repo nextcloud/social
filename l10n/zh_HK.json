@@ -73,6 +73,7 @@
     "Boost" : "促進",
     "Like" : "贊",
     "Undo Like" : "還原喜歡",
+    "Choose a visibility" : "選擇可見性",
     "Go to Social app" : "前往 Social 應用程式",
     "Error getting Social notifications" : "獲取 Social 通知時出錯",
     "No Social notifications!" : "無 Social 通告！",
@@ -100,8 +101,12 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鑑於您剛來到 Social，請先關注 Nextcloud 官方賬戶，這樣您將不會錯過任何新聞",
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz 上關注 Nextcloud",
     "Public" : "公開",
+    "Visible for all" : "所有人均可看見",
     "Unlisted" : "不公開",
+    "Visible for all, but opted-out of discovery features" : "所有人可看見，但選擇退出發現功能",
     "Followers" : "僅關注者",
-    "Direct" : "私信"
+    "Visible to followers only" : "僅關注者可看見",
+    "Direct" : "私信",
+    "Visible to mentioned users only" : "僅被提及的用戶可看見"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

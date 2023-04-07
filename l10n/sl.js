@@ -28,6 +28,7 @@ OC.L10N.register(
     "Delete" : "Izbriši",
     "Post" : "Objavi",
     "Post to followers" : "Objavi sledilcem",
+    "Post to mentioned users" : "Objavi za omenjene uporabnike",
     "Post publicly" : "Objavi javno",
     "Post to recipients" : "Objavi prejemnikom",
     "Post unlisted" : "Objavi nenavedeno",

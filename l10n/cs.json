@@ -72,6 +72,7 @@
     "Boost" : "Přeposlat",
     "Like" : "Lajk",
     "Undo Like" : "Vzít zpět označení „To se mi líbí“",
+    "Choose a visibility" : "Zvolte viditelnost",
     "Go to Social app" : "Přejít do aplikace Social",
     "Error getting Social notifications" : "Chyba při získávání upozornění z aplikace Social",
     "No Social notifications!" : "Žádná upozornění z aplikace Social!",
@@ -99,8 +100,12 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Protože jste na Social noví, začněte sledováním oficiálního účtu Nextcloudu, aby vám nic neušlo.",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nexcloud na mastodon.xyz",
     "Public" : "Veřejně",
+    "Visible for all" : "Viditelné všem",
     "Unlisted" : "Skrytě",
+    "Visible for all, but opted-out of discovery features" : "Viditelné všem, ale vynecháno z funkcí objevování",
     "Followers" : "Sledujícím",
-    "Direct" : "Přímo"
+    "Visible to followers only" : "Viditelné pouze následovatelům",
+    "Direct" : "Přímo",
+    "Visible to mentioned users only" : "Viditelné pouze uživatelům, kteří jsou vysloveně zmíněni"
 },"pluralForm" :"nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n >= 2 && n <= 4 && n % 1 == 0) ? 1: (n % 1 != 0 ) ? 2 : 3;"
 }
