@@ -304,42 +304,43 @@ class FollowService {
 			$actorNids[$actor->getNid()] = $actor->getId();
 		}
 
-		$follows = $this->followsRequest->getFollows(array_values($actorNids));
 		foreach ($actorNids as $actorNid => $actorId) {
 			if ($actorNid === $this->viewer->getNid()) {
 				continue; // ignore current session
 			}
 
-			// might be resource heavy, need to be checked/optimized ?
-			$relationships[] = $this->generateRelationship($actorNid, $actorId, $follows);
+			$relationships[] = $this->generateRelationship($actorNid, $this->viewer->getId(), $actorId);
 		}
 
 		return $relationships;
 	}
 
 	/**
-	 * @param int $objectNid
-	 * @param string $objectId
-	 * @param Follow[] $follows
+	 * @param int $nid
+	 * @param string $viewerId
+	 * @param string $actorId
 	 *
 	 * @return Relationship
 	 */
-	private function generateRelationship(int $objectNid, string $objectId, array $follows): Relationship {
-		$relationship = new Relationship($objectNid);
+	private function generateRelationship(int $nid, string $viewerId, string $actorId): Relationship {
+		$relationship = new Relationship($nid);
 
-		foreach ($follows as $follow) {
-			if ($follow->getType() === Follow::TYPE) {
-				if ($follow->getObjectId() === $objectId) {
-					if ($follow->isAccepted()) {
-						$relationship->setFollowing(true);
-					} else {
-						$relationship->setRequested(true);
-					}
-				}
-				if ($follow->getActorId() === $objectId && $follow->isAccepted()) {
-					$relationship->setFollowedBy(true);
-				}
+		try {
+			$follow = $this->followsRequest->getByPersons($viewerId, $actorId);
+			if ($follow->isAccepted()) {
+				$relationship->setFollowing(true);
+			} else {
+				$relationship->setRequested(true);
 			}
+		} catch (FollowNotFoundException $e) {
+		}
+
+		try {
+			$follow = $this->followsRequest->getByPersons($actorId, $viewerId);
+			if ($follow->isAccepted()) {
+				$relationship->setFollowedBy(true);
+			}
+		} catch (FollowNotFoundException $e) {
 		}
 
 		return $relationship;

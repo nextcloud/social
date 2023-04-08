@@ -136,8 +136,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getByPersons(string $actorId, string $remoteActorId): Follow {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToActorId($qb, $actorId);
-		$this->limitToObjectId($qb, $remoteActorId);
+		$qb->limitToActorIdPrim($qb->prim($actorId));
+		$qb->limitToObjectIdPrim($qb->prim($remoteActorId));
 
 		return $this->getFollowFromRequest($qb);
 	}
