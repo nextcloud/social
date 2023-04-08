@@ -138,11 +138,6 @@ class FollowService {
 		$follow->setObjectId($remoteActor->getId());
 		$follow->setFollowId($remoteActor->getFollowers());
 
-		if ($remoteActor->isLocal()) {
-			// TODO: check user's setting about locked account/auto-accept followers
-			$follow->setAccepted(true);
-		}
-
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
 		} catch (FollowNotFoundException $e) {
