@@ -75,6 +75,7 @@ OC.L10N.register(
     "Boost" : "Yükselt",
     "Like" : "Beğen",
     "Undo Like" : "Beğenmeyi geri al",
+    "Choose a visibility" : "Bir görünürlük seçin",
     "Go to Social app" : "Sosyal ağ uygulamasına git",
     "Error getting Social notifications" : "Sosyal ağ bildirimleri alınırken sorun çıktı",
     "No Social notifications!" : "Herhangi bir Sosyal ağ bildirimi yok!",
@@ -102,8 +103,12 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Sosyal ağ kullanmaya yeni başladığınızdan, haberleri kaçırmamak için resmi Nextcloud hesabını takibe başlayın",
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyz üzerindeki Nextcloud hesabını takip et",
     "Public" : "Herkese açık",
+    "Visible for all" : "Herkese görünür",
     "Unlisted" : "Listelenmemiş",
+    "Visible for all, but opted-out of discovery features" : "Herkese görünür ancak keşif özellikleri kullanılamaz",
     "Followers" : "Takipçiler",
-    "Direct" : "Doğrudan"
+    "Visible to followers only" : "Yalnızca takipçilere görüntülenir",
+    "Direct" : "Doğrudan",
+    "Visible to mentioned users only" : "Yalnızca anılan kullanıcılara görüntülenir"
 },
 "nplurals=2; plural=(n > 1);");

@@ -75,6 +75,7 @@ OC.L10N.register(
     "Boost" : "Refuerzo",
     "Like" : "Me gusta",
     "Undo Like" : "Deshacer Me gusta",
+    "Choose a visibility" : "Seleccione su visibilidad",
     "Go to Social app" : "Ir a la app Social",
     "Error getting Social notifications" : "Error obteniendo las notificaciones Social",
     "No Social notifications!" : "¡No hay notificaciones de Social!",
@@ -102,8 +103,12 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Dado que es eres nuevo en Social, empieza siguiendo la cuenta oficial de Nextcloud para no perderte ninguna noticia",
     "Follow Nextcloud on mastodon.xyz" : "Seguir a Nextcloud en mastodon.xyz",
     "Public" : "Público",
+    "Visible for all" : "Visible para todos",
     "Unlisted" : "Sin listar",
+    "Visible for all, but opted-out of discovery features" : "Visible para todos, pero excluyendo las características de descubrimiento",
     "Followers" : "Seguidores",
-    "Direct" : "Directo"
+    "Visible to followers only" : "Visible únicamente para seguidores",
+    "Direct" : "Directo",
+    "Visible to mentioned users only" : "Visible únicamente para usuarios mencionados"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
