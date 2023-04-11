@@ -305,11 +305,17 @@ export default {
 				return
 			}
 
+			let handle = account.acct
+
+			if (!handle.includes('@')) {
+				handle += `@${this.hostname}`
+			}
+
 			this.$refs.composerInput.innerHTML = `
 				<span class="mention" contenteditable="false">
 					<a href="${account.url}" target="_blank">
 						<img src="${account.avatar}"/>
-						@${account.acct}
+						@${handle}
 					</a>
 				</span>&nbsp;`
 			this.updateStatusContent()
