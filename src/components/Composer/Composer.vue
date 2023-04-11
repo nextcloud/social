@@ -378,7 +378,7 @@ export default {
 			this.updateStatusContent()
 		},
 		keyup(event) {
-			if (event.shiftKey || event.ctrlKey) {
+			if (event.ctrlKey) {
 				this.createPost(event)
 			}
 		},
