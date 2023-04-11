@@ -695,7 +695,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$result = [
 			'id' => (string)$this->getNid(),
 			'type' => $type,
-			'created_at' => $this->getOriginCreationTime(),
+			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'status' => $status,
 		];
 
