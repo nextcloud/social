@@ -31,16 +31,19 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
+use OCA\Social\Dashboard\SocialWidget;
+use OCA\Social\Listeners\DeprecatedListener;
+use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\WellKnown\WebfingerHandler;
-use OCA\Social\Listeners\ProfileSectionListener;
-use OCA\Social\Dashboard\SocialWidget;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IUser;
 use OCP\Profile\BeforeTemplateRenderedEvent;
+use Symfony\Component\EventDispatcher\GenericEvent;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -61,11 +64,25 @@ class Application extends App implements IBootstrap {
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 		$context->registerDashboardWidget(SocialWidget::class);
+
+		$this->registerDeprecatedListener();
 	}
 
 	public function boot(IBootContext $context): void {
 		$manager = $context->getServerContainer()
 						   ->getNotificationManager();
 		$manager->registerNotifierService(Notifier::class);
+	}
+
+
+	public function registerDeprecatedListener(): void {
+		$dispatcher = \OC::$server->getEventDispatcher();
+		$dispatcher->addListener('OC\AccountManager::userUpdated', function (GenericEvent $event) {
+			/** @var IUser $user */
+			$user = $event->getSubject();
+			/** @var DeprecatedListener $deprecatedListener */
+			$deprecatedListener = \OC::$server->get(DeprecatedListener::class);
+			$deprecatedListener->userAccountUpdated($user);
+		});
 	}
 }
