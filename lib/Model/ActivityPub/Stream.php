@@ -43,6 +43,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\IQueryRow;
@@ -661,11 +662,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 
 	public function exportAsNotification(): array {
+		// TODO - implements:
+		// status = Someone you enabled notifications for has posted a status
+		// follow_request = Someone requested to follow you
+		// poll = A poll you have voted in or created has ended
+		// update = A status you boosted with has been edited
 		switch ($this->getSubType()) {
 			case Like::TYPE:
 				$type = 'favourite';
 				break;
 			case Announce::TYPE:
+				$type = 'reblog';
+				break;
+			case Mention::TYPE:
 				$type = 'mention';
 				break;
 			case Follow::TYPE:

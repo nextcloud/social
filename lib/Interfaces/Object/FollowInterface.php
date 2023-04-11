@@ -185,8 +185,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 */
 	private function generateNotification(Follow $follow): void {
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface =
-			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$follower = $this->cacheActorService->getFromId($follow->getActorId());
