@@ -197,13 +197,12 @@ export default {
 								+ '</div>'
 						},
 						selectTemplate(item) {
-							return `
-								<span class="mention" contenteditable="false">
-									<a href="${item.original.url}" target="_blank">
-										<img src="${item.original.avatar}"/>
-										@${item.original.value}
-									</a>
-								</span>`
+							return '<span class="mention" contenteditable="false">'
+									+ `<a href="${item.original.url}" target="_blank">`
+										+ `<img src="${item.original.avatar}"/>`
+										+ `@${item.original.value}`
+									+ '</a>'
+								+ '</span>&nbsp;'
 						},
 						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
@@ -311,13 +310,13 @@ export default {
 				handle += `@${this.hostname}`
 			}
 
-			this.$refs.composerInput.innerHTML = `
-				<span class="mention" contenteditable="false">
-					<a href="${account.url}" target="_blank">
-						<img src="${account.avatar}"/>
-						@${handle}
-					</a>
-				</span>&nbsp;`
+			this.$refs.composerInput.innerHTML
+				= '<span class="mention" contenteditable="false">'
+					+ `<a href="${account.url}" target="_blank">`
+						+ `<img src="${account.avatar}"/>`
+						+ `@${handle}`
+					+ '</a>'
+				+ '</span>&nbsp;'
 			this.updateStatusContent()
 		},
 		updateStatusContent() {
