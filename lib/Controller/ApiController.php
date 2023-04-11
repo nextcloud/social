@@ -247,7 +247,7 @@ class ApiController extends Controller {
 			$status->import($this->convertInput($input));
 
 			$post = new Post($this->accountService->getActorFromUserId($this->currentSession()));
-			$post->setContent($status->getStatus());
+			$post->setContent(nl2br($status->getStatus()));
 			$post->setType($status->getVisibility());
 
 			if (!empty($status->getMediaIds())) {
