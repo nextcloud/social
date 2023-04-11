@@ -45,6 +45,7 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -65,7 +66,7 @@ use Psr\Log\LoggerInterface;
 class CacheActorService {
 	use TArrayTools;
 
-	private \OCP\IURLGenerator $urlGenerator;
+	private IURLGenerator $urlGenerator;
 	private ActorsRequest $actorsRequest;
 	private CacheActorsRequest $cacheActorsRequest;
 	private CurlService $curlService;
@@ -306,6 +307,68 @@ class CacheActorService {
 
 
 	/**
+	 * @return int
+	 * @throws Exception
+	 */
+	public function manageDetailsRemoteActors(bool $force = false): int {
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdateDetails($force);
+
+		// WARNING: risk of race condition if something else update details on remote actor.
+		// Any details update on remote cache-actor must be managed from here.
+		foreach ($update as $item) {
+			try {
+				$this->addRemoteActorDetailCount($item);
+				$this->cacheActorsRequest->updateDetails($item);
+			} catch (Exception $e) {
+			}
+		}
+
+		return sizeof($update);
+	}
+
+
+	public function addRemoteActorDetailCount(Person $actor): void {
+		try {
+			$followers = $this->getCollectionFromId($actor->getFollowers());
+			$following = $this->getCollectionFromId($actor->getFollowing());
+			$outbox = $this->getCollectionFromId($actor->getOutbox());
+		} catch (InvalidResourceException $e) {
+			return;
+		}
+
+		$count = [
+			'followers' => $followers->getTotalItems(),
+			'following' => $following->getTotalItems(),
+			'post' => $outbox->getTotalItems()
+		];
+		$actor->setDetailArray('count', $count);
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return OrderedCollection
+	 * @throws InvalidResourceException
+	 */
+	private function getCollectionFromId(string $id): OrderedCollection {
+		try {
+			$object = $this->curlService->retrieveObject($id);
+			/** @var OrderedCollection $collection */
+			$collection = AP::$activityPub->getItemFromData($object);
+		} catch (Exception $e) {
+			throw new InvalidResourceException();
+		}
+
+		if ($collection->getType() !== OrderedCollection::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		return $collection;
+	}
+
+
+	/**
 	 * @param Person $actor
 	 *
 	 * @throws ItemAlreadyExistsException
@@ -342,7 +405,7 @@ class CacheActorService {
 	}
 
 
-	public function getFromNids(array $ids):array {
+	public function getFromNids(array $ids): array {
 		return $this->cacheActorsRequest->getFromNids($ids);
 	}
 }

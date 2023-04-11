@@ -115,6 +115,7 @@ class CoreRequestBuilder {
 			'public_key',
 			'source',
 			'details',
+			'details_update',
 			'creation'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [

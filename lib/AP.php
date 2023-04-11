@@ -31,6 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social;
 
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
@@ -303,6 +304,10 @@ class AP {
 
 			case Note::TYPE:
 				$item = new Note();
+				break;
+
+			case OrderedCollection::TYPE:
+				$item = new OrderedCollection();
 				break;
 
 			case SocialAppNotification::TYPE:

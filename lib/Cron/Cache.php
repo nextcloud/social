@@ -87,6 +87,11 @@ class Cache extends TimedJob {
 		}
 
 		try {
+			$this->cacheActorService->manageDetailsRemoteActors();
+		} catch (Exception $e) {
+		}
+
+		try {
 			$this->documentService->manageCacheDocuments();
 		} catch (Exception $e) {
 		}

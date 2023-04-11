@@ -896,6 +896,12 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 				'notnull' => false,
 			]
 		);
+		$table->addColumn(
+			'details_update', Types::DATETIME,
+			[
+				'notnull' => false,
+			]
+		);
 
 		$table->setPrimaryKey(['nid']);
 		$table->addUniqueIndex(['id_prim']);

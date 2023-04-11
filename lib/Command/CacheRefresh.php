@@ -85,6 +85,9 @@ class CacheRefresh extends Base {
 		$result = $this->cacheActorService->manageCacheRemoteActors($input->getOption('force'));
 		$output->writeLn($result . ' remote accounts updated');
 
+		$result = $this->cacheActorService->manageDetailsRemoteActors($input->getOption('force'));
+		$output->writeLn($result . ' remote accounts details updated');
+
 		$result = $this->documentService->manageCacheDocuments();
 		$output->writeLn($result . ' documents cached');
 

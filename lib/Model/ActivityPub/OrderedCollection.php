@@ -76,6 +76,9 @@ class OrderedCollection extends ACore implements JsonSerializable {
 
 	public function import(array $data): self {
 		parent::import($data);
+		$this->setFirst($this->validate(ACore::AS_USERNAME, 'first', $data, ''))
+			 ->setLast($this->validate(ACore::AS_USERNAME, 'last', $data, ''))
+			 ->setTotalItems($this->getInt('totalItems', $data));
 
 		return $this;
 	}
