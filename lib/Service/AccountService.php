@@ -299,7 +299,7 @@ class AccountService {
 			try {
 				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 				$actor->setIconId($iconId);
-			} catch (ItemUnknownException $e) {
+			} catch (ItemUnknownException | ItemAlreadyExistsException $e) {
 			}
 
 			$this->addLocalActorDetailCount($actor);
