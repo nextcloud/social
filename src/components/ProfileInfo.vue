@@ -31,20 +31,19 @@
 			:disable-tooltip="true"
 			:size="128" />
 		<h2>{{ displayName }}</h2>
-		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<ul v-if="isLocal" class="user-profile__info user-profile__sections">
+		<ul class="user-profile__info user-profile__sections">
 			<li>
-				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
+				<router-link :class="{ disabled: !isLocal }" :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
 					{{ accountInfo.statuses_count }} {{ t('social', 'posts') }}
 				</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">
+				<router-link :class="{ disabled: !isLocal }" :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">
 					{{ accountInfo.following_count }}  {{ t('social', 'following') }}
 				</router-link>
 			</li>
 			<li>
-				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">
+				<router-link :class="{ disabled: !isLocal }" :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">
 					{{ accountInfo.followers_count }}  {{ t('social', 'followers') }}
 				</router-link>
 			</li>
@@ -58,7 +57,7 @@
 		</p>
 
 		<!-- Hack to render note safely -->
-		<MessageContent v-if="accountInfo.note" class="user-profile__note" :item="{content: accountInfo.note, tag: [], mentions: []}" />
+		<MessageContent v-if="accountInfo.note" class="user-profile__note user-profile__info" :item="{content: accountInfo.note, tag: [], mentions: []}" />
 
 		<FollowButton class="user-profile__info" :account="accountInfo.acct" :uid="uid" />
 		<NcButton v-if="serverData.public"
@@ -183,6 +182,14 @@ export default {
 					&:focus {
 						opacity: 1;
 						border-bottom: 1px solid var(--color-main-text);
+					}
+
+					&.disabled {
+						opacity: 1;
+						border-bottom: none;
+						text-decoration: none;
+						cursor: auto;
+						pointer-events: none;
 					}
 				}
 			}
