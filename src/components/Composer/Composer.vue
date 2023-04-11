@@ -197,13 +197,12 @@ export default {
 								+ '</div>'
 						},
 						selectTemplate(item) {
-							return `
-								<span class="mention" contenteditable="false">
-									<a href="${item.original.url}" target="_blank">
-										<img src="${item.original.avatar}"/>
-										@${item.original.value}
-									</a>
-								</span>`
+							return '<span class="mention" contenteditable="false">'
+									+ `<a href="${item.original.url}" target="_blank">`
+										+ `<img src="${item.original.avatar}"/>`
+										+ `@${item.original.value}`
+									+ '</a>'
+								+ '</span>&nbsp;'
 						},
 						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
@@ -305,13 +304,19 @@ export default {
 				return
 			}
 
-			this.$refs.composerInput.innerHTML = `
-				<span class="mention" contenteditable="false">
-					<a href="${account.url}" target="_blank">
-						<img src="${account.avatar}"/>
-						@${account.acct}
-					</a>
-				</span>&nbsp;`
+			let handle = account.acct
+
+			if (!handle.includes('@')) {
+				handle += `@${this.hostname}`
+			}
+
+			this.$refs.composerInput.innerHTML
+				= '<span class="mention" contenteditable="false">'
+					+ `<a href="${account.url}" target="_blank">`
+						+ `<img src="${account.avatar}"/>`
+						+ `@${handle}`
+					+ '</a>'
+				+ '</span>&nbsp;'
 			this.updateStatusContent()
 		},
 		updateStatusContent() {
@@ -486,10 +491,16 @@ export default {
 	padding: 5px;
 	padding-left: 30px;
 
+	.avatardiv {
+		margin: 0 4px;
+		margin-block-start: 2px;
+	}
+
 	.reply-info {
 		display: flex;
 		align-items: center;
 	}
+
 	.close-button {
 		margin-left: auto;
 		opacity: .7;
