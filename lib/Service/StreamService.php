@@ -42,6 +42,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
@@ -52,8 +53,13 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
 
 class StreamService {
+	use TArrayTools;
+
+	private IUrlGenerator $urlGenerator;
 	private StreamRequest $streamRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
@@ -61,20 +67,14 @@ class StreamService {
 
 	private const ANCESTOR_LIMIT = 5;
 
-	/**
-	 * NoteService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param ActivityService $activityService
-	 * @param CacheActorService $cacheActorService
-	 * @param ConfigService $configService
-	 */
 	public function __construct(
+		IUrlGenerator $urlGenerator,
 		StreamRequest $streamRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
@@ -282,8 +282,6 @@ class StreamService {
 	}
 
 
-
-
 	/**
 	 * @param Note $note
 	 * @param string $replyTo
@@ -403,7 +401,11 @@ class StreamService {
 	 * @throws StreamNotFoundException
 	 * @throws DateTimeException
 	 */
-	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false
+	public function getRepliesByParentId(
+		string $id,
+		int $since = 0,
+		int $limit = 5,
+		bool $asViewer = false
 	): array {
 		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
@@ -562,5 +564,27 @@ class StreamService {
 		$note = $this->streamRequest->getStreamById($noteId);
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return OrderedCollection
+	 */
+	public function getOutboxCollection(Person $actor): OrderedCollection {
+		$collection = new OrderedCollection();
+		$collection->setId($actor->getOutbox());
+		$collection->setTotalItems($this->getInt('post', $actor->getDetails('count')));
+
+		$link = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.outbox',
+			['username' => $actor->getPreferredUsername()]
+		);
+
+		$collection->setFirst($link . '?page=1');
+		$collection->setLast($link . '?page=1&min_id=0');
+
+		return $collection;
 	}
 }

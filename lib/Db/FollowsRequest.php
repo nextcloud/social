@@ -223,6 +223,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
 
+		// TODO: pagination
+
 		return $this->getFollowsFromRequest($qb);
 	}
 
