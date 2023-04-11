@@ -33,13 +33,17 @@ import logger from '../services/logger.js'
 
 const state = {
 	/**
-	 * @type {Object<string, import('../types/Mastodon.js').Status>} timeline - The posts' collection
+	 * @type {Object<string, import('../types/Mastodon.js').Status>} List of locally known statuses
 	 */
-	timeline: {},
+	statuses: {},
 	/**
-	 * @type {Object<string, import('../types/Mastodon.js').Status>} timeline - The parents posts' collection
+	 * @type {string[]} timeline - The statuses' collection
 	 */
-	parentsTimeline: {},
+	timeline: [],
+	/**
+	 * @type {string[]} parentsTimeline - The parents statuses' collection
+	 */
+	parentsTimeline: [],
 	/**
 	 * @type {string} type - Timeline's type: 'home', 'single-post',...
 	 */
@@ -49,6 +53,7 @@ const state = {
 	 * @property {string} params.account ???
 	 * @property {string} params.id
 	 * @property {string} params.type ???
+	 * @property {string?} params.singlePost ???
 	 */
 	params: {},
 	/**
@@ -68,41 +73,61 @@ const state = {
 const mutations = {
 	/**
 	 * @param state
-	 * @param {import ('../types/Mastodon.js').Status[]|import('../types/Mastodon.js').Context} data
+	 * @param {import ('../types/Mastodon.js').Status} status
 	 */
-	addToTimeline(state, data) {
-		if (Array.isArray(data)) {
-			data.forEach((post) => Vue.set(state.timeline, post.id, post))
-		} else {
-			data.descendants.forEach((post) => Vue.set(state.timeline, post.id, post))
-			data.ancestors.forEach((post) => Vue.set(state.parentsTimeline, post.id, post))
-		}
+	addToStatuses(state, status) {
+		Vue.set(state.statuses, status.id, status)
 	},
 	/**
 	 * @param state
 	 * @param {import ('../types/Mastodon.js').Status[]|import('../types/Mastodon.js').Context} data
 	 */
-	updateInTimelines(state, data) {
-		data.forEach((post) => {
-			if (state.timeline[post.id] !== undefined) {
-				Vue.set(state.timeline, post.id, post)
-			}
+	addToTimeline(state, data) {
+		if (Array.isArray(data)) {
+			data.forEach(status => Vue.set(state.statuses, status.id, status))
+			data
+				.filter(status => state.timeline.indexOf(status.id) === -1)
+				.forEach(status => state.timeline.push(status.id))
+		} else {
+			data.descendants.forEach(status => Vue.set(state.statuses, status.id, status))
+			data.ancestors.forEach(status => Vue.set(state.statuses, status.id, status))
 
-			if (state.parentsTimeline[post.id] !== undefined) {
-				Vue.set(state.parentsTimeline, post.id, post)
+			data.descendants
+				.filter(status => state.timeline.indexOf(status.id) === -1)
+				.forEach(status => state.timeline.push(status.id))
+			data.ancestors
+				.filter(status => state.parentsTimeline.indexOf(status.id) === -1)
+				.forEach(status => state.parentsTimeline.push(status.id))
+		}
+	},
+	/**
+	 * @param state
+	 * @param {import ('../types/Mastodon.js').Status[]} data
+	 */
+	updateInTimelines(state, data) {
+		data.forEach((status) => {
+			if (state.statuses[status.id] !== undefined) {
+				Vue.set(state.statuses, status.id, status)
 			}
 		})
 	},
 	/**
 	 * @param state
-	 * @param {import('../types/Mastodon.js').Status} post
+	 * @param {import('../types/Mastodon.js').Status} status
 	 */
-	removePost(state, post) {
-		Vue.delete(state.timeline, post.id)
+	removeStatusf(state, status) {
+		const timelineIndex = state.timeline.indexOf(status.id)
+		if (timelineIndex !== -1) {
+			state.timeline.splice(timelineIndex, 1)
+		}
+		const parentsTimelineIndex = state.parentsTimeline.indexOf(status.id)
+		if (timelineIndex !== -1) {
+			state.parentsTimeline.splice(parentsTimelineIndex, 1)
+		}
 	},
 	resetTimeline(state) {
-		state.timeline = {}
-		state.parentsTimeline = {}
+		state.timeline = []
+		state.parentsTimeline = []
 	},
 	/**
 	 * @param state
@@ -131,53 +156,41 @@ const mutations = {
 	/**
 	 * @param state
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	likePost(state, { post }) {
-		if (state.timeline[post.id] !== undefined) {
-			Vue.set(state.timeline[post.id], 'favourited', true)
-		}
-		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
-			Vue.set(state.timeline[post.reblog.id], 'favourited', true)
+	likeStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			Vue.set(state.statuses[status.id], 'favourited', true)
 		}
 	},
 	/**
 	 * @param state
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	unlikePost(state, { post }) {
-		if (state.timeline[post.id] !== undefined) {
-			Vue.set(state.timeline[post.id], 'favourited', false)
-		}
-		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
-			Vue.set(state.timeline[post.reblog.id], 'favourited', false)
+	unlikeStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			Vue.set(state.statuses[status.id], 'favourited', false)
 		}
 	},
 	/**
 	 * @param state
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	boostPost(state, { post }) {
-		if (state.timeline[post.id] !== undefined) {
-			Vue.set(state.timeline[post.id], 'reblogged', true)
-		}
-		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
-			Vue.set(state.timeline[post.reblog.id], 'reblogged', true)
+	boostStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			Vue.set(state.statuses[status.id], 'reblogged', true)
 		}
 	},
 	/**
 	 * @param state
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	unboostPost(state, { post }) {
-		if (state.timeline[post.id] !== undefined) {
-			Vue.set(state.timeline[post.id], 'reblogged', false)
-		}
-		if (post.reblog !== null && state.timeline[post.reblog.id] !== undefined) {
-			Vue.set(state.timeline[post.reblog.id], 'reblogged', false)
+	unboostStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			Vue.set(state.statuses[status.id], 'reblogged', false)
 		}
 	},
 }
@@ -188,23 +201,24 @@ const getters = {
 		return state.composerDisplayStatus
 	},
 	getTimeline(state) {
-		return Object.values(state.timeline).sort(function (a, b) {
-			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-		})
+		return state.timeline
+			.map(statusId => state.statuses[statusId])
+			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 	},
 	getParentsTimeline(state) {
-		return Object.values(state.parentsTimeline).sort(function (a, b) {
-			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-		})
+		return state.parentsTimeline
+			.map(statusId => state.statuses[statusId])
+			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+	},
+	getSinglePost(state) {
+		return state.statuses[state.params.singlePost]
 	},
 	getPostFromTimeline(state) {
-		return (postId) => {
-			if (state.timeline[postId] !== undefined) {
-				return state.timeline[postId]
-			} else if (state.parentsTimeline[postId] !== undefined) {
-				return state.parentsTimeline[postId]
+		return (/** @type {string} */ statusId) => {
+			if (state.statuses[statusId] !== undefined) {
+				return state.statuses[statusId]
 			} else {
-				logger.warn('Could not find post in timeline', { postId })
+				logger.warn('Could not find status in timeline', { statusId })
 			}
 		}
 	},
@@ -249,108 +263,108 @@ const actions = {
 	},
 	/**
 	 * @param context
-	 * @param {import('../types/Mastodon.js').Status} post
+	 * @param {import('../types/Mastodon.js').Status} status
 	 */
-	async post(context, post) {
+	async post(context, status) {
 		try {
-			const { data } = await axios.post(generateUrl('apps/social/api/v1/statuses'), post)
+			const { data } = await axios.post(generateUrl('apps/social/api/v1/statuses'), status)
 			logger.info('Post created', data.id)
 		} catch (error) {
-			showError('Failed to create a post')
-			logger.error('Failed to create a post', { error })
+			showError('Failed to create a status')
+			logger.error('Failed to create a status', { error })
 		}
 	},
 	/**
 	 * @param context
-	 * @param {import('../types/Mastodon.js').Status} post
+	 * @param {import('../types/Mastodon.js').Status} status
 	 */
-	async postDelete(context, post) {
+	async postDelete(context, status) {
 		try {
-			context.commit('removePost', post)
-			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.uri}`))
+			context.commit('removeStatusf', status)
+			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${status.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
 		} catch (error) {
-			context.commit('updateInTimelines', [post])
-			showError('Failed to delete the post')
-			logger.error('Failed to delete the post', { error })
+			context.commit('updateInTimelines', [status])
+			showError('Failed to delete the status')
+			logger.error('Failed to delete the status', { error })
 		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	async postLike(context, { post }) {
+	async postLike(context, { status }) {
 		try {
-			context.commit('likePost', { post })
-			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/favourite`))
+			context.commit('likeStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/favourite`))
 			logger.info('Post liked')
 			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
-			context.commit('unlikePost', { post })
-			showError('Failed to like post')
-			logger.error('Failed to like post', { error })
+			context.commit('unlikeStatus', { status })
+			showError('Failed to like status')
+			logger.error('Failed to like status', { error })
 		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	async postUnlike(context, { post }) {
+	async postUnlike(context, { status }) {
 		try {
-			// Remove post from list if we are in the 'liked' timeline
+			// Remove status from list if we are in the 'liked' timeline
 			if (state.type === 'liked') {
-				context.commit('removePost', post)
+				context.commit('removeStatusf', status)
 			}
-			context.commit('unlikePost', { post })
-			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/unfavourite`))
+			context.commit('unlikeStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unfavourite`))
 			logger.info('Post unliked')
 			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
-			// Readd post from list if we are in the 'liked' timeline
+			// Readd status from list if we are in the 'liked' timeline
 			if (state.type === 'liked') {
-				context.commit('addToTimeline', [post])
+				context.commit('addToTimeline', [status])
 			}
-			context.commit('likePost', { post })
-			showError('Failed to unlike post')
-			logger.error('Failed to unlike post', { error })
+			context.commit('likeStatus', { status })
+			showError('Failed to unlike status')
+			logger.error('Failed to unlike status', { error })
 		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	async postBoost(context, { post }) {
+	async postBoost(context, { status }) {
 		try {
-			context.commit('boostPost', { post })
-			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/reblog`))
+			context.commit('boostStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/reblog`))
 			logger.info('Post boosted')
 			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
-			context.commit('unboostPost', { post })
-			showError('Failed to create a boost post')
-			logger.error('Failed to create a boost post', { error })
+			context.commit('unboostStatus', { status })
+			showError('Failed to create a boost status')
+			logger.error('Failed to create a boost status', { error })
 		}
 	},
 	/**
 	 * @param context
 	 * @param {object} root0
-	 * @param {import('../types/Mastodon.js').Status} root0.post
+	 * @param {import('../types/Mastodon.js').Status} root0.status
 	 */
-	async postUnBoost(context, { post }) {
+	async postUnBoost(context, { status }) {
 		try {
-			context.commit('unboostPost', { post })
-			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/unreblog`))
+			context.commit('unboostStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unreblog`))
 			logger.info('Boost deleted')
 			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
-			context.commit('boostPost', { post })
+			context.commit('boostStatus', { status })
 			showError('Failed to delete the boost')
 			logger.error('Failed to delete the boost', { error })
 		}
@@ -377,27 +391,27 @@ const actions = {
 		// Compute URL to get the data
 		let url = ''
 		switch (state.type) {
-			case 'account':
-				url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
-				break
-			case 'tags':
-				url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
-				break
-			case 'single-post':
-				url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
-				break
-			case 'timeline':
-				url = generateUrl('apps/social/api/v1/timelines/public')
-				params.local = true
-				break
-			case 'federated':
-				url = generateUrl('apps/social/api/v1/timelines/public')
-				break
-			case 'notifications':
-				url = generateUrl('apps/social/api/v1/notifications')
-				break
-			default:
-				url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
+		case 'account':
+			url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
+			break
+		case 'tags':
+			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
+			break
+		case 'single-post':
+			url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
+			break
+		case 'timeline':
+			url = generateUrl('apps/social/api/v1/timelines/public')
+			params.local = true
+			break
+		case 'federated':
+			url = generateUrl('apps/social/api/v1/timelines/public')
+			break
+		case 'notifications':
+			url = generateUrl('apps/social/api/v1/notifications')
+			break
+		default:
+			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
 		}
 
 		// Get the data and add them to the timeline

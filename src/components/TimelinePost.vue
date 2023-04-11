@@ -236,7 +236,7 @@ export default {
 		},
 		boost() {
 			const params = {
-				post: this.item,
+				status: this.item,
 				parentAnnounce: this.reblog,
 			}
 			if (this.isBoosted) {
@@ -250,7 +250,7 @@ export default {
 		},
 		like() {
 			const params = {
-				post: this.item,
+				status: this.item,
 				parentAnnounce: this.reblog,
 			}
 			if (this.isLiked) {
