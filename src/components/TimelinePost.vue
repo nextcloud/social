@@ -14,16 +14,16 @@
 					</span>
 				</router-link>
 			</div>
-			<VisibilityIcon v-if="visibility"
-				:title="visibility.text"
-				class="post-visibility"
-				:visibility="visibility.id" />
 			<a :data-timestamp="timestamp"
 				class="post-timestamp live-relative-timestamp"
 				:title="formattedDate"
 				@click="getSinglePostTimeline">
 				{{ relativeTimestamp }}
 			</a>
+			<VisibilityIcon v-if="visibility"
+				:title="visibility.text"
+				class="post-visibility"
+				:visibility="visibility.id" />
 		</div>
 		<div v-if="item.content" class="post-message">
 			<MessageContent :item="item" />
@@ -208,24 +208,18 @@ export default {
 		getSinglePostTimeline(e) {
 			// Display internal or external post
 			if (!this.isLocal) {
-				// TODO - fix
-				if (this.type === 'Note') {
-					window.open(this.item.id)
-				} else if (this.type === 'Announce') {
-					window.open(this.item.object)
-				} else {
-					logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
-				}
-			} else {
-				this.$router.push({
-					name: 'single-post',
-					params: {
-						account: this.item.account.display_name,
-						id: this.item.id,
-						type: 'single-post',
-					},
-				})
+				logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
+				return
 			}
+
+			this.$router.push({
+				name: 'single-post',
+				params: {
+					account: this.item.account.display_name,
+					id: this.item.id,
+					type: 'single-post',
+				},
+			})
 		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
