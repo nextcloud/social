@@ -1,9 +1,23 @@
 <template>
-	<component :is="element" :class="['timeline-entry', hasHeader ? 'with-header' : '']">
-		<div v-if="isNotification" class="notification">
-			<Bell :size="22" />
-			<span class="notification-action">
+	<component :is="element" class="timeline-entry" :class="{ 'notification': isNotification, 'with-header': hasHeader }">
+		<div v-if="isNotification" class="notification__header">
+			<span class="notification__summary">
+				<img :src="notification.account.avatar">
+				<Heart v-if="notification.type === 'favourite'" :size="16" />
+				<Repeat v-if="notification.type === 'reblog'" :size="16" />
 				{{ actionSummary }}
+			</span>
+			<span class="notification__details">
+				<router-link :to="{ name: 'single-post', params: {
+						account: item.account.display_name,
+						id: notification.status.id,
+						type: 'single-post',
+					} }"
+					:data-timestamp="notification.created_at"
+					class="post-timestamp live-relative-timestamp"
+					:title="notificationFormattedDate">
+					{{ notificationRelativeTimestamp }}
+				</router-link>
 			</span>
 		</div>
 		<template v-else-if="isBoost">
@@ -24,7 +38,7 @@
 			:item="item.account" />
 		<template v-else>
 			<div class="wrapper">
-				<TimelineAvatar class="entry__avatar" :item="entryContent" />
+				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />
 				<TimelinePost class="entry__content"
 					:item="entryContent"
 					:type="type" />
@@ -35,7 +49,11 @@
 
 <script>
 import Bell from 'vue-material-design-icons/Bell.vue'
+import Repeat from 'vue-material-design-icons/Repeat.vue'
+import Reply from 'vue-material-design-icons/Reply.vue'
+import Heart from 'vue-material-design-icons/Heart.vue'
 import { translate } from '@nextcloud/l10n'
+import moment from '@nextcloud/moment'
 import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
@@ -48,6 +66,9 @@ export default {
 		TimelineAvatar,
 		UserEntry,
 		Bell,
+		Repeat,
+		Reply,
+		Heart,
 	},
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
@@ -80,6 +101,14 @@ export default {
 		/** @return {boolean} */
 		isNotification() {
 			return this.item.type !== undefined
+		},
+		/** @return {string} */
+		notificationFormattedDate() {
+			return moment(this.notification.created_at).format('LLL')
+		},
+		/** @return {string} */
+		notificationRelativeTimestamp() {
+			return moment(this.notification.created_at).fromNow()
 		},
 		/** @return {boolean} */
 		isBoost() {
@@ -141,21 +170,61 @@ export default {
 	}
 
 	.notification {
-		display: flex;
-		padding-left: 2rem;
-		gap: 0.2rem;
-		margin-top: 1rem;
+		border-bottom: 1px solid var(--color-border);
 
-		&-action {
+		&__header {
+			display: flex;
+			gap: 0.2rem;
+			margin-top: 1rem;
+		}
+
+		&__summary {
 			flex-grow: 1;
 			display: inline-block;
 			grid-row: 1;
 			grid-column: 2;
 			color: var(--color-text-lighter);
+			position: relative;
+			margin-bottom: 8px;
+
+			img {
+				width: 32px;
+				border-radius: 50%;
+				overflow: hidden;
+				margin-right: 3px;
+				vertical-align: middle;
+				margin-top: -1px;
+				margin-right: 8px;
+			}
+
+			.material-design-icon {
+				position: absolute;
+				top: 16px;
+				left: 20px;
+				padding: 2px;
+				background: var(--color-main-background);
+				border-radius: 50%;
+				border: 1px solid var(--color-background-dark);
+			}
+
 		}
 
-		.bell-icon {
-			opacity: .5;
+		&__details a {
+			color: var(--color-text-lighter);
+
+			&:hover {
+				text-decoration: underline;
+			}
+		}
+
+		:deep(.post-header) {
+			.post-visibility {
+				display: none;
+			}
+
+			.post-timestamp {
+				display: none;
+			}
 		}
 	}
 
