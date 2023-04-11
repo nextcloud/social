@@ -486,10 +486,16 @@ export default {
 	padding: 5px;
 	padding-left: 30px;
 
+	.avatardiv {
+		margin: 0 4px;
+		margin-block-start: 2px;
+	}
+
 	.reply-info {
 		display: flex;
 		align-items: center;
 	}
+
 	.close-button {
 		margin-left: auto;
 		opacity: .7;
