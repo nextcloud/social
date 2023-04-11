@@ -25,10 +25,17 @@
 				</div>
 			</div>
 		</transition>
+
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
+
 		<h2 v-if="type === 'tags'">
 			#{{ $route.params.tag }}
 		</h2>
+
+		<h2 v-if="type === 'notifications'">
+			{{ t('social', 'Notifications') }}
+		</h2>
+
 		<TimelineList :type="type" />
 	</div>
 </template>
