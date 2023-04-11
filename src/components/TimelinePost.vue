@@ -14,16 +14,16 @@
 					</span>
 				</router-link>
 			</div>
-			<VisibilityIcon v-if="visibility"
-				:title="visibility.text"
-				class="post-visibility"
-				:visibility="visibility.id" />
 			<a :data-timestamp="timestamp"
 				class="post-timestamp live-relative-timestamp"
 				:title="formattedDate"
 				@click="getSinglePostTimeline">
 				{{ relativeTimestamp }}
 			</a>
+			<VisibilityIcon v-if="visibility"
+				:title="visibility.text"
+				class="post-visibility"
+				:visibility="visibility.id" />
 		</div>
 		<div v-if="item.content" class="post-message">
 			<MessageContent :item="item" />
@@ -33,7 +33,7 @@
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<NcButton :title="t('social', 'Reply')"
-				type="tertiary-no-background"
+				type="tertiary"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
@@ -46,7 +46,7 @@
 			</NcButton>
 			<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
 				:title="t('social', 'Boost')"
-				type="tertiary-no-background"
+				type="tertiary"
 				@click="boost">
 				<template #icon>
 					<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
@@ -59,7 +59,7 @@
 			</NcButton>
 			<NcButton v-if="!isLiked"
 				:title="t('social', 'Like')"
-				type="tertiary-no-background"
+				type="tertiary"
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
@@ -72,7 +72,7 @@
 			</NcButton>
 			<NcButton v-if="isLiked"
 				:title="t('social', 'Undo Like')"
-				type="tertiary-no-background"
+				type="tertiary"
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
@@ -208,24 +208,18 @@ export default {
 		getSinglePostTimeline(e) {
 			// Display internal or external post
 			if (!this.isLocal) {
-				// TODO - fix
-				if (this.type === 'Note') {
-					window.open(this.item.id)
-				} else if (this.type === 'Announce') {
-					window.open(this.item.object)
-				} else {
-					logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
-				}
-			} else {
-				this.$router.push({
-					name: 'single-post',
-					params: {
-						account: this.item.account.display_name,
-						id: this.item.id,
-						type: 'single-post',
-					},
-				})
+				logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
+				return
 			}
+
+			this.$router.push({
+				name: 'single-post',
+				params: {
+					account: this.item.account.display_name,
+					id: this.item.id,
+					type: 'single-post',
+				},
+			})
 		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
@@ -236,7 +230,7 @@ export default {
 		},
 		boost() {
 			const params = {
-				post: this.item,
+				status: this.item,
 				parentAnnounce: this.reblog,
 			}
 			if (this.isBoosted) {
@@ -250,7 +244,7 @@ export default {
 		},
 		like() {
 			const params = {
-				post: this.item,
+				status: this.item,
 				parentAnnounce: this.reblog,
 			}
 			if (this.isLiked) {
@@ -330,6 +324,11 @@ export default {
 		margin-left: -13px;
 		height: 44px;
 		display: flex;
+		margin: 4px;
+
+		.button-vue:hover {
+			background: var(--color-background-dark);
+		}
 
 		.post-actions-more {
 			position: relative;

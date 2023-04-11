@@ -7,8 +7,9 @@
 			:reverse-order="true" />
 		<TimelineEntry ref="mainPost"
 			class="main-post"
-			:item="mainPost"
-			type="single-post" />
+			:item="singlePost"
+			type="single-post"
+			element="div" />
 		<TimelineList v-if="timeline" class="descendants" :type="$route.params.type" />
 	</div>
 </template>
@@ -36,11 +37,14 @@ export default {
 	],
 	data() {
 		return {
-			mainPost: {},
 			uid: this.$route.params.account,
 		}
 	},
 	computed: {
+		/** @return {Status?} */
+		singlePost() {
+			return this.$store.getters.getSinglePost
+		},
 		/**
 		 * @description Tells whether Composer shall be displayed or not
 		 * @return {boolean}
@@ -79,15 +83,17 @@ export default {
 		},
 	},
 	async beforeMount() {
-		this.mainPost = this.$store.getters.getPostFromTimeline(this.$route.params.id) || loadState('social', 'item')
+		const singlePost = this.$store.getters.getPostFromTimeline(this.$route.params.id) || loadState('social', 'item')
 
 		// Fetch single post timeline
+		this.$store.commit('addToStatuses', singlePost)
 		this.$store.dispatch('changeTimelineType', {
 			type: 'single-post',
 			params: {
 				account: this.account,
 				id: this.$route.params.id,
 				type: 'single-post',
+				singlePost: this.$route.params.id || loadState('social', 'item').id,
 			},
 		})
 
