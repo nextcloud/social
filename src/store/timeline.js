@@ -80,6 +80,21 @@ const mutations = {
 	},
 	/**
 	 * @param state
+	 * @param {import ('../types/Mastodon.js').Status[]|import('../types/Mastodon.js').Context} data
+	 */
+	updateInTimelines(state, data) {
+		data.forEach((post) => {
+			if (state.timeline[post.id] !== undefined) {
+				Vue.set(state.timeline, post.id, post)
+			}
+
+			if (state.parentsTimeline[post.id] !== undefined) {
+				Vue.set(state.parentsTimeline, post.id, post)
+			}
+		})
+	},
+	/**
+	 * @param state
 	 * @param {import('../types/Mastodon.js').Status} post
 	 */
 	removePost(state, post) {
@@ -173,12 +188,12 @@ const getters = {
 		return state.composerDisplayStatus
 	},
 	getTimeline(state) {
-		return Object.values(state.timeline).sort(function(a, b) {
+		return Object.values(state.timeline).sort(function (a, b) {
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 		})
 	},
 	getParentsTimeline(state) {
-		return Object.values(state.parentsTimeline).sort(function(a, b) {
+		return Object.values(state.parentsTimeline).sort(function (a, b) {
 			return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
 		})
 	},
@@ -255,7 +270,7 @@ const actions = {
 			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
 		} catch (error) {
-			context.commit('addToTimeline', [post])
+			context.commit('updateInTimelines', [post])
 			showError('Failed to delete the post')
 			logger.error('Failed to delete the post', { error })
 		}
@@ -270,7 +285,7 @@ const actions = {
 			context.commit('likePost', { post })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/favourite`))
 			logger.info('Post liked')
-			context.commit('addToTimeline', [response.data])
+			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
 			context.commit('unlikePost', { post })
@@ -292,7 +307,7 @@ const actions = {
 			context.commit('unlikePost', { post })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/unfavourite`))
 			logger.info('Post unliked')
-			context.commit('addToTimeline', [response.data])
+			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
 			// Readd post from list if we are in the 'liked' timeline
@@ -314,7 +329,7 @@ const actions = {
 			context.commit('boostPost', { post })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/reblog`))
 			logger.info('Post boosted')
-			context.commit('addToTimeline', [response.data])
+			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
 			context.commit('unboostPost', { post })
@@ -332,7 +347,7 @@ const actions = {
 			context.commit('unboostPost', { post })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${post.id}/unreblog`))
 			logger.info('Boost deleted')
-			context.commit('addToTimeline', [response.data])
+			context.commit('updateInTimelines', [response.data])
 			return response
 		} catch (error) {
 			context.commit('boostPost', { post })
@@ -362,27 +377,27 @@ const actions = {
 		// Compute URL to get the data
 		let url = ''
 		switch (state.type) {
-		case 'account':
-			url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
-			break
-		case 'tags':
-			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
-			break
-		case 'single-post':
-			url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
-			break
-		case 'timeline':
-			url = generateUrl('apps/social/api/v1/timelines/public')
-			params.local = true
-			break
-		case 'federated':
-			url = generateUrl('apps/social/api/v1/timelines/public')
-			break
-		case 'notifications':
-			url = generateUrl('apps/social/api/v1/notifications')
-			break
-		default:
-			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
+			case 'account':
+				url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
+				break
+			case 'tags':
+				url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
+				break
+			case 'single-post':
+				url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
+				break
+			case 'timeline':
+				url = generateUrl('apps/social/api/v1/timelines/public')
+				params.local = true
+				break
+			case 'federated':
+				url = generateUrl('apps/social/api/v1/timelines/public')
+				break
+			case 'notifications':
+				url = generateUrl('apps/social/api/v1/notifications')
+				break
+			default:
+				url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
 		}
 
 		// Get the data and add them to the timeline
