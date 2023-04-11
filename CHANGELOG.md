@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0
+
+- full rewrite of the API
+
+
 ## 0.4.2
 
 - using IClient, to use local nextcloud network configuration.
