@@ -30,6 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -41,6 +42,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public const CACHE_TTL = 60 * 24 * 10; // 10d
+	public const DETAILS_TTL = 60 * 18; // 18h
 
 
 	/**
@@ -101,9 +103,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 
-	/**
-	 * Insert cache about an Actor in database.
-	 */
 	public function update(Person $actor): int {
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
@@ -144,6 +143,24 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		}
 
 		$qb->set('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
+		$qb->limitToIdString($actor->getId());
+
+		return $qb->executeStatement();
+	}
+
+
+	public function updateDetails(Person $actor): int {
+		$qb = $this->getCacheActorsUpdateSql();
+		$qb->set('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
+
+		try {
+			$qb->set(
+				'details_update',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
+
 		$qb->limitToIdString($actor->getId());
 
 		return $qb->executeStatement();
@@ -212,7 +229,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->searchInAccount($search);
-		/** @var SocialQueryBuilder $qb */
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 		$qb->limitResults(25);
@@ -235,6 +251,22 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		return $this->getCacheActorsFromRequest($qb);
 	}
 
+
+	/**
+	 * @return Person[]
+	 * @throws Exception
+	 */
+	public function getRemoteActorsToUpdateDetails(bool $force = false): array {
+		$qb = $this->getCacheActorsSelectSql();
+		$qb->limitToLocal(false);
+		if (!$force) {
+			$date = new DateTime('now');
+			$date->sub(new DateInterval('PT' . self::DETAILS_TTL . 'M'));
+			$qb->limitToDBFieldDateTime('details_update', $date, true);
+		}
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
 
 	/**
 	 * delete cached version of an Actor, based on the UriId
