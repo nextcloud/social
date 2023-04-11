@@ -44,7 +44,7 @@
 					</span>
 				</template>
 			</NcButton>
-			<NcButton v-if="item.visibility === 'public' || item.visibility === 'followers'"
+			<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
 				:title="t('social', 'Boost')"
 				type="tertiary-no-background"
 				@click="boost">
@@ -208,10 +208,10 @@ export default {
 		getSinglePostTimeline(e) {
 			// Display internal or external post
 			if (!this.isLocal) {
+				// TODO - fix
 				if (this.type === 'Note') {
 					window.open(this.item.id)
 				} else if (this.type === 'Announce') {
-					// TODO
 					window.open(this.item.object)
 				} else {
 					logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
@@ -269,7 +269,6 @@ export default {
 		padding: 4px 8px;
 		font-size: 15px;
 		line-height: 1.6em;
-		position: relative;
 		border-radius: 8px;
 
 		::v-deep a.widget-default {
@@ -304,7 +303,7 @@ export default {
 			}
 
 			.post-visibility {
-				opacity: 0.5;
+				color: var(--color-text-lighter);
 				background-position: right;
 			}
 

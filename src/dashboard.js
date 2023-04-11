@@ -26,8 +26,11 @@ Vue.prototype.OC = window.OC
 document.addEventListener('DOMContentLoaded', function() {
 	OCA.Dashboard.register('social_notifications', (el, { widget }) => {
 		const View = Vue.extend(Dashboard)
+		/* eslint-disable-next-line no-new */
 		new View({
 			propsData: { title: widget.title },
-		}).$mount(el)
+			el,
+			name: 'SocialDashboard',
+		})
 	})
 })

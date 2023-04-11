@@ -27,7 +27,7 @@
 			:disable-tooltip="true"
 			:size="128" />
 		<NcAvatar v-else
-			:url="avatarUrl"
+			:url="accountInfo.avatar"
 			:disable-tooltip="true"
 			:size="128" />
 		<h2>{{ displayName }}</h2>
@@ -56,6 +56,9 @@
 		<p v-if="website" class="user-profile__info">
 			{{ t('social', 'Website') }}: <a :href="website.value">{{ website.value }}<OpenInNew :size="15" /></a>
 		</p>
+
+		<!-- Hack to render note safely -->
+		<MessageContent v-if="accountInfo.note" class="user-profile__note" :item="{content: accountInfo.note, tag: [], mentions: []}" />
 
 		<FollowButton class="user-profile__info" :account="accountInfo.acct" :uid="uid" />
 		<NcButton v-if="serverData.public"
@@ -156,6 +159,10 @@ export default {
 				}
 			}
 
+		}
+
+		&__note {
+			text-align: start;
 		}
 
 		&__sections {

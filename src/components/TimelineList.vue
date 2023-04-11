@@ -22,7 +22,7 @@
 
 <template>
 	<div class="social__timeline">
-		<transition-group name="list" tag="div">
+		<transition-group name="list" tag="ul">
 			<TimelineEntry v-for="entry in timeline"
 				:key="entry.id"
 				:item="entry"
