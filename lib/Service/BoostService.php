@@ -53,37 +53,17 @@ use OCA\Social\Tools\Traits\TStringTools;
 class BoostService {
 	use TStringTools;
 
-
 	private StreamRequest $streamRequest;
-
 	private StreamService $streamService;
-
 	private SignatureService $signatureService;
-
 	private ActivityService $activityService;
-
 	private StreamActionService $streamActionService;
-
 	private StreamQueueService $streamQueueService;
 
-	private MiscService $miscService;
-
-
-	/**
-	 * BoostService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param StreamService $streamService
-	 * @param SignatureService $signatureService
-	 * @param ActivityService $activityService
-	 * @param StreamActionService $streamActionService
-	 * @param StreamQueueService $streamQueueService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, MiscService $miscService
+		StreamQueueService $streamQueueService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -91,7 +71,6 @@ class BoostService {
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
 		$this->streamQueueService = $streamQueueService;
-		$this->miscService = $miscService;
 	}
 
 
