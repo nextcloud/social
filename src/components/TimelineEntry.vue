@@ -1,5 +1,5 @@
 <template>
-	<li :class="['timeline-entry', hasHeader ? 'with-header' : '']">
+	<component :is="element" :class="['timeline-entry', hasHeader ? 'with-header' : '']">
 		<div v-if="isNotification" class="notification">
 			<Bell :size="22" />
 			<span class="notification-action">
@@ -30,7 +30,7 @@
 					:type="type" />
 			</div>
 		</template>
-	</li>
+	</component>
 </template>
 
 <script>
@@ -58,6 +58,10 @@ export default {
 		type: {
 			type: String,
 			required: true,
+		},
+		element: {
+			type: String,
+			default: 'li',
 		},
 	},
 	computed: {

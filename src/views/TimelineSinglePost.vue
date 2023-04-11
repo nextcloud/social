@@ -8,7 +8,8 @@
 		<TimelineEntry ref="mainPost"
 			class="main-post"
 			:item="mainPost"
-			type="single-post" />
+			type="single-post"
+			element="div" />
 		<TimelineList v-if="timeline" class="descendants" :type="$route.params.type" />
 	</div>
 </template>
