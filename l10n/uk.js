@@ -14,7 +14,6 @@ OC.L10N.register(
     "Delete" : "Вилучити",
     "Post" : "Розмістити",
     "Website" : "Вебсайт",
-    "{account} started to follow you" : "{account} тепер стежить за вами",
     "Reply" : "Відповісти",
     "Deny" : "Заборонити",
     "Hello" : "Привіт",
