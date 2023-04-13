@@ -289,4 +289,41 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->executeStatement();
 	}
+
+	/**
+	 * @return Document[]
+	 * @deprecated in 0.7.x
+	 */
+	public function getOldFormatCopies(): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+
+		$expr = $qb->expr();
+		$qb->andWhere(
+			$expr->orX(
+				$expr->iLike('local_copy', $qb->createNamedParameter('%/%')),
+				$expr->iLike('resized_copy', $qb->createNamedParameter('%/%'))
+			)
+		);
+
+		$documents = [];
+		$cursor = $qb->execute();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/**
+	 * @deprecated in 0.7.x
+	 */
+	public function updateCopies(Document $document): void {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+		   ->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
+
+		$qb->limitToIdPrim($qb->prim($document->getId()));
+		$qb->executeStatement();
+	}
 }

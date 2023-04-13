@@ -43,6 +43,12 @@
 		<job>OCA\Social\Cron\Queue</job>
 	</background-jobs>
 
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Social\Migration\RenameDocumentLocalCopy</step>
+		</post-migration>
+	</repair-steps>
+
 	<commands>
 		<command>OCA\Social\Command\AccountCreate</command>
 		<command>OCA\Social\Command\AccountDelete</command>
