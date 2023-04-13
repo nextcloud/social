@@ -33,6 +33,7 @@ namespace OCA\Social\Providers;
 
 use Exception;
 use OC\User\NoUserException;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Service\AccountService;
 use OCP\Contacts\ContactsMenu\IActionFactory;
 use OCP\Contacts\ContactsMenu\IEntry;
@@ -96,7 +97,7 @@ class ContactsMenuProvider implements IProvider {
 				'social.ActivityPub.actorAlias', ['username' => $actor->getPreferredUsername()]
 			);
 
-			$action = $this->actionFactory->newLinkAction($icon, $action, $link);
+			$action = $this->actionFactory->newLinkAction($icon, $action, $link, Application::APP_NAME);
 			$entry->addAction($action);
 		} catch (Exception $e) {
 			return;
