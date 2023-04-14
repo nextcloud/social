@@ -65,6 +65,7 @@ OC.L10N.register(
     "Boost" : "Подсилване",
     "Like" : "Харесване",
     "Undo Like" : "Отмяна на харесване",
+    "Choose a visibility" : "Избор на тип видимост",
     "Go to Social app" : " Отидете в приложението Social",
     "Error getting Social notifications" : "Грешка при получаване на известия от Social",
     "No Social notifications!" : "Без известия на Social",
@@ -91,8 +92,12 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Понеже си нов потребител в Social, последвай официялният акаунт на  Nextcloud account, за да не пропуснеш новини от развитието на проекта",
     "Follow Nextcloud on mastodon.xyz" : "Следвайте Nextcloud в mastodon.xyz",
     "Public" : "Публично",
+    "Visible for all" : "Видимо за всички",
     "Unlisted" : "Не е включено в списъка",
+    "Visible for all, but opted-out of discovery features" : "Видимо за всички, но е изключен от функциите за откриване",
     "Followers" : "Последователи",
-    "Direct" : "Директно"
+    "Visible to followers only" : "Видимо само за последователи",
+    "Direct" : "Директно",
+    "Visible to mentioned users only" : "Видимо само за споменатите потребители"
 },
 "nplurals=2; plural=(n != 1);");
