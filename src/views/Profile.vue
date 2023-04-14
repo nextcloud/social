@@ -97,7 +97,7 @@ export default {
 		/** @type {[import('../types/Mastodon').Account]} */
 		const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
 		this.uid = response.acct
-		await this.$store.dispatch('fetchAccountRelationshipInfo', [this.accountInfo.id])
+		await this.$store.dispatch('fetchAccountRelationshipInfo', [response.id])
 	},
 }
 </script>
