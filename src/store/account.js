@@ -53,7 +53,7 @@ const addAccount = (state, { actorId, data }) => {
 	const accountId = (data.acct.indexOf('@') === -1) ? data.acct + '@' + new URL(data.url).hostname : data.acct
 	set(state.accountIdMap, accountId, data.url)
 }
-const _getActorIdForAccount = (account) => state.accountIdMap[account]
+const _getActorIdForAccount = (account) => {return state.accountIdMap[account]}
 
 /** @type {import('vuex').MutationTree<state, any>} */
 const mutations = {
@@ -134,6 +134,11 @@ const getters = {
 	},
 	getAccount(state, getters) {
 		return (/** @type {string} */ account) => {
+			var currentNextcloudDomain = window.location.hostname
+			var accountArray = account.split("@")
+			var accountName = accountArray.at(0)
+			var accountDomain = accountArray.at(-1)
+			account = (accountDomain == currentNextcloudDomain) ? accountName + "@localhost" : account
 			return state.accounts[_getActorIdForAccount(account)]
 		}
 	},
