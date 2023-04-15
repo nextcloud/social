@@ -58,22 +58,13 @@ const _getActorIdForAccount = (account) => {
 	const accountArray = account.split('@')
 	const accountName = accountArray.at(0)
 	const accountDomain = accountArray.at(-1)
-	if (accountDomain === currentNextcloudDomain)
-	{
+	if (accountDomain === currentNextcloudDomain) {
 		const actorIdForAccount = state.accountIdMap[account]
-		if (actorIdForAccount)
-		{
-			return actorIdForAccount	
-		}
-		else
-		{
+		if (actorIdForAccount) {
+			return actorIdForAccount
+		} else {
 			account = accountName + '@localhost'
 		}
-		
-	}
-	else
-	{
-		account = account
 	}
 	return state.accountIdMap[account]
 }
