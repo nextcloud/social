@@ -134,11 +134,11 @@ const getters = {
 	},
 	getAccount(state, getters) {
 		return (/** @type {string} */ account) => {
-			var currentNextcloudDomain = window.location.hostname
-			var accountArray = account.split("@")
-			var accountName = accountArray.at(0)
-			var accountDomain = accountArray.at(-1)
-			account = (accountDomain == currentNextcloudDomain) ? accountName + "@localhost" : account
+			const currentNextcloudDomain = window.location.hostname
+			const accountArray = account.split('@')
+			const accountName = accountArray.at(0)
+			const accountDomain = accountArray.at(-1)
+			account = (accountDomain === currentNextcloudDomain) ? accountName + '@localhost' : account
 			return state.accounts[_getActorIdForAccount(account)]
 		}
 	},
@@ -186,6 +186,7 @@ const actions = {
 		try {
 			const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: ids } })
 			response.data.forEach(account => context.commit('addRelationship', { actorId: account.id, data: account }))
+			// console.log("")
 			return response.data
 		} catch (error) {
 			logger.error('Failed to load relationship info', { error })
