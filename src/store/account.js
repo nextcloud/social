@@ -186,7 +186,6 @@ const actions = {
 		try {
 			const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: ids } })
 			response.data.forEach(account => context.commit('addRelationship', { actorId: account.id, data: account }))
-			// console.log("")
 			return response.data
 		} catch (error) {
 			logger.error('Failed to load relationship info', { error })
