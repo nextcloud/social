@@ -63,6 +63,7 @@
     "Boost" : "Megtolás",
     "Like" : "Tetszik",
     "Undo Like" : "Kedvelés visszavonása",
+    "Choose a visibility" : "Válasszon láthatóságot",
     "Go to Social app" : "Ugrás a Közösség alkalmazáshoz",
     "Error getting Social notifications" : "Hiba a közösségi értesítéseinek lekérése során",
     "No Social notifications!" : "Nincsenek közösségi értesítések",
@@ -89,8 +90,12 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Mivel Ön még nem ismeri a Közösség alkalmazást, kezdje el a hivatalos Nextcloud-fiók követésével, hogy ne maradjon le egyetlen hírről sem",
     "Follow Nextcloud on mastodon.xyz" : "Kövesse a Nextcloudot a mastodon.xyz-n",
     "Public" : "Nyilvános",
+    "Visible for all" : "Mindenki számára látható",
     "Unlisted" : "Nem nyilvános",
+    "Visible for all, but opted-out of discovery features" : "Mindenki számára látható, de a felfedezési funkciók ki lettek kapcsolva",
     "Followers" : "Követők",
-    "Direct" : "Közvetlen"
+    "Visible to followers only" : "Csak a követők számára látható",
+    "Direct" : "Közvetlen",
+    "Visible to mentioned users only" : "Csak a megemlített felhasználók számára látható"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
