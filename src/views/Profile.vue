@@ -24,7 +24,7 @@
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 
-		<Composer v-if="accountInfo" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
+		<Composer v-if="accountInfo && $route.name === 'profile'" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
 
 		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
 		<router-view v-if="accountLoaded && accountInfo && isLocal" name="details" />
