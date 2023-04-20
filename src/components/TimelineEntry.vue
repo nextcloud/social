@@ -90,7 +90,8 @@ export default {
 			if (this.isNotification) {
 				return this.notification.status
 			} else if (this.isBoost) {
-				return this.status.reblog
+				// We use the object stored in the store so that actions on it are reflected.
+				return this.$store.getters.getStatus(this.item.reblog.id)
 			} else {
 				return this.item
 			}
