@@ -68,7 +68,7 @@
 					:contenteditable="!loading"
 					class="message"
 					placeholder="What would you like to share?"
-					:class="{'icon-loading': loading}"
+					:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
 					@keyup.prevent.enter="keyup"
 					@input="updateStatusContent"
 					@tribute-replaced="updatePostFromTribute" />
@@ -277,11 +277,23 @@ export default {
 				return true
 			}
 
-			return !this.statusIsEmpty
+			if (this.statusIsTooLong) {
+				return false
+			}
+
+			if (this.statusIsEmpty) {
+				return false
+			}
+
+			return true
 		},
 		/** @return {boolean} */
 		statusIsEmpty() {
 			return this.statusContent.length === 0 || this.statusContent === '<br>'
+		},
+
+		statusIsTooLong() {
+			return this.statusContent.length > 500
 		},
 	},
 	mounted() {
@@ -517,6 +529,10 @@ export default {
 	min-height: 70px;
 	min-width: 2px;
 	display: block;
+
+	&.too-long {
+		color: var(--color-error);
+	}
 
 	:deep(.mention) {
 		color: var(--color-primary-element);
