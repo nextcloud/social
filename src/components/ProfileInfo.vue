@@ -59,7 +59,7 @@
 		<!-- Hack to render note safely -->
 		<MessageContent v-if="accountInfo.note" class="user-profile__note user-profile__info" :item="{content: accountInfo.note, tag: [], mentions: []}" />
 
-		<FollowButton class="user-profile__info" :account="accountInfo.acct" :uid="uid" />
+		<FollowButton class="user-profile__info" :uid="uid" />
 		<NcButton v-if="serverData.public"
 			class="user-profile__info primary"
 			@click="followRemote">

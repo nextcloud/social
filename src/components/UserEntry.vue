@@ -53,7 +53,7 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-html="item.note" />
 			</div>
-			<FollowButton :account="item.acct" :uid="cloudId" />
+			<FollowButton :uid="item.acct" />
 		</div>
 	</div>
 </template>
@@ -61,6 +61,7 @@
 <script>
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import currentUser from '../mixins/currentUserMixin.js'
+import accountMixins from '../mixins/accountMixins.js'
 import FollowButton from './FollowButton.vue'
 
 export default {
@@ -70,6 +71,7 @@ export default {
 		NcAvatar,
 	},
 	mixins: [
+		accountMixins,
 		currentUser,
 	],
 	props: {
@@ -91,6 +93,11 @@ export default {
 		isLocal() {
 			return !this.item.acct.includes('@')
 		},
+	},
+	async mounted() {
+		if (this.relationship === undefined) {
+			await this.$store.dispatch('fetchAccountRelationshipInfo', [this.item.id])
+		}
 	},
 }
 </script>
