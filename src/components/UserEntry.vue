@@ -61,7 +61,6 @@
 <script>
 import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
 import currentUser from '../mixins/currentUserMixin.js'
-import accountMixins from '../mixins/accountMixins.js'
 import FollowButton from './FollowButton.vue'
 
 export default {
@@ -71,7 +70,6 @@ export default {
 		NcAvatar,
 	},
 	mixins: [
-		accountMixins,
 		currentUser,
 	],
 	props: {

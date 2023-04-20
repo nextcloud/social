@@ -5,10 +5,17 @@
 				<img :src="notification.account.avatar">
 				<Heart v-if="notification.type === 'favourite'" :size="16" />
 				<Repeat v-if="notification.type === 'reblog'" :size="16" />
+				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
+				<AccountQuestion v-if="notification.type === 'follow_request'" :size="16" />
+				<At v-if="notification.type === 'mention'" :size="16" />
+				<MessageOutline v-if="notification.type === 'status'" :size="16" />
+				<MessagePlusOutline v-if="notification.type === 'update'" :size="16" />
+				<Poll v-if="notification.type === 'poll'" :size="16" />
 				{{ actionSummary }}
 			</span>
 			<span class="notification__details">
-				<router-link :to="{ name: 'single-post', params: {
+				<router-link v-if="!notificationIsAboutAnAccount"
+					:to="{ name: 'single-post', params: {
 						account: item.account.display_name,
 						id: notification.status.id,
 						type: 'single-post',
@@ -18,6 +25,12 @@
 					:title="notificationFormattedDate">
 					{{ notificationRelativeTimestamp }}
 				</router-link>
+				<span v-else
+					class="post-timestamp"
+					:data-timestamp="notification.created_at"
+					:title="notificationFormattedDate">
+					{{ notificationRelativeTimestamp }}
+				</span>
 			</span>
 		</div>
 		<template v-else-if="isBoost">
@@ -32,11 +45,9 @@
 				{{ t('social', 'boosted') }}
 			</div>
 		</template>
-		<UserEntry v-if="isNotification && notificationIsAboutAnAccount"
-			:key="item.account.id"
-			:item="item.account" />
+		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :item="item.account" />
 		<template v-else>
-			<div class="wrapper">
+			<div v-if="entryContent" class="wrapper">
 				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />
 				<TimelinePost class="entry__content"
 					:item="entryContent"
@@ -50,6 +61,12 @@
 import Bell from 'vue-material-design-icons/Bell.vue'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
+import AccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
+import AccountQuestion from 'vue-material-design-icons/AccountQuestion.vue'
+import At from 'vue-material-design-icons/At.vue'
+import Poll from 'vue-material-design-icons/Poll.vue'
+import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
+import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import { translate } from '@nextcloud/l10n'
 import moment from '@nextcloud/moment'
 import TimelinePost from './TimelinePost.vue'
@@ -66,6 +83,12 @@ export default {
 		Bell,
 		Repeat,
 		Heart,
+		AccountPlusOutline,
+		AccountQuestion,
+		At,
+		Poll,
+		MessageOutline,
+		MessagePlusOutline,
 	},
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
@@ -122,7 +145,7 @@ export default {
 		},
 		/** @return {boolean} */
 		notificationIsAboutAnAccount() {
-			return this.notification.type in ['follow', 'follow_request', 'admin.sign_up', 'admin.report']
+			return ['follow', 'follow_request', 'admin.sign_up', 'admin.report'].includes(this.notification.type)
 		},
 		/**
 		 * @return {boolean}
@@ -203,12 +226,12 @@ export default {
 				border-radius: 50%;
 				border: 1px solid var(--color-background-dark);
 			}
-
 		}
 
-		&__details a {
+		&__details .post-timestamp {
 			color: var(--color-text-lighter);
-
+		}
+		&__details a {
 			&:hover {
 				text-decoration: underline;
 			}
@@ -220,6 +243,12 @@ export default {
 			}
 
 			.post-timestamp {
+				display: none;
+			}
+		}
+
+		:deep(.user-entry) {
+			.user-avatar {
 				display: none;
 			}
 		}
