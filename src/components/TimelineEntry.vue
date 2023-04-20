@@ -21,13 +21,12 @@
 			</span>
 		</div>
 		<template v-else-if="isBoost">
-			<div class="container-icon-boost boost">
-				<span class="icon-boost" />
-			</div>
 			<div class="boost">
+				<Repeat :size="16" />
 				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
+					<img :src="item.account.avatar">
 					<span :title="item.account.acct" class="post-author">
-						{{ item.account.display_name }}
+						{{ item.account.display_name }}&ensp;
 					</span>
 				</router-link>
 				{{ t('social', 'boosted') }}
@@ -50,7 +49,6 @@
 <script>
 import Bell from 'vue-material-design-icons/Bell.vue'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
-import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
 import { translate } from '@nextcloud/l10n'
 import moment from '@nextcloud/moment'
@@ -67,7 +65,6 @@ export default {
 		UserEntry,
 		Bell,
 		Repeat,
-		Reply,
 		Heart,
 	},
 	props: {
@@ -191,7 +188,6 @@ export default {
 				width: 32px;
 				border-radius: 50%;
 				overflow: hidden;
-				margin-right: 3px;
 				vertical-align: middle;
 				margin-top: -1px;
 				margin-right: 8px;
@@ -228,36 +224,17 @@ export default {
 		}
 	}
 
-	.icon-boost {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.icon-favorite {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.icon-user {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.container-icon-boost {
-		display: inline-block;
-		padding-right: 6px;
-	}
-
-	.icon-boost {
-		display: inline-block;
-		width: 38px;
-		height: 17px;
-		opacity: .5;
-		background-position: right center;
-		vertical-align: middle;
-	}
-
 	.boost {
-		opacity: .5;
+		color: var(--color-text-lighter);
+		display: flex;
+		margin-left: 21px; // To align with status' text.
+
+		img {
+			width: 16px;
+			border-radius: 50%;
+			vertical-align: middle;
+			margin-top: -4px;
+			margin-left: 4px;
+		}
 	}
 </style>
