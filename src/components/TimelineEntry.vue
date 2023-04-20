@@ -14,7 +14,7 @@
 						type: 'single-post',
 					} }"
 					:data-timestamp="notification.created_at"
-					class="post-timestamp live-relative-timestamp"
+					class="post-timestamp"
 					:title="notificationFormattedDate">
 					{{ notificationRelativeTimestamp }}
 				</router-link>
