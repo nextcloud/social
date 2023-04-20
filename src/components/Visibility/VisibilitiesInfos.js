@@ -26,7 +26,7 @@ export default [
 	},
 	{
 		id: 'direct',
-		text: t('social', 'Direct'),
+		text: t('social', 'Direct message'),
 		description: t('social', 'Visible to mentioned users only'),
 	},
 ]

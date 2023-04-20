@@ -53,7 +53,7 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-html="item.note" />
 			</div>
-			<FollowButton :account="item.acct" :uid="cloudId" />
+			<FollowButton :uid="item.acct" />
 		</div>
 	</div>
 </template>
@@ -91,6 +91,11 @@ export default {
 		isLocal() {
 			return !this.item.acct.includes('@')
 		},
+	},
+	async mounted() {
+		if (this.relationship === undefined) {
+			await this.$store.dispatch('fetchAccountRelationshipInfo', [this.item.id])
+		}
 	},
 }
 </script>

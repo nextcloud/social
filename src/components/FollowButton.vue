@@ -72,10 +72,6 @@ export default {
 		currentUser,
 	],
 	props: {
-		account: {
-			type: String,
-			default: '',
-		},
 		uid: {
 			type: String,
 			default: '',

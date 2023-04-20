@@ -48,9 +48,5 @@ export default {
 	padding: 5px 10px 10px 5px;
 	height: 52px;
 	width: 52px;
-
-	.avatardiv {
-		position: static;
-	}
 }
 </style>

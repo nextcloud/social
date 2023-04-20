@@ -65,7 +65,7 @@ export default {
 			case 'followers':
 				return t('social', 'Post to followers')
 			case 'direct':
-				return t('social', 'Post to mentioned users')
+				return t('social', 'Send message to mentioned users')
 			}
 			return ''
 		},

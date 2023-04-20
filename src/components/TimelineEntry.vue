@@ -5,39 +5,49 @@
 				<img :src="notification.account.avatar">
 				<Heart v-if="notification.type === 'favourite'" :size="16" />
 				<Repeat v-if="notification.type === 'reblog'" :size="16" />
+				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
+				<AccountQuestion v-if="notification.type === 'follow_request'" :size="16" />
+				<At v-if="notification.type === 'mention'" :size="16" />
+				<MessageOutline v-if="notification.type === 'status'" :size="16" />
+				<MessagePlusOutline v-if="notification.type === 'update'" :size="16" />
+				<Poll v-if="notification.type === 'poll'" :size="16" />
 				{{ actionSummary }}
 			</span>
 			<span class="notification__details">
-				<router-link :to="{ name: 'single-post', params: {
+				<router-link v-if="!notificationIsAboutAnAccount"
+					:to="{ name: 'single-post', params: {
 						account: item.account.display_name,
 						id: notification.status.id,
 						type: 'single-post',
 					} }"
 					:data-timestamp="notification.created_at"
-					class="post-timestamp live-relative-timestamp"
+					class="post-timestamp"
 					:title="notificationFormattedDate">
 					{{ notificationRelativeTimestamp }}
 				</router-link>
+				<span v-else
+					class="post-timestamp"
+					:data-timestamp="notification.created_at"
+					:title="notificationFormattedDate">
+					{{ notificationRelativeTimestamp }}
+				</span>
 			</span>
 		</div>
 		<template v-else-if="isBoost">
-			<div class="container-icon-boost boost">
-				<span class="icon-boost" />
-			</div>
 			<div class="boost">
+				<Repeat :size="16" />
 				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
+					<img :src="item.account.avatar">
 					<span :title="item.account.acct" class="post-author">
-						{{ item.account.display_name }}
+						{{ item.account.display_name }}&ensp;
 					</span>
 				</router-link>
 				{{ t('social', 'boosted') }}
 			</div>
 		</template>
-		<UserEntry v-if="isNotification && notificationIsAboutAnAccount"
-			:key="item.account.id"
-			:item="item.account" />
+		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :item="item.account" />
 		<template v-else>
-			<div class="wrapper">
+			<div v-if="entryContent" class="wrapper">
 				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />
 				<TimelinePost class="entry__content"
 					:item="entryContent"
@@ -50,8 +60,13 @@
 <script>
 import Bell from 'vue-material-design-icons/Bell.vue'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
-import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
+import AccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
+import AccountQuestion from 'vue-material-design-icons/AccountQuestion.vue'
+import At from 'vue-material-design-icons/At.vue'
+import Poll from 'vue-material-design-icons/Poll.vue'
+import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
+import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import { translate } from '@nextcloud/l10n'
 import moment from '@nextcloud/moment'
 import TimelinePost from './TimelinePost.vue'
@@ -67,8 +82,13 @@ export default {
 		UserEntry,
 		Bell,
 		Repeat,
-		Reply,
 		Heart,
+		AccountPlusOutline,
+		AccountQuestion,
+		At,
+		Poll,
+		MessageOutline,
+		MessagePlusOutline,
 	},
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
@@ -93,7 +113,8 @@ export default {
 			if (this.isNotification) {
 				return this.notification.status
 			} else if (this.isBoost) {
-				return this.status.reblog
+				// We use the object stored in the store so that actions on it are reflected.
+				return this.$store.getters.getStatus(this.item.reblog.id)
 			} else {
 				return this.item
 			}
@@ -124,7 +145,7 @@ export default {
 		},
 		/** @return {boolean} */
 		notificationIsAboutAnAccount() {
-			return this.notification.type in ['follow', 'follow_request', 'admin.sign_up', 'admin.report']
+			return ['follow', 'follow_request', 'admin.sign_up', 'admin.report'].includes(this.notification.type)
 		},
 		/**
 		 * @return {boolean}
@@ -191,7 +212,6 @@ export default {
 				width: 32px;
 				border-radius: 50%;
 				overflow: hidden;
-				margin-right: 3px;
 				vertical-align: middle;
 				margin-top: -1px;
 				margin-right: 8px;
@@ -206,12 +226,12 @@ export default {
 				border-radius: 50%;
 				border: 1px solid var(--color-background-dark);
 			}
-
 		}
 
-		&__details a {
+		&__details .post-timestamp {
 			color: var(--color-text-lighter);
-
+		}
+		&__details a {
 			&:hover {
 				text-decoration: underline;
 			}
@@ -226,38 +246,25 @@ export default {
 				display: none;
 			}
 		}
-	}
 
-	.icon-boost {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.icon-favorite {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.icon-user {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.container-icon-boost {
-		display: inline-block;
-		padding-right: 6px;
-	}
-
-	.icon-boost {
-		display: inline-block;
-		width: 38px;
-		height: 17px;
-		opacity: .5;
-		background-position: right center;
-		vertical-align: middle;
+		:deep(.user-entry) {
+			.user-avatar {
+				display: none;
+			}
+		}
 	}
 
 	.boost {
-		opacity: .5;
+		color: var(--color-text-lighter);
+		display: flex;
+		margin-left: 21px; // To align with status' text.
+
+		img {
+			width: 16px;
+			border-radius: 50%;
+			vertical-align: middle;
+			margin-top: -4px;
+			margin-left: 4px;
+		}
 	}
 </style>

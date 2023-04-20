@@ -69,6 +69,18 @@ const state = {
 	composerDisplayStatus: false,
 }
 
+/**
+ *
+ * @param {typeof state} state
+ * @param {import ('../types/Mastodon.js').Status} status
+ */
+function addToStatuses(state, status) {
+	Vue.set(state.statuses, status.id, status)
+	if (status.reblog !== undefined && status.reblog !== null) {
+		Vue.set(state.statuses, status.reblog.id, status.reblog)
+	}
+}
+
 /** @type {import('vuex').MutationTree<state>} */
 const mutations = {
 	/**
@@ -76,7 +88,7 @@ const mutations = {
 	 * @param {import ('../types/Mastodon.js').Status} status
 	 */
 	addToStatuses(state, status) {
-		Vue.set(state.statuses, status.id, status)
+		addToStatuses(state, status)
 	},
 	/**
 	 * @param state
@@ -84,13 +96,13 @@ const mutations = {
 	 */
 	addToTimeline(state, data) {
 		if (Array.isArray(data)) {
-			data.forEach(status => Vue.set(state.statuses, status.id, status))
+			data.forEach(status => addToStatuses(state, status))
 			data
 				.filter(status => state.timeline.indexOf(status.id) === -1)
 				.forEach(status => state.timeline.push(status.id))
 		} else {
-			data.descendants.forEach(status => Vue.set(state.statuses, status.id, status))
-			data.ancestors.forEach(status => Vue.set(state.statuses, status.id, status))
+			data.descendants.forEach(status => addToStatuses(state, status))
+			data.ancestors.forEach(status => addToStatuses(state, status))
 
 			data.descendants
 				.filter(status => state.timeline.indexOf(status.id) === -1)
@@ -102,20 +114,9 @@ const mutations = {
 	},
 	/**
 	 * @param state
-	 * @param {import ('../types/Mastodon.js').Status[]} data
-	 */
-	updateInTimelines(state, data) {
-		data.forEach((status) => {
-			if (state.statuses[status.id] !== undefined) {
-				Vue.set(state.statuses, status.id, status)
-			}
-		})
-	},
-	/**
-	 * @param state
 	 * @param {import('../types/Mastodon.js').Status} status
 	 */
-	removeStatusf(state, status) {
+	removeStatus(state, status) {
 		const timelineIndex = state.timeline.indexOf(status.id)
 		if (timelineIndex !== -1) {
 			state.timeline.splice(timelineIndex, 1)
@@ -161,6 +162,7 @@ const mutations = {
 	likeStatus(state, { status }) {
 		if (state.statuses[status.id] !== undefined) {
 			Vue.set(state.statuses[status.id], 'favourited', true)
+			state.statuses[status.id].favourites_count++
 		}
 	},
 	/**
@@ -171,6 +173,7 @@ const mutations = {
 	unlikeStatus(state, { status }) {
 		if (state.statuses[status.id] !== undefined) {
 			Vue.set(state.statuses[status.id], 'favourited', false)
+			state.statuses[status.id].favourites_count--
 		}
 	},
 	/**
@@ -181,6 +184,7 @@ const mutations = {
 	boostStatus(state, { status }) {
 		if (state.statuses[status.id] !== undefined) {
 			Vue.set(state.statuses[status.id], 'reblogged', true)
+			state.statuses[status.id].reblogs_count++
 		}
 	},
 	/**
@@ -191,6 +195,7 @@ const mutations = {
 	unboostStatus(state, { status }) {
 		if (state.statuses[status.id] !== undefined) {
 			Vue.set(state.statuses[status.id], 'reblogged', false)
+			state.statuses[status.id].reblogs_count--
 		}
 	},
 }
@@ -210,11 +215,14 @@ const getters = {
 			.map(statusId => state.statuses[statusId])
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 	},
+	getStatus(state) {
+		return (statusId) => state.statuses[statusId]
+	},
 	getSinglePost(state) {
 		return state.statuses[state.params.singlePost]
 	},
 	getPostFromTimeline(state) {
-		return (/** @type {string} */ statusId) => {
+		return (statusId) => {
 			if (state.statuses[statusId] !== undefined) {
 				return state.statuses[statusId]
 			} else {
@@ -280,11 +288,11 @@ const actions = {
 	 */
 	async postDelete(context, status) {
 		try {
-			context.commit('removeStatusf', status)
+			context.commit('removeStatus', status)
 			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${status.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
 		} catch (error) {
-			context.commit('updateInTimelines', [status])
+			context.commit('addToStatuses', status)
 			showError('Failed to delete the status')
 			logger.error('Failed to delete the status', { error })
 		}
@@ -299,7 +307,7 @@ const actions = {
 			context.commit('likeStatus', { status })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/favourite`))
 			logger.info('Post liked')
-			context.commit('updateInTimelines', [response.data])
+			context.commit('addToStatuses', response.data)
 			return response
 		} catch (error) {
 			context.commit('unlikeStatus', { status })
@@ -316,12 +324,12 @@ const actions = {
 		try {
 			// Remove status from list if we are in the 'liked' timeline
 			if (state.type === 'liked') {
-				context.commit('removeStatusf', status)
+				context.commit('removeStatus', status)
 			}
 			context.commit('unlikeStatus', { status })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unfavourite`))
 			logger.info('Post unliked')
-			context.commit('updateInTimelines', [response.data])
+			context.commit('addToStatuses', response.data)
 			return response
 		} catch (error) {
 			// Readd status from list if we are in the 'liked' timeline
@@ -343,7 +351,7 @@ const actions = {
 			context.commit('boostStatus', { status })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/reblog`))
 			logger.info('Post boosted')
-			context.commit('updateInTimelines', [response.data])
+			context.commit('addToStatuses', response.data)
 			return response
 		} catch (error) {
 			context.commit('unboostStatus', { status })
@@ -361,7 +369,7 @@ const actions = {
 			context.commit('unboostStatus', { status })
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unreblog`))
 			logger.info('Boost deleted')
-			context.commit('updateInTimelines', [response.data])
+			context.commit('addToStatuses', response.data)
 			return response
 		} catch (error) {
 			context.commit('boostStatus', { status })

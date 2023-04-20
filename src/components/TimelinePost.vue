@@ -38,10 +38,8 @@
 				<template #icon>
 					<Reply :size="20" />
 				</template>
-				<template #default>
-					<span v-if="item.replies_count !== 0">
-						{{ item.replies_count }}
-					</span>
+				<template>
+					{{ item.replies_count > 0 ? item.replies_count : '' }}
 				</template>
 			</NcButton>
 			<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
@@ -51,10 +49,8 @@
 				<template #icon>
 					<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
 				</template>
-				<template #default>
-					<span v-if="item.reblogs_count !== 0">
-						{{ item.reblogs_count }}
-					</span>
+				<template>
+					{{ item.reblogs_count > 0 ? item.reblogs_count : '' }}
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"
@@ -64,10 +60,8 @@
 				<template #icon>
 					<HeartOutline :size="20" />
 				</template>
-				<template #default>
-					<span v-if="item.favourites_count !== 0">
-						{{ item.favourites_count }}
-					</span>
+				<template>
+					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
 				</template>
 			</NcButton>
 			<NcButton v-if="isLiked"
@@ -76,6 +70,9 @@
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
+				</template>
+				<template>
+					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
 				</template>
 			</NcButton>
 			<NcActions>
@@ -327,33 +324,8 @@ export default {
 		margin: 4px;
 
 		.button-vue:hover {
+			// Else hover state is the same as the background.
 			background: var(--color-background-dark);
-		}
-
-		.post-actions-more {
-			position: relative;
-			width: 44px;
-			height: 34px;
-			display: inline-block;
-		}
-
-		.icon-reply,
-		.icon-boost,
-		.icon-boosted,
-		.icon-starred,
-		.icon-favorite,
-		.icon-more {
-			display: inline-block;
-			width: 44px;
-			height: 34px;
-			opacity: .5;
-			&:hover, &:focus {
-				opacity: 1;
-			}
-		}
-
-		.icon-boosted {
-			opacity: 1;
 		}
 	}
 </style>

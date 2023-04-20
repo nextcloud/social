@@ -201,7 +201,7 @@ const actions = {
 		commit('setCurrentAccount', account)
 		dispatch('fetchAccountInfo', account)
 	},
-	async followAccount(context, { currentAccount, accountToFollow }) {
+	async followAccount(context, { accountToFollow }) {
 		try {
 			const response = await axios.put(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow))
 			if (response.data.status === -1) {
@@ -214,7 +214,7 @@ const actions = {
 			logger.error(`Failed to follow user ${accountToFollow}`, { error })
 		}
 	},
-	async unfollowAccount(context, { currentAccount, accountToUnfollow }) {
+	async unfollowAccount(context, { accountToUnfollow }) {
 		try {
 			const response = await axios.delete(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow))
 			if (response.data.status === -1) {
