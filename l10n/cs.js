@@ -31,7 +31,6 @@ OC.L10N.register(
     "Delete" : "Smazat",
     "Post" : "Zveřejnit",
     "Post to followers" : "Poslat sledujícím",
-    "Post to mentioned users" : "Poslat zmíněným uživatelům",
     "Post publicly" : "Poslat veřejně",
     "Post to recipients" : "Poslat adresátům",
     "Post unlisted" : "Poslat skrytě",
@@ -96,7 +95,6 @@ OC.L10N.register(
     "Visible for all, but opted-out of discovery features" : "Viditelné všem, ale vynecháno z funkcí objevování",
     "Followers" : "Sledujícím",
     "Visible to followers only" : "Viditelné pouze následovatelům",
-    "Direct" : "Přímo",
     "Visible to mentioned users only" : "Viditelné pouze uživatelům, kteří jsou vysloveně zmíněni"
 },
 "nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n >= 2 && n <= 4 && n % 1 == 0) ? 1: (n % 1 != 0 ) ? 2 : 3;");

@@ -29,7 +29,6 @@
     "Delete" : "Ezabatu",
     "Post" : "Bidali",
     "Post to followers" : "Argitaratu jarraitzaileentzat",
-    "Post to mentioned users" : "Argitaratu aipatutako erabiltzaileentzat",
     "Post publicly" : "Argitaratu publikoki",
     "Post to recipients" : "Argitaratu jasotzaileentzat",
     "Post unlisted" : "Argitaratu zerrendatu gabe",
@@ -89,7 +88,6 @@
     "Public" : "Publikoa",
     "Visible for all" : "Denontzako ikusgai",
     "Unlisted" : "Zerrendatu gabea",
-    "Followers" : "Jarraitzaileak",
-    "Direct" : "Zuzena"
+    "Followers" : "Jarraitzaileak"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

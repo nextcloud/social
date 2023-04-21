@@ -32,7 +32,6 @@ OC.L10N.register(
     "Delete" : "Suprimeix",
     "Post" : "Publica",
     "Post to followers" : "Publica només pels seguidors",
-    "Post to mentioned users" : "Publica als usuaris esmentats",
     "Post publicly" : "Publica per a tothom",
     "Post to recipients" : "Publica pels destinataris",
     "Post unlisted" : "Publica pels seguidors i el perfil",
@@ -92,7 +91,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Segueix a Nextcloud a mastodon.xyz",
     "Public" : "Públic",
     "Unlisted" : "No llistat",
-    "Followers" : "Seguidors",
-    "Direct" : "Dirrecte"
+    "Followers" : "Seguidors"
 },
 "nplurals=2; plural=(n != 1);");

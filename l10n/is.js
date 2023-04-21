@@ -71,7 +71,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz",
     "Public" : "Opinbert",
     "Unlisted" : "Óskráð",
-    "Followers" : "Fylgjendur",
-    "Direct" : "Beint"
+    "Followers" : "Fylgjendur"
 },
 "nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);");

@@ -30,7 +30,6 @@
     "Delete" : "Sil",
     "Post" : "Gönder",
     "Post to followers" : "Takipçilere gönder",
-    "Post to mentioned users" : "Anılmış kullanıcılara gönder",
     "Post publicly" : "Herkese açık olarak gönder",
     "Post to recipients" : "Alıcılara gönder",
     "Post unlisted" : "Listelenmemişlere gönder",
@@ -95,7 +94,6 @@
     "Visible for all, but opted-out of discovery features" : "Herkese görünür ancak keşif özellikleri kullanılamaz",
     "Followers" : "Takipçiler",
     "Visible to followers only" : "Yalnızca takipçilere görüntülenir",
-    "Direct" : "Doğrudan",
     "Visible to mentioned users only" : "Yalnızca anılan kullanıcılara görüntülenir"
 },"pluralForm" :"nplurals=2; plural=(n > 1);"
 }

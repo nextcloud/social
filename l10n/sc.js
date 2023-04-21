@@ -74,7 +74,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Sighi Nextcloud in mastodon.xyz",
     "Public" : "Pùblicu",
     "Unlisted" : "No elencadu",
-    "Followers" : "Sighidores",
-    "Direct" : "Deretu"
+    "Followers" : "Sighidores"
 },
 "nplurals=2; plural=(n != 1);");

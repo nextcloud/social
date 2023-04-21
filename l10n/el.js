@@ -75,7 +75,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Ακολουθήστε το Nextcloud στο mastodon.xyz",
     "Public" : "Δημόσιο",
     "Unlisted" : "Μή καταχωρημένο",
-    "Followers" : "Ακόλουθοι",
-    "Direct" : "Άμεσα"
+    "Followers" : "Ακόλουθοι"
 },
 "nplurals=2; plural=(n != 1);");

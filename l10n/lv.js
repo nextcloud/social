@@ -37,7 +37,6 @@ OC.L10N.register(
     "User not found" : "Lietotājs nav atrasts",
     "Public" : "Publiska",
     "Unlisted" : "Nerindots",
-    "Followers" : "Sekotāji",
-    "Direct" : "Tieši"
+    "Followers" : "Sekotāji"
 },
 "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2);");

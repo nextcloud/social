@@ -69,7 +69,6 @@
     "Follow Nextcloud on mastodon.xyz" : "Fylgstu með Nextcloud á mastodon.xyz",
     "Public" : "Opinbert",
     "Unlisted" : "Óskráð",
-    "Followers" : "Fylgjendur",
-    "Direct" : "Beint"
+    "Followers" : "Fylgjendur"
 },"pluralForm" :"nplurals=2; plural=(n % 10 != 1 || n % 100 == 11);"
 }

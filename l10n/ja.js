@@ -78,7 +78,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
     "Public" : "公開",
     "Unlisted" : "限定公開",
-    "Followers" : "フォロワー",
-    "Direct" : "ダイレクト"
+    "Followers" : "フォロワー"
 },
 "nplurals=1; plural=0;");

@@ -76,7 +76,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Segui Nextcloud su mastodon.xyz",
     "Public" : "Pubblico",
     "Unlisted" : "Non elencato",
-    "Followers" : "Seguaci",
-    "Direct" : "Diretto"
+    "Followers" : "Seguaci"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

@@ -31,7 +31,6 @@ OC.L10N.register(
     "Delete" : "Ezabatu",
     "Post" : "Bidali",
     "Post to followers" : "Argitaratu jarraitzaileentzat",
-    "Post to mentioned users" : "Argitaratu aipatutako erabiltzaileentzat",
     "Post publicly" : "Argitaratu publikoki",
     "Post to recipients" : "Argitaratu jasotzaileentzat",
     "Post unlisted" : "Argitaratu zerrendatu gabe",
@@ -91,7 +90,6 @@ OC.L10N.register(
     "Public" : "Publikoa",
     "Visible for all" : "Denontzako ikusgai",
     "Unlisted" : "Zerrendatu gabea",
-    "Followers" : "Jarraitzaileak",
-    "Direct" : "Zuzena"
+    "Followers" : "Jarraitzaileak"
 },
 "nplurals=2; plural=(n != 1);");

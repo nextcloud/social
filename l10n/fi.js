@@ -64,7 +64,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Seuraa Nextcloudia mastodon.xyz:ssa",
     "Public" : "Julkinen",
     "Unlisted" : "Listaamaton",
-    "Followers" : "Seuraajat",
-    "Direct" : "Suoraan"
+    "Followers" : "Seuraajat"
 },
 "nplurals=2; plural=(n != 1);");

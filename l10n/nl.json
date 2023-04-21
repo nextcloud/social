@@ -74,7 +74,6 @@
     "Follow Nextcloud on mastodon.xyz" : "Volg Nextcloud op mastodon.xyz",
     "Public" : "Openbaar",
     "Unlisted" : "Niet geregistreerd",
-    "Followers" : "Volgers",
-    "Direct" : "Direct"
+    "Followers" : "Volgers"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

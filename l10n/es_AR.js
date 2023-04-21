@@ -30,7 +30,6 @@ OC.L10N.register(
     "Continue" : "Continuar",
     "Public" : "Público",
     "Unlisted" : "No listado",
-    "Followers" : "Seguidores",
-    "Direct" : "Directo"
+    "Followers" : "Seguidores"
 },
 "nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");

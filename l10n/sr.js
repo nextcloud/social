@@ -32,7 +32,6 @@ OC.L10N.register(
     "Delete" : "Избриши",
     "Post" : "Објави",
     "Post to followers" : "Објави пратиоцима",
-    "Post to mentioned users" : "Објави поменутим корисницима",
     "Post publicly" : "Објави јавно",
     "Post to recipients" : "Објави примаоцима",
     "Post unlisted" : "Објави неизлистано",
@@ -97,7 +96,6 @@ OC.L10N.register(
     "Visible for all, but opted-out of discovery features" : "Видљиво свима, али без могућности откривања",
     "Followers" : "Пратиоци",
     "Visible to followers only" : "Видљиво само онима који прате",
-    "Direct" : "Директно",
     "Visible to mentioned users only" : "Видљиво само поменутим корисницима"
 },
 "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");

@@ -76,7 +76,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Volg Nextcloud op mastodon.xyz",
     "Public" : "Openbaar",
     "Unlisted" : "Niet geregistreerd",
-    "Followers" : "Volgers",
-    "Direct" : "Direct"
+    "Followers" : "Volgers"
 },
 "nplurals=2; plural=(n != 1);");

@@ -19,7 +19,6 @@
     "Close" : "Lukk",
     "Continue" : "Fortsett",
     "User not found" : "Fant ikke brukeren",
-    "Public" : "Offentlig",
-    "Direct" : "Direkte"
+    "Public" : "Offentlig"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

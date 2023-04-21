@@ -31,7 +31,6 @@ OC.L10N.register(
     "Delete" : "Eliminar",
     "Post" : "Publicar",
     "Post to followers" : "Mensaxe para seguidores",
-    "Post to mentioned users" : "Publicar aos usuarios mencionados",
     "Post publicly" : "Mensaxe pública",
     "Post to recipients" : "Mensaxe para mencionadas",
     "Post unlisted" : "Mensaxe sen listar",
@@ -90,7 +89,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Siga a Nextcloud en mastodon.xyz",
     "Public" : "Pública",
     "Unlisted" : "Sen listar",
-    "Followers" : "Seguidores",
-    "Direct" : "Directa"
+    "Followers" : "Seguidores"
 },
 "nplurals=2; plural=(n != 1);");

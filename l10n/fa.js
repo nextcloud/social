@@ -70,7 +70,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "نکست کلود را در mastodon.xyz دنبال کنید",
     "Public" : "عمومی",
     "Unlisted" : "لیست نشده",
-    "Followers" : "دنبال کنندگان",
-    "Direct" : "مستقیم"
+    "Followers" : "دنبال کنندگان"
 },
 "nplurals=2; plural=(n > 1);");

@@ -28,7 +28,6 @@ OC.L10N.register(
     "Delete" : "Izbriši",
     "Post" : "Objavi",
     "Post to followers" : "Objavi sledilcem",
-    "Post to mentioned users" : "Objavi za omenjene uporabnike",
     "Post publicly" : "Objavi javno",
     "Post to recipients" : "Objavi prejemnikom",
     "Post unlisted" : "Objavi nenavedeno",
@@ -76,7 +75,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Sledi Nextcloud na mastodon.xyz",
     "Public" : "Javno",
     "Unlisted" : "Nenavedeno",
-    "Followers" : "Za sledilce",
-    "Direct" : "Neposredno izbranim"
+    "Followers" : "Za sledilce"
 },
 "nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);");

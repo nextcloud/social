@@ -76,7 +76,6 @@
     "Follow Nextcloud on mastodon.xyz" : "mastodon.xyzでNextcloudをフォローする",
     "Public" : "公開",
     "Unlisted" : "限定公開",
-    "Followers" : "フォロワー",
-    "Direct" : "ダイレクト"
+    "Followers" : "フォロワー"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

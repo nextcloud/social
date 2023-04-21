@@ -46,7 +46,6 @@ OC.L10N.register(
     "Sorry, we could not find the account of {userId}" : "לא הצלחנו למצוא את החשבון של {userId}, עמך הסליחה",
     "Follow Nextcloud on mastodon.xyz" : "ניתן לעקוב אחר Nextcloud ב־mastodon.xyz",
     "Public" : "ציבורי",
-    "Followers" : "עוקבים",
-    "Direct" : "ישיר"
+    "Followers" : "עוקבים"
 },
 "nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n == 2 && n % 1 == 0) ? 1: (n % 10 == 0 && n % 1 == 0 && n > 10) ? 2 : 3;");

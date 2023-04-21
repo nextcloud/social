@@ -21,7 +21,6 @@ OC.L10N.register(
     "Close" : "Lukk",
     "Continue" : "Fortsett",
     "User not found" : "Fant ikke brukeren",
-    "Public" : "Offentlig",
-    "Direct" : "Direkte"
+    "Public" : "Offentlig"
 },
 "nplurals=2; plural=(n != 1);");

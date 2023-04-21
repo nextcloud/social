@@ -70,7 +70,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "Följ Nextcloud på mastodon.xyz",
     "Public" : "Offentlig",
     "Unlisted" : "Olistad",
-    "Followers" : "Följare",
-    "Direct" : "Direkt"
+    "Followers" : "Följare"
 },
 "nplurals=2; plural=(n != 1);");

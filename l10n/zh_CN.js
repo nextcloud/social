@@ -31,7 +31,6 @@ OC.L10N.register(
     "Delete" : "删除",
     "Post" : "发布",
     "Post to followers" : "向关注者发帖",
-    "Post to mentioned users" : "向提及的用户发帖",
     "Post publicly" : "公开发帖",
     "Post to recipients" : "向被提及者发帖",
     "Post unlisted" : "不公开发帖",
@@ -86,7 +85,6 @@ OC.L10N.register(
     "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud",
     "Public" : "公开",
     "Unlisted" : "不公开",
-    "Followers" : "仅关注者",
-    "Direct" : "私信"
+    "Followers" : "仅关注者"
 },
 "nplurals=1; plural=0;");

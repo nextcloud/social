@@ -32,7 +32,6 @@ OC.L10N.register(
     "Delete" : "Sil",
     "Post" : "Gönder",
     "Post to followers" : "Takipçilere gönder",
-    "Post to mentioned users" : "Anılmış kullanıcılara gönder",
     "Post publicly" : "Herkese açık olarak gönder",
     "Post to recipients" : "Alıcılara gönder",
     "Post unlisted" : "Listelenmemişlere gönder",
@@ -97,7 +96,6 @@ OC.L10N.register(
     "Visible for all, but opted-out of discovery features" : "Herkese görünür ancak keşif özellikleri kullanılamaz",
     "Followers" : "Takipçiler",
     "Visible to followers only" : "Yalnızca takipçilere görüntülenir",
-    "Direct" : "Doğrudan",
     "Visible to mentioned users only" : "Yalnızca anılan kullanıcılara görüntülenir"
 },
 "nplurals=2; plural=(n > 1);");

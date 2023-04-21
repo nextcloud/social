@@ -30,7 +30,6 @@
     "Delete" : "Изтриване",
     "Post" : "Изпрати",
     "Post to followers" : "Публикувай за последователите ти",
-    "Post to mentioned users" : "Публикуване до споменатите потребители",
     "Post publicly" : "Публикувай ",
     "Post to recipients" : "Публикувах за получателите",
     "Post unlisted" : "Публикацията не е включена в списъка",
@@ -95,7 +94,6 @@
     "Visible for all, but opted-out of discovery features" : "Видимо за всички, но е изключен от функциите за откриване",
     "Followers" : "Последователи",
     "Visible to followers only" : "Видимо само за последователи",
-    "Direct" : "Директно",
     "Visible to mentioned users only" : "Видимо само за споменатите потребители"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

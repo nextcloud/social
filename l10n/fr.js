@@ -32,7 +32,6 @@ OC.L10N.register(
     "Delete" : "Supprimer",
     "Post" : "Publier",
     "Post to followers" : "Poster aux abonnés",
-    "Post to mentioned users" : "Poster aux utilisateurs mentionnés",
     "Post publicly" : "Poster publiquement",
     "Post to recipients" : "Poster aux destinataires",
     "Post unlisted" : "Message non répertorié",
@@ -97,7 +96,6 @@ OC.L10N.register(
     "Visible for all, but opted-out of discovery features" : "Visible pour tous, mais exclu des fonctions de découverte",
     "Followers" : "Abonnés",
     "Visible to followers only" : "Visible des abonnés seulement",
-    "Direct" : "Direct",
     "Visible to mentioned users only" : "Visible des utilisateurs cités uniquement"
 },
 "nplurals=3; plural=(n == 0 || n == 1) ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;");
