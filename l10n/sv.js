@@ -21,6 +21,7 @@ OC.L10N.register(
     "Following" : "Följer",
     "In reply to" : "Som svar på",
     "Add attachment" : "Lägg till bilaga",
+    "Add emoji" : "Lägg till emoji",
     "Uploading..." : "Laddar upp...",
     "Delete" : "Radera",
     "Post" : "Skicka",
