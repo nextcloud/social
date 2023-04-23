@@ -32,6 +32,7 @@ OC.L10N.register(
     "Delete" : "刪除",
     "Post" : "送出",
     "Post to followers" : "向關注者發帖",
+    "Send message to mentioned users" : "向被提及的用戶傳送訊息",
     "Post publicly" : "公開發帖",
     "Post to recipients" : "向被提及者發帖",
     "Post unlisted" : "不公開發帖",
@@ -96,6 +97,7 @@ OC.L10N.register(
     "Visible for all, but opted-out of discovery features" : "所有人可看見，但選擇退出發現功能",
     "Followers" : "僅關注者",
     "Visible to followers only" : "僅關注者可看見",
+    "Direct message" : "私信",
     "Visible to mentioned users only" : "僅被提及的用戶可看見"
 },
 "nplurals=1; plural=0;");
