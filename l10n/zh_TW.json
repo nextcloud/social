@@ -30,6 +30,7 @@
     "Delete" : "刪除",
     "Post" : "張貼",
     "Post to followers" : "張貼給追蹤者",
+    "Send message to mentioned users" : "傳送訊息給提及的使用者",
     "Post publicly" : "公開張貼",
     "Post to recipients" : "張貼給接收者",
     "Post unlisted" : "不公開張貼",
@@ -94,6 +95,7 @@
     "Visible for all, but opted-out of discovery features" : "所有人均可見，但選擇退出探索功能",
     "Followers" : "追蹤者",
     "Visible to followers only" : "僅對追隨者可見",
+    "Direct message" : "直接訊息",
     "Visible to mentioned users only" : "僅被提及的使用者可見"
 },"pluralForm" :"nplurals=1; plural=0;"
 }
