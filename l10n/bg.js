@@ -32,6 +32,7 @@ OC.L10N.register(
     "Delete" : "Изтриване",
     "Post" : "Изпрати",
     "Post to followers" : "Публикувай за последователите ти",
+    "Send message to mentioned users" : "Изпращане на съобщение до споменатите потребители",
     "Post publicly" : "Публикувай ",
     "Post to recipients" : "Публикувах за получателите",
     "Post unlisted" : "Публикацията не е включена в списъка",
@@ -96,6 +97,7 @@ OC.L10N.register(
     "Visible for all, but opted-out of discovery features" : "Видимо за всички, но е изключен от функциите за откриване",
     "Followers" : "Последователи",
     "Visible to followers only" : "Видимо само за последователи",
+    "Direct message" : "Директно съобщение",
     "Visible to mentioned users only" : "Видимо само за споменатите потребители"
 },
 "nplurals=2; plural=(n != 1);");

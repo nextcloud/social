@@ -30,6 +30,7 @@
     "Delete" : "Избриши",
     "Post" : "Објави",
     "Post to followers" : "Објави пратиоцима",
+    "Send message to mentioned users" : "Пошаљи поруку поменутим корисницима",
     "Post publicly" : "Објави јавно",
     "Post to recipients" : "Објави примаоцима",
     "Post unlisted" : "Објави неизлистано",
@@ -94,6 +95,7 @@
     "Visible for all, but opted-out of discovery features" : "Видљиво свима, али без могућности откривања",
     "Followers" : "Пратиоци",
     "Visible to followers only" : "Видљиво само онима који прате",
+    "Direct message" : "Директна порука",
     "Visible to mentioned users only" : "Видљиво само поменутим корисницима"
 },"pluralForm" :"nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);"
 }
