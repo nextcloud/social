@@ -30,6 +30,7 @@
     "Delete" : "Löschen",
     "Post" : "Absenden",
     "Post to followers" : "An Follower posten",
+    "Send message to mentioned users" : "Nachricht an erwähnte Benutzer senden",
     "Post publicly" : "Öffentlich posten",
     "Post to recipients" : "An Empfänger posten",
     "Post unlisted" : "Post wird nicht mehr aufgelistet",
@@ -62,6 +63,7 @@
     "Boost" : "teilen",
     "Like" : "Mag ich",
     "Undo Like" : "Like rückgängig machen",
+    "Choose a visibility" : "Sichtbarkeit wählen",
     "Go to Social app" : "Zur Socia-App gehen",
     "Error getting Social notifications" : "Fehler beim Empfangen von Social-Benachrichtigungen",
     "No Social notifications!" : "Keine Social-Benachrichtigungen!",
@@ -88,7 +90,12 @@
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Du bist neu bei Social, von daher empfehlen wir dir dem Nextcloud-Konto zu folgen und so keine Neuigkeiten zu verpassen",
     "Follow Nextcloud on mastodon.xyz" : "Nextcloud auf mastodon.xyz folgen",
     "Public" : "Öffentlich",
+    "Visible for all" : "Für alle sichtbar",
     "Unlisted" : "Nicht aufgelistet",
-    "Followers" : "Followers"
+    "Visible for all, but opted-out of discovery features" : "Für alle sichtbar, aber ohne Auffindefunktionen",
+    "Followers" : "Followers",
+    "Visible to followers only" : "Nur für Follower sichtbar",
+    "Direct message" : "Direktnachricht",
+    "Visible to mentioned users only" : "Nur für erwähnte Benutzer sichtbar"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
