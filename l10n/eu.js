@@ -90,6 +90,7 @@ OC.L10N.register(
     "Public" : "Publikoa",
     "Visible for all" : "Denontzako ikusgai",
     "Unlisted" : "Zerrendatu gabea",
-    "Followers" : "Jarraitzaileak"
+    "Followers" : "Jarraitzaileak",
+    "Direct message" : "Mezu zuzena"
 },
 "nplurals=2; plural=(n != 1);");
