@@ -30,6 +30,7 @@
     "Delete" : "Törlés",
     "Post" : "Küldés",
     "Post to followers" : "Közzététel a követők számára",
+    "Send message to mentioned users" : "Üzenet küldése a megemlített felhasználóknak",
     "Post publicly" : "Nyilvános közzététel",
     "Post to recipients" : "Közzététel a címzetteknek",
     "Post unlisted" : "A bejegyzés nem nyilvános",
@@ -94,6 +95,7 @@
     "Visible for all, but opted-out of discovery features" : "Mindenki számára látható, de a felfedezési funkciók ki lettek kapcsolva",
     "Followers" : "Követők",
     "Visible to followers only" : "Csak a követők számára látható",
+    "Direct message" : "Közvetlen üzenet",
     "Visible to mentioned users only" : "Csak a megemlített felhasználók számára látható"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
