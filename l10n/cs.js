@@ -31,6 +31,7 @@ OC.L10N.register(
     "Delete" : "Smazat",
     "Post" : "Zveřejnit",
     "Post to followers" : "Poslat sledujícím",
+    "Send message to mentioned users" : "Poslat zprávu zmíněným uživatelům",
     "Post publicly" : "Poslat veřejně",
     "Post to recipients" : "Poslat adresátům",
     "Post unlisted" : "Poslat skrytě",
