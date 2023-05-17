@@ -35,7 +35,11 @@
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
+<<<<<<< master
 		<nextcloud min-version="27" max-version="27"/>
+=======
+		<nextcloud min-version="25" max-version="27"/>
+>>>>>>> feat(deps): Add Nextcloud 28 support
 	</dependencies>
 
 	<background-jobs>
