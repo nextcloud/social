@@ -64,7 +64,7 @@
     "Go to Social app" : "前往 Social 应用",
     "Error getting Social notifications" : "获取 Social 通知时出错",
     "No Social notifications!" : "沒有 Social 通知！",
-    "Failed to get Social notifications" : "获取 Social 通知失败",
+    "Failed to get Social notifications" : "获取Social通知失败",
     "Deny" : "禁止",
     "Follow on Nextcloud Social" : "关注 Nextcloud 社交",
     "Hello" : "您好",
@@ -80,7 +80,7 @@
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud 已经成为联合云社交网络的一部分！",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "我们会自动为您创建一个社交账号。您的社交 ID 与您的联合云 ID 相同：",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "鉴于您刚来到社交应用，请先关注 Nextcloud 官方账号，这样您将不会错过任何新闻",
-    "Follow Nextcloud on mastodon.xyz" : "在 mastodon.xyz上关注 Nextcloud",
+    "Follow Nextcloud on mastodon.xyz" : "在mastodon.xyz上关注Nextcloud",
     "Public" : "公开",
     "Unlisted" : "不公开",
     "Followers" : "仅关注者"
