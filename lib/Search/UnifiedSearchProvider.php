@@ -152,7 +152,7 @@ class UnifiedSearchProvider implements IProvider {
 			$this->convertHashtags($this->searchService->searchHashtags($search))
 		);
 
-//	$this->searchService->searchStreamContent($search)
+		//	$this->searchService->searchStreamContent($search)
 
 		return SearchResult::paginated(
 			$this->l10n->t('Social'), $result, ($query->getCursor() ?? 0) + $query->getLimit()

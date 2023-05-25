@@ -386,7 +386,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	public function addEntry(string $k, string $v): ACore {
 		if ($v === '') {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -436,7 +436,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	public function addEntryArray(string $k, array $v): ACore {
 		if ($v === []) {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -455,7 +455,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	public function addEntryItem(string $k, ACore $v): ACore {
 		if ($v === null) {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}

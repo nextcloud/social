@@ -31,12 +31,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Traits;
 
+use Exception;
+use JsonSerializable;
 use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
 use OCA\Social\Tools\Exceptions\ItemNotFoundException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\UnknownTypeException;
-use Exception;
-use JsonSerializable;
 
 /**
  * Trait TArrayTools

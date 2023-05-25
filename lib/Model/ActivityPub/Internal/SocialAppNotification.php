@@ -74,7 +74,7 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 	 * @return array
 	 */
 	public function jsonSerialize(): array {
-//		$this->addEntryInt('publishedTime', $this->getPublishedTime());
+		//		$this->addEntryInt('publishedTime', $this->getPublishedTime());
 
 		return array_merge(
 			parent::jsonSerialize(),

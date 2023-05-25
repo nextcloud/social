@@ -568,7 +568,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$actor->importFromLocal($this->getArray('account', $data));
 		$actor->setExportFormat(ACore::FORMAT_LOCAL);
 		$this->setActor($actor);
-//		$this->setCompleteDetails(true);
+		//		$this->setCompleteDetails(true);
 	}
 
 
@@ -711,7 +711,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
-//		$result['media_attachments'] = $this->getAttachments();
+		//		$result['media_attachments'] = $this->getAttachments();
 		$result['attachment'] = $this->getAttachments();
 
 		return $result;

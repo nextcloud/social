@@ -31,9 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
+use JsonSerializable;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
-use JsonSerializable;
 
 /**
  * Class StreamAction

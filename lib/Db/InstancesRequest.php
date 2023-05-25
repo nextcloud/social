@@ -31,10 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -51,8 +51,8 @@ class InstancesRequest extends InstancesRequestBuilder {
 	 * TODO: store instance in db
 	 */
 	public function save(Instance $instance) {
-//		$now = new DateTime('now');
-//		$instance->setCreation($now->getTimestamp());
+		//		$now = new DateTime('now');
+		//		$instance->setCreation($now->getTimestamp());
 
 		$qb = $this->getInstanceInsertSql();
 		$qb->setValue('uri', $qb->createNamedParameter($instance->getUri()))

@@ -102,9 +102,9 @@ class CheckInstall extends Base {
 			return 0;
 		}
 
-//		if ($this->checkPushApp($input, $output)) {
-//			return;
-//		}
+		//		if ($this->checkPushApp($input, $output)) {
+		//			return;
+		//		}
 
 		$result = $this->checkService->checkInstallationStatus();
 
@@ -137,9 +137,9 @@ class CheckInstall extends Base {
 		}
 
 		// push was not implemented on 18
-//		$wrapper = $this->pushService->testOnAccount($userId);
+		//		$wrapper = $this->pushService->testOnAccount($userId);
 
-//		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
+		//		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
 
 		return true;
 	}

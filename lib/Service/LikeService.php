@@ -31,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
@@ -47,6 +46,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Traits\TStringTools;
 
 /**
  * Class LikeService
@@ -119,9 +119,9 @@ class LikeService {
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-//		if (!$note->isPublic()) {
-//			throw new StreamNotFoundException('Stream is not Public');
-//		}
+		//		if (!$note->isPublic()) {
+		//			throw new StreamNotFoundException('Stream is not Public');
+		//		}
 
 		$like->setObjectId($note->getId());
 		$this->assignInstance($like, $actor, $note);
@@ -200,11 +200,11 @@ class LikeService {
 	 * @param Stream $note
 	 */
 	private function assignInstance(ACore $item, Person $actor, Stream $note) {
-//		$item->addInstancePath(
-//			new InstancePath(
-//				$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-//			)
-//		);
+		//		$item->addInstancePath(
+		//			new InstancePath(
+		//				$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+		//			)
+		//		);
 		$item->addInstancePath(
 			new InstancePath(
 				$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW

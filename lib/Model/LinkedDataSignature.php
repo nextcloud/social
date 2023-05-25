@@ -201,9 +201,9 @@ class LinkedDataSignature implements JsonSerializable {
 	 * @throws LinkedDataSignatureMissingException
 	 */
 	public function import(array $data): void {
-//		if (!in_array(ACore::CONTEXT_SECURITY, $this->getArray('@context', $data, []))) {
-//			throw new LinkedDataSignatureMissingException('no @context security entry');
-//		}
+		//		if (!in_array(ACore::CONTEXT_SECURITY, $this->getArray('@context', $data, []))) {
+		//			throw new LinkedDataSignatureMissingException('no @context security entry');
+		//		}
 
 		$signature = $this->getArray('signature', $data, []);
 		if ($signature === []) {

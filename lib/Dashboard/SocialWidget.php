@@ -23,10 +23,10 @@
 
 namespace OCA\Social\Dashboard;
 
-use OCP\IURLGenerator;
+use OCA\Social\AppInfo\Application;
 use OCP\Dashboard\IWidget;
 use OCP\IL10N;
-use OCA\Social\AppInfo\Application;
+use OCP\IURLGenerator;
 
 class SocialWidget implements IWidget {
 	private IL10N $l10n;

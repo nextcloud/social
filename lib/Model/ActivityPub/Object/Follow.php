@@ -31,9 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\ActivityPub\Object;
 
-use OCA\Social\Tools\IQueryRow;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Tools\IQueryRow;
 
 /**
  * Class Follow

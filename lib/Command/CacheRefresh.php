@@ -70,8 +70,8 @@ class CacheRefresh extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-//		$result = $this->accountService->blindKeyRotation();
-//		$output->writeLn($result . ' key pairs refreshed');
+		//		$result = $this->accountService->blindKeyRotation();
+		//		$output->writeLn($result . ' key pairs refreshed');
 
 		$result = $this->accountService->manageDeletedActors();
 		$output->writeLn($result . ' local accounts deleted');
