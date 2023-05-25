@@ -11,7 +11,7 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-version+=0.6.0-rc2
+version+=0.6.0-rc3
 
 
 all: dev-setup lint build-js-production composer
