@@ -278,9 +278,9 @@ class ActivityPubController extends Controller {
 	 * @return Response
 	 */
 	public function outbox(string $username): Response {
-//		if (!$this->checkSourceActivityStreams()) {
-//			return $this->socialPubController->outbox($username);
-//		}
+		//		if (!$this->checkSourceActivityStreams()) {
+		//			return $this->socialPubController->outbox($username);
+		//		}
 
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);

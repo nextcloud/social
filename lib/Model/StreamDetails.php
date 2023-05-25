@@ -31,10 +31,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class StreamDetails

@@ -31,11 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model\Client;
 
-use OCA\Social\Tools\IQueryRow;
-use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class ClientApp
@@ -60,8 +60,8 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	private string $token = '';
 	private int $creation = -1;
 
-//	/** @var array */
-//	private $tokenScopes = [];
+	//	/** @var array */
+	//	private $tokenScopes = [];
 
 
 	/**

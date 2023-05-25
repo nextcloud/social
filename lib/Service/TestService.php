@@ -30,10 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\SimpleDataStore;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -42,6 +38,10 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Test;
+use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\SimpleDataStore;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class TestService

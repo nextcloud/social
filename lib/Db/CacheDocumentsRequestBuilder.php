@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;

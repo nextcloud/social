@@ -149,7 +149,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$follow = $expr->andX();
 		$follow->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow')));
 		// might be overkill to check object_id and also seems to filter boosted message
-//		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
+		//		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
 		$orX->add($follow);
 
 		$loopback = $expr->andX();

@@ -66,7 +66,7 @@ class Announce extends Stream implements JsonSerializable {
 		parent::import($data);
 
 		// Might be better to create 'actor_id' field in the 'server_streams' table.
-//		$this->setAttributedTo($this->getActorId());
+		//		$this->setAttributedTo($this->getActorId());
 	}
 
 	/**

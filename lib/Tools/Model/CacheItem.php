@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Model;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class CacheItem

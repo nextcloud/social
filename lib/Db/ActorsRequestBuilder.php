@@ -30,9 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;

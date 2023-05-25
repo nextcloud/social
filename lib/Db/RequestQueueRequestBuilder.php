@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\RequestQueue;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;

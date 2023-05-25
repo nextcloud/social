@@ -30,12 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\Db\ClientRequest;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Tools\Traits\TStringTools;
 
 /**
  * Class ClientService
@@ -44,8 +44,8 @@ use OCA\Social\Model\Client\SocialClient;
  */
 class ClientService {
 	public const TIME_TOKEN_REFRESH = 300; // 5m
-//	const TIME_TOKEN_TTL = 21600; // 6h
-//	const TIME_AUTH_TTL = 30672000; // 1y
+	//	const TIME_TOKEN_TTL = 21600; // 6h
+	//	const TIME_AUTH_TTL = 30672000; // 1y
 
 	// looks like there is no token refresh. token must have been updated in the last year.
 	public const TIME_TOKEN_TTL = 30672000; // 1y
@@ -97,7 +97,7 @@ class ClientService {
 	 */
 	public function authClient(SocialClient $client) {
 		$client->setAuthCode($this->token(60));
-//		$clientAuth->setClientId($client->getId());
+		//		$clientAuth->setClientId($client->getId());
 
 		$this->clientRequest->authClient($client);
 	}

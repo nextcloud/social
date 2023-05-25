@@ -30,28 +30,28 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Model\Cache;
-use OCA\Social\Tools\Model\CacheItem;
 use OCA\Social\AP;
-use OCA\Social\Db\StreamRequest;
 use OCA\Social\Db\StreamQueueRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamQueue;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnauthorizedFediverseException;
-use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\StreamQueue;
+use OCA\Social\Tools\Model\Cache;
+use OCA\Social\Tools\Model\CacheItem;
 
 /**
  * Class StreamQueueService

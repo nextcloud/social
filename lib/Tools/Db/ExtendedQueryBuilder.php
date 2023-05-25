@@ -31,15 +31,15 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\IExtendedQueryBuilder;
-use OCA\Social\Tools\IQueryRow;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder as DBALQueryBuilder;
 use Exception;
 use OC\DB\QueryBuilder\QueryBuilder;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\IExtendedQueryBuilder;
+use OCA\Social\Tools\IQueryRow;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 

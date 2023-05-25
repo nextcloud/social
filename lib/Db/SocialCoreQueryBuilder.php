@@ -31,9 +31,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Db\ExtendedQueryBuilder;
 use OC\SystemConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Db\ExtendedQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;

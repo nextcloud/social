@@ -108,10 +108,10 @@ class BoostService {
 
 		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
 		// TODO: check that announce does not exist already ?
-//		try {
-//			return $interface->getItem($announce);
-//		} catch (ItemNotFoundException $e) {
-//		}
+		//		try {
+		//			return $interface->getItem($announce);
+		//		} catch (ItemNotFoundException $e) {
+		//		}
 
 		$interface->save($announce);
 

@@ -117,17 +117,17 @@ class ActivityService {
 		$activity = new Create();
 		$item->setParent($activity);
 
-//		$this->activityStreamsService->initCore($activity);
+		//		$this->activityStreamsService->initCore($activity);
 
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
 		$activity->setInstancePaths($item->getInstancePaths());
 
-//		if ($item->getToArray() !== []) {
-//			$activity->setToArray($item->getToArray());
-//		} else {
-//			$activity->setTo($item->getTo());
-//		}
+		//		if ($item->getToArray() !== []) {
+		//			$activity->setToArray($item->getToArray());
+		//		} else {
+		//			$activity->setTo($item->getTo());
+		//		}
 
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);

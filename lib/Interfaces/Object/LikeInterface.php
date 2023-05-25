@@ -172,9 +172,9 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	private function updateDetails(Stream $post): void {
-//		if (!$post->isLocal()) {
-//			return;
-//		}
+		//		if (!$post->isLocal()) {
+		//			return;
+		//		}
 
 		$post->setDetailInt(
 			'likes', $this->actionsRequest->countActions($post->getId(), Like::TYPE)
@@ -209,7 +209,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
-//			$notification->setDetail('url', '');
+			//			$notification->setDetail('url', '');
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())

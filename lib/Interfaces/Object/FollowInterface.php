@@ -94,7 +94,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			$accept->generateUniqueId('#accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
-//			$follow->setParent($accept);
+			//			$follow->setParent($accept);
 
 			$accept->addInstancePath(
 				new InstancePath(
