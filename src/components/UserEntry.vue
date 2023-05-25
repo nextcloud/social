@@ -53,7 +53,7 @@
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<p v-html="item.note" />
 			</div>
-			<FollowButton :uid="item.acct" />
+			<FollowButton v-if="displayFollowButton" :uid="item.acct" />
 		</div>
 	</div>
 </template>
@@ -77,6 +77,10 @@ export default {
 		item: {
 			type: Object,
 			default: () => {},
+		},
+		displayFollowButton: {
+			type: Boolean,
+			default: true,
 		},
 	},
 	data() {

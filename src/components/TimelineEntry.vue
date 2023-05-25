@@ -45,7 +45,7 @@
 				{{ t('social', 'boosted') }}
 			</div>
 		</template>
-		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :item="item.account" />
+		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :display-follow-button="false" :item="item.account" />
 		<template v-else>
 			<div v-if="entryContent" class="wrapper">
 				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />

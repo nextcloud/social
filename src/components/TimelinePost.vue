@@ -212,7 +212,7 @@ export default {
 			this.$router.push({
 				name: 'single-post',
 				params: {
-					account: this.item.account.display_name,
+					account: this.item.account.username,
 					id: this.item.id,
 					type: 'single-post',
 				},
