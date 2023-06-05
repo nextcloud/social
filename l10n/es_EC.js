@@ -11,6 +11,7 @@ OC.L10N.register(
     "Post" : "Publicar",
     "Website" : "Sitio web",
     "Reply" : "Responder",
+    "Hello" : "Hola",
     "Close" : "Cerrar",
     "Continue" : "Continuar",
     "User not found" : "No se encontró el usuario",
