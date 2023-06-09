@@ -652,7 +652,9 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return $this
 	 */
 	public function setExportFormat(int $format): self {
-		$this->format = $format;
+		if ($format > 0) {
+			$this->format = $format;
+		}
 
 		return $this;
 	}
