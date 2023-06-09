@@ -20,14 +20,11 @@ concurrency:
 jobs:
   static-analysis:
     runs-on: ubuntu-latest
-<<<<<<< master:.github/workflows/psalm.yml
-=======
     strategy:
       # do not stop on another job's failure
       fail-fast: false
       matrix:
-        ocp-version: [ 'dev-master', 'dev-stable27', 'dev-stable26', 'dev-stable25' ]
->>>>>>> feat(deps): Add Nextcloud 28 support:.github/workflows/psalm-matrix.yml
+        ocp-version: [ 'dev-master', 'dev-stable27', 'dev-stable26' ]
 
     name: Nextcloud
     steps:
