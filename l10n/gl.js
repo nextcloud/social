@@ -82,7 +82,7 @@ OC.L10N.register(
     "Continue" : "Continuar",
     "This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account." : "Este paso é necesario porque probabelmente o usuario non estea rexistrado no mesmo servidor no que está vostede. Redirixímolo ao seu servidor de hospedaxe para seguir esta conta.",
     "User not found" : "Non se atopou o usuario",
-    "Sorry, we could not find the account of {userId}" : " Mágoa, non foi posíbel atopar a conta de {userId}",
+    "Sorry, we could not find the account of {userId}" : " Desculpe, non foi posíbel atopar a conta de {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud pasa a formar parte das redes sociais federadas!",
     "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Creamos de xeito automático unha conta Social para vostede. O seu ID Social é o mesmo que o seu ID de nube federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Xa que vostede é novo en Social, pode comezar seguindo a conta oficial de Nextcloud así non perderá ningunha nova",
