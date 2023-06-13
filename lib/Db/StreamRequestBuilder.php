@@ -36,6 +36,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
@@ -217,7 +218,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_', $qb);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_', $qb->getFormat());
 			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);
@@ -225,8 +226,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$object = $qb->parseLeftJoinStream($data, 'objectstream_', $qb);
-			$object->setExportFormat($qb->getFormat());
+			$object = $qb->parseLeftJoinStream($data, 'objectstream_', ACore::FORMAT_LOCAL);
 			$item->setObject($object);
 		} catch (InvalidResourceException $e) {
 		}
