@@ -106,6 +106,16 @@ class ActorService {
 	 *
 	 * @throws ItemAlreadyExistsException
 	 */
+	public function cacheLocalActorDetails(Person $actor) {
+		$this->cacheActorsRequest->updateDetails($actor);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @throws ItemAlreadyExistsException
+	 */
 	public function save(Person $actor) {
 		$this->cacheDocumentIfNeeded($actor);
 		$this->cacheActorsRequest->save($actor);

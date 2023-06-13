@@ -318,7 +318,7 @@ class AccountService {
 		}
 
 		$this->addLocalActorDetailCount($actor);
-		$this->actorService->cacheLocalActor($actor);
+		$this->actorService->cacheLocalActorDetails($actor);
 	}
 
 
@@ -348,7 +348,7 @@ class AccountService {
 	 *
 	 * @throws NoUserException
 	 */
-	private function updateCacheLocalActorName(Person &$actor) {
+	private function updateCacheLocalActorName(Person $actor) {
 		$user = $this->userManager->get($actor->getUserId());
 		if ($user === null) {
 			throw new NoUserException();
