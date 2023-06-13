@@ -529,12 +529,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setLanguage($this->get('language', $data));
 
 		$action = new StreamAction();
-		$action->setValues(
-			[
-				StreamAction::LIKED => $this->getBool('favourited', $data),
-				StreamAction::BOOSTED => $this->getBool('reblogged', $data)
-			]
-		);
+		$action->updateValueBool(StreamAction::LIKED, $this->getBool('favourited', $data));
+		$action->updateValueBool(StreamAction::BOOSTED, $this->getBool('reblogged', $data));
 		$this->setAction($action);
 
 		try {

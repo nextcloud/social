@@ -374,7 +374,9 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$this->selectAlias('sa.id', 'streamaction_id')
 			 ->selectAlias('sa.actor_id', 'streamaction_actor_id')
 			 ->selectAlias('sa.stream_id', 'streamaction_stream_id')
-			 ->selectAlias('sa.values', 'streamaction_values');
+			 ->selectAlias('sa.liked', 'streamaction_liked')
+			 ->selectAlias('sa.boosted', 'streamaction_boosted')
+			 ->selectAlias('sa.replied', 'streamaction_replied');
 	}
 
 
@@ -392,7 +394,9 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$this->selectAlias($alias . '.id', 'streamaction_id')
 			 ->selectAlias($alias . '.actor_id', 'streamaction_actor_id')
 			 ->selectAlias($alias . '.stream_id', 'streamaction_stream_id')
-			 ->selectAlias($alias . '.values', 'streamaction_values');
+			 ->selectAlias($alias . '.liked', 'streamaction_liked')
+			 ->selectAlias($alias . '.boosted', 'streamaction_boosted')
+			 ->selectAlias($alias . '.replied', 'streamaction_replied');
 
 		$orX = $expr->orX();
 		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.id_prim'));

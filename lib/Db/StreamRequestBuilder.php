@@ -231,6 +231,8 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$action = $this->parseStreamActionsLeftJoin($data);
+		$item->setAction($action);
+
 		if ($item->hasCache()) {
 			$cache = $item->getCache();
 			try {
@@ -243,7 +245,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			}
 		}
 
-		$item->setAction($action);
+
 		if ($item->getType() === Announce::TYPE) {
 			$item->setAttributedTo($this->get('following_actor_id', $data, ''));
 		}

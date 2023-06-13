@@ -187,6 +187,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * @param string $streamId
+	 * @param string $alias
+	 *
+	 * @return void
+	 */
+	public function limitToStreamIdPrim(string $streamId, string $alias = '') {
+		$this->limitToDBField('stream_id_prim', $streamId, false, $alias);
+	}
+
+	/**
 	 * Limit the request to the FollowId
 	 *
 	 * @param string $followId

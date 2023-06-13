@@ -77,7 +77,10 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('sa.id', 'sa.actor_id', 'sa.stream_id', 'sa.values')
+		$qb->select(
+			'sa.id', 'sa.actor_id', 'sa.stream_id',
+			'sa.boosted', 'sa.liked', 'sa.replied'
+		)
 		   ->from(self::TABLE_STREAM_ACTIONS, 'sa');
 
 		$this->defaultSelectAlias = 'sa';

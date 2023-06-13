@@ -44,7 +44,6 @@ class StreamAction implements JsonSerializable {
 	use TArrayTools;
 	use TStringTools;
 
-
 	public const LIKED = 'liked';
 	public const BOOSTED = 'boosted';
 	public const REPLIED = 'replied';
@@ -53,7 +52,12 @@ class StreamAction implements JsonSerializable {
 	private string $actorId = '';
 	private string $streamId = '';
 	private array $values = [];
-
+	private array $affected = [];
+	private array $accepted = [
+		self::LIKED,
+		self::BOOSTED,
+		self::REPLIED
+	];
 
 	/**
 	 * StreamAction constructor.
@@ -95,14 +99,23 @@ class StreamAction implements JsonSerializable {
 
 	public function updateValue(string $key, string $value): void {
 		$this->values[$key] = $value;
+		if (in_array($key, $this->accepted) && !in_array($key, $this->affected)) {
+			$this->affected[] = $key;
+		}
 	}
 
 	public function updateValueInt(string $key, int $value): void {
 		$this->values[$key] = $value;
+		if (in_array($key, $this->accepted) && !in_array($key, $this->affected)) {
+			$this->affected[] = $key;
+		}
 	}
 
 	public function updateValueBool(string $key, bool $value): void {
 		$this->values[$key] = $value;
+		if (in_array($key, $this->accepted) && !in_array($key, $this->affected)) {
+			$this->affected[] = $key;
+		}
 	}
 
 	public function hasValue(string $key): bool {
@@ -125,10 +138,8 @@ class StreamAction implements JsonSerializable {
 		return $this->values;
 	}
 
-	public function setValues(array $values): StreamAction {
-		$this->values = $values;
-
-		return $this;
+	public function getAffected(): array {
+		return $this->affected;
 	}
 
 	public function setDefaultValues(array $default): StreamAction {
@@ -146,7 +157,11 @@ class StreamAction implements JsonSerializable {
 		$this->setId($this->getInt('id', $data, 0));
 		$this->setActorId($this->get('actor_id', $data, ''));
 		$this->setStreamId($this->get('stream_id', $data, ''));
-		$this->setValues($this->getArray('values', $data, []));
+		$this->values = [
+			self::LIKED => $this->getBool('liked', $data),
+			self::BOOSTED => $this->getBool('boosted', $data),
+			self::REPLIED => $this->getBool('replied', $data)
+		];
 	}
 
 	public function jsonSerialize(): array {
