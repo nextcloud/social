@@ -101,18 +101,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		$item->checkOrigin($item->getId());
 		$item->checkOrigin($item->getActorId());
 
-		try {
-			$this->actionsRequest->getActionFromItem($item);
-		} catch (ActionDoesNotExistException $e) {
-			$this->actionsRequest->save($item);
-
-			try {
-				$post = $this->streamRequest->getStreamById($item->getObjectId());
-				$this->updateDetails($post);
-			} catch (Exception $e) {
-			}
-		}
-
 		$this->save($item);
 	}
 
@@ -189,6 +177,12 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$post = $this->streamRequest->getStreamById($item->getObjectId(), false, ACore::FORMAT_LOCAL);
 		} catch (StreamNotFoundException $e) {
 			return; // should not happen.
+		}
+
+		try {
+			$this->actionsRequest->getActionFromItem($item);
+		} catch (ActionDoesNotExistException $e) {
+			$this->actionsRequest->save($item);
 		}
 
 		$this->updateDetails($post);
