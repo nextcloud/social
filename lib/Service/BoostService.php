@@ -101,7 +101,7 @@ class BoostService {
 
 		$announce->setTo(ACore::CONTEXT_PUBLIC);
 		$announce->addCc($actor->getFollowers());
-		$announce->addcc($note->getAttributedTo());
+		//	$announce->addcc($note->getAttributedTo());
 
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
