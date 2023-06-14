@@ -586,6 +586,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
+		$qb->leftJoinObjectStatus();
 
 		return $this->getStreamsFromRequest($qb);
 	}

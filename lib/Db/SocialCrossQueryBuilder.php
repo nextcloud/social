@@ -141,7 +141,11 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @return Stream
 	 * @throws InvalidResourceException
 	 */
-	public function parseLeftJoinStream(array $data, string $prefix = ''): Stream {
+	public function parseLeftJoinStream(
+		array $data,
+		string $prefix = '',
+		int $exportFormat = 0
+	): Stream {
 		$new = [];
 		foreach ($data as $k => $v) {
 			if (str_starts_with($k, $prefix)) {
@@ -149,13 +153,15 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			}
 		}
 
-		$stream = new Stream();
-		$stream->importFromDatabase($new);
-		if ($stream->getId() === '') {
+		if (($new['nid'] ?? '') === '') {
 			throw new InvalidResourceException();
 		}
 
-		$actor = $this->parseLeftJoinCacheActors($data, $prefix . 'cacheactor_');
+		$stream = new Stream();
+		$stream->importFromDatabase($new);
+		$stream->setExportFormat($exportFormat);
+
+		$actor = $this->parseLeftJoinCacheActors($data, $prefix . 'cacheactor_', $exportFormat);
 		$stream->setActor($actor);
 
 		return $stream;
@@ -168,7 +174,11 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @return Person
 	 * @throws InvalidResourceException
 	 */
-	public function parseLeftJoinCacheActors(array $data, string $prefix = ''): Person {
+	public function parseLeftJoinCacheActors(
+		array $data,
+		string $prefix = '',
+		int $exportFormat = 0
+	): Person {
 		$new = [];
 
 		foreach ($data as $k => $v) {
@@ -179,9 +189,10 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$actor = new Person();
 		$actor->importFromDatabase($new);
+		$actor->setExportFormat($exportFormat);
 
 		if (!AP::$activityPub->isActor($actor)) {
-			throw new InvalidResourceException();
+			throw new InvalidResourceException('actor not actor');
 		}
 
 		try {
