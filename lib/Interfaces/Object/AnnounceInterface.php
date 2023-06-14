@@ -246,18 +246,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 					return;
 				}
 
-				//
-				//
-				//
-				//
-				//
-				// pourquoi update !????
-
-//				$to = $this->get('attributedTo', $cachedItem->getObject(), '');
-//				if ($to !== '') {
-//					$this->streamRequest->updateAttributedTo($item->getId(), $to);
-//				}
-
 				try {
 					if ($item->hasActor()) {
 						$actor = $item->getActor();
