@@ -1002,7 +1002,9 @@ class CoreRequestBuilder {
 		$qb->selectAlias('sa.id', 'streamaction_id')
 		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
 		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
-		   ->selectAlias('sa.values', 'streamaction_values');
+		   ->selectAlias('sa.liked', 'streamaction_liked')
+		   ->selectAlias('sa.boosted', 'streamaction_boosted')
+		   ->selectAlias('sa.replied', 'streamaction_replied');
 
 		$orX = $expr->orX();
 		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.id_prim'));
