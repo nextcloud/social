@@ -105,7 +105,6 @@ class StreamRequest extends StreamRequestBuilder {
 	public function update(Stream $stream, bool $generateDest = false): void {
 		$qb = $this->getStreamUpdateSql();
 
-		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
 		$qb->set('to', $qb->createNamedParameter($stream->getTo()));
 		$qb->set(
 			'cc', $qb->createNamedParameter(json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES))
@@ -120,6 +119,15 @@ class StreamRequest extends StreamRequestBuilder {
 			$this->streamDestRequest->generateStreamDest($stream);
 		}
 	}
+
+
+	public function updateDetails(Stream $stream): void {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
+		$qb->limitToIdPrim($qb->prim($stream->getId()));
+		$qb->executeStatement();
+	}
+
 
 	public function updateCache(Stream $stream, Cache $cache): void {
 		$qb = $this->getStreamUpdateSql();
