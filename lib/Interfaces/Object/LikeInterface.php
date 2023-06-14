@@ -172,15 +172,11 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	private function updateDetails(Stream $post): void {
-		//		if (!$post->isLocal()) {
-		//			return;
-		//		}
-
 		$post->setDetailInt(
 			'likes', $this->actionsRequest->countActions($post->getId(), Like::TYPE)
 		);
 
-		$this->streamRequest->update($post, true);
+		$this->streamRequest->updateDetails($post);
 	}
 
 

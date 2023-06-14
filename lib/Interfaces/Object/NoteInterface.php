@@ -127,7 +127,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$count = $this->streamRequest->countRepliesTo($stream->getInReplyTo());
 			$orig->setDetailInt('replies', $count);
 
-			$this->streamRequest->update($orig);
+			$this->streamRequest->updateDetails($orig);
 		} catch (StreamNotFoundException $e) {
 		}
 	}

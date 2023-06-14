@@ -305,7 +305,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			'boosts', $this->actionsRequest->countActions($post->getId(), Announce::TYPE)
 		);
 
-		$this->streamRequest->update($post, true);
+		$this->streamRequest->updateDetails($post);
 	}
 
 	/**
