@@ -136,7 +136,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$activity->checkOrigin($announce->getId());
 			$activity->checkOrigin($announce->getActorId());
 
-			$this->undoAnnounceAction($announce);
 			$this->delete($announce);
 		}
 	}
@@ -161,30 +160,20 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	 */
 	public function save(ACore $item): void {
 		/** @var Announce $item */
+		if ($item->hasActor()) {
+			$actor = $item->getActor();
+		} else {
+			$actor = $this->cacheActorService->getFromId($item->getActorId());
+		}
 
 		try {
 			$knownItem = $this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
-
-			if ($item->hasActor()) {
-				$actor = $item->getActor();
-			} else {
-				$actor = $this->cacheActorService->getFromId($item->getActorId());
-			}
 
 			$knownItem->setAttributedTo($actor->getId());
 			if (!$knownItem->hasCc($actor->getFollowers())) {
 				$knownItem->addCc($actor->getFollowers());
 				$this->streamRequest->update($knownItem, true);
 			}
-
-			try {
-				$post = $this->streamRequest->getStreamById($item->getObjectId(), false, ACore::FORMAT_LOCAL);
-			} catch (StreamNotFoundException $e) {
-				return; // should not happen.
-			}
-
-			$this->updateDetails($post);
-			$this->generateNotification($post, $actor);
 		} catch (StreamNotFoundException $e) {
 			$objectId = $item->getObjectId();
 			$item->addCacheItem($objectId);
@@ -195,6 +184,15 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 				$item->getRequestToken(), StreamQueue::TYPE_CACHE, $item->getId()
 			);
 		}
+
+		try {
+			$post = $this->streamRequest->getStreamById($item->getObjectId(), false, ACore::FORMAT_LOCAL);
+		} catch (StreamNotFoundException $e) {
+			return; // should not happen.
+		}
+
+		$this->updateDetails($post);
+		$this->generateNotification($post, $actor);
 	}
 
 
@@ -230,6 +228,8 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			}
 		} catch (StreamNotFoundException|ItemUnknownException|SocialAppConfigException $e) {
 		}
+
+		$this->undoAnnounceAction($item);
 	}
 
 	public function event(ACore $item, string $source): void {
@@ -245,18 +245,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 				} catch (CacheItemNotFoundException $e) {
 					return;
 				}
-
-				//
-			//
-			//
-			//
-			//
-				// pourquoi update !????
-
-//				$to = $this->get('attributedTo', $cachedItem->getObject(), '');
-//				if ($to !== '') {
-//					$this->streamRequest->updateAttributedTo($item->getId(), $to);
-//				}
 
 				try {
 					if ($item->hasActor()) {
@@ -279,7 +267,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		}
 	}
 
-	private function undoAnnounceAction(Announce $announce): void {
+	private function undoAnnounceAction(ACore $announce): void {
 		try {
 			$this->actionsRequest->getActionFromItem($announce);
 			$this->actionsRequest->delete($announce);
