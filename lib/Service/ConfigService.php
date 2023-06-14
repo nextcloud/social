@@ -62,7 +62,7 @@ class ConfigService {
 	public const SOCIAL_ACCESS_LIST = 'access_list';
 
 	public const SOCIAL_SELF_SIGNED = 'allow_self_signed';
-
+	public const SOCIAL_DISABLE_HTTPS = 'disable_https';
 
 	public const BACKGROUND_CRON = 1;
 	public const BACKGROUND_ASYNC = 2;
@@ -414,6 +414,9 @@ class ConfigService {
 
 	public function configureRequest(NCRequest $request): void {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
+		if ($this->getAppValue(ConfigService::SOCIAL_DISABLE_HTTPS) === 'yes_i_only_run_test') {
+			$request->setProtocols(['http']);
+		}
 
 		// do not add json headers if required
 		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
