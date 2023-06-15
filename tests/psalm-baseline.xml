@@ -1,89 +1,72 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="5.4.0@62db5d4f6a7ae0a20f7cc5a4952d730272fc0863">
+<files psalm-version="5.12.0@f90118cdeacd0088e7215e64c0c99ceca819e176">
   <file src="lib/Model/ActivityPub/ACore.php">
-    <InvalidArgument occurrences="1">
-      <code>['a', 'p', 'span', 'br']</code>
+    <InvalidArgument>
+      <code><![CDATA[['a', 'p', 'span', 'br']]]></code>
     </InvalidArgument>
-    <InvalidClass occurrences="1">
+    <InvalidClass>
       <code>Acore</code>
     </InvalidClass>
-    <InvalidNullableReturnType occurrences="1">
+    <InvalidNullableReturnType>
       <code>ACore</code>
       <code>ACore</code>
     </InvalidNullableReturnType>
-    <InvalidPropertyAssignmentValue occurrences="1">
+    <InvalidPropertyAssignmentValue>
       <code>$parent</code>
     </InvalidPropertyAssignmentValue>
-    <NullableReturnStatement occurrences="1">
-      <code>$this-&gt;parent</code>
+    <NullableReturnStatement>
+      <code><![CDATA[$this->parent]]></code>
     </NullableReturnStatement>
-    <TypeDoesNotContainNull occurrences="1">
+    <TypeDoesNotContainNull>
       <code>$v === null</code>
     </TypeDoesNotContainNull>
-    <TypeDoesNotContainType occurrences="2">
+    <TypeDoesNotContainType>
       <code>$v === 0</code>
       <code>$v === 0</code>
     </TypeDoesNotContainType>
   </file>
-  <file src="lib/Model/ActivityPub/Object/Announce.php">
-    <RedundantCondition occurrences="1">
-      <code>$object = $cache-&gt;getItem($this-&gt;getObjectId())</code>
-    </RedundantCondition>
-  </file>
   <file src="lib/Db/CoreRequestBuilder.php">
-    <UndefinedMethod occurrences="3">
+    <UndefinedMethod>
       <code>dropTable</code>
       <code>hasTable</code>
       <code>hasTable</code>
     </UndefinedMethod>
-    <InvalidArgument occurrences="2"/>
+    <InvalidArgument>
+      <code>Server::get(Connection::class)</code>
+      <code>Server::get(Connection::class)</code>
+    </InvalidArgument>
   </file>
   <file src="lib/Service/CheckService.php">
-    <RedundantCast occurrences="1">
-      <code>(bool)($this-&gt;cache-&gt;get(self::CACHE_PREFIX . 'wellknown') === 'true')</code>
+    <RedundantCast>
+      <code><![CDATA[(bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true')]]></code>
     </RedundantCast>
-    <UndefinedClass occurrences="1">
+    <UndefinedClass>
       <code>ClientException</code>
     </UndefinedClass>
   </file>
   <file src="lib/Service/CurlService.php">
-    <InvalidOperand occurrences="1">
-      <code>$this-&gt;configService-&gt;getAppValue(ConfigService::SOCIAL_MAX_SIZE)</code>
+    <InvalidOperand>
+      <code><![CDATA[$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE)]]></code>
     </InvalidOperand>
-    <RedundantCondition occurrences="1">
-      <code>is_array($result)</code>
-    </RedundantCondition>
-    <TypeDoesNotContainType occurrences="1">
-      <code>$this-&gt;maxDownloadSizeReached === true</code>
+    <TypeDoesNotContainType>
+      <code><![CDATA[$this->maxDownloadSizeReached === true]]></code>
     </TypeDoesNotContainType>
-    <InvalidArgument occurrences="8"/>
   </file>
   <file src="lib/Service/PostService.php">
-    <UndefinedMethod occurrences="2">
-      <code>setAttributedTo</code>
-      <code>setContent</code>
-    </UndefinedMethod>
-    <TypeDoesNotContainType occurrences="1">
-      <code>is_array($_FILES['attachments']['error'])</code>
+    <TypeDoesNotContainType>
+      <code><![CDATA[is_array($_FILES['attachments']['error'])]]></code>
     </TypeDoesNotContainType>
   </file>
   <file src="lib/Service/SearchService.php">
-    <InvalidOperand occurrences="3">
+    <InvalidOperand>
       <code>!$type</code>
       <code>!$type</code>
       <code>!$type</code>
     </InvalidOperand>
   </file>
   <file src="lib/Service/SignatureService.php">
-    <RedundantCondition occurrences="1">
+    <RedundantCondition>
       <code>$varr[0] !== null</code>
     </RedundantCondition>
-  </file>
-  <file src="lib/Service/TestService.php">
-    <TypeDoesNotContainNull occurrences="3">
-      <code>$host === null</code>
-      <code>$username === null</code>
-      <code>$username === null</code>
-    </TypeDoesNotContainNull>
   </file>
 </files>
