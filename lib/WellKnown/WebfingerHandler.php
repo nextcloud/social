@@ -38,6 +38,7 @@ use OCP\AppFramework\Http;
 use OCP\Http\WellKnown\IHandler;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
+use OCP\IRequest;
 use OCP\IURLGenerator;
 
 class WebfingerHandler implements IHandler {
@@ -111,7 +112,7 @@ class WebfingerHandler implements IHandler {
 	 * @return IResponse|null
 	 */
 	public function handleWebfinger(IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
-		$subject = $context->getHttpRequest()->getParam('resource') ?? '';
+		$subject = $this->getSubjectFromRequest($context->getHttpRequest());
 		if (str_starts_with($subject, 'acct:')) {
 			$subject = substr($subject, 5);
 		}
@@ -221,5 +222,18 @@ class WebfingerHandler implements IHandler {
 		$response->addLink('lrdd', $url);
 
 		return $response;
+	}
+
+	private function getSubjectFromRequest(IRequest $request): string {
+		$subject = $request->getParam('resource') ?? '';
+		if ($subject !== '') {
+			return $subject;
+		}
+
+		// work around to extract resource:
+		// on some setup (i.e. tests) the data are not available from IRequest
+		parse_str(parse_url($request->getRequestUri(), PHP_URL_QUERY), $query);
+
+		return $query['resource'] ?? '';
 	}
 }
