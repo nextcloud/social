@@ -48,24 +48,20 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	use TArrayTools;
 
-	private StreamRequest $streamRequest;
-	private CacheActorsRequest $cacheActorsRequest;
-	private PushService $pushService;
-
 	public function __construct(
-		StreamRequest $streamRequest,
-		CacheActorsRequest $cacheActorsRequest,
-		PushService $pushService
+		private StreamRequest $streamRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private CacheActorService $cacheActorService,
+		private PushService $pushService
 	) {
-		$this->streamRequest = $streamRequest;
-		$this->cacheActorsRequest = $cacheActorsRequest;
-		$this->pushService = $pushService;
 	}
 
 	/**
@@ -104,6 +100,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		try {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
+			$note->setVisibility($this->estimateVisibility($note));
 			$this->streamRequest->save($note);
 			$this->updateDetails($note);
 			$this->generateNotification($note);
@@ -166,5 +163,23 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 
 			$notificationInterface->save($notification);
 		}
+	}
+
+
+	private function estimateVisibility(Note $note): string {
+		if (in_array(Stream::CONTEXT_PUBLIC, $note->getToAll())) {
+			return Stream::TYPE_PUBLIC;
+		}
+
+		if (in_array(Stream::CONTEXT_PUBLIC, $note->getCcArray())) {
+			return Stream::TYPE_UNLISTED;
+		}
+
+		$actor = $this->cacheActorService->getFromId($note->getAttributedTo());
+		if (in_array($actor->getFollowers(), array_merge($note->getCcArray(), $note->getToAll()))) {
+			return Stream::TYPE_FOLLOWERS;
+		}
+
+		return Stream::TYPE_DIRECT;
 	}
 }
