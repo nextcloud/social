@@ -25,6 +25,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\WellKnown;
 
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -76,21 +77,29 @@ class WebfingerHandler implements IHandler {
 		try {
 			$this->fediverseService->jailed();
 		} catch (UnauthorizedFediverseException $e) {
-			return null;
+			return $previousResponse;
 		}
 
+		$response = null;
 		switch (strtolower($service)) {
 			case 'webfinger':
-				return $this->handleWebfinger($context);
+				$response = $this->handleWebfinger($context, $previousResponse);
+				break;
 
 			case 'nodeinfo':
-				return $this->handleNodeInfo($context);
+				$response = $this->handleNodeInfo($context);
+				break;
 
 			case 'host-meta':
-				return $this->handleHostMeta($context);
+				$response = $this->handleHostMeta($context);
+				break;
 		}
 
-		return null;
+		if ($response !== null) {
+			return $response;
+		}
+
+		return $previousResponse;
 	}
 
 
@@ -101,16 +110,34 @@ class WebfingerHandler implements IHandler {
 	 *
 	 * @return IResponse|null
 	 */
-	public function handleWebfinger(IRequestContext $context): ?IResponse {
+	public function handleWebfinger(IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
 		$subject = $context->getHttpRequest()->getParam('resource') ?? '';
-		if (strpos($subject, 'acct:') === 0) {
+		if (str_starts_with($subject, 'acct:')) {
 			$subject = substr($subject, 5);
+		}
+
+		if ($subject === Application::APP_SUBJECT) {
+			if ($previousResponse !== null && method_exists($previousResponse, 'addLink')) {
+				$previousResponse->addLink(
+					Application::APP_REL,
+					'application/json',
+					$this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'),
+					[],
+					[
+						'app' => Application::APP_ID,
+						'name' => Application::APP_NAME,
+						'version' => $this->configService->getAppValue('installed_version'),
+					]
+				);
+			}
+
+			return $previousResponse;
 		}
 
 		$actor = null;
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
-		} catch (ActorDoesNotExistException | SocialAppConfigException $e) {
+		} catch (ActorDoesNotExistException|SocialAppConfigException $e) {
 			return null;
 		} catch (CacheActorDoesNotExistException $e) {
 		}

@@ -113,7 +113,7 @@ class ApiController extends Controller {
 		PostService $postService,
 		ConfigService $configService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->urlGenerator = $urlGenerator;
 		$this->userSession = $userSession;

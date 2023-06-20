@@ -74,7 +74,7 @@ class SocialPubController extends Controller {
 		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
 		ConfigService $configService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->initialStateService = $initialStateService;
@@ -113,7 +113,7 @@ class SocialPubController extends Controller {
 		$this->initialStateService->provideInitialState('social', 'serverData', [
 			'public' => true,
 		]);
-		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
+		$page = new PublicTemplateResponse(Application::APP_ID, 'main', $data);
 		$page->setStatus($status);
 		$page->setHeaderTitle($this->l10n->t('Social'));
 
@@ -190,10 +190,10 @@ class SocialPubController extends Controller {
 			'application' => 'Social'
 		];
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream);
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', [
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $stream);
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', [
 			'public' => ($this->userId === null),
 		]);
-		return new TemplateResponse(Application::APP_NAME, 'main', $data);
+		return new TemplateResponse(Application::APP_ID, 'main', $data);
 	}
 }

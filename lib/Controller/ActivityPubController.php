@@ -89,7 +89,7 @@ class ActivityPubController extends Controller {
 		ConfigService $configService,
 		LoggerInterface $logger
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->socialPubController = $socialPubController;
 		$this->fediverseService = $fediverseService;
