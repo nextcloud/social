@@ -72,7 +72,7 @@ OC.L10N.register(
     "If you do not trust it, then you should not authorize it." : "Se non confías nel, entón non deberías autorizalo.",
     "Authorize" : "Autorizar",
     "Deny" : "Denegar",
-    "Follow on Nextcloud Social" : "Seguir no Nextcloud Social",
+    "Follow on Nextcloud Social" : "Seguir en Nextcloud Social",
     "Hello" : "Ola",
     "Please confirm that you want to follow this account:" : "Confirme que quere seguir esta conta:",
     "You are following this account" : "Vostede está a seguir esta conta",
