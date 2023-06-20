@@ -90,7 +90,7 @@ class NavigationController extends Controller {
 		CheckService $checkService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->l10n = $l10n;
@@ -140,8 +140,8 @@ class NavigationController extends Controller {
 					if ($cloudAddress !== null) {
 						$this->configService->setCloudUrl($cloudAddress);
 					} else {
-						$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
-						return new TemplateResponse(Application::APP_NAME, 'main');
+						$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+						return new TemplateResponse(Application::APP_ID, 'main');
 					}
 				}
 			}
@@ -172,8 +172,8 @@ class NavigationController extends Controller {
 			$serverData['checks'] = $checks;
 		}
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
-		return new TemplateResponse(Application::APP_NAME, 'main');
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+		return new TemplateResponse(Application::APP_ID, 'main');
 	}
 
 	private function setupCloudAddress(): string {

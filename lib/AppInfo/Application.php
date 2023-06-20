@@ -53,10 +53,13 @@ require_once __DIR__ . '/../../vendor/autoload.php';
  * @package OCA\Social\AppInfo
  */
 class Application extends App implements IBootstrap {
-	public const APP_NAME = 'social';
+	public const APP_ID = 'social';
+	public const APP_NAME = 'Social';
+	public const APP_SUBJECT = 'http://nextcloud.com/';
+	public const APP_REL = 'https://apps.nextcloud.com/apps/social';
 
 	public function __construct(array $params = []) {
-		parent::__construct(self::APP_NAME, $params);
+		parent::__construct(self::APP_ID, $params);
 	}
 
 	public function register(IRegistrationContext $context): void {

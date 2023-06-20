@@ -79,7 +79,7 @@ class SocialWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function load(): void {
-		\OCP\Util::addScript(Application::APP_NAME, 'social-dashboard');
-		\OCP\Util::addStyle(Application::APP_NAME, 'dashboard');
+		\OCP\Util::addScript(Application::APP_ID, 'social-dashboard');
+		\OCP\Util::addStyle(Application::APP_ID, 'dashboard');
 	}
 }

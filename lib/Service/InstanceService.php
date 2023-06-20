@@ -62,7 +62,7 @@ class InstanceService {
 	public function createLocal(): Instance {
 		$instance = new Instance();
 		$instance->setLocal(true)
-			->setVersion($this->config->getAppValue(Application::APP_NAME, 'installed_version', '0.0'))
+			->setVersion($this->config->getAppValue(Application::APP_ID, 'installed_version', '0.0'))
 			->setApprovalRequired(false)
 			->setDescription($this->config->getAppValue('theming', 'slogan', 'a safe home for your data'))
 			->setTitle($this->config->getAppValue('theming', 'name', 'Nextcloud Social'));

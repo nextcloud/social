@@ -97,7 +97,7 @@ class ContactsMenuProvider implements IProvider {
 				'social.ActivityPub.actorAlias', ['username' => $actor->getPreferredUsername()]
 			);
 
-			$action = $this->actionFactory->newLinkAction($icon, $action, $link, Application::APP_NAME);
+			$action = $this->actionFactory->newLinkAction($icon, $action, $link, Application::APP_ID);
 			$entry->addAction($action);
 		} catch (Exception $e) {
 			return;

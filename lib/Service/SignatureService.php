@@ -581,7 +581,7 @@ class SignatureService {
 	private static function getContextCacheFolder(): ISimpleFolder {
 		$path = 'context';
 
-		$appData = Server::get(IAppDataFactory::class)->get(Application::APP_NAME);
+		$appData = Server::get(IAppDataFactory::class)->get(Application::APP_ID);
 		try {
 			$folder = $appData->getFolder($path);
 		} catch (NotFoundException $e) {
