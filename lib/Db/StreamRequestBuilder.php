@@ -142,7 +142,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function timelineHomeLinkCacheActor(
 		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f'
 	) {
-		$qb->linkToCacheActors($alias, 'attributed_to_prim');
+		$qb->linkToCacheActors($alias, 's.attributed_to_prim');
 
 		$expr = $qb->expr();
 		$orX = $expr->orX();

@@ -129,16 +129,16 @@ class PushService {
 		//		$pushHelper->toCallback($callback);
 	}
 
-//
-//	/**
-//	 * @param $userId
-//	 *
-//	 * @return IPushWrapper
-//	 * @throws PushInstallException
-//	 */
-//	public function testOnAccount(string $userId): IPushWrapper {
-////		$pushHelper = $this->pushManager->getPushHelper();
-////
-////		return $pushHelper->test($userId);
-//	}
+	//
+	//	/**
+	//	 * @param $userId
+	//	 *
+	//	 * @return IPushWrapper
+	//	 * @throws PushInstallException
+	//	 */
+	//	public function testOnAccount(string $userId): IPushWrapper {
+	////		$pushHelper = $this->pushManager->getPushHelper();
+	////
+	////		return $pushHelper->test($userId);
+	//	}
 }

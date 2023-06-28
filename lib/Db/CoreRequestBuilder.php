@@ -700,8 +700,8 @@ class CoreRequestBuilder {
 		$qb->orderBy($pf . '.published_time', 'desc');
 	}
 
-//
-//
+	//
+	//
 
 	/**
 	 * @param IQueryBuilder $qb

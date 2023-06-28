@@ -207,13 +207,13 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb->executeStatement();
 	}
 
-//	public function moveAccount(string $actorId, string $newId, string $instance): void {
-//		$qb = $this->getRequestQueueUpdateSql();
-//		$qb->set('author', $qb->createNamedParameter($newId))
-//		   ->set('author_prim', $qb->createNamedParameter($qb->prim($newId)))
-//		   ->set('instance', $qb->createNamedParameter($instance));
-//		$qb->limitToDBField('author_prim', $qb->prim($actorId));
-//
-//		$qb->execute();
-//	}
+	//	public function moveAccount(string $actorId, string $newId, string $instance): void {
+	//		$qb = $this->getRequestQueueUpdateSql();
+	//		$qb->set('author', $qb->createNamedParameter($newId))
+	//		   ->set('author_prim', $qb->createNamedParameter($qb->prim($newId)))
+	//		   ->set('instance', $qb->createNamedParameter($instance));
+	//		$qb->limitToDBField('author_prim', $qb->prim($actorId));
+	//
+	//		$qb->execute();
+	//	}
 }

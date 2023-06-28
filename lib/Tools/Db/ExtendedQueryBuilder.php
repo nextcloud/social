@@ -467,27 +467,27 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $expr->$comp($field, $qb->createNamedParameter('%"' . $value . '"%'));
 	}
 
-//
-//	/**
-//	 * @param IQueryBuilder $qb
-//	 * @param string $field
-//	 * @param string $value
-//	 *
-//	 * @return string
-//	 */
-//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
-//		$dbConn = $this->getConnection();
-//		$expr = $qb->expr();
-//		$func = $qb->func();
-//
-//
-//		return $expr->notLike(
-//			$func->lower($field),
-//			$qb->createNamedParameter(
-//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
-//			)
-//		);
-//	}
+	//
+	//	/**
+	//	 * @param IQueryBuilder $qb
+	//	 * @param string $field
+	//	 * @param string $value
+	//	 *
+	//	 * @return string
+	//	 */
+	//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
+	//		$dbConn = $this->getConnection();
+	//		$expr = $qb->expr();
+	//		$func = $qb->func();
+	//
+	//
+	//		return $expr->notLike(
+	//			$func->lower($field),
+	//			$qb->createNamedParameter(
+	//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
+	//			)
+	//		);
+	//	}
 
 
 	/**
