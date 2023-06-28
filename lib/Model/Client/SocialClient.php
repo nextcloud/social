@@ -279,24 +279,24 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-//
-//	/**
-//	 * @return string
-//	 */
-//	public function getAuthRedirectUri(): string {
-//		return $this->authRedirectUri;
-//	}
-//
-//	/**
-//	 * @param string $authRedirectUri
-//	 *
-//	 * @return SocialClient
-//	 */
-//	public function setAuthRedirectUri(string $authRedirectUri): self {
-//		$this->authRedirectUri = $authRedirectUri;
-//
-//		return $this;
-//	}
+	//
+	//	/**
+	//	 * @return string
+	//	 */
+	//	public function getAuthRedirectUri(): string {
+	//		return $this->authRedirectUri;
+	//	}
+	//
+	//	/**
+	//	 * @param string $authRedirectUri
+	//	 *
+	//	 * @return SocialClient
+	//	 */
+	//	public function setAuthRedirectUri(string $authRedirectUri): self {
+	//		$this->authRedirectUri = $authRedirectUri;
+	//
+	//		return $this;
+	//	}
 
 
 	/**
@@ -337,23 +337,23 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	}
 
 
-//	/**
-//	 * @return array
-//	 */
-//	public function getTokenScopes(): array {
-//		return $this->tokenScopes;
-//	}
-//
-//	/**
-//	 * @param array $scopes
-//	 *
-//	 * @return SocialClient
-//	 */
-//	public function setTokenScopes(array $scopes): self {
-//		$this->tokenScopes = $scopes;
-//
-//		return $this;
-//	}
+	//	/**
+	//	 * @return array
+	//	 */
+	//	public function getTokenScopes(): array {
+	//		return $this->tokenScopes;
+	//	}
+	//
+	//	/**
+	//	 * @param array $scopes
+	//	 *
+	//	 * @return SocialClient
+	//	 */
+	//	public function setTokenScopes(array $scopes): self {
+	//		$this->tokenScopes = $scopes;
+	//
+	//		return $this;
+	//	}
 
 
 	/**
