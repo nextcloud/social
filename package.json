@@ -47,7 +47,7 @@
     "blurhash": "^2.0.5",
     "debounce": "^1.2.1",
     "he": "^1.2.0",
-    "linkify-plugin-mention": "^4.1.0",
+    "linkify-plugin-mention": "^4.1.1",
     "linkify-string": "^4.1.0",
     "linkifyjs": "^4.1.0",
     "sass": "^1.59.2",
