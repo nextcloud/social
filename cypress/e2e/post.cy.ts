@@ -67,10 +67,10 @@ describe('Create posts', () => {
 	it('Write a post to @alice', () => {
 		cy.intercept({ times: 1, method: 'POST', url: '/index.php/apps/social/api/v1/statuses' }).as('postMessage')
 		cy.intercept({ times: 1, method: 'GET', url: '/index.php/apps/social/api/v1/global/accounts/search' })
-		cy.get('.new-post').find('[contenteditable]').type(`@${alice.userId}`, { delay: 500 })
+		cy.get('.new-post').find('[contenteditable]').type(`@${alice.userId}`)
 		cy.get('.tribute-container').should('be.visible')
 		cy.get('.tribute-container ul li:first').contains(alice.userId)
-		cy.get('.new-post').find('[contenteditable]').type('{enter} Hello there', { delay: 100, force: true })
+		cy.get('.new-post').find('[contenteditable]').type('{enter} Hello there')
 		cy.get('.new-post button[type=submit]').click()
 		cy.wait('@postMessage')
 		cy.get('.social__timeline .timeline-entry:first-child').should('contain', `@${alice.userId}`)
@@ -79,7 +79,7 @@ describe('Create posts', () => {
 	it('Opens the menu and shows that followers is selected by default', () => {
 		cy.intercept({ times: 1, method: 'POST', url: '/index.php/apps/social/api/v1/statuses' }).as('postMessage')
 		cy.intercept({ times: 1, method: 'GET', url: '/index.php/apps/social/api/v1/global/accounts/search' })
-		cy.get('.new-post').find('[contenteditable]').click({ force: true }).type(`@${alice.userId}{enter} Hello world`, { delay: 200, force: true })
+		cy.get('.new-post').find('[contenteditable]').type(`@${alice.userId}{enter} Hello world`)
 		cy.wait(500)
 		cy.get('.new-post button[type=submit]').should('not.be.disabled')
 		const visibilityButton = cy.get('.new-post .options > .action-item > div > button')
