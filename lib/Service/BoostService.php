@@ -30,7 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
@@ -44,6 +43,7 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Traits\TStringTools;
 
 /**
  * Class BoostService
@@ -53,37 +53,17 @@ use OCA\Social\Model\StreamAction;
 class BoostService {
 	use TStringTools;
 
-
 	private StreamRequest $streamRequest;
-
 	private StreamService $streamService;
-
 	private SignatureService $signatureService;
-
 	private ActivityService $activityService;
-
 	private StreamActionService $streamActionService;
-
 	private StreamQueueService $streamQueueService;
 
-	private MiscService $miscService;
-
-
-	/**
-	 * BoostService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param StreamService $streamService
-	 * @param SignatureService $signatureService
-	 * @param ActivityService $activityService
-	 * @param StreamActionService $streamActionService
-	 * @param StreamQueueService $streamQueueService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, MiscService $miscService
+		StreamQueueService $streamQueueService
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -91,7 +71,6 @@ class BoostService {
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
 		$this->streamQueueService = $streamQueueService;
-		$this->miscService = $miscService;
 	}
 
 
@@ -105,7 +84,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function create(Person $actor, string $postId, &$token = ''): ACore {
+	public function create(Person $actor, string $postId, string &$token = ''): ACore {
 		/** @var Announce $announce */
 		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
 		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
@@ -120,16 +99,19 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not Public');
 		}
 
+		$announce->setTo(ACore::CONTEXT_PUBLIC);
 		$announce->addCc($actor->getFollowers());
+		//	$announce->addcc($note->getAttributedTo());
+
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
 
 		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
 		// TODO: check that announce does not exist already ?
-//		try {
-//			return $interface->getItem($announce);
-//		} catch (ItemNotFoundException $e) {
-//		}
+		//		try {
+		//			return $interface->getItem($announce);
+		//		} catch (ItemNotFoundException $e) {
+		//		}
 
 		$interface->save($announce);
 
@@ -168,7 +150,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function delete(Person $actor, string $postId, &$token = ''): ACore {
+	public function delete(Person $actor, string $postId, string &$token = ''): ACore {
 		$undo = new Undo();
 		$this->streamService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);
@@ -187,7 +169,7 @@ class BoostService {
 
 			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
 			$interface->delete($announce);
-//			$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
+			$this->streamRequest->deleteById($announce->getId(), Announce::TYPE);
 			$this->signatureService->signObject($actor, $undo);
 
 			$token = $this->activityService->request($undo);

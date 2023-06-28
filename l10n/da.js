@@ -10,18 +10,16 @@ OC.L10N.register(
     "In reply to" : "som svar til",
     "Add attachment" : "Tilføj vedhæftelse",
     "Add emoji" : "Tilføj emoji",
-    "Visibility" : "Synlighed",
-    "Post" : "Indlæg",
-    "Public" : "Offentlig",
     "Uploading..." : "Uploader...",
     "Delete" : "Slet",
-    "Edit" : "Rediger",
-    "Close" : "Luk",
+    "Post" : "Indlæg",
     "Website" : "Hjemmeside",
     "Reply" : "Besvar",
     "Deny" : "Afvis",
     "Hello" : "Hej",
+    "Close" : "Luk",
     "Continue" : "Fortsæt",
-    "User not found" : "Bruger ikke fundet"
+    "User not found" : "Bruger ikke fundet",
+    "Public" : "Offentlig"
 },
 "nplurals=2; plural=(n != 1);");

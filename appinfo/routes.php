@@ -83,9 +83,19 @@ return [
 		['name' => 'Api#favourites', 'url' => '/api/v1/favourites/', 'verb' => 'GET'],
 		['name' => 'Api#notifications', 'url' => '/api/v1/notifications', 'verb' => 'GET'],
 		['name' => 'Api#tag', 'url' => '/api/v1/timelines/tag/{hashtag}', 'verb' => 'GET'],
+		['name' => 'Api#mediaNew', 'url' => '/api/v1/media', 'verb' => 'POST'],
+		['name' => 'Api#mediaGet', 'url' => '/api/v1/media/{nid}', 'verb' => 'GET'],
+		['name' => 'Api#mediaOpen', 'url' => '/media/{uuid}', 'verb' => 'GET'],
+
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
 		['name' => 'Api#statusGet', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'GET'],
+		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
+		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
+
+		['name' => 'Api#relationships', 'url' => '/api/v1/accounts/relationships', 'verb' => 'GET'],
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET'],
+		['name' => 'Api#accountFollowers', 'url' => '/api/v1/accounts/{account}/followers', 'verb' => 'GET'],
+		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET'],
 
 		// Api for local front-end
 		// TODO: front-end should be using the new ApiController
@@ -106,8 +116,6 @@ return [
 
 		['name' => 'Local#postLike', 'url' => '/api/v1/post/like', 'verb' => 'POST'],
 		['name' => 'Local#postUnlike', 'url' => '/api/v1/post/like', 'verb' => 'DELETE'],
-		['name' => 'Local#postBoost', 'url' => '/api/v1/post/boost', 'verb' => 'POST'],
-		['name' => 'Local#postUnboost', 'url' => '/api/v1/post/boost', 'verb' => 'DELETE'],
 
 		['name' => 'Local#actionFollow', 'url' => '/api/v1/current/follow', 'verb' => 'PUT'],
 		['name' => 'Local#actionUnfollow', 'url' => '/api/v1/current/follow', 'verb' => 'DELETE'],
@@ -117,14 +125,14 @@ return [
 		['name' => 'Local#currentFollowing', 'url' => '/api/v1/current/following', 'verb' => 'GET'],
 
 		['name' => 'Local#accountInfo', 'url' => '/api/v1/account/{username}/info', 'verb' => 'GET'],
-		[
-			'name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers',
-			'verb' => 'GET'
-		],
-		[
-			'name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following',
-			'verb' => 'GET'
-		],
+		//		[
+		//			'name' => 'Local#accountFollowers', 'url' => '/api/v1/account/{username}/followers',
+		//			'verb' => 'GET'
+		//		],
+		//		[
+		//			'name' => 'Local#accountFollowing', 'url' => '/api/v1/account/{username}/following',
+		//			'verb' => 'GET'
+		//		],
 
 		['name' => 'Local#globalAccountInfo', 'url' => '/api/v1/global/account/info', 'verb' => 'GET'],
 		['name' => 'Local#globalActorInfo', 'url' => '/api/v1/global/actor/info', 'verb' => 'GET'],

@@ -76,7 +76,7 @@ class Notifier implements INotifier {
 	 * @since 17.0.0
 	 */
 	public function getID(): string {
-		return Application::APP_NAME;
+		return Application::APP_ID;
 	}
 
 	/**
@@ -97,11 +97,11 @@ class Notifier implements INotifier {
 	 * @throws InvalidArgumentException
 	 */
 	public function prepare(INotification $notification, string $languageCode): INotification {
-		if ($notification->getApp() !== Application::APP_NAME) {
+		if ($notification->getApp() !== Application::APP_ID) {
 			throw new InvalidArgumentException();
 		}
 
-		$l10n = $this->factory->get(Application::APP_NAME, $languageCode);
+		$l10n = $this->factory->get(Application::APP_ID, $languageCode);
 
 		$notification->setIcon(
 			$this->url->getAbsoluteURL($this->url->imagePath('social', 'social_dark.svg'))

@@ -10,18 +10,16 @@ OC.L10N.register(
     "Notifications" : "Notificacions",
     "Profile" : "Perfil",
     "Add emoji" : "Apondre emoji",
-    "Visibility" : "Visibilitat",
-    "Post" : "Publicar",
-    "Public" : "Public",
-    "Followers" : "Seguidors",
     "Delete" : "Suprimir",
-    "Edit" : "Modificar",
-    "Close" : "Tampar",
+    "Post" : "Publicar",
     "Follow" : "Seguir",
     "Website" : "Site web",
     "Reply" : "Respondre",
     "Hello" : "Adieu",
+    "Close" : "Tampar",
     "Continue" : "Contunhar",
-    "User not found" : "Utilizaire pas trobat"
+    "User not found" : "Utilizaire pas trobat",
+    "Public" : "Public",
+    "Followers" : "Seguidors"
 },
 "nplurals=2; plural=(n > 1);");

@@ -30,10 +30,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use OCA\Social\Tools\IQueryRow;
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class Instance
@@ -274,8 +274,8 @@ class Instance implements IQueryRow, JsonSerializable {
 		$this->setLanguages($this->getArray('languages', $data));
 		$this->setAccountPrim($this->get('account_prim', $data));
 
-//		$contact = new Person();
-//		$this->setContactAccount($contact);
+		//		$contact = new Person();
+		//		$this->setContactAccount($contact);
 
 		return $this;
 	}

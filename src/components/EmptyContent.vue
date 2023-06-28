@@ -21,39 +21,47 @@
   -->
 
 <template>
-	<div class="emptycontent">
-		<img v-if="item.image"
-			:src="imageUrl"
-			class="icon-illustration"
-			alt="">
-		<h2>{{ item.title }}</h2>
-		<p>{{ item.description }}</p>
-	</div>
+	<NcEmptyContent :title="item.title" :description="item.description">
+		<template v-if="item.image" #icon>
+			<img class="empty-content__image"
+				:src="imageUrl"
+				alt="">
+		</template>
+	</NcEmptyContent>
 </template>
 
 <script>
 
+import { linkTo } from '@nextcloud/router'
+import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+
 export default {
 	name: 'EmptyContent',
+	components: {
+		NcEmptyContent,
+	},
 	props: {
-		item: { type: Object, default: () => {} },
+		item: {
+			type: Object,
+			default: () => {},
+		},
 	},
 	computed: {
+		/** @return {string} */
 		imageUrl() {
-			return OC.linkTo('social', this.item.image)
+			return linkTo('social', this.item.image)
 		},
 	},
 }
 </script>
 <style scoped>
-	.emptycontent {
-		margin-top: 5vh;
-	}
+.empty-content__image {
+	height: 256px;
+	width: 256px;
+}
 
-	.emptycontent .icon-illustration {
-		height: 256px;
-		width: 256px;
-		margin: 0;
-		opacity: 1;
-	}
+:deep(.empty-content__icon) {
+	opacity: 1;
+	margin-bottom: 90px;
+}
 </style>

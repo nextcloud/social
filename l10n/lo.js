@@ -6,10 +6,9 @@ OC.L10N.register(
     "Home" : "ໜ້າຫຼັກ",
     "Notifications" : "ການເເຈ້ງເຕືອນ",
     "Delete" : "ລຶບ",
-    "Edit" : "ແກ້ໄຂ",
-    "Close" : "ປິດ",
     "Website" : "ເວັບໄຊ",
     "Deny" : "ປະຕິເສດ",
+    "Close" : "ປິດ",
     "Continue" : "ສືບຕໍ່"
 },
 "nplurals=1; plural=0;");

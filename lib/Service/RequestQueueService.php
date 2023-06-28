@@ -31,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Db\RequestQueueRequest;
 use OCA\Social\Exceptions\EmptyQueueException;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
@@ -39,6 +38,7 @@ use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class RequestQueueService {
 	use TArrayTools;

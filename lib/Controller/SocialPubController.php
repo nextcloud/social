@@ -31,7 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
@@ -43,6 +42,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Response;
@@ -74,7 +74,7 @@ class SocialPubController extends Controller {
 		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
 		ConfigService $configService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->initialStateService = $initialStateService;
@@ -113,7 +113,7 @@ class SocialPubController extends Controller {
 		$this->initialStateService->provideInitialState('social', 'serverData', [
 			'public' => true,
 		]);
-		$page = new PublicTemplateResponse(Application::APP_NAME, 'main', $data);
+		$page = new PublicTemplateResponse(Application::APP_ID, 'main', $data);
 		$page->setStatus($status);
 		$page->setHeaderTitle($this->l10n->t('Social'));
 
@@ -172,25 +172,28 @@ class SocialPubController extends Controller {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function displayPost(string $username, string $token): TemplateResponse {
+	public function displayPost(string $username, int $token): TemplateResponse {
 		try {
 			$viewer = $this->accountService->getCurrentViewer();
 			$this->streamService->setViewer($viewer);
 		} catch (AccountDoesNotExistException $e) {
 		}
 
-		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+//		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
-		$stream = $this->streamService->getStreamById($postId, true);
+		$stream = $this->streamService->getStreamByNid($token);
+		if (strtolower($stream->getActor()->getDisplayName()) !== strtolower($username)) {
+			throw new StreamNotFoundException();
+		}
+
 		$data = [
-			'id' => $postId,
 			'application' => 'Social'
 		];
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'item', $stream);
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', [
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $stream);
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', [
 			'public' => ($this->userId === null),
 		]);
-		return new TemplateResponse(Application::APP_NAME, 'main', $data);
+		return new TemplateResponse(Application::APP_ID, 'main', $data);
 	}
 }

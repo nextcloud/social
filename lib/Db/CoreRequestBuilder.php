@@ -105,7 +105,6 @@ class CoreRequestBuilder {
 			'following',
 			'followers',
 			'inbox',
-			'shared_index',
 			'outbox',
 			'featured',
 			'url',
@@ -116,18 +115,24 @@ class CoreRequestBuilder {
 			'public_key',
 			'source',
 			'details',
+			'details_update',
 			'creation'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [
+			'nid',
 			'id_prim',
 			'id',
 			'type',
+			'account',
 			'parent_id',
 			'media_type',
 			'mime_type',
 			'url',
 			'local_copy',
 			'resized_copy',
+			'meta',
+			'blurhash',
+			'description',
 			'public',
 			'error',
 			'creation',
@@ -198,6 +203,7 @@ class CoreRequestBuilder {
 			'nid',
 			'id',
 			'id_prim',
+			'visibility',
 			'type',
 			'subtype',
 			'to',
@@ -694,8 +700,8 @@ class CoreRequestBuilder {
 		$qb->orderBy($pf . '.published_time', 'desc');
 	}
 
-//
-//
+	//
+	//
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -863,44 +869,11 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $alias
-	 *
-	 * @deprecated
-	 */
-	protected function selectCacheActors(IQueryBuilder &$qb, string $alias = 'ca') {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
-		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
-		$qb->selectAlias($pf . '.id', 'cacheactor_id')
-		   ->selectAlias($pf . '.type', 'cacheactor_type')
-		   ->selectAlias($pf . '.account', 'cacheactor_account')
-		   ->selectAlias($pf . '.following', 'cacheactor_following')
-		   ->selectAlias($pf . '.followers', 'cacheactor_followers')
-		   ->selectAlias($pf . '.inbox', 'cacheactor_inbox')
-		   ->selectAlias($pf . '.shared_inbox', 'cacheactor_shared_inbox')
-		   ->selectAlias($pf . '.outbox', 'cacheactor_outbox')
-		   ->selectAlias($pf . '.featured', 'cacheactor_featured')
-		   ->selectAlias($pf . '.url', 'cacheactor_url')
-		   ->selectAlias($pf . '.preferred_username', 'cacheactor_preferred_username')
-		   ->selectAlias($pf . '.name', 'cacheactor_name')
-		   ->selectAlias($pf . '.summary', 'cacheactor_summary')
-		   ->selectAlias($pf . '.public_key', 'cacheactor_public_key')
-		   ->selectAlias($pf . '.source', 'cacheactor_source')
-		   ->selectAlias($pf . '.creation', 'cacheactor_creation')
-		   ->selectAlias($pf . '.local', 'cacheactor_local');
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param Person $author
 	 * @param string $alias
 	 *
-	 * @deprecated ?
+	 * @deprecated - use SocialCrossQueryBuilder:leftJoinCacheActor
 	 */
 	protected function leftJoinCacheActors(
 		IQueryBuilder &$qb, string $fieldActorId, Person $author = null, string $alias = ''
@@ -1029,7 +1002,9 @@ class CoreRequestBuilder {
 		$qb->selectAlias('sa.id', 'streamaction_id')
 		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
 		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
-		   ->selectAlias('sa.values', 'streamaction_values');
+		   ->selectAlias('sa.liked', 'streamaction_liked')
+		   ->selectAlias('sa.boosted', 'streamaction_boosted')
+		   ->selectAlias('sa.replied', 'streamaction_replied');
 
 		$orX = $expr->orX();
 		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.id_prim'));
@@ -1121,10 +1096,10 @@ class CoreRequestBuilder {
 			}
 		}
 
-//		$action = new Action();
-//		$action->importFromDatabase($new);
+		//		$action = new Action();
+		//		$action->importFromDatabase($new);
 
-//		return $action;
+		//		return $action;
 	}
 
 

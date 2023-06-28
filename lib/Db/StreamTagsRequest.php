@@ -31,11 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCP\Server;
+use OCA\Social\Tools\Traits\TStringTools;
 use OCP\DB\Exception as DBException;
+use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 /**

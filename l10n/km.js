@@ -7,9 +7,8 @@ OC.L10N.register(
     "Notifications" : "ការ​ជូន​ដំណឹង",
     "Uploading..." : "កំពុងដាក់បញ្ចូល...",
     "Delete" : "លុប",
-    "Edit" : "កែប្រែ",
-    "Close" : "បិទ",
     "Reply" : "ឆ្លើយតប",
+    "Close" : "បិទ",
     "Continue" : "បន្ត"
 },
 "nplurals=1; plural=0;");

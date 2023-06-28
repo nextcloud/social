@@ -23,10 +23,10 @@
 
 namespace OCA\Social\Dashboard;
 
-use OCP\IURLGenerator;
+use OCA\Social\AppInfo\Application;
 use OCP\Dashboard\IWidget;
 use OCP\IL10N;
-use OCA\Social\AppInfo\Application;
+use OCP\IURLGenerator;
 
 class SocialWidget implements IWidget {
 	private IL10N $l10n;
@@ -79,7 +79,7 @@ class SocialWidget implements IWidget {
 	 * @inheritDoc
 	 */
 	public function load(): void {
-		\OCP\Util::addScript(Application::APP_NAME, 'social-dashboard');
-		\OCP\Util::addStyle(Application::APP_NAME, 'dashboard');
+		\OCP\Util::addScript(Application::APP_ID, 'social-dashboard');
+		\OCP\Util::addStyle(Application::APP_ID, 'dashboard');
 	}
 }

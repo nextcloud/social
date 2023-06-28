@@ -22,8 +22,8 @@
 
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
-	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
-		<div v-if="isCurrentUserFollowing"
+	<div v-if="!serverData.public && relationship !== undefined">
+		<div v-if="relationship.following"
 			class="follow-button-container">
 			<NcButton :disabled="loading"
 				class="follow-button follow-button--following"
@@ -72,10 +72,6 @@ export default {
 		currentUser,
 	],
 	props: {
-		account: {
-			type: String,
-			default: '',
-		},
 		uid: {
 			type: String,
 			default: '',
@@ -87,16 +83,20 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {boolean} */
 		isCurrentUserFollowing() {
-			return this.$store.getters.isFollowingUser(this.account)
+			return this.$store.getters.isFollowingUser(this.profileAccount)
+		},
+		/** @return {import('../types/Mastodon.js').Account} */
+		currentAccount() {
+			return this.$store.getters.currentAccount
 		},
 	},
 	methods: {
 		async follow() {
 			try {
 				this.loading = true
-				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account })
-			} catch {
+				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
 			} finally {
 				this.loading = false
 			}
@@ -104,8 +104,7 @@ export default {
 		async unfollow() {
 			try {
 				this.loading = true
-				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
-			} catch {
+				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
 			} finally {
 				this.loading = false
 			}

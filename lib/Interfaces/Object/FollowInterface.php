@@ -94,7 +94,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			$accept->generateUniqueId('#accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
-//			$follow->setParent($accept);
+			//			$follow->setParent($accept);
 
 			$accept->addInstancePath(
 				new InstancePath(
@@ -185,8 +185,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 */
 	private function generateNotification(Follow $follow): void {
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface =
-			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$follower = $this->cacheActorService->getFromId($follow->getActorId());

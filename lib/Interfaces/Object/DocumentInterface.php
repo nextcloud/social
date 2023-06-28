@@ -39,17 +39,18 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
-use OCA\Social\Service\MiscService;
+use OCA\Social\Service\CacheDocumentService;
 
 class DocumentInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	protected CacheDocumentService $cacheDocumentService;
 	protected CacheDocumentsRequest $cacheDocumentsRequest;
-	protected MiscService $miscService;
 
 	public function __construct(
-		CacheDocumentsRequest $cacheDocumentsRequest, MiscService $miscService
+		CacheDocumentService $cacheDocumentService,
+		CacheDocumentsRequest $cacheDocumentsRequest
 	) {
+		$this->cacheDocumentService = $cacheDocumentService;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
-		$this->miscService = $miscService;
 	}
 
 	/**
@@ -74,7 +75,13 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 			$this->cacheDocumentsRequest->getById($item->getId());
 			$this->cacheDocumentsRequest->update($item);
 		} catch (CacheDocumentDoesNotExistException $e) {
-			if (!$this->cacheDocumentsRequest->isDuplicate($item)) {
+			if (!$item->isLocal()) {
+				$this->cacheDocumentService->saveRemoteFileToCache($item);    // create local copy
+			}
+
+			// parentId / url can only be empty on new document, meaning owner cannot be empty here
+			if (($item->getUrl() === '' && $item->getParentId() === '' && $item->getAccount() !== '')
+				|| !$this->cacheDocumentsRequest->isDuplicate($item)) {
 				$this->cacheDocumentsRequest->save($item);
 			}
 		}

@@ -35,11 +35,11 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
-use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
@@ -109,7 +109,9 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	public function getItem(ACore $item): ACore {
 		try {
 			return $this->actionsRequest->getAction(
-				$item->getActorId(), $item->getObjectId(), Like::TYPE
+				$item->getActorId(),
+				$item->getObjectId(),
+				Like::TYPE
 			);
 		} catch (ActionDoesNotExistException $e) {
 		}
@@ -135,7 +137,12 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 				$actor = $this->cacheActorService->getFromId($item->getActorId());
 			}
 
-			$post = $this->streamRequest->getStreamById($item->getObjectId());
+			$post = $this->streamRequest->getStreamById(
+				$item->getObjectId(),
+				false,
+				ACore::FORMAT_LOCAL
+			);
+			$post->setCompleteDetails(true);
 			$this->updateDetails($post);
 			$this->generateNotification($post, $actor);
 		} catch (Exception $e) {
@@ -165,15 +172,11 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	private function updateDetails(Stream $post): void {
-//		if (!$post->isLocal()) {
-//			return;
-//		}
-
 		$post->setDetailInt(
 			'likes', $this->actionsRequest->countActions($post->getId(), Like::TYPE)
 		);
 
-		$this->streamRequest->update($post, true);
+		$this->streamRequest->updateDetails($post);
 	}
 
 
@@ -202,7 +205,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		} catch (StreamNotFoundException $e) {
 			/** @var SocialAppNotification $notification */
 			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
-//			$notification->setDetail('url', '');
+			//			$notification->setDetail('url', '');
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())

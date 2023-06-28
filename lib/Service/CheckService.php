@@ -23,8 +23,6 @@
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TArrayTools;
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use GuzzleHttp\Exception\ClientException;
 use OC\User\NoUserException;
@@ -40,6 +38,8 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Http;
 use OCP\Http\Client\IClientService;
 use OCP\ICache;
@@ -163,8 +163,8 @@ class CheckService {
 			];
 		}
 
-//		$this->checkStatusTableFollows();
-//		$this->checkStatusTableStreamDest();
+		//		$this->checkStatusTableFollows();
+		//		$this->checkStatusTableStreamDest();
 		try {
 			$this->checkLocalAccountFollowingItself();
 		} catch (Exception $e) {

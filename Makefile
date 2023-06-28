@@ -11,7 +11,7 @@ package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
 branch=master
-version+=0.6.0-beta1
+version+=0.6.1
 
 
 all: dev-setup lint build-js-production composer
@@ -87,12 +87,15 @@ appstore: dev-setup lint build-js-production composer
 	--exclude=/docs \
 	--exclude=/translationfiles \
 	--exclude=/.tx \
+	--exclude=/.idea \
 	--exclude=/tests \
 	--exclude=.git \
 	--exclude=/.github \
 	--exclude=/.babelrc.js \
 	--exclude=/.drone.yml \
 	--exclude=/.eslintrc.js \
+	--exclude=/cypress.config.js \
+	--exclude=/stylelint.config.js \
 	--exclude=/composer.json \
 	--exclude=/composer.lock \
 	--exclude=/src \

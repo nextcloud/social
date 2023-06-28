@@ -8,18 +8,16 @@ OC.L10N.register(
     "Notifications" : "Thông b",
     "Add attachment" : "Thêm tệp đính kèm",
     "Add emoji" : "Thêm biểu tượng cảm xúc",
-    "Visibility" : "Hiển thị",
-    "Post" : "Đăng",
-    "Public" : "Công khai",
     "Uploading..." : "tải lên...",
     "Delete" : "Xóa",
-    "Edit" : "Chỉnh sửa",
-    "Close" : "Đóng",
+    "Post" : "Đăng",
     "Website" : "Website",
     "Reply" : "Trả l",
     "Deny" : "Từ chối",
     "Hello" : "Xin chào",
+    "Close" : "Đóng",
     "Continue" : "Tiếp tục",
-    "User not found" : "Không tìm thấy người dùng"
+    "User not found" : "Không tìm thấy người dùng",
+    "Public" : "Công khai"
 },
 "nplurals=1; plural=0;");

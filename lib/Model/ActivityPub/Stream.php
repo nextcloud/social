@@ -33,15 +33,25 @@ namespace OCA\Social\Model\ActivityPub;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\AP;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
+use OCA\Social\Exceptions\ItemAlreadyExistsException;
+use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Mention;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Model\Cache;
 use OCA\Social\Tools\Model\CacheItem;
 use OCA\Social\Traits\TDetails;
+use OCP\IURLGenerator;
+use OCP\Server;
 
 /**
  * Class Stream
@@ -63,10 +73,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	private string $activityId = '';
 	private string $content = '';
+	private string $visibility = '';
 	private string $spoilerText = '';
 	private string $language = 'en';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
+	private array $attachments = [];
+	private array $mentions = [];
 	private bool $sensitive = false;
 	private string $conversation = '';
 	private ?Cache $cache = null;
@@ -111,6 +124,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this->content;
 	}
 
+
 	/**
 	 * @param string $content
 	 *
@@ -120,6 +134,24 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->content = $content;
 
 		return $this;
+	}
+
+	/**
+	 * @param string $visibility
+	 *
+	 * @return Stream
+	 */
+	public function setVisibility(string $visibility): self {
+		$this->visibility = $visibility;
+
+		return $this;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getVisibility(): string {
+		return $this->visibility;
 	}
 
 
@@ -193,6 +225,36 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setInReplyTo(string $inReplyTo): Stream {
 		$this->inReplyTo = $inReplyTo;
+
+		return $this;
+	}
+
+
+	/**
+	 * @return MediaAttachment[]
+	 */
+	public function getAttachments(): array {
+		return $this->attachments;
+	}
+
+	/**
+	 * @param MediaAttachment[] $attachments
+	 *
+	 * @return self
+	 */
+	public function setAttachments(array $attachments): self {
+		$this->attachments = $attachments;
+
+		return $this;
+	}
+
+
+	public function getMentions(): array {
+		return $this->mentions;
+	}
+
+	public function setMentions(array $mentions): self {
+		$this->mentions = $mentions;
 
 		return $this;
 	}
@@ -372,7 +434,57 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setObjectId($this->get('object', $data, ''));
 		$this->setConversation($this->validate(self::AS_ID, 'conversation', $data, ''));
 		$this->setContent($this->get('content', $data, ''));
+		try {
+			$this->importAttachments($this->getArray('attachment', $data, []));
+		} catch (ItemAlreadyExistsException $e) {
+		}
 		$this->convertPublished();
+	}
+
+
+	/**
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function importAttachments(array $list): void {
+		$urlGenerator = Server::get(IURLGenerator::class);
+
+		$new = [];
+		foreach ($list as $item) {
+			try {
+				/** @var Document $attachment */
+				$attachment = AP::$activityPub->getItemFromData($item, $this);
+			} catch (Exception $e) {
+				continue;
+			}
+
+			if ($attachment->getType() !== Document::TYPE
+				&& $attachment->getType() !== Image::TYPE) {
+				continue;
+			}
+
+			try {
+				$attachment->setUrl(
+					$this->validateEntryString(ACore::AS_URL, $attachment->getUrl())
+				);
+			} catch (InvalidResourceEntryException $e) {
+				continue;
+			}
+
+			if ($attachment->getUrl() === '') {
+				continue;
+			}
+
+			try {
+				$interface = AP::$activityPub->getInterfaceFromType($attachment->getType());
+			} catch (ItemUnknownException $e) {
+				continue;
+			}
+
+			$interface->save($attachment);
+			$new[] = $attachment->convertToMediaAttachment($urlGenerator);
+		}
+
+		$this->setAttachments($new);
 	}
 
 
@@ -395,19 +507,64 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 		$this->setDetailsAll($this->getArray('details', $data, []));
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
+		$this->setAttachments($this->getArray('attachments', $data, []));
+		$this->setMentions($this->getDetails('mentions'));
+		$this->setVisibility($this->get('visibility', $data));
 
 		$cache = new Cache();
 		$cache->import($this->getArray('cache', $data, []));
 		$this->setCache($cache);
 	}
 
-	public function importFromCache(array $data) {
-		parent::importFromCache($data);
+	public function importFromLocal(array $data) {
+		parent::importFromLocal($data);
 
+		$this->setId($this->get('url', $data));
+		$this->setUrl($this->get('url', $data));
+		$this->setLocal($this->getBool('local', $data));
+		$this->setContent($this->get('content', $data));
+		$this->setSensitive($this->getBool('sensitive', $data));
+		$this->setSpoilerText($this->get('spoiler_text', $data));
+		$this->setVisibility($this->get('visibility', $data));
+		$this->setLanguage($this->get('language', $data));
+
+		$action = new StreamAction();
+		$action->updateValueBool(StreamAction::LIKED, $this->getBool('favourited', $data));
+		$action->updateValueBool(StreamAction::BOOSTED, $this->getBool('reblogged', $data));
+		$this->setAction($action);
+
+		try {
+			$dTime = new DateTime($this->get('created_at', $data, 'yesterday'));
+			$this->setPublishedTime($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
+
+//		"in_reply_to_id" => null,
+//			"in_reply_to_account_id" => null,
+//			'replies_count' => 0,
+//			'reblogs_count' => 0,
+//			'favourites_count' => 0,
+//			'muted' => false,
+//			'bookmarked' => false,
+//			"reblog" => null,
+//			'noindex' => false
+
+		$attachments = [];
+		foreach ($this->getArray('media_attachments', $data) as $dataAttachment) {
+			$attachment = new MediaAttachment();
+			$attachment->import($dataAttachment);
+			$attachments[] = $attachment;
+		}
+		$this->setAttachments($attachments);
+
+		$this->setMentions($this->getArray('mentions', $data));
+
+		// import from cache with new format !
 		$actor = new Person();
-		$actor->importFromCache($data['actor_info']);
+		$actor->importFromLocal($this->getArray('account', $data));
+		$actor->setExportFormat(ACore::FORMAT_LOCAL);
 		$this->setActor($actor);
-		$this->setCompleteDetails(true);
+		//		$this->setCompleteDetails(true);
 	}
 
 
@@ -438,10 +595,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 					'publishedTime' => $this->getPublishedTime()
 				]
 			);
-
-//			$result['cc'] = '';
-//			$result['bcc'] = '';
-//			$result['to'] = '';
 		}
 
 		$this->cleanArray($result);
@@ -474,13 +627,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			"content" => $this->getContent(),
 			"sensitive" => $this->isSensitive(),
 			"spoiler_text" => $this->getSpoilerText(),
-			"visibility" => 'unlisted',
+			'visibility' => $this->getVisibility(),
 			"language" => $this->getLanguage(),
 			"in_reply_to_id" => null,
 			"in_reply_to_account_id" => null,
-			'replies_count' => 0,
-			'reblogs_count' => 0,
-			'favourites_count' => 0,
+			'mentions' => $this->getMentions(),
+			'replies_count' => $this->getDetailInt('replies'),
+			'reblogs_count' => $this->getDetailInt('boosts'),
+			'favourites_count' => $this->getDetailInt('likes'),
 			'favourited' => $favorited,
 			'reblogged' => $reblogged,
 			'muted' => false,
@@ -488,7 +642,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			"reblog" => null,
-			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z'
+			'media_attachments' => $this->getAttachments(),
+			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'noindex' => false
 		];
 
 		// TODO - store created_at full string with milliseconds ?
@@ -502,11 +658,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 
 	public function exportAsNotification(): array {
+		// TODO - implements:
+		// status = Someone you enabled notifications for has posted a status
+		// follow_request = Someone requested to follow you
+		// poll = A poll you have voted in or created has ended
+		// update = A status you boosted with has been edited
 		switch ($this->getSubType()) {
 			case Like::TYPE:
-				$type = 'favourites';
+				$type = 'favourite';
 				break;
 			case Announce::TYPE:
+				$type = 'reblog';
+				break;
+			case Mention::TYPE:
 				$type = 'mention';
 				break;
 			case Follow::TYPE:
@@ -517,10 +681,10 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$result = [
-			'id' => $this->getId(),
+			'id' => (string)$this->getNid(),
 			'type' => $type,
-			'created_at' => $this->getOriginCreationTime(),
-			'status' => $this->getDetails('post')
+			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'status' => $this->getObject(),
 		];
 
 		if ($this->hasActor()) {
@@ -529,5 +693,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return array_merge(parent::exportAsNotification(), $result);
+	}
+
+
+	public function jsonSerialize(): array {
+		$result = parent::jsonSerialize();
+
+		//		$result['media_attachments'] = $this->getAttachments();
+		$result['attachment'] = $this->getAttachments();
+
+		return $result;
 	}
 }

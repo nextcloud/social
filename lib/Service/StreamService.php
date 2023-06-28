@@ -41,10 +41,10 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -53,28 +53,28 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
 
 class StreamService {
+	use TArrayTools;
+
+	private IUrlGenerator $urlGenerator;
 	private StreamRequest $streamRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
 
+	private const ANCESTOR_LIMIT = 5;
 
-	/**
-	 * NoteService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param ActivityService $activityService
-	 * @param CacheActorService $cacheActorService
-	 * @param ConfigService $configService
-	 */
 	public function __construct(
+		IUrlGenerator $urlGenerator,
 		StreamRequest $streamRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
@@ -98,7 +98,7 @@ class StreamService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function assignItem(Acore &$stream, Person $actor, string $type) {
+	public function assignItem(Acore $stream, Person $actor, string $type) {
 		$stream->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
 		$stream->setPublished(date("c"));
 
@@ -284,15 +284,6 @@ class StreamService {
 
 	/**
 	 * @param Note $note
-	 * @param Document[] $documents
-	 */
-	public function addAttachments(Note $note, array $documents) {
-		$note->setAttachments($documents);
-	}
-
-
-	/**
-	 * @param Note $note
 	 * @param string $replyTo
 	 *
 	 * @throws InvalidOriginException
@@ -359,6 +350,36 @@ class StreamService {
 
 
 	/**
+	 * @param int $nid
+	 *
+	 * @return array
+	 */
+	public function getContextByNid(int $nid): array {
+		$curr = $post = $this->streamRequest->getStreamByNid($nid);
+
+		$ancestors = [];
+		for ($i = 0; $i < self::ANCESTOR_LIMIT; $i++) {
+			if ($curr->getInReplyTo() === '') {
+				break;
+			}
+
+			try {
+				$curr = $this->streamRequest->getStreamById($curr->getInReplyTo(), true);
+				$curr->setExportFormat(ACore::FORMAT_LOCAL);
+				$ancestors[] = $curr;
+			} catch (StreamNotFoundException $e) {
+				break; // ancestor might be out of range for viewer
+			}
+		}
+
+		return [
+			'ancestors' => array_reverse($ancestors),
+			'descendants' => $this->streamRequest->getDescendants($post->getId())
+		];
+	}
+
+
+	/**
 	 * @param string $id
 	 * @param bool $asViewer
 	 *
@@ -380,7 +401,11 @@ class StreamService {
 	 * @throws StreamNotFoundException
 	 * @throws DateTimeException
 	 */
-	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false
+	public function getRepliesByParentId(
+		string $id,
+		int $since = 0,
+		int $limit = 5,
+		bool $asViewer = false
 	): array {
 		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
@@ -405,11 +430,11 @@ class StreamService {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Note[]
 	 */
-	public function getTimeline(TimelineOptions $options): array {
+	public function getTimeline(ProbeOptions $options): array {
 		return $this->streamRequest->getTimeline($options);
 	}
 
@@ -539,5 +564,27 @@ class StreamService {
 		$note = $this->streamRequest->getStreamById($noteId);
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @return OrderedCollection
+	 */
+	public function getOutboxCollection(Person $actor): OrderedCollection {
+		$collection = new OrderedCollection();
+		$collection->setId($actor->getOutbox());
+		$collection->setTotalItems($this->getInt('post', $actor->getDetails('count')));
+
+		$link = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.outbox',
+			['username' => $actor->getPreferredUsername()]
+		);
+
+		$collection->setFirst($link . '?page=1');
+		$collection->setLast($link . '?page=1&min_id=0');
+
+		return $collection;
 	}
 }

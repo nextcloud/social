@@ -30,13 +30,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TAsync;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\RequestQueueService;
+use OCA\Social\Tools\Traits\TAsync;
 use OCP\AppFramework\Controller;
 use OCP\IRequest;
 
@@ -56,7 +56,7 @@ class QueueController extends Controller {
 		IRequest $request, RequestQueueService $requestQueueService, ActivityService $activityService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->requestQueueService = $requestQueueService;
 		$this->activityService = $activityService;

@@ -31,15 +31,15 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\IExtendedQueryBuilder;
-use OCA\Social\Tools\IQueryRow;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder as DBALQueryBuilder;
 use Exception;
 use OC\DB\QueryBuilder\QueryBuilder;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\IExtendedQueryBuilder;
+use OCA\Social\Tools\IQueryRow;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -467,27 +467,27 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $expr->$comp($field, $qb->createNamedParameter('%"' . $value . '"%'));
 	}
 
-//
-//	/**
-//	 * @param IQueryBuilder $qb
-//	 * @param string $field
-//	 * @param string $value
-//	 *
-//	 * @return string
-//	 */
-//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
-//		$dbConn = $this->getConnection();
-//		$expr = $qb->expr();
-//		$func = $qb->func();
-//
-//
-//		return $expr->notLike(
-//			$func->lower($field),
-//			$qb->createNamedParameter(
-//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
-//			)
-//		);
-//	}
+	//
+	//	/**
+	//	 * @param IQueryBuilder $qb
+	//	 * @param string $field
+	//	 * @param string $value
+	//	 *
+	//	 * @return string
+	//	 */
+	//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
+	//		$dbConn = $this->getConnection();
+	//		$expr = $qb->expr();
+	//		$func = $qb->func();
+	//
+	//
+	//		return $expr->notLike(
+	//			$func->lower($field),
+	//			$qb->createNamedParameter(
+	//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
+	//			)
+	//		);
+	//	}
 
 
 	/**
@@ -525,5 +525,32 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * @param string $field
+	 * @param array $value
+	 * @param string $alias
+	 */
+	public function limitInArray(string $field, array $value, string $alias = ''): void {
+		$this->andWhere($this->exprLimitInArray($field, $value, $alias));
+	}
+
+
+	/**
+	 * @param string $field
+	 * @param array $values
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	public function exprLimitInArray(string $field, array $values, string $alias = ''): string {
+		if ($this->getType() === DBALQueryBuilder::SELECT) {
+			$field = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.' . $field;
+		}
+
+		$expr = $this->expr();
+
+		return $expr->in($field, $this->createNamedParameter($values, IQueryBuilder::PARAM_STR_ARRAY));
 	}
 }

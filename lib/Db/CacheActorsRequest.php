@@ -30,15 +30,19 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public const CACHE_TTL = 60 * 24 * 10; // 10d
+	public const DETAILS_TTL = 60 * 18; // 18h
 
 
 	/**
@@ -89,7 +93,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			$iconId = $actor->getIconId();
 		}
 
-		$qb->setValue('icon_id', $qb->createNamedParameter($iconId));
+		$qb->setValue('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
 		$qb->generatePrimaryKey($actor->getId());
 
 		try {
@@ -99,9 +103,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 
-	/**
-	 * Insert cache about an Actor in database.
-	 */
 	public function update(Person $actor): int {
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
@@ -141,9 +142,26 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			$iconId = $actor->getIconId();
 		}
 
-		$qb->set('icon_id', $qb->createNamedParameter($iconId));
+		$qb->set('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
+		$qb->limitToIdString($actor->getId());
 
-		$this->limitToIdString($qb, $actor->getId());
+		return $qb->executeStatement();
+	}
+
+
+	public function updateDetails(Person $actor): int {
+		$qb = $this->getCacheActorsUpdateSql();
+		$qb->set('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
+
+		try {
+			$qb->set(
+				'details_update',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
+		} catch (Exception $e) {
+		}
+
+		$qb->limitToIdString($actor->getId());
 
 		return $qb->executeStatement();
 	}
@@ -211,7 +229,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function searchAccounts(string $search): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->searchInAccount($search);
-		/** @var SocialQueryBuilder $qb */
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 		$qb->limitResults(25);
@@ -224,14 +241,32 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * @return Person[]
 	 * @throws Exception
 	 */
-	public function getRemoteActorsToUpdate(): array {
+	public function getRemoteActorsToUpdate(bool $force = false): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$this->limitToLocal($qb, false);
-		$this->limitToCreation($qb, self::CACHE_TTL);
+		if (!$force) {
+			$this->limitToCreation($qb, self::CACHE_TTL);
+		}
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
 
+
+	/**
+	 * @return Person[]
+	 * @throws Exception
+	 */
+	public function getRemoteActorsToUpdateDetails(bool $force = false): array {
+		$qb = $this->getCacheActorsSelectSql();
+		$qb->limitToLocal(false);
+		if (!$force) {
+			$date = new DateTime('now');
+			$date->sub(new DateInterval('PT' . self::DETAILS_TTL . 'M'));
+			$qb->limitToDBFieldDateTime('details_update', $date, true);
+		}
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
 
 	/**
 	 * delete cached version of an Actor, based on the UriId
@@ -261,5 +296,102 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$cursor->closeCursor();
 
 		return $inbox;
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActors(ProbeOptions $options): array {
+		switch (strtolower($options->getProbe())) {
+			case ProbeOptions::FOLLOWING:
+				$result = $this->probeActorsFollowing($options);
+				break;
+			case ProbeOptions::FOLLOWERS:
+				$result = $this->probeActorsFollowers($options);
+				break;
+			default:
+				return [];
+		}
+
+		if ($options->isInverted()) {
+			// in case we inverted the order during the request, we revert the results
+			$result = array_reverse($result);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActorsFollowing(ProbeOptions $options): array {
+		$qb = $this->getCacheActorsSelectSql($options->getFormat());
+
+		$qb->paginate($options);
+
+		$qb->leftJoin(
+			$qb->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_FOLLOWS,
+			'ca_f',
+			// object_id of follow is equal to actor's id
+			$qb->expr()->eq('ca.id_prim', 'ca_f.object_id_prim')
+		);
+
+		// follow must be accepted
+		$qb->limitToType(Follow::TYPE, 'ca_f');
+		$qb->limitToAccepted(true, 'ca_f');
+		// actor_id of follow is equal to requested account
+		$qb->limitToActorIdPrim($qb->prim($options->getAccountId()), 'ca_f');
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActorsFollowers(ProbeOptions $options): array {
+		$qb = $this->getCacheActorsSelectSql($options->getFormat());
+
+		$qb->paginate($options);
+
+		$qb->leftJoin(
+			$qb->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_FOLLOWS,
+			'ca_f',
+			// actor_id of follow is equal to actor's id
+			$qb->expr()->eq('ca.id_prim', 'ca_f.actor_id_prim')
+		);
+
+		// follow must be accepted
+		$qb->limitToType(Follow::TYPE, 'ca_f');
+		$qb->limitToAccepted(true, 'ca_f');
+		// object_id of follow is equal to requested account
+		$qb->limitToObjectIdPrim($qb->prim($options->getAccountId()), 'ca_f');
+
+		return $this->getCacheActorsFromRequest($qb);
+	}
+
+	/**
+	 * As of today, returned format is not important. Remove this line if this method
+	 * is used somewhere else with the need of a specific format
+	 *
+	 * @param array $ids
+	 *
+	 * @return array
+	 */
+	public function getFromNids(array $ids): array {
+		$qb = $this->getCacheActorsSelectSql();
+
+		$qb->limitInArray('nid', $ids);
+
+		return $this->getCacheActorsFromRequest($qb);
 	}
 }

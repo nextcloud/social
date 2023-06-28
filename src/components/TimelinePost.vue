@@ -1,70 +1,82 @@
 <template>
-	<div class="post-content">
+	<div class="post-content" :data-social-status="item.id">
 		<div class="post-header">
-			<div class="post-author-wrapper">
-				<router-link v-if="item.actor_info"
+			<div class="post-author-wrapper" :title="item.account.acct">
+				<router-link v-if="item.account"
 					:to="{ name: 'profile',
-						params: { account: (item.local && item.type!=='SocialAppNotification') ? item.actor_info.preferredUsername : item.actor_info.account }
+						params: { account: item.account.acct }
 					}">
 					<span class="post-author">
-						{{ userDisplayName(item.actor_info) }}
+						{{ item.account.display_name }}
 					</span>
 					<span class="post-author-id">
-						@{{ item.actor_info.account }}
+						@{{ item.account.username }}
 					</span>
 				</router-link>
-				<a v-else :href="item.attributedTo">
-					<span class="post-author-id">
-						{{ item.attributedTo }}
-					</span>
-				</a>
 			</div>
-			<a :data-timestamp="timestamp" class="post-timestamp live-relative-timestamp" @click="getSinglePostTimeline">
+			<a :data-timestamp="timestamp"
+				class="post-timestamp live-relative-timestamp"
+				:title="formattedDate"
+				@click="getSinglePostTimeline">
 				{{ relativeTimestamp }}
 			</a>
+			<VisibilityIcon v-if="visibility"
+				:title="visibility.text"
+				class="post-visibility"
+				:visibility="visibility.id" />
 		</div>
-		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="item.content" class="post-message">
-			<MessageContent :source="source" />
+			<MessageContent :item="item" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
-		<div v-else class="post-message" v-html="item.actor_info.summary" />
-		<div v-if="hasAttachments" class="post-attachments">
-			<PostAttachment :attachments="item.attachment" />
-		</div>
+		<div v-else class="post-message" v-html="item.account.note" />
+		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<NcButton v-tooltip="t('social', 'Reply')"
-				type="tertiary-no-background"
+			<NcButton :title="t('social', 'Reply')"
+				type="tertiary"
 				@click="reply">
 				<template #icon>
 					<Reply :size="20" />
 				</template>
+				<template>
+					{{ item.replies_count > 0 ? item.replies_count : '' }}
+				</template>
 			</NcButton>
-			<NcButton v-tooltip="t('social', 'Boost')"
-				type="tertiary-no-background"
+			<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+				:title="t('social', 'Boost')"
+				type="tertiary"
 				@click="boost">
 				<template #icon>
-					<Repeat :size="20" :fill-color="isBoosted ? 'blue' : 'var(--color-main-text)'" />
+					<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+				</template>
+				<template>
+					{{ item.reblogs_count > 0 ? item.reblogs_count : '' }}
 				</template>
 			</NcButton>
 			<NcButton v-if="!isLiked"
-				v-tooltip="t('social', 'Like')"
-				type="tertiary-no-background"
+				:title="t('social', 'Like')"
+				type="tertiary"
 				@click="like">
 				<template #icon>
 					<HeartOutline :size="20" />
 				</template>
+				<template>
+					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
+				</template>
 			</NcButton>
 			<NcButton v-if="isLiked"
-				v-tooltip="t('social', 'Undo Like')"
-				type="tertiary-no-background"
+				:title="t('social', 'Undo Like')"
+				type="tertiary"
 				@click="like">
 				<template #icon>
 					<Heart :size="20" :fill-color="'var(--color-error)'" />
 				</template>
+				<template>
+					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
+				</template>
 			</NcButton>
 			<NcActions>
-				<NcActionButton v-if="item.actor_info.account === cloudId"
+				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
 					icon="icon-delete"
 					@click="remove()">
 					{{ t('social', 'Delete') }}
@@ -90,8 +102,9 @@ import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
-import { generateUrl } from '@nextcloud/router'
 import MessageContent from './MessageContent.js'
+import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
+import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 
 export default {
 	name: 'TimelinePost',
@@ -105,49 +118,82 @@ export default {
 		Heart,
 		HeartOutline,
 		MessageContent,
+		VisibilityIcon,
 	},
 	mixins: [currentUser],
 	props: {
-		item: { type: Object, default: () => {} },
-		parentAnnounce: { type: Object, default: () => {} },
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
+		item: {
+			type: Object,
+			default: () => {},
+		},
+		type: {
+			type: String,
+			required: true,
+		},
 	},
 	computed: {
+		/**
+		 * @return {string}
+		 */
 		relativeTimestamp() {
-			return moment(this.item.published).fromNow()
+			return moment(this.item.created_at).fromNow()
 		},
+		/**
+		 * @return {string}
+		 */
+		formattedDate() {
+			return moment(this.item.created_at).format('LLL')
+		},
+		/**
+		 * @return {number}
+		 */
 		timestamp() {
-			return Date.parse(this.item.published)
+			return Date.parse(this.item.created_at)
 		},
-		source() {
-			if (!this.item.source && this.item.content) {
-				// local posts don't have a source json
-				return {
-					content: this.item.content,
-					tag: [],
-				}
-			}
-			return JSON.parse(this.item.source)
-		},
-		avatarUrl() {
-			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
-		},
+		/**
+		 * @return {boolean}
+		 */
 		hasAttachments() {
-			return (typeof this.item.attachment !== 'undefined')
+			// TODO: clean media_attachments
+			return (this.item.media_attachments || []).length > 0
 		},
+		/**
+		 * @return {boolean}
+		 */
 		isBoosted() {
-			if (typeof this.item.action === 'undefined') {
-				return false
-			}
-			return !!this.item.action.values.boosted
+			return this.item.reblogged === true
 		},
+		/**
+		 * @return {boolean}
+		 */
+
 		isLiked() {
-			if (typeof this.item.action === 'undefined') {
-				return false
-			}
-			return !!this.item.action.values.liked
+			return this.item.favourited === true
 		},
+		/**
+		 * @return {object}
+		 */
 		richParameters() {
 			return {}
+		},
+		/**
+		 * @return {boolean}
+		 */
+		isLocal() {
+			return !this.item.account.acct.includes('@')
+		},
+		/** @return {import('../types/Mastodon.js').Account} */
+		currentAccount() {
+			return this.$store.getters.currentAccount
+		},
+		/** @return {boolean} */
+		isNotification() {
+			return this.item.type !== undefined
+		},
+		/** @return {object} */
+		visibility() {
+			return visibilitiesInfo.find(({ id }) => this.item.visibility === id)
 		},
 	},
 	methods: {
@@ -158,25 +204,19 @@ export default {
 		 */
 		getSinglePostTimeline(e) {
 			// Display internal or external post
-			if (!this.item.local) {
-				if (this.item.type === 'Note') {
-					window.open(this.item.id)
-				} else if (this.item.type === 'Announce') {
-					window.open(this.item.object)
-				} else {
-					logger.warn("Don't know what to do with posts of type " + this.item.type, { post: this.item })
-				}
-			} else {
-				this.$router.push({
-					name: 'single-post',
-					params: {
-						account: this.item.actor_info.preferredUsername,
-						id: this.item.id,
-						localId: this.item.id.split('/')[this.item.id.split('/').length - 1],
-						type: 'single-post',
-					},
-				})
+			if (!this.isLocal) {
+				logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
+				return
 			}
+
+			this.$router.push({
+				name: 'single-post',
+				params: {
+					account: this.item.account.username,
+					id: this.item.id,
+					type: 'single-post',
+				},
+			})
 		},
 		userDisplayName(actorInfo) {
 			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
@@ -187,8 +227,8 @@ export default {
 		},
 		boost() {
 			const params = {
-				post: this.item,
-				parentAnnounce: this.parentAnnounce,
+				status: this.item,
+				parentAnnounce: this.reblog,
 			}
 			if (this.isBoosted) {
 				this.$store.dispatch('postUnBoost', params)
@@ -201,8 +241,8 @@ export default {
 		},
 		like() {
 			const params = {
-				post: this.item,
-				parentAnnounce: this.parentAnnounce,
+				status: this.item,
+				parentAnnounce: this.reblog,
 			}
 			if (this.isLiked) {
 				this.$store.dispatch('postUnlike', params)
@@ -215,79 +255,77 @@ export default {
 </script>
 <style scoped lang="scss">
 	@import '@nextcloud/vue-richtext/dist/style.css';
+
 	.post-content {
-		padding: 4px 4px 4px 8px;
+		padding: 4px 8px;
 		font-size: 15px;
 		line-height: 1.6em;
-		position: relative;
+		border-radius: 8px;
 
 		::v-deep a.widget-default {
 			text-decoration: none !important;
 		}
 
 		&:hover {
-			border-radius: 8px;
 			background-color: var(--color-background-hover);
+		}
+
+		.post-header {
+			display: flex;
+			gap: 8px;
+			flex-direction: row;
+			justify-content: space-between;
+
+			.post-author-wrapper {
+				flex-grow: 1;
+
+				&:hover {
+					text-decoration: underline;
+				}
+
+				.post-author {
+					font-weight: bold;
+
+				}
+
+				.post-author-id {
+					color: var(--color-text-lighter);
+				}
+			}
+
+			.post-visibility {
+				color: var(--color-text-lighter);
+				background-position: right;
+			}
+
+			.post-timestamp {
+				text-align: right;
+				color: var(--color-text-lighter);
+
+				&:hover {
+					text-decoration: underline;
+				}
+			}
 		}
 	}
 
-	.post-author {
-		font-weight: bold;
-	}
+	.post-message :deep(a) {
+		overflow-wrap: anywhere;
 
-	.post-author-id {
-		opacity: .7;
-	}
-
-	.post-timestamp {
-		width: 120px;
-		text-align: right;
-		flex-grow: 2;
+		&:hover {
+			text-decoration: underline;
+		}
 	}
 
 	.post-actions {
 		margin-left: -13px;
 		height: 44px;
 		display: flex;
+		margin: 4px;
 
-		.post-actions-more {
-			position: relative;
-			width: 44px;
-			height: 34px;
-			display: inline-block;
+		.button-vue:hover {
+			// Else hover state is the same as the background.
+			background: var(--color-background-dark);
 		}
-		.icon-reply,
-		.icon-boost,
-		.icon-boosted,
-		.icon-starred,
-		.icon-favorite,
-		.icon-more {
-			display: inline-block;
-			width: 44px;
-			height: 34px;
-			opacity: .5;
-			&:hover, &:focus {
-				opacity: 1;
-			}
-		}
-		.icon-boosted {
-			opacity: 1;
-		}
-	}
-
-	.post-header {
-		display: flex;
-		flex-direction: row;
-		justify-content: space-between;
-	}
-
-	.post-timestamp {
-		opacity: .7;
-	}
-</style>
-<style>
-	.post-message a {
-		text-decoration: underline;
-		overflow-wrap: anywhere;
 	}
 </style>

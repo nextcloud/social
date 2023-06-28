@@ -31,12 +31,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
-use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -132,7 +132,7 @@ class ConfigService {
 			$defaultValue = $this->defaults[$key];
 		}
 
-		return $this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
+		return $this->config->getAppValue(Application::APP_ID, $key, $defaultValue);
 	}
 
 	/**
@@ -148,7 +148,7 @@ class ConfigService {
 			$defaultValue = $this->defaults[$key];
 		}
 
-		return (int)$this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
+		return (int)$this->config->getAppValue(Application::APP_ID, $key, $defaultValue);
 	}
 
 	/**
@@ -160,7 +160,7 @@ class ConfigService {
 	 * @return void
 	 */
 	public function setAppValue($key, $value) {
-		$this->config->setAppValue(Application::APP_NAME, $key, $value);
+		$this->config->setAppValue(Application::APP_ID, $key, $value);
 	}
 
 	/**
@@ -171,7 +171,7 @@ class ConfigService {
 	 * @return string
 	 */
 	public function deleteAppValue($key) {
-		return $this->config->deleteAppValue(Application::APP_NAME, $key);
+		return $this->config->deleteAppValue(Application::APP_ID, $key);
 	}
 
 	/**
@@ -190,7 +190,7 @@ class ConfigService {
 
 		$defaultValue = '';
 		if ($app === '') {
-			$app = Application::APP_NAME;
+			$app = Application::APP_ID;
 			if (array_key_exists($key, $this->defaults)) {
 				$defaultValue = $this->defaults[$key];
 			}
@@ -209,7 +209,7 @@ class ConfigService {
 	 * @throws PreConditionNotMetException
 	 */
 	public function setUserValue($key, $value) {
-		return $this->config->setUserValue($this->userId, Application::APP_NAME, $key, $value);
+		return $this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
 	}
 
 	/**
@@ -221,7 +221,7 @@ class ConfigService {
 	 * @return string
 	 */
 	public function getValueForUser($userId, $key) {
-		return $this->config->getUserValue($userId, Application::APP_NAME, $key);
+		return $this->config->getUserValue($userId, Application::APP_ID, $key);
 	}
 
 	/**
@@ -235,7 +235,7 @@ class ConfigService {
 	 * @throws PreConditionNotMetException
 	 */
 	public function setValueForUser($userId, $key, $value) {
-		return $this->config->setUserValue($userId, Application::APP_NAME, $key, $value);
+		return $this->config->setUserValue($userId, Application::APP_ID, $key, $value);
 	}
 
 
@@ -268,7 +268,7 @@ class ConfigService {
 	 *
 	 */
 	public function unsetAppConfig() {
-		$this->config->deleteAppValues(Application::APP_NAME);
+		$this->config->deleteAppValues(Application::APP_ID);
 	}
 
 
@@ -415,16 +415,19 @@ class ConfigService {
 	public function configureRequest(NCRequest $request): void {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
 
-		if ($request->getType() === Request::TYPE_GET) {
-			$request->addHeader(
-				'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-			);
-		}
+		// do not add json headers if required
+		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
+			if ($request->getType() === Request::TYPE_GET) {
+				$request->addHeader(
+					'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+				);
+			}
 
-		if ($request->getType() === Request::TYPE_POST) {
-			$request->addHeader(
-				'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-			);
+			if ($request->getType() === Request::TYPE_POST) {
+				$request->addHeader(
+					'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+				);
+			}
 		}
 
 		$request->setLocalAddressAllowed(true);

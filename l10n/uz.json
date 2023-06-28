@@ -5,8 +5,8 @@
     "Home" : "Home",
     "Notifications" : "Notifications",
     "Delete" : "Delete",
-    "Close" : "Close",
     "Hello" : "Hello",
+    "Close" : "Close",
     "Continue" : "Continue"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

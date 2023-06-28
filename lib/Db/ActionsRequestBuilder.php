@@ -154,7 +154,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 		$item->importFromDatabase($data);
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_');
 			$actor->setCompleteDetails(true);
 
 			$item->setActor($actor);

@@ -31,11 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
-use OCA\Social\Tools\Traits\TArrayTools;
-use OCA\Social\Tools\Traits\TStringTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TStringTools;
 
 /**
  * Class RequestQueue

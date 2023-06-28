@@ -31,21 +31,29 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
@@ -54,7 +62,10 @@ use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use OCP\IURLGenerator;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
@@ -66,14 +77,18 @@ use Psr\Log\LoggerInterface;
 class ApiController extends Controller {
 	use TNCDataResponse;
 
+	private IURLGenerator $urlGenerator;
 	private IUserSession $userSession;
 	private LoggerInterface $logger;
 	private InstanceService $instanceService;
 	private ClientService $clientService;
 	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
+	private CacheDocumentService $cacheDocumentService;
+	private DocumentService $documentService;
 	private FollowService $followService;
 	private StreamService $streamService;
+	private ActionService $actionService;
 	private PostService $postService;
 	private ConfigService $configService;
 
@@ -83,27 +98,35 @@ class ApiController extends Controller {
 
 	public function __construct(
 		IRequest $request,
+		IURLGenerator $urlGenerator,
 		IUserSession $userSession,
 		LoggerInterface $logger,
 		InstanceService $instanceService,
 		ClientService $clientService,
 		AccountService $accountService,
 		CacheActorService $cacheActorService,
+		CacheDocumentService $cacheDocumentService,
+		DocumentService $documentService,
 		FollowService $followService,
 		StreamService $streamService,
+		ActionService $actionService,
 		PostService $postService,
 		ConfigService $configService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
+		$this->urlGenerator = $urlGenerator;
 		$this->userSession = $userSession;
 		$this->logger = $logger;
 		$this->instanceService = $instanceService;
 		$this->clientService = $clientService;
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
+		$this->cacheDocumentService = $cacheDocumentService;
+		$this->documentService = $documentService;
 		$this->followService = $followService;
 		$this->streamService = $streamService;
+		$this->actionService = $actionService;
 		$this->postService = $postService;
 		$this->configService = $configService;
 
@@ -218,19 +241,47 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 
 			$input = file_get_contents('php://input');
-			$this->logger->debug('[ApiController] newStatus: ' . $input);
+			$this->logger->debug('[ApiController] statusNew: ' . $input);
 
 			$status = new Status();
 			$status->import($this->convertInput($input));
 
 			$post = new Post($this->accountService->getActorFromUserId($this->currentSession()));
-			$post->setContent($status->getStatus());
+			$post->setContent(nl2br($status->getStatus()));
 			$post->setType($status->getVisibility());
 
-			$activity = $this->postService->createPost($post);
-			$activity->setExportFormat(ACore::FORMAT_LOCAL);
+			if (!empty($status->getMediaIds())) {
+				$post->setMedias(
+					array_map(function (Document $document): MediaAttachment {
+						return $document->convertToMediaAttachment(
+							$this->urlGenerator,
+							ACore::FORMAT_ACTIVITYPUB
+						);
+					}, $this->documentService->getMediaFromArray(
+						$status->getMediaIds(),
+						$this->viewer->getPreferredUsername()
+					))
+				);
+			}
 
-			return new DataResponse($activity, Http::STATUS_OK);
+			if ($status->getInReplyToId() > 0) {
+				try {
+					$replyTo = $this->streamService->getStreamByNid($status->getInReplyToId());
+					$post->setReplyTo($replyTo->getId());
+				} catch (StreamNotFoundException $e) {
+					$this->logger->debug('reply to post not found');
+				}
+			}
+
+			$activity = $this->postService->createPost($post);
+
+			$item = $this->streamService->getStreamById(
+				$activity->getObjectId(),
+				true,
+				ACore::FORMAT_LOCAL
+			);
+
+			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
 			$this->logger->warning('issues while statusNew', ['exception' => $e]);
 
@@ -238,6 +289,119 @@ class ApiController extends Controller {
 		}
 	}
 
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function mediaNew(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$file = $_FILES['file'] ?? [];
+			if (empty($file)) {
+				throw new Exception('no media found');
+			}
+
+			if ($file['error'] !== UPLOAD_ERR_OK) {
+				throw new Exception('error during upload');
+			}
+
+			$name = $file['tmp_name'] ?? '';
+			$size = $file['size'] ?? -1;
+			$type = $file['type'] ?? '';
+
+			if ($name === '' || $size === -1 || $type === '') {
+				throw new Exception('missing details');
+			}
+
+			$this->logger->debug('[ApiController] mediaNew: ' . json_encode($file));
+
+			$document = new Document();
+			$document->setLocal(true);
+			$document->setAccount($this->viewer->getPreferredUsername());
+			$document->setUrlCloud($this->configService->getCloudUrl());
+			$document->generateUniqueId('/documents/local');
+			$document->setPublic(true);
+
+			$this->cacheDocumentService->saveFromTempToCache($document, $name);
+			$service = AP::$activityPub->getInterfaceForItem($document);
+			$service->save($document);
+
+			$mediaAttachment = $document->convertToMediaAttachment($this->urlGenerator);
+
+			$this->logger->debug('generated attachment: ' . json_encode($mediaAttachment));
+
+			return new DataResponse($mediaAttachment, Http::STATUS_OK);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaNew', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return Response
+	 */
+	public function mediaGet(string $nid, string $preview = ''): Response {
+		try {
+			return new DataResponse([], Http::STATUS_OK);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaNew', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
+	 * @param string $id
+	 *
+	 * @return Response
+	 */
+	public function mediaOpen(string $uuid): Response {
+		$ext = '';
+		if (strpos($uuid, '.') > 0) {
+			[$uuid, $ext] = explode('.', $uuid, 2);
+		}
+
+		try {
+			$mime = '';
+			$file = $this->documentService->getFromUuid($uuid);
+
+			return new FileDisplayResponse(
+				$file, Http::STATUS_OK, ['Content-Type' => $this->mimeFromExt($ext)]
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaOpen', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * @param string $ext
+	 * only support image actually
+	 *
+	 * @return string
+	 */
+	private function mimeFromExt(string $ext): string {
+		if ($ext === '') {
+			return '';
+		}
+
+		return 'image/' . $ext;
+	}
 
 	/**
 	 * @NoCSRFRequired
@@ -263,9 +427,22 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			if (!in_array(
+				strtolower($timeline),
+				[
+					ProbeOptions::HOME,
+					ProbeOptions::ACCOUNT,
+					ProbeOptions::PUBLIC,
+					ProbeOptions::DIRECT,
+					ProbeOptions::FAVOURITES
+				]
+			)) {
+				throw new UnknownProbeException('unknown timeline');
+			}
+
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline($timeline)
+			$options->setProbe($timeline)
 					->setLocal($local)
 					->setLimit($limit)
 					->setMaxId($max_id)
@@ -302,6 +479,68 @@ class ApiController extends Controller {
 	}
 
 
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param int $nid
+	 *
+	 * @return DataResponse
+	 */
+	public function statusContext(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+			$context = $this->streamService->getContextByNid($nid);
+
+			return new DataResponse($context, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param int $nid
+	 * @param string $action
+	 *
+	 * @return DataResponse
+	 */
+	public function statusAction(int $nid, string $act): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActor($this->viewer->getPreferredUsername());
+			$item = $this->actionService->action($actor, $nid, $act);
+
+			if ($item === null) {
+				$item = $this->streamService->getStreamByNid($nid);
+			}
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param array $id
+	 *
+	 * @return DataResponse
+	 */
+	public function relationships(array $id): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse($this->followService->getRelationships($id), Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
 
 	/**
 	 * @NoCSRFRequired
@@ -311,10 +550,84 @@ class ApiController extends Controller {
 	 * @param int $limit
 	 * @param int $max_id
 	 * @param int $min_id
+	 * @param int $since
 	 *
 	 * @return DataResponse
 	 */
 	public function accountStatuses(
+		string $account,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since_id = 0
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$local = $this->cacheActorService->getFromLocalAccount($account);
+
+			$options = new ProbeOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setProbe(ProbeOptions::ACCOUNT)
+					->setAccountId($local->getId())
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since_id);
+
+			$posts = $this->streamService->getTimeline($options);
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollowing(
+		string $account,
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since = 0
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+			$local = $this->cacheActorService->getFromLocalAccount($account);
+
+			$options = new ProbeOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setProbe(ProbeOptions::FOLLOWING)
+					->setAccountId($local->getId())
+					->setLimit($limit)
+					->setMaxId($max_id)
+					->setMinId($min_id)
+					->setSince($since);
+
+			return new DataResponse($this->cacheActorService->probeActors($options), Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 *
+	 * @param string $account
+	 *
+	 * @return DataResponse
+	 */
+	public function accountFollowers(
 		string $account,
 		int $limit = 20,
 		int $max_id = 0,
@@ -326,18 +639,16 @@ class ApiController extends Controller {
 
 			$local = $this->cacheActorService->getFromLocalAccount($account);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline(TimelineOptions::TIMELINE_ACCOUNT)
+			$options->setProbe(ProbeOptions::FOLLOWERS)
 					->setAccountId($local->getId())
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
 					->setSince($since);
 
-			$posts = $this->streamService->getTimeline($options);
-
-			return new DataResponse($posts, Http::STATUS_OK);
+			return new DataResponse($this->cacheActorService->probeActors($options), Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}
@@ -364,9 +675,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline(TimelineOptions::TIMELINE_FAVOURITES)
+			$options->setProbe(ProbeOptions::FAVOURITES)
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
@@ -399,9 +710,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline(TimelineOptions::TIMELINE_NOTIFICATIONS)
+			$options->setProbe(ProbeOptions::NOTIFICATIONS)
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)
@@ -437,9 +748,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
-			$options = new TimelineOptions($this->request);
+			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
-			$options->setTimeline('hashtag')
+			$options->setProbe('hashtag')
 					->setLimit($limit)
 					->setMaxId($max_id)
 					->setMinId($min_id)

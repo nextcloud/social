@@ -30,6 +30,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use CurlHandle;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -105,9 +106,9 @@ class CurlService {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
-		if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
-			throw new InvalidResourceException('account format is not valid');
-		}
+		// if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
+		// 	throw new InvalidResourceException('account format is not valid');
+		// }
 
 		$exploded = explode('@', $account);
 
@@ -126,6 +127,7 @@ class CurlService {
 		$request = new NCRequest($path);
 		$request->addParam('resource', 'acct:' . $account);
 		$request->setHost($host);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 		$request->setProtocols($protocols);
 		$result = $this->retrieveJson($request);
 
@@ -152,6 +154,7 @@ class CurlService {
 		$request = new NCRequest('/.well-known/host-meta');
 		$request->setHost($host);
 		$request->setProtocols($protocols);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
 		$this->logger->debug('hostMeta', ['host' => $host, 'protocols' => $protocols]);
 
@@ -384,9 +387,9 @@ class CurlService {
 	/**
 	 * @param Request $request
 	 *
-	 * @return resource
+	 * @return CurlHandle
 	 */
-	private function initRequest(Request $request) {
+	private function initRequest(Request $request): CurlHandle {
 		$curl = $this->generateCurlRequest($request);
 		$this->initRequestHeaders($curl, $request);
 
@@ -402,7 +405,8 @@ class CurlService {
 
 		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
 		curl_setopt($curl, CURLOPT_NOPROGRESS, false);
-		curl_setopt($curl, CURLOPT_PROGRESSFUNCTION,
+		curl_setopt(
+			$curl, CURLOPT_PROGRESSFUNCTION,
 			/**
 			 * @param $downloadSize
 			 * @param int $downloaded
@@ -428,8 +432,10 @@ class CurlService {
 
 	/**
 	 * @param Request $request
+	 *
+	 * @return CurlHandle
 	 */
-	private function generateCurlRequest(Request $request) {
+	private function generateCurlRequest(Request $request): CurlHandle {
 		$url = $request->getUsedProtocol() . '://' . $request->getHost() . $request->getParsedUrl();
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
@@ -465,10 +471,10 @@ class CurlService {
 	}
 
 	/**
-	 * @param resource $curl
+	 * @param CurlHandle $curl
 	 * @param Request $request
 	 */
-	private function initRequestHeaders($curl, Request $request) {
+	private function initRequestHeaders(CurlHandle $curl, Request $request): void {
 		$headers = [];
 		foreach ($request->getHeaders() as $name => $value) {
 			$headers[] = $name . ': ' . $value;
@@ -479,14 +485,14 @@ class CurlService {
 
 
 	/**
-	 * @param resource $curl
+	 * @param CurlHandle $curl
 	 * @param Request $request
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestServerException
 	 * @throws RequestNetworkException
 	 */
-	private function parseRequestResult($curl, Request $request): void {
+	private function parseRequestResult(CurlHandle $curl, Request $request): void {
 		$this->parseRequestResultCurl($curl, $request);
 
 		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -497,12 +503,12 @@ class CurlService {
 
 
 	/**
-	 * @param resource $curl
+	 * @param CurlHandle $curl
 	 * @param Request $request
 	 *
 	 * @throws RequestNetworkException
 	 */
-	private function parseRequestResultCurl($curl, Request $request) {
+	private function parseRequestResultCurl(CurlHandle $curl, Request $request): void {
 		$errno = curl_errno($curl);
 		if ($errno > 0) {
 			throw new RequestNetworkException(

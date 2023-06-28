@@ -26,6 +26,7 @@
 			<errorLevel type="suppress">
 				<referencedClass name="OC" />
 				<referencedClass name="OC\DB\Connection" />
+				<referencedClass name="Symfony\Component\EventDispatcher\GenericEvent" />
 			</errorLevel>
 		</UndefinedClass>
 		<UndefinedDocblockClass>
@@ -35,6 +36,7 @@
 				<referencedClass name="Doctrine\DBAL\Driver\Statement" />
 				<referencedClass name="Doctrine\DBAL\Schema\Table" />
 				<referencedClass name="OC\DB\Connection" />
+				<referencedClass name="Symfony\Component\EventDispatcher\EventDispatcherInterface" />
 			</errorLevel>
 		</UndefinedDocblockClass>
 	</issueHandlers>

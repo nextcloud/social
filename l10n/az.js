@@ -5,10 +5,10 @@ OC.L10N.register(
     "Open documentation" : "Sənədləri aç",
     "Home" : "Ev",
     "Notifications" : "Xəbərdarlıqlar",
+    "Profile" : "Profil",
     "Uploading..." : "Serverə yüklənir...",
     "Delete" : "Sil",
-    "Edit" : "Dəyişiklik et",
-    "Close" : "Bağla",
-    "Reply" : "Cavab"
+    "Reply" : "Cavab",
+    "Close" : "Bağla"
 },
 "nplurals=2; plural=(n != 1);");

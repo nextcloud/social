@@ -136,8 +136,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getByPersons(string $actorId, string $remoteActorId): Follow {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToActorId($qb, $actorId);
-		$this->limitToObjectId($qb, $remoteActorId);
+		$qb->limitToActorIdPrim($qb->prim($actorId));
+		$qb->limitToObjectIdPrim($qb->prim($remoteActorId));
 
 		return $this->getFollowFromRequest($qb);
 	}
@@ -217,11 +217,13 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getFollowersByActorId(string $actorId): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToOBjectId($qb, $actorId);
+		$this->limitToObjectId($qb, $actorId);
 		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
+
+		// TODO: pagination
 
 		return $this->getFollowsFromRequest($qb);
 	}
@@ -332,5 +334,30 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->limitToActorIdPrim($qb->prim($actorId));
 
 		$qb->executeStatement();
+	}
+
+
+	/**
+	 * Returns everything related to a list of actorIds.
+	 * Looking at actor_id_prim and object_id_prim.
+	 *
+	 * @param array $actorIds
+	 *
+	 * @return Follow[]
+	 */
+	public function getFollows(array $actorIds): array {
+		$qb = $this->getFollowsSelectSql();
+		$qb->limitToType(Follow::TYPE);
+
+		$prims = [];
+		foreach ($actorIds as $actorId) {
+			$prims[] = $qb->prim($actorId);
+		}
+
+		$orX = $qb->expr()->orX();
+		$orX->add($qb->exprLimitInArray('actor_id_prim', $prims));
+		$orX->add($qb->exprLimitInArray('object_id_prim', $prims));
+
+		return $this->getFollowsFromRequest($qb);
 	}
 }

@@ -31,14 +31,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class HashtagService {
 	public const TREND_1H = 3600;

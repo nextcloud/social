@@ -1,48 +1,39 @@
 import Vue from 'vue'
 import Emoji from './Emoji.vue'
 
-/**
- * @typedef {object} MessageSource
- * @property {Array} tag
- * @property {string} content
- */
-
 export default Vue.component('MessageContent', {
 	props: {
-		source: {
+		item: {
 			type: Object,
 			required: true,
 		},
 	},
 	render(createElement) {
-		return formatMessage(createElement, this.source)
+		return formatMessage(createElement, this.item)
 	},
 })
 
 /**
- * Transform the message source into Vue elements
+ * Transform the Status into Vue elements
  *
  * filters out all tags except <br />, <p>, <span> and <a>.
  *
  * Links that are hashtags or mentions are rewritten to link to the local profile or hashtag page
  * All external links have `rel="nofollow noopener noreferrer"` and `target="_blank"` set.
  *
- * All attributes other than `href` for links are stripped from the source
+ * All attributes other than `href` for links are stripped from the content
  *
  * @param {Function} createElement
- * @param {MessageSource} source
+ * @param {import('../types/Mastodon').Status} item
  */
-export function formatMessage(createElement, source) {
-	if (!source.tag) {
-		source.tag = []
+export function formatMessage(createElement, item) {
+	if (!item.tags) {
+		item.tags = []
 	}
-	const mentions = source.tag.filter(tag => tag.type === 'Mention')
-	const hashtags = source.tag.filter(tag => tag.type === 'Hashtag')
-
 	const parser = new DOMParser()
-	const dom = parser.parseFromString(`<div id="rootwrapper">${source.content}</div>`, 'text/html')
+	const dom = parser.parseFromString(`<div id="rootwrapper">${item.content}</div>`, 'text/html')
 	const element = dom.getElementById('rootwrapper')
-	const cleaned = cleanCopy(createElement, element, { mentions, hashtags })
+	const cleaned = cleanCopy(createElement, element, item)
 	return cleaned
 }
 
@@ -50,7 +41,7 @@ export function formatMessage(createElement, source) {
  *
  * @param {Function} createElement
  * @param {HTMLElement} node
- * @param {object} context
+ * @param {import('../types/Mastodon').Status} context
  */
 function domToVue(createElement, node, context) {
 	switch (node.tagName) {
@@ -68,7 +59,7 @@ function domToVue(createElement, node, context) {
 	}
 }
 
-const mentionRegex = /(\W|^)((@\w+)@[\w.-_]+)/i
+const mentionRegex = /(\W|^)((@\w+)@[\w.\-_]+)/ig
 const hashTagRegex = /(\W|^)(#\w+)/i
 
 /**
@@ -133,7 +124,7 @@ function transformText(createElement, text) {
  *
  * @param {Function} createElement
  * @param {HTMLElement} node
- * @param {object} context
+ * @param {import('../types/Mastodon').Status} context
  */
 function cleanCopy(createElement, node, context) {
 	const children = Array.from(node.childNodes).map(node => domToVue(createElement, node, context))
@@ -144,8 +135,7 @@ function cleanCopy(createElement, node, context) {
  *
  * @param {Function} createElement
  * @param {HTMLLinkElement} node
- * @param {object} context
- * @param {Array} context.mentions
+ * @param {import('../types/Mastodon').Status} context
  */
 function cleanLink(createElement, node, context) {
 	const type = getLinkType(node.className)
@@ -203,22 +193,22 @@ function getLinkType(className) {
 
 /**
  *
- * @param {Array} tags
+ * @param {import('../types/Mastodon').StatusMention[]} tags
  * @param {string} mentionHref
  * @param {string} mentionText
  */
-function matchMention(tags, mentionHref, mentionText) {
+function matchMention(tags = [], mentionHref, mentionText) {
 	const mentionUrl = new URL(mentionHref)
 	for (const tag of tags) {
-		if (mentionText === tag.name) {
+		if (mentionText === tag.acct) {
 			return tag
 		}
 
 		// since the mention link href is not always equal to the href in the tag
 		// we instead match the server and username separate
-		const tagUrl = new URL(tag.href)
+		const tagUrl = new URL(tag.url)
 		if (tagUrl.host === mentionUrl.host) {
-			const [, name] = tag.name.split('@')
+			const [, name] = tag.acct.split('@')
 			if (name === mentionText || '@' + name === mentionText) {
 				return tag
 			}

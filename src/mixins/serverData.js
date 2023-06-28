@@ -39,7 +39,7 @@
 export default {
 	computed: {
 		/**
-		 * @return {Partial<ServerData>} Returns the serverData object
+		 * @return {ServerData} Returns the serverData object
 		 */
 		serverData() {
 			if (!this.$store) {
@@ -47,6 +47,9 @@ export default {
 			}
 			return this.$store.getters.getServerData
 		},
+		/**
+		 * @return {string}
+		 */
 		hostname() {
 			const url = document.createElement('a')
 			url.setAttribute('href', this.serverData.cloudAddress)

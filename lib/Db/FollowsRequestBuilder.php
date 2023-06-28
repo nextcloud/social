@@ -31,11 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class FollowsRequestBuilder
@@ -164,7 +164,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$follow->importFromDatabase($data);
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_');
 			$actor->setCompleteDetails(true);
 			$this->assignDetails($actor, $data);
 

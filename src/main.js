@@ -27,9 +27,8 @@ import App from './App.vue'
 import store from './store/index.js'
 import router from './router.js'
 import vuetwemoji from 'vue-twemoji'
-import contenteditableDirective from 'vue-contenteditable-directive'
 import ClickOutside from 'vue-click-outside'
-import VTooltip from '@nextcloud/vue/dist/Directives/Tooltip.js'
+import VueMasonry from 'vue-masonry-css'
 
 sync(store, router)
 
@@ -48,18 +47,20 @@ Vue.prototype.OC = OC
 Vue.prototype.OCA = OCA
 
 Vue.directive('ClickOutside', ClickOutside)
-Vue.directive('Tooltip', VTooltip)
-Vue.use(contenteditableDirective)
 Vue.use(vuetwemoji, {
 	baseUrl: OC.linkTo('social', 'img/'), // can set to local folder of emojis. default: https://twemoji.maxcdn.com/
 	extension: '.svg', // .svg, .png
 	className: 'emoji', // custom className for image output
 	size: 'twemoji', // image size
 })
+Vue.use(VueMasonry)
 
 /* eslint-disable-next-line no-new */
 new Vue({
+	el: '#content',
+	// eslint-disable-next-line vue/match-component-file-name
+	name: 'SocialRoot',
 	router,
 	render: h => h(App),
 	store,
-}).$mount('#content')
+})

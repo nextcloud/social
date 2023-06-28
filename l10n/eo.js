@@ -6,16 +6,15 @@ OC.L10N.register(
     "Finish setup" : "Fini la instalon",
     "Home" : "Hejmo",
     "Notifications" : "Sciigoj",
-    "Post" : "Sendi",
-    "Public" : "Publika",
     "Uploading..." : "Alŝutante...",
     "Delete" : "Forigi",
-    "Edit" : "Modifi",
-    "Close" : "Malfermi",
+    "Post" : "Sendi",
     "Website" : "Retejo",
     "Reply" : "Respondi",
     "Deny" : "Rifuzi",
+    "Close" : "Malfermi",
     "Continue" : "Daŭrigi",
-    "User not found" : "Netrovita uzanto"
+    "User not found" : "Netrovita uzanto",
+    "Public" : "Publika"
 },
 "nplurals=2; plural=(n != 1);");

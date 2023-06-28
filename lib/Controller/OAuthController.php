@@ -71,7 +71,7 @@ class OAuthController extends Controller {
 		LoggerInterface $logger,
 		IInitialState $initialState
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userSession = $userSession;
 		$this->urlGenerator = $urlGenerator;
@@ -187,7 +187,7 @@ class OAuthController extends Controller {
 		$client = $this->clientService->getFromClientId($client_id);
 		$this->initialState->provideInitialState('appName', $client->getAppName());
 
-		return new TemplateResponse(Application::APP_NAME, 'oauth2', [
+		return new TemplateResponse(Application::APP_ID, 'oauth2', [
 			'request' =>
 				[
 					'clientId' => $client_id,

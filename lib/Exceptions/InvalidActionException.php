@@ -1,8 +1,15 @@
-/*
- * @copyright 2019 Christoph Wurst <christoph@winzerhof-wurst.at>
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Nextcloud - Social Support
  *
- * @author 2019 Christoph Wurst <christoph@winzerhof-wurst.at>
+ * This file is licensed under the Affero General Public License version 3 or
+ * later. See the COPYING file.
  *
+ * @author Maxence Lange <maxence@artificial-owl.com>
+ * @copyright 2023, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
  *
  * This program is free software: you can redistribute it and/or modify
@@ -17,12 +24,12 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
-import { getLoggerBuilder } from '@nextcloud/logger'
-import { getCurrentUser } from '@nextcloud/auth'
+namespace OCA\Social\Exceptions;
 
-export default getLoggerBuilder()
-	.setApp('social')
-	.setUid(getCurrentUser().uid)
-	.build()
+use Exception;
+
+class InvalidActionException extends Exception {
+}

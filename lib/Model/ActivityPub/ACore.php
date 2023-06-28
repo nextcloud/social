@@ -37,11 +37,12 @@ use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
+use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCA\Social\Tools\Traits\TStringTools;
 
-class ACore extends Item implements JsonSerializable {
+class ACore extends Item implements JsonSerializable, IQueryRow {
 	use TArrayTools;
 	use TStringTools;
 	use TPathTools;
@@ -385,7 +386,7 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function addEntry(string $k, string $v): ACore {
 		if ($v === '') {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -435,7 +436,7 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function addEntryArray(string $k, array $v): ACore {
 		if ($v === []) {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -454,7 +455,7 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function addEntryItem(string $k, ACore $v): ACore {
 		if ($v === null) {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -638,10 +639,11 @@ class ACore extends Item implements JsonSerializable {
 	}
 
 	/**
+	 * based on json generated/exported as LOCAL
 	 * @param array $data
 	 */
-	public function importFromCache(array $data) {
-		$this->import($data);
+	public function importFromLocal(array $data) {
+		$this->setNid($this->getInt('id', $data));
 	}
 
 	/**
@@ -650,7 +652,9 @@ class ACore extends Item implements JsonSerializable {
 	 * @return $this
 	 */
 	public function setExportFormat(int $format): self {
-		$this->format = $format;
+		if ($format > 0) {
+			$this->format = $format;
+		}
 
 		return $this;
 	}

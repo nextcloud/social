@@ -39,7 +39,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -75,10 +75,15 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->saveStream($stream);
 		if ($stream->getType() === Note::TYPE) {
 			/** @var Note $stream */
+
+			$attachments = [];
+			foreach ($stream->getAttachments() as $item) {
+				$attachments[] = $item->asLocal(); // get attachment ready for local
+			}
+
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
 			   ->setValue(
-			   	'attachments', $qb->createNamedParameter(
-			   		json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+			   	'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
 			   	)
 			   );
 		}
@@ -100,7 +105,6 @@ class StreamRequest extends StreamRequestBuilder {
 	public function update(Stream $stream, bool $generateDest = false): void {
 		$qb = $this->getStreamUpdateSql();
 
-		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
 		$qb->set('to', $qb->createNamedParameter($stream->getTo()));
 		$qb->set(
 			'cc', $qb->createNamedParameter(json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES))
@@ -115,6 +119,15 @@ class StreamRequest extends StreamRequestBuilder {
 			$this->streamDestRequest->generateStreamDest($stream);
 		}
 	}
+
+
+	public function updateDetails(Stream $stream): void {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
+		$qb->limitToIdPrim($qb->prim($stream->getId()));
+		$qb->executeStatement();
+	}
+
 
 	public function updateCache(Stream $stream, Cache $cache): void {
 		$qb = $this->getStreamUpdateSql();
@@ -333,6 +346,23 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
+	 * @param string $id
+	 *
+	 * @return int
+	 */
+	public function countRepliesTo(string $id): int {
+		$qb = $this->countNotesSelectSql();
+		$qb->limitToInReplyTo($id, true);
+
+		$cursor = $qb->execute();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return int
@@ -376,32 +406,32 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	public function getTimeline(TimelineOptions $options): array {
-		switch (strtolower($options->getTimeline())) {
-			case TimelineOptions::TIMELINE_ACCOUNT:
+	public function getTimeline(ProbeOptions $options): array {
+		switch (strtolower($options->getProbe())) {
+			case ProbeOptions::ACCOUNT:
 				$result = $this->getTimelineAccount($options);
 				break;
-			case TimelineOptions::TIMELINE_HOME:
+			case ProbeOptions::HOME:
 				$result = $this->getTimelineHome($options);
 				break;
-			case TimelineOptions::TIMELINE_DIRECT:
+			case ProbeOptions::DIRECT:
 				$result = $this->getTimelineDirect($options);
 				break;
-			case TimelineOptions::TIMELINE_FAVOURITES:
+			case ProbeOptions::FAVOURITES:
 				$result = $this->getTimelineFavourites($options);
 				break;
-			case TimelineOptions::TIMELINE_HASHTAG:
-				$result = $this->getTimelineHashtag($options, $options->getArgument());
+			case ProbeOptions::HASHTAG:
+				$result = $this->getTimelineHashtag($options);
 				break;
-			case TimelineOptions::TIMELINE_NOTIFICATIONS:
+			case ProbeOptions::NOTIFICATIONS:
 				$options->setFormat(ACore::FORMAT_NOTIFICATION);
 				$result = $this->getTimelineNotifications($options);
 				break;
-			case TimelineOptions::TIMELINE_PUBLIC:
+			case ProbeOptions::PUBLIC:
 				$result = $this->getTimelinePublic($options);
 				break;
 			default:
@@ -409,7 +439,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		if ($options->isInverted()) {
-			// in cae we inverted the order during the request, we revert the results
+			// in case we inverted the order during the request, we revert the results
 			$result = array_reverse($result);
 		}
 
@@ -421,11 +451,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Own posts,
 	 *  * Followed accounts
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineHome(TimelineOptions $options): array {
+	private function getTimelineHome(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 
 		$qb->filterType(SocialAppNotification::TYPE);
@@ -435,6 +465,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
 
 		$qb->leftJoinStreamAction('sa');
+		$qb->leftJoinObjectStatus();
 		$qb->filterDuplicate();
 
 		return $this->getStreamsFromRequest($qb);
@@ -446,12 +477,12 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  * Private message.
 	 *  - group messages. (not yet)
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineDirect(TimelineOptions $options): array {
-		$qb = $this->getStreamSelectSql();
+	private function getTimelineDirect(ProbeOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
 
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->paginate($options);
@@ -471,14 +502,14 @@ class StreamRequest extends StreamRequestBuilder {
 	 *  - public message from actorId.
 	 *  - followers-only if logged and follower.
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineAccount(TimelineOptions $options): array {
-		$qb = $this->getStreamSelectSql();
+	private function getTimelineAccount(ProbeOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
 
-		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->limitToType(Note::TYPE);
 		$qb->paginate($options);
 
 		$actorId = $options->getAccountId();
@@ -501,11 +532,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineFavourites(TimelineOptions $options): array {
+	private function getTimelineFavourites(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$actor = $qb->getViewer();
 		$expr = $qb->expr();
@@ -524,25 +555,35 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineHashtag(TimelineOptions $options, string $hashtag): array {
+	private function getTimelineHashtag(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->limitToType(Note::TYPE);
+		$qb->paginate($options);
 
-		return [];
+		$expr = $qb->expr();
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->linkToStreamTags('st', 's.id_prim');
+		$qb->andWhere($qb->exprLimitToDBField('hashtag', $options->getArgument(), true, false, 'st'));
+
+		$qb->limitToViewer('sd', 'f', true);
+		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+
+		$qb->leftJoinStreamAction('sa');
 
 		return $this->getStreamsFromRequest($qb);
 	}
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelineNotifications(TimelineOptions $options): array {
+	private function getTimelineNotifications(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$actor = $qb->getViewer();
 
@@ -553,6 +594,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
+		$qb->leftJoinObjectStatus();
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -682,11 +724,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 * Should return:
 	 *  * All local public/federated posts
 	 *
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]
 	 */
-	private function getTimelinePublic(TimelineOptions $options): array {
+	private function getTimelinePublic(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->paginate($options);
 
@@ -891,6 +933,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb = $this->getStreamInsertSql();
 		$qb->setValue('nid', $qb->createNamedParameter($stream->getNid()))
 		   ->setValue('id', $qb->createNamedParameter($stream->getId()))
+		   ->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
 		   ->setValue('type', $qb->createNamedParameter($stream->getType()))
 		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
@@ -953,5 +996,24 @@ class StreamRequest extends StreamRequestBuilder {
 
 
 	public function getRelatedToActor(string $actorId) {
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return array
+	 */
+	public function getDescendants(string $id): array {
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->limitToViewer('sd', 'f', true);
+		$qb->limitToInReplyTo($id, true);
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		//$qb->filterDuplicate();
+
+		return $this->getStreamsFromRequest($qb);
 	}
 }

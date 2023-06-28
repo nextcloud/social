@@ -22,10 +22,13 @@
 
 <template>
 	<div class="social__timeline">
-		<transition-group name="list" tag="div">
-			<TimelineEntry v-for="entry in timeline" :key="entry.id" :item="entry" />
+		<transition-group name="list" tag="ul">
+			<TimelineEntry v-for="entry in timeline"
+				:key="entry.id"
+				:item="entry"
+				:type="type" />
 		</transition-group>
-		<InfiniteLoading ref="infiniteLoading" @infinite="infiniteHandler">
+		<InfiniteLoading ref="infiniteLoading" :direction="reverseOrder ? 'top' : 'bottom'" @infinite="infiniteHandler">
 			<div slot="spinner">
 				<div class="icon-loading" />
 			</div>
@@ -33,7 +36,7 @@
 				<div class="list-end" />
 			</div>
 			<div slot="no-results">
-				<EmptyContent v-if="timeline.length === 0" :item="emptyContentData" />
+				<EmptyContent v-if="timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
 			</div>
 		</InfiniteLoading>
 	</div>
@@ -41,10 +44,13 @@
 
 <script>
 import InfiniteLoading from 'vue-infinite-loading'
+
+import { showError } from '@nextcloud/dialogs'
+
 import TimelineEntry from './TimelineEntry.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
-import Logger from '../logger.js'
+import logger from '../services/logger.js'
 
 export default {
 	name: 'TimelineList',
@@ -55,12 +61,24 @@ export default {
 	},
 	mixins: [CurrentUserMixin],
 	props: {
-		type: { type: String, default: () => 'home' },
+		type: {
+			type: String,
+			default: () => 'home',
+		},
+		showParents: {
+			type: Boolean,
+			default: false,
+		},
+		reverseOrder: {
+			type: Boolean,
+			default: false,
+		},
 	},
 	data() {
 		return {
 			infoHidden: false,
 			state: [],
+			intervalId: -1,
 			emptyContent: {
 				default: {
 					image: 'img/undraw/posts.svg',
@@ -87,7 +105,7 @@ export default {
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
 				},
-				liked: {
+				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
 				},
@@ -100,7 +118,7 @@ export default {
 					title: t('social', 'No posts found for this tag'),
 				},
 				'single-post': {
-					title: t('social', 'No replies found'),
+					title: this.showParents ? '' : t('social', 'No replies found'),
 				},
 			},
 		}
@@ -121,33 +139,80 @@ export default {
 			}
 
 			// Fallback
-			Logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
+			logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
 			return this.emptyContent.default
 		},
+
+		/**
+		 * @return {import('../types/Mastodon').Status[]}
+		 */
 		timeline() {
-			return this.$store.getters.getTimeline
+			/** @type {import('../types/Mastodon').Status[]} */
+			let timeline = []
+
+			if (this.showParents) {
+				timeline = this.$store.getters.getParentsTimeline
+			} else {
+				timeline = this.$store.getters.getTimeline
+			}
+
+			if (this.reverseOrder) {
+				return timeline.reverse()
+			} else {
+				return timeline
+			}
 		},
 	},
-	beforeMount() {
-
+	mounted() {
+		this.intervalId = setInterval(() => this.fetchNewStatuses(), 30 * 1000)
+	},
+	destroyed() {
+		clearInterval(this.intervalId)
 	},
 	methods: {
-		infiniteHandler($state) {
-			this.$store.dispatch('fetchTimeline', {
+		async infiniteHandler($state) {
+			const params = {
 				account: this.currentUser.uid,
-			}).then((response) => {
-				if (response.status === -1) {
-					OC.Notification.showTemporary('Failed to load more timeline entries')
-					console.error('Failed to load more timeline entries', response)
-					$state.complete()
-					return
+			}
+
+			if (this.timeline.length !== 0) {
+				if (this.reverseOrder) {
+					params.min_id = Number.parseInt(this.timeline[0].id)
+				} else {
+					params.max_id = Number.parseInt(this.timeline[this.timeline.length - 1].id)
 				}
-				response.result.length > 0 ? $state.loaded() : $state.complete()
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to load more timeline entries')
-				console.error('Failed to load more timeline entries', error)
+			}
+
+			try {
+				/** @type {import('../types/Mastodon').Context} */
+				const response = await this.$store.dispatch('fetchTimeline', params)
+
+				response.length > 0 ? $state.loaded() : $state.complete()
+			} catch (error) {
+				showError('Failed to load more timeline entries')
+				logger.error('Failed to load more timeline entries', { error })
 				$state.complete()
-			})
+			}
+		},
+		async fetchNewStatuses() {
+			// No need to load new parents as they will not change.
+			if (this.showParents) {
+				return
+			}
+
+			try {
+				const response = await this.$store.dispatch('fetchTimeline', {
+					account: this.currentUser.uid,
+					min_id: this.timeline[0]?.id,
+				})
+
+				if (response.length > 0) {
+					this.fetchNewStatuses()
+				}
+			} catch (error) {
+				showError('Failed to load newer timeline entries')
+				logger.error('Failed to load newer timeline entries', { error })
+			}
 		},
 	},
 }

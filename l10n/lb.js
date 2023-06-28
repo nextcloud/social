@@ -8,9 +8,8 @@ OC.L10N.register(
     "Notifications" : "Notifikatiounen",
     "Uploading..." : "Lueden erop...",
     "Delete" : "Läschen",
-    "Edit" : "Änneren",
-    "Close" : "Zoumaachen",
     "Reply" : "Äntwerten",
+    "Close" : "Zoumaachen",
     "Continue" : "Weider"
 },
 "nplurals=2; plural=(n != 1);");

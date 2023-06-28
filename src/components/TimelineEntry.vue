@@ -1,46 +1,78 @@
 <template>
-	<div :class="['timeline-entry', hasHeader ? 'with-header' : '']">
-		<div v-if="item.type === 'SocialAppNotification'" class="notification">
-			<Bell :size="22" />
-			<span class="notification-action">
+	<component :is="element" class="timeline-entry" :class="{ 'notification': isNotification, 'with-header': hasHeader }">
+		<div v-if="isNotification" class="notification__header">
+			<span class="notification__summary">
+				<img :src="notification.account.avatar">
+				<Heart v-if="notification.type === 'favourite'" :size="16" />
+				<Repeat v-if="notification.type === 'reblog'" :size="16" />
+				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
+				<AccountQuestion v-if="notification.type === 'follow_request'" :size="16" />
+				<At v-if="notification.type === 'mention'" :size="16" />
+				<MessageOutline v-if="notification.type === 'status'" :size="16" />
+				<MessagePlusOutline v-if="notification.type === 'update'" :size="16" />
+				<Poll v-if="notification.type === 'poll'" :size="16" />
 				{{ actionSummary }}
 			</span>
+			<span class="notification__details">
+				<router-link v-if="!notificationIsAboutAnAccount"
+					:to="{ name: 'single-post', params: {
+						account: item.account.display_name,
+						id: notification.status.id,
+						type: 'single-post',
+					} }"
+					:data-timestamp="notification.created_at"
+					class="post-timestamp"
+					:title="notificationFormattedDate">
+					{{ notificationRelativeTimestamp }}
+				</router-link>
+				<span v-else
+					class="post-timestamp"
+					:data-timestamp="notification.created_at"
+					:title="notificationFormattedDate">
+					{{ notificationRelativeTimestamp }}
+				</span>
+			</span>
 		</div>
-		<template v-else-if="item.type === 'Announce'">
-			<div class="container-icon-boost boost">
-				<span class="icon-boost" />
-			</div>
+		<template v-else-if="isBoost">
 			<div class="boost">
-				<router-link v-if="!isProfilePage && item.actor_info" :to="{ name: 'profile', params: { account: item.local ? item.actor_info.preferredUsername : item.actor_info.account }}">
-					<span v-tooltip.bottom="item.actor_info.account" class="post-author">
-						{{ userDisplayName(item.actor_info) }}
+				<Repeat :size="16" />
+				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
+					<img :src="item.account.avatar">
+					<span :title="item.account.acct" class="post-author">
+						{{ item.account.display_name }}&ensp;
 					</span>
 				</router-link>
-				<a v-else :href="item.attributedTo">
-					<span class="post-author-id">
-						{{ item.attributedTo }}
-					</span>
-				</a>
-				{{ boosted }}
+				{{ t('social', 'boosted') }}
 			</div>
 		</template>
-		<UserEntry v-if="item.type === 'SocialAppNotification' && item.details.actor" :key="item.details.actor.id" :item="item.details.actor" />
+		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :display-follow-button="false" :item="item.account" />
 		<template v-else>
-			<div class="wrapper">
-				<TimelineAvatar class="entry__avatar" :item="entryContent" />
+			<div v-if="entryContent" class="wrapper">
+				<TimelineAvatar v-if="!isNotification" class="entry__avatar" :item="entryContent" />
 				<TimelinePost class="entry__content"
 					:item="entryContent"
-					:parent-announce="isBoost" />
+					:type="type" />
 			</div>
 		</template>
-	</div>
+	</component>
 </template>
 
 <script>
+import Bell from 'vue-material-design-icons/Bell.vue'
+import Repeat from 'vue-material-design-icons/Repeat.vue'
+import Heart from 'vue-material-design-icons/Heart.vue'
+import AccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
+import AccountQuestion from 'vue-material-design-icons/AccountQuestion.vue'
+import At from 'vue-material-design-icons/At.vue'
+import Poll from 'vue-material-design-icons/Poll.vue'
+import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
+import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
+import { translate } from '@nextcloud/l10n'
+import moment from '@nextcloud/moment'
 import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
-import Bell from 'vue-material-design-icons/Bell.vue'
+import { notificationSummary } from '../services/notifications.js'
 
 export default {
 	name: 'TimelineEntry',
@@ -49,79 +81,87 @@ export default {
 		TimelineAvatar,
 		UserEntry,
 		Bell,
+		Repeat,
+		Heart,
+		AccountPlusOutline,
+		AccountQuestion,
+		At,
+		Poll,
+		MessageOutline,
+		MessagePlusOutline,
 	},
 	props: {
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
 		item: {
 			type: Object,
 			default: () => {},
 		},
-		isProfilePage: {
-			type: Boolean,
-			default: false,
+		type: {
+			type: String,
+			required: true,
+		},
+		element: {
+			type: String,
+			default: 'li',
 		},
 	},
-	data() {
-		return {
-		}
-	},
 	computed: {
+		/**
+		 * @return {import('../types/Mastodon.js').Status}
+		 */
 		entryContent() {
-			if (this.item.type === 'Announce') {
-				return this.item.cache[this.item.object].object
-			} else if (this.item.type === 'SocialAppNotification') {
-				return this.item.details.post
+			if (this.isNotification) {
+				return this.notification.status
+			} else if (this.isBoost) {
+				// We use the object stored in the store so that actions on it are reflected.
+				return this.$store.getters.getStatus(this.item.reblog.id)
 			} else {
 				return this.item
 			}
 		},
+		/** @return {boolean} */
+		isNotification() {
+			return this.item.type !== undefined
+		},
+		/** @return {string} */
+		notificationFormattedDate() {
+			return moment(this.notification.created_at).format('LLL')
+		},
+		/** @return {string} */
+		notificationRelativeTimestamp() {
+			return moment(this.notification.created_at).fromNow()
+		},
+		/** @return {boolean} */
 		isBoost() {
-			if (this.item.type === 'Announce') {
-				return this.item
-			}
-			return {}
+			return this.status.reblog !== null
 		},
+		/** @return {import('../types/Mastodon.js').Notification} */
+		notification() {
+			return this.item
+		},
+		/** @return {import('../types/Mastodon.js').Status} */
+		status() {
+			return this.item
+		},
+		/** @return {boolean} */
+		notificationIsAboutAnAccount() {
+			return ['follow', 'follow_request', 'admin.sign_up', 'admin.report'].includes(this.notification.type)
+		},
+		/**
+		 * @return {boolean}
+		 */
 		hasHeader() {
-			return this.item.type === 'Announce' || this.item.type === 'SocialAppNotification'
+			return this.isBoost || this.isNotification
 		},
-		boosted() {
-			return t('social', 'boosted')
-		},
+		/**
+		 * @return {string}
+		 */
 		actionSummary() {
-
-			let summary = this.item.summary
-			for (const key in this.item.details) {
-
-				const keyword = '{' + key + '}'
-				if (typeof this.item.details[key] !== 'string' && this.item.details[key].length > 1) {
-
-					let concatination = ''
-					for (const stringKey in this.item.details[key]) {
-
-						if (this.item.details[key].length > 3 && stringKey === '3') {
-							// ellipses the actors' list to 3 actors when it's big
-							concatination = concatination.substring(0, concatination.length - 2)
-							concatination += ' and ' + (this.item.details[key].length - 3).toString() + ' other(s), '
-							break
-						} else {
-							concatination += this.item.details[key][stringKey] + ', '
-						}
-					}
-
-					concatination = concatination.substring(0, concatination.length - 2)
-					summary = summary.replace(keyword, concatination)
-
-				} else {
-					summary = summary.replace(keyword, this.item.details[key])
-				}
-			}
-
-			return summary
+			return notificationSummary(this.notification)
 		},
 	},
 	methods: {
-		userDisplayName(actorInfo) {
-			return actorInfo.name !== '' ? actorInfo.name : actorInfo.preferredUsername
-		},
+		t: translate,
 	},
 }
 </script>
@@ -151,54 +191,80 @@ export default {
 	}
 
 	.notification {
-		display: flex;
-		padding-left: 2rem;
-		gap: 0.2rem;
-		margin-top: 1rem;
+		border-bottom: 1px solid var(--color-border);
 
-		&-action {
+		&__header {
+			display: flex;
+			gap: 0.2rem;
+			margin-top: 1rem;
+		}
+
+		&__summary {
 			flex-grow: 1;
 			display: inline-block;
 			grid-row: 1;
 			grid-column: 2;
 			color: var(--color-text-lighter);
+			position: relative;
+			margin-bottom: 8px;
+
+			img {
+				width: 32px;
+				border-radius: 50%;
+				overflow: hidden;
+				vertical-align: middle;
+				margin-top: -1px;
+				margin-right: 8px;
+			}
+
+			.material-design-icon {
+				position: absolute;
+				top: 16px;
+				left: 20px;
+				padding: 2px;
+				background: var(--color-main-background);
+				border-radius: 50%;
+				border: 1px solid var(--color-background-dark);
+			}
 		}
 
-		.bell-icon {
-			opacity: .5;
+		&__details .post-timestamp {
+			color: var(--color-text-lighter);
 		}
-	}
+		&__details a {
+			&:hover {
+				text-decoration: underline;
+			}
+		}
 
-	.icon-boost {
-		display: inline-block;
-		vertical-align: middle;
-	}
+		:deep(.post-header) {
+			.post-visibility {
+				display: none;
+			}
 
-	.icon-favorite {
-		display: inline-block;
-		vertical-align: middle;
-	}
+			.post-timestamp {
+				display: none;
+			}
+		}
 
-	.icon-user {
-		display: inline-block;
-		vertical-align: middle;
-	}
-
-	.container-icon-boost {
-		display: inline-block;
-		padding-right: 6px;
-	}
-
-	.icon-boost {
-		display: inline-block;
-		width: 38px;
-		height: 17px;
-		opacity: .5;
-		background-position: right center;
-		vertical-align: middle;
+		:deep(.user-entry) {
+			.user-avatar {
+				display: none;
+			}
+		}
 	}
 
 	.boost {
-		opacity: .5;
+		color: var(--color-text-lighter);
+		display: flex;
+		margin-left: 21px; // To align with status' text.
+
+		img {
+			width: 16px;
+			border-radius: 50%;
+			vertical-align: middle;
+			margin-top: -4px;
+			margin-left: 4px;
+		}
 	}
 </style>

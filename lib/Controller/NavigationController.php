@@ -31,10 +31,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCDataResponse;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
-use OCP\AppFramework\Http;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -45,16 +42,19 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
+use OCP\IGroupManager;
 use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
-use OCP\IGroupManager;
 use OCP\Server;
 
 /**
@@ -90,7 +90,7 @@ class NavigationController extends Controller {
 		CheckService $checkService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->l10n = $l10n;
@@ -140,8 +140,8 @@ class NavigationController extends Controller {
 					if ($cloudAddress !== null) {
 						$this->configService->setCloudUrl($cloudAddress);
 					} else {
-						$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
-						return new TemplateResponse(Application::APP_NAME, 'main');
+						$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+						return new TemplateResponse(Application::APP_ID, 'main');
 					}
 				}
 			}
@@ -172,8 +172,8 @@ class NavigationController extends Controller {
 			$serverData['checks'] = $checks;
 		}
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
-		return new TemplateResponse(Application::APP_NAME, 'main');
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+		return new TemplateResponse(Application::APP_ID, 'main');
 	}
 
 	private function setupCloudAddress(): string {

@@ -31,12 +31,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 
 /**
@@ -45,15 +45,8 @@ use OCP\DB\QueryBuilder\ICompositeExpression;
  * @package OCA\Social\Db
  */
 class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
-	/**
-	 * Limit the request to the Type
-	 *
-	 * @param string $type
-	 *
-	 * @return SocialQueryBuilder
-	 */
-	public function limitToType(string $type): self {
-		$this->limitToDBField('type', $type, true);
+	public function limitToType(string $type, string $alias = ''): self {
+		$this->limitToDBField('type', $type, true, $alias);
 
 		return $this;
 	}
@@ -194,6 +187,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * @param string $streamId
+	 * @param string $alias
+	 *
+	 * @return void
+	 */
+	public function limitToStreamIdPrim(string $streamId, string $alias = '') {
+		$this->limitToDBField('stream_id_prim', $streamId, false, $alias);
+	}
+
+	/**
 	 * Limit the request to the FollowId
 	 *
 	 * @param string $followId
@@ -328,10 +331,10 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 */
-	public function paginate(TimelineOptions $options) {
+	public function paginate(ProbeOptions $options) {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 

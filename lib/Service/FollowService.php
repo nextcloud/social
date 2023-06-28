@@ -30,8 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -41,11 +39,6 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -55,18 +48,27 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\Relationship;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
 class FollowService {
 	use TArrayTools;
 
 
+	private IURLGenerator $urlGenerator;
 	private FollowsRequest $followsRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
-
 	private ?Person $viewer = null;
 
 
@@ -80,12 +82,14 @@ class FollowService {
 	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
+		IURLGenerator $urlGenerator,
 		FollowsRequest $followsRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
 		LoggerInterface $logger
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->followsRequest = $followsRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
@@ -136,11 +140,6 @@ class FollowService {
 		$follow->setActorId($actor->getId());
 		$follow->setObjectId($remoteActor->getId());
 		$follow->setFollowId($remoteActor->getFollowers());
-
-		if ($remoteActor->isLocal()) {
-			// TODO: check user's setting about locked account/auto-accept followers
-			$follow->setAccepted(true);
-		}
 
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
@@ -249,8 +248,14 @@ class FollowService {
 	public function getFollowersCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
 		$collection->setId($actor->getFollowers());
-		$collection->setTotalItems(20);
-		$collection->setFirst('...');
+		$collection->setTotalItems($this->getInt('followers', $actor->getDetails('count')));
+
+		$first = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.followers',
+			['username' => $actor->getPreferredUsername()]
+		)
+				 . '?page=1';
+		$collection->setFirst($first);
 
 		return $collection;
 	}
@@ -275,9 +280,15 @@ class FollowService {
 	 */
 	public function getFollowingCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
-//		$collection->setId($actor->getFollowers());
-//		$collection->setTotalItems(20);
-//		$collection->setFirst('...');
+		$collection->setId($actor->getFollowing());
+		$collection->setTotalItems($this->getInt('following', $actor->getDetails('count')));
+
+		$first = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.following',
+			['username' => $actor->getPreferredUsername()]
+		)
+				 . '?page=1';
+		$collection->setFirst($first);
 
 		return $collection;
 	}
@@ -290,5 +301,58 @@ class FollowService {
 	 */
 	public function getFollowersFromFollowId(string $recipient): array {
 		return $this->followsRequest->getFollowersByFollowId($recipient);
+	}
+
+	/**
+	 * @return Relationship[]
+	 */
+	public function getRelationships(array $nids): array {
+		$actorNids = $relationships = [];
+
+		// retrieve actorIds from list of Nid
+		foreach ($this->cacheActorService->getFromNids($nids) as $actor) {
+			$actorNids[$actor->getNid()] = $actor->getId();
+		}
+
+		foreach ($actorNids as $actorNid => $actorId) {
+			if ($actorNid === $this->viewer->getNid()) {
+				continue; // ignore current session
+			}
+
+			$relationships[] = $this->generateRelationship($actorNid, $this->viewer->getId(), $actorId);
+		}
+
+		return $relationships;
+	}
+
+	/**
+	 * @param int $nid
+	 * @param string $viewerId
+	 * @param string $actorId
+	 *
+	 * @return Relationship
+	 */
+	private function generateRelationship(int $nid, string $viewerId, string $actorId): Relationship {
+		$relationship = new Relationship($nid);
+
+		try {
+			$follow = $this->followsRequest->getByPersons($viewerId, $actorId);
+			if ($follow->isAccepted()) {
+				$relationship->setFollowing(true);
+			} else {
+				$relationship->setRequested(true);
+			}
+		} catch (FollowNotFoundException $e) {
+		}
+
+		try {
+			$follow = $this->followsRequest->getByPersons($actorId, $viewerId);
+			if ($follow->isAccepted()) {
+				$relationship->setFollowedBy(true);
+			}
+		} catch (FollowNotFoundException $e) {
+		}
+
+		return $relationship;
 	}
 }

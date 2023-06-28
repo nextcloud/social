@@ -30,12 +30,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
@@ -51,6 +45,12 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use Psr\Log\LoggerInterface;
@@ -106,18 +106,18 @@ class PostService {
 
 		$note->setAttributedTo($actor->getId());
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
-
-		$this->generateDocumentsFromAttachments($note, $post);
+		$note->setAttachments($post->getMedias());
+		$note->setVisibility($post->getType());
 
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
-		$this->streamService->addAttachments($note, $post->getDocuments());
+		//		$this->streamService->addAttachments($note, $post->getDocuments());
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
 
-		$this->miscService->log('Activity: ' . json_encode($activity));
+		$this->logger->debug('Activity: ' . json_encode($activity));
 
 		return $activity;
 	}

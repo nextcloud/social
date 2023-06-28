@@ -8,6 +8,8 @@
 					</span>
 				</a>
 				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
+				<p>{{ t('social', 'This application is currently in beta stage.') }}</p>
+				<br>
 				<p>
 					{{ t('social', 'We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:') }}
 					<span class="social-id">
@@ -23,10 +25,17 @@
 				</div>
 			</div>
 		</transition>
-		<Composer v-if="type !== 'notifications' && type !== 'single-post'" />
+
+		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
+
 		<h2 v-if="type === 'tags'">
 			#{{ $route.params.tag }}
 		</h2>
+
+		<h2 v-if="type === 'notifications'">
+			{{ t('social', 'Notifications') }}
+		</h2>
+
 		<TimelineList :type="type" />
 	</div>
 </template>
@@ -34,7 +43,6 @@
 <script>
 import Composer from './../components/Composer/Composer.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
-import follow from './../mixins/follow.js'
 import TimelineList from './../components/TimelineList.vue'
 
 export default {
@@ -45,7 +53,6 @@ export default {
 	},
 	mixins: [
 		CurrentUserMixin,
-		follow,
 	],
 	data() {
 		return {

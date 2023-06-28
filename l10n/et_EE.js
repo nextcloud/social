@@ -6,15 +6,14 @@ OC.L10N.register(
     "Finish setup" : "Lõpeta seadistamine",
     "Home" : "Avaleht",
     "Notifications" : "Teavitused",
-    "Post" : "Postita",
-    "Public" : "Avalik",
     "Uploading..." : "Üleslaadimine...",
     "Delete" : "Kustuta",
-    "Edit" : "Redigeeri",
-    "Close" : "Sulge",
+    "Post" : "Postita",
     "Website" : "Veebileht",
     "Reply" : "Vasta",
+    "Close" : "Sulge",
     "Continue" : "Jätka",
-    "User not found" : "Kasutajat ei leitud"
+    "User not found" : "Kasutajat ei leitud",
+    "Public" : "Avalik"
 },
 "nplurals=2; plural=(n != 1);");

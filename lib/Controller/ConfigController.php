@@ -26,13 +26,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Model\SimpleDataStore;
-use OCA\Social\Tools\Traits\TNCDataResponse;
 use Exception;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\TestService;
+use OCA\Social\Tools\Model\SimpleDataStore;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;

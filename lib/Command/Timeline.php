@@ -34,7 +34,7 @@ namespace OCA\Social\Command;
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -130,7 +130,7 @@ class Timeline extends ExtendedBase {
 
 		$this->streamRequest->setViewer($actor);
 
-		$options = new TimelineOptions();
+		$options = new ProbeOptions();
 		$options->setFormat(Stream::FORMAT_LOCAL);
 		$options->setLimit(intval($input->getOption('limit')))
 				->setMinId(intval($input->getOption('min_id')))
@@ -140,7 +140,14 @@ class Timeline extends ExtendedBase {
 		if ($input->getOption('local')) {
 			$options->setLocal(true);
 		}
-		$options->setTimeline($input->getArgument('timeline'));
+
+		$timeline = $input->getArgument('timeline');
+		if (str_starts_with($timeline, '#')) {
+			$options->setProbe(ProbeOptions::HASHTAG)
+					->setArgument(substr($timeline, 1));
+		} else {
+			$options->setProbe($timeline);
+		}
 
 		if ($input->getOption('account') !== '') {
 			$local = $this->cacheActorService->getFromLocalAccount($input->getOption('account'));

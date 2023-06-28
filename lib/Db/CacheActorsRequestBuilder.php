@@ -30,12 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
@@ -57,9 +57,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * Base of the Sql Update request
 	 *
-	 * @return IQueryBuilder
+	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheActorsUpdateSql(): IQueryBuilder {
+	protected function getCacheActorsUpdateSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_ACTORS);
 
@@ -72,14 +72,16 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * @return SocialQueryBuilder
 	 */
-	protected function getCacheActorsSelectSql(): SocialQueryBuilder {
+	protected function getCacheActorsSelectSql(int $format = Stream::FORMAT_ACTIVITYPUB): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
+		$qb->setFormat($format);
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
-			'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox', 'ca.shared_inbox',
-			'ca.outbox', 'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username', 'ca.name', 'ca.summary',
-			'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation'
+			'ca.nid', 'ca.id', 'ca.account', 'ca.following', 'ca.followers', 'ca.inbox',
+			'ca.shared_inbox', 'ca.outbox', 'ca.featured', 'ca.url', 'ca.type', 'ca.preferred_username',
+			'ca.name', 'ca.summary', 'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation',
+			'ca.details_update'
 		)
 		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
 
@@ -87,7 +89,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		/** @deprecated */
 		$this->defaultSelectAlias = 'ca';
-		$qb->setDefaultSelectAlias('ca');
 
 		return $qb;
 	}
@@ -146,9 +147,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	 */
 	public function parseCacheActorsSelectSql(array $data, SocialQueryBuilder $qb): Person {
 		$actor = new Person();
-		$actor->importFromDatabase($data);
-
-		$this->assignViewerLink($qb, $actor);
+		$actor->setExportFormat($qb->getFormat());
 
 		try {
 			$icon = $qb->parseLeftJoinCacheDocuments($data);
@@ -156,6 +155,9 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		} catch (InvalidResourceException $e) {
 		}
 
+		$actor->importFromDatabase($data);
+
+		$this->assignViewerLink($qb, $actor);
 		$this->assignDetails($actor, $data);
 
 		return $actor;

@@ -1,4 +1,4 @@
-/*
+/**
  * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
  *
  * @author Julius Härtl <jus@bitgrid.net>
@@ -20,14 +20,17 @@
  *
  */
 
+import { getCurrentUser } from '@nextcloud/auth'
+
 import serverData from './serverData.js'
+
 export default {
 	mixins: [
 		serverData,
 	],
 	computed: {
 		currentUser() {
-			return OC.getCurrentUser()
+			return getCurrentUser()
 		},
 		socialId() {
 			return '@' + this.cloudId

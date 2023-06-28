@@ -31,9 +31,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
-use OCA\Social\Tools\Traits\TNCDataResponse;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -42,6 +39,9 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -64,7 +64,7 @@ class OStatusController extends Controller {
 		IRequest $request, IInitialStateService $initialStateService, CacheActorService $cacheActorService, AccountService $accountService,
 		CurlService $curlService, MiscService $miscService, IUserSession $userSession
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->initialStateService = $initialStateService;
 		$this->cacheActorService = $cacheActorService;

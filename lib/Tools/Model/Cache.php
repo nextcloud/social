@@ -30,9 +30,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Model;
 
+use JsonSerializable;
 use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
-use JsonSerializable;
 
 /**
  * Class Cache

@@ -39,9 +39,11 @@ export default {
 		serverData,
 	],
 	computed: {
+		/** @return {string} */
 		profileAccount() {
 			return (this.$route.params.account.indexOf('@') === -1) ? this.$route.params.account + '@' + this.hostname : this.$route.params.account
 		},
+		/** @return {import('../types/Mastodon.js').Account[]} */
 		users() {
 			if (this.$route.name === 'profile.followers') {
 				return this.$store.getters.getAccountFollowers(this.profileAccount)

@@ -89,7 +89,7 @@ class ActivityPubController extends Controller {
 		ConfigService $configService,
 		LoggerInterface $logger
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->socialPubController = $socialPubController;
 		$this->fediverseService = $fediverseService;
@@ -278,7 +278,17 @@ class ActivityPubController extends Controller {
 	 * @return Response
 	 */
 	public function outbox(string $username): Response {
-		return $this->success([$username]);
+		//		if (!$this->checkSourceActivityStreams()) {
+		//			return $this->socialPubController->outbox($username);
+		//		}
+
+		try {
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+
+			return $this->directSuccess($this->streamService->getOutboxCollection($actor));
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
 	}
 
 
@@ -301,11 +311,8 @@ class ActivityPubController extends Controller {
 
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
-			$followers = $this->followService->getFollowersCollection($actor);
 
-//			$followers->setTopLevel(true);
-
-			return $this->directSuccess($followers);
+			return $this->directSuccess($this->followService->getFollowersCollection($actor));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -329,7 +336,13 @@ class ActivityPubController extends Controller {
 			return $this->socialPubController->following($username);
 		}
 
-		return $this->success([$username]);
+		try {
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+
+			return $this->directSuccess($this->followService->getFollowingCollection($actor));
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
 	}
 
 
@@ -354,7 +367,7 @@ class ActivityPubController extends Controller {
 		}
 
 		if (!$this->checkSourceActivityStreams()) {
-			return $this->socialPubController->displayPost($username, $token);
+			return $this->socialPubController->displayPost($username, (int)$token);
 		}
 
 		try {

@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-
 /**
  * Nextcloud - Social Support
  *
@@ -28,103 +27,72 @@ declare(strict_types=1);
  *
  */
 
-
 namespace OCA\Social\Model\ActivityPub;
 
 use JsonSerializable;
 
-/**
- * Class OrderedCollection
- *
- * @package OCA\Social\Model\ActivityPub
- */
 class OrderedCollection extends ACore implements JsonSerializable {
 	public const TYPE = 'OrderedCollection';
 
-
 	private int $totalItems = 0;
-
 	private string $first = '';
+	private string $last = '';
 
-	/**
-	 * Activity constructor.
-	 *
-	 * @param ACore $parent
-	 */
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);
 	}
 
-
-	/**
-	 * @return int
-	 */
 	public function getTotalItems(): int {
 		return $this->totalItems;
 	}
 
-	/**
-	 * @param int $totalItems
-	 *
-	 * @return OrderedCollection
-	 */
-	public function setTotalItems(int $totalItems): OrderedCollection {
+	public function setTotalItems(int $totalItems): self {
 		$this->totalItems = $totalItems;
 
 		return $this;
 	}
 
-
-	/**
-	 * @return string
-	 */
 	public function getFirst(): string {
 		return $this->first;
 	}
 
-	/**
-	 * @param string $first
-	 *
-	 * @return OrderedCollection
-	 */
-	public function setFirst(string $first): OrderedCollection {
+	public function setFirst(string $first): self {
 		$this->first = $first;
 
 		return $this;
 	}
 
-
-
-
-
-
-
-	//"id": "https://pub.pontapreta.net/users/admin/following",
-	//"type": "OrderedCollection",
-	//"totalItems": 1,
-	//"first": "https://pub.pontapreta.net/users/admin/following?page=1"
-
-
-	/**
-	 * @param array $data
-	 */
-	public function import(array $data) {
-		parent::import($data);
+	public function getLast(): string {
+		return $this->last;
 	}
 
+	public function setLast(string $last): self {
+		$this->last = $last;
 
-	/**
-	 * @return array
-	 */
+		return $this;
+	}
+
+	public function import(array $data): self {
+		parent::import($data);
+		$this->setFirst($this->validate(ACore::AS_USERNAME, 'first', $data, ''))
+			 ->setLast($this->validate(ACore::AS_USERNAME, 'last', $data, ''))
+			 ->setTotalItems($this->getInt('totalItems', $data));
+
+		return $this;
+	}
+
 	public function jsonSerialize(): array {
-		return array_merge(
-			parent::jsonSerialize(),
-			[
-				'totalItems' => $this->getTotalItems(),
-				'first' => $this->getFirst()
-			]
+		return array_filter(
+			array_merge(
+				parent::jsonSerialize(),
+				[
+					'totalItems' => $this->getTotalItems(),
+					'first' => $this->getFirst(),
+					'last' => $this->getLast()
+				]
+			)
 		);
 	}
 }

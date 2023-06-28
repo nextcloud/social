@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
@@ -60,8 +60,10 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 
 		$qb->select(
-			'cd.id', 'cd.type', 'cd.parent_id', 'cd.media_type', 'cd.mime_type', 'cd.url',
-			'cd.local_copy', 'cd.public', 'cd.error', 'cd.creation', 'cd.caching', 'cd.resized_copy'
+			'cd.nid', 'cd.id', 'cd.type', 'cd.parent_id', 'cd.account',
+			'cd.media_type', 'cd.mime_type', 'cd.url', 'cd.local_copy', 'cd.public',
+			'cd.error', 'cd.creation', 'cd.caching', 'cd.resized_copy', 'cd.meta',
+			'cd.blurhash', 'cd.description'
 		)
 		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 

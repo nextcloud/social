@@ -1,12 +1,11 @@
 <?xml version="1.0"?>
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>social</id>
 	<name>Social</name>
 	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
 	<description><![CDATA[
-
-	** Disclaimer: this is an ALPHA version **
+**Disclaimer: this is a BETA version**
 
 **🎉 Nextcloud becomes part of the federated social networks!**
 
@@ -18,12 +17,13 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.6.0-beta1</version>
+	<version>0.6.1</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
 	<author mail="jonas@violoncello.ch" homepage="https://violoncello.ch">Jonas Sulzer</author>
-	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph Borchardt</author>
+	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph
+		Borchardt</author>
 	<author mail="cyrpub@bollu.be">Cyrille Bollu</author>
 	<namespace>Social</namespace>
 	<category>social</category>
@@ -35,13 +35,19 @@
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="25" max-version="26"/>
+		<nextcloud min-version="26" max-version="28" />
 	</dependencies>
 
 	<background-jobs>
 		<job>OCA\Social\Cron\Cache</job>
 		<job>OCA\Social\Cron\Queue</job>
 	</background-jobs>
+
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Social\Migration\RenameDocumentLocalCopy</step>
+		</post-migration>
+	</repair-steps>
 
 	<commands>
 		<command>OCA\Social\Command\AccountCreate</command>

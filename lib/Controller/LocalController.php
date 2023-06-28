@@ -31,12 +31,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCDataResponse;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -52,6 +51,8 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -90,7 +91,7 @@ class LocalController extends Controller {
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->cacheActorService = $cacheActorService;
@@ -537,8 +538,9 @@ class LocalController extends Controller {
 
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$actor->setCompleteDetails(true);
+			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return $this->success(['account' => $actor]);
+			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -588,8 +590,9 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$actor = $this->cacheActorService->getFromAccount($account);
+			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return $this->success(['account' => $actor]);
+			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}

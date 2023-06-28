@@ -55,11 +55,6 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($action->getActorId())))
 		   ->setValue('stream_id', $qb->createNamedParameter($action->getStreamId()))
 		   ->setValue('stream_id_prim', $qb->createNamedParameter($qb->prim($action->getStreamId())))
-		   ->setValue(
-		   	'values', $qb->createNamedParameter(
-		   		json_encode($values, JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
 		   ->setValue('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
 		   ->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
 		   ->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
@@ -68,24 +63,26 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	}
 
 
-	/**
-	 * Create a new Queue in the database.
-	 */
 	public function update(StreamAction $action): int {
 		$qb = $this->getStreamActionUpdateSql();
 
-		$values = $action->getValues();
-		$liked = $this->getBool(StreamAction::LIKED, $values, false);
-		$boosted = $this->getBool(StreamAction::BOOSTED, $values, false);
-		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
+		// update entry/field in database, based only on affected action
+		// to avoid race condition on 2 different actions
+		foreach($action->getAffected() as $entry) {
+			$field = match ($entry) {
+				StreamAction::LIKED => 'liked',
+				StreamAction::BOOSTED => 'boosted',
+				StreamAction::REPLIED => 'replied',
+				default => ''
+			};
 
-		$qb->set('values', $qb->createNamedParameter(json_encode($values, JSON_UNESCAPED_SLASHES)))
-		   ->set('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
-		   ->set('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
-		   ->set('replied', $qb->createNamedParameter(($replied) ? 1 : 0));
+			if ($field !== '') {
+				$qb->set($field, $qb->createNamedParameter(($action->getValueBool($entry)) ? 1 : 0));
+			}
+		}
 
-		$this->limitToActorId($qb, $action->getActorId());
-		$this->limitToStreamId($qb, $action->getStreamId());
+		$qb->limitToActorIdPrim($qb->prim($action->getActorId()));
+		$qb->limitToStreamIdPrim($qb->prim($action->getStreamId()));
 
 		return $qb->executeStatement();
 	}

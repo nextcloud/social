@@ -25,7 +25,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\WellKnown;
 
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
@@ -36,6 +38,7 @@ use OCP\AppFramework\Http;
 use OCP\Http\WellKnown\IHandler;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
+use OCP\IRequest;
 use OCP\IURLGenerator;
 
 class WebfingerHandler implements IHandler {
@@ -75,21 +78,29 @@ class WebfingerHandler implements IHandler {
 		try {
 			$this->fediverseService->jailed();
 		} catch (UnauthorizedFediverseException $e) {
-			return null;
+			return $previousResponse;
 		}
 
+		$response = null;
 		switch (strtolower($service)) {
 			case 'webfinger':
-				return $this->handleWebfinger($context);
+				$response = $this->handleWebfinger($context, $previousResponse);
+				break;
 
 			case 'nodeinfo':
-				return $this->handleNodeInfo($context);
+				$response = $this->handleNodeInfo($context);
+				break;
 
 			case 'host-meta':
-				return $this->handleHostMeta($context);
+				$response = $this->handleHostMeta($context);
+				break;
 		}
 
-		return null;
+		if ($response !== null) {
+			return $response;
+		}
+
+		return $previousResponse;
 	}
 
 
@@ -100,16 +111,34 @@ class WebfingerHandler implements IHandler {
 	 *
 	 * @return IResponse|null
 	 */
-	public function handleWebfinger(IRequestContext $context): ?IResponse {
-		$subject = $context->getHttpRequest()->getParam('resource') ?? '';
-		if (strpos($subject, 'acct:') === 0) {
+	public function handleWebfinger(IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
+		$subject = $this->getSubjectFromRequest($context->getHttpRequest());
+		if (str_starts_with($subject, 'acct:')) {
 			$subject = substr($subject, 5);
+		}
+
+		if ($subject === Application::APP_SUBJECT) {
+			if ($previousResponse !== null && method_exists($previousResponse, 'addLink')) {
+				$previousResponse->addLink(
+					Application::APP_REL,
+					'application/json',
+					$this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'),
+					[],
+					[
+						'app' => Application::APP_ID,
+						'name' => Application::APP_NAME,
+						'version' => $this->configService->getAppValue('installed_version'),
+					]
+				);
+			}
+
+			return $previousResponse;
 		}
 
 		$actor = null;
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($subject);
-		} catch (SocialAppConfigException $e) {
+		} catch (ActorDoesNotExistException|SocialAppConfigException $e) {
 			return null;
 		} catch (CacheActorDoesNotExistException $e) {
 		}
@@ -193,5 +222,18 @@ class WebfingerHandler implements IHandler {
 		$response->addLink('lrdd', $url);
 
 		return $response;
+	}
+
+	private function getSubjectFromRequest(IRequest $request): string {
+		$subject = $request->getParam('resource') ?? '';
+		if ($subject !== '') {
+			return $subject;
+		}
+
+		// work around to extract resource:
+		// on some setup (i.e. tests) the data are not available from IRequest
+		parse_str(parse_url($request->getRequestUri(), PHP_URL_QUERY), $query);
+
+		return $query['resource'] ?? '';
 	}
 }

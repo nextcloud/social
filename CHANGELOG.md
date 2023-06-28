@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.1
+
+- fix missing avatar on notifications
+- fix missing visibility on remote post
+- fix random reset of account display name 
+- avoid race condition on stream action
+- fix stream details update
+- fix action on stream unreblog
+
+
+## 0.6.0
+
+- full rewrite of the API
+
+
 ## 0.4.2
 
 - using IClient, to use local nextcloud network configuration.

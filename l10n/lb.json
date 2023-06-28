@@ -6,9 +6,8 @@
     "Notifications" : "Notifikatiounen",
     "Uploading..." : "Lueden erop...",
     "Delete" : "Läschen",
-    "Edit" : "Änneren",
-    "Close" : "Zoumaachen",
     "Reply" : "Äntwerten",
+    "Close" : "Zoumaachen",
     "Continue" : "Weider"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

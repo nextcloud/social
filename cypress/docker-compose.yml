@@ -15,4 +15,3 @@ services:
             # Using fallback to make sure this script doesn't mess
             # with the mounting if APP_NAME is not provided.
             - ../:/var/www/html/apps/${APP_NAME:-social}
-            - ./initserver.sh:/initserver.sh

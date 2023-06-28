@@ -32,13 +32,13 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 use Exception;
-use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\BackgroundJob\TimedJob;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
 use OCP\AppFramework\QueryException;
+use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\TimedJob;
 
 /**
  * Class Cache
@@ -67,7 +67,7 @@ class Cache extends TimedJob {
 	 */
 	protected function run($argument) {
 		try {
-//			$this->accountService->blindKeyRotation();
+			//			$this->accountService->blindKeyRotation();
 		} catch (Exception $e) {
 		}
 
@@ -83,6 +83,11 @@ class Cache extends TimedJob {
 
 		try {
 			$this->cacheActorService->manageCacheRemoteActors();
+		} catch (Exception $e) {
+		}
+
+		try {
+			$this->cacheActorService->manageDetailsRemoteActors();
 		} catch (Exception $e) {
 		}
 

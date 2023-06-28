@@ -1,8 +1,15 @@
+<?php
+
+declare(strict_types=1);
+
 /**
- * @copyright Copyright (c) 2019 John Molakvoæ <skjnldsv@protonmail.com>
+ * Nextcloud - Social Support
  *
- * @author John Molakvoæ <skjnldsv@protonmail.com>
+ * This file is licensed under the Affero General Public License version 3 or
+ * later. See the COPYING file.
  *
+ * @author Maxence Lange <maxence@artificial-owl.com>
+ * @copyright 2022, Maxence Lange <maxence@artificial-owl.com>
  * @license GNU AGPL version 3 or any later version
  *
  * This program is free software: you can redistribute it and/or modify
@@ -12,24 +19,17 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
-const getSearchParams = url => {
-	return url
-		.split(/[?&]/)
-		.reduce((acc, cur) => {
-			const parts = cur.split('=')
-			parts[1] && (acc[parts[0]] = parts[1])
-			return acc
-		}, {})
+namespace OCA\Social\Exceptions;
+
+use Exception;
+
+class UnknownProbeException extends Exception {
 }
-
-const randHash = () => Math.random().toString(36).replace(/[^a-z]+/g, '').slice(0, 10)
-
-export default { getSearchParams, randHash }

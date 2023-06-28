@@ -7,8 +7,8 @@ OC.L10N.register(
     "Home" : "Home",
     "Notifications" : "Notifications",
     "Delete" : "Delete",
-    "Close" : "Close",
     "Hello" : "Hello",
+    "Close" : "Close",
     "Continue" : "Continue"
 },
 "nplurals=1; plural=0;");

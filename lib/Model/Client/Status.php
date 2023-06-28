@@ -38,6 +38,8 @@ class Status implements \JsonSerializable {
 	private bool $sensitive = false;
 	private string $visibility = '';
 	private string $spoilerText = '';
+	private array $mediaIds = [];
+	private int $inReplyToId = 0;
 	private string $status = '';
 
 	//"media_ids": [],
@@ -121,6 +123,28 @@ class Status implements \JsonSerializable {
 		return $this->spoilerText;
 	}
 
+	public function setMediaIds(array $mediaIds): self {
+		$this->mediaIds = array_map(function (string $id): int {
+			return (int)$id;
+		}, $mediaIds);
+
+		return $this;
+	}
+
+	public function getMediaIds(): array {
+		return $this->mediaIds;
+	}
+
+	public function setInReplyToId(int $inReplyToId): self {
+		$this->inReplyToId = $inReplyToId;
+
+		return $this;
+	}
+
+	public function getInReplyToId(): int {
+		return $this->inReplyToId;
+	}
+
 
 	/**
 	 * @param string $status
@@ -146,6 +170,8 @@ class Status implements \JsonSerializable {
 		$this->setSensitive($this->getBool('sensitive', $data));
 		$this->setVisibility($this->get('visibility', $data));
 		$this->setSpoilerText($this->get('spoiler_text', $data));
+		$this->setMediaIds($this->getArray('media_ids', $data));
+		$this->setInReplyToId($this->getInt('in_reply_to_id', $data));
 		$this->setStatus($this->get('status', $data));
 
 		return $this;
@@ -155,6 +181,7 @@ class Status implements \JsonSerializable {
 		return [
 			'contentType' => $this->getContentType(),
 			'sensitive' => $this->isSensitive(),
+			'mediaIds' => $this->getMediaIds(),
 			'visibility' => $this->getVisibility(),
 			'spoilerText' => $this->getSpoilerText(),
 			'status' => $this->getStatus()

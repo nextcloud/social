@@ -4,8 +4,8 @@
     "Home" : "Casa",
     "Notifications" : "Notificazions",
     "Delete" : "Borrar",
-    "Close" : "Zarrar",
     "Deny" : "Denegar",
+    "Close" : "Zarrar",
     "Continue" : "Continar"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

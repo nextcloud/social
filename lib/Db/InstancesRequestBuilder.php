@@ -30,12 +30,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Instance;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class InstancesRequestBuilder extends CoreRequestBuilder {
@@ -147,7 +147,7 @@ class InstancesRequestBuilder extends CoreRequestBuilder {
 		$instance->importFromDatabase($data);
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_');
 			$actor->setExportFormat($qb->getFormat());
 			try {
 				$icon = $qb->parseLeftJoinCacheDocuments($data);

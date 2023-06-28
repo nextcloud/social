@@ -30,8 +30,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class StreamActionsRequestBuilder
@@ -77,7 +77,10 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
-		$qb->select('sa.id', 'sa.actor_id', 'sa.stream_id', 'sa.values')
+		$qb->select(
+			'sa.id', 'sa.actor_id', 'sa.stream_id',
+			'sa.boosted', 'sa.liked', 'sa.replied'
+		)
 		   ->from(self::TABLE_STREAM_ACTIONS, 'sa');
 
 		$this->defaultSelectAlias = 'sa';

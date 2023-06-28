@@ -299,7 +299,7 @@ class AccountService {
 			try {
 				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 				$actor->setIconId($iconId);
-			} catch (ItemUnknownException $e) {
+			} catch (ItemUnknownException | ItemAlreadyExistsException $e) {
 			}
 
 			$this->addLocalActorDetailCount($actor);
@@ -318,7 +318,7 @@ class AccountService {
 		}
 
 		$this->addLocalActorDetailCount($actor);
-		$this->actorService->cacheLocalActor($actor);
+		$this->actorService->cacheLocalActorDetails($actor);
 	}
 
 
@@ -348,7 +348,7 @@ class AccountService {
 	 *
 	 * @throws NoUserException
 	 */
-	private function updateCacheLocalActorName(Person &$actor) {
+	private function updateCacheLocalActorName(Person $actor) {
 		$user = $this->userManager->get($actor->getUserId());
 		if ($user === null) {
 			throw new NoUserException();
@@ -357,7 +357,7 @@ class AccountService {
 		try {
 			$account = $this->accountManager->getAccount($user);
 			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
-			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
+			if ($displayNameProperty->getScope() === IAccountManager::SCOPE_PUBLISHED) {
 				$actor->setName($displayNameProperty->getValue());
 			}
 		} catch (Exception $e) {
