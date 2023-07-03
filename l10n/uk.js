@@ -14,6 +14,8 @@ OC.L10N.register(
     "Delete" : "Вилучити",
     "Post" : "Розмістити",
     "Website" : "Вебсайт",
+    "There were no results for your search:" : "За вашим запитом нічого не знайдено:",
+    "Searching for" : "Пошук",
     "Reply" : "Відповісти",
     "Deny" : "Заборонити",
     "Hello" : "Привіт",
