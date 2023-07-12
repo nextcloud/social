@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "Tallalt",
     "Home" : "Asnubeg",
     "Notifications" : "Ilɣa",
+    "Add attachment" : "Rnu amedday",
     "Delete" : "Kkes",
     "Website" : "Asmel web",
     "Reply" : "Err",
