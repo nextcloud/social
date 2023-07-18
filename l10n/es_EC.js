@@ -11,6 +11,7 @@ OC.L10N.register(
     "Post" : "Publicar",
     "Website" : "Sitio web",
     "Reply" : "Responder",
+    "Deny" : "Denegar",
     "Hello" : "Hola",
     "Close" : "Cerrar",
     "Continue" : "Continuar",
