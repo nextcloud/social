@@ -28,7 +28,7 @@
     "kornrunner/blurhash": "^1.2"
   },
   "require-dev": {
-    "phpunit/phpunit": "^9.5",
+    "phpunit/phpunit": "^10.3",
     "nextcloud/coding-standard": "^1.0.0",
     "nextcloud/ocp": "dev-master",
     "vimeo/psalm": "^5.1.0"
