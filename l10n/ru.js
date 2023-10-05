@@ -61,6 +61,7 @@ OC.L10N.register(
     "Boost" : "Продвинуть",
     "Like" : "Нравится",
     "Undo Like" : "Больше не нравится",
+    "Authorization required" : "Требуется авторизация",
     "Deny" : "Запретить",
     "Follow on Nextcloud Social" : "Следить в приложении Социальные сети для Nextcloud",
     "Hello" : "Привет",
