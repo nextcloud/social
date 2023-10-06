@@ -1,0 +1,9 @@
+{ "translations": {
+    "Help" : "Ayuda",
+    "Home" : "Aniciu",
+    "Notifications" : "Avisos",
+    "Delete" : "Desaniciar",
+    "Website" : "Sitiu web",
+    "No replies found" : "Nun s'atopó nenguna rempuesta"
+},"pluralForm" :"nplurals=2; plural=(n != 1);"
+}
