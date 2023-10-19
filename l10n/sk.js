@@ -26,7 +26,7 @@ OC.L10N.register(
     "In reply to" : "Odpoveď na",
     "Close reply" : "Zavrieť odpoveď",
     "Add attachment" : "Pridať prílohu",
-    "Add emoji" : "Pridať emodži",
+    "Add emoji" : "Pridať emotikonu",
     "Uploading..." : "Nahrávanie...",
     "Delete" : "Vymazať",
     "Post" : "Uverejniť",
