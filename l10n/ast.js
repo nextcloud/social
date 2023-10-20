@@ -6,6 +6,7 @@ OC.L10N.register(
     "Notifications" : "Avisos",
     "Delete" : "Desaniciar",
     "Website" : "Sitiu web",
-    "No replies found" : "Nun s'atopó nenguna rempuesta"
+    "No replies found" : "Nun s'atopó nenguna rempuesta",
+    "Hello" : "Hola"
 },
 "nplurals=2; plural=(n != 1);");
