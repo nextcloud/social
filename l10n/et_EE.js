@@ -11,6 +11,7 @@ OC.L10N.register(
     "Post" : "Postita",
     "Website" : "Veebileht",
     "Reply" : "Vasta",
+    "Hello" : "Tere",
     "Close" : "Sulge",
     "Continue" : "Jätka",
     "User not found" : "Kasutajat ei leitud",
