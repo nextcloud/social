@@ -7,6 +7,7 @@ OC.L10N.register(
     "Delete" : "Desaniciar",
     "Website" : "Sitiu web",
     "No replies found" : "Nun s'atopó nenguna rempuesta",
-    "Hello" : "Hola"
+    "Hello" : "Hola",
+    "Continue" : "Siguir"
 },
 "nplurals=2; plural=(n != 1);");
