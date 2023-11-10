@@ -29,32 +29,32 @@ declare(strict_types=1);
 
 namespace OCA\Social\Listeners;
 
-use OCA\Social\Exceptions\ItemAlreadyExistsException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Service\AccountService;
-use OCP\IUser;
+use OCP\Accounts\UserUpdatedEvent;
+use OCP\EventDispatcher\Event;
+use OCP\EventDispatcher\IEventListener;
+use Psr\Log\LoggerInterface;
 
-class DeprecatedListener {
-	private AccountService $accountService;
-
+/**
+ * @template-implements IEventListener<\OCP\EventDispatcher\Event>
+ */
+class UserAccountListener implements IEventListener {
 	public function __construct(
-		AccountService $accountService
+		private AccountService $accountService,
+		private LoggerInterface $logger
 	) {
-		$this->accountService = $accountService;
 	}
 
-	/**
-	 * @param IUser $user
-	 *
-	 * @return void
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 */
-	public function userAccountUpdated(IUser $user): void {
+	public function handle(Event $event): void {
+		if (!($event instanceof UserUpdatedEvent)) {
+			return;
+		}
+
+		$user = $event->getUser();
 		try {
 			$this->accountService->cacheLocalActorByUsername($user->getUID());
-		} catch (ItemAlreadyExistsException $e) {
+		} catch (\Exception $e) {
+			$this->logger->warning('issue while updating user account', ['exception' => $e]);
 		}
 	}
 }
