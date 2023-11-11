@@ -70,7 +70,7 @@ OC.L10N.register(
     "Error getting Social notifications" : "Produciuse un erro ao obter as notificacións de Social",
     "No Social notifications!" : "Non hai notificacións de Social!",
     "Failed to get Social notifications" : "Produciuse un fallo ao obter as notificacións de Social",
-    "Authorization required" : "Precisase autorización",
+    "Authorization required" : "Precísase de autorización",
     "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} quere permiso para acceder á súa conta. Esta é unha aplicación de terceiros.",
     "If you do not trust it, then you should not authorize it." : "Se non confía nela, entón non debería autorizalo.",
     "Authorize" : "Autorizar",
