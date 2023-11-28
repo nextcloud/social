@@ -28,7 +28,7 @@ OC.L10N.register(
     "Close reply" : "Pechar a resposta",
     "Add attachment" : "Engadir un anexo",
     "Add emoji" : "Engadir un «emoji»",
-    "Uploading..." : "Enviando…",
+    "Uploading..." : "Enviando...",
     "Delete" : "Eliminar",
     "Post" : "Publicar",
     "Post to followers" : "Mensaxe para seguidores",
