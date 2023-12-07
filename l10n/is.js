@@ -19,6 +19,7 @@ OC.L10N.register(
     "Local timeline" : "Staðvær tímalína",
     "Global timeline" : "Víðvær tímalína",
     "Following" : "Fylgir",
+    "In reply to" : "Sem svar til",
     "Add attachment" : "Bæta við viðhengi",
     "Uploading..." : "Sendi inn ...",
     "Delete" : "Eyða",
