@@ -7,6 +7,8 @@
     "Uploading..." : "Serverə yüklənir...",
     "Delete" : "Sil",
     "Reply" : "Cavab",
-    "Close" : "Bağla"
+    "Close" : "Bağla",
+    "Continue" : "Davam et",
+    "Public" : "İctimai"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

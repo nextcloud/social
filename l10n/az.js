@@ -9,6 +9,8 @@ OC.L10N.register(
     "Uploading..." : "Serverə yüklənir...",
     "Delete" : "Sil",
     "Reply" : "Cavab",
-    "Close" : "Bağla"
+    "Close" : "Bağla",
+    "Continue" : "Davam et",
+    "Public" : "İctimai"
 },
 "nplurals=2; plural=(n != 1);");
