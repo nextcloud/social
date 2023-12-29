@@ -34,7 +34,7 @@
     "precypress:update-snapshots": "TESTING=true npm run dev"
   },
   "dependencies": {
-    "@nextcloud/auth": "^2.0.0",
+    "@nextcloud/auth": "^2.1.0",
     "@nextcloud/axios": "^2.3.0",
     "@nextcloud/dialogs": "^4.0.1",
     "@nextcloud/initial-state": "^2.0.0",
