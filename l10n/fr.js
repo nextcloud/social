@@ -27,7 +27,7 @@ OC.L10N.register(
     "In reply to" : "En réponse à",
     "Close reply" : "Clore la réponse",
     "Add attachment" : "Ajouter une pièce jointe",
-    "Add emoji" : "Ajouter un emoji",
+    "Add emoji" : "Ajouter un émoji",
     "Uploading..." : "Envoi en cours…",
     "Delete" : "Supprimer",
     "Post" : "Publier",
