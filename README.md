@@ -12,7 +12,7 @@
 - **🕸 Open standards:** We use the established [ActivityPub](https://en.wikipedia.org/wiki/ActivityPub) standard!
 - **🎨 Nice illustrations:** Made by [Katerina Limpitsouni of unDraw](https://undraw.co).
 
-For more information about about our motivation and goals, read [the announcement blog.](https://nextcloud.com/blog/nextcloud-introduces-social-features-joins-the-fediverse/)
+For more information about our motivation and goals, read [the announcement blog.](https://nextcloud.com/blog/nextcloud-introduces-social-features-joins-the-fediverse/)
 
 The app is in beta stage, so it’s time for you to [get involved! 👩‍💻](https://github.com/nextcloud/social#development-setup)
 
