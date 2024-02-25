@@ -8,7 +8,7 @@ OC.L10N.register(
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud divenit parte de is retes sotziales federadas!",
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger no est impostadu in manera curreta!",
     "Open documentation" : "Aberi documentatzione",
-    "Social app setup" : "Impostatzione aplicatzione Sotziale",
+    "Social app setup" : "Cunfiguratzione de s'aplicatzione Sotziale",
     "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "ActivityPub rechedet unu URL fissu pro rèndere is boghes cunformes. Càstia chi posca custu non si podet cambiare sena ripristinare s'aplicatzione Sotziale.",
     "ActivityPub URL base" : "Base URL de ActivityPub",
     "Finish setup" : "Agabba cunfiguratzione",
