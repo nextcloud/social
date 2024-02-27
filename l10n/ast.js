@@ -8,6 +8,7 @@ OC.L10N.register(
     "Website" : "Sitiu web",
     "No replies found" : "Nun s'atopó nenguna rempuesta",
     "Hello" : "Hola",
+    "Close" : "Zarrar",
     "Continue" : "Siguir"
 },
 "nplurals=2; plural=(n != 1);");
