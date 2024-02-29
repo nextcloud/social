@@ -17,13 +17,16 @@ OC.L10N.register(
     "Website" : "웹 사이트",
     "No results found" : "결과 없음",
     "Reply" : "답장",
+    "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName}이(가) 계정 접근 권한을 요청하고 있습니다. 해당 앱은 써드파티 애플리케이션입니다.",
     "Deny" : "거부",
     "Hello" : "안녕하세요.",
     "You are following this account" : "이 계정을 팔로우하고 있습니다.",
     "Close" : "닫기",
+    "name@domain of your federation account" : "연합 계정의 주소 (아이디@도메인)",
     "Continue" : "Continue",
     "User not found" : "사용자를 찾을 수 없음",
     "Sorry, we could not find the account of {userId}" : "{userId} 계정을 찾을 수 없습니다.",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "소셜 계정을 자동으로 생성했습니다. 이 소셜 ID는 연합 클라우드 ID와 동일합니다: ",
     "Public" : "공개"
 },
 "nplurals=1; plural=0;");
