@@ -2,6 +2,7 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Ayuda",
+    "Open documentation" : "Abrir la documentación",
     "Home" : "Aniciu",
     "Notifications" : "Avisos",
     "Delete" : "Desaniciar",
