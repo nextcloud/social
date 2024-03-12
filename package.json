@@ -84,7 +84,7 @@
     "@nextcloud/stylelint-config": "^2.3.0",
     "@nextcloud/webpack-vue-config": "^5.5.1",
     "copy-webpack-plugin": "^11.0.0",
-    "@nextcloud/cypress": "^1.0.0-beta.2",
+    "@nextcloud/cypress": "^1.0.0-beta.6",
     "cypress-visual-regression": "^2.1.1",
     "cypress-wait-until": "^1.7.2",
     "dockerode": "^3.3.5",
