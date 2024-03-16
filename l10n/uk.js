@@ -10,7 +10,7 @@ OC.L10N.register(
     "In reply to" : "У відповідь",
     "Add attachment" : "Додати вкладення",
     "Add emoji" : "Додати емоційку",
-    "Uploading..." : "Завантажується...",
+    "Uploading..." : "Завантаження...",
     "Delete" : "Вилучити",
     "Post" : "Розмістити",
     "Website" : "Вебсайт",
