@@ -8,6 +8,7 @@ OC.L10N.register(
     "Delete" : "Desaniciar",
     "Website" : "Sitiu web",
     "No replies found" : "Nun s'atopó nenguna rempuesta",
+    "Reply" : "Responder",
     "Hello" : "Hola",
     "Close" : "Zarrar",
     "Continue" : "Siguir"

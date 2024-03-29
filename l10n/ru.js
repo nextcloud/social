@@ -35,7 +35,7 @@ OC.L10N.register(
     "Unfollow" : "Отписаться",
     "Follow" : "Следить",
     "posts" : "записи",
-    "following" : "вы подписаны",
+    "following" : "вы отслеживаете",
     "followers" : "ваши подписчики",
     "Website" : "Сайт",
     "No results found" : "Результаты отсутствуют",
