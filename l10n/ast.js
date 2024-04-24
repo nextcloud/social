@@ -50,6 +50,7 @@ OC.L10N.register(
     "Continue" : "Siguir",
     "User not found" : "Nun s'atopó l'usuariu",
     "Sorry, we could not find the account of {userId}" : "Nun podemos atopar la cuenta de: {userId}",
-    "This application is currently in beta stage." : "Esta aplicación ta en fas beta."
+    "This application is currently in beta stage." : "Esta aplicación ta en fas beta.",
+    "Public" : "Pública"
 },
 "nplurals=2; plural=(n != 1);");
