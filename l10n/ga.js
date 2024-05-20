@@ -4,6 +4,7 @@ OC.L10N.register(
     "Home" : "Baile",
     "Notifications" : "Fógraí",
     "Delete" : "Scrios",
+    "Deny" : "shéanadh",
     "Close" : "Dún",
     "Public" : "Poiblí"
 },
