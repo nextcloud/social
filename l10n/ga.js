@@ -2,9 +2,12 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Cabhrú",
+    "Open documentation" : "Doiciméadú oscailte",
     "Home" : "Baile",
     "Notifications" : "Fógraí",
+    "Profile" : "Próifíl",
     "Delete" : "Scrios",
+    "Website" : "Suíomh Gréasáin",
     "Deny" : "shéanadh",
     "Close" : "Dún",
     "Continue" : "Leanúint ar aghaidh",
