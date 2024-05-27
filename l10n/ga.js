@@ -8,6 +8,7 @@ OC.L10N.register(
     "Profile" : "Próifíl",
     "Delete" : "Scrios",
     "Website" : "Suíomh Gréasáin",
+    "Reply" : "Freagra",
     "Deny" : "shéanadh",
     "Close" : "Dún",
     "Continue" : "Leanúint ar aghaidh",
