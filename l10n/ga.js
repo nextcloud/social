@@ -10,6 +10,7 @@ OC.L10N.register(
     "Website" : "Suíomh Gréasáin",
     "Reply" : "Freagra",
     "Deny" : "shéanadh",
+    "Hello" : "Dia dhuit",
     "Close" : "Dún",
     "Continue" : "Leanúint ar aghaidh",
     "Public" : "Poiblí"
