@@ -7,6 +7,7 @@ OC.L10N.register(
     "Notifications" : "Fógraí",
     "Profile" : "Próifíl",
     "In reply to" : "Mar fhreagra ar",
+    "Add emoji" : "Cuir emoji leis",
     "Delete" : "Scrios",
     "Website" : "Suíomh Gréasáin",
     "No results found" : "Níor aimsíodh aon torthaí",
