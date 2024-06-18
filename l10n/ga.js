@@ -10,6 +10,7 @@ OC.L10N.register(
     "Add attachment" : "Cuir ceangaltán leis",
     "Add emoji" : "Cuir emoji leis",
     "Delete" : "Scrios",
+    "posts" : "poist",
     "Website" : "Suíomh Gréasáin",
     "No results found" : "Níor aimsíodh aon torthaí",
     "Reply" : "Freagra",
