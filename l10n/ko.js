@@ -8,6 +8,7 @@ OC.L10N.register(
     "Home" : "집",
     "Notifications" : "알림",
     "Profile" : "프로필",
+    "In reply to" : "답장",
     "Add attachment" : "첨부파일 추가",
     "Add emoji" : "이모지 추가",
     "Uploading..." : "업로드 중...",
