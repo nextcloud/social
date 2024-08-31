@@ -62,6 +62,7 @@ OC.L10N.register(
     "Like" : "Нравится",
     "Undo Like" : "Больше не нравится",
     "Authorization required" : "Требуется авторизация",
+    "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} требуется разрешение на доступ к вашей учетной записи. Это стороннее приложение.",
     "Deny" : "Запретить",
     "Follow on Nextcloud Social" : "Следить в приложении Социальные сети для Nextcloud",
     "Hello" : "Привет",
