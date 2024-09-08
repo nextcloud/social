@@ -4,6 +4,8 @@
 -->
 # Nextcloud Social
 
+[![REUSE status](https://api.reuse.software/badge/github.com/nextcloud/social)](https://api.reuse.software/info/github.com/nextcloud/social)
+
 **🎉 Nextcloud becomes part of the federated social networks!**
 
 ⚠️ **This application is currently in beta stage.**
