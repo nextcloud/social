@@ -1,3 +1,7 @@
+<!--
+  - SPDX-FileCopyrightText: 2023 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div class="attachment" @click="$emit('click')">
 		<canvas v-if="!previewLoaded" ref="canvas" class="attachment__blurhash" />

@@ -2,10 +2,9 @@
 #
 # ownCloud
 #
-# @author Thomas Müller
-# @copyright 2014 Thomas Müller thomas.mueller@tmit.eu
+# SPDX-FileCopyrightText: 2014 Thomas Müller <thomas.mueller@tmit.eu>
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-
 # TODO: move this out of the repo to make it usable in other apps
 
 set -e
