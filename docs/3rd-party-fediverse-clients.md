@@ -1,3 +1,7 @@
+<!--
+  - SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 # 3rd party fediverse clients
 
 A decent number of clients for Mastodon and other Fediverse network are available on almost all devices/OS. This is a list of tested ones.
