@@ -6,6 +6,24 @@ SPDX-PackageSupplier = "Nextcloud <https://nextcloud.com/contact/>"
 SPDX-PackageDownloadLocation = "https://github.com/nextcloud/social"
 
 [[annotations]]
+path = "l10n/*"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2018 Nextcloud translators"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "img/nextcloud.png"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2016 Nextcloud GmbH"
+SPDX-License-Identifier = "LicenseRef-NextcloudTrademarks"
+
+[[annotations]]
+path = ["img/add_user.svg", "img/boost.svg", "img/emoji.svg", "img/favicon.ico", "img/notifications.svg", "img/reply.svg", "img/social-dark.svg", "img/social-promo.png", "img/social.svg", "img/social_dark.svg"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2018-2024 Google LLC"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
 path = "img/undraw/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Katerina Limpitsouni"
