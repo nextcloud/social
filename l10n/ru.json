@@ -60,6 +60,7 @@
     "Boost" : "Продвинуть",
     "Like" : "Нравится",
     "Undo Like" : "Больше не нравится",
+    "Go to Social app" : "Перейти в приложение Social",
     "Authorization required" : "Требуется авторизация",
     "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} требуется разрешение на доступ к вашей учетной записи. Это стороннее приложение.",
     "Deny" : "Запретить",
