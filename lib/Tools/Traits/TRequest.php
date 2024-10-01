@@ -114,7 +114,6 @@ trait TRequest {
 		curl_setopt($curl, CURLOPT_TIMEOUT, $request->getTimeout());
 
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
 
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $request->isVerifyPeer());
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $request->isFollowLocation());
