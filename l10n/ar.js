@@ -65,7 +65,7 @@ OC.L10N.register(
     "Boost" : "تثبيت boost",
     "Like" : "إعجاب",
     "Undo Like" : "إلغاء الإعجاب",
-    "Choose a visibility" : "حدّد مجال الرؤية visibility",
+    "Choose a visibility" : "حدّد مجال الرؤية",
     "Go to Social app" : "إذهب إلى تطبيق التواصل الاجتماعي Social",
     "Error getting Social notifications" : "خطأ في تلقّي الاشعارات الاجتماعية",
     "No Social notifications!" : "لا توجد أي إشعارات اجتماعية",
