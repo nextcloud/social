@@ -13,7 +13,7 @@
     "ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app." : "يتطلب ActivityPub عنوان URL ثابتًا لجعل الإدخالات فريدة. لاحظ أنه لا يمكن تغيير هذا لاحقًا دون إعادة تعيين تطبيق التواصل الاجتماعي Social.",
     "ActivityPub URL base" : "ActivityPub عنوان URL الأساسي",
     "Finish setup" : "إنهاء الإعداد",
-    "The Social app needs to be set up by the server administrator." : "تطبيق التواصل الاجتماعي Social يجب أن يتم إعداده من قِبَل مشرف النظام.",
+    "The Social app needs to be set up by the server administrator." : "تطبيق التواصل الاجتماعي Social يجب أن يتم إعداده من قِبَل مسؤول النظام.",
     "Home" : "الرئيسية",
     "Direct messages" : "الرسائل المباشرة",
     "Notifications" : "الإشعارات",
