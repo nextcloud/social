@@ -30,7 +30,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	public function save(string $hashtag, array $trend) {
 		$qb = $this->getHashtagsInsertSql();
 		$qb->setValue('hashtag', $qb->createNamedParameter($hashtag))
-		   ->setValue('trend', $qb->createNamedParameter(json_encode($trend)));
+			->setValue('trend', $qb->createNamedParameter(json_encode($trend)));
 
 		$qb->execute();
 	}

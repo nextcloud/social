@@ -56,7 +56,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 			'a.id', 'a.id_prim', 'a.user_id', 'a.preferred_username', 'a.name', 'a.summary',
 			'a.public_key', 'a.avatar_version', 'a.private_key', 'a.creation', 'a.deleted'
 		)
-		   ->from(self::TABLE_ACTORS, 'a');
+			->from(self::TABLE_ACTORS, 'a');
 
 		$this->defaultSelectAlias = 'a';
 		$qb->setDefaultSelectAlias('a');
@@ -91,18 +91,18 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		$actor->importFromDatabase($data);
 		$actor->setType('Person');
 		$actor->setInbox($actor->getId() . '/inbox')
-			  ->setOutbox($actor->getId() . '/outbox')
-			  ->setUserId($this->get('user_id', $data, ''))
-			  ->setFollowers($actor->getId() . '/followers')
-			  ->setFollowing($actor->getId() . '/following')
-			  ->setSharedInbox($root . 'inbox')
-			  ->setLocal(true)
-			  ->setAvatarVersion($this->getInt('avatar_version', $data, -1))
-			  ->setAccount(
-			  	$actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress()
-			  );
+			->setOutbox($actor->getId() . '/outbox')
+			->setUserId($this->get('user_id', $data, ''))
+			->setFollowers($actor->getId() . '/followers')
+			->setFollowing($actor->getId() . '/following')
+			->setSharedInbox($root . 'inbox')
+			->setLocal(true)
+			->setAvatarVersion($this->getInt('avatar_version', $data, -1))
+			->setAccount(
+				$actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress()
+			);
 		$actor->setUrlSocial($root)
-			  ->setUrl($actor->getId());
+			->setUrl($actor->getId());
 
 		return $actor;
 	}

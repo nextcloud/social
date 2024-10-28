@@ -25,7 +25,7 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 
 	public function __construct(
 		CacheDocumentService $cacheDocumentService,
-		CacheDocumentsRequest $cacheDocumentsRequest
+		CacheDocumentsRequest $cacheDocumentsRequest,
 	) {
 		$this->cacheDocumentService = $cacheDocumentService;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
@@ -45,7 +45,7 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 		if (!$item->isRoot()) {
 			$item->setParentId(
 				$item->getParent()
-					 ->getId()
+					->getId()
 			);
 		}
 

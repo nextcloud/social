@@ -61,7 +61,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	public function __construct(
 		StreamRequest $streamRequest, ActionsRequest $actionsRequest,
 		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->actionsRequest = $actionsRequest;
@@ -213,7 +213,7 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 				$objectId = $item->getObjectId();
 				try {
 					$cachedItem = $item->getCache()
-									   ->getItem($objectId);
+						->getItem($objectId);
 				} catch (CacheItemNotFoundException $e) {
 					return;
 				}
@@ -296,12 +296,12 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())
-						 ->setSubType(Announce::TYPE)
-						 ->setId($post->getId() . '/notification+boost')
-						 ->setSummary('{accounts} boosted your post')
-						 ->setObjectId($post->getId())
-						 ->setTo($post->getAttributedTo())
-						 ->setLocal(true);
+				->setSubType(Announce::TYPE)
+				->setId($post->getId() . '/notification+boost')
+				->setSummary('{accounts} boosted your post')
+				->setObjectId($post->getId())
+				->setTo($post->getAttributedTo())
+				->setLocal(true);
 
 			$notificationInterface->save($notification);
 		}

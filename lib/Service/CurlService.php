@@ -58,7 +58,7 @@ class CurlService {
 	public function __construct(
 		ConfigService $configService,
 		FediverseService $fediverseService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->configService = $configService;
 		$this->fediverseService = $fediverseService;
@@ -113,7 +113,7 @@ class CurlService {
 		$this->logger->notice('webfingerAccount, request result', ['request' => $request]);
 
 		$subject = $this->get('subject', $result, '');
-		list($type, $temp) = explode(':', $subject, 2);
+		[$type, $temp] = explode(':', $subject, 2);
 		if ($type === 'acct') {
 			$account = $temp;
 		}

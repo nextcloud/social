@@ -38,7 +38,7 @@ class Notifier implements INotifier {
 
 	public function __construct(
 		IL10N $l10n, IFactory $factory, IManager $contactsManager, IURLGenerator $url,
-		ICloudIdManager $cloudIdManager
+		ICloudIdManager $cloudIdManager,
 	) {
 		$this->l10n = $l10n;
 		$this->factory = $factory;
@@ -106,7 +106,7 @@ class Notifier implements INotifier {
 			switch ($action->getLabel()) {
 				case 'help':
 					$action->setParsedLabel($l10n->t('Help'))
-						   ->setPrimary(true);
+						->setPrimary(true);
 					break;
 			}
 

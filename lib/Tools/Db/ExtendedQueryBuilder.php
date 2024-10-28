@@ -27,9 +27,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Tools\Db
  */
 class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder {
-	/** @var string */
-	private $defaultSelectAlias = '';
-
+	public string $defaultSelectAlias = '';
 
 	/**
 	 * @param string $alias
@@ -146,14 +144,14 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param bool $cs - case sensitive
 	 * @param string $alias
 	 */
-	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = ''
+	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
 		$this->andWhere($expr);
 	}
 
 	public function exprLimitToDBField(
-		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = ''
+		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = '',
 	): string {
 		$expr = $this->expr();
 
@@ -187,7 +185,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param string $alias
 	 */
 	public function limitToDBFieldArray(
-		string $field, array $values, bool $cs = true, string $alias = ''
+		string $field, array $values, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBFieldArray($field, $values, true, $cs, $alias);
 		$this->andWhere($expr);
@@ -201,7 +199,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param string $alias
 	 */
 	public function filterDBFieldArray(
-		string $field, string $value, bool $cs = true, string $alias = ''
+		string $field, string $value, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
 		$this->andWhere($expr);
@@ -218,7 +216,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return ICompositeExpression
 	 */
 	public function exprLimitToDBFieldArray(
-		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = ''
+		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = '',
 	): ICompositeExpression {
 		$expr = $this->expr();
 
@@ -274,7 +272,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$this->andWhere($expr);
 	}
 
-	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = '', bool $eq = true
+	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = '', bool $eq = true,
 	): string {
 		$expr = $this->expr();
 
@@ -397,7 +395,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return string
 	 */
 	public function exprFieldWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = ''
+		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = '',
 	) {
 		$func = $qb->func();
 		$expr = $qb->expr();
@@ -425,7 +423,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return string
 	 */
 	public function exprValueWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $value, bool $eq = true, bool $cs = true
+		IQueryBuilder $qb, string $field, string $value, bool $eq = true, bool $cs = true,
 	): string {
 		$dbConn = $this->getConnection();
 		$expr = $qb->expr();

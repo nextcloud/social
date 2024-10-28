@@ -60,7 +60,7 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 			'sa.id', 'sa.actor_id', 'sa.stream_id',
 			'sa.boosted', 'sa.liked', 'sa.replied'
 		)
-		   ->from(self::TABLE_STREAM_ACTIONS, 'sa');
+			->from(self::TABLE_STREAM_ACTIONS, 'sa');
 
 		$this->defaultSelectAlias = 'sa';
 		$qb->setDefaultSelectAlias('sa');

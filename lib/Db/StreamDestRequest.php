@@ -36,7 +36,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	public function __construct(
 		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
 		CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 

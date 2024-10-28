@@ -17,7 +17,7 @@ class SocialWidget implements IWidget {
 
 	public function __construct(
 		IL10N $l10n,
-		IURLGenerator $urlGenerator
+		IURLGenerator $urlGenerator,
 	) {
 		$this->l10n = $l10n;
 		$this->urlGenerator = $urlGenerator;

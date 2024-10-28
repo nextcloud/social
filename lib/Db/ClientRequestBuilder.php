@@ -64,7 +64,7 @@ class ClientRequestBuilder extends CoreRequestBuilder {
 			'cl.app_client_secret', 'cl.app_scopes', 'cl.auth_scopes', 'cl.auth_account', 'cl.auth_user_id',
 			'cl.auth_code', 'cl.token', 'cl.last_update', 'cl.creation'
 		)
-		   ->from(self::TABLE_CLIENT, 'cl');
+			->from(self::TABLE_CLIENT, 'cl');
 
 		$this->defaultSelectAlias = 'cl';
 		$qb->setDefaultSelectAlias('cl');

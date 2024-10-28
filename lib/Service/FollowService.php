@@ -66,7 +66,7 @@ class FollowService {
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->followsRequest = $followsRequest;

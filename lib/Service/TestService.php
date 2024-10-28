@@ -46,7 +46,7 @@ class TestService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		CurlService $curlService, ConfigService $configService, MiscService $miscService
+		CurlService $curlService, ConfigService $configService, MiscService $miscService,
 	) {
 		$this->curlService = $curlService;
 		$this->configService = $configService;
@@ -61,7 +61,7 @@ class TestService {
 			throw new InvalidResourceException('account format is not valid');
 		}
 
-		list($username, $host) = explode('@', $account);
+		[$username, $host] = explode('@', $account);
 		if ($username === null || $host === null) {
 			throw new InvalidResourceException('account format should be valid');
 		}

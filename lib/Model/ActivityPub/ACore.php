@@ -79,7 +79,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			return $this->requestToken;
 		} else {
 			return $this->getRoot()
-						->getRequestToken();
+				->getRequestToken();
 		}
 	}
 
@@ -150,7 +150,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public function getObjectId(): string {
 		if ($this->hasObject()) {
 			return $this->getObject()
-						->getId();
+				->getId();
 		}
 
 		return parent::getObjectId();
@@ -278,7 +278,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public function checkOrigin(string $id) {
 		$host = parse_url($id, PHP_URL_HOST);
 		$origin = $this->getRoot()
-					   ->getOrigin();
+			->getOrigin();
 
 		if ($id !== '' && $origin === $host && $host !== '') {
 			return;
@@ -335,7 +335,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		}
 
 		return $this->getParent()
-					->getRoot($chain);
+			->getRoot($chain);
 	}
 
 
@@ -691,7 +691,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		if ($this->hasActor()) {
 			$this->addEntry(
 				'actor', $this->getActor()
-							  ->getId()
+					->getId()
 			);
 			if ($this->isCompleteDetails()) {
 				$this->addEntryItem('actor_info', $this->getActor());

@@ -164,7 +164,7 @@ class MediaAttachment implements JsonSerializable {
 				'remote_url' => $this->getRemoteUrl(),
 				'meta' => $this->getMeta(),
 				'description' => $this->getDescription(),
-				"blurhash" => $this->getBlurHash()
+				'blurhash' => $this->getBlurHash()
 			]
 		);
 	}

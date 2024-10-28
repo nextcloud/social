@@ -57,7 +57,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		StreamRequest $streamRequest,
 		StreamDestRequest $streamDestRequest,
 		ActorService $actorService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;

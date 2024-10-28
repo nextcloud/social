@@ -44,7 +44,7 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 			'cd.error', 'cd.creation', 'cd.caching', 'cd.resized_copy', 'cd.meta',
 			'cd.blurhash', 'cd.description'
 		)
-		   ->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
+			->from(self::TABLE_CACHE_DOCUMENTS, 'cd');
 
 		$this->defaultSelectAlias = 'cd';
 		$qb->setDefaultSelectAlias('cd');

@@ -32,13 +32,13 @@ class ClientRequest extends ClientRequestBuilder {
 	public function saveApp(SocialClient $client): void {
 		$qb = $this->getClientInsertSql();
 		$qb->setValue('app_name', $qb->createNamedParameter($client->getAppName()))
-		   ->setValue('app_website', $qb->createNamedParameter($client->getAppWebsite()))
-		   ->setValue(
-		   	'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
-		   )
-		   ->setValue('app_client_id', $qb->createNamedParameter($client->getAppClientId()))
-		   ->setValue('app_client_secret', $qb->createNamedParameter($client->getAppClientSecret()))
-		   ->setValue('app_scopes', $qb->createNamedParameter(json_encode($client->getAppScopes())));
+			->setValue('app_website', $qb->createNamedParameter($client->getAppWebsite()))
+			->setValue(
+				'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
+			)
+			->setValue('app_client_id', $qb->createNamedParameter($client->getAppClientId()))
+			->setValue('app_client_secret', $qb->createNamedParameter($client->getAppClientSecret()))
+			->setValue('app_scopes', $qb->createNamedParameter(json_encode($client->getAppScopes())));
 
 		try {
 			$dt = new DateTime('now');

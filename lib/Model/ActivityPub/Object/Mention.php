@@ -16,7 +16,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 class Mention extends Stream implements JsonSerializable {
 	public const TYPE = 'Mention';
 
-	public function __construct(ACore $parent = null) {
+	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);

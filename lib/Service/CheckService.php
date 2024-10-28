@@ -63,7 +63,7 @@ class CheckService {
 		IRequest $request, IURLGenerator $urlGenerator, FollowsRequest $followRequest,
 		CacheActorsRequest $cacheActorsRequest, StreamDestRequest $streamDestRequest,
 		StreamRequest $streamRequest, AccountService $accountService, ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->userManager = $userManager;
 		$this->cache = $cache;
@@ -250,7 +250,7 @@ class CheckService {
 			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
 
 			$response = $this->clientService->newClient()
-											->get($url, $options);
+				->get($url, $options);
 			if ($response->getStatusCode() === Http::STATUS_OK) {
 				$this->cache->set(self::CACHE_PREFIX . 'wellknown', 'true', 3600);
 

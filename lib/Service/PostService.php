@@ -45,7 +45,7 @@ class PostService {
 
 	public function __construct(
 		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
-		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService, LoggerInterface $logger
+		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService, LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
@@ -127,8 +127,8 @@ class PostService {
 			}
 		} else {
 			try {
-				$tmp_name = $_FILES["attachments"]["tmp_name"];
-				$name = basename($_FILES["attachments"]["name"]);
+				$tmp_name = $_FILES['attachments']['tmp_name'];
+				$name = basename($_FILES['attachments']['name']);
 				$tmpFile = tmpfile();
 				$tmpPath = stream_get_meta_data($tmpFile)['uri'];
 				if (move_uploaded_file($tmp_name, $tmpPath)) {
@@ -167,8 +167,8 @@ class PostService {
 	 * @throws UrlCloudException
 	 */
 	private function generateDocumentFromAttachment(Note $note, int $key): Document {
-		$tmp_name = $_FILES["attachments"]["tmp_name"][$key];
-		$name = basename($_FILES["attachments"]["name"][$key]);
+		$tmp_name = $_FILES['attachments']['tmp_name'][$key];
+		$name = basename($_FILES['attachments']['name'][$key]);
 		$tmpFile = tmpfile();
 		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
 		if (move_uploaded_file($tmp_name, $tmpPath)) {

@@ -111,12 +111,12 @@ class AttachmentMetaDim implements JsonSerializable {
 
 	public function import(array $data): self {
 		$this->setWidth($this->getInt('width', $data))
-			 ->setHeight($this->getInt('height', $data))
-			 ->setSize($this->get('size', $data))
-			 ->setAspect($this->getFloat('aspect', $data))
-			 ->setDuration($this->getInt('duration', $data))
-			 ->setBitrate($this->getInt('bitrate', $data))
-			 ->setFrameRate($this->getFloat('frame_rate', $data));
+			->setHeight($this->getInt('height', $data))
+			->setSize($this->get('size', $data))
+			->setAspect($this->getFloat('aspect', $data))
+			->setDuration($this->getInt('duration', $data))
+			->setBitrate($this->getInt('bitrate', $data))
+			->setFrameRate($this->getFloat('frame_rate', $data));
 
 		return $this;
 	}

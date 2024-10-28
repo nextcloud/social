@@ -30,25 +30,25 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function save(Person $actor): void {
 		$qb = $this->getCacheActorsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
-		   ->setValue('account', $qb->createNamedParameter($actor->getAccount()))
-		   ->setValue('type', $qb->createNamedParameter($actor->getType()))
-		   ->setValue('local', $qb->createNamedParameter(($actor->isLocal()) ? '1' : '0'))
-		   ->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
-		   ->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
-		   ->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))
-		   ->setValue('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
-		   ->setValue('outbox', $qb->createNamedParameter($actor->getOutbox()))
-		   ->setValue('featured', $qb->createNamedParameter($actor->getFeatured()))
-		   ->setValue('url', $qb->createNamedParameter($actor->getUrl()))
-		   ->setValue(
-		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
-		   )
-		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
-		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
-		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->setValue('source', $qb->createNamedParameter($actor->getSource()))
-		   ->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
+			->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+			->setValue('account', $qb->createNamedParameter($actor->getAccount()))
+			->setValue('type', $qb->createNamedParameter($actor->getType()))
+			->setValue('local', $qb->createNamedParameter(($actor->isLocal()) ? '1' : '0'))
+			->setValue('following', $qb->createNamedParameter($actor->getFollowing()))
+			->setValue('followers', $qb->createNamedParameter($actor->getFollowers()))
+			->setValue('inbox', $qb->createNamedParameter($actor->getInbox()))
+			->setValue('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
+			->setValue('outbox', $qb->createNamedParameter($actor->getOutbox()))
+			->setValue('featured', $qb->createNamedParameter($actor->getFeatured()))
+			->setValue('url', $qb->createNamedParameter($actor->getUrl()))
+			->setValue(
+				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+			)
+			->setValue('name', $qb->createNamedParameter($actor->getName()))
+			->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+			->setValue('source', $qb->createNamedParameter($actor->getSource()))
+			->setValue('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
 
 		try {
 			if ($actor->getCreation() > 0) {
@@ -67,7 +67,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		if ($actor->hasIcon()) {
 			$iconId = $actor->getIcon()
-							->getId();
+				->getId();
 		} else {
 			$iconId = $actor->getIconId();
 		}
@@ -85,20 +85,20 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function update(Person $actor): int {
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
-		   ->set('followers', $qb->createNamedParameter($actor->getFollowers()))
-		   ->set('inbox', $qb->createNamedParameter($actor->getInbox()))
-		   ->set('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
-		   ->set('outbox', $qb->createNamedParameter($actor->getOutbox()))
-		   ->set('featured', $qb->createNamedParameter($actor->getFeatured()))
-		   ->set('url', $qb->createNamedParameter($actor->getUrl()))
-		   ->set(
-		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
-		   )
-		   ->set('name', $qb->createNamedParameter($actor->getName()))
-		   ->set('summary', $qb->createNamedParameter($actor->getSummary()))
-		   ->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->set('source', $qb->createNamedParameter($actor->getSource()))
-		   ->set('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
+			->set('followers', $qb->createNamedParameter($actor->getFollowers()))
+			->set('inbox', $qb->createNamedParameter($actor->getInbox()))
+			->set('shared_inbox', $qb->createNamedParameter($actor->getSharedInbox()))
+			->set('outbox', $qb->createNamedParameter($actor->getOutbox()))
+			->set('featured', $qb->createNamedParameter($actor->getFeatured()))
+			->set('url', $qb->createNamedParameter($actor->getUrl()))
+			->set(
+				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+			)
+			->set('name', $qb->createNamedParameter($actor->getName()))
+			->set('summary', $qb->createNamedParameter($actor->getSummary()))
+			->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+			->set('source', $qb->createNamedParameter($actor->getSource()))
+			->set('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
 
 		try {
 			if ($actor->getCreation() > 0) {
@@ -116,7 +116,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		if ($actor->hasIcon()) {
 			$iconId = $actor->getIcon()
-							->getId();
+				->getId();
 		} else {
 			$iconId = $actor->getIconId();
 		}
@@ -266,7 +266,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getSharedInboxes(): array {
 		$qb = $this->getQueryBuilder();
 		$qb->selectDistinct('shared_inbox')
-		   ->from(self::TABLE_CACHE_ACTORS);
+			->from(self::TABLE_CACHE_ACTORS);
 		$inbox = [];
 		$cursor = $qb->execute();
 		while ($data = $cursor->fetch()) {

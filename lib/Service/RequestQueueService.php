@@ -38,7 +38,7 @@ class RequestQueueService {
 	 */
 	public function __construct(
 		RequestQueueRequest $requestQueueRequest, ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->requestQueueRequest = $requestQueueRequest;
 		$this->configService = $configService;

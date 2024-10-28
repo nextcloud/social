@@ -29,7 +29,7 @@ class InstanceService {
 		InstancesRequest $instancesRequest,
 		ConfigService $configService,
 		MiscService $miscService,
-		IConfig $config
+		IConfig $config,
 	) {
 		$this->instancesRequest = $instancesRequest;
 		$this->configService = $configService;

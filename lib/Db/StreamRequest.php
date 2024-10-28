@@ -42,7 +42,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function __construct(
 		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
 		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
@@ -61,10 +61,10 @@ class StreamRequest extends StreamRequestBuilder {
 			}
 
 			$qb->setValue('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags())))
-			   ->setValue(
-			   	'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
-			   	)
-			   );
+				->setValue(
+					'attachments', $qb->createNamedParameter(json_encode($attachments, JSON_UNESCAPED_SLASHES)
+					)
+				);
 		}
 
 		try {
@@ -194,7 +194,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getStreamById(
 		string $id,
 		bool $asViewer = false,
-		int $format = ACore::FORMAT_ACTIVITYPUB
+		int $format = ACore::FORMAT_ACTIVITYPUB,
 	): Stream {
 		if ($id === '') {
 			throw new StreamNotFoundException();
@@ -262,7 +262,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @throws StreamNotFoundException
 	 * @throws DateTimeException
 	 */
-	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false
+	public function getRepliesByParentId(string $id, int $since = 0, int $limit = 5, bool $asViewer = false,
 	): array {
 		if ($id === '') {
 			throw new StreamNotFoundException();
@@ -309,7 +309,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByObjectId(string $objectId, string $type, string $subType = ''
+	public function getStreamByObjectId(string $objectId, string $type, string $subType = '',
 	): Stream {
 		if ($objectId === '') {
 			throw new StreamNotFoundException('missing objectId');
@@ -593,7 +593,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @deprecated - use getTimelineHome()
 	 */
 	public function getTimelineHome_dep(
-		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB
+		int $since = 0, int $limit = 5, int $format = Stream::FORMAT_ACTIVITYPUB,
 	): array {
 		$qb = $this->getStreamSelectSql($format);
 
@@ -739,7 +739,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @throws DateTimeException
 	 * @deprecated - use getTimelinePublic()
 	 */
-	public function getTimelineGlobal_dep(int $since = 0, int $limit = 5, bool $localOnly = true
+	public function getTimelineGlobal_dep(int $since = 0, int $limit = 5, bool $localOnly = true,
 	): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitPaginate($since, $limit);
@@ -873,7 +873,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function updateAuthor(string $actorId, string $newId) {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attributed_to', $qb->createNamedParameter($newId))
-		   ->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($newId)));
+			->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($newId)));
 		$qb->limitToAttributedTo($actorId, true);
 
 		$qb->executeStatement();
@@ -902,7 +902,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$attributedTo = $stream->getAttributedTo();
 		if ($attributedTo === '' && $stream->isLocal()) {
 			$attributedTo = $stream->getActor()
-								   ->getId();
+				->getId();
 		}
 
 		if ($stream->getNid() === 0) {
@@ -911,49 +911,49 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb = $this->getStreamInsertSql();
 		$qb->setValue('nid', $qb->createNamedParameter($stream->getNid()))
-		   ->setValue('id', $qb->createNamedParameter($stream->getId()))
-		   ->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
-		   ->setValue('type', $qb->createNamedParameter($stream->getType()))
-		   ->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
-		   ->setValue('to', $qb->createNamedParameter($stream->getTo()))
-		   ->setValue(
-		   	'to_array', $qb->createNamedParameter(
-		   		json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
-		   ->setValue(
-		   	'cc', $qb->createNamedParameter(
-		   		json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
-		   ->setValue(
-		   	'bcc', $qb->createNamedParameter(
-		   		json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
-		   ->setValue('content', $qb->createNamedParameter($stream->getContent()))
-		   ->setValue('summary', $qb->createNamedParameter($stream->getSummary()))
-		   ->setValue('published', $qb->createNamedParameter($stream->getPublished()))
-		   ->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
-		   ->setValue('attributed_to_prim', $qb->createNamedParameter($qb->prim($attributedTo)))
-		   ->setValue('in_reply_to', $qb->createNamedParameter($stream->getInReplyTo()))
-		   ->setValue('in_reply_to_prim', $qb->createNamedParameter($qb->prim($stream->getInReplyTo())))
-		   ->setValue('source', $qb->createNamedParameter($stream->getSource()))
-		   ->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
-		   ->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($stream->getObjectId())))
-		   ->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
-		   ->setValue('cache', $qb->createNamedParameter($cache))
-		   ->setValue(
-		   	'filter_duplicate',
-		   	$qb->createNamedParameter(($stream->isFilterDuplicate()) ? '1' : '0')
-		   )
-		   ->setValue(
-		   	'instances', $qb->createNamedParameter(
-		   		json_encode($stream->getInstancePaths(), JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
-		   ->setValue('local', $qb->createNamedParameter(($stream->isLocal()) ? '1' : '0'));
+			->setValue('id', $qb->createNamedParameter($stream->getId()))
+			->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
+			->setValue('type', $qb->createNamedParameter($stream->getType()))
+			->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
+			->setValue('to', $qb->createNamedParameter($stream->getTo()))
+			->setValue(
+				'to_array', $qb->createNamedParameter(
+					json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES)
+				)
+			)
+			->setValue(
+				'cc', $qb->createNamedParameter(
+					json_encode($stream->getCcArray(), JSON_UNESCAPED_SLASHES)
+				)
+			)
+			->setValue(
+				'bcc', $qb->createNamedParameter(
+					json_encode($stream->getBccArray(), JSON_UNESCAPED_SLASHES)
+				)
+			)
+			->setValue('content', $qb->createNamedParameter($stream->getContent()))
+			->setValue('summary', $qb->createNamedParameter($stream->getSummary()))
+			->setValue('published', $qb->createNamedParameter($stream->getPublished()))
+			->setValue('attributed_to', $qb->createNamedParameter($attributedTo))
+			->setValue('attributed_to_prim', $qb->createNamedParameter($qb->prim($attributedTo)))
+			->setValue('in_reply_to', $qb->createNamedParameter($stream->getInReplyTo()))
+			->setValue('in_reply_to_prim', $qb->createNamedParameter($qb->prim($stream->getInReplyTo())))
+			->setValue('source', $qb->createNamedParameter($stream->getSource()))
+			->setValue('activity_id', $qb->createNamedParameter($stream->getActivityId()))
+			->setValue('object_id', $qb->createNamedParameter($stream->getObjectId()))
+			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($stream->getObjectId())))
+			->setValue('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())))
+			->setValue('cache', $qb->createNamedParameter($cache))
+			->setValue(
+				'filter_duplicate',
+				$qb->createNamedParameter(($stream->isFilterDuplicate()) ? '1' : '0')
+			)
+			->setValue(
+				'instances', $qb->createNamedParameter(
+					json_encode($stream->getInstancePaths(), JSON_UNESCAPED_SLASHES)
+				)
+			)
+			->setValue('local', $qb->createNamedParameter(($stream->isLocal()) ? '1' : '0'));
 
 		try {
 			$dTime = new DateTime();
@@ -961,10 +961,10 @@ class StreamRequest extends StreamRequestBuilder {
 			$qb->setValue(
 				'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
 			)
-			   ->setValue(
-			   	'creation',
-			   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-			   );
+				->setValue(
+					'creation',
+					$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+				);
 		} catch (Exception $e) {
 		}
 

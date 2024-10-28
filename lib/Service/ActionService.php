@@ -53,7 +53,7 @@ class ActionService {
 		StreamService $streamService,
 		BoostService $boostService,
 		LikeService $likeService,
-		StreamActionService $streamActionService
+		StreamActionService $streamActionService,
 	) {
 		$this->streamService = $streamService;
 		$this->boostService = $boostService;

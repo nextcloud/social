@@ -21,20 +21,20 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function save(Document $document): void {
 		$qb = $this->getCacheDocumentsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($document->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($document->getId())))
-		   ->setValue('account', $qb->createNamedParameter($document->getAccount()))
-		   ->setValue('type', $qb->createNamedParameter($document->getType()))
-		   ->setValue('url', $qb->createNamedParameter($document->getUrl()))
-		   ->setValue('media_type', $qb->createNamedParameter($document->getMediaType()))
-		   ->setValue('mime_type', $qb->createNamedParameter($document->getMimeType()))
-		   ->setValue('error', $qb->createNamedParameter($document->getError()))
-		   ->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
-		   ->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
-		   ->setValue('blurhash', $qb->createNamedParameter($document->getBlurHash()))
-		   ->setValue('description', $qb->createNamedParameter($document->getDescription()))
-		   ->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
-		   ->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
-		   ->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
+			->setValue('id_prim', $qb->createNamedParameter($qb->prim($document->getId())))
+			->setValue('account', $qb->createNamedParameter($document->getAccount()))
+			->setValue('type', $qb->createNamedParameter($document->getType()))
+			->setValue('url', $qb->createNamedParameter($document->getUrl()))
+			->setValue('media_type', $qb->createNamedParameter($document->getMediaType()))
+			->setValue('mime_type', $qb->createNamedParameter($document->getMimeType()))
+			->setValue('error', $qb->createNamedParameter($document->getError()))
+			->setValue('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+			->setValue('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
+			->setValue('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+			->setValue('description', $qb->createNamedParameter($document->getDescription()))
+			->setValue('parent_id', $qb->createNamedParameter($document->getParentId()))
+			->setValue('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
+			->setValue('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
 		// generate Meta
 		$document->convertToMediaAttachment();
@@ -61,17 +61,17 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function update(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->set('type', $qb->createNamedParameter($document->getType()))
-		   ->set('url', $qb->createNamedParameter($document->getUrl()))
-		   ->set('media_type', $qb->createNamedParameter($document->getMediaType()))
-		   ->set('mime_type', $qb->createNamedParameter($document->getMimeType()))
-		   ->set('error', $qb->createNamedParameter($document->getError()))
-		   ->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
-		   ->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
-		   ->set('blurhash', $qb->createNamedParameter($document->getBlurHash()))
-		   ->set('description', $qb->createNamedParameter($document->getDescription()))
-		   ->set('parent_id', $qb->createNamedParameter($document->getParentId()))
-		   ->set('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
-		   ->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
+			->set('url', $qb->createNamedParameter($document->getUrl()))
+			->set('media_type', $qb->createNamedParameter($document->getMediaType()))
+			->set('mime_type', $qb->createNamedParameter($document->getMimeType()))
+			->set('error', $qb->createNamedParameter($document->getError()))
+			->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
+			->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()))
+			->set('blurhash', $qb->createNamedParameter($document->getBlurHash()))
+			->set('description', $qb->createNamedParameter($document->getDescription()))
+			->set('parent_id', $qb->createNamedParameter($document->getParentId()))
+			->set('parent_id_prim', $qb->createNamedParameter($qb->prim($document->getParentId())))
+			->set('public', $qb->createNamedParameter(($document->isPublic()) ? '1' : '0'));
 
 		try {
 			$qb->set(
@@ -262,7 +262,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function moveAccount(string $actorId, string $newId): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->set('parent_id', $qb->createNamedParameter($newId))
-		   ->set('parent_id_prim', $qb->createNamedParameter($qb->prim($newId)));
+			->set('parent_id_prim', $qb->createNamedParameter($qb->prim($newId)));
 
 		$qb->limitToDBField('parent_id_prim', $qb->prim($actorId));
 
@@ -300,7 +300,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function updateCopies(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->set('local_copy', $qb->createNamedParameter($document->getLocalCopy()))
-		   ->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
+			->set('resized_copy', $qb->createNamedParameter($document->getResizedCopy()));
 
 		$qb->limitToIdPrim($qb->prim($document->getId()));
 		$qb->executeStatement();

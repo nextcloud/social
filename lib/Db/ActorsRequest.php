@@ -27,20 +27,20 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsInsertSql();
 
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
-		   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
-		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
-		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
-		   ->setValue('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
-		   ->setValue(
-		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
-		   )
-		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
-		   ->setValue(
-		   	'creation',
-		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+			->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+			->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
+			->setValue('name', $qb->createNamedParameter($actor->getName()))
+			->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+			->setValue('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
+			->setValue(
+				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+			)
+			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+			->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
+			->setValue(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
 
 		$qb->executeStatement();
 	}
@@ -56,7 +56,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function refreshKeys(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+			->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
 
 		try {
 			$qb->set(

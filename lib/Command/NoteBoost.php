@@ -32,7 +32,7 @@ class NoteBoost extends Base {
 	public function __construct(
 		AccountService $accountService,
 		StreamService $streamService,
-		BoostService $boostService
+		BoostService $boostService,
 	) {
 		parent::__construct();
 
@@ -48,10 +48,10 @@ class NoteBoost extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:note:boost')
-			 ->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
-			 ->addArgument('note_id', InputArgument::REQUIRED, 'Note to boost')
-			 ->addOption('unboost', '', InputOption::VALUE_NONE, 'Unboost')
-			 ->setDescription('Boost a note');
+			->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
+			->addArgument('note_id', InputArgument::REQUIRED, 'Note to boost')
+			->addOption('unboost', '', InputOption::VALUE_NONE, 'Unboost')
+			->setDescription('Boost a note');
 	}
 
 

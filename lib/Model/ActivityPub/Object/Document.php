@@ -371,11 +371,11 @@ class Document extends ACore implements JsonSerializable {
 	 */
 	public function convertToMediaAttachment(
 		?IURLGenerator $urlGenerator = null,
-		int $exportFormat = self::FORMAT_LOCAL
+		int $exportFormat = self::FORMAT_LOCAL,
 	): MediaAttachment {
 		$media = new MediaAttachment();
 		$media->setId((string)$this->getNid())
-			  ->setExportFormat($exportFormat);
+			->setExportFormat($exportFormat);
 
 		$mime = '';
 		if (strpos($this->getMediaType(), '/')) {
@@ -393,15 +393,15 @@ class Document extends ACore implements JsonSerializable {
 		if ($this->getMeta() === null) {
 			$meta = new AttachmentMeta();
 			$meta->setOriginal(new AttachmentMetaDim($this->getLocalCopySize()))
-				 ->setSmall(new AttachmentMetaDim($this->getResizedCopySize()))
-				 ->setFocus(new AttachmentMetaFocus(0, 0));
+				->setSmall(new AttachmentMetaDim($this->getResizedCopySize()))
+				->setFocus(new AttachmentMetaFocus(0, 0));
 
 			$this->setMeta($meta);
 		}
 
 		$media->setMeta($this->getMeta())
-			  ->setDescription($this->getDescription())
-			  ->setBlurHash($this->getBlurHash());
+			->setDescription($this->getDescription())
+			->setBlurHash($this->getBlurHash());
 
 		return $media;
 	}

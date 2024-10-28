@@ -29,7 +29,7 @@ class AccountDelete extends Base {
 		IUserManager $userManager,
 		AccountService $accountService,
 		CacheActorService $cacheActorService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		parent::__construct();
 
@@ -42,8 +42,8 @@ class AccountDelete extends Base {
 	protected function configure(): void {
 		parent::configure();
 		$this->setName('social:account:delete')
-			 ->addArgument('account', InputArgument::REQUIRED, 'Social Local Account')
-			 ->setDescription('Delete a local social account');
+			->addArgument('account', InputArgument::REQUIRED, 'Social Local Account')
+			->setDescription('Delete a local social account');
 	}
 
 	/**

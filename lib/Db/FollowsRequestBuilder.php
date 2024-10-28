@@ -62,7 +62,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.accepted', 'f.creation'
 		)
-		   ->from(self::TABLE_FOLLOWS, 'f');
+			->from(self::TABLE_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
 		$qb->setDefaultSelectAlias('f');
@@ -79,7 +79,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	protected function countFollowsSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_FOLLOWS, 'f');
+			->from(self::TABLE_FOLLOWS, 'f');
 
 		$qb->setDefaultSelectAlias('f');
 		$this->defaultSelectAlias = 'f';

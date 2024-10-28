@@ -27,7 +27,7 @@ class CacheRefresh extends Base {
 
 	public function __construct(
 		AccountService $accountService, CacheActorService $cacheActorService,
-		DocumentService $documentService, HashtagService $hashtagService
+		DocumentService $documentService, HashtagService $hashtagService,
 	) {
 		parent::__construct();
 
@@ -40,7 +40,7 @@ class CacheRefresh extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:cache:refresh')
-			 ->setDescription('Update the cache')
+			->setDescription('Update the cache')
 			->addOption('force', 'f', InputOption::VALUE_NONE, 'enforce update of cached account');
 	}
 

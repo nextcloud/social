@@ -57,7 +57,7 @@ class StreamTagsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('st.stream_id', 'st.hashtag')
-		   ->from(self::TABLE_STREAM_TAGS, 'st');
+			->from(self::TABLE_STREAM_TAGS, 'st');
 
 		$this->defaultSelectAlias = 'st';
 		$qb->setDefaultSelectAlias('st');

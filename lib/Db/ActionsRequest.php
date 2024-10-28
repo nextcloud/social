@@ -31,12 +31,12 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function save(ACore $like): void {
 		$qb = $this->getActionsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($like->getId())))
-		   ->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
-		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
-		   ->setValue('type', $qb->createNamedParameter($like->getType()))
-		   ->setValue('object_id', $qb->createNamedParameter($like->getObjectId()))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($like->getObjectId())));
+			->setValue('id_prim', $qb->createNamedParameter($qb->prim($like->getId())))
+			->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
+			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
+			->setValue('type', $qb->createNamedParameter($like->getType()))
+			->setValue('object_id', $qb->createNamedParameter($like->getObjectId()))
+			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($like->getObjectId())));
 
 		try {
 			$qb->setValue(
@@ -142,7 +142,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function moveAccount(string $actorId, string $newId): void {
 		$qb = $this->getActionsUpdateSql();
 		$qb->set('actor_id', $qb->createNamedParameter($newId))
-		   ->set('actor_id_prim', $qb->createNamedParameter($qb->prim($newId)));
+			->set('actor_id_prim', $qb->createNamedParameter($qb->prim($newId)));
 
 		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
 

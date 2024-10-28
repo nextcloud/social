@@ -67,7 +67,7 @@ class LocalController extends Controller {
 		FollowService $followService, PostService $postService, StreamService $streamService,
 		SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -103,7 +103,7 @@ class LocalController extends Controller {
 	 *
 	 * @NoAdminRequired
 	 */
-	public function postCreate(string $content = '', array $to = [], string $type = null, ?string $replyTo = null, $attachments = null, array $hashtags = []): DataResponse {
+	public function postCreate(string $content = '', array $to = [], ?string $type = null, ?string $replyTo = null, $attachments = null, array $hashtags = []): DataResponse {
 		$content = $content ?: '';
 		$replyTo = $replyTo ?? '';
 		$type = $type ?? Stream::TYPE_PUBLIC;

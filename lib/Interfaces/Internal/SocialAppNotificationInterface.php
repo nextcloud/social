@@ -33,7 +33,7 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 			return;
 		}
 
-		$notification->setPublished(date("c"));
+		$notification->setPublished(date('c'));
 		$notification->convertPublished();
 
 		$this->miscService->log(

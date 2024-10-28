@@ -28,10 +28,10 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	public function create(StreamQueue $queue) {
 		$qb = $this->getStreamQueueInsertSql();
 		$qb->setValue('token', $qb->createNamedParameter($queue->getToken()))
-		   ->setValue('stream_id', $qb->createNamedParameter($queue->getStreamId()))
-		   ->setValue('type', $qb->createNamedParameter($queue->getType()))
-		   ->setValue('status', $qb->createNamedParameter($queue->getStatus()))
-		   ->setValue('tries', $qb->createNamedParameter($queue->getTries()));
+			->setValue('stream_id', $qb->createNamedParameter($queue->getStreamId()))
+			->setValue('type', $qb->createNamedParameter($queue->getType()))
+			->setValue('status', $qb->createNamedParameter($queue->getStatus()))
+			->setValue('tries', $qb->createNamedParameter($queue->getTries()));
 		$qb->execute();
 	}
 
@@ -87,10 +87,10 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	public function setAsRunning(StreamQueue &$queue) {
 		$qb = $this->getStreamQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_RUNNING))
-		   ->set(
-		   	'last',
-		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+			->set(
+				'last',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
 
@@ -136,7 +136,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$expr = $qb->expr();
 
 		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_STANDBY))
-		   ->set('tries', $func->add('tries', $expr->literal(1)));
+			->set('tries', $func->add('tries', $expr->literal(1)));
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
 

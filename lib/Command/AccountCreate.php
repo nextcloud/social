@@ -30,7 +30,7 @@ class AccountCreate extends Base {
 
 	public function __construct(
 		IUserManager $userManager, AccountService $accountService,
-		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService
+		CacheActorService $cacheActorService, ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -45,9 +45,9 @@ class AccountCreate extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:create')
-			 ->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud username of the account')
-			 ->addOption('handle', '', InputOption::VALUE_REQUIRED, 'social handle')
-			 ->setDescription('Create a new social account');
+			->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud username of the account')
+			->addOption('handle', '', InputOption::VALUE_REQUIRED, 'social handle')
+			->setDescription('Create a new social account');
 	}
 
 	/**

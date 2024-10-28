@@ -42,7 +42,7 @@ class BoostService {
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService
+		StreamQueueService $streamQueueService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;

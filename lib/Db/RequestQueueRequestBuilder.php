@@ -55,7 +55,7 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 			'rq.id', 'rq.token', 'rq.author', 'rq.activity', 'rq.instance', 'rq.priority',
 			'rq.status', 'rq.tries', 'rq.last'
 		)
-		   ->from(self::TABLE_REQUEST_QUEUE, 'rq');
+			->from(self::TABLE_REQUEST_QUEUE, 'rq');
 
 		$this->defaultSelectAlias = 'rq';
 		$qb->setDefaultSelectAlias('rq');

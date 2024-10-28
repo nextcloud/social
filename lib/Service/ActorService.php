@@ -50,7 +50,7 @@ class ActorService {
 		CacheActorsRequest $cacheActorsRequest, CacheDocumentsRequest $cacheDocumentsRequest,
 		CurlService $curlService,
 		ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;

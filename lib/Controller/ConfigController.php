@@ -30,7 +30,7 @@ class ConfigController extends Controller {
 
 	public function __construct(
 		string $appName, IRequest $request, TestService $testService,
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct($appName, $request);
 

@@ -36,7 +36,7 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		FollowsRequest $followsRequest,
 		StreamRequest $streamRequest,
 		StreamDestRequest $streamDestRequest,
-		CacheActorService $cacheActorService
+		CacheActorService $cacheActorService,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;

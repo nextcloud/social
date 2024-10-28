@@ -21,7 +21,7 @@ use Psr\Log\LoggerInterface;
 class UserAccountListener implements IEventListener {
 	public function __construct(
 		private AccountService $accountService,
-		private LoggerInterface $logger
+		private LoggerInterface $logger,
 	) {
 	}
 

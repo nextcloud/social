@@ -39,7 +39,7 @@ class DetailsService {
 	 */
 	public function __construct(
 		StreamService $streamService, AccountService $accountService,
-		FollowService $followService, CacheActorService $cacheActorService
+		FollowService $followService, CacheActorService $cacheActorService,
 	) {
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;

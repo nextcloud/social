@@ -34,7 +34,7 @@ class QueueStatus extends Base {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		RequestQueueService $requestQueueService, ConfigService $configService, MiscService $miscService
+		RequestQueueService $requestQueueService, ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -50,10 +50,10 @@ class QueueStatus extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:queue:status')
-			 ->addOption(
-			 	'token', 't', InputOption::VALUE_OPTIONAL, 'token of a request'
-			 )
-			 ->setDescription('Return status on the request queue');
+			->addOption(
+				'token', 't', InputOption::VALUE_OPTIONAL, 'token of a request'
+			)
+			->setDescription('Return status on the request queue');
 	}
 
 

@@ -49,7 +49,7 @@ class ContactsMenuProvider implements IProvider {
 	 */
 	public function __construct(
 		IActionFactory $actionFactory, IURLGenerator $urlGenerator, IUserManager $userManager, IL10N $l10n,
-		AccountService $accountService
+		AccountService $accountService,
 	) {
 		$this->actionFactory = $actionFactory;
 		$this->urlGenerator = $urlGenerator;

@@ -196,7 +196,7 @@ trait TRequest {
 			return;
 		}
 
-		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "PUT");
+		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'PUT');
 		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
 	}
 
@@ -208,7 +208,7 @@ trait TRequest {
 			return;
 		}
 
-		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+		curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'DELETE');
 		curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
 	}
 

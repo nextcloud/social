@@ -45,7 +45,7 @@ class NoteLike extends Base {
 	 */
 	public function __construct(
 		AccountService $accountService, StreamService $streamService, LikeService $likeService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -62,10 +62,10 @@ class NoteLike extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:note:like')
-			 ->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
-			 ->addArgument('note_id', InputArgument::REQUIRED, 'Note to like')
-			 ->addOption('unlike', '', InputOption::VALUE_NONE, 'Unlike')
-			 ->setDescription('Like a note');
+			->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
+			->addArgument('note_id', InputArgument::REQUIRED, 'Note to like')
+			->addOption('unlike', '', InputOption::VALUE_NONE, 'Unlike')
+			->setDescription('Like a note');
 	}
 
 

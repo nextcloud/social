@@ -50,7 +50,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('a.id', 'a.type', 'a.actor_id', 'a.object_id', 'a.creation')
-		   ->from(self::TABLE_ACTIONS, 'a');
+			->from(self::TABLE_ACTIONS, 'a');
 
 		$this->defaultSelectAlias = 'a';
 		$qb->setDefaultSelectAlias('a');
@@ -67,7 +67,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	protected function countActionsSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_ACTIONS, 'a');
+			->from(self::TABLE_ACTIONS, 'a');
 
 		$this->defaultSelectAlias = 'a';
 		$qb->setDefaultSelectAlias('a');
@@ -84,7 +84,7 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	protected function getActionsDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_ACTIONS)
-		   ->setDefaultSelectAlias('a');
+			->setDefaultSelectAlias('a');
 
 		return $qb;
 	}

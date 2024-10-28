@@ -66,7 +66,7 @@ class ActivityPubController extends Controller {
 		FollowService $followService,
 		StreamService $streamService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 

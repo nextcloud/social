@@ -39,7 +39,7 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 				$qb->executeStatement();
 			} catch (DBException $e) {
 				Server::get(LoggerInterface::class)
-							->log(1, 'Social - Duplicate hashtag on Stream ' . json_encode($stream));
+					->log(1, 'Social - Duplicate hashtag on Stream ' . json_encode($stream));
 			}
 		}
 	}

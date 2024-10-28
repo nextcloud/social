@@ -552,9 +552,12 @@ namespace OC\DB\QueryBuilder {
         public function createFunction($call) { }
         public function getLastInsertId(): int { }
         public function getTableName($table) { }
-        protected function prefixTableName($table) { }
+        public function prefixTableName($table): string { }
         public function getColumnName($column, $tableAlias = '') { }
         public function quoteAlias($alias) { }
+        public function getOutputColumns(): array { }
+		public function hintShardKey(string $column, mixed $value, bool $overwrite = false): self { }
+		public function runAcrossAllShards(): self { }
     }
 }
 

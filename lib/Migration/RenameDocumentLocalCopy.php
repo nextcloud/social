@@ -23,7 +23,7 @@ class RenameDocumentLocalCopy implements IRepairStep {
 
 	public function __construct(
 		ConfigService $configService,
-		CacheDocumentsRequest $cacheDocumentsRequest
+		CacheDocumentsRequest $cacheDocumentsRequest,
 	) {
 		$this->configService = $configService;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;

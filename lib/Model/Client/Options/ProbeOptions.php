@@ -52,7 +52,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	 *
 	 * @param IRequest|null $request
 	 */
-	public function __construct(IRequest $request = null) {
+	public function __construct(?IRequest $request = null) {
 		if ($request !== null) {
 			$this->fromArray($request->getParams());
 		}
