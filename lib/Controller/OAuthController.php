@@ -49,7 +49,7 @@ class OAuthController extends Controller {
 		ClientService $clientService,
 		ConfigService $configService,
 		LoggerInterface $logger,
-		IInitialState $initialState
+		IInitialState $initialState,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -87,17 +87,17 @@ class OAuthController extends Controller {
 		}
 
 		$nodeInfo = [
-			"version" => "2.0",
-			"software" => [
-				"name" => $name,
-				"version" => $version
+			'version' => '2.0',
+			'software' => [
+				'name' => $name,
+				'version' => $version
 			],
-			"protocols" => [
-				"activitypub"
+			'protocols' => [
+				'activitypub'
 			],
-			"rootUrl" => rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/'),
-			"usage" => $usage,
-			"openRegistrations" => $openReg
+			'rootUrl' => rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/'),
+			'usage' => $usage,
+			'openRegistrations' => $openReg
 		];
 
 		return new DataResponse($nodeInfo, Http::STATUS_OK);
@@ -116,7 +116,7 @@ class OAuthController extends Controller {
 		string $client_name = '',
 		$redirect_uris = '',
 		string $website = '',
-		string $scopes = 'read'
+		string $scopes = 'read',
 	): DataResponse {
 		// TODO: manage array from request
 		if (!is_array($redirect_uris)) {
@@ -152,7 +152,7 @@ class OAuthController extends Controller {
 		string $client_id,
 		string $redirect_uri,
 		string $response_type,
-		string $scope = 'read'
+		string $scope = 'read',
 	): Response {
 		$user = $this->userSession->getUser();
 
@@ -186,7 +186,7 @@ class OAuthController extends Controller {
 		string $client_id,
 		string $redirect_uri,
 		string $response_type,
-		string $scope = 'read'
+		string $scope = 'read',
 	): DataResponse {
 		try {
 			$user = $this->userSession->getUser();
@@ -240,7 +240,7 @@ class OAuthController extends Controller {
 		string $redirect_uri,
 		string $grant_type,
 		string $scope = 'read',
-		string $code = ''
+		string $code = '',
 	): DataResponse {
 		try {
 			$client = $this->clientService->getFromClientId($client_id);
@@ -276,10 +276,10 @@ class OAuthController extends Controller {
 
 			return new DataResponse(
 				[
-					"access_token" => $client->getToken(),
-					"token_type" => 'Bearer',
-					"scope" => $scope,
-					"created_at" => $client->getCreation()
+					'access_token' => $client->getToken(),
+					'token_type' => 'Bearer',
+					'scope' => $scope,
+					'created_at' => $client->getCreation()
 				], Http::STATUS_OK
 			);
 		} catch (ClientNotFoundException $e) {

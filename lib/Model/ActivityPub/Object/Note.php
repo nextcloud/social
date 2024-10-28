@@ -22,7 +22,7 @@ class Note extends Stream implements JsonSerializable {
 
 	private array $hashtags = [];
 
-	public function __construct(ACore $parent = null) {
+	public function __construct(?ACore $parent = null) {
 		parent::__construct($parent);
 
 		$this->setType(self::TYPE);

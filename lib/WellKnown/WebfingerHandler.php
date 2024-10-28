@@ -35,7 +35,7 @@ class WebfingerHandler implements IHandler {
 	public function __construct(
 		IURLGenerator $urlGenerator, CacheActorsRequest $cacheActorsRequest,
 		CacheActorService $cacheActorService, FediverseService $fediverseService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -57,7 +57,7 @@ class WebfingerHandler implements IHandler {
 	public function handle(
 		string $service,
 		IRequestContext $context,
-		?IResponse $previousResponse
+		?IResponse $previousResponse,
 	): ?IResponse {
 		try {
 			$this->fediverseService->jailed();

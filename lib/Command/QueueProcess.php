@@ -39,7 +39,7 @@ class QueueProcess extends Base {
 	public function __construct(
 		ActivityService $activityService, RequestQueueService $requestQueueService,
 		StreamQueueService $streamQueueService, ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -57,7 +57,7 @@ class QueueProcess extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:queue:process')
-			 ->setDescription('Process the request queue');
+			->setDescription('Process the request queue');
 	}
 
 

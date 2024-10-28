@@ -71,7 +71,7 @@ class ActivityService {
 		RequestQueueService $requestQueueService,
 		CurlService $curlService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->followsRequest = $followsRequest;
@@ -92,7 +92,7 @@ class ActivityService {
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
+	public function createActivity(Person $actor, ACore $item, ?ACore &$activity = null): string {
 		$activity = new Create();
 		$item->setParent($activity);
 
@@ -212,7 +212,7 @@ class ActivityService {
 	 */
 	public function manageRequest(RequestQueue $queue) {
 		$host = $queue->getInstance()
-					  ->getAddress();
+			->getAddress();
 		if (in_array($host, $this->failInstances)) {
 			return;
 		}
@@ -220,7 +220,7 @@ class ActivityService {
 		try {
 			$this->requestQueueService->initRequest($queue);
 		} catch (QueueStatusException $e) {
-			$this->logger->error("Error while trying to init request", [
+			$this->logger->error('Error while trying to init request', [
 				'exception' => $e,
 			]);
 
@@ -233,15 +233,15 @@ class ActivityService {
 			$this->signatureService->signRequest($request, $queue);
 			$this->curlService->retrieveJson($request);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException | RequestResultNotJsonException $e) {
+		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (ActorDoesNotExistException | RequestContentException | RequestResultSizeException $e) {
+		} catch (ActorDoesNotExistException|RequestContentException|RequestResultSizeException $e) {
 			$this->logger->notice(
 				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
 				. $e->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestNetworkException | RequestServerException $e) {
+		} catch (RequestNetworkException|RequestServerException $e) {
 			$this->logger->notice(
 				'Temporary error while managing request: RequestServerException - ' . json_encode($request)
 				. ' - ' . get_class($e) . ': ' . $e->getMessage()
@@ -298,7 +298,7 @@ class ActivityService {
 			}
 
 			$sharedInbox = $follow->getActor()
-								  ->getSharedInbox();
+				->getSharedInbox();
 			if (in_array($sharedInbox, $sharedInboxes)) {
 				continue;
 			}
@@ -361,7 +361,7 @@ class ActivityService {
 	private function getAuthorFromItem(Acore $activity): string {
 		if ($activity->hasActor()) {
 			return $activity->getActor()
-							->getId();
+				->getId();
 		}
 
 		return $activity->getActorId();

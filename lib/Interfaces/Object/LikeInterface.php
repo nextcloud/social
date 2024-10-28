@@ -43,7 +43,7 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 
 	public function __construct(
 		ActionsRequest $actionsRequest, StreamRequest $streamRequest,
-		CacheActorService $cacheActorService
+		CacheActorService $cacheActorService,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->streamRequest = $streamRequest;
@@ -187,12 +187,12 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('accounts', $author->getAccount());
 			$notification->setAttributedTo($author->getId())
-						 ->setSubType(Like::TYPE)
-						 ->setId($post->getId() . '/notification+like')
-						 ->setSummary('{accounts} liked your post')
-						 ->setObjectId($post->getId())
-						 ->setTo($post->getAttributedTo())
-						 ->setLocal(true);
+				->setSubType(Like::TYPE)
+				->setId($post->getId() . '/notification+like')
+				->setSummary('{accounts} liked your post')
+				->setObjectId($post->getId())
+				->setTo($post->getAttributedTo())
+				->setLocal(true);
 
 			$notificationInterface->save($notification);
 		}

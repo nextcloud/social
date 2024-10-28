@@ -47,7 +47,7 @@ class SearchService {
 		CacheActorService $cacheActorService,
 		HashtagService $hashtagService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->cacheActorService = $cacheActorService;
 		$this->hashtagService = $hashtagService;

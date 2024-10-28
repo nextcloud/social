@@ -121,7 +121,7 @@ class AP {
 		RemoveInterface $removeInterface,
 		UndoInterface $undoInterface,
 		UpdateInterface $updateInterface,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->acceptInterface = $acceptInterface;
 		$this->addInterface = $addInterface;
@@ -152,7 +152,7 @@ class AP {
 			AP::$activityPub = Server::get(AP::class);
 		} catch (QueryException $e) {
 			Server::get(LoggerInterface::class)
-					   ->error($e->getMessage(), ['exception' => $e]);
+				->error($e->getMessage(), ['exception' => $e]);
 		}
 	}
 
@@ -162,7 +162,7 @@ class AP {
 	 * @throws SocialAppConfigException
 	 * @throws ItemUnknownException
 	 */
-	public function getItemFromData(array $data, ACore $parent = null, int $level = 0): ACore {
+	public function getItemFromData(array $data, ?ACore $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
 			throw new RedundancyLimitException((string)$level);
 		}

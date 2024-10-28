@@ -55,7 +55,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	public function __construct(
 		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -177,12 +177,12 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		$notification->setDetail('account', $follower->getAccount());
 		$notification->setDetailItem('actor', $follower);
 		$notification->setAttributedTo($follow->getActorId())
-					 ->setId($follow->getId() . '/notification')
-					 ->setSubType(Follow::TYPE)
-					 ->setActorId($follower->getId())
-					 ->setSummary('{account} is following you')
-					 ->setTo($follow->getObjectId())
-					 ->setLocal(true);
+			->setId($follow->getId() . '/notification')
+			->setSubType(Follow::TYPE)
+			->setActorId($follower->getId())
+			->setSummary('{account} is following you')
+			->setTo($follow->getObjectId())
+			->setLocal(true);
 
 		$notificationInterface->save($notification);
 	}

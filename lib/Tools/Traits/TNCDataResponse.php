@@ -11,9 +11,9 @@ namespace OCA\Social\Tools\Traits;
 
 use Exception;
 use JsonSerializable;
-use OC;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use Psr\Log\LoggerInterface;
 
 /**
  * Trait TNCDataResponse
@@ -27,7 +27,7 @@ trait TNCDataResponse {
 	 */
 	protected function fail(
 		Exception $e, array $more = [], int $status = Http::STATUS_INTERNAL_SERVER_ERROR,
-		bool $log = true
+		bool $log = true,
 	): DataResponse {
 		$data = array_merge(
 			$more,
@@ -39,8 +39,7 @@ trait TNCDataResponse {
 		);
 
 		if ($log) {
-			OC::$server->getLogger()
-					   ->log(2, $status . ' - ' . json_encode($data));
+			\OCP\Server::get(LoggerInterface::class)->warning($status . ' - ' . json_encode($data));
 		}
 
 		return new DataResponse($data, $status);

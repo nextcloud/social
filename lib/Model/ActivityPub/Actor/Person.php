@@ -166,7 +166,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function getAvatar(): string {
 		if ($this->hasIcon()) {
 			return $this->getIcon()
-						->getUrl();
+				->getUrl();
 		}
 
 		return $this->avatar;
@@ -600,15 +600,15 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 		$this->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
-			 ->setPublicKey($this->get('publicKey.publicKeyPem', $data))
-			 ->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
-			 ->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
-			 ->setAccount($this->validate(ACore::AS_ACCOUNT, 'account', $data, ''))
-			 ->setInbox($this->validate(ACore::AS_URL, 'inbox', $data, ''))
-			 ->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
-			 ->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
-			 ->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
-			 ->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
+			->setPublicKey($this->get('publicKey.publicKeyPem', $data))
+			->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
+			->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
+			->setAccount($this->validate(ACore::AS_ACCOUNT, 'account', $data, ''))
+			->setInbox($this->validate(ACore::AS_URL, 'inbox', $data, ''))
+			->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
+			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
+			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
+			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
 
 		/** @var Image $icon */
 		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
@@ -668,19 +668,19 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
-			 ->setUserId($this->get('user_id', $data, ''))
-			 ->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
-			 ->setDescription($this->validate(self::AS_CONTENT, 'summary', $data))
-			 ->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
-			 ->setPublicKey($this->get('public_key', $data, ''))
-			 ->setPrivateKey($this->get('private_key', $data, ''))
-			 ->setInbox($this->validate(self::AS_URL, 'inbox', $data, ''))
-			 ->setOutbox($this->validate(self::AS_URL, 'outbox', $data, ''))
-			 ->setFollowers($this->validate(self::AS_URL, 'followers', $data, ''))
-			 ->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
-			 ->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
-			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
-			 ->setDetailsAll($this->getArray('details', $data, []));
+			->setUserId($this->get('user_id', $data, ''))
+			->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
+			->setDescription($this->validate(self::AS_CONTENT, 'summary', $data))
+			->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
+			->setPublicKey($this->get('public_key', $data, ''))
+			->setPrivateKey($this->get('private_key', $data, ''))
+			->setInbox($this->validate(self::AS_URL, 'inbox', $data, ''))
+			->setOutbox($this->validate(self::AS_URL, 'outbox', $data, ''))
+			->setFollowers($this->validate(self::AS_URL, 'followers', $data, ''))
+			->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
+			->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
+			->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
+			->setDetailsAll($this->getArray('details', $data, []));
 
 		try {
 			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));

@@ -35,10 +35,10 @@ class MiscService {
 	 * @param int $level
 	 */
 	public function log(string $message, $level = 2) {
-		$data = array(
+		$data = [
 			'app' => Application::APP_ID,
 			'level' => $level
-		);
+		];
 
 		$this->logger->log($level, $message, $data);
 	}

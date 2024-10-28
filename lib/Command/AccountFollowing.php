@@ -30,7 +30,7 @@ class AccountFollowing extends Base {
 
 	public function __construct(
 		AccountService $accountService, CacheActorService $cacheActorService,
-		FollowService $followService, ConfigService $configService, MiscService $miscService
+		FollowService $followService, ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -44,11 +44,11 @@ class AccountFollowing extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:following')
-			 ->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud userid')
-			 ->addArgument('account', InputArgument::REQUIRED, 'Account to follow')
-			 ->addOption('local', '', InputOption::VALUE_NONE, 'account is local')
-			 ->addOption('unfollow', '', InputOption::VALUE_NONE, 'unfollow')
-			 ->setDescription('Following a new account');
+			->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud userid')
+			->addArgument('account', InputArgument::REQUIRED, 'Account to follow')
+			->addOption('local', '', InputOption::VALUE_NONE, 'account is local')
+			->addOption('unfollow', '', InputOption::VALUE_NONE, 'unfollow')
+			->setDescription('Following a new account');
 	}
 
 	/**

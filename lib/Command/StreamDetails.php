@@ -42,7 +42,7 @@ class StreamDetails extends ExtendedBase {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamService $streamService, DetailsService $detailsService, MiscService $miscService
+		StreamService $streamService, DetailsService $detailsService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -58,9 +58,9 @@ class StreamDetails extends ExtendedBase {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:details')
-			 ->addArgument('streamId', InputArgument::REQUIRED, 'Id of the Stream item')
-			 ->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
-			 ->setDescription('Get details about a Stream item');
+			->addArgument('streamId', InputArgument::REQUIRED, 'Id of the Stream item')
+			->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
+			->setDescription('Get details about a Stream item');
 	}
 
 

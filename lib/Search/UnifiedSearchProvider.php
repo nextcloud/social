@@ -73,7 +73,7 @@ class UnifiedSearchProvider implements IProvider {
 		AccountService $accountService,
 		SearchService $searchService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->l10n = $l10n;
 		$this->urlGenerator = $urlGenerator;
@@ -180,7 +180,7 @@ class UnifiedSearchProvider implements IProvider {
 		$result = [];
 		foreach ($accounts as $account) {
 			$icon = ($account->hasIcon()) ? $account->getIcon()
-													->getUrl() : '';
+				->getUrl() : '';
 			$result[] = new UnifiedSearchResult(
 				$icon,
 				$account->getPreferredUsername(),

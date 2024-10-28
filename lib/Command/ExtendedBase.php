@@ -57,13 +57,13 @@ class ExtendedBase extends Base {
 			if ($objectId !== '' && $cache->hasItem($objectId)) {
 				try {
 					$cachedObject = $cache->getItem($objectId)
-										  ->getObject();
+						->getObject();
 
 					/** @var Stream $cachedItem */
 					$cachedItem = AP::$activityPub->getItemFromData($cachedObject);
 					$content = $cachedItem->getContent();
 					$author = $cachedItem->getActor()
-										 ->getAccount();
+						->getAccount();
 				} catch (CacheItemNotFoundException $e) {
 				} catch (ItemUnknownException $e) {
 				} catch (RedundancyLimitException $e) {
@@ -72,7 +72,7 @@ class ExtendedBase extends Base {
 			} else {
 				$content = $item->getContent();
 				$author = $item->getActor()
-							   ->getAccount();
+					->getAccount();
 			}
 
 			$content = ($this->crop) ? substr($content, 0, $this->crop) : $content;
@@ -82,7 +82,7 @@ class ExtendedBase extends Base {
 					$item->getNid(),
 					'<comment>' . $item->getId() . '</comment>',
 					'<info>' . $item->getActor()
-									->getAccount() . '</info>',
+						->getAccount() . '</info>',
 					$item->getType(),
 					'<info>' . $author . '</info>',
 					$content,

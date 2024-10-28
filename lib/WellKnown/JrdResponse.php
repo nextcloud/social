@@ -125,7 +125,7 @@ final class JrdResponse implements IResponse {
 		?string $href,
 		?array $titles = [],
 		?array $properties = [],
-		array $entries = []
+		array $entries = [],
 	): self {
 		$this->links[] = array_filter(
 			array_merge(

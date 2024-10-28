@@ -42,17 +42,17 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function create(RequestQueue $queue): void {
 		$qb = $this->getRequestQueueInsertSql();
 		$qb->setValue('token', $qb->createNamedParameter($queue->getToken()))
-		   ->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
-		   ->setValue('author_prim', $qb->createNamedParameter($qb->prim($queue->getAuthor())))
-		   ->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
-		   ->setValue(
-		   	'instance', $qb->createNamedParameter(
-		   		json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
-		   ->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
-		   ->setValue('status', $qb->createNamedParameter($queue->getStatus()))
-		   ->setValue('tries', $qb->createNamedParameter($queue->getTries()));
+			->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
+			->setValue('author_prim', $qb->createNamedParameter($qb->prim($queue->getAuthor())))
+			->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
+			->setValue(
+				'instance', $qb->createNamedParameter(
+					json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
+				)
+			)
+			->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
+			->setValue('status', $qb->createNamedParameter($queue->getStatus()))
+			->setValue('tries', $qb->createNamedParameter($queue->getTries()));
 		$qb->executeStatement();
 	}
 
@@ -112,10 +112,10 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function setAsRunning(RequestQueue &$queue): void {
 		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_RUNNING))
-		   ->set(
-		   	'last',
-		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+			->set(
+				'last',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
 
@@ -157,7 +157,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$expr = $qb->expr();
 
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY))
-		   ->set('tries', $func->add('tries', $expr->literal(1)));
+			->set('tries', $func->add('tries', $expr->literal(1)));
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
 

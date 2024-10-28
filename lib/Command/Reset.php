@@ -41,7 +41,7 @@ class Reset extends Base {
 	 */
 	public function __construct(
 		CoreRequestBuilder $coreRequestBuilder, CheckService $checkService, ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -58,8 +58,8 @@ class Reset extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:reset')
-			 ->addOption('uninstall', '', InputOption::VALUE_NONE, 'full removing of the app')
-			 ->setDescription('Reset ALL data related to the Social App');
+			->addOption('uninstall', '', InputOption::VALUE_NONE, 'full removing of the app')
+			->setDescription('Reset ALL data related to the Social App');
 	}
 
 

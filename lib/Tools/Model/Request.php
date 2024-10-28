@@ -224,7 +224,7 @@ class Request implements JsonSerializable {
 			return $this;
 		}
 
-		list($host, $port) = explode(':', $instance, 2);
+		[$host, $port] = explode(':', $instance, 2);
 		$this->setHost($host);
 		if ($port !== '') {
 			$this->setPort((int)$port);
@@ -263,13 +263,13 @@ class Request implements JsonSerializable {
 		$protocol = parse_url($url, PHP_URL_SCHEME);
 		if ($protocol === null) {
 			if (strpos($url, '/') > -1) {
-				list($address, $baseUrl) = explode('/', $url, 2);
+				[$address, $baseUrl] = explode('/', $url, 2);
 				$this->setBaseUrl('/' . $baseUrl);
 			} else {
 				$address = $url;
 			}
 			if (strpos($address, ':') > -1) {
-				list($address, $port) = explode(':', $address, 2);
+				[$address, $port] = explode(':', $address, 2);
 				$this->setPort((int)$port);
 			}
 			$this->setHost($address);

@@ -39,7 +39,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	public function __construct(
 		StreamRequest $streamRequest,
 		CacheActorsRequest $cacheActorsRequest,
-		PushService $pushService
+		PushService $pushService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -135,12 +135,12 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$notification->setDetailItem('post', $post);
 			$notification->addDetail('account', $post->getActor()->getAccount());
 			$notification->setAttributedTo($recipient->getId())
-						 ->setSubType(Mention::TYPE)
-						 ->setId($post->getId() . '/notification+mention')
-						 ->setSummary('{account} mentioned you in a post')
-						 ->setObjectId($post->getId())
-						 ->setTo($recipient->getId())
-						 ->setLocal(true);
+				->setSubType(Mention::TYPE)
+				->setId($post->getId() . '/notification+mention')
+				->setSummary('{account} mentioned you in a post')
+				->setObjectId($post->getId())
+				->setTo($recipient->getId())
+				->setLocal(true);
 
 			$notificationInterface->save($notification);
 		}

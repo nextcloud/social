@@ -228,7 +228,7 @@ trait TArrayTools {
 		$list = $this->getArray($k, $arr, $default);
 
 		$r = [];
-		list($obj, $method) = $import;
+		[$obj, $method] = $import;
 		foreach ($list as $item) {
 			try {
 				$o = new $obj();

@@ -33,6 +33,9 @@
     "nextcloud/ocp": "dev-master",
     "vimeo/psalm": "^5.1.0"
   },
+  "replace": {
+    "symfony/console": "*"
+  },
   "scripts": {
     "lint": "find . -name \\*.php -not -path './vendor/*' -not -path './build/*' -print0 | xargs -0 -n1 php -l",
     "cs:check": "php-cs-fixer fix --dry-run --diff",

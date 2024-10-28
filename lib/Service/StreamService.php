@@ -51,7 +51,7 @@ class StreamService {
 		StreamRequest $streamRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->streamRequest = $streamRequest;
@@ -79,7 +79,7 @@ class StreamService {
 	 */
 	public function assignItem(Acore $stream, Person $actor, string $type) {
 		$stream->setId($this->configService->generateId('@' . $actor->getPreferredUsername()));
-		$stream->setPublished(date("c"));
+		$stream->setPublished(date('c'));
 
 		$this->setRecipient($stream, $actor, $type);
 		$stream->setLocal(true);
@@ -322,7 +322,7 @@ class StreamService {
 	public function getStreamById(
 		string $id,
 		bool $asViewer = false,
-		int $format = ACore::FORMAT_ACTIVITYPUB
+		int $format = ACore::FORMAT_ACTIVITYPUB,
 	): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
@@ -384,7 +384,7 @@ class StreamService {
 		string $id,
 		int $since = 0,
 		int $limit = 5,
-		bool $asViewer = false
+		bool $asViewer = false,
 	): array {
 		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
@@ -402,7 +402,7 @@ class StreamService {
 	public function getStreamHome(
 		int $since = 0,
 		int $limit = 5,
-		int $format = Stream::FORMAT_ACTIVITYPUB
+		int $format = Stream::FORMAT_ACTIVITYPUB,
 	): array {
 		return $this->streamRequest->getTimelineHome_dep($since, $limit, $format);
 	}

@@ -49,7 +49,7 @@ class HashtagService {
 	public function __construct(
 		HashtagsRequest $hashtagsRequest, StreamRequest $streamRequest,
 		ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->hashtagsRequest = $hashtagsRequest;
 		$this->streamRequest = $streamRequest;

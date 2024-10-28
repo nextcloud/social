@@ -62,7 +62,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 			'ca.name', 'ca.summary', 'ca.public_key', 'ca.local', 'ca.details', 'ca.source', 'ca.creation',
 			'ca.details_update'
 		)
-		   ->from(self::TABLE_CACHE_ACTORS, 'ca');
+			->from(self::TABLE_CACHE_ACTORS, 'ca');
 
 		$qb->setDefaultSelectAlias('ca');
 
@@ -152,7 +152,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 			$link = Person::LINK_LOCAL;
 			if ($qb->hasViewer()
 				&& $qb->getViewer()
-					  ->getId() === $actor->getId()) {
+					->getId() === $actor->getId()) {
 				$link = Person::LINK_VIEWER;
 			}
 		} else {

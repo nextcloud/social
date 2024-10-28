@@ -71,7 +71,7 @@ class ConfigService {
 
 	public function __construct(
 		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->userId = $userId;
 		$this->config = $config;

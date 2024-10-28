@@ -50,7 +50,7 @@ class SocialPubController extends Controller {
 	public function __construct(
 		?string $userId, IInitialStateService $initialStateService, IRequest $request, IL10N $l10n, NavigationController $navigationController,
 		CacheActorService $cacheActorService, AccountService $accountService, StreamService $streamService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -157,7 +157,7 @@ class SocialPubController extends Controller {
 		} catch (AccountDoesNotExistException $e) {
 		}
 
-//		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+		//		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
 		$stream = $this->streamService->getStreamByNid($token);
 		if (strtolower($stream->getActor()->getDisplayName()) !== strtolower($username)) {

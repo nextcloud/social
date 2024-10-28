@@ -39,7 +39,7 @@ class PushService {
 	 * PushService constructor.
 	 */
 	public function __construct(
-		DetailsService $detailsService, StreamService $streamService, MiscService $miscService
+		DetailsService $detailsService, StreamService $streamService, MiscService $miscService,
 	) {
 		$this->detailsService = $detailsService;
 		$this->streamService = $streamService;

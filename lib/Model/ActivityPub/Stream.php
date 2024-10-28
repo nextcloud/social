@@ -340,7 +340,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$this->getCache()
-			 ->addItem($cacheItem);
+			->addItem($cacheItem);
 
 		return $this;
 	}
@@ -518,15 +518,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		} catch (Exception $e) {
 		}
 
-//		"in_reply_to_id" => null,
-//			"in_reply_to_account_id" => null,
-//			'replies_count' => 0,
-//			'reblogs_count' => 0,
-//			'favourites_count' => 0,
-//			'muted' => false,
-//			'bookmarked' => false,
-//			"reblog" => null,
-//			'noindex' => false
+		//		"in_reply_to_id" => null,
+		//			"in_reply_to_account_id" => null,
+		//			'replies_count' => 0,
+		//			'reblogs_count' => 0,
+		//			'favourites_count' => 0,
+		//			'muted' => false,
+		//			'bookmarked' => false,
+		//			"reblog" => null,
+		//			'noindex' => false
 
 		$attachments = [];
 		foreach ($this->getArray('media_attachments', $data) as $dataAttachment) {
@@ -602,14 +602,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			}
 		}
 		$result = [
-			"local" => $this->isLocal(),
-			"content" => $this->getContent(),
-			"sensitive" => $this->isSensitive(),
-			"spoiler_text" => $this->getSpoilerText(),
+			'local' => $this->isLocal(),
+			'content' => $this->getContent(),
+			'sensitive' => $this->isSensitive(),
+			'spoiler_text' => $this->getSpoilerText(),
 			'visibility' => $this->getVisibility(),
-			"language" => $this->getLanguage(),
-			"in_reply_to_id" => null,
-			"in_reply_to_account_id" => null,
+			'language' => $this->getLanguage(),
+			'in_reply_to_id' => null,
+			'in_reply_to_account_id' => null,
 			'mentions' => $this->getMentions(),
 			'replies_count' => $this->getDetailInt('replies'),
 			'reblogs_count' => $this->getDetailInt('boosts'),
@@ -620,9 +620,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'bookmarked' => false,
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
-			"reblog" => null,
+			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
-			"created_at" => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'noindex' => false
 		];
 

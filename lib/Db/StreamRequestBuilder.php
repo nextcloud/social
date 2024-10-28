@@ -69,7 +69,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$qb->setFormat($format);
 
 		$qb->selectDistinct('s.id')
-		   ->from(self::TABLE_STREAM, 's');
+			->from(self::TABLE_STREAM, 's');
 		foreach (self::$tables[self::TABLE_STREAM] as $field) {
 			if ($field === 'id') {
 				continue;
@@ -91,7 +91,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function countNotesSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAM, 's');
+			->from(self::TABLE_STREAM, 's');
 
 		$qb->setDefaultSelectAlias('s');
 
@@ -118,7 +118,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param string $aliasFollow
 	 */
 	protected function timelineHomeLinkCacheActor(
-		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f'
+		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f',
 	) {
 		$qb->linkToCacheActors($alias, 's.attributed_to_prim');
 

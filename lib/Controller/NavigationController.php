@@ -66,7 +66,7 @@ class NavigationController extends Controller {
 		DocumentService $documentService,
 		ConfigService $configService,
 		CheckService $checkService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -99,7 +99,7 @@ class NavigationController extends Controller {
 			'firstrun' => false,
 			'setup' => false,
 			'isAdmin' => Server::get(IGroupManager::class)
-									 ->isAdmin($this->userId),
+				->isAdmin($this->userId),
 			'cliUrl' => $this->getCliUrl()
 		];
 

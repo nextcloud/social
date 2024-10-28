@@ -64,7 +64,7 @@ class StreamQueueService {
 	public function __construct(
 		StreamRequest $streamRequest, StreamQueueRequest $streamQueueRequest,
 		CacheActorService $cacheActorService, ImportService $importService,
-		CurlService $curlService, MiscService $miscService
+		CurlService $curlService, MiscService $miscService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamQueueRequest = $streamQueueRequest;

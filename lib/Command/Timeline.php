@@ -51,7 +51,7 @@ class Timeline extends ExtendedBase {
 		StreamRequest $streamRequest,
 		AccountService $accountService,
 		CacheActorService $cacheActorService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		parent::__construct();
 
@@ -69,16 +69,16 @@ class Timeline extends ExtendedBase {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:timeline')
-			 ->addArgument('userId', InputArgument::REQUIRED, 'viewer')
-			 ->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
-			 ->addOption('local', '', InputOption::VALUE_NONE, 'public')
-			 ->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
-			 ->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
-			 ->addOption('since', '', InputOption::VALUE_REQUIRED, 'since', 0)
-			 ->addOption('limit', '', InputOption::VALUE_REQUIRED, 'limit', 5)
-			 ->addOption('account', '', InputOption::VALUE_REQUIRED, 'account', '')
-			 ->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
-			 ->setDescription('Get stream by timeline and viewer');
+			->addArgument('userId', InputArgument::REQUIRED, 'viewer')
+			->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
+			->addOption('local', '', InputOption::VALUE_NONE, 'public')
+			->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
+			->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
+			->addOption('since', '', InputOption::VALUE_REQUIRED, 'since', 0)
+			->addOption('limit', '', InputOption::VALUE_REQUIRED, 'limit', 5)
+			->addOption('account', '', InputOption::VALUE_REQUIRED, 'account', '')
+			->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
+			->setDescription('Get stream by timeline and viewer');
 	}
 
 
@@ -111,9 +111,9 @@ class Timeline extends ExtendedBase {
 		$options = new ProbeOptions();
 		$options->setFormat(Stream::FORMAT_LOCAL);
 		$options->setLimit(intval($input->getOption('limit')))
-				->setMinId(intval($input->getOption('min_id')))
-				->setMaxId(intval($input->getOption('max_id')))
-				->setSince(intval($input->getOption('since')));
+			->setMinId(intval($input->getOption('min_id')))
+			->setMaxId(intval($input->getOption('max_id')))
+			->setSince(intval($input->getOption('since')));
 
 		if ($input->getOption('local')) {
 			$options->setLocal(true);
@@ -122,7 +122,7 @@ class Timeline extends ExtendedBase {
 		$timeline = $input->getArgument('timeline');
 		if (str_starts_with($timeline, '#')) {
 			$options->setProbe(ProbeOptions::HASHTAG)
-					->setArgument(substr($timeline, 1));
+				->setArgument(substr($timeline, 1));
 		} else {
 			$options->setProbe($timeline);
 		}

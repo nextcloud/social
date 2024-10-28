@@ -48,7 +48,7 @@ class CacheDocumentService {
 		IAppData $appData,
 		CurlService $curlService,
 		BlurService $blurService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->appData = $appData;
 		$this->curlService = $curlService;
@@ -243,7 +243,7 @@ class CacheDocumentService {
 
 		try {
 			return $this->appData->getFolder($this->generatePath($filename))
-								 ->getFile($filename);
+				->getFile($filename);
 		} catch (Exception $e) {
 			throw new CacheContentException();
 		}
@@ -253,7 +253,7 @@ class CacheDocumentService {
 	public function getFromUuid(string $uuid): ISimpleFile {
 		try {
 			return $this->appData->getFolder($this->generatePath($uuid))
-								 ->getFile($uuid);
+				->getFile($uuid);
 		} catch (NotFoundException $e) {
 			throw new NotFoundException('document not found');
 		}

@@ -71,7 +71,7 @@ class AccountService {
 		DocumentService $documentService,
 		SignatureService $signatureService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->userManager = $userManager;
 		$this->userSession = $userSession;
@@ -278,7 +278,7 @@ class AccountService {
 			try {
 				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 				$actor->setIconId($iconId);
-			} catch (ItemUnknownException | ItemAlreadyExistsException $e) {
+			} catch (ItemUnknownException|ItemAlreadyExistsException $e) {
 			}
 
 			$this->addLocalActorDetailCount($actor);

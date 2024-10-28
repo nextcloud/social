@@ -71,7 +71,7 @@ class SignatureService {
 		CacheActorService $cacheActorService,
 		CurlService $curlService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -87,9 +87,9 @@ class SignatureService {
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				"digest_alg" => "rsa",
-				"private_key_bits" => 2048,
-				"private_key_type" => OPENSSL_KEYTYPE_RSA,
+				'digest_alg' => 'rsa',
+				'private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA,
 			]
 		);
 
@@ -145,7 +145,7 @@ class SignatureService {
 		foreach ($elements as $element) {
 			$signingElements[] = $element . ': ' . $data[$element];
 			if ($element !== '(request-target)') {
-				$request->addHeader($element, (string) $data[$element]);
+				$request->addHeader($element, (string)$data[$element]);
 			}
 		}
 
@@ -176,7 +176,7 @@ class SignatureService {
 	 * @return string
 	 */
 	private function generateDigest(string $data): string {
-		$encoded = hash("sha256", $data, true);
+		$encoded = hash('sha256', $data, true);
 
 		return 'SHA-256=' . base64_encode($encoded);
 	}
@@ -371,7 +371,7 @@ class SignatureService {
 	 * @throws SignatureException
 	 */
 	private function checkRequestSignatureUsingPublicKey(
-		string $publicKey, array $sign, string $estimated, string $signed
+		string $publicKey, array $sign, string $estimated, string $signed,
 	) {
 		$algorithm = $this->getAlgorithmFromSignature($sign);
 		if ($publicKey === ''
@@ -401,7 +401,7 @@ class SignatureService {
 
 		$target = '';
 		try {
-			$target = strtolower($request->getMethod()) . " " . $request->getRequestUri();
+			$target = strtolower($request->getMethod()) . ' ' . $request->getRequestUri();
 		} catch (Exception $e) {
 		}
 
@@ -409,7 +409,7 @@ class SignatureService {
 
 		foreach ($keys as $key) {
 			if ($key === '(request-target)') {
-				$estimated .= "(request-target): " . $target . "\n";
+				$estimated .= '(request-target): ' . $target . "\n";
 				continue;
 			}
 
@@ -439,7 +439,7 @@ class SignatureService {
 				continue;
 			}
 
-			list($k, $v) = explode('=', $entry, 2);
+			[$k, $v] = explode('=', $entry, 2);
 			preg_match('/"([^"]+)"/', $v, $varr);
 			if ($varr[0] !== null) {
 				$v = trim($varr[0], '"');
@@ -583,7 +583,7 @@ class SignatureService {
 	 * @throws NotFoundException
 	 */
 	private static function generateContextCacheDocument(
-		ISimpleFolder $folder, string $filename, string $url
+		ISimpleFolder $folder, string $filename, string $url,
 	): stdClass {
 		try {
 			$data = jsonld_default_document_loader($url);

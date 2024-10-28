@@ -92,7 +92,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @param bool $cs
 	 * @param string $alias
 	 */
-	public function limitToDBField(string $field, string $value, bool $cs = true, string $alias = ''
+	public function limitToDBField(string $field, string $value, bool $cs = true, string $alias = '',
 	);
 
 
@@ -104,15 +104,15 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 *
 	 * @return mixed
 	 */
-	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = ''
+	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = '',
 	);
 
 	public function exprLimitToDBField(
-		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = ''
+		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = '',
 	): string;
 
 	public function limitToDBFieldArray(
-		string $field, array $values, bool $cs = true, string $alias = ''
+		string $field, array $values, bool $cs = true, string $alias = '',
 	);
 
 
@@ -125,7 +125,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @return mixed
 	 */
 	public function filterDBFieldArray(
-		string $field, string $value, bool $cs = true, string $alias = ''
+		string $field, string $value, bool $cs = true, string $alias = '',
 	);
 
 
@@ -139,7 +139,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @return ICompositeExpression
 	 */
 	public function exprLimitToDBFieldArray(
-		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = ''
+		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = '',
 	): ICompositeExpression;
 
 
@@ -188,7 +188,7 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @param DateTime $date
 	 * @param bool $orNull
 	 */
-	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false
+	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false,
 	);
 
 

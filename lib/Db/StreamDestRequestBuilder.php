@@ -57,7 +57,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('sd.actor_id', 'sd.stream_id', 'sd.type', 'sd.subtype')
-		   ->from(self::TABLE_STREAM_DEST, 'sd');
+			->from(self::TABLE_STREAM_DEST, 'sd');
 
 		$this->defaultSelectAlias = 'sd';
 		$qb->setDefaultSelectAlias('sd');
@@ -87,7 +87,7 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	protected function countStreamDestSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAM_DEST, 'sd');
+			->from(self::TABLE_STREAM_DEST, 'sd');
 
 		$this->defaultSelectAlias = 'sd';
 		$qb->setDefaultSelectAlias('sd');

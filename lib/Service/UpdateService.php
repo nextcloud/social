@@ -40,7 +40,7 @@ class UpdateService {
 	 */
 	public function __construct(
 		IUserManager $userManager, IGroupManager $groupManager, ITimeFactory $time,
-		INotificationManager $notificationManager
+		INotificationManager $notificationManager,
 	) {
 		$this->userManager = $userManager;
 		$this->groupManager = $groupManager;
@@ -55,7 +55,7 @@ class UpdateService {
 		foreach ($notifications as $notif) {
 			$help = $notif->createAction();
 			$help->setLabel('help')
-				 ->setLink('https://help.nextcloud.com/t/social-alpha3-how-to-upgrade/85535', 'WEB');
+				->setLink('https://help.nextcloud.com/t/social-alpha3-how-to-upgrade/85535', 'WEB');
 
 			$notif->addAction($help);
 			$this->notificationManager->notify($notif);
@@ -103,10 +103,10 @@ class UpdateService {
 		$now = $this->time->getDateTime();
 		$notification = $this->notificationManager->createNotification();
 		$notification->setApp('social')
-					 ->setDateTime($now)
-					 ->setUser($userId)
-					 ->setObject('update', 'update_' . $this->updateId)
-					 ->setSubject($subject, $data);
+			->setDateTime($now)
+			->setUser($userId)
+			->setObject('update', 'update_' . $this->updateId)
+			->setSubject($subject, $data);
 
 		return $notification;
 	}

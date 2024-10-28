@@ -31,7 +31,7 @@ class FediverseService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService, MiscService $miscService,
 	) {
 		$this->configService = $configService;
 		$this->miscService = $miscService;

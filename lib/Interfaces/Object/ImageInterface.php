@@ -23,7 +23,7 @@ class ImageInterface extends DocumentInterface implements IActivityPubInterface 
 	 */
 	public function __construct(
 		CacheDocumentsRequest $cacheDocumentsRequest,
-		CacheDocumentService $cacheDocumentService
+		CacheDocumentService $cacheDocumentService,
 	) {
 		parent::__construct($cacheDocumentService, $cacheDocumentsRequest);
 	}

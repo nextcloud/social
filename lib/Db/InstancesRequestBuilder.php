@@ -63,7 +63,7 @@ class InstancesRequestBuilder extends CoreRequestBuilder {
 			'i.local', 'i.uri', 'i.title', 'i.version', 'i.short_description', 'i.description', 'i.email',
 			'i.urls', 'i.stats', 'i.usage', 'i.image', 'i.languages', 'i.contact', 'i.account_prim'
 		)
-		   ->from(self::TABLE_INSTANCE, 'i');
+			->from(self::TABLE_INSTANCE, 'i');
 
 		$qb->setDefaultSelectAlias('i');
 

@@ -54,7 +54,7 @@ class StreamQueueRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'qs.id', 'qs.token', 'qs.stream_id', 'qs.type', 'qs.status', 'qs.tries', 'qs.last'
 		)
-		   ->from(self::TABLE_STREAM_QUEUE, 'qs');
+			->from(self::TABLE_STREAM_QUEUE, 'qs');
 
 		$this->defaultSelectAlias = 'qs';
 		$qb->setDefaultSelectAlias('qs');

@@ -30,7 +30,7 @@ class StreamActionService {
 	 * @param StreamActionsRequest $streamActionsRequest
 	 * @param MiscService $miscService
 	 */
-	public function __construct(StreamActionsRequest $streamActionsRequest, MiscService $miscService
+	public function __construct(StreamActionsRequest $streamActionsRequest, MiscService $miscService,
 	) {
 		$this->streamActionsRequest = $streamActionsRequest;
 		$this->miscService = $miscService;

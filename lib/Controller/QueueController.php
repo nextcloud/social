@@ -33,7 +33,7 @@ class QueueController extends Controller {
 
 	public function __construct(
 		IRequest $request, RequestQueueService $requestQueueService, ActivityService $activityService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 

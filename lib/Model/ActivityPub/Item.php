@@ -189,7 +189,7 @@ class Item {
 	public function getActorId(): string {
 		if ($this->hasActor()) {
 			return $this->getActor()
-						->getId();
+				->getId();
 		}
 
 		return $this->actorId;

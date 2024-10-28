@@ -1,39 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="5.13.1@086b94371304750d1c673315321a55d15fc59015">
+<files psalm-version="5.26.1@d747f6500b38ac4f7dfc5edbcae6e4b637d7add0">
   <file src="lib/Model/ActivityPub/ACore.php">
-    <InvalidArgument>
-      <code><![CDATA[['a', 'p', 'span', 'br']]]></code>
-    </InvalidArgument>
     <InvalidClass>
-      <code>Acore</code>
+      <code><![CDATA[Acore]]></code>
     </InvalidClass>
     <InvalidNullableReturnType>
-      <code>ACore</code>
-      <code>ACore</code>
+      <code><![CDATA[ACore]]></code>
+      <code><![CDATA[ACore]]></code>
     </InvalidNullableReturnType>
     <InvalidPropertyAssignmentValue>
-      <code>$parent</code>
+      <code><![CDATA[$parent]]></code>
     </InvalidPropertyAssignmentValue>
     <NullableReturnStatement>
       <code><![CDATA[$this->parent]]></code>
     </NullableReturnStatement>
     <TypeDoesNotContainNull>
-      <code>$v === null</code>
+      <code><![CDATA[$v === null]]></code>
     </TypeDoesNotContainNull>
     <TypeDoesNotContainType>
-      <code>$v === 0</code>
-      <code>$v === 0</code>
+      <code><![CDATA[$v === 0]]></code>
+      <code><![CDATA[$v === 0]]></code>
     </TypeDoesNotContainType>
   </file>
   <file src="lib/Db/CoreRequestBuilder.php">
     <UndefinedMethod>
-      <code>dropTable</code>
-      <code>hasTable</code>
-      <code>hasTable</code>
+      <code><![CDATA[dropTable]]></code>
+      <code><![CDATA[hasTable]]></code>
+      <code><![CDATA[hasTable]]></code>
     </UndefinedMethod>
     <InvalidArgument>
-      <code>Server::get(Connection::class)</code>
-      <code>Server::get(Connection::class)</code>
+      <code><![CDATA[Server::get(Connection::class)]]></code>
+      <code><![CDATA[Server::get(Connection::class)]]></code>
     </InvalidArgument>
   </file>
   <file src="lib/Service/CheckService.php">
@@ -41,7 +38,7 @@
       <code><![CDATA[(bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true')]]></code>
     </RedundantCast>
     <UndefinedClass>
-      <code>ClientException</code>
+      <code><![CDATA[ClientException]]></code>
     </UndefinedClass>
   </file>
   <file src="lib/Service/CurlService.php">
@@ -59,14 +56,14 @@
   </file>
   <file src="lib/Service/SearchService.php">
     <InvalidOperand>
-      <code>!$type</code>
-      <code>!$type</code>
-      <code>!$type</code>
+      <code><![CDATA[!$type]]></code>
+      <code><![CDATA[!$type]]></code>
+      <code><![CDATA[!$type]]></code>
     </InvalidOperand>
   </file>
   <file src="lib/Service/SignatureService.php">
     <RedundantCondition>
-      <code>$varr[0] !== null</code>
+      <code><![CDATA[$varr[0] !== null]]></code>
     </RedundantCondition>
   </file>
 </files>

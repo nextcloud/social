@@ -36,7 +36,7 @@ trait TPathTools {
 	 *
 	 * @return string
 	 */
-	protected function withoutEndSlash(string $path, bool $force = false, bool $clean = true
+	protected function withoutEndSlash(string $path, bool $force = false, bool $clean = true,
 	): string {
 		if ($clean) {
 			$path = str_replace('//', '/', $path);

@@ -44,7 +44,7 @@ class CheckInstall extends Base {
 		IUserManager $userManager, StreamRequest $streamRequest, StreamDestRequest $streamDestRequest,
 		StreamTagsRequest $streamTagsRequest, CacheActorService $cacheActorService,
 		CheckService $checkService, ConfigService $configService, PushService $pushService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -62,13 +62,13 @@ class CheckInstall extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')
-			 ->addOption('index', '', InputOption::VALUE_NONE, 'regenerate your index')
+			->addOption('index', '', InputOption::VALUE_NONE, 'regenerate your index')
 //			 ->addOption(
 //				 'push', '', InputOption::VALUE_REQUIRED,
 //				 'a local account used to test integration to Nextcloud Push',
 //				 ''
 //			 )
-			 ->setDescription('Check the integrity of the installation');
+			->setDescription('Check the integrity of the installation');
 	}
 
 

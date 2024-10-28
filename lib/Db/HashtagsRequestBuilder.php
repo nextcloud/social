@@ -56,7 +56,7 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select('h.hashtag', 'h.trend')
-		   ->from(self::TABLE_HASHTAGS, 'h');
+			->from(self::TABLE_HASHTAGS, 'h');
 
 		$this->defaultSelectAlias = 'h';
 		$qb->setDefaultSelectAlias('h');

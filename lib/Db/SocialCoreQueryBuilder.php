@@ -22,15 +22,15 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Db
  */
 class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
-	protected IURLGenerator $urlGenerator;
 	private ?Person $viewer = null;
 
 	public function __construct(
-		IDBConnection $connection, SystemConfig $systemConfig, LoggerInterface $logger, IURLGenerator $urlGenerator
+		IDBConnection $connection,
+		SystemConfig $systemConfig,
+		LoggerInterface $logger,
+		protected IURLGenerator $urlGenerator,
 	) {
 		parent::__construct($connection, $systemConfig, $logger);
-
-		$this->urlGenerator = $urlGenerator;
 	}
 
 

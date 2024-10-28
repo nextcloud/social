@@ -71,7 +71,7 @@ class DocumentService {
 	public function __construct(
 		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
 		ActorsRequest $actorRequest, StreamRequest $streamRequest,
-		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService
+		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
@@ -187,7 +187,7 @@ class DocumentService {
 	 * @throws SocialAppConfigException
 	 */
 	public function getFromCache(
-		string $id, string &$mimeType = '', bool $public = false
+		string $id, string &$mimeType = '', bool $public = false,
 	): ISimpleFile {
 		$document = $this->cacheRemoteDocument($id, $public);
 		$mimeType = $document->getMimeType();

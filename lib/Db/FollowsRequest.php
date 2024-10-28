@@ -34,14 +34,14 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function save(Follow $follow) {
 		$qb = $this->getFollowsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
-		   ->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
-		   ->setValue('type', $qb->createNamedParameter($follow->getType()))
-		   ->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
-		   ->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
-		   ->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'))
-		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($follow->getActorId())))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($follow->getObjectId())))
-		   ->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($follow->getFollowId())));
+			->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
+			->setValue('type', $qb->createNamedParameter($follow->getType()))
+			->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
+			->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
+			->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'))
+			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($follow->getActorId())))
+			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($follow->getObjectId())))
+			->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($follow->getFollowId())));
 
 		try {
 			$qb->setValue(
@@ -59,14 +59,14 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function generateLoopbackAccount(Person $actor) {
 		$qb = $this->getFollowsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('actor_id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('type', $qb->createNamedParameter('Loopback'))
-		   ->setValue('object_id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('follow_id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('accepted', $qb->createNamedParameter('1'))
-		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
-		   ->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())));
+			->setValue('actor_id', $qb->createNamedParameter($actor->getId()))
+			->setValue('type', $qb->createNamedParameter('Loopback'))
+			->setValue('object_id', $qb->createNamedParameter($actor->getId()))
+			->setValue('follow_id', $qb->createNamedParameter($actor->getId()))
+			->setValue('accepted', $qb->createNamedParameter('1'))
+			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+			->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($actor->getId())));
 
 		try {
 			$qb->setValue(
@@ -290,9 +290,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function moveAccountFollowers(string $actorId, Person $new): void {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('object_id', $qb->createNamedParameter($new->getId()))
-		   ->set('object_id_prim', $qb->createNamedParameter($qb->prim($new->getId())))
-		   ->set('follow_id', $qb->createNamedParameter($new->getFollowers()))
-		   ->set('follow_id_prim', $qb->createNamedParameter($qb->prim($new->getFollowers())));
+			->set('object_id_prim', $qb->createNamedParameter($qb->prim($new->getId())))
+			->set('follow_id', $qb->createNamedParameter($new->getFollowers()))
+			->set('follow_id_prim', $qb->createNamedParameter($qb->prim($new->getFollowers())));
 
 		$qb->limitToObjectIdPrim($qb->prim($actorId));
 
@@ -307,7 +307,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function moveAccountFollowing(string $actorId, Person $new): void {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('actor_id', $qb->createNamedParameter($new->getId()))
-		   ->set('actor_id_prim', $qb->createNamedParameter($qb->prim($new->getId())));
+			->set('actor_id_prim', $qb->createNamedParameter($qb->prim($new->getId())));
 
 		$qb->limitToActorIdPrim($qb->prim($actorId));
 

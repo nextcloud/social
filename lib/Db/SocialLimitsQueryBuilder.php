@@ -387,7 +387,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 *
 	 * @return ICompositeExpression
 	 */
-	public function exprLimitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd'
+	public function exprLimitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd',
 	): ICompositeExpression {
 		$expr = $this->expr();
 		$andX = $expr->andX();
@@ -414,7 +414,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 */
 	public function limitToViewer(
 		string $aliasDest = 'sd', string $aliasFollowing = 'f', bool $allowPublic = false,
-		bool $allowDirect = false
+		bool $allowDirect = false,
 	) {
 		if (!$this->hasViewer()) {
 			$this->selectDestFollowing($aliasDest);

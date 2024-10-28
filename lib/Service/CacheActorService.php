@@ -63,7 +63,7 @@ class CacheActorService {
 		CurlService $curlService,
 		FediverseService $fediverseService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->actorsRequest = $actorsRequest;
@@ -164,7 +164,7 @@ class CacheActorService {
 		$instance = '';
 		$account = ltrim($account, '@');
 		if (strrpos($account, '@')) {
-			list($account, $instance) = explode('@', $account, 2);
+			[$account, $instance] = explode('@', $account, 2);
 		}
 
 		if ($instance !== ''

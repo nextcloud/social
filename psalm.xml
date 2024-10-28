@@ -27,6 +27,9 @@
 				<referencedClass name="OC" />
 				<referencedClass name="OC\DB\Connection" />
 				<referencedClass name="Symfony\Component\EventDispatcher\GenericEvent" />
+				<referencedClass name="Symfony\Component\Console\Helper\ProgressBar" />
+				<referencedClass name="Symfony\Component\Console\Question\Question" />
+				<referencedClass name="Symfony\Component\Console\Output\ConsoleOutput" />
 			</errorLevel>
 		</UndefinedClass>
 		<UndefinedDocblockClass>
