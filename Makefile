@@ -11,8 +11,8 @@ sign_dir=$(build_dir)/sign
 package_name=$(app_name)
 cert_dir=$(HOME)/.nextcloud/certificates
 github_account=nextcloud
-branch=master
-version+=0.6.1
+branch=stable29
+version+=0.7.0
 
 
 all: dev-setup lint build-js-production composer
