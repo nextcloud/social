@@ -48,7 +48,7 @@ OC.L10N.register(
     "boosted" : "مٌثبّت boosted",
     "No posts found" : "لا توجد أي منشورات",
     "Posts from people you follow will show up here" : "منشورات الأشخاص الذين تتابعهم ستُعرض هنا",
-    "No direct messages found" : "لم يعثر على أية رسائل مباشرة",
+    "No direct messages found" : "لم يعثر على أي رسائل مباشرة",
     "Posts directed to you will show up here" : "المنشورات المُوجّهة إليك مباشرةً ستظهر هنا",
     "No local posts found" : "لا توجد أيّ منشورات محلية",
     "Posts from other people on this instance will show up here" : "منشورات الأشخاص الآخرين على هذا الخادم ستظهر هنا",
