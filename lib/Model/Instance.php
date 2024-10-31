@@ -71,7 +71,7 @@ class Instance implements IQueryRow, JsonSerializable {
 	}
 
 	public function getVersion(): string {
-		return $this->version;
+		return '4.1.0 (compatible; Nextcloud Social ' . $this->version . ')';
 	}
 
 	public function setVersion(string $version): self {
