@@ -99,7 +99,7 @@ class WebfingerHandler implements IHandler {
 		$subject = $this->getSubjectFromRequest($context->getHttpRequest());
 		
 		// the `resource` parameter is required
-		if ($subject === null || $subject === '') {
+		if ($subject === '') {
 			return new JrdResponse('', Http::STATUS_BAD_REQUEST);
 		}
 		
