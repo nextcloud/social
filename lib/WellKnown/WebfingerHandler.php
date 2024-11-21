@@ -223,7 +223,7 @@ class WebfingerHandler implements IHandler {
 		// work around to extract resource:
 		// on some setup (i.e. tests) the data are not available from IRequest
 		$requestUri = $request->getRequestUri();
-		if ($requestUri !== '') {
+		if ($requestUri !== null) {
 			parse_str(parse_url($requestUri, PHP_URL_QUERY), $query);
 		}
 		
