@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "Bantuan",
     "Finish setup" : "Setup selesai",
     "Home" : "Rumah",
+    "Notifications" : "Pemberitahuan",
     "Delete" : "Padam",
     "Close" : "Tutup"
 },
