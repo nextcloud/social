@@ -63,10 +63,13 @@ OC.L10N.register(
     "Boost" : "Preposlať",
     "Like" : "Páči sa mi",
     "Undo Like" : "Zrušiť Ľúbi sa",
+    "Choose a visibility" : "Vybrať viditeľnosť",
     "Go to Social app" : "Ísť do aplikácie Social",
     "Error getting Social notifications" : "Chyba pri získavaní upozornení z aplikácie Social",
     "No Social notifications!" : "Žiadne upozornenia z aplikácie Social",
     "Failed to get Social notifications" : "Chyba pri získavaní upozornení z aplikácie Social",
+    "Authorization required" : "Vyžaduje sa autorizácia",
+    "Authorize" : "Autorizovať",
     "Deny" : "Zamietnuť",
     "Follow on Nextcloud Social" : "Sledovať Nextcloud Social",
     "Hello" : "Ahoj",
@@ -84,7 +87,9 @@ OC.L10N.register(
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Preto, že ste nový na Social, začnite sledovať oficiálny účet Nextcloud, aby vám nič neušlo",
     "Follow Nextcloud on mastodon.xyz" : "Sledujte Nextcloud na mastodon.xyz",
     "Public" : "Verejné",
+    "Visible for all" : "Viditeľné pre všetkých",
     "Unlisted" : "Skryto",
-    "Followers" : "Nasledovníci"
+    "Followers" : "Nasledovníci",
+    "Direct message" : "Priama správa"
 },
 "nplurals=4; plural=(n % 1 == 0 && n == 1 ? 0 : n % 1 == 0 && n >= 2 && n <= 4 ? 1 : n % 1 != 0 ? 2: 3);");
