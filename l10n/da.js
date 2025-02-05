@@ -8,7 +8,7 @@ OC.L10N.register(
     "Home" : "Hjem",
     "Notifications" : "Notifikationer",
     "Profile" : "Profil",
-    "In reply to" : "som svar til",
+    "In reply to" : "Som svar til",
     "Add attachment" : "Tilføj vedhæftelse",
     "Add emoji" : "Tilføj emoji",
     "Uploading..." : "Uploader...",
