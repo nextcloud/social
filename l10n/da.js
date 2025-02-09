@@ -15,6 +15,7 @@ OC.L10N.register(
     "Delete" : "Slet",
     "Post" : "Indlæg",
     "Website" : "Hjemmeside",
+    "No results found" : "Ingen resultater fundet",
     "Reply" : "Besvar",
     "Deny" : "Afvis",
     "Hello" : "Hej",
