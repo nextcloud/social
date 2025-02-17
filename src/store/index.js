@@ -13,7 +13,7 @@ Vue.use(Vuex)
 
 const debug = process.env.NODE_ENV !== 'production'
 
-export default new Store({
+const store = new Store({
 	modules: {
 		timeline,
 		account,
@@ -21,3 +21,22 @@ export default new Store({
 	},
 	strict: debug,
 })
+
+store.subscribeAction({
+	before: (action, state) => {
+		if (action.type === 'fetchCurrentAccountInfo') {
+			if (typeof OCA !== 'undefined' && OCA.Push && OCA.Push.isEnabled()) {
+				OCA.Push.addCallback(store.dispatch('fromPushApp'), 'social')
+			}
+		}
+	},
+	after: (action, state) => {
+		if (action.type === 'fetchCurrentAccountInfo') {
+			if (typeof OCA !== 'undefined' && OCA.Push && OCA.Push.isEnabled()) {
+				OCA.Push.addCallback(store.dispatch('fromPushApp'), 'social')
+			}
+		}
+	},
+})
+
+export default store

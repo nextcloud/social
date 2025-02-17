@@ -19,6 +19,9 @@
 					alt="">
 			</template>
 		</NcEmptyContent>
+		<div v-if="errorMessage" class="error-message">
+			{{ errorMessage }}
+		</div>
 	</div>
 </template>
 
@@ -46,6 +49,7 @@ export default {
 			state: [],
 			/** @type {string|null} */
 			uid: null,
+			errorMessage: '', // Add error message state
 		}
 	},
 	computed: {
@@ -74,12 +78,17 @@ export default {
 			fetchMethod = 'fetchAccountInfo'
 		}
 
-		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
-		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-		/** @type {[import('../types/Mastodon').Account]} */
-		const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
-		this.uid = response.acct
-		await this.$store.dispatch('fetchAccountRelationshipInfo', [this.accountInfo.id])
+		try {
+			// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
+			// and the account returned by the backend always uses a non host-meta'ed domain for its ID
+			/** @type {[import('../types/Mastodon').Account]} */
+			const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
+			this.uid = response.acct
+			await this.$store.dispatch('fetchAccountRelationshipInfo', [this.accountInfo.id])
+		} catch (error) {
+			console.error('Failed to fetch account information:', error)
+			this.errorMessage = `Failed to fetch account information: ${error.message}` // Set error message on failure
+		}
 	},
 }
 </script>
@@ -88,6 +97,11 @@ export default {
 
 	.social__wrapper.icon-loading {
 		margin-top: 50vh;
+	}
+
+	.error-message {
+		color: red;
+		margin-top: 10px;
 	}
 
 </style>

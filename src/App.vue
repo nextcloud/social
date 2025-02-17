@@ -107,6 +107,7 @@ export default {
 			state: [],
 			cloudAddress: '',
 			searchTerm: '',
+			errorMessage: '', // Add error message state
 		}
 	},
 	computed: {
@@ -196,11 +197,13 @@ export default {
 		this.$store.commit('setServerData', loadState('social', 'serverData'))
 
 		if (!this.serverData.public) {
-			this.search = new OCA.Search(this.search, this.resetSearch)
+			if (typeof OCA !== 'undefined' && OCA.Search) {
+				this.search = new OCA.Search(this.search, this.resetSearch)
+			}
 			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
 
-		if (OCA.Push && OCA.Push.isEnabled()) {
+		if (typeof OCA !== 'undefined' && OCA.Push && OCA.Push.isEnabled()) {
 			OCA.Push.addCallback(this.fromPushApp, 'social')
 		}
 	},
@@ -212,6 +215,9 @@ export default {
 			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
 				this.$store.commit('setServerDataEntry', 'setup', false)
 				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
+				this.errorMessage = '' // Clear error message on success
+			}).catch((error) => {
+				this.errorMessage = `Failed to set cloud address: ${error.message}` // Set error message on failure
 			})
 		},
 		search(term) {
@@ -220,6 +226,7 @@ export default {
 		},
 		resetSearch() {
 			this.searchTerm = ''
+			this.errorMessage = '' // Clear error message on reset
 		},
 		fromPushApp(data) {
 			// FIXME: might be better to use Timeline.type() ?
@@ -268,6 +275,10 @@ export default {
 		text-decoration: underline;
 	}
 
+	.error-message {
+		color: red;
+		margin-top: 10px;
+	}
 </style>
 <style lang="css">
 img.emoji {

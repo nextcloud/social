@@ -117,7 +117,11 @@ const getters = {
 	},
 	getAccount(state, getters) {
 		return (/** @type {string} */ account) => {
-			return state.accounts[_getActorIdForAccount(account)]
+			const actorId = _getActorIdForAccount(account)
+			if (!actorId) {
+				return undefined
+			}
+			return state.accounts[actorId]
 		}
 	},
 	getRelationshipWith(state, getters) {
@@ -182,7 +186,9 @@ const actions = {
 	},
 	fetchCurrentAccountInfo({ commit, dispatch }, account) {
 		commit('setCurrentAccount', account)
-		dispatch('fetchAccountInfo', account)
+		if (account) {
+			dispatch('fetchAccountInfo', account)
+		}
 	},
 	async followAccount(context, { accountToFollow }) {
 		try {
