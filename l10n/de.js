@@ -55,7 +55,7 @@ OC.L10N.register(
     "No notifications found" : "Keine Benachrichtigungen gefunden",
     "You have not received any notifications yet" : "Du hast noch keine Benachrichtigung erhalten",
     "No global posts found" : "Keine globalen Posts gefunden",
-    "Posts from federated instances will show up here" : "Posts von federierten Instanzen werden hier angezeigt",
+    "Posts from federated instances will show up here" : "Beiträge von föderierten Instanzen werden hier angezeigt",
     "No liked posts found" : "Keine gelikten Posts gefunden",
     "You have not tooted yet" : "Du hast bisher noch nicht getrötet.",
     "No posts found for this tag" : "Keine Posts für dieses Schlagwort gefunden",
