@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Aduya",
-    "Open documentation" : "Ubrir documentazión",
+    "Open documentation" : "Ubrir documentación",
     "Home" : "Casa",
-    "Notifications" : "Notificazions",
+    "Notifications" : "Notificacions",
     "Delete" : "Borrar",
     "Deny" : "Denegar",
     "Close" : "Zarrar",
