@@ -2,11 +2,11 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Trợ giúp",
-    "Open documentation" : "Mở tài liệu",
-    "Finish setup" : "Cài đặt hoàn tất",
     "Home" : "Trang nhất",
     "Notifications" : "Thông b",
     "Profile" : "Hồ sơ",
+    "Open documentation" : "Mở tài liệu",
+    "Finish setup" : "Cài đặt hoàn tất",
     "In reply to" : "Trả lời",
     "Add attachment" : "Thêm tệp đính kèm",
     "Add emoji" : "Thêm biểu tượng cảm xúc",

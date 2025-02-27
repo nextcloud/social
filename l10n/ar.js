@@ -8,6 +8,13 @@ OC.L10N.register(
     "Follow %s on Social" : "تابع %s على التواصل الاجتماعي Social",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 نكست كلاود جزء من شبكات التواصل  الاجتماعي الاتحاديّة!",
     "**Disclaimer: this is a BETA version**\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "** إخلاء المسؤولية: هذه نسخة تجريبية ** \n\n** 🎉 نكست كلاود هي الآن جزء من شبكات التواصل الاجتماعي الاتحاديّة! **  \n\n** 🙋 ابحث عن أصدقائك: ** بغض النظر عما إذا كانوا يستخدمون Nextcloud ، 🐘 Mastodon ، 🇫 Friendica ، وقريبًا ✱ الشتات و MediaGoblin والمزيد - يمكنك متابعتهم!  \n\n** 📜 معلومات الملف الشخصي: ** لا حاجة لملء المزيد من الملفات الشخصية - سيتم استخدام معلوماتك من Nextcloud وتوسيعها. مشاركاتك: ** كل ما تنشره يبقى على Nextcloud الخاص بك! \n\n** 🕸 معايير مفتوحة: ** نستخدم معيار ActivityPub المعمول به!",
+    "Home" : "الرئيسية",
+    "Direct messages" : "الرسائل المباشرة",
+    "Notifications" : "الإشعارات",
+    "Profile" : "الملف الشخصي",
+    "Liked" : "أعجبتك",
+    "Local timeline" : "التوقيت المحلي",
+    "Global timeline" : "التوقيت الشامل",
     ".well-known/webfinger isn't properly set up!" : ".well-known/webfinger لم يتم إعدادها كما يجب!",
     "Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud cannot configure this automatically. To use Social, the administrator of this Nextcloud instance needs to manually configure the .well-known redirects:" : "يحتاج التواصل الاجتماعي Social إلى الاكتشاف التلقائي ليتم إعداده بشكل صحيح. \nإذا لم يتم تثبيت نكست كلاود في جذر المجال، فعندها لن يتم نكست كلاود من التكوين التلقائي.\nلاستخدام التواصل الاجتماعي Social، يحتاج المسؤول عن هذا الخادوم إلى تكوين عمليات إعادة التوجيه.",
     "Open documentation" : "فتح التوثيق",
@@ -16,13 +23,6 @@ OC.L10N.register(
     "ActivityPub URL base" : "ActivityPub عنوان URL الأساسي",
     "Finish setup" : "إنهاء الإعداد",
     "The Social app needs to be set up by the server administrator." : "تطبيق التواصل الاجتماعي Social يجب أن يتم إعداده من قِبَل مسؤول النظام.",
-    "Home" : "الرئيسية",
-    "Direct messages" : "الرسائل المباشرة",
-    "Notifications" : "الإشعارات",
-    "Profile" : "الملف الشخصي",
-    "Liked" : "أعجبتك",
-    "Local timeline" : "التوقيت المحلي",
-    "Global timeline" : "التوقيت الشامل",
     "Following" : "يتابِع",
     "In reply to" : "رداً على",
     "Close reply" : "قفل باب الردود",
@@ -66,10 +66,10 @@ OC.L10N.register(
     "Like" : "إعجاب",
     "Undo Like" : "إلغاء الإعجاب",
     "Choose a visibility" : "حدّد مجال الرؤية",
-    "Go to Social app" : "إذهب إلى تطبيق التواصل الاجتماعي Social",
     "Error getting Social notifications" : "خطأ في تلقّي الاشعارات الاجتماعية",
     "No Social notifications!" : "لا توجد أي إشعارات اجتماعية",
     "Failed to get Social notifications" : "تعذّر الحصول على الإشعارات الاجتماعية",
+    "Go to Social app" : "إذهب إلى تطبيق التواصل الاجتماعي Social",
     "Authorization required" : "التخويل مطلوب",
     "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} و الذي هو تطبيق من طرفٍ ثالثٍ يرغب في الحصول على تخويلٍ للوصول إلى حسابك. ",
     "If you do not trust it, then you should not authorize it." : "إذا كنت لا تثق فيه، فلا تمنحه التخويل.",

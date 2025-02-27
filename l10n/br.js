@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Skoazell",
-    "Open documentation" : "Digeriñ an dielvadur",
-    "Finish setup" : "Stalian echu",
     "Home" : "Degemer",
     "Notifications" : "Kemenadenoù",
+    "Open documentation" : "Digeriñ an dielvadur",
+    "Finish setup" : "Stalian echu",
     "Add emoji" : "Ouzhpennañ un emoji",
     "Delete" : "Lemel",
     "Website" : "Lec'hien web",

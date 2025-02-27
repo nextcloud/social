@@ -3,11 +3,11 @@ OC.L10N.register(
     {
     "Please note that the data from alpha2 can only be migrated manually.\n\t\t\t\t\t\tA detailed documentation to guide you during this process is available using the button below." : "alpha2의 데이터는 수동으로 이전해야 합니다.\n\t\t\t\t\t\t아래의 버튼을 눌러 해당 과정에 대한 문서를 참조하십시오.",
     "Help" : "도움말",
-    "Open documentation" : "문서 열기",
-    "Finish setup" : "설치 완료",
     "Home" : "집",
     "Notifications" : "알림",
     "Profile" : "프로필",
+    "Open documentation" : "문서 열기",
+    "Finish setup" : "설치 완료",
     "In reply to" : "답장",
     "Add attachment" : "첨부파일 추가",
     "Add emoji" : "이모지 추가",

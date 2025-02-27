@@ -2,11 +2,11 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Bantuan",
-    "Open documentation" : "Buka dokumentasi",
-    "Finish setup" : "Selesaikan instalasi",
     "Home" : "Beranda",
     "Notifications" : "Pemberitahuan",
     "Profile" : "Profil",
+    "Open documentation" : "Buka dokumentasi",
+    "Finish setup" : "Selesaikan instalasi",
     "In reply to" : "Membalas kepada",
     "Uploading..." : "Mengunggah...",
     "Delete" : "Hapus",

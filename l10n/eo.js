@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Helpo",
-    "Open documentation" : "Malfermi la dokumentaron",
-    "Finish setup" : "Fini la instalon",
     "Home" : "Hejmo",
     "Notifications" : "Sciigoj",
+    "Open documentation" : "Malfermi la dokumentaron",
+    "Finish setup" : "Fini la instalon",
     "Uploading..." : "Alŝutante...",
     "Delete" : "Forigi",
     "Post" : "Sendi",

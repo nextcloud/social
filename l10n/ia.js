@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Adjuta",
-    "Open documentation" : "Aperir documentation",
     "Home" : "Initio",
     "Notifications" : "Notificationes",
+    "Open documentation" : "Aperir documentation",
     "Uploading..." : "Incargante...",
     "Delete" : "Deler",
     "Post" : "Publicar",

@@ -2,11 +2,11 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Hulp",
-    "Open documentation" : "Open dokumentasie",
-    "Finish setup" : "Voltooi opstelling",
     "Home" : "Tuis",
     "Notifications" : "Kennisgewings",
     "Profile" : "Profiel",
+    "Open documentation" : "Open dokumentasie",
+    "Finish setup" : "Voltooi opstelling",
     "Uploading..." : "Laai tans op...",
     "Delete" : "Skrap",
     "Post" : "Plaas",

@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Cymorth",
-    "Finish setup" : "Gorffen sefydlu",
     "Home" : "Cartref",
     "Notifications" : "Hysbysiadau",
+    "Finish setup" : "Gorffen sefydlu",
     "Uploading..." : "Yn llwytho i fyny...",
     "Delete" : "Dileu",
     "Website" : "Gwefan",
