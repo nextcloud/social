@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Abiinfo",
-    "Open documentation" : "Ava dokumentatsioon",
-    "Finish setup" : "Lõpeta seadistamine",
     "Home" : "Avaleht",
     "Notifications" : "Teavitused",
+    "Open documentation" : "Ava dokumentatsioon",
+    "Finish setup" : "Lõpeta seadistamine",
     "Uploading..." : "Üleslaadimine...",
     "Delete" : "Kustuta",
     "Post" : "Postita",

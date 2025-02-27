@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "ជំនួយ",
-    "Finish setup" : "បញ្ចប់​ការ​ដំឡើង",
     "Home" : "ទំព័រដើម",
     "Notifications" : "ការ​ជូន​ដំណឹង",
+    "Finish setup" : "បញ្ចប់​ការ​ដំឡើង",
     "Uploading..." : "កំពុងដាក់បញ្ចូល...",
     "Delete" : "លុប",
     "Reply" : "ឆ្លើយតប",

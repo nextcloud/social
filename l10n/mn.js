@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Туслах",
-    "Open documentation" : "бичиг баримт нээх",
     "Home" : "Нүүр",
     "Notifications" : "Мэдэгдэл",
+    "Open documentation" : "бичиг баримт нээх",
     "Uploading..." : "Байршуулж байна...",
     "Delete" : "Устгах",
     "Post" : "Зарлах",

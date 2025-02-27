@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Pomoć",
-    "Finish setup" : "Završite postavke",
     "Home" : "Početna stranica",
     "Notifications" : "Notifikacija",
+    "Finish setup" : "Završite postavke",
     "Delete" : "Obriši",
     "Post" : "Objava",
     "Website" : "Web-prezentacija",

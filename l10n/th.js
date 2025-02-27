@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "ช่วยเหลือ",
-    "Open documentation" : "เปิดเอกสารประกอบ",
-    "Finish setup" : "ติดตั้งให้เสร็จ",
     "Home" : "หน้าหลัก",
     "Notifications" : "การแจ้งเตือน",
+    "Open documentation" : "เปิดเอกสารประกอบ",
+    "Finish setup" : "ติดตั้งให้เสร็จ",
     "Uploading..." : "กำลังอัปโหลด...",
     "Delete" : "ลบ",
     "Post" : "โพสต์",

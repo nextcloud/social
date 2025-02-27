@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Ndihmë",
-    "Open documentation" : "Dokumentacion i hapur",
-    "Finish setup" : "Përfundoje rregullimin",
     "Home" : "Kryefaqja",
     "Notifications" : "Njoftimet",
+    "Open documentation" : "Dokumentacion i hapur",
+    "Finish setup" : "Përfundoje rregullimin",
     "Uploading..." : "Duke ngarkuar...",
     "Delete" : "Fshi",
     "Post" : "Posto",

@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Help",
-    "Open documentation" : "Hujjatlarni ochish",
-    "Finish setup" : "Finish setup",
     "Home" : "Home",
     "Notifications" : "Notifications",
+    "Open documentation" : "Hujjatlarni ochish",
+    "Finish setup" : "Finish setup",
     "Delete" : "Delete",
     "Hello" : "Hello",
     "Close" : "Close",

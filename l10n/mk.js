@@ -2,11 +2,11 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Помош",
-    "Open documentation" : "Отвори ја документацијата",
-    "Finish setup" : "Заврши го подесувањето",
     "Home" : "Дома",
     "Notifications" : "Известувања",
     "Profile" : "Профил",
+    "Open documentation" : "Отвори ја документацијата",
+    "Finish setup" : "Заврши го подесувањето",
     "In reply to" : "Како одговор на",
     "Add emoji" : "Додади емотикон",
     "Uploading..." : "Подигнувам...",

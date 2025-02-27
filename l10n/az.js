@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Kömək",
-    "Open documentation" : "Sənədləri aç",
     "Home" : "Ev",
     "Notifications" : "Xəbərdarlıqlar",
     "Profile" : "Profil",
+    "Open documentation" : "Sənədləri aç",
     "Uploading..." : "Serverə yüklənir...",
     "Delete" : "Sil",
     "Reply" : "Cavab",

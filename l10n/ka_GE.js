@@ -2,10 +2,10 @@ OC.L10N.register(
     "social",
     {
     "Help" : "დახმარება",
-    "Open documentation" : "ღია დოკუმენტაცია",
-    "Finish setup" : "კონფიგურაციის დასრულება",
     "Home" : "სახლი",
     "Notifications" : "შეტყობინებები",
+    "Open documentation" : "ღია დოკუმენტაცია",
+    "Finish setup" : "კონფიგურაციის დასრულება",
     "Uploading..." : "მიმდინარეობს ატვირთვა...",
     "Delete" : "წაშლა",
     "Post" : "პოსტი",

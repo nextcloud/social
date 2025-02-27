@@ -3,11 +3,11 @@ OC.L10N.register(
     {
     "Help" : "Pagalba",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud tampa federacinių socialinių tinklų dalimi!",
-    "Open documentation" : "Atverti dokumentaciją",
-    "Finish setup" : "Užbaigti sąranką",
     "Home" : "Namų",
     "Notifications" : "Pranešimai",
     "Profile" : "Profilis",
+    "Open documentation" : "Atverti dokumentaciją",
+    "Finish setup" : "Užbaigti sąranką",
     "Add attachment" : "Pridėti priedą",
     "Add emoji" : "Pridėti šypsenėlę",
     "Uploading..." : "Įkeliama...",

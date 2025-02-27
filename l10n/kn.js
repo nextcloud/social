@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "﻿ಸಹಾಯ",
-    "Finish setup" : "ಹೊಂದಾಣಿಕೆಗಳನ್ನು ಪೂರ್ಣಗೊಳಿಸಿ",
     "Home" : "﻿ಮುಖಪುಟ",
     "Notifications" : "ಸೂಚನೆಗಳು",
+    "Finish setup" : "ಹೊಂದಾಣಿಕೆಗಳನ್ನು ಪೂರ್ಣಗೊಳಿಸಿ",
     "Delete" : "﻿ಅಳಿಸಿ",
     "Close" : "ಮುಚ್ಚು",
     "Continue" : "﻿ಮುಂದುವರಿಸಿ"

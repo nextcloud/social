@@ -2,9 +2,9 @@ OC.L10N.register(
     "social",
     {
     "Help" : "সহায়িকা",
-    "Finish setup" : "সেটআপ সুসম্পন্ন কর",
     "Home" : "নিবাস",
     "Notifications" : "বার্তাসমূহ",
+    "Finish setup" : "সেটআপ সুসম্পন্ন কর",
     "Uploading..." : "আপলোড করা হচ্ছে..........",
     "Delete" : "মুছে",
     "Website" : "ওয়েবসাইট",
