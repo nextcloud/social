@@ -6,6 +6,7 @@ OC.L10N.register(
     "Notifications" : "Teavitused",
     "Open documentation" : "Ava dokumentatsioon",
     "Finish setup" : "Lõpeta seadistamine",
+    "Add attachment" : "Lisa manus",
     "Uploading..." : "Üleslaadimine...",
     "Delete" : "Kustuta",
     "Post" : "Postita",
