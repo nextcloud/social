@@ -11,6 +11,7 @@ OC.L10N.register(
     "Delete" : "Kustuta",
     "Post" : "Postita",
     "Website" : "Veebileht",
+    "No results found" : "Otsingutulemusi ei leidu",
     "Reply" : "Vasta",
     "Deny" : "Keela",
     "Hello" : "Tere",
