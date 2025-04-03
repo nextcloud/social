@@ -8,7 +8,7 @@ OC.L10N.register(
     "Follow %s on Social" : "Siga %s nas Redes Sociais",
     "🎉 Nextcloud becomes part of the federated social networks!" : "🎉 Nextcloud torna-se parte das redes sociais federadas!",
     "**Disclaimer: this is a BETA version**\n\n**🎉 Nextcloud becomes part of the federated social networks!**\n\n**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!\n\n**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.\n\n**👐 Own your posts:** Everything you post stays on your Nextcloud!\n\n**🕸 Open standards:** We use the established ActivityPub standard!" : "**Isenção de responsabilidade: esta é uma versão BETA**\n\n**🎉 Nextcloud passa a fazer parte das redes sociais federadas!**\n\n**🙋Encontre seus amigos:** Não importa se eles usam o Nextcloud, 🐘 Mastodon, 🇫 Friendica, e em breve ✱ Diaspora, 👹 MediaGoblin e muito mais - você pode segui-los!\n\n**📜 Informações do perfil:** Não há necessidade de preencher mais perfis - suas informações do Nextcloud serão usadas e estendidas.\n\n**👐 Seja dono de suas postagens:** Tudo o que você postar fica no seu Nextcloud!\n\n**🕸 Padrões abertos:** Usamos o padrão ActivityPub estabelecido!",
-    "Home" : "Home",
+    "Home" : "Iinício",
     "Direct messages" : "Mensagens diretas",
     "Notifications" : "Notificações",
     "Profile" : "Perfil",
