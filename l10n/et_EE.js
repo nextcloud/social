@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "Abiinfo",
     "Home" : "Avaleht",
     "Notifications" : "Teavitused",
+    "Profile" : "Profiil",
     "Open documentation" : "Ava dokumentatsioon",
     "Finish setup" : "Lõpeta seadistamine",
     "Add attachment" : "Lisa manus",
