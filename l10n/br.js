@@ -8,7 +8,7 @@ OC.L10N.register(
     "Open documentation" : "Digeriñ an dielvadur",
     "Finish setup" : "Stalian echu",
     "Add emoji" : "Ouzhpennañ un emoji",
-    "Delete" : "Lemel",
+    "Delete" : "Dilemel",
     "Website" : "Lec'hienn web",
     "Reply" : "Respont",
     "Deny" : "Difennet",
