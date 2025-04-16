@@ -16,7 +16,7 @@ OC.L10N.register(
     "The Social app needs to be set up by the server administrator." : "Social lietotne jāuzstāda servera pārvaldītājam.",
     "Following" : "Seko",
     "Uploading..." : "Augšupielādē...",
-    "Delete" : "Dzēst",
+    "Delete" : "Izdzēst",
     "Post" : "Pievienot",
     "Post to followers" : "Ieraksts sekotājiem",
     "Post publicly" : "Publisks ieraksts",
