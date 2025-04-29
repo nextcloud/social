@@ -68,7 +68,7 @@ OC.L10N.register(
     "Choose a visibility" : "Sichtbarkeit wählen",
     "Error getting Social notifications" : "Fehler beim Empfangen von Social-Benachrichtigungen",
     "No Social notifications!" : "Keine Social-Benachrichtigungen!",
-    "Failed to get Social notifications" : "Fehler beim Empfangen von Social-Benachrichtigungen",
+    "Failed to get Social notifications" : "Social-Benachrichtigungen konnten nicht abgerufen werden",
     "Go to Social app" : "Zur Social-App gehen",
     "Authorization required" : "Autorisierung erforderlich",
     "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} hätte gerne Zugriff auf dein Konto. Es ist eine Anwendung eines Drittanbieters.",
