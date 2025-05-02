@@ -32,6 +32,8 @@ OC.L10N.register(
     "No posts found" : "Atrasta jauns ieraksts",
     "No direct messages found" : "Tiešie ziņojumi nav atrasti",
     "Reply" : "Atbildēt",
+    "{appDisplayName} would like permission to access your account. It is a third party application." : "{appDisplayName} vēlas atļauju piekļūt kontam. Tā ir trešo pušu lietotne.",
+    "Deny" : "Noraidīt",
     "Close" : "Aizvērt",
     "Continue" : "Turpināt",
     "User not found" : "Lietotājs nav atrasts",
