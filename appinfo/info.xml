@@ -21,7 +21,7 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.8.0</version>
+	<version>1.0.0-dev.0</version>
 	<licence>agpl</licence>
 	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
 	<author mail="jus@bitgrid.net">Julius Härtl</author>
@@ -39,7 +39,7 @@
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="28" max-version="30" />
+		<nextcloud min-version="28" max-version="31" />
 	</dependencies>
 
 	<background-jobs>
