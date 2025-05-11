@@ -88,7 +88,7 @@ OC.L10N.register(
     "Sorry, we could not find the account of {userId}" : "Não foi possível encontrar a conta de {userId}",
     "Nextcloud becomes part of the federated social networks!" : "Nextcloud torna-se parte das redes sociais federadas!",
     "This application is currently in beta stage." : "This application is currently in beta stage.",
-    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Criamos automaticamente uma conta social para você. Seu ID Social é o mesmo que seu ID da Nuvem Federada:",
+    "We automatically created a Social account for you. Your Social ID is the same as your Federated Cloud ID:" : "Criamos automaticamente uma conta Social para você. Seu ID Social é o mesmo que seu ID de Nuvem Federada:",
     "Since you are new to Social, start by following the official Nextcloud account so you don't miss any news" : "Como você é novo no Social, comece seguindo a conta oficial do Nextcloud para não perder nenhuma novidade",
     "Follow Nextcloud on mastodon.xyz" : "Seguir Nextcloud em mastodon.xyz",
     "Public" : "Público",
