@@ -21,6 +21,7 @@ OC.L10N.register(
     "Post publicly" : "Postita avalikult",
     "Unfollow" : "Lõpeta jälgimine",
     "Follow" : "Jälgi",
+    "posts" : "postitused",
     "Website" : "Veebisait",
     "No results found" : "Otsingutulemusi ei leidu",
     "Reply" : "Vasta",
