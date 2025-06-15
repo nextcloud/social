@@ -1,6 +1,7 @@
 OC.L10N.register(
     "social",
     {
+    "Home" : "Nyumbani",
     "In reply to" : "Kwa kujibu",
     "Delete" : "Futa",
     "No results found" : "Hakuna matokeo yaliyopatikana",
