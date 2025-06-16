@@ -97,6 +97,6 @@ OC.L10N.register(
     "Followers" : "Последователи",
     "Visible to followers only" : "Видимо само за последователи",
     "Direct message" : "Директно съобщение",
-    "Visible to mentioned users only" : "Видимо само за споменатите потребители"
+    "Visible to mentioned users only" : "Видимо само за зададените потребители"
 },
 "nplurals=2; plural=(n != 1);");
