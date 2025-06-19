@@ -6,6 +6,7 @@ OC.L10N.register(
     "Delete" : "Futa",
     "No results found" : "Hakuna matokeo yaliyopatikana",
     "Reply" : "Jibu",
-    "Close" : "Funga"
+    "Close" : "Funga",
+    "User not found" : "Mtumiaji hapatikani"
 },
 "nplurals=2; plural=(n != 1);");
