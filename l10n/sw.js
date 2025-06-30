@@ -4,6 +4,7 @@ OC.L10N.register(
     "Help" : "Msaada",
     "Home" : "Nyumbani",
     "In reply to" : "Kwa kujibu",
+    "Add attachment" : "Ongeza kiambatisho",
     "Delete" : "Futa",
     "No results found" : "Hakuna matokeo yaliyopatikana",
     "Reply" : "Jibu",

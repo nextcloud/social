@@ -10,6 +10,7 @@ OC.L10N.register(
     "Global timeline" : "Ajajoon liitpilves",
     "Open documentation" : "Ava dokumentatsioon",
     "Finish setup" : "Lõpeta seadistamine",
+    "In reply to" : "Vastuseks:",
     "Close reply" : "Sulge vastus",
     "Add attachment" : "Lisa manus",
     "Add emoji" : "Lisa emoji",
