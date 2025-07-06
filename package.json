@@ -1,7 +1,7 @@
 {
   "name": "social",
   "description": "🎉 Nextcloud becomes part of the federated social networks!",
-  "version": "0.8.0",
+  "version": "1.0.0-dev.0",
   "authors": [
     {
       "name": "John Molakvoæ",
