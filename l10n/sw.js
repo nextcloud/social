@@ -5,6 +5,7 @@ OC.L10N.register(
     "Home" : "Nyumbani",
     "Notifications" : "Arifa",
     "Profile" : "Wasifu",
+    "Open documentation" : "Open documentation",
     "In reply to" : "Kwa kujibu",
     "Add attachment" : "Ongeza kiambatisho",
     "Delete" : "Futa",
