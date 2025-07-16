@@ -26,11 +26,19 @@ OC.L10N.register(
     "Website" : "Veebisait",
     "No results found" : "Otsingutulemusi ei leidu",
     "Reply" : "Vasta",
+    "Undo Like" : "Võta meeldimine ära",
+    "Choose a visibility" : "Vali nähtavus",
     "Deny" : "Keela",
     "Hello" : "Tere",
     "Close" : "Sulge",
     "Continue" : "Jätka",
     "User not found" : "Kasutajat ei leitud",
-    "Public" : "Avalik"
+    "This application is currently in beta stage." : "See rakendus on hetkel beeta-arendusjärgus.",
+    "Public" : "Avalik",
+    "Visible for all" : "Nähtav kõigile",
+    "Visible for all, but opted-out of discovery features" : "Nähtav kõigile, aga pole ajajoonel",
+    "Visible to followers only" : "Nähtav jälgijatele",
+    "Direct message" : "Otsesõnum",
+    "Visible to mentioned users only" : "Nähtav vaid neile, kes on sõnumis mainitud"
 },
 "nplurals=2; plural=(n != 1);");
