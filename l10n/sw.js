@@ -12,6 +12,7 @@ OC.L10N.register(
     "Website" : "Wavuti",
     "No results found" : "Hakuna matokeo yaliyopatikana",
     "Reply" : "Jibu",
+    "Deny" : "Kataa",
     "Hello" : "Hello",
     "Close" : "Funga",
     "Continue" : "Endelea",
