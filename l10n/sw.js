@@ -9,6 +9,7 @@ OC.L10N.register(
     "In reply to" : "Kwa kujibu",
     "Add attachment" : "Ongeza kiambatisho",
     "Delete" : "Futa",
+    "posts" : "posts",
     "Website" : "Wavuti",
     "No results found" : "Hakuna matokeo yaliyopatikana",
     "Reply" : "Jibu",
