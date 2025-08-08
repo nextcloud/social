@@ -94,7 +94,7 @@ OC.L10N.register(
     "Public" : "Público",
     "Visible for all" : "Visible para todos",
     "Unlisted" : "Sin listar",
-    "Visible for all, but opted-out of discovery features" : "Visible para todos, pero excluyendo las características de descubrimiento",
+    "Visible for all, but opted-out of discovery features" : "Visible para todos, pero se excluyó de las características de descubrimiento",
     "Followers" : "Seguidores",
     "Visible to followers only" : "Visible únicamente para seguidores",
     "Direct message" : "Mensaje directo",
