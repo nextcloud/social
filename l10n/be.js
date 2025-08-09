@@ -6,6 +6,8 @@ OC.L10N.register(
     "Notifications" : "Апавяшчэнні",
     "Profile" : "Профіль",
     "Delete" : "Выдаліць",
+    "Reply" : "Адказаць",
+    "Hello" : "Вітаем",
     "Close" : "Закрыць",
     "Continue" : "Працягнуць"
 },
