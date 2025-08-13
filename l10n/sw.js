@@ -18,6 +18,7 @@ OC.L10N.register(
     "Hello" : "Hello",
     "Close" : "Funga",
     "Continue" : "Endelea",
-    "User not found" : "Mtumiaji hapatikani"
+    "User not found" : "Mtumiaji hapatikani",
+    "Public" : "Umma"
 },
 "nplurals=2; plural=(n != 1);");
