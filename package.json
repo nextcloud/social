@@ -48,7 +48,7 @@
     "debounce": "^1.2.1",
     "he": "^1.2.0",
     "linkify-plugin-mention": "^4.1.0",
-    "linkify-string": "^4.1.0",
+    "linkify-string": "^4.1.1",
     "linkifyjs": "^4.1.0",
     "sass": "^1.59.2",
     "tributejs": "^5.1.3",
