@@ -5,6 +5,7 @@ OC.L10N.register(
     "Home" : "Дадому",
     "Notifications" : "Апавяшчэнні",
     "Profile" : "Профіль",
+    "Open documentation" : "Адкрыць дакументацыю",
     "Delete" : "Выдаліць",
     "Website" : "Вэб-сайт",
     "Reply" : "Адказаць",
