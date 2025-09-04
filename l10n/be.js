@@ -6,6 +6,7 @@ OC.L10N.register(
     "Notifications" : "Апавяшчэнні",
     "Profile" : "Профіль",
     "Open documentation" : "Адкрыць дакументацыю",
+    "Add attachment" : "Дадаць укладанне",
     "Delete" : "Выдаліць",
     "Website" : "Вэб-сайт",
     "Reply" : "Адказаць",
