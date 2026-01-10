@@ -110,6 +110,9 @@ class LocalController extends Controller {
 		$attachments = $attachments ?? [];
 
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 
 			$post = new Post($actor);
@@ -181,6 +184,9 @@ class LocalController extends Controller {
 	 */
 	public function postDelete(string $id): DataResponse {
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$note = $this->streamService->getStreamById($id);
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			if ($note->getAttributedTo() !== $actor->getId()) {
@@ -428,6 +434,9 @@ class LocalController extends Controller {
 	 */
 	public function actionFollow(string $account): DataResponse {
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->followAccount($actor, $account);
 			$this->accountService->cacheLocalActorDetailCount($actor);
@@ -444,6 +453,9 @@ class LocalController extends Controller {
 	 */
 	public function actionUnfollow(string $account): DataResponse {
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
 			$this->followService->unfollowAccount($actor, $account);
 			$this->accountService->cacheLocalActorDetailCount($actor);
@@ -462,6 +474,9 @@ class LocalController extends Controller {
 	 */
 	public function currentInfo(): DataResponse {
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$local = $this->accountService->getActorFromUserId($this->userId);
 			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
 
@@ -477,6 +492,9 @@ class LocalController extends Controller {
 	 */
 	public function currentFollowers(): DataResponse {
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$this->initViewer();
 
 			$actor = $this->accountService->getActorFromUserId($this->userId);
@@ -494,6 +512,9 @@ class LocalController extends Controller {
 	 */
 	public function currentFollowing(): DataResponse {
 		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
 			$this->initViewer();
 
 			$actor = $this->accountService->getActorFromUserId($this->userId);

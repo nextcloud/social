@@ -98,7 +98,7 @@ class NavigationController extends Controller {
 			'public' => false,
 			'firstrun' => false,
 			'setup' => false,
-			'isAdmin' => Server::get(IGroupManager::class)
+			'isAdmin' => $this->userId !== null && Server::get(IGroupManager::class)
 				->isAdmin($this->userId),
 			'cliUrl' => $this->getCliUrl()
 		];
