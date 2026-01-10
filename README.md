@@ -8,7 +8,9 @@
 
 **🎉 Nextcloud becomes part of the federated social networks!**
 
-⚠️ **This application is currently in beta stage.**
+## ⚠️ **Important Information ⚠️ **
+
+I'm currently working on this great application to get it running smoothly again. For now, only DEPLOYMENT.md serves as a guideline for setup! You can view your own profile, publish posts, mention, follow, and like/comment on users. There are still some bugs, and the application isn't entirely stable.
 
 ![](img/screenshot.png)
 
