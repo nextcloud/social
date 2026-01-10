@@ -447,7 +447,7 @@ class ApiController extends Controller {
 	 */
 	public function statusGet(int $nid): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 
 			$item = $this->streamService->getStreamByNid($nid);
 
@@ -468,7 +468,7 @@ class ApiController extends Controller {
 	 */
 	public function statusContext(int $nid): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 			$context = $this->streamService->getContextByNid($nid);
 
 			return new DataResponse($context, Http::STATUS_OK);
@@ -541,7 +541,7 @@ class ApiController extends Controller {
 		int $since_id = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 
 			$local = $this->cacheActorService->getFromLocalAccount($account);
 
@@ -579,7 +579,7 @@ class ApiController extends Controller {
 		int $since = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 			$local = $this->cacheActorService->getFromLocalAccount($account);
 
 			$options = new ProbeOptions($this->request);
@@ -614,7 +614,7 @@ class ApiController extends Controller {
 		int $since = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 
 			$local = $this->cacheActorService->getFromLocalAccount($account);
 

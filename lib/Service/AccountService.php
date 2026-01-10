@@ -154,7 +154,7 @@ class AccountService {
 				$this->createActor($userId, $userId);
 				$actor = $this->actorsRequest->getFromUserId($userId);
 			} else {
-				throw new ActorDoesNotExistException();
+				throw new ActorDoesNotExistException('Actor not found for user: ' . $userId);
 			}
 		}
 

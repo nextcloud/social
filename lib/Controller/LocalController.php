@@ -583,6 +583,7 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
+	 * @PublicPage
 	 */
 	public function globalAccountInfo(string $account): DataResponse {
 		try {
@@ -600,6 +601,7 @@ class LocalController extends Controller {
 
 	/**
 	 * @NoAdminRequired
+	 * @PublicPage
 	 */
 	public function globalActorInfo(string $id): DataResponse {
 		try {
