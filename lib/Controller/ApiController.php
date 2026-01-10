@@ -403,8 +403,19 @@ class ApiController extends Controller {
 		int $min_id = 0,
 		int $since_id = 0,
 	): DataResponse {
+		$this->logger->info('[ApiController] timelines called', [
+			'timeline' => $timeline,
+			'local' => $local,
+			'limit' => $limit,
+			'max_id' => $max_id,
+			'min_id' => $min_id,
+			'since_id' => $since_id
+		]);
 		try {
 			$this->initViewer(true);
+			$this->logger->debug('[ApiController] Viewer initialized', [
+				'viewerId' => $this->viewer?->getId()
+			]);
 
 			if (!in_array(
 				strtolower($timeline),
@@ -416,6 +427,9 @@ class ApiController extends Controller {
 					ProbeOptions::FAVOURITES
 				]
 			)) {
+				$this->logger->error('[ApiController] Unknown timeline requested', [
+					'timeline' => $timeline
+				]);
 				throw new UnknownProbeException('unknown timeline');
 			}
 
@@ -429,9 +443,18 @@ class ApiController extends Controller {
 				->setSince($since_id);
 
 			$posts = $this->streamService->getTimeline($options);
+			$this->logger->info('[ApiController] Timeline retrieved', [
+				'timeline' => $timeline,
+				'postsCount' => count($posts)
+			]);
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Exception $e) {
+			$this->logger->error('[ApiController] Timeline request failed', [
+				'timeline' => $timeline,
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			return $this->error($e->getMessage());
 		}
 	}

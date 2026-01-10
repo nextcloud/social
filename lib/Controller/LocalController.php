@@ -37,6 +37,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class LocalController
@@ -60,6 +61,7 @@ class LocalController extends Controller {
 	private DocumentService $documentService;
 	private MiscService $miscService;
 	private ?Person $viewer = null;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		IRequest $request, ?string $userId, AccountService $accountService, CacheActorService $cacheActorService,
@@ -68,6 +70,7 @@ class LocalController extends Controller {
 		SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService,
+		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -83,6 +86,7 @@ class LocalController extends Controller {
 		$this->likeService = $likeService;
 		$this->documentService = $documentService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 	/**
@@ -109,11 +113,20 @@ class LocalController extends Controller {
 		$type = $type ?? Stream::TYPE_PUBLIC;
 		$attachments = $attachments ?? [];
 
+		$this->logger->info('[LocalController] postCreate called', [
+			'userId' => $this->userId,
+			'contentLength' => strlen($content),
+			'type' => $type,
+			'hasAttachments' => !empty($attachments),
+		]);
+
 		try {
 			if ($this->userId === null) {
+				$this->logger->error('[LocalController] postCreate: User not logged in');
 				throw new AccountDoesNotExistException('User not logged in');
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$this->logger->debug('[LocalController] Actor retrieved', ['actorId' => $actor->getId()]);
 
 			$post = new Post($actor);
 			$post->setContent($content);
@@ -125,6 +138,10 @@ class LocalController extends Controller {
 
 			$token = '';
 			$activity = $this->postService->createPost($post, $token);
+			$this->logger->info('[LocalController] Post created successfully', [
+				'token' => $token,
+				'activityId' => $activity->getId()
+			]);
 
 			return $this->success(
 				[
@@ -133,6 +150,10 @@ class LocalController extends Controller {
 				]
 			);
 		} catch (Exception $e) {
+			$this->logger->error('[LocalController] postCreate failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			return $this->fail($e);
 		}
 	}
@@ -145,12 +166,21 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 */
 	public function postGet(string $id): DataResponse {
+		$this->logger->debug('[LocalController] postGet called', ['id' => $id]);
 		try {
 			$this->initViewer(false);
 			$stream = $this->streamService->getStreamById($id, true);
+			$this->logger->info('[LocalController] Post retrieved', [
+				'id' => $id,
+				'streamId' => $stream->getId()
+			]);
 
 			return $this->directSuccess($stream);
 		} catch (Exception $e) {
+			$this->logger->error('[LocalController] postGet failed', [
+				'id' => $id,
+				'exception' => $e->getMessage()
+			]);
 			return $this->fail($e);
 		}
 	}
@@ -299,12 +329,23 @@ class LocalController extends Controller {
 	 * @NoAdminRequired
 	 */
 	public function streamHome(int $since = 0, int $limit = 5): DataResponse {
+		$this->logger->debug('[LocalController] streamHome called', [
+			'since' => $since,
+			'limit' => $limit,
+			'userId' => $this->userId
+		]);
 		try {
 			$this->initViewer(true);
 			$posts = $this->streamService->getStreamHome($since, $limit);
+			$this->logger->info('[LocalController] streamHome returned', [
+				'postsCount' => count($posts)
+			]);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
+			$this->logger->error('[LocalController] streamHome failed', [
+				'exception' => $e->getMessage()
+			]);
 			return $this->fail($e);
 		}
 	}
@@ -367,12 +408,23 @@ class LocalController extends Controller {
 	 * @NoCSRFRequired
 	 */
 	public function streamTimeline(int $since = 0, int $limit = 5): DataResponse {
+		$this->logger->debug('[LocalController] streamTimeline called', [
+			'since' => $since,
+			'limit' => $limit,
+			'userId' => $this->userId
+		]);
 		try {
 			$this->initViewer(true);
 			$posts = $this->streamService->getStreamLocalTimeline($since, $limit);
+			$this->logger->info('[LocalController] streamTimeline returned', [
+				'postsCount' => count($posts)
+			]);
 
 			return $this->success($posts);
 		} catch (Exception $e) {
+			$this->logger->error('[LocalController] streamTimeline failed', [
+				'exception' => $e->getMessage()
+			]);
 			return $this->fail($e);
 		}
 	}
