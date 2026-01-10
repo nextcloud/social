@@ -35,11 +35,11 @@ export default {
 
 		/** @return {boolean} */
 		isLocal() {
-			return !this.accountInfo.acct.includes('@')
+			return this.accountInfo && !this.accountInfo.acct.includes('@')
 		},
 		/** @return {import('../types/Mastodon.js').Relationship} */
 		relationship() {
-			return this.$store.getters.getRelationshipWith(this.accountInfo.id)
+			return this.accountInfo && this.$store.getters.getRelationshipWith(this.accountInfo.id)
 		},
 	},
 }

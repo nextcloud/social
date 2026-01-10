@@ -37,6 +37,7 @@
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<NcButton :title="t('social', 'Reply')"
+				:aria-label="t('social', 'Reply')"
 				type="tertiary"
 				@click="reply">
 				<template #icon>
@@ -48,6 +49,7 @@
 			</NcButton>
 			<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
 				:title="t('social', 'Boost')"
+				:aria-label="t('social', 'Boost')"
 				type="tertiary"
 				@click="boost">
 				<template #icon>
@@ -59,6 +61,7 @@
 			</NcButton>
 			<NcButton v-if="!isLiked"
 				:title="t('social', 'Like')"
+				:aria-label="t('social', 'Like')"
 				type="tertiary"
 				@click="like">
 				<template #icon>
@@ -70,6 +73,7 @@
 			</NcButton>
 			<NcButton v-if="isLiked"
 				:title="t('social', 'Undo Like')"
+				:aria-label="t('social', 'Undo Like')"
 				type="tertiary"
 				@click="like">
 				<template #icon>

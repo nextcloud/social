@@ -48,6 +48,10 @@ export default {
 				return
 			}
 
+			if (!this.$refs.canvas) {
+				return
+			}
+
 			const ctx = this.$refs.canvas.getContext('2d')
 			const imageData = ctx.createImageData(this.attachment.meta.small.width, this.attachment.meta.small.height)
 			const pixels = decode(this.attachment.blurhash, this.attachment.meta.small.width, this.attachment.meta.small.height)
