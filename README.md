@@ -4,11 +4,9 @@
 -->
 # Nextcloud Social
 
-[![REUSE status](https://api.reuse.software/badge/github.com/nextcloud/social)](https://api.reuse.software/info/github.com/nextcloud/social)
-
 **🎉 Nextcloud becomes part of the federated social networks!**
 
-## ⚠️ **Important Information ⚠️ **
+## ⚠️ Important Information ⚠️
 
 I'm currently working on this great application to get it running smoothly again. For now, only DEPLOYMENT.md serves as a guideline for setup! You can view your own profile, publish posts, mention, follow, and like/comment on users. There are still some bugs, and the application isn't entirely stable.
 
