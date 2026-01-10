@@ -196,7 +196,6 @@ export default {
 		this.$store.commit('setServerData', loadState('social', 'serverData'))
 
 		if (!this.serverData.public) {
-			this.search = new OCA.Search(this.search, this.resetSearch)
 			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
 
