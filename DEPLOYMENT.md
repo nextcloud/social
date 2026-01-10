@@ -124,6 +124,54 @@ For emoji support, ensure your database is configured for 4-byte UTF-8:
 
 - MySQL/MariaDB: Follow [this guide](https://docs.nextcloud.com/server/stable/admin_manual/configuration_database/mysql_4byte_support.html)
 
+### Profile Page Errors
+
+If you encounter errors like "Cannot read properties of undefined (reading 'acct')" on profile pages:
+
+1. **Clear browser cache and reload:**
+   - The issue may be caused by cached JavaScript files
+   - Press Ctrl+Shift+R (or Cmd+Shift+R on Mac) to hard reload
+
+2. **Ensure JavaScript assets are rebuilt:**
+   ```bash
+   npm run build
+   ```
+
+3. **Check for proper authentication:**
+   - Some profile features require authentication
+   - Ensure you're logged in to view authenticated content
+
+### WebSocket Connection Issues
+
+WebSocket connection failures (503 errors) are typically related to server configuration:
+
+1. **Check Nextcloud push server status:**
+   - WebSocket support requires proper server configuration
+   - Check Apache/Nginx configuration for WebSocket proxy support
+
+2. **For Apache, add WebSocket support:**
+   ```apache
+   ProxyPass /push/ws ws://localhost:7867/ws
+   ProxyPassReverse /push/ws ws://localhost:7867/ws
+   ```
+
+3. **For Nginx, add WebSocket support:**
+   ```nginx
+   location /push/ws {
+       proxy_pass http://localhost:7867/ws;
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "Upgrade";
+   }
+   ```
+
+4. **Enable Nextcloud notify_push app:**
+   ```bash
+   php occ app:enable notify_push
+   ```
+
+Note: WebSocket failures won't prevent the app from functioning, but will disable real-time updates.
+
 ## Logging
 
 The app includes comprehensive logging for debugging:
