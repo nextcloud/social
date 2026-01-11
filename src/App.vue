@@ -47,8 +47,13 @@
 					<input v-model="cloudAddress"
 						:placeholder="serverData.cliUrl"
 						type="url"
+						class="setup-input"
 						required>
-					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
+					<NcButton
+						type="primary"
+						native-type="submit">
+						{{ t('social', 'Finish setup') }}
+					</NcButton>
 				</p>
 				<template v-if="!serverData.checks.success">
 					<h3 v-if="!serverData.checks.checks.wellknown">
@@ -76,6 +81,7 @@ import NcContent from '@nextcloud/vue/dist/Components/NcContent.js'
 import NcAppContent from '@nextcloud/vue/dist/Components/NcAppContent.js'
 import NcAppNavigation from '@nextcloud/vue/dist/Components/NcAppNavigation.js'
 import NcAppNavigationItem from '@nextcloud/vue/dist/Components/NcAppNavigationItem.js'
+import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
 
 import Home from 'vue-material-design-icons/Home.vue'
 import CommentAccount from 'vue-material-design-icons/CommentAccount.vue'
@@ -98,6 +104,7 @@ export default {
 		NcAppContent,
 		NcAppNavigation,
 		NcAppNavigationItem,
+		NcButton,
 		Search,
 	},
 	mixins: [currentuserMixin],
@@ -251,11 +258,15 @@ export default {
 		margin: 0 auto !important;
 		padding: 15px;
 		max-width: 800px;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
 	}
-
-	.setup input[type=url] {
+	
+	.setup-input {
 		width: 300px;
 		max-width: 100%;
+		margin-right: 10px;
 	}
 
 	#social-spacer a:hover,

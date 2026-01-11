@@ -30,23 +30,18 @@
 				</router-link>
 			</li>
 		</ul>
-		<p class="user-profile__info">
-			<a :href="accountInfo.url" target="_blank">@{{ accountInfo.acct }}<OpenInNew :size="15" /></a>
-		</p>
-
-		<p v-if="website" class="user-profile__info">
-			{{ t('social', 'Website') }}: <a :href="website.value">{{ website.value }}<OpenInNew :size="15" /></a>
-		</p>
+			<div class="user-profile__actions">
+				<FollowButton :uid="uid" />
+				<NcButton v-if="serverData.public"
+					type="primary"
+					@click="followRemote">
+					{{ t('social', 'Follow') }}
+				</NcButton>
+			</div>
+		</div>
 
 		<!-- Hack to render note safely -->
 		<MessageContent v-if="accountInfo.note" class="user-profile__note user-profile__info" :item="{content: accountInfo.note, tag: [], mentions: []}" />
-
-		<FollowButton class="user-profile__info" :uid="uid" />
-		<NcButton v-if="serverData.public"
-			class="user-profile__info primary"
-			@click="followRemote">
-			{{ t('social', 'Follow') }}
-		</NcButton>
 	</div>
 </template>
 
@@ -117,29 +112,46 @@ export default {
 <style scoped lang="scss">
 	.user-profile {
 		display: flex;
-		flex-wrap: wrap;
 		flex-direction: column;
-		justify-content: space-between;
-		width: 100%;
-		text-align: center;
-		padding-top: 20px;
 		align-items: center;
-		margin-bottom: 20px;
+		width: 100%;
+		max-width: 800px;
+		margin: 0 auto 30px;
+		padding: 24px;
+		text-align: center;
+		background-color: var(--color-main-background);
+		
+		h2 {
+			margin-top: 16px;
+			font-size: 24px;
+			font-weight: bold;
+		}
 
 		&__info {
 			margin-bottom: 12px;
 			display: flex;
-			gap: 4px;
+			gap: 8px;
+			justify-content: center;
+			color: var(--color-text-maxcontrast);
 
 			a {
 				display: flex;
+				align-items: center;
 				gap: 4px;
+				color: var(--color-text-maxcontrast);
+				opacity: 0.8;
 
 				&:hover {
-					text-decoration: underline;
+					opacity: 1;
+					text-decoration: none;
 				}
 			}
+		}
 
+		&__actions {
+			display: flex;
+			gap: 10px;
+			margin-top: 10px;
 		}
 
 		&__note {

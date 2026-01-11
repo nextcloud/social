@@ -46,6 +46,7 @@ use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
+use OCP\Files\NotFoundException;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -361,6 +362,8 @@ class ApiController extends Controller {
 			return new FileDisplayResponse(
 				$file, Http::STATUS_OK, ['Content-Type' => $this->mimeFromExt($ext)]
 			);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
 			$this->logger->warning('issues while mediaOpen', ['exception' => $e]);
 
@@ -567,6 +570,7 @@ class ApiController extends Controller {
 			$this->initViewer(false);
 
 			$local = $this->cacheActorService->getFromAccount($account);
+			$this->streamService->syncRemoteTimeline($local);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);

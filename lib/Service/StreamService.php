@@ -43,6 +43,7 @@ class StreamService {
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
+	private CurlService $curlService;
 
 	private const ANCESTOR_LIMIT = 5;
 
@@ -52,12 +53,14 @@ class StreamService {
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
+		CurlService $curlService,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
+		$this->curlService = $curlService;
 	}
 
 
@@ -551,6 +554,11 @@ class StreamService {
 	 *
 	 * @return OrderedCollection
 	 */
+	/**
+	 * @param Person $actor
+	 *
+	 * @return OrderedCollection
+	 */
 	public function getOutboxCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
 		$collection->setId($actor->getOutbox());
@@ -565,5 +573,92 @@ class StreamService {
 		$collection->setLast($link . '?page=1&min_id=0');
 
 		return $collection;
+	}
+
+	/**
+	 * @param Person $actor
+	 */
+	public function syncRemoteTimeline(Person $actor): void {
+		if ($actor->isLocal($this->configService->getCloudHost())) {
+			return;
+		}
+
+		try {
+			// Get Outbox
+			$outboxUrl = $actor->getOutbox();
+			if (empty($outboxUrl)) {
+				return;
+			}
+
+			$outboxData = $this->curlService->retrieveObject($outboxUrl);
+			// Ideally we follow 'first' to get the actual page
+			if (isset($outboxData['first'])) {
+				$pageUrl = is_array($outboxData['first']) ? $outboxData['first']['id'] ?? $outboxData['first'] : $outboxData['first'];
+				if (is_string($pageUrl)) {
+					$pageData = $this->curlService->retrieveObject($pageUrl);
+				} else {
+					$pageData = $outboxData['first'];
+				}
+			} else {
+				$pageData = $outboxData;
+			}
+
+			// Process items
+			$items = $pageData['orderedItems'] ?? $pageData['items'] ?? [];
+			if (!is_array($items)) {
+				return;
+			}
+
+			foreach ($items as $itemData) {
+				try {
+					$item = AP::$activityPub->getItemFromData($itemData);
+					
+					// If it's a Create activity, get the object
+					if ($item instanceof \OCA\Social\Model\ActivityPub\Activity\Create && $item->hasObject()) {
+						$object = $item->getObject();
+					} elseif ($item instanceof Note) {
+						$object = $item;
+					} else {
+						continue;
+					}
+
+					// Check if we already have it
+					try {
+						$this->streamRequest->getStreamById($object->getId());
+						continue; // Already exists
+					} catch (StreamNotFoundException $e) {
+						// Doesn't exist, proceed to save
+					}
+
+					// Ensure attribution is correct
+					if ($object->getAttributedTo() === '') {
+						$object->setAttributedTo($actor->getId());
+					}
+					
+					// Save using ActivityService logic simulation or direct save
+					// For simplicity and safety, we rely on StreamRequest save directly if it's a Note
+					if ($object instanceof Note) {
+						if ($object->getPublished() === '') {
+							$object->setPublished(date('c'));
+						}
+						// Ensure NID and other local fields? 
+						// StreamRequest::save handles basic persistence. 
+						// We might need to ensure it's marked as from a remote actor.
+						
+						// We need to fetch the local ID for the actor to set attributed_to_prim correctly?
+						// streamRequest->save uses getAttributedTo() (string ID) and likely resolves it.
+						
+						$this->streamRequest->save($object);
+					}
+
+				} catch (Exception $e) {
+					// encoding error or whatever, skip item
+					continue;
+				}
+			}
+
+		} catch (Exception $e) {
+			// Failed to fetch or process outbox
+		}
 	}
 }
