@@ -9,7 +9,7 @@
 				<NcAppNavigationItem v-for="item in menu.items"
 					:key="item.key"
 					:to="item.to"
-					:title="item.title"
+					:name="item.title"
 					:exact="true">
 					<template #icon>
 						<component :is="item.icon" />

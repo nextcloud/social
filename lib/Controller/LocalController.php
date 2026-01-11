@@ -375,7 +375,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$account = $this->cacheActorService->getFromLocalAccount($username);
+			$account = $this->cacheActorService->getFromAccount($username);
 			$posts = $this->streamService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);

@@ -212,11 +212,8 @@ const actions = {
 		}
 	},
 	async fetchAccountFollowers(context, account) {
-		// TODO: fetching followers/following information of remotes is currently not supported
-		const parts = account.split('@')
-		const uid = (parts.length === 2 ? parts[0] : account)
 		try {
-			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${uid}/followers`))
+			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/followers`))
 			context.commit('addFollowers', { account, data: response.data })
 		} catch (error) {
 			showError('Failed to fetch followers list')
@@ -224,11 +221,8 @@ const actions = {
 		}
 	},
 	async fetchAccountFollowing(context, account) {
-		// TODO: fetching followers/following information of remotes is currently not supported
-		const parts = account.split('@')
-		const uid = (parts.length === 2 ? parts[0] : account)
 		try {
-			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${uid}/following`))
+			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/following`))
 			context.commit('addFollowing', { account, data: response.data })
 		} catch (error) {
 			showError('Failed to fetch following list')

@@ -566,7 +566,7 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(false);
 
-			$local = $this->cacheActorService->getFromLocalAccount($account);
+			$local = $this->cacheActorService->getFromAccount($account);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -603,7 +603,7 @@ class ApiController extends Controller {
 	): DataResponse {
 		try {
 			$this->initViewer(false);
-			$local = $this->cacheActorService->getFromLocalAccount($account);
+			$local = $this->cacheActorService->getFromAccount($account);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -639,7 +639,7 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(false);
 
-			$local = $this->cacheActorService->getFromLocalAccount($account);
+			$local = $this->cacheActorService->getFromAccount($account);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);

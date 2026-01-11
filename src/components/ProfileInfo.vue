@@ -15,17 +15,17 @@
 		<h2>{{ displayName }}</h2>
 		<ul class="user-profile__info user-profile__sections">
 			<li>
-				<router-link :class="{ disabled: !isLocal }" :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
+				<router-link :to="{ name: 'profile', params: { account: uid } }" class="icon-category-monitoring">
 					{{ accountInfo.statuses_count }} {{ t('social', 'posts') }}
 				</router-link>
 			</li>
 			<li>
-				<router-link :class="{ disabled: !isLocal }" :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">
+				<router-link :to="{ name: 'profile.following', params: { account: uid } }" class="icon-category-social">
 					{{ accountInfo.following_count }}  {{ t('social', 'following') }}
 				</router-link>
 			</li>
 			<li>
-				<router-link :class="{ disabled: !isLocal }" :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">
+				<router-link :to="{ name: 'profile.followers', params: { account: uid } }" class="icon-category-social">
 					{{ accountInfo.followers_count }}  {{ t('social', 'followers') }}
 				</router-link>
 			</li>
