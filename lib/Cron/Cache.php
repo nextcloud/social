@@ -14,9 +14,9 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
-use OCP\AppFramework\QueryException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use Psr\Container\ContainerExceptionInterface;
 
 /**
  * Class Cache
@@ -41,7 +41,7 @@ class Cache extends TimedJob {
 	/**
 	 * @param mixed $argument
 	 *
-	 * @throws QueryException
+	 * @throws ContainerExceptionInterface
 	 */
 	protected function run($argument) {
 		try {
