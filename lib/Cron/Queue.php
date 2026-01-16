@@ -13,9 +13,9 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\StreamQueueService;
-use OCP\AppFramework\QueryException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use Psr\Container\ContainerExceptionInterface;
 
 /**
  * Class Queue
@@ -42,7 +42,7 @@ class Queue extends TimedJob {
 	/**
 	 * @param mixed $argument
 	 *
-	 * @throws QueryException
+	 * @throws ContainerExceptionInterface
 	 */
 	protected function run($argument) {
 		$this->manageRequestQueue();

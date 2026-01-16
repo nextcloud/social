@@ -61,8 +61,8 @@ use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tools\Traits\TArrayTools;
-use OCP\AppFramework\QueryException;
 use OCP\Server;
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -147,10 +147,10 @@ class AP {
 		$this->configService = $configService;
 	}
 
-	public static function init() {
+	public static function init(): void {
 		try {
 			AP::$activityPub = Server::get(AP::class);
-		} catch (QueryException $e) {
+		} catch (ContainerExceptionInterface $e) {
 			Server::get(LoggerInterface::class)
 				->error($e->getMessage(), ['exception' => $e]);
 		}

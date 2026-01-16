@@ -15,7 +15,7 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Tools\Traits\TAsync;
-use OCP\AppFramework\QueryException;
+use Psr\Container\ContainerExceptionInterface;
 
 //use OCP\Push\Exceptions\PushInstallException;
 //use OCP\Push\IPushManager;
@@ -49,8 +49,8 @@ class PushService {
 		//		if ($this->miscService->getNcVersion() >= 19) {
 		//			try {
 		//				$this->pushManager = OC::$server->query(IPushManager::class);
-		//			} catch (QueryException $e) {
-		//				$miscService->log('QueryException while loading IPushManager - ' . $e->getMessage());
+		//			} catch (ContainerInterfaceException $e) {
+		//				$miscService->log('ContainerInterfaceException while loading IPushManager - ' . $e->getMessage());
 		//			}
 		//		}
 	}
