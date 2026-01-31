@@ -1106,31 +1106,25 @@ class CoreRequestBuilder {
 			$pf = $this->defaultSelectAlias;
 		}
 
-		$andX = $expr->andX();
-		$andX->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f'));
+		// Build all conditions first for andX()
+		$conditions = [];
+		$conditions[] = $this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f');
+		
 		if ($asFollower === true) {
-			$andX->add(
-				$expr->eq(
-					$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
 			);
-			$andX->add(
-				$expr->eq(
-					$func->lower($prefix . '_f.actor_id'),
-					$func->lower($qb->createNamedParameter($this->viewer->getId()))
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($prefix . '_f.actor_id'),
+				$func->lower($qb->createNamedParameter($this->viewer->getId()))
 			);
 		} else {
-			$andX->add(
-				$expr->eq(
-					$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.actor_id')
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.actor_id')
 			);
-			$andX->add(
-				$expr->eq(
-					$func->lower($prefix . '_f.object_id'),
-					$func->lower($qb->createNamedParameter($this->viewer->getId()))
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($prefix . '_f.object_id'),
+				$func->lower($qb->createNamedParameter($this->viewer->getId()))
 			);
 		}
 
@@ -1142,7 +1136,7 @@ class CoreRequestBuilder {
 			->selectAlias($prefix . '_f.creation', $prefix . '_creation')
 			->leftJoin(
 				$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-				$andX
+				$expr->andX(...$conditions)
 			);
 	}
 
@@ -1222,7 +1216,7 @@ class CoreRequestBuilder {
 			if ($schema->hasTable($table)) {
 				$qb = $this->getQueryBuilder();
 				$qb->delete($table);
-				$qb->execute();
+				$qb->executeStatement();
 			}
 		}
 	}
@@ -1251,7 +1245,7 @@ class CoreRequestBuilder {
 		$qb->delete('migrations');
 		$qb->where($this->exprLimitToDBField($qb, 'app', 'social', true, true));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 	/**
@@ -1261,11 +1255,11 @@ class CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete('jobs');
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Cache', true, true));
-		$qb->execute();
+		$qb->executeStatement();
 
 		$qb = $this->getQueryBuilder();
 		$qb->delete('jobs');
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

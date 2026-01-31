@@ -226,7 +226,9 @@ class ApiController extends Controller {
 			$status = new Status();
 			$status->import($this->convertInput($input));
 
-			$post = new Post($this->accountService->getActorFromUserId($this->currentSession()));
+			// Use the viewer that was already initialized
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$post = new Post($actor);
 			$post->setContent(nl2br($status->getStatus()));
 			$post->setType($status->getVisibility());
 
@@ -261,9 +263,16 @@ class ApiController extends Controller {
 				ACore::FORMAT_LOCAL
 			);
 
+			$this->logger->info('[ApiController] Status created successfully', [
+				'postId' => $activity->getObjectId()
+			]);
+
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->warning('issues while statusNew', ['exception' => $e]);
+			$this->logger->error('[ApiController] statusNew failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
@@ -789,16 +798,42 @@ class ApiController extends Controller {
 				'[ApiController] initViewer: ' . $userId . ' (bearer=' . $this->bearer . ')'
 			);
 
-			$account = $this->accountService->getActorFromUserId($userId);
-			$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			// Get or create the actor
+			$account = $this->accountService->getActorFromUserId($userId, true);
+			$this->logger->debug('[ApiController] Actor retrieved/created', [
+				'userId' => $userId,
+				'username' => $account->getPreferredUsername()
+			]);
+
+			// Try to get from cache, if it fails, cache it first
+			try {
+				$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			} catch (Exception $e) {
+				$this->logger->warning('[ApiController] Actor not in cache, caching now', [
+					'username' => $account->getPreferredUsername(),
+					'exception' => $e->getMessage()
+				]);
+				// Cache the actor and retry
+				$this->accountService->cacheLocalActorByUsername($account->getPreferredUsername());
+				$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			}
+
 			$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);
 			$this->cacheActorService->setViewer($this->viewer);
 
+			$this->logger->info('[ApiController] Viewer initialized successfully', [
+				'viewerId' => $this->viewer->getId()
+			]);
+
 			return true;
 		} catch (Exception $e) {
+			$this->logger->error('[ApiController] initViewer failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			if ($exception) {
 				throw new ClientNotFoundException('the access_token was revoked');
 			}

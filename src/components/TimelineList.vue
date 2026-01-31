@@ -153,9 +153,7 @@ export default {
 	},
 	methods: {
 		async infiniteHandler($state) {
-			const params = {
-				account: this.currentUser.uid,
-			}
+			const params = {}
 
 			if (this.timeline.length !== 0) {
 				if (this.reverseOrder) {
@@ -184,7 +182,6 @@ export default {
 
 			try {
 				const response = await this.$store.dispatch('fetchTimeline', {
-					account: this.currentUser.uid,
 					min_id: this.timeline[0]?.id,
 				})
 

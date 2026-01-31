@@ -21,6 +21,7 @@ use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
@@ -60,6 +61,7 @@ class LocalController extends Controller {
 	private AccountService $accountService;
 	private DocumentService $documentService;
 	private MiscService $miscService;
+	private ConfigService $configService;
 	private ?Person $viewer = null;
 	private LoggerInterface $logger;
 
@@ -70,6 +72,7 @@ class LocalController extends Controller {
 		SearchService $searchService,
 		BoostService $boostService, LikeService $likeService, DocumentService $documentService,
 		MiscService $miscService,
+		ConfigService $configService,
 		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -86,6 +89,7 @@ class LocalController extends Controller {
 		$this->likeService = $likeService;
 		$this->documentService = $documentService;
 		$this->miscService = $miscService;
+		$this->configService = $configService;
 		$this->logger = $logger;
 	}
 
@@ -638,14 +642,53 @@ class LocalController extends Controller {
 	 * @PublicPage
 	 */
 	public function globalAccountInfo(string $account): DataResponse {
+		$this->logger->debug('[LocalController] globalAccountInfo called', ['account' => $account]);
 		try {
 			$this->initViewer();
+
+			// Check if this is a local account and ensure actor exists
+			$account = ltrim($account, '@');
+			$parts = explode('@', $account, 2);
+			$username = $parts[0];
+			$domain = $parts[1] ?? '';
+
+			// If this is a local account, ensure the actor is created
+			$isLocal = $domain === '';
+			if (!$isLocal) {
+				try {
+					$cloudHost = $this->configService->getCloudHost();
+					$socialAddress = $this->configService->getSocialAddress();
+					$isLocal = ($domain === $cloudHost || $domain === $socialAddress);
+				} catch (Exception $e) {
+					$this->logger->debug('[LocalController] Could not get cloud config', ['exception' => $e->getMessage()]);
+				}
+			}
+
+			if ($isLocal) {
+				$this->logger->debug('[LocalController] Local account detected', ['username' => $username]);
+				try {
+					// Try to get or create the local actor
+					$this->accountService->getActorFromUserId($username, true);
+					$this->logger->info('[LocalController] Local actor ensured', ['username' => $username]);
+				} catch (Exception $e) {
+					$this->logger->warning('[LocalController] Failed to ensure local actor', [
+						'username' => $username,
+						'exception' => $e->getMessage()
+					]);
+				}
+			}
 
 			$actor = $this->cacheActorService->getFromAccount($account);
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
+			$this->logger->info('[LocalController] Actor info retrieved', ['actorId' => $actor->getId()]);
 			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
+			$this->logger->error('[LocalController] globalAccountInfo failed', [
+				'account' => $account,
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			return $this->fail($e);
 		}
 	}
