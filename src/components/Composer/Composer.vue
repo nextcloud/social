@@ -48,7 +48,7 @@
 				<div ref="composerInput"
 					:contenteditable="!loading"
 					class="message"
-					placeholder="What would you like to share?"
+					:placeholder="t('social', 'What would you like to share?')"
 					:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
 					@keyup.prevent.enter="keyup"
 					@input="updateStatusContent"

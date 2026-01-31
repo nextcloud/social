@@ -26,6 +26,7 @@ OC.L10N.register(
     "Following" : "Folge ich",
     "In reply to" : "Als Antwort auf",
     "Close reply" : "Antwort schließen",
+    "What would you like to share?" : "Was möchtest du teilen?",
     "Add attachment" : "Anhang hinzufügen",
     "Add emoji" : "Emoji hinzufügen",
     "Uploading..." : "Lade hoch…",

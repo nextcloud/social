@@ -1,17 +1,12 @@
 {
   "name": "social",
   "description": "🎉 Nextcloud becomes part of the federated social networks!",
-  "version": "0.8.0",
+  "version": "0.9.1",
   "authors": [
     {
-      "name": "John Molakvoæ",
-      "email": "skjnldsv@protonmail.com",
-      "role": "Developer"
-    },
-    {
-      "name": "Jan-Christoph Borchardt",
-      "homepage": "https://jancborchardt.net",
-      "role": "Designer"
+      "name": "Benedikt Schächner",
+      "email": "benedikt.schaechner@web.de",
+      "homepage": "https://benedikt.xn--schchner-2za.de"
     }
   ],
   "license": "agpl",

@@ -21,14 +21,9 @@
 
 **🕸 Open standards:** We use the established ActivityPub standard!
 	]]></description>
-	<version>0.8.0</version>
+	<version>0.9.1</version>
 	<licence>agpl</licence>
-	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
-	<author mail="jus@bitgrid.net">Julius Härtl</author>
-	<author mail="jonas@violoncello.ch" homepage="https://violoncello.ch">Jonas Sulzer</author>
-	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph
-		Borchardt</author>
-	<author mail="cyrpub@bollu.be">Cyrille Bollu</author>
+	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
 	<category>social</category>
 	<website>https://github.com/nextcloud/social</website>

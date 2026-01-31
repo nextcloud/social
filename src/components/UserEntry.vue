@@ -79,7 +79,7 @@ export default {
 		},
 	},
 	async mounted() {
-		if (this.relationship === undefined) {
+		if (!this.serverData.public && this.relationship === undefined) {
 			await this.$store.dispatch('fetchAccountRelationshipInfo', [this.item.id])
 		}
 	},
