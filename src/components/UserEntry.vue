@@ -87,11 +87,13 @@ export default {
 </script>
 <style scoped lang="scss">
 .user-entry {
+	width: 100%;
 	padding: 16px 20px;
 	margin-bottom: 10px;
 	border: 1px solid var(--color-border);
 	border-radius: 14px;
 	background: var(--color-main-background);
+	box-sizing: border-box;
 }
 
 .entry-content {

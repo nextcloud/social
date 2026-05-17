@@ -10,6 +10,12 @@ const state = {
 	accountsFollowings: {},
 	accountsRelationships: {},
 	accountIdMap: {},
+	accountsFollowersMaxId: {},
+	accountsFollowingsMaxId: {},
+	accountsFollowersLoading: {},
+	accountsFollowingsLoading: {},
+	accountsFollowersAllLoaded: {},
+	accountsFollowingsAllLoaded: {},
 }
 
 const addAccount = (state, { actorId, data }) => {
@@ -32,27 +38,83 @@ const mutations = {
 	addRelationship(state, { actorId, data }) {
 		state.accountsRelationships = { ...state.accountsRelationships, [actorId]: data }
 	},
+	setFollowersLoading(state, { actorId, loading }) {
+		state.accountsFollowersLoading = { ...state.accountsFollowersLoading, [actorId]: loading }
+	},
+	setFollowingsLoading(state, { actorId, loading }) {
+		state.accountsFollowingsLoading = { ...state.accountsFollowingsLoading, [actorId]: loading }
+	},
+	setFollowersAllLoaded(state, { actorId, loaded }) {
+		state.accountsFollowersAllLoaded = { ...state.accountsFollowersAllLoaded, [actorId]: loaded }
+	},
+	setFollowingsAllLoaded(state, { actorId, loaded }) {
+		state.accountsFollowingsAllLoaded = { ...state.accountsFollowingsAllLoaded, [actorId]: loaded }
+	},
 	addFollowers(state, { account, data }) {
+		const actorId = _getActorIdForAccount(account)
+		if (!actorId) return
 		const users = []
+		let lastId = 0
 		for (const actor of data) {
 			users.push(actor.url)
 			addAccount(state, {
 				actorId: actor.url,
 				data: actor,
 			})
+			lastId = actor.id
 		}
-		state.accountsFollowers = { ...state.accountsFollowers, [_getActorIdForAccount(account)]: users }
+		state.accountsFollowers = { ...state.accountsFollowers, [actorId]: users }
+		state.accountsFollowersMaxId = { ...state.accountsFollowersMaxId, [actorId]: lastId }
+		state.accountsFollowersAllLoaded = { ...state.accountsFollowersAllLoaded, [actorId]: false }
+	},
+	addFollowersAppend(state, { account, data }) {
+		const actorId = _getActorIdForAccount(account)
+		if (!actorId) return
+		const existing = state.accountsFollowers[actorId] || []
+		let lastId = 0
+		for (const actor of data) {
+			existing.push(actor.url)
+			addAccount(state, {
+				actorId: actor.url,
+				data: actor,
+			})
+			lastId = actor.id
+		}
+		state.accountsFollowers = { ...state.accountsFollowers, [actorId]: [...existing] }
+		state.accountsFollowersMaxId = { ...state.accountsFollowersMaxId, [actorId]: lastId }
 	},
 	addFollowing(state, { account, data }) {
+		const actorId = _getActorIdForAccount(account)
+		if (!actorId) return
 		const users = []
+		let lastId = 0
 		for (const actor of data) {
 			users.push(actor.url)
 			addAccount(state, {
 				actorId: actor.url,
 				data: actor,
 			})
+			lastId = actor.id
 		}
-		state.accountsFollowings = { ...state.accountsFollowings, [_getActorIdForAccount(account)]: users }
+		state.accountsFollowings = { ...state.accountsFollowings, [actorId]: users }
+		state.accountsFollowingsMaxId = { ...state.accountsFollowingsMaxId, [actorId]: lastId }
+		state.accountsFollowingsAllLoaded = { ...state.accountsFollowingsAllLoaded, [actorId]: false }
+	},
+	addFollowingAppend(state, { account, data }) {
+		const actorId = _getActorIdForAccount(account)
+		if (!actorId) return
+		const existing = state.accountsFollowings[actorId] || []
+		let lastId = 0
+		for (const actor of data) {
+			existing.push(actor.url)
+			addAccount(state, {
+				actorId: actor.url,
+				data: actor,
+			})
+			lastId = actor.id
+		}
+		state.accountsFollowings = { ...state.accountsFollowings, [actorId]: [...existing] }
+		state.accountsFollowingsMaxId = { ...state.accountsFollowingsMaxId, [actorId]: lastId }
 	},
 	followAccount(state, accountToFollow) {
 		const followingList = state.accountsFollowings[_getActorIdForAccount(accountToFollow)] || []
@@ -253,22 +315,55 @@ const actions = {
 			return error
 		}
 	},
-	async fetchAccountFollowers(context, account) {
+	async fetchAccountFollowers(context, { account, max_id } = {}) {
+		const actorId = _getActorIdForAccount(account)
+		if (!actorId) return
+		const loadingKey = `accountsFollowersLoading.${actorId}`
+		if (context.state.accountsFollowersLoading[actorId]) return
+		context.commit('setFollowersLoading', { actorId, loading: true })
 		try {
-			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/followers`))
-			context.commit('addFollowers', { account, data: response.data })
+			const params = {}
+			if (max_id) params.max_id = max_id
+			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/followers`), { params })
+			if (!max_id) {
+				context.commit('addFollowers', { account, data: response.data })
+			} else {
+				context.commit('addFollowersAppend', { account, data: response.data })
+			}
+			if (response.data.length < 20) {
+				context.commit('setFollowersAllLoaded', { actorId, loaded: true })
+			}
+			return response.data
 		} catch (error) {
 			showError('Failed to fetch followers list')
 			logger.error(`Failed to fetch followers list for user ${account}`, { error })
+		} finally {
+			context.commit('setFollowersLoading', { actorId, loading: false })
 		}
 	},
-	async fetchAccountFollowing(context, account) {
+	async fetchAccountFollowing(context, { account, max_id } = {}) {
+		const actorId = _getActorIdForAccount(account)
+		if (!actorId) return
+		if (context.state.accountsFollowingsLoading[actorId]) return
+		context.commit('setFollowingsLoading', { actorId, loading: true })
 		try {
-			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/following`))
-			context.commit('addFollowing', { account, data: response.data })
+			const params = {}
+			if (max_id) params.max_id = max_id
+			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/following`), { params })
+			if (!max_id) {
+				context.commit('addFollowing', { account, data: response.data })
+			} else {
+				context.commit('addFollowingAppend', { account, data: response.data })
+			}
+			if (response.data.length < 20) {
+				context.commit('setFollowingsAllLoaded', { actorId, loaded: true })
+			}
+			return response.data
 		} catch (error) {
 			showError('Failed to fetch following list')
 			logger.error(`Failed to fetch following list for user ${account}`, { error })
+		} finally {
+			context.commit('setFollowingsLoading', { actorId, loading: false })
 		}
 	},
 }
