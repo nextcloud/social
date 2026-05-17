@@ -11,3 +11,8 @@ cypress/snapshots
 
 .php-cs-fixer.cache
 .vscode/settings.json
+
+# NEVER commit these - private key and certificate signing request
+*.key
+*.csr
+*.crt
