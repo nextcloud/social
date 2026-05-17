@@ -27,6 +27,7 @@ const addAccount = (state, { actorId, data }) => {
 	state.accountIdMap = { ...state.accountIdMap, [accountId]: data.url }
 }
 const _getActorIdForAccount = (account) => state.accountIdMap[account]
+const _keyForAccount = (account) => _getActorIdForAccount(account) || account
 
 const mutations = {
 	setCurrentAccount(state, account) {
@@ -51,8 +52,7 @@ const mutations = {
 		state.accountsFollowingsAllLoaded = { ...state.accountsFollowingsAllLoaded, [actorId]: loaded }
 	},
 	addFollowers(state, { account, data }) {
-		const actorId = _getActorIdForAccount(account)
-		if (!actorId) return
+		const key = _keyForAccount(account)
 		const users = []
 		let lastId = 0
 		for (const actor of data) {
@@ -63,14 +63,13 @@ const mutations = {
 			})
 			lastId = actor.id
 		}
-		state.accountsFollowers = { ...state.accountsFollowers, [actorId]: users }
-		state.accountsFollowersMaxId = { ...state.accountsFollowersMaxId, [actorId]: lastId }
-		state.accountsFollowersAllLoaded = { ...state.accountsFollowersAllLoaded, [actorId]: false }
+		state.accountsFollowers = { ...state.accountsFollowers, [key]: users }
+		state.accountsFollowersMaxId = { ...state.accountsFollowersMaxId, [key]: lastId }
+		state.accountsFollowersAllLoaded = { ...state.accountsFollowersAllLoaded, [key]: false }
 	},
 	addFollowersAppend(state, { account, data }) {
-		const actorId = _getActorIdForAccount(account)
-		if (!actorId) return
-		const existing = state.accountsFollowers[actorId] || []
+		const key = _keyForAccount(account)
+		const existing = [...(state.accountsFollowers[key] || [])]
 		let lastId = 0
 		for (const actor of data) {
 			existing.push(actor.url)
@@ -80,12 +79,11 @@ const mutations = {
 			})
 			lastId = actor.id
 		}
-		state.accountsFollowers = { ...state.accountsFollowers, [actorId]: [...existing] }
-		state.accountsFollowersMaxId = { ...state.accountsFollowersMaxId, [actorId]: lastId }
+		state.accountsFollowers = { ...state.accountsFollowers, [key]: existing }
+		state.accountsFollowersMaxId = { ...state.accountsFollowersMaxId, [key]: lastId }
 	},
 	addFollowing(state, { account, data }) {
-		const actorId = _getActorIdForAccount(account)
-		if (!actorId) return
+		const key = _keyForAccount(account)
 		const users = []
 		let lastId = 0
 		for (const actor of data) {
@@ -96,14 +94,13 @@ const mutations = {
 			})
 			lastId = actor.id
 		}
-		state.accountsFollowings = { ...state.accountsFollowings, [actorId]: users }
-		state.accountsFollowingsMaxId = { ...state.accountsFollowingsMaxId, [actorId]: lastId }
-		state.accountsFollowingsAllLoaded = { ...state.accountsFollowingsAllLoaded, [actorId]: false }
+		state.accountsFollowings = { ...state.accountsFollowings, [key]: users }
+		state.accountsFollowingsMaxId = { ...state.accountsFollowingsMaxId, [key]: lastId }
+		state.accountsFollowingsAllLoaded = { ...state.accountsFollowingsAllLoaded, [key]: false }
 	},
 	addFollowingAppend(state, { account, data }) {
-		const actorId = _getActorIdForAccount(account)
-		if (!actorId) return
-		const existing = state.accountsFollowings[actorId] || []
+		const key = _keyForAccount(account)
+		const existing = [...(state.accountsFollowings[key] || [])]
 		let lastId = 0
 		for (const actor of data) {
 			existing.push(actor.url)
@@ -113,8 +110,8 @@ const mutations = {
 			})
 			lastId = actor.id
 		}
-		state.accountsFollowings = { ...state.accountsFollowings, [actorId]: [...existing] }
-		state.accountsFollowingsMaxId = { ...state.accountsFollowingsMaxId, [actorId]: lastId }
+		state.accountsFollowings = { ...state.accountsFollowings, [key]: existing }
+		state.accountsFollowingsMaxId = { ...state.accountsFollowingsMaxId, [key]: lastId }
 	},
 	followAccount(state, accountToFollow) {
 		const followingList = state.accountsFollowings[_getActorIdForAccount(accountToFollow)] || []
@@ -211,10 +208,10 @@ const getters = {
 		return (account) => state.accounts[_getActorIdForAccount(account)]
 	},
 	getAccountFollowers(state) {
-		return (id) => (state.accountsFollowers[_getActorIdForAccount(id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
+		return (id) => (state.accountsFollowers[_keyForAccount(id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
 	},
 	getAccountFollowing(state) {
-		return (id) => (state.accountsFollowings[_getActorIdForAccount(id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
+		return (id) => (state.accountsFollowings[_keyForAccount(id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
 	},
 	getActorIdForAccount() {
 		return _getActorIdForAccount
@@ -316,11 +313,9 @@ const actions = {
 		}
 	},
 	async fetchAccountFollowers(context, { account, max_id } = {}) {
-		const actorId = _getActorIdForAccount(account)
-		if (!actorId) return
-		const loadingKey = `accountsFollowersLoading.${actorId}`
-		if (context.state.accountsFollowersLoading[actorId]) return
-		context.commit('setFollowersLoading', { actorId, loading: true })
+		const key = _keyForAccount(account)
+		if (context.state.accountsFollowersLoading[key]) return
+		context.commit('setFollowersLoading', { actorId: key, loading: true })
 		try {
 			const params = {}
 			if (max_id) params.max_id = max_id
@@ -331,21 +326,20 @@ const actions = {
 				context.commit('addFollowersAppend', { account, data: response.data })
 			}
 			if (response.data.length < 20) {
-				context.commit('setFollowersAllLoaded', { actorId, loaded: true })
+				context.commit('setFollowersAllLoaded', { actorId: key, loaded: true })
 			}
 			return response.data
 		} catch (error) {
 			showError('Failed to fetch followers list')
 			logger.error(`Failed to fetch followers list for user ${account}`, { error })
 		} finally {
-			context.commit('setFollowersLoading', { actorId, loading: false })
+			context.commit('setFollowersLoading', { actorId: key, loading: false })
 		}
 	},
 	async fetchAccountFollowing(context, { account, max_id } = {}) {
-		const actorId = _getActorIdForAccount(account)
-		if (!actorId) return
-		if (context.state.accountsFollowingsLoading[actorId]) return
-		context.commit('setFollowingsLoading', { actorId, loading: true })
+		const key = _keyForAccount(account)
+		if (context.state.accountsFollowingsLoading[key]) return
+		context.commit('setFollowingsLoading', { actorId: key, loading: true })
 		try {
 			const params = {}
 			if (max_id) params.max_id = max_id
@@ -356,14 +350,14 @@ const actions = {
 				context.commit('addFollowingAppend', { account, data: response.data })
 			}
 			if (response.data.length < 20) {
-				context.commit('setFollowingsAllLoaded', { actorId, loaded: true })
+				context.commit('setFollowingsAllLoaded', { actorId: key, loaded: true })
 			}
 			return response.data
 		} catch (error) {
 			showError('Failed to fetch following list')
 			logger.error(`Failed to fetch following list for user ${account}`, { error })
 		} finally {
-			context.commit('setFollowingsLoading', { actorId, loading: false })
+			context.commit('setFollowingsLoading', { actorId: key, loading: false })
 		}
 	},
 }
