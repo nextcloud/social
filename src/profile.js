@@ -1,11 +1,5 @@
-/**
- * SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
- * SPDX-License-Identifier: AGPL-3.0-or-later
- */
-
-// eslint-disable-next-line
-import ProfilePageIntegration from './views/ProfilePageIntegration.vue' 
-import Vue from 'vue'
+import { createApp } from 'vue'
+import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
 import { translate, translatePlural } from '@nextcloud/l10n'
 
@@ -15,14 +9,12 @@ __webpack_nonce__ = btoa(OC.requestToken)
 __webpack_public_path__ = generateFilePath('social', '', 'js/')
 
 if (OCA?.Core?.ProfileSections) {
-	Vue.prototype.t = translate
-	Vue.prototype.n = translatePlural
-	Vue.prototype.OC = OC
-	Vue.prototype.OCA = OCA
-
-	const View = Vue.extend(ProfilePageIntegration)
-
 	OCA.Core.ProfileSections.registerSection((el, userId) => {
-		return View
+		const app = createApp(ProfilePageIntegration, { userId })
+		app.config.globalProperties.t = translate
+		app.config.globalProperties.n = translatePlural
+		app.config.globalProperties.OC = OC
+		app.config.globalProperties.OCA = OCA
+		return app
 	})
 }

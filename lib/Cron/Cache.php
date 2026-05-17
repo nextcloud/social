@@ -10,42 +10,45 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 use Exception;
+use OCA\Social\AP;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
-use Psr\Container\ContainerExceptionInterface;
 
-/**
- * Class Cache
- *
- * @package OCA\Social\Cron
- */
 class Cache extends TimedJob {
 	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
 	private DocumentService $documentService;
 	private HashtagService $hashtagService;
+	private StreamService $streamService;
+	private CacheActorsRequest $cacheActorsRequest;
 
-	public function __construct(ITimeFactory $time, AccountService $accountService, CacheActorService $cacheActorService, DocumentService $documentService, HashtagService $hashtagService) {
+	public function __construct(
+		ITimeFactory $time,
+		AccountService $accountService,
+		CacheActorService $cacheActorService,
+		DocumentService $documentService,
+		HashtagService $hashtagService,
+		StreamService $streamService,
+		CacheActorsRequest $cacheActorsRequest,
+	) {
 		parent::__construct($time);
-		$this->setInterval(12 * 60); // 12 minutes
+		$this->setInterval(12 * 60);
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
 		$this->hashtagService = $hashtagService;
+		$this->streamService = $streamService;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 	}
 
-	/**
-	 * @param mixed $argument
-	 *
-	 * @throws ContainerExceptionInterface
-	 */
 	protected function run($argument) {
 		try {
-			//			$this->accountService->blindKeyRotation();
 		} catch (Exception $e) {
 		}
 
@@ -76,6 +79,18 @@ class Cache extends TimedJob {
 
 		try {
 			$this->hashtagService->manageHashtags();
+		} catch (Exception $e) {
+		}
+
+		// Sync timelines of cached remote actors
+		try {
+			$remoteActors = $this->cacheActorsRequest->getRemoteActorsToUpdate(false);
+			foreach ($remoteActors as $actor) {
+				try {
+					$this->streamService->syncRemoteTimeline($actor);
+				} catch (Exception $e) {
+				}
+			}
 		} catch (Exception $e) {
 		}
 	}

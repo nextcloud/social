@@ -58,16 +58,42 @@ class AccountFollowing extends Base {
 		$userId = $input->getArgument('userId');
 		$account = $input->getArgument('account');
 
-		$actor = $this->accountService->getActor($userId);
-		if ($input->getOption('local')) {
-			$local = $this->cacheActorService->getFromLocalAccount($account);
-			$account = $local->getAccount();
+		$output->writeln('<info>Following account...</info>');
+		$output->writeln('  User: ' . $userId);
+		$output->writeln('  Account: ' . $account);
+
+		try {
+			$actor = $this->accountService->getActor($userId);
+			$output->writeln('  Local actor: ' . $actor->getId() . ' (nid=' . $actor->getNid() . ')');
+		} catch (\Exception $e) {
+			$output->writeln('<error>Failed to get local actor: ' . $e->getMessage() . '</error>');
+			return 1;
 		}
 
-		if ($input->getOption('unfollow')) {
-			$this->followService->unfollowAccount($actor, $account);
-		} else {
-			$this->followService->followAccount($actor, $account);
+		if ($input->getOption('local')) {
+			try {
+				$local = $this->cacheActorService->getFromLocalAccount($account);
+				$account = $local->getAccount();
+				$output->writeln('  Local account resolved to: ' . $account);
+			} catch (\Exception $e) {
+				$output->writeln('<error>Failed to resolve local account: ' . $e->getMessage() . '</error>');
+				return 1;
+			}
+		}
+
+		try {
+			if ($input->getOption('unfollow')) {
+				$output->writeln('  Unfollowing...');
+				$this->followService->unfollowAccount($actor, $account);
+				$output->writeln('<info>Unfollow request sent.</info>');
+			} else {
+				$output->writeln('  Following...');
+				$this->followService->followAccount($actor, $account);
+				$output->writeln('<info>Follow request sent successfully.</info>');
+			}
+		} catch (\Exception $e) {
+			$output->writeln('<error>Failed: ' . get_class($e) . ': ' . $e->getMessage() . '</error>');
+			return 1;
 		}
 
 		return 0;

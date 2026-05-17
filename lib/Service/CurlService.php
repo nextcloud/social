@@ -220,13 +220,22 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveObject(string $id): array {
+	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new NCRequest($url['path'], Request::TYPE_GET);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
+		if (isset($url['query']) && $url['query'] !== '') {
+			parse_str($url['query'], $queryParams);
+			foreach ($queryParams as $k => $v) {
+				$request->addParam($k, $v);
+			}
+		}
+		if ($acceptActivityJson) {
+			$request->addHeader('Accept', 'application/activity+json');
+		}
 
 		$result = $this->retrieveJson($request);
 		$result['_host'] = $request->getHost();

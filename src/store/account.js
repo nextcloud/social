@@ -1,76 +1,37 @@
-/**
- * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
- * SPDX-License-Identifier: AGPL-3.0-or-later
- */
-
 import axios from '@nextcloud/axios'
-import { set } from 'vue'
 import { generateUrl } from '@nextcloud/router'
-import { showError } from '@nextcloud/dialogs'
+import { translate as t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 const state = {
 	currentAccount: '',
-	/** @type {Object<string, import('../types/Mastodon.js').Account>} */
 	accounts: {},
-	/** @type {Object<string, string[]>} */
 	accountsFollowers: {},
-	/** @type {Object<string, string[]>} */
 	accountsFollowings: {},
-	/** @type {Object<string, Partial<import('../types/Mastodon.js').Relationship>>} */
 	accountsRelationships: {},
-	/** @type {Object<string, string>} */
 	accountIdMap: {},
 }
 
-/**
- * @param {typeof state} state
- * @param {object} payload
- * @param {string} payload.actorId
- * @param {import('../types/Mastodon').Account} payload.data
- */
 const addAccount = (state, { actorId, data }) => {
-	set(state.accounts, actorId, { ...state.accounts[actorId], ...data })
-	set(state.accountsFollowers, actorId, [])
-	set(state.accountsFollowings, actorId, [])
+	state.accounts = { ...state.accounts, [actorId]: { ...state.accounts[actorId], ...data } }
+	state.accountsFollowers = { ...state.accountsFollowers, [actorId]: [] }
+	state.accountsFollowings = { ...state.accountsFollowings, [actorId]: [] }
+	if (!data.acct) return
 	const accountId = (data.acct.indexOf('@') === -1) ? data.acct + '@' + new URL(data.url).hostname : data.acct
-	set(state.accountIdMap, accountId, data.url)
+	state.accountIdMap = { ...state.accountIdMap, [accountId]: data.url }
 }
 const _getActorIdForAccount = (account) => state.accountIdMap[account]
 
-/** @type {import('vuex').MutationTree<state, any>} */
 const mutations = {
-	/**
-	 * @param state
-	 * @param {string} account
-	 */
 	setCurrentAccount(state, account) {
 		state.currentAccount = account
 	},
-	/**
-	 * @param state
-	 * @param {object} payload
-	 * @param {string} payload.actorId
-	 * @param {import('../types/Mastodon').Account} payload.data
-	 */
 	addAccount(state, { actorId, data }) {
 		addAccount(state, { actorId, data })
 	},
-	/**
-	 * @param state
-	 * @param {object} payload
-	 * @param {string} payload.actorId
-	 * @param {import('../types/Mastodon').Relationship} payload.data
-	 */
 	addRelationship(state, { actorId, data }) {
-		set(state.accountsRelationships, actorId, data)
+		state.accountsRelationships = { ...state.accountsRelationships, [actorId]: data }
 	},
-	/**
-	 * @param  state
-	 * @param {object} root
-	 * @param {string} root.account
-	 * @param {import('../types/Mastodon.js').Account[]} root.data
-	 */
 	addFollowers(state, { account, data }) {
 		const users = []
 		for (const actor of data) {
@@ -80,14 +41,8 @@ const mutations = {
 				data: actor,
 			})
 		}
-		set(state.accountsFollowers, _getActorIdForAccount(account), users)
+		state.accountsFollowers = { ...state.accountsFollowers, [_getActorIdForAccount(account)]: users }
 	},
-	/**
-	 * @param  state
-	 * @param {object} root
-	 * @param {string} root.account
-	 * @param {import('../types/Mastodon.js').Account[]} root.data
-	 */
 	addFollowing(state, { account, data }) {
 		const users = []
 		for (const actor of data) {
@@ -97,31 +52,90 @@ const mutations = {
 				data: actor,
 			})
 		}
-		set(state.accountsFollowings, _getActorIdForAccount(account), users)
+		state.accountsFollowings = { ...state.accountsFollowings, [_getActorIdForAccount(account)]: users }
 	},
 	followAccount(state, accountToFollow) {
-		state.accountsFollowings[_getActorIdForAccount(accountToFollow)].push(accountToFollow)
-		set(state.accountsRelationships[state.accounts[_getActorIdForAccount(accountToFollow)].id], 'following', true)
+		const followingList = state.accountsFollowings[_getActorIdForAccount(accountToFollow)] || []
+		state.accountsFollowings = { ...state.accountsFollowings, [_getActorIdForAccount(accountToFollow)]: [...followingList, accountToFollow] }
+		const actorId = _getActorIdForAccount(accountToFollow)
+		if (actorId && state.accounts[actorId]) {
+			const relationshipId = state.accounts[actorId].id
+			if (state.accountsRelationships[relationshipId]) {
+				state.accountsRelationships = {
+					...state.accountsRelationships,
+					[relationshipId]: { ...state.accountsRelationships[relationshipId], following: true },
+				}
+			} else if (relationshipId) {
+				state.accountsRelationships = {
+					...state.accountsRelationships,
+					[relationshipId]: {
+						id: relationshipId,
+						following: true,
+						showing_reblogs: false,
+						notifying: false,
+						followed_by: false,
+						blocking: false,
+						blocked_by: false,
+						muting: false,
+						muting_notifications: false,
+						requested: false,
+						domain_blocking: false,
+						endorsed: false,
+					},
+				}
+			}
+		}
 	},
 	unfollowAccount(state, accountToUnfollow) {
-		const followingList = state.accountsFollowings[_getActorIdForAccount(accountToUnfollow)]
-		followingList.splice(followingList.indexOf(accountToUnfollow), 1)
-		set(state.accountsRelationships[state.accounts[_getActorIdForAccount(accountToUnfollow)].id], 'following', false)
+		const followingList = state.accountsFollowings[_getActorIdForAccount(accountToUnfollow)] || []
+		const index = followingList.indexOf(accountToUnfollow)
+		if (index !== -1) {
+			const newList = [...followingList]
+			newList.splice(index, 1)
+			state.accountsFollowings = { ...state.accountsFollowings, [_getActorIdForAccount(accountToUnfollow)]: newList }
+		}
+		const actorId = _getActorIdForAccount(accountToUnfollow)
+		if (actorId && state.accounts[actorId]) {
+			const relationshipId = state.accounts[actorId].id
+			if (state.accountsRelationships[relationshipId]) {
+				state.accountsRelationships = {
+					...state.accountsRelationships,
+					[relationshipId]: { ...state.accountsRelationships[relationshipId], following: false },
+				}
+			} else if (relationshipId) {
+				state.accountsRelationships = {
+					...state.accountsRelationships,
+					[relationshipId]: {
+						id: relationshipId,
+						following: false,
+						showing_reblogs: false,
+						notifying: false,
+						followed_by: false,
+						blocking: false,
+						blocked_by: false,
+						muting: false,
+						muting_notifications: false,
+						requested: false,
+						domain_blocking: false,
+						endorsed: false,
+					},
+				}
+			}
+		}
 	},
 }
 
-/** @type {import('vuex').GetterTree<state, any>} */
 const getters = {
 	getAllAccounts(state) {
 		return () => { return state.accounts }
 	},
 	getAccount(state, getters) {
-		return (/** @type {string} */ account) => {
+		return (account) => {
 			return state.accounts[_getActorIdForAccount(account)]
 		}
 	},
 	getRelationshipWith(state, getters) {
-		return (/** @type {string} */ accountId) => {
+		return (accountId) => {
 			return state.accountsRelationships[accountId]
 		}
 	},
@@ -129,43 +143,54 @@ const getters = {
 		return getters.getAccount(state.currentAccount)
 	},
 	accountFollowing(state) {
-		return (/** @type {string} */ account, /** @type {boolean} */ isFollowing) => _getActorIdForAccount(isFollowing) in state.accounts[_getActorIdForAccount(account)]
+		return (account, isFollowing) => _getActorIdForAccount(isFollowing) in state.accounts[_getActorIdForAccount(account)]
 	},
 	accountLoaded(state) {
-		return (/** @type {string} */ account) => state.accounts[_getActorIdForAccount(account)]
+		return (account) => state.accounts[_getActorIdForAccount(account)]
 	},
 	getAccountFollowers(state) {
-		return (/** @type {string} */ id) => state.accountsFollowers[_getActorIdForAccount(id)].map((actorId) => state.accounts[actorId])
+		return (id) => (state.accountsFollowers[_getActorIdForAccount(id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
 	},
 	getAccountFollowing(state) {
-		return (/** @type {string} */ id) => state.accountsFollowings[_getActorIdForAccount(id)].map((actorId) => state.accounts[actorId])
+		return (id) => (state.accountsFollowings[_getActorIdForAccount(id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
 	},
 	getActorIdForAccount() {
 		return _getActorIdForAccount
 	},
 	isFollowingUser(state) {
-		return (/** @type {string} */ followingAccount) => state.accountsRelationships[_getActorIdForAccount(followingAccount)]?.following || false
+		return (followingAccount) => state.accountsRelationships[_getActorIdForAccount(followingAccount)]?.following || false
 	},
 }
 
-/** @type {import('vuex').ActionTree<state, any>} */
 const actions = {
 	async fetchAccountInfo(context, account) {
 		try {
+			console.debug('[Social] fetchAccountInfo', { account })
 			const response = await axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`))
+			console.debug('[Social] account info response', { url: response.data.url, id: response.data.id, acct: response.data.acct })
 			context.commit('addAccount', { actorId: response.data.url, data: response.data })
 			return response.data
 		} catch (error) {
-			logger.error('Failed to load local account details', { error })
-			showError(`Failed to load local account details ${account}`)
+			console.error('[Social] fetchAccountInfo failed', account, error.response?.data || error.message || error)
+			logger.error('Failed to load account details', { error })
+			context.dispatch('addAppError', {
+				title: t('social', 'Account lookup failed'),
+				message: t('social', 'Could not load account {account}. The remote server may be unreachable.', { account }),
+			})
 		}
 	},
 	async fetchAccountRelationshipInfo(context, ids) {
 		try {
+			console.debug('[Social] fetchAccountRelationshipInfo', { ids })
 			const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: ids } })
-			response.data.forEach(account => context.commit('addRelationship', { actorId: account.id, data: account }))
+			console.debug('[Social] relationships response', response.data)
+			response.data.forEach(account => {
+				console.debug('[Social] addRelationship', { actorId: account.id, following: account.following, data: account })
+				context.commit('addRelationship', { actorId: account.id, data: account })
+			})
 			return response.data
 		} catch (error) {
+			console.error('[Social] fetchAccountRelationshipInfo failed', ids, error.response?.data || error.message || error)
 			logger.error('Failed to load relationship info', { error })
 			showError('Failed to load relationship info')
 		}
@@ -177,7 +202,10 @@ const actions = {
 			return response.data
 		} catch (error) {
 			logger.error('Failed to load public account details', { error })
-			showError(`Failed to load public account details ${uid}`)
+			context.dispatch('addAppError', {
+				title: t('social', 'Account lookup failed'),
+				message: t('social', 'Could not load account {account}. The remote server may be unreachable.', { account: uid }),
+			})
 		}
 	},
 	fetchCurrentAccountInfo({ commit, dispatch }, account) {
@@ -186,26 +214,40 @@ const actions = {
 	},
 	async followAccount(context, { accountToFollow }) {
 		try {
-			const response = await axios.put(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToFollow))
+			console.debug('[Social] followAccount action called', { accountToFollow })
+			const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToFollow))
+			console.debug('[Social] PUT', url)
+			const response = await axios.put(url)
+			console.debug('[Social] followAccount response', response.data)
 			if (response.data.status === -1) {
+				console.error('[Social] followAccount failed:', response.data.message, response.data.exception)
 				return Promise.reject(response)
 			}
 			context.commit('followAccount', accountToFollow)
+			console.debug('[Social] followAccount mutation committed, following=true')
 			return response
 		} catch (error) {
+			console.error('[Social] Failed to follow user', accountToFollow, error.response?.data || error.message || error)
 			showError(`Failed to follow user ${accountToFollow}`)
 			logger.error(`Failed to follow user ${accountToFollow}`, { error })
 		}
 	},
 	async unfollowAccount(context, { accountToUnfollow }) {
 		try {
-			const response = await axios.delete(generateUrl('/apps/social/api/v1/current/follow?account=' + accountToUnfollow))
+			console.debug('[Social] unfollowAccount action called', { accountToUnfollow })
+			const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToUnfollow))
+			console.debug('[Social] DELETE', url)
+			const response = await axios.delete(url)
+			console.debug('[Social] unfollowAccount response', response.data)
 			if (response.data.status === -1) {
+				console.error('[Social] unfollowAccount failed:', response.data.message, response.data.exception)
 				return Promise.reject(response)
 			}
 			context.commit('unfollowAccount', accountToUnfollow)
+			console.debug('[Social] unfollowAccount mutation committed, following=false')
 			return response
 		} catch (error) {
+			console.error('[Social] Failed to unfollow user', accountToUnfollow, error.response?.data || error.message || error)
 			showError(`Failed to unfollow user ${accountToUnfollow}`)
 			logger.error(`Failed to unfollow user ${accountToUnfollow}`, { error })
 			return error

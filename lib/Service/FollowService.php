@@ -37,6 +37,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class FollowService {
 	use TArrayTools;
@@ -108,8 +109,19 @@ class FollowService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function followAccount(Person $actor, string $account) {
+		$this->logger->debug('FollowService::followAccount called', [
+			'actor' => $actor->getId(),
+			'account' => $account,
+		]);
+
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
+		$this->logger->debug('FollowService::followAccount - remote actor resolved', [
+			'remoteId' => $remoteActor->getId(),
+			'remoteNid' => $remoteActor->getNid(),
+		]);
+
 		if ($remoteActor->getId() === $actor->getId()) {
+			$this->logger->warning('FollowService::followAccount - same account');
 			throw new FollowSameAccountException("Don't follow yourself, be your own lead");
 		}
 
@@ -122,15 +134,31 @@ class FollowService {
 
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
+			$this->logger->info('FollowService::followAccount - already following', [
+				'actor' => $actor->getId(),
+				'target' => $remoteActor->getId(),
+			]);
 		} catch (FollowNotFoundException $e) {
 			$this->followsRequest->save($follow);
+			$this->logger->info('FollowService::followAccount - saved new follow', [
+				'followId' => $follow->getId(),
+				'actor' => $actor->getId(),
+				'object' => $remoteActor->getId(),
+			]);
 
 			$follow->addInstancePath(
 				new InstancePath(
 					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
 				)
 			);
-			$this->activityService->request($follow);
+			try {
+				$this->activityService->request($follow);
+				$this->logger->info('FollowService::followAccount - activity queued');
+			} catch (Throwable $e) {
+				$this->logger->error('FollowService::followAccount - failed to queue activity', [
+					'error' => $e->getMessage(),
+				]);
+			}
 		}
 	}
 
@@ -285,12 +313,33 @@ class FollowService {
 	/**
 	 * @return Relationship[]
 	 */
-	public function getRelationships(array $nids): array {
+	public function getRelationships(array $ids): array {
 		$actorNids = $relationships = [];
+
+		// try to resolve actors by their id (could be nid or url)
+		$nids = [];
+		foreach ($ids as $id) {
+			if (is_numeric($id) && (int)$id > 0) {
+				$nids[] = (int)$id;
+			}
+		}
 
 		// retrieve actorIds from list of Nid
 		foreach ($this->cacheActorService->getFromNids($nids) as $actor) {
 			$actorNids[$actor->getNid()] = $actor->getId();
+		}
+
+		// if any ids weren't found by nid, try by url
+		foreach ($ids as $id) {
+			if (is_numeric($id) && (int)$id > 0 && isset($actorNids[(int)$id])) {
+				continue;
+			}
+			try {
+				$actor = $this->cacheActorService->getFromId((string)$id);
+				$actorNids[$actor->getNid()] = $actor->getId();
+			} catch (CacheActorDoesNotExistException $e) {
+				$this->logger->debug('getRelationships - actor not found by id', ['id' => $id]);
+			}
 		}
 
 		foreach ($actorNids as $actorNid => $actorId) {
@@ -322,6 +371,11 @@ class FollowService {
 				$relationship->setRequested(true);
 			}
 		} catch (FollowNotFoundException $e) {
+			$this->logger->debug('generateRelationship - not following', [
+				'viewerId' => $viewerId,
+				'actorId' => $actorId,
+				'nid' => $nid,
+			]);
 		}
 
 		try {

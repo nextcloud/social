@@ -15,43 +15,25 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\StreamQueueService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
-use Psr\Container\ContainerExceptionInterface;
 
-/**
- * Class Queue
- *
- * @package OCA\Social\Cron
- */
 class Queue extends TimedJob {
 	private ActivityService $activityService;
 	private RequestQueueService $requestQueueService;
 	private StreamQueueService $streamQueueService;
 
-	/**
-	 * Cache constructor.
-	 */
 	public function __construct(ITimeFactory $time, RequestQueueService $requestQueueService, StreamQueueService $streamQueueService, ActivityService $activityService) {
 		parent::__construct($time);
-		$this->setInterval(12 * 60); // 12 minutes
+		$this->setInterval(12 * 60);
 		$this->requestQueueService = $requestQueueService;
 		$this->streamQueueService = $streamQueueService;
 		$this->activityService = $activityService;
 	}
 
-
-	/**
-	 * @param mixed $argument
-	 *
-	 * @throws ContainerExceptionInterface
-	 */
 	protected function run($argument) {
 		$this->manageRequestQueue();
 		$this->manageStreamQueue();
 	}
 
-
-	/**
-	 */
 	private function manageRequestQueue() {
 		$requests = $this->requestQueueService->getRequestStandby();
 		$this->activityService->manageInit();
@@ -64,7 +46,6 @@ class Queue extends TimedJob {
 			}
 		}
 	}
-
 
 	private function manageStreamQueue() {
 		$total = 0;

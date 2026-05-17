@@ -1,33 +1,31 @@
-/**
- * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
- * SPDX-License-Identifier: AGPL-3.0-or-later
- */
-import Vue from 'vue'
-import Router from 'vue-router'
-import { generateUrl } from '@nextcloud/router'
+import { createRouter, createWebHistory } from 'vue-router'
 
-// Dynamic loading
 const Timeline = () => import('./views/Timeline.vue')
 const TimelineSinglePost = () => import('./views/TimelineSinglePost.vue')
 const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile.vue')
 const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline.vue')
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 
-Vue.use(Router)
+function getBase() {
+	if (window.OC && window.OC.webroot) {
+		return window.OC.webroot + '/apps/social/'
+	}
+	const path = window.location.pathname
+	const match = path.match(/^(.+?)\/apps\/social\//)
+	return match ? match[1] + '/apps/social/' : '/apps/social/'
+}
 
-export default new Router({
-	mode: 'history',
-	// if index.php is in the url AND we got this far, then it's working:
-	// let's keep using index.php in the url
-	base: generateUrl(''),
+export default createRouter({
+	history: createWebHistory(getBase()),
+	base: getBase(),
 	linkActiveClass: 'active',
 	routes: [
 		{
-			path: '/:index(index.php/)?apps/social/',
+			path: '/',
 			redirect: { name: 'timeline' },
 		},
 		{
-			path: '/:index(index.php/)?apps/social/timeline/:type?',
+			path: '/timeline/:type?',
 			components: {
 				default: Timeline,
 			},
@@ -41,7 +39,7 @@ export default new Router({
 			],
 		},
 		{
-			path: '/:index(index.php/)?apps/social/@:account',
+			path: '/@:account',
 			components: {
 				default: Profile,
 				details: ProfileTimeline,
@@ -73,7 +71,7 @@ export default new Router({
 			],
 		},
 		{
-			path: '/:index(index.php/)?apps/social/@:account/:id',
+			path: '/@:account/:id',
 			components: {
 				default: TimelineSinglePost,
 			},
@@ -81,7 +79,7 @@ export default new Router({
 			name: 'single-post',
 		},
 		{
-			path: '/:index(index.php/)?apps/social/ostatus/follow',
+			path: '/ostatus/follow',
 			components: {
 				default: Profile,
 				details: ProfileTimeline,

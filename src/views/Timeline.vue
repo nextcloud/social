@@ -109,63 +109,98 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+.social__wrapper {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: 0;
+}
 
-	.social__welcome {
-		margin: 15px auto;
-		padding: 15px;
-		border-bottom: 1px solid var(--color-border);
+.social__timeline {
+	margin: 0;
+}
+
+h2 {
+	font-size: 20px;
+	font-weight: 700;
+	margin: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
+	color: var(--color-text-lighter);
+	letter-spacing: -.01em;
+}
+
+.social__welcome {
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 16px;
+	margin: calc(var(--default-grid-baseline) * 4);
+	padding: calc(var(--default-grid-baseline) * 4);
+	position: relative;
+
+	h2 {
+		font-size: 20px;
+		font-weight: 700;
+		margin: 0 0 12px 0;
 	}
 
-	.social__welcome h3 {
+	h3 {
 		margin-top: 0;
+		font-size: 16px;
+		font-weight: 600;
 	}
 
-	.social__welcome .icon-close {
-		float: right;
-		padding: 22px;
-		margin: -15px;
+	p {
+		color: var(--color-text-lighter);
+		line-height: 1.7;
+		margin: 8px 0;
+	}
+
+	.icon-close {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		padding: 12px;
 		opacity: .3;
+		border-radius: 8px;
+		transition: all .15s ease;
+
+		&:hover,
+		&:focus {
+			opacity: 1;
+			background: var(--color-background-hover);
+		}
 	}
 
-	.social__welcome .icon-close:hover,
-	.social__welcome .icon-close:focus {
-		opacity: 1;
+	.social-id {
+		font-weight: 700;
+		color: var(--color-primary-element);
 	}
 
-	.social__welcome .social-id {
-		font-weight: bold;
-	}
+	.follow-nextcloud {
+		margin-top: 16px;
+		padding-top: 16px;
+		border-top: 1px solid var(--color-border);
 
-	.social__welcome .follow-nextcloud {
-		overflow: hidden;
-		margin-top: 20px;
+		input[type=button] {
+			float: right;
+		}
 	}
+}
 
-	.social__welcome .follow-nextcloud input[type=button] {
-		float: right;
-	}
+#app-content {
+	position: relative;
+}
 
-	.social__timeline {
-		margin: 15px auto;
-	}
+.slide-fade-leave-active {
+	position: relative;
+	overflow: hidden;
+	transition: all .5s ease-out;
+	max-height: 200px;
+}
 
-	#app-content {
-		position: relative;
-	}
-
-	.slide-fade-leave-active {
-		position: relative;
-		overflow: hidden;
-		transition: all .5s ease-out;
-		max-height: 200px;
-	}
-
-	.slide-fade-leave-to {
-		max-height: 0;
-		opacity: 0;
-		padding-top: 0;
-		padding-bottom: 0;
-	}
-
+.slide-fade-leave-to {
+	max-height: 0;
+	opacity: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
 </style>

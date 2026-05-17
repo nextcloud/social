@@ -21,4 +21,24 @@ webpackConfig.entry = {
 	oauth: path.join(__dirname, 'src', 'oauth.js'),
 }
 
+webpackConfig.optimization.concatenateModules = false
+webpackConfig.module.rules.unshift({
+	test: /\.mjs$/,
+	type: 'javascript/auto',
+	resolve: {
+		fullySpecified: false,
+	},
+})
+webpackConfig.module.rules.unshift({
+	test: /node_modules\/(?:axios|webdav|@vue\/devtools-shared)\/.*\.js$/,
+	resolve: {
+		fullySpecified: false,
+	},
+})
+webpackConfig.resolve.extensions = ['.*', '.ts', '.js', '.vue', '.json']
+webpackConfig.resolve.fallback = {
+	...webpackConfig.resolve.fallback,
+	buffer: require.resolve('buffer/'),
+}
+
 module.exports = webpackConfig

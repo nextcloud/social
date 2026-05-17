@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import NcPopoverMenu from '@nextcloud/vue/dist/Components/NcPopoverMenu.js'
+import NcPopoverMenu from '@nextcloud/vue/components/NcPopoverMenu'
 
 export default {
 	components: {

@@ -15,7 +15,7 @@
 <script>
 
 import { linkTo } from '@nextcloud/router'
-import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 
 export default {
 	name: 'EmptyContent',

@@ -18,7 +18,7 @@
 <script>
 
 import Send from 'vue-material-design-icons/Send.vue'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
 
 export default {
 	name: 'SubmitStatusButton',

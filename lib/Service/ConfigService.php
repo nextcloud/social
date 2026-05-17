@@ -397,13 +397,13 @@ class ConfigService {
 		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
 			if ($request->getType() === Request::TYPE_GET) {
 				$request->addHeader(
-					'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+					'Accept', 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 				);
 			}
 
 			if ($request->getType() === Request::TYPE_POST) {
 				$request->addHeader(
-					'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+					'Content-Type', 'application/activity+json'
 				);
 			}
 		}

@@ -380,6 +380,7 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$account = $this->cacheActorService->getFromAccount($username);
+			$this->streamService->syncRemoteTimeline($account);
 			$posts = $this->streamService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);
@@ -680,6 +681,18 @@ class LocalController extends Controller {
 
 			$actor = $this->cacheActorService->getFromAccount($account);
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
+
+			// For remote actors, fetch follower/following/post counts
+			if (!$actor->isLocal()) {
+				try {
+					$this->cacheActorService->addRemoteActorDetailCount($actor);
+				} catch (Exception $e) {
+					$this->logger->debug('[LocalController] Failed to fetch remote actor details', [
+						'account' => $account,
+						'error' => $e->getMessage()
+					]);
+				}
+			}
 
 			$this->logger->info('[LocalController] Actor info retrieved', ['actorId' => $actor->getId()]);
 			return new DataResponse($actor, Http::STATUS_OK);

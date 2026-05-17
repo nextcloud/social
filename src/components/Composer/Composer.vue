@@ -1,7 +1,3 @@
-<!--
-  - SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
-  - SPDX-License-Identifier: AGPL-3.0-or-later
--->
 <template>
 	<div class="new-post" data-id="">
 		<input id="file-upload"
@@ -44,7 +40,7 @@
 			<MessageContent :item="replyTo" />
 		</div>
 		<form class="new-post-form" @submit.prevent="createPost">
-			<VueTribute :options="tributeOptions">
+			<Tribute :options="tributeOptions">
 				<div ref="composerInput"
 					:contenteditable="!loading"
 					class="message"
@@ -53,7 +49,7 @@
 					@keyup.prevent.enter="keyup"
 					@input="updateStatusContent"
 					@tribute-replaced="updatePostFromTribute" />
-			</VueTribute>
+			</Tribute>
 
 			<PreviewGrid :uploading="false"
 				:upload-progress="0.4"
@@ -87,7 +83,7 @@
 					</NcEmojiPicker>
 				</div>
 
-				<VisibilitySelect :visibility.sync="visibility" />
+				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
 				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
 			</div>
@@ -101,10 +97,10 @@ import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import debounce from 'debounce'
-import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
-import NcEmojiPicker from '@nextcloud/vue/dist/Components/NcEmojiPicker.js'
-import VueTribute from 'vue-tribute'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
+import Tribute from 'tributejs'
 import he from 'he'
 import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
@@ -115,12 +111,7 @@ import PreviewGrid from './PreviewGrid.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
-
-/**
- * @typedef LocalAttachment
- * @property {File} file - The file object from the input element.
- * @property {import('../../types/Mastodon.js').MediaAttachment} data - The attachment information from the server.
- */
+import eventBus from '../../services/eventBus.js'
 
 export default {
 	name: 'Composer',
@@ -130,7 +121,6 @@ export default {
 		NcButton,
 		ActorAvatar,
 		Paperclip,
-		VueTribute,
 		EmoticonOutline,
 		Close,
 		PreviewGrid,
@@ -143,7 +133,6 @@ export default {
 	},
 	mixins: [CurrentUserMixin],
 	props: {
-		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|null>} */
 		initialMention: {
 			type: Object,
 			default: null,
@@ -158,10 +147,8 @@ export default {
 			statusContent: '',
 			visibility: this.defaultVisibility || localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
-			/** @type {Object<string, LocalAttachment>} */
 			attachments: {},
 			search: '',
-			/** @type {import('../../types/Mastodon.js').Status} */
 			replyTo: null,
 			tributeOptions: {
 				spaceSelectsMatch: true,
@@ -210,7 +197,6 @@ export default {
 						},
 						selectTemplate(item) {
 							let tag = ''
-							// item is undefined if selectTemplate is called from a noMatchTemplate menu
 							if (typeof item === 'undefined') {
 								tag = this.currentMentionTextSnapshot
 							} else {
@@ -248,7 +234,6 @@ export default {
 		}
 	},
 	computed: {
-		/** @return {boolean} */
 		canPost() {
 			if (Object.values(this.attachments).some(({ data }) => data === null)) {
 				return false
@@ -268,7 +253,6 @@ export default {
 
 			return true
 		},
-		/** @return {boolean} */
 		statusIsEmpty() {
 			return this.statusContent.length === 0 || this.statusContent === '<br>'
 		},
@@ -278,7 +262,7 @@ export default {
 		},
 	},
 	mounted() {
-		this.$root.$on('composer-reply', (/** @type {import('../../types/Mastodon.js').Status} */data) => {
+		eventBus.on('composer-reply', (data) => {
 			this.replyTo = data
 			this.prefillMessageWithMention(data.account)
 			this.visibility = data.visibility
@@ -288,10 +272,10 @@ export default {
 			this.prefillMessageWithMention(this.initialMention)
 		}
 	},
+	unmounted() {
+		eventBus.off('composer-reply')
+	},
 	methods: {
-		/**
-		 * @param {import('../../types/Mastodon.js').Account} account
-		 */
 		prefillMessageWithMention(account) {
 			if (!this.statusIsEmpty || this.$refs.composerInput === undefined) {
 				return
@@ -318,18 +302,26 @@ export default {
 		clickImportInput() {
 			this.$refs.fileUploadInput.click()
 		},
-		/** @param {InputEvent} event */
-		handleFileChange(event) {
-			/** @type {HTMLInputElement} */
+		async handleFileChange(event) {
 			const target = event.target
-			Array.from(target.files).forEach(async (file) => {
+			for (const file of Array.from(target.files)) {
 				const url = URL.createObjectURL(file)
-				this.$set(this.attachments, url, {
-					file,
-					data: null,
-				})
-				this.$set(this.attachments[url], 'data', await this.$store.dispatch('createMedia', file))
-			})
+				this.attachments = {
+					...this.attachments,
+					[url]: {
+						file,
+						data: null,
+					},
+				}
+				const mediaData = await this.$store.dispatch('createMedia', file)
+				this.attachments = {
+					...this.attachments,
+					[url]: {
+						...this.attachments[url],
+						data: mediaData,
+					},
+				}
+			}
 		},
 		insert(emoji) {
 			console.debug('[Composer] insert emoji', emoji)
@@ -340,7 +332,6 @@ export default {
 				emoji = emojis[firstEmoji]
 			}
 
-			/** @type {Element} */
 			const lastChild = this.$refs.composerInput.lastChild
 			const div = document.createElement('div')
 			div.innerHTML = this.$twemoji.parse(emoji) + ' '
@@ -348,9 +339,6 @@ export default {
 			if (lastChild === null) {
 				this.$refs.composerInput.innerHTML = div.innerHTML
 			} else {
-
-				// Content usually ends with </br> or </>
-				// This makes sure that we put the emoji before those tags.
 				switch (lastChild.tagName) {
 				case 'BR':
 					lastChild.before(div.firstChild)
@@ -380,8 +368,6 @@ export default {
 			this.updateStatusContent()
 		},
 		async createPost(event) {
-			// Replace emoji <img> tag with actual emojis.
-			// They will be replaced again with twemoji during rendering
 			const element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
 				const em = document.createTextNode(emoji.getAttribute('alt'))
@@ -403,7 +389,6 @@ export default {
 
 			console.debug('[Composer] Posting status', statusData)
 
-			// Post message
 			try {
 				this.loading = true
 				await this.$store.dispatch('post', statusData)
@@ -418,7 +403,6 @@ export default {
 		},
 		closeReply() {
 			this.replyTo = null
-			// View may want to hide the composer
 			this.$store.commit('setComposerDisplayStatus', false)
 		},
 		remoteSearchAccounts(text) {
@@ -428,7 +412,9 @@ export default {
 			return axios.get(generateUrl('apps/social/api/v1/global/tags/search'), { params: { search: text } })
 		},
 		deletePreview(key) {
-			this.$delete(this.attachments, key)
+			const newAttachments = { ...this.attachments }
+			delete newAttachments[key]
+			this.attachments = newAttachments
 		},
 	},
 }
@@ -436,18 +422,20 @@ export default {
 
 <style scoped lang="scss">
 .new-post {
-	padding: 10px;
-	background-color: var(--color-main-background);
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	padding: 18px;
+	margin: calc(var(--default-grid-baseline) * 3) auto;
+	max-width: 600px;
 	position: sticky;
-	z-index: 100;
-	margin-bottom: 10px;
 	top: 0;
+	z-index: 100;
 
 	&-form {
-		flex-grow: 1;
-		position: relative;
-		top: -10px;
-		margin-left: 39px;
+		margin-top: 12px;
+		margin-left: 0;
+
 		&__emoji-picker {
 			z-index: 1;
 		}
@@ -455,205 +443,222 @@ export default {
 }
 
 .new-post-author {
-	padding: 5px;
 	display: flex;
-	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--color-border);
+	margin-bottom: 10px;
 
 	.post-author {
-		padding: 6px;
+		display: flex;
+		flex-direction: column;
 
 		.post-author-name {
-			font-weight: bold;
+			font-weight: 700;
+			font-size: 14px;
+			line-height: 1.3;
 		}
 
 		.post-author-id {
-			opacity: .7;
+			font-size: 12px;
+			color: var(--color-text-lighter);
 		}
 	}
 }
 
 .reply-to {
-	background-image: url(../../../img/reply.svg);
-	background-position: 8px 12px;
-	background-repeat: no-repeat;
-	margin-left: 39px;
-	margin-bottom: 20px;
-	overflow: hidden;
-	background-color: var(--color-background-hover);
-	border-radius: var(--border-radius-large);
-	padding: 5px;
-	padding-left: 30px;
+	background: var(--color-background-hover);
+	border-radius: 10px;
+	padding: 12px 12px 12px 36px;
+	margin-bottom: 12px;
+	position: relative;
+
+	&::before {
+		content: '';
+		position: absolute;
+		left: 12px;
+		top: 12px;
+		width: 16px;
+		height: 16px;
+		background-image: url(../../../img/reply.svg);
+		background-size: contain;
+		background-repeat: no-repeat;
+		opacity: .5;
+	}
 
 	.avatardiv {
 		margin: 0 4px;
-		margin-block-start: 2px;
+		vertical-align: middle;
 	}
 
 	.reply-info {
 		display: flex;
 		align-items: center;
+		gap: 4px;
+		font-size: 13px;
+		color: var(--color-text-lighter);
+		margin-bottom: 4px;
 	}
 
 	.close-button {
 		margin-left: auto;
-		opacity: .7;
-		min-width: 30px;
-		min-height: 30px;
-		height: 30px;
-		width: 30px !important;
+		opacity: .5;
+		min-width: 28px;
+		min-height: 28px;
+		height: 28px;
+		width: 28px !important;
+
+		&:hover {
+			opacity: 1;
+		}
 	}
 }
 
 .message {
 	width: 100%;
-	padding-right: 44px;
-	min-height: 70px;
-	min-width: 2px;
-	display: block;
+	min-height: 80px;
+	padding: 12px 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-main-background);
+	font-size: 14px;
+	line-height: 1.6;
+	color: var(--color-main-text);
+	outline: none;
+	transition: border-color .15s ease;
+
+	&:focus {
+		border-color: var(--color-primary-element);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary-element) 15%, transparent);
+	}
 
 	&.too-long {
 		color: var(--color-error);
+		border-color: var(--color-error);
 	}
 
 	:deep(.mention) {
 		color: var(--color-primary-element);
 		background-color: var(--color-background-dark);
-		border-radius: 5px;
-		padding-top: 1px;
-		padding-left: 2px;
-		padding-bottom: 1px;
-		padding-right: 5px;
+		border-radius: 4px;
+		padding: 1px 6px 1px 2px;
+		display: inline-flex;
+		align-items: center;
 
 		img {
 			width: 16px;
+			height: 16px;
 			border-radius: 50%;
-			overflow: hidden;
 			margin-right: 3px;
-			vertical-align: middle;
-			margin-top: -1px;
 		}
 	}
 }
 
 [contenteditable=true]:empty:before {
 	content: attr(placeholder);
-	display: block; /* For Firefox */
-	opacity: .5;
-}
-
-input[type=submit].inline {
-	width: 44px;
-	height: 44px;
-	margin: 0;
-	padding: 13px;
-	background-color: transparent;
-	border: none;
-	opacity: 0.3;
-	position: absolute;
-	bottom: 0;
-	right: 0;
+	display: block;
+	color: var(--color-text-lighter);
+	opacity: .6;
 }
 
 .options {
 	display: flex;
-	align-items: flex-end;
-	width: 100%;
-	margin-top: 0.5rem;
+	align-items: center;
+	gap: 8px;
+	margin-top: 10px;
 }
 
 .emptySpace {
-	flex-grow:1;
-}
-
-.attachment-picker-wrapper {
-	position: absolute;
-	right: 0;
-	top: 2;
+	flex-grow: 1;
 }
 
 .hashtag {
-	text-decoration: underline;
+	color: var(--color-primary-element);
+	text-decoration: none;
 }
 </style>
 <style lang="scss">
-/* Tribute-specific styles TODO: properly scope component css */
 .tribute-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		height: auto;
-		max-height: 300px;
-		max-width: 500px;
-		min-width: 200px;
-		overflow: auto;
-		display: block;
-		z-index: 999999;
-		border-radius: 4px;
-		box-shadow: 0 1px 3px var(--color-box-shadow);
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: auto;
+	max-height: 300px;
+	max-width: 500px;
+	min-width: 200px;
+	overflow: auto;
+	display: block;
+	z-index: 999999;
+	border-radius: 8px;
+	border: 1px solid var(--color-border);
 
-		ul {
-			margin: 0;
-			margin-top: 2px;
-			padding: 0;
-			list-style: none;
-			background: var(--color-main-background);
-			border-radius: 4px;
-			background-clip: padding-box;
-			overflow: hidden;
+	ul {
+		margin: 0;
+		margin-top: 2px;
+		padding: 4px;
+		list-style: none;
+		background: var(--color-main-background);
+		border-radius: 8px;
+		background-clip: padding-box;
+		overflow: hidden;
 
-			li {
-				color: var(--color-text);
-				padding: 5px 10px;
-				cursor: pointer;
-				font-size: 14px;
-				display: flex;
+		li {
+			color: var(--color-text);
+			padding: 6px 10px;
+			cursor: pointer;
+			font-size: 14px;
+			display: flex;
+			border-radius: 6px;
+			margin: 2px 0;
+			transition: background .1s ease;
 
-				span {
-					display: block;
-				}
+			span {
+				display: block;
+			}
 
-				&.highlight,
-				&:hover {
-					background: var(--color-primary);
-					color: var(--color-primary-text);
-				}
+			&.highlight,
+			&:hover {
+				background: var(--color-primary);
+				color: var(--color-primary-text);
+			}
 
-				img {
-					width: 32px;
-					height: 32px;
-					border-radius: 50%;
-					overflow: hidden;
-					margin-right: 10px;
-					margin-left: -3px;
-					margin-top: 3px;
-				}
+			img {
+				width: 32px;
+				height: 32px;
+				border-radius: 50%;
+				overflow: hidden;
+				margin-right: 10px;
+				margin-left: -3px;
+				margin-top: 3px;
+			}
 
-				span {
-					font-weight: bold;
-				}
+			span {
+				font-weight: bold;
+			}
 
-				&.no-match {
-					cursor: default;
-				}
+			&.no-match {
+				cursor: default;
 			}
 		}
+	}
 
-		.menu-highlighted {
-			font-weight: bold;
-		}
+	.menu-highlighted {
+		font-weight: bold;
+	}
 
-		.account,
-		li.highlight .account,
-		li:hover .account {
-			font-weight: normal;
-			color: var(--color-text-light);
-			opacity: 0.5;
-		}
+	.account,
+	li.highlight .account,
+	li:hover .account {
+		font-weight: normal;
+		color: var(--color-text-light);
+		opacity: 0.5;
+	}
 
-		li.highlight .account,
-		li:hover .account {
-			color: var(--color-primary-text) !important;
-			opacity: .6;
-		}
+	li.highlight .account,
+	li:hover .account {
+		color: var(--color-primary-text) !important;
+		opacity: .6;
+	}
 }
 </style>

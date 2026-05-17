@@ -25,6 +25,12 @@
 				{{ t('social', 'Unfollow') }}
 			</NcButton>
 		</div>
+		<NcButton v-else-if="relationship.requested"
+			:disabled="true"
+			type="secondary"
+			class="follow-button">
+			{{ t('social', 'Requested') }}
+		</NcButton>
 		<NcButton v-else
 			:disabled="loading"
 			type="primary"
@@ -40,7 +46,7 @@ import accountMixins from '../mixins/accountMixins.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import Check from 'vue-material-design-icons/Check.vue'
 import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
 
 export default {
 	name: 'FollowButton',
@@ -76,6 +82,7 @@ export default {
 	},
 	methods: {
 		async follow() {
+			console.debug('[FollowButton] follow clicked', { profileAccount: this.profileAccount, relationship: this.relationship })
 			try {
 				this.loading = true
 				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
@@ -84,6 +91,7 @@ export default {
 			}
 		},
 		async unfollow() {
+			console.debug('[FollowButton] unfollow clicked', { profileAccount: this.profileAccount, relationship: this.relationship })
 			try {
 				this.loading = true
 				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
@@ -97,14 +105,23 @@ export default {
 <style scoped lang="scss">
 	.follow-button {
 		width: 150px !important;
+		border-radius: 10px !important;
+		font-weight: 600 !important;
+		transition: all .2s ease !important;
+
+		&.button-vue--vue-secondary {
+			opacity: .7;
+		}
 	}
 
 	.follow-button-container {
 		.follow-button--following {
 			display: flex;
+			border-radius: 10px !important;
 		}
 		.follow-button--unfollow {
 			display: none;
+			border-radius: 10px !important;
 		}
 
 		&:hover {
@@ -116,6 +133,7 @@ export default {
 			}
 		}
 	}
+
 	.user-entry {
 		padding: 20px;
 		margin-bottom: 10px;

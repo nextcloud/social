@@ -8,8 +8,7 @@
 
 		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
 
-		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<router-view v-if="accountLoaded && accountInfo && isLocal" name="details" />
+		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<NcEmptyContent v-if="accountLoaded && !accountInfo"
 			:title="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
@@ -23,7 +22,7 @@
 </template>
 
 <script>
-import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { generateFilePath } from '@nextcloud/router'
 import ProfileInfo from './../components/ProfileInfo.vue'
 import Composer from './../components/Composer/Composer.vue'
@@ -62,34 +61,51 @@ export default {
 			return this.$store.getters.currentAccount
 		},
 	},
+	watch: {
+		'$route.params.account': 'fetchProfileData',
+	},
 	// Start fetching account information before mounting the component
 	async beforeMount() {
-		this.uid = this.$route.params.account || this.serverData.account
+		this.fetchProfileData()
+	},
+	methods: {
+		async fetchProfileData() {
+			this.uid = this.$route.params.account || this.serverData.account
 
-		// Are we authenticated?
-		let fetchMethod = ''
-		if (this.serverData.public) {
-			fetchMethod = 'fetchPublicAccountInfo'
-		} else {
-			fetchMethod = 'fetchAccountInfo'
-		}
+			if (!this.uid) return
 
-		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
-		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-		/** @type {[import('../types/Mastodon').Account]} */
-		const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
-		this.uid = response.acct
-		if (!this.serverData.public) {
-			await this.$store.dispatch('fetchAccountRelationshipInfo', [this.accountInfo.id])
-		}
+			let fetchMethod = ''
+			if (this.serverData.public) {
+				fetchMethod = 'fetchPublicAccountInfo'
+			} else {
+				fetchMethod = 'fetchAccountInfo'
+			}
+
+			const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
+			if (response) {
+				this.uid = response.acct
+				console.debug('[Social Profile] account info loaded', { id: response.id, nid: response.nid, acct: response.acct, url: response.url })
+				const infoId = this.accountInfo?.nid || this.accountInfo?.id
+				if (infoId && !this.serverData.public) {
+					console.debug('[Social Profile] fetching relationship', { infoId, nid: this.accountInfo?.nid })
+					await this.$store.dispatch('fetchAccountRelationshipInfo', [infoId])
+				} else {
+					console.debug('[Social Profile] skipping relationship fetch', { infoId, isPublic: this.serverData.public })
+				}
+			}
+		},
 	},
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+.social__wrapper {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: calc(var(--default-grid-baseline) * 4);
 
-	.social__wrapper.icon-loading {
+	&.icon-loading {
 		margin-top: 50vh;
 	}
-
+}
 </style>

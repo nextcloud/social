@@ -101,13 +101,14 @@ import 'linkify-plugin-mention'
 import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
-import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
-import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
+import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
@@ -231,7 +232,7 @@ export default {
 		},
 		reply() {
 			this.$store.commit('setComposerDisplayStatus', true)
-			this.$root.$emit('composer-reply', this.item)
+			eventBus.emit('composer-reply', this.item)
 		},
 		boost() {
 			const params = {
@@ -262,78 +263,133 @@ export default {
 }
 </script>
 <style scoped lang="scss">
-	@import '@nextcloud/vue-richtext/dist/style.css';
+@import '@nextcloud/vue-richtext/dist/style.css';
 
-	.post-content {
-		padding: 4px 8px;
-		font-size: 15px;
-		line-height: 1.6em;
-		border-radius: 8px;
+.post-content {
+	padding: 18px 20px 14px;
+	font-size: 15px;
+	line-height: 1.65;
+	border-radius: 14px;
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	transition: all .2s ease;
+	position: relative;
+	z-index: 1;
 
-		::v-deep a.widget-default {
-			text-decoration: none !important;
-		}
+	&:hover {
+		border-color: var(--color-border-dark);
+	}
 
-		&:hover {
-			background-color: var(--color-background-hover);
-		}
+	.post-header {
+		display: flex;
+		gap: 8px;
+		align-items: baseline;
+		margin-bottom: 10px;
 
-		.post-header {
+		.post-author-wrapper {
+			flex-grow: 1;
+			min-width: 0;
 			display: flex;
-			gap: 8px;
-			flex-direction: row;
-			justify-content: space-between;
+			align-items: baseline;
 
-			.post-author-wrapper {
-				flex-grow: 1;
-
-				&:hover {
-					text-decoration: underline;
-				}
-
-				.post-author {
-					font-weight: bold;
-
-				}
-
-				.post-author-id {
-					color: var(--color-text-lighter);
-				}
+			.post-author {
+				font-weight: 650;
+				font-size: 14px;
+				color: var(--color-main-text);
+				letter-spacing: -.01em;
 			}
 
-			.post-visibility {
+			.post-author-id {
+				font-size: 13px;
 				color: var(--color-text-lighter);
-				background-position: right;
+				margin-left: 6px;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
 			}
+		}
 
-			.post-timestamp {
-				text-align: right;
-				color: var(--color-text-lighter);
+		.post-visibility {
+			color: var(--color-text-lighter);
+			flex-shrink: 0;
+		}
 
-				&:hover {
-					text-decoration: underline;
-				}
+		.post-timestamp {
+			font-size: 12px;
+			text-align: right;
+			color: var(--color-text-lighter);
+			white-space: nowrap;
+			cursor: pointer;
+			flex-shrink: 0;
+
+			&:hover {
+				color: var(--color-primary-element);
 			}
 		}
 	}
 
-	.post-message :deep(a) {
-		overflow-wrap: anywhere;
+	.post-message {
+		margin-bottom: 10px;
+		word-wrap: break-word;
+		overflow: visible;
 
-		&:hover {
-			text-decoration: underline;
+		:deep(p) {
+			margin: 0 0 8px;
+			&:last-child {
+				margin-bottom: 0;
+			}
+		}
+
+		:deep(a) {
+			overflow-wrap: anywhere;
+
+			&:hover {
+				text-decoration: underline;
+			}
+		}
+
+		:deep(.mention) {
+			color: var(--color-primary-element);
+			font-weight: 500;
+		}
+
+		:deep(.hashtag) {
+			color: var(--color-primary-element);
+			font-weight: 500;
+		}
+
+		:deep(img) {
+			max-width: 100%;
+			height: auto;
+			border-radius: 10px;
+			margin: 12px 0;
+			display: block;
 		}
 	}
 
 	.post-actions {
-		margin-left: -13px;
-		height: 44px;
 		display: flex;
-		margin: 4px;
+		align-items: center;
+		gap: 2px;
+		margin-top: 10px;
+		padding-top: 10px;
+		border-top: 1px solid var(--color-border);
 
-		.button-vue:hover {
-			// Else hover state is the same as the background.
-			background: var(--color-background-dark);
+		:deep(.button-vue) {
+			opacity: .55;
+			transition: opacity .15s ease;
+			border-radius: 8px;
+
+			&:hover {
+				opacity: 1;
+				background: var(--color-background-dark);
+			}
+		}
+
+		:deep(.button-vue--icon-only) {
+			min-height: 36px;
+			min-width: 36px;
 		}
 	}
+}
 </style>

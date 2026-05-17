@@ -23,10 +23,12 @@ export default {
 	computed: {
 		/** @return {string} */
 		profileAccount() {
+			if (!this.$route.params.account) return ''
 			return (this.$route.params.account.indexOf('@') === -1) ? this.$route.params.account + '@' + this.hostname : this.$route.params.account
 		},
 		/** @return {import('../types/Mastodon.js').Account[]} */
 		users() {
+			if (!this.profileAccount) return []
 			if (this.$route.name === 'profile.followers') {
 				return this.$store.getters.getAccountFollowers(this.profileAccount)
 			} else {
@@ -34,12 +36,22 @@ export default {
 			}
 		},
 	},
+	watch: {
+		'$route.params.account': 'fetchData',
+		'$route.name': 'fetchData',
+	},
 	beforeMount() {
-		if (this.$route.name === 'profile.followers') {
-			this.$store.dispatch('fetchAccountFollowers', this.profileAccount)
-		} else {
-			this.$store.dispatch('fetchAccountFollowing', this.profileAccount)
-		}
+		this.fetchData()
+	},
+	methods: {
+		fetchData() {
+			if (!this.profileAccount) return
+			if (this.$route.name === 'profile.followers') {
+				this.$store.dispatch('fetchAccountFollowers', this.profileAccount)
+			} else if (this.$route.name === 'profile.following') {
+				this.$store.dispatch('fetchAccountFollowing', this.profileAccount)
+			}
+		},
 	},
 }
 </script>
@@ -57,5 +69,8 @@ export default {
 		width: 100%;
 		padding: 20px;
 		margin-bottom: 10px;
+		border: 1px solid var(--color-border);
+		border-radius: 14px;
+		background: var(--color-main-background);
 	}
 </style>
