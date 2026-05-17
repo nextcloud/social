@@ -112,7 +112,7 @@ export default {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
 	border-radius: 16px;
-	box-shadow: 0 2px 12px var(--color-box-shadow);
+	box-shadow: none;
 
 	h2 {
 		margin-top: 16px;
