@@ -86,29 +86,62 @@ export default {
 }
 </script>
 <style scoped lang="scss">
+.user-entry {
+	padding: 16px 20px;
+	margin-bottom: 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-main-background);
+}
+
 .entry-content {
-	height: 50px;
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
+	gap: 12px;
 
 	.user-avatar {
-		display: flex;
-		align-items: center;
-		margin-right: 10px;
 		flex-shrink: 0;
+		margin-top: 2px;
 	}
 
 	.user-details {
-		flex-grow: 1;
+		flex: 1;
+		min-width: 0;
+
+		a {
+			display: inline-flex;
+			align-items: baseline;
+			gap: 6px;
+			text-decoration: none;
+			color: var(--color-main-text);
+
+			&:hover .post-author {
+				color: var(--color-primary-element);
+			}
+		}
 
 		.post-author {
-			font-weight: bold;
+			font-weight: 650;
+			font-size: 14px;
 		}
 
 		.user-description {
-			opacity: 0.7;
+			font-size: 13px;
+			color: var(--color-text-lighter);
+		}
+
+		p {
+			margin: 4px 0 0;
+			font-size: 13px;
+			line-height: 1.5;
+			color: var(--color-text-lighter);
+			word-wrap: break-word;
+			overflow: hidden;
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			max-height: 3em;
 		}
 	}
 }
-
 </style>

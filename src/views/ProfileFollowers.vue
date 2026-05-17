@@ -64,13 +64,4 @@ export default {
 		display: flex;
 		flex-wrap: wrap;
 	}
-
-	.user-entry {
-		width: 100%;
-		padding: 20px;
-		margin-bottom: 10px;
-		border: 1px solid var(--color-border);
-		border-radius: 14px;
-		background: var(--color-main-background);
-	}
 </style>
