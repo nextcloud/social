@@ -89,6 +89,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		$actor = new Person();
 		$actor->importFromDatabase($data);
+		$actor->setId($root . '@' . $actor->getPreferredUsername());
 		$actor->setType('Person');
 		$actor->setInbox($actor->getId() . '/inbox')
 			->setOutbox($actor->getId() . '/outbox')

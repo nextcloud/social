@@ -104,7 +104,6 @@ export default {
 			font-size: 42px;
 			line-height: 0px;
 			color: var(--color-text-lighter);
-			transition: background .15s ease;
 
 			&:hover {
 				background: var(--color-background-darker);

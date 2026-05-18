@@ -111,8 +111,7 @@ export default {
 	text-align: center;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: 16px;
-	box-shadow: none;
+	border-radius: 8px;
 
 	h2 {
 		margin-top: 16px;
@@ -134,11 +133,8 @@ export default {
 			gap: 4px;
 			font-size: 13px;
 			color: var(--color-text-lighter);
-			opacity: .75;
-			transition: all .15s ease;
 
 			&:hover {
-				opacity: 1;
 				color: var(--color-primary-element);
 				text-decoration: none;
 			}
@@ -188,17 +184,13 @@ export default {
 				font-size: 14px;
 				font-weight: 600;
 				border-radius: 8px;
-				opacity: .65;
-				transition: all .15s ease;
 
 				&.router-link-exact-active,
 				&:focus {
-					opacity: 1;
 					background: var(--color-background-hover);
 				}
 
 				&.disabled {
-					opacity: 1;
 					text-decoration: none;
 					cursor: auto;
 					pointer-events: none;

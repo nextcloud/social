@@ -85,7 +85,7 @@
 
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
-				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
+				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" />
 			</div>
 		</form>
 	</div>
@@ -424,7 +424,7 @@ export default {
 .new-post {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: 14px;
+	border-radius: 8px;
 	padding: 18px;
 	margin: calc(var(--default-grid-baseline) * 3) auto;
 	max-width: 600px;
@@ -469,7 +469,7 @@ export default {
 
 .reply-to {
 	background: var(--color-background-hover);
-	border-radius: 10px;
+	border-radius: 8px;
 	padding: 12px 12px 12px 36px;
 	margin-bottom: 12px;
 	position: relative;
@@ -484,7 +484,6 @@ export default {
 		background-image: url(../../../img/reply.svg);
 		background-size: contain;
 		background-repeat: no-repeat;
-		opacity: .5;
 	}
 
 	.avatardiv {
@@ -503,15 +502,10 @@ export default {
 
 	.close-button {
 		margin-left: auto;
-		opacity: .5;
 		min-width: 28px;
 		min-height: 28px;
 		height: 28px;
 		width: 28px !important;
-
-		&:hover {
-			opacity: 1;
-		}
 	}
 }
 
@@ -520,17 +514,15 @@ export default {
 	min-height: 80px;
 	padding: 12px 14px;
 	border: 1px solid var(--color-border);
-	border-radius: 10px;
+	border-radius: 8px;
 	background: var(--color-main-background);
 	font-size: 14px;
 	line-height: 1.6;
 	color: var(--color-main-text);
 	outline: none;
-	transition: border-color .15s ease;
 
 	&:focus {
 		border-color: var(--color-primary-element);
-		box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary-element) 15%, transparent);
 	}
 
 	&.too-long {
@@ -559,7 +551,6 @@ export default {
 	content: attr(placeholder);
 	display: block;
 	color: var(--color-text-lighter);
-	opacity: .6;
 }
 
 .options {
@@ -611,7 +602,6 @@ export default {
 			display: flex;
 			border-radius: 6px;
 			margin: 2px 0;
-			transition: background .1s ease;
 
 			span {
 				display: block;
@@ -652,13 +642,11 @@ export default {
 	li:hover .account {
 		font-weight: normal;
 		color: var(--color-text-light);
-		opacity: 0.5;
 	}
 
 	li.highlight .account,
 	li:hover .account {
 		color: var(--color-primary-text) !important;
-		opacity: .6;
 	}
 }
 </style>

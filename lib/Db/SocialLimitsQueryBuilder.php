@@ -390,17 +390,18 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function exprLimitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd',
 	): ICompositeExpression {
 		$expr = $this->expr();
-		$andX = $expr->andX();
 
-		$andX->add($expr->eq($alias . '.stream_id', $this->getDefaultSelectAlias() . '.id_prim'));
+		$conditions = [$expr->eq($alias . '.stream_id', $this->getDefaultSelectAlias() . '.id_prim')];
 		if ($actorId) {
-			$andX->add($this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias));
+			$conditions[] = $this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias);
 		}
-		$andX->add($this->exprLimitToDBField('type', $type, true, true, $alias));
+		$conditions[] = $this->exprLimitToDBField('type', $type, true, true, $alias);
 
 		if ($subType !== '') {
-			$andX->add($this->exprLimitToDBField('subtype', $subType, true, true, $alias));
+			$conditions[] = $this->exprLimitToDBField('subtype', $subType, true, true, $alias);
 		}
+
+		$andX = $expr->andX(...$conditions);
 
 		return $andX;
 	}
@@ -426,21 +427,23 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		$this->selectDestFollowing($aliasDest, $aliasFollowing);
 		$expr = $this->expr();
-		$orX = $expr->orX();
 		$actor = $this->getViewer();
 
-		$following = $this->exprInnerJoinStreamDestFollowing(
-			$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
-		);
-		$orX->add($following);
+		$conditions = [
+			$this->exprInnerJoinStreamDestFollowing(
+				$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
+			)
+		];
 
 		if ($allowPublic) {
-			$orX->add($this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest));
+			$conditions[] = $this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest);
 		}
 
 		if ($allowDirect) {
-			$orX->add($this->exprLimitToDest($actor->getId(), 'dm', '', $aliasDest));
+			$conditions[] = $this->exprLimitToDest($actor->getId(), 'dm', '', $aliasDest);
 		}
+
+		$orX = $expr->orX(...$conditions);
 
 		$this->andWhere($orX);
 	}

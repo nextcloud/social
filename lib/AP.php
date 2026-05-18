@@ -17,6 +17,7 @@ use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
+use OCA\Social\Interfaces\Activity\MoveInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
@@ -40,6 +41,7 @@ use OCA\Social\Model\ActivityPub\Activity\Add;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
@@ -79,6 +81,7 @@ class AP {
 	public FollowInterface $followInterface;
 	public ImageInterface $imageInterface;
 	public LikeInterface $likeInterface;
+	public MoveInterface $moveInterface;
 	public NoteInterface $noteInterface;
 	public PersonInterface $personInterface;
 	public GroupInterface $groupInterface;
@@ -104,6 +107,7 @@ class AP {
 		FollowInterface $followInterface,
 		ImageInterface $imageInterface,
 		LikeInterface $likeInterface,
+		MoveInterface $moveInterface,
 		NoteInterface $noteInterface,
 		SocialAppNotificationInterface $notificationInterface,
 		PersonInterface $personInterface,
@@ -127,6 +131,7 @@ class AP {
 		$this->followInterface = $followInterface;
 		$this->imageInterface = $imageInterface;
 		$this->likeInterface = $likeInterface;
+		$this->moveInterface = $moveInterface;
 		$this->noteInterface = $noteInterface;
 		$this->notificationInterface = $notificationInterface;
 		$this->personInterface = $personInterface;
@@ -219,6 +224,10 @@ class AP {
 
 			case Block::TYPE:
 				$item = new Block();
+				break;
+
+			case Move::TYPE:
+				$item = new Move();
 				break;
 
 			case Create::TYPE:
@@ -345,6 +354,9 @@ class AP {
 
 			case Like::TYPE:
 				return $this->likeInterface;
+
+			case Move::TYPE:
+				return $this->moveInterface;
 
 			case Note::TYPE:
 				return $this->noteInterface;

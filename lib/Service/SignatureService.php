@@ -87,7 +87,6 @@ class SignatureService {
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				'digest_alg' => 'rsa',
 				'private_key_bits' => 2048,
 				'private_key_type' => OPENSSL_KEYTYPE_RSA,
 			]

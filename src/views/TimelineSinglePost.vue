@@ -106,7 +106,7 @@ export default {
 .main-post {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: 14px;
+	border-radius: 8px;
 	padding: 20px;
 	box-sizing: content-box;
 	margin: 16px 0;

@@ -77,7 +77,7 @@
 				type="tertiary"
 				@click="like">
 				<template #icon>
-					<Heart :size="20" :fill-color="'var(--color-error)'" />
+					<Heart :size="20" :fill-color="'var(--color-element-error)'" />
 				</template>
 				<template>
 					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
@@ -269,16 +269,11 @@ export default {
 	padding: 18px 20px 14px;
 	font-size: 15px;
 	line-height: 1.65;
-	border-radius: 14px;
+	border-radius: 8px;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	transition: all .2s ease;
 	position: relative;
 	z-index: 1;
-
-	&:hover {
-		border-color: var(--color-border-dark);
-	}
 
 	.post-header {
 		display: flex;
@@ -361,7 +356,7 @@ export default {
 		:deep(img) {
 			max-width: 100%;
 			height: auto;
-			border-radius: 10px;
+			border-radius: 8px;
 			margin: 12px 0;
 			display: block;
 		}
@@ -376,12 +371,9 @@ export default {
 		border-top: 1px solid var(--color-border);
 
 		:deep(.button-vue) {
-			opacity: .55;
-			transition: opacity .15s ease;
 			border-radius: 8px;
 
 			&:hover {
-				opacity: 1;
 				background: var(--color-background-dark);
 			}
 		}

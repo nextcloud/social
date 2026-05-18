@@ -11,7 +11,7 @@
 						{{ t('social', 'Close') }}
 					</span>
 				</a>
-				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
+				<h2>{{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
 				<p>{{ t('social', 'This application is currently in beta stage.') }}</p>
 				<br>
 				<p>
@@ -40,6 +40,11 @@
 			{{ t('social', 'Notifications') }}
 		</h2>
 
+		<div v-if="searchQuery" class="search-active">
+			{{ t('social', 'Search') }}: «{{ searchQuery }}»
+			<a href="#" class="search-clear" @click.prevent="clearSearch">✕</a>
+		</div>
+
 		<TimelineList :type="type" />
 	</div>
 </template>
@@ -65,6 +70,9 @@ export default {
 		}
 	},
 	computed: {
+		searchQuery() {
+			return this.$store.getters.getSearchQuery
+		},
 		params() {
 			if (this.$route.name === 'tags') {
 				return { tag: this.$route.params.tag }
@@ -102,6 +110,9 @@ export default {
 		hideInfo() {
 			this.infoHidden = true
 		},
+		clearSearch() {
+			this.$store.commit('setSearchQuery', '')
+		},
 		followNextcloud() {
 			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
 		},
@@ -131,7 +142,7 @@ h2 {
 .social__welcome {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: 16px;
+	border-radius: 8px;
 	margin: calc(var(--default-grid-baseline) * 4);
 	padding: calc(var(--default-grid-baseline) * 4);
 	position: relative;
@@ -159,13 +170,11 @@ h2 {
 		top: 12px;
 		right: 12px;
 		padding: 12px;
-		opacity: .3;
 		border-radius: 8px;
-		transition: all .15s ease;
+		color: var(--color-text-lighter);
 
 		&:hover,
 		&:focus {
-			opacity: 1;
 			background: var(--color-background-hover);
 		}
 	}
@@ -193,7 +202,7 @@ h2 {
 .slide-fade-leave-active {
 	position: relative;
 	overflow: hidden;
-	transition: all .5s ease-out;
+	transition: max-height .3s ease-out, opacity .3s ease-out;
 	max-height: 200px;
 }
 
@@ -202,5 +211,31 @@ h2 {
 	opacity: 0;
 	padding-top: 0;
 	padding-bottom: 0;
+}
+
+.search-active {
+	font-size: 13px;
+	color: var(--color-text-lighter);
+	padding: 8px 16px;
+	margin: 8px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+
+	.search-clear {
+		margin-left: auto;
+		color: var(--color-text-lighter);
+		text-decoration: none;
+		font-size: 14px;
+		padding: 2px 6px;
+		border-radius: 4px;
+
+		&:hover {
+			background: var(--color-background-hover);
+		}
+	}
 }
 </style>

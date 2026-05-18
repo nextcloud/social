@@ -96,7 +96,16 @@ export default {
 		}
 	},
 	computed: {
+		searchQuery() {
+			return this.$store.getters.getSearchQuery
+		},
 		emptyContentData() {
+			if (this.searchQuery && this.timeline.length === 0) {
+				return {
+					title: t('social', 'No posts match your search'),
+					description: t('social', 'Try a different search term'),
+				}
+			}
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
 			}
@@ -217,23 +226,16 @@ export default {
 
 	.list-enter-active,
 	.list-leave-active {
-		transition: all .35s cubic-bezier(.4, 0, .2, 1);
+		transition: opacity .15s ease;
 	}
 
-	.list-enter {
+	.list-enter, .list-leave-to {
 		opacity: 0;
-		transform: translateY(-16px) scale(.97);
-	}
-
-	.list-leave-to {
-		opacity: 0;
-		transform: translateX(-40px) scale(.97);
 	}
 
 	.icon-loading {
 		height: 44px;
 		margin: 20px auto;
-		opacity: .5;
 	}
 
 	.list-end {

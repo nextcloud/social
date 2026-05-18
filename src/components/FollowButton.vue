@@ -105,13 +105,8 @@ export default {
 <style scoped lang="scss">
 	.follow-button {
 		width: 150px !important;
-		border-radius: 10px !important;
+		border-radius: 8px !important;
 		font-weight: 600 !important;
-		transition: all .2s ease !important;
-
-		&.button-vue--vue-secondary {
-			opacity: .7;
-		}
 	}
 
 	.follow-button-container {
@@ -160,7 +155,7 @@ export default {
 	}
 
 	.user-description {
-		opacity: 0.7;
+		color: var(--color-text-lighter);
 	}
 
 	button {

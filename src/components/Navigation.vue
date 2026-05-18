@@ -281,7 +281,6 @@ export default {
 :deep(.app-navigation-entry) {
 	border-radius: 8px;
 	margin: 2px 0;
-	transition: background .15s ease;
 
 	&:hover {
 		background: var(--color-background-hover);

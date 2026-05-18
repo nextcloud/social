@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
@@ -569,11 +570,7 @@ class StreamService {
 		$collection->setId($actor->getOutbox());
 		$collection->setTotalItems($this->getInt('post', $actor->getDetails('count')));
 
-		$link = $this->urlGenerator->linkToRouteAbsolute(
-			'social.ActivityPub.outbox',
-			['username' => $actor->getPreferredUsername()]
-		);
-
+		$link = $actor->getOutbox();
 		$collection->setFirst($link . '?page=1');
 		$collection->setLast($link . '?page=1&min_id=0');
 

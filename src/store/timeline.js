@@ -12,6 +12,7 @@ const state = {
 	params: {},
 	account: '',
 	composerDisplayStatus: false,
+	searchQuery: '',
 }
 
 function addToStatuses(state, status) {
@@ -69,6 +70,9 @@ const mutations = {
 	setAccount(state, account) {
 		state.account = account
 	},
+	setSearchQuery(state, query) {
+		state.searchQuery = query
+	},
 	likeStatus(state, { status }) {
 		if (state.statuses[status.id] !== undefined) {
 			state.statuses[status.id] = { ...state.statuses[status.id], favourited: true }
@@ -100,16 +104,43 @@ const getters = {
 		return state.composerDisplayStatus
 	},
 	getTimeline(state) {
-		return state.timeline
+		let items = state.timeline
 			.map(statusId => state.statuses[statusId])
 			.filter(Boolean)
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+		if (state.searchQuery) {
+			const q = state.searchQuery.toLowerCase()
+			items = items.filter(item => {
+				const content = item.content ? item.content.toLowerCase() : ''
+				const displayName = item.account?.display_name?.toLowerCase() || ''
+				const acct = item.account?.acct?.toLowerCase() || ''
+				return content.includes(q) || displayName.includes(q) || acct.includes(q)
+			})
+		}
+
+		return items
 	},
 	getParentsTimeline(state) {
-		return state.parentsTimeline
+		let items = state.parentsTimeline
 			.map(statusId => state.statuses[statusId])
 			.filter(Boolean)
 			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+		if (state.searchQuery) {
+			const q = state.searchQuery.toLowerCase()
+			items = items.filter(item => {
+				const content = item.content ? item.content.toLowerCase() : ''
+				const displayName = item.account?.display_name?.toLowerCase() || ''
+				const acct = item.account?.acct?.toLowerCase() || ''
+				return content.includes(q) || displayName.includes(q) || acct.includes(q)
+			})
+		}
+
+		return items
+	},
+	getSearchQuery(state) {
+		return state.searchQuery
 	},
 	getStatus(state) {
 		return (statusId) => state.statuses[statusId]

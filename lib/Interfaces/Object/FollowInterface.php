@@ -97,7 +97,15 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 
 	/**
-	 * This method is called when saving the Follow object
+	 * Process an incoming Follow activity (remote user wants to follow a local user).
+	 *
+	 * Flow:
+	 *  1. Verify the Follow actor's origin matches the request origin.
+	 *  2. Check if we already have this follow in DB.
+	 *  3a. If new: save it, accept it, send Accept activity back.
+	 *  3b. If existing but not yet accepted: (re-)send Accept.
+	 *      IMPORTANT: The embedded Follow's id differs from our local db id
+	 *      (remote uses their own id), so match by actor+object pair.
 	 *
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
@@ -119,7 +127,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 		try {
 			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
-			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
+			if (!$knownFollow->isAccepted()) {
 				$this->confirmFollowRequest($follow);
 			}
 		} catch (FollowNotFoundException $e) {
@@ -134,8 +142,20 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	}
 
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
+	 * Handle activities wrapping a Follow (Accept, Reject, Undo).
+	 *
+	 * This is called when an Accept/Reject/Undo activity targeting a Follow arrives.
+	 *
+	 * For Accept(ourFollow): remote accepted our follow → mark accepted in DB.
+	 *   origin check: the Accept comes from the followed actor's server, and
+	 *   $item->getObjectId() is the followed actor → host must match origin.
+	 *
+	 * For Reject(ourFollow): remote rejected our follow → delete from DB.
+	 *
+	 * For Undo(theirFollow): remote unfollowed us → delete from DB.
+	 *
+	 * @param ACore $activity  The wrapping activity (Accept/Reject/Undo)
+	 * @param ACore $item      The Follow object inside the activity
 	 *
 	 * @throws InvalidOriginException
 	 */

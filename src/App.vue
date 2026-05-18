@@ -18,8 +18,7 @@
 					</a>
 				</p>
 			</div>
-			<Search v-if="searchTerm !== ''" :term="searchTerm" />
-			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
+			<router-view :key="$route.fullPath" />
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else app-name="social">
@@ -69,7 +68,6 @@ import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
 
 import Navigation from './components/Navigation.vue'
-import Search from './components/Search.vue'
 
 import axios from '@nextcloud/axios'
 import currentuserMixin from './mixins/currentUserMixin.js'
@@ -83,7 +81,6 @@ export default {
 		NcAppContent,
 		NcButton,
 		Navigation,
-		Search,
 	},
 	mixins: [currentuserMixin],
 	data() {
@@ -91,14 +88,13 @@ export default {
 			infoHidden: false,
 			state: [],
 			cloudAddress: '',
-			searchTerm: '',
 		}
 	},
 	computed: {
 	},
 	watch: {
-		$route(to, from) {
-			this.searchTerm = ''
+		$route() {
+			this.$store.commit('setSearchQuery', '')
 		},
 	},
 	beforeMount() {
@@ -134,11 +130,7 @@ export default {
 			})
 		},
 		search(term) {
-			term = encodeURIComponent(term)
-			this.searchTerm = term
-		},
-		resetSearch() {
-			this.searchTerm = ''
+			this.$store.commit('setSearchQuery', term)
 		},
 		fromPushApp(data) {
 			let timeline = 'home'
@@ -249,23 +241,17 @@ img.emoji {
 }
 
 .list-enter-active, .list-leave-active {
-	transition: all .35s cubic-bezier(.4, 0, .2, 1);
+	transition: opacity .15s ease;
 }
 
-.list-enter {
+.list-enter, .list-leave-to {
 	opacity: 0;
-	transform: translateY(-16px) scale(.97);
-}
-
-.list-leave-to {
-	opacity: 0;
-	transform: translateX(-40px) scale(.97);
 }
 
 .social__welcome {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: 16px;
+	border-radius: 8px;
 	margin: calc(var(--default-grid-baseline) * 4) auto;
 	padding: calc(var(--default-grid-baseline) * 5);
 	max-width: 600px;
@@ -285,7 +271,7 @@ img.emoji {
 .new-post {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
-	border-radius: 14px;
+	border-radius: 8px;
 	margin: calc(var(--default-grid-baseline) * 3) auto;
 	padding: calc(var(--default-grid-baseline) * 3);
 	max-width: 600px;
@@ -312,14 +298,5 @@ img.emoji {
 	color: var(--color-text-lighter);
 }
 
-button.button-vue--vue-tertiary:not(.button-vue--icon-only) {
-	padding: 6px 14px;
-	border-radius: 8px;
-	font-weight: 500;
-}
 
-.button-vue--vue-primary {
-	border-radius: 10px !important;
-	font-weight: 600 !important;
-}
 </style>

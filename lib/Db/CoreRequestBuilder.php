@@ -779,11 +779,15 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
-
 		if ($orNull === true) {
-			$orX->add($expr->isNull($field));
+			$orX = $expr->orX(
+				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)),
+				$expr->isNull($field)
+			);
+		} else {
+			$orX = $expr->orX(
+				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
+			);
 		}
 		$qb->andWhere($orX);
 	}
@@ -809,8 +813,9 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
+		$orX = $expr->orX(
+			$expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+		);
 
 		$qb->andWhere($orX);
 	}
@@ -821,10 +826,12 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
+		$conditions = [];
 		foreach ($values as $value) {
-			$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
+			$conditions[] = $expr->eq($field, $qb->createNamedParameter($value));
 		}
+
+		$orX = $expr->orX(...$conditions);
 
 		$qb->andWhere($orX);
 	}
@@ -883,20 +890,22 @@ class CoreRequestBuilder {
 			->selectAlias('ca.creation', 'cacheactor_creation')
 			->selectAlias('ca.local', 'cacheactor_local');
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id')));
 		if ($author !== null) {
-			$andX = $expr->andX();
-			$andX->add(
-				$this->exprLimitToDBField($qb, 'attributed_to', $author->getId(), true, false, 's')
-			);
-			$andX->add(
+			$andX = $expr->andX(
+				$this->exprLimitToDBField($qb, 'attributed_to', $author->getId(), true, false, 's'),
 				$expr->eq(
 					$func->lower($this->defaultSelectAlias . '.attributed_to'),
 					$func->lower('ca.id')
 				)
 			);
-			$orX->add($andX);
+			$orX = $expr->orX(
+				$expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id')),
+				$andX
+			);
+		} else {
+			$orX = $expr->orX(
+				$expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id'))
+			);
 		}
 
 		$qb->leftJoin(
@@ -984,17 +993,17 @@ class CoreRequestBuilder {
 			->selectAlias('sa.boosted', 'streamaction_boosted')
 			->selectAlias('sa.replied', 'streamaction_replied');
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.id_prim'));
-		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.object_id_prim'));
+		$orX = $expr->orX(
+			$expr->eq('sa.stream_id_prim', $pf . '.id_prim'),
+			$expr->eq('sa.stream_id_prim', $pf . '.object_id_prim')
+		);
 
-		$on = $expr->andX();
-		$on->add(
+		$on = $expr->andX(
 			$expr->eq(
 				'sa.actor_id_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
-			)
+			),
+			$orX
 		);
-		$on->add($orX);
 
 		$qb->leftJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
@@ -1047,10 +1056,9 @@ class CoreRequestBuilder {
 			->selectAlias('a.object_id', 'action_object_id')
 			->selectAlias('a.type', 'action_type');
 
-		$andX = $expr->andX();
-		$andX->add($expr->eq($func->lower($pf . '.id'), $func->lower('a.object_id')));
-		$andX->add($expr->eq('a.type', $qb->createNamedParameter($type)));
-		$andX->add(
+		$andX = $expr->andX(
+			$expr->eq($func->lower($pf . '.id'), $func->lower('a.object_id')),
+			$expr->eq('a.type', $qb->createNamedParameter($type)),
 			$expr->eq(
 				$func->lower('a.actor_id'),
 				$qb->createNamedParameter(strtolower($this->viewer->getId()))
