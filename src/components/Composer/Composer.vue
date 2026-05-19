@@ -85,7 +85,7 @@
 
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
-				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" />
+				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
 			</div>
 		</form>
 	</div>
