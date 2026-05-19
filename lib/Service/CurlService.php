@@ -337,7 +337,9 @@ class CurlService {
 	public function doRequestOrig(Request $request): string {
 		$this->maxDownloadSizeReached = false;
 
-		$ignoreProtocolOnErrors = [7];
+		// allow falling back to the next protocol (e.g. http) when certain
+		// curl errors occur, like SSL hostname mismatch (60)
+		$ignoreProtocolOnErrors = [7, 60];
 		$result = '';
 		foreach ($request->getProtocols() as $protocol) {
 			$request->setUsedProtocol($protocol);
