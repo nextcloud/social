@@ -28,6 +28,8 @@ cd social
 
 Or download and extract the app from the Nextcloud App Store.
 
+If the App Store release is blocked by a revoked certificate, install the app locally from the source tree or from a locally built archive instead. That local path does not require Nextcloud App Store signing.
+
 ### 2. Install PHP Dependencies
 
 Install the PHP dependencies using Composer:
@@ -61,6 +63,8 @@ npm run build
 ```
 
 This will create the `js/` directory with all compiled JavaScript files required for the app to function.
+
+The resulting local release archive is written to `build/artifacts/social.tar.gz`. You can unpack that into your Nextcloud `apps/` directory and enable it there without using an App Store certificate.
 
 ### 4. Enable the App
 
