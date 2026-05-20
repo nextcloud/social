@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -660,7 +661,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$actor = $this->getLocalAccountWithCacheFallback($username);
 			$actor->setCompleteDetails(true);
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
@@ -678,7 +679,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$actor = $this->getLocalAccountWithCacheFallback($username);
 			$following = $this->followService->getFollowers($actor);
 
 			return $this->success($following);
@@ -696,7 +697,7 @@ class LocalController extends Controller {
 		try {
 			$this->initViewer();
 
-			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$actor = $this->getLocalAccountWithCacheFallback($username);
 			$following = $this->followService->getFollowing($actor);
 
 			return $this->success($following);
@@ -747,7 +748,11 @@ class LocalController extends Controller {
 				}
 			}
 
-			$actor = $this->cacheActorService->getFromAccount($account);
+			if ($isLocal) {
+				$actor = $this->getLocalAccountWithCacheFallback($username);
+			} else {
+				$actor = $this->cacheActorService->getFromAccount($account);
+			}
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 			// For remote actors, fetch follower/following/post counts
@@ -787,6 +792,28 @@ class LocalController extends Controller {
 			return $this->success(['actor' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
+		}
+	}
+
+	private function getLocalAccountWithCacheFallback(string $username): Person {
+		try {
+			return $this->cacheActorService->getFromLocalAccount($username);
+		} catch (CacheActorDoesNotExistException $e) {
+			$this->logger->debug('[LocalController] Rebuilding local actor cache', [
+				'username' => $username,
+				'error' => $e->getMessage(),
+			]);
+
+			try {
+				$this->accountService->cacheLocalActorByUsername($username);
+			} catch (Exception $cacheError) {
+				$this->logger->debug('[LocalController] Local actor cache rebuild failed', [
+					'username' => $username,
+					'error' => $cacheError->getMessage(),
+				]);
+			}
+
+			return $this->cacheActorService->getFromLocalAccount($username);
 		}
 	}
 

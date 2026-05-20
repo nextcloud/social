@@ -227,24 +227,23 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$field = $pf . $field;
 
 		$func = $this->func();
-		if ($eq === false) {
-			$comp = 'neq';
-			$junc = $expr->andX();
-		} else {
-			$comp = 'eq';
-			$junc = $expr->orX();
-		}
+		$conditions = [];
 
 		foreach ($values as $value) {
+			$comp = $eq ? 'eq' : 'neq';
 			if ($cs) {
-				$junc->add($expr->$comp($field, $this->createNamedParameter($value)));
+				$conditions[] = $expr->$comp($field, $this->createNamedParameter($value));
 			} else {
-				$junc->add(
-					$expr->$comp(
-						$func->lower($field), $func->lower($this->createNamedParameter($value))
-					)
+				$conditions[] = $expr->$comp(
+					$func->lower($field), $func->lower($this->createNamedParameter($value))
 				);
 			}
+		}
+
+		if ($eq === false) {
+			$junc = $expr->andX(...$conditions);
+		} else {
+			$junc = $expr->orX(...$conditions);
 		}
 
 		return $junc;
@@ -331,16 +330,15 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 															  . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add(
+		$conditions = [
 			$expr->lte($field, $this->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
-		);
+		];
 
 		if ($orNull === true) {
-			$orX->add($expr->isNull($field));
+			$conditions[] = $expr->isNull($field);
 		}
 
-		$this->andWhere($orX);
+		$this->andWhere($expr->orX(...$conditions));
 	}
 
 
@@ -362,12 +360,11 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$pf = ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias() . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add(
-			$expr->gte($field, $this->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+		$this->andWhere(
+			$expr->orX(
+				$expr->gte($field, $this->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+			)
 		);
-
-		$this->andWhere($orX);
 	}
 
 

@@ -39,21 +39,29 @@ export default {
 	computed: {
 		getCount() {
 			const account = this.accountInfo
-			return (field) => account.details.count ? account.details.count[field] : ''
+			return (field) => account?.details?.count ? account.details.count[field] : ''
 		},
 	},
 	// Start fetching account information before mounting the component
 	beforeMount() {
 		const uid = this.userId
 
-		axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${uid}`)).then(({ data }) => {
+		if (!uid) {
+			return
+		}
+
+		axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${encodeURIComponent(uid)}`)).then(({ data }) => {
 			this.accountInfo = data
 			logger.log(this.accountInfo)
+		}).catch((error) => {
+			logger.error('Failed to load profile account info', { error, uid })
 		})
 
-		axios.get(generateUrl(`apps/social/api/v1/accounts/${uid}/statuses`)).then(({ data }) => {
+		axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(uid)}/statuses`)).then(({ data }) => {
 			this.timeline = data
 			logger.log(this.timeline)
+		}).catch((error) => {
+			logger.error('Failed to load profile timeline', { error, uid })
 		})
 	},
 }

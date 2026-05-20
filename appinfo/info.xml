@@ -9,7 +9,7 @@
 	<name>Social</name>
 	<summary>Nextcloud becomes part of the federated social networks</summary>
 	<description><![CDATA[Nextcloud becomes part of the federated social networks! Find your friends, own your posts, and connect across the Fediverse using the established ActivityPub standard.]]></description>
-	<version>0.9.3.2</version>
+	<version>0.10.0</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>

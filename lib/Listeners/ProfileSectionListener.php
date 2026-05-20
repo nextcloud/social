@@ -21,6 +21,6 @@ class ProfileSectionListener implements IEventListener {
 		if (!($event instanceof BeforeTemplateRenderedEvent)) {
 			return;
 		}
-		$event->addScript('social', 'social-profilePage');
+		\OCP\Util::addScript('social', 'social-profilePage');
 	}
 }

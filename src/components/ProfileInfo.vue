@@ -1,12 +1,19 @@
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<NcButton v-if="isOwnProfile" class="user-profile__banner-upload" @click="openFilePicker">
+		<NcButton v-if="isOwnProfile" class="user-profile__banner-upload" :disabled="loading" @click="openFilePicker">
 			<template #icon>
 				<ImagePlus :size="20" />
 			</template>
-			{{ t('social', 'Change banner') }}
+			{{ loading ? t('social', 'Uploading…') : t('social', 'Change banner') }}
 		</NcButton>
-		<div class="user-profile__banner" :style="headerStyle"></div>
+		<div
+			class="user-profile__banner"
+			:class="{ 'user-profile__banner--editable': isOwnProfile }"
+			:style="headerStyle"
+			@click="isOwnProfile ? openFilePicker() : undefined"
+		></div>
+		<!-- hidden fallback input for environments where the dialogs picker API is incompatible -->
+		<input ref="bannerInput" type="file" accept="image/*" style="display:none" @change="uploadBanner" />
 		<div class="user-profile__content">
 			<NcAvatar v-if="isLocal"
 				:user="localUid"
@@ -51,10 +58,8 @@
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import { generateUrl } from '@nextcloud/router'
+import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
-import { showError, showSuccess } from '@nextcloud/dialogs'
-import { getFilePickerBuilder } from '@nextcloud/dialogs'
 import axios from '@nextcloud/axios'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
@@ -118,42 +123,90 @@ export default {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
 		async openFilePicker() {
-			const picker = getFilePickerBuilder(t('social', 'Select a banner image'))
-				.setMimeTypeFilter(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
-				.setMultiSelect(false)
-				.allowDirectories(false)
-				.pick()
+			if (this.$refs.bannerInput) {
+				this.$refs.bannerInput.click()
+			}
+		},
 
+		async uploadBanner(event) {
+			const file = event?.target?.files?.[0]
+			if (!file) return
+			this.loading = true
 			try {
-				const [path] = await picker
-				if (!path) return
-				await this.uploadBannerFromPath(path)
+				const formData = new FormData()
+				formData.append('file', file)
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/banner'),
+					formData
+				)
+				this.bannerUrl = data.result.url
+				await this.showSuccess(t('social', 'Banner uploaded successfully'))
 			} catch (error) {
-				// picker was closed without selection
+				await this.showError(t('social', 'Failed to upload banner'))
+			} finally {
+				this.loading = false
+				// reset input so same file can be selected again if needed
+				if (event && event.target) event.target.value = ''
 			}
 		},
 
 		async uploadBannerFromPath(path) {
 			this.loading = true
 			try {
-				const { data: blob } = await axios.get(generateUrl('/apps/files/api/v1/download' + path), {
-					responseType: 'blob',
-				})
-				const file = new File([blob], path.split('/').pop(), { type: blob.type })
+				// Normalise builder return types (string or object)
+				let filePath = path
+				if (filePath && typeof filePath === 'object') {
+					filePath = filePath.path || filePath.value || filePath.fullPath || filePath.name || filePath[0] || null
+				}
+				const downloadCandidates = []
+				if (!filePath) {
+					if (path && typeof path === 'object') {
+						downloadCandidates.push(path.url, path.downloadUrl, path.href)
+					}
+				} else {
+					downloadCandidates.push(
+						generateRemoteUrl('dav/files/' + encodeURIComponent(this.currentUser.uid) + filePath)
+					)
+				}
+				let blob = null
+				for (const candidate of downloadCandidates) {
+					if (!candidate) continue
+					try {
+						const resp = await axios.get(candidate, { responseType: 'blob' })
+						blob = resp.data
+						break
+					} catch (e) {
+						// try next candidate
+						continue
+					}
+				}
+				if (!blob) throw new Error('Failed to download file for upload')
+				const filename = (filePath && filePath.split) ? filePath.split('/').pop() : 'banner'
+				const file = new File([blob], filename, { type: blob.type })
 				const formData = new FormData()
 				formData.append('file', file)
-				const { data } = await axios.post(
-					generateUrl('apps/social/api/v1/banner'),
-					formData,
-					{ headers: { 'Content-Type': 'multipart/form-data' } }
-				)
+				const { data } = await axios.post(generateUrl('apps/social/api/v1/banner'), formData)
 				this.bannerUrl = data.result.url
-				showSuccess(t('social', 'Banner uploaded successfully'))
+				await this.showSuccess(t('social', 'Banner uploaded successfully'))
+				// Refresh account info so UI/store and potential ActivityPub broadcasts are in sync
+				try {
+					this.$store && this.$store.dispatch && await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+				} catch (e) {
+					// non-fatal
+				}
 			} catch (error) {
-				showError(t('social', 'Failed to upload banner'))
+				await this.showError(t('social', 'Failed to upload banner'))
 			} finally {
 				this.loading = false
 			}
+		},
+		async showSuccess(message) {
+			const { showSuccess } = await import('@nextcloud/dialogs')
+			showSuccess(message)
+		},
+		async showError(message) {
+			const { showError } = await import('@nextcloud/dialogs')
+			showError(message)
 		},
 		t: translate,
 	},
@@ -182,6 +235,10 @@ export default {
 		background-position: center 0%;
 		background-repeat: no-repeat;
 		background-color: var(--color-background-dark);
+
+		&--editable {
+			cursor: pointer;
+		}
 	}
 
 	&__banner-upload {
@@ -189,13 +246,8 @@ export default {
 		top: 12px;
 		right: 12px;
 		z-index: 10;
-		opacity: 0;
-		transition: opacity 0.2s;
-	}
-
-	&:hover &__banner-upload,
-	&__banner-upload:focus-visible {
 		opacity: 1;
+		transition: opacity 0.2s;
 	}
 
 	&__content {
