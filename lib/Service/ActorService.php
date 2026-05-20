@@ -113,6 +113,26 @@ class ActorService {
 
 
 	/**
+	 * Get the cached header URL for a local actor.
+	 *
+	 * @param Person $actor
+	 *
+	 * @return string
+	 */
+	public function getCachedHeader(Person $actor): string {
+		try {
+			$cached = $this->cacheActorsRequest->getFromLocalAccount(
+				$actor->getPreferredUsername()
+			);
+
+			return $cached->getHeader();
+		} catch (Exception $e) {
+			return '';
+		}
+	}
+
+
+	/**
 	 * @param Person $actor
 	 *
 	 * @throws ItemAlreadyExistsException

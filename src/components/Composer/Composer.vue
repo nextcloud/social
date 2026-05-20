@@ -39,7 +39,7 @@
 			</p>
 			<MessageContent :item="replyTo" />
 		</div>
-		<form class="new-post-form" @submit.prevent="createPost">
+		<form class="new-post-form" @submit.prevent>
 			<Tribute :options="tributeOptions">
 				<div ref="composerInput"
 					:contenteditable="!loading"
@@ -334,7 +334,7 @@ export default {
 
 			const lastChild = this.$refs.composerInput.lastChild
 			const div = document.createElement('div')
-			div.innerHTML = this.$twemoji.parse(emoji) + ' '
+			div.textContent = emoji + ' '
 
 			if (lastChild === null) {
 				this.$refs.composerInput.innerHTML = div.innerHTML

@@ -66,6 +66,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private bool $sensitive = false;
 	private string $language = 'en';
 	private int $avatarVersion = -1;
+	private int $headerVersion = -1;
 	private string $viewerLink = '';
 
 	/**
@@ -572,6 +573,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getHeaderVersion(): int {
+		return $this->headerVersion;
+	}
+
+	/**
+	 * @param int $headerVersion
+	 *
+	 * @return Person
+	 */
+	public function setHeaderVersion(int $headerVersion): self {
+		$this->headerVersion = $headerVersion;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getViewerLink(): string {
@@ -617,6 +637,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		if ($icon->getType() === Image::TYPE) {
 			$this->setIcon($icon);
+		}
+
+		$image = $this->get('image.url', $data, '');
+		if ($image !== '') {
+			$this->setHeader($image);
 		}
 	}
 
@@ -736,6 +761,14 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			];
 		}
 
+		if ($this->header !== '') {
+			$data['image'] = [
+				'type' => 'Image',
+				'mediaType' => 'image/jpeg',
+				'url' => $this->header
+			];
+		}
+
 		$result = array_merge(
 			parent::exportAsActivityPub(),
 			$data
@@ -758,6 +791,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$avatar = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
 		}
 
+		$headerUrl = $this->getHeader();
+		if ($headerUrl === '' && $this->hasIcon()) {
+			$headerUrl = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
+		}
+
 		$details = $this->getDetailsAll();
 		$result =
 			[
@@ -774,8 +812,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'url' => $this->getId(),
 				'avatar' => $avatar ?? $this->getAvatar(),
 				'avatar_static' => $avatar ?? $this->getAvatar(),
-				'header' => $avatar ?? $this->getHeader(),
-				'header_static' => $avatar ?? $this->getHeader(),
+				'header' => $headerUrl,
+				'header_static' => $headerUrl,
 				'followers_count' => $this->getInt('count.followers', $details),
 				'following_count' => $this->getInt('count.following', $details),
 				'statuses_count' => $this->getInt('count.post', $details),

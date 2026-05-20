@@ -89,6 +89,8 @@ return [
 		['name' => 'Local#globalAccountInfo', 'url' => '/api/v1/global/account/info', 'verb' => 'GET'],
 		['name' => 'Local#globalActorInfo', 'url' => '/api/v1/global/actor/info', 'verb' => 'GET'],
 		['name' => 'Local#globalActorAvatar', 'url' => '/api/v1/global/actor/avatar', 'verb' => 'GET'],
+		['name' => 'Local#globalActorHeader', 'url' => '/api/v1/global/actor/header', 'verb' => 'GET'],
+		['name' => 'Local#uploadBanner', 'url' => '/api/v1/banner', 'verb' => 'POST'],
 		['name' => 'Local#globalAccountsSearch', 'url' => '/api/v1/global/accounts/search', 'verb' => 'GET'],
 		['name' => 'Local#globalTagsSearch', 'url' => '/api/v1/global/tags/search', 'verb' => 'GET'],
 		['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],

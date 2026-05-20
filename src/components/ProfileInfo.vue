@@ -1,40 +1,47 @@
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<NcAvatar v-if="isLocal"
-			:user="localUid"
-			:disable-tooltip="true"
-			:size="128" />
-		<NcAvatar v-else
-			:url="accountInfo.avatar"
-			:disable-tooltip="true"
-			:size="128" />
-		<h2>{{ displayName }}</h2>
-		<ul class="user-profile__info user-profile__sections">
-			<li>
-				<router-link :to="{ name: 'profile', params: { account: uid } }">
-					{{ accountInfo.statuses_count }} {{ t('social', 'posts') }}
-				</router-link>
-			</li>
-			<li>
-				<router-link :to="{ name: 'profile.following', params: { account: uid } }">
-					{{ accountInfo.following_count }}  {{ t('social', 'following') }}
-				</router-link>
-			</li>
-			<li>
-				<router-link :to="{ name: 'profile.followers', params: { account: uid } }">
-					{{ accountInfo.followers_count }}  {{ t('social', 'followers') }}
-				</router-link>
-			</li>
-		</ul>
-		<div class="user-profile__actions">
-			<FollowButton :uid="uid" />
-			<NcButton v-if="serverData.public"
-				type="primary"
-				@click="followRemote">
-				{{ t('social', 'Follow') }}
-			</NcButton>
+		<label v-if="isOwnProfile" class="user-profile__banner-upload">
+			<input type="file" accept="image/*" @change="uploadBanner">
+			{{ t('social', 'Change banner') }}
+		</label>
+		<div class="user-profile__banner" :style="headerStyle"></div>
+		<div class="user-profile__content">
+			<NcAvatar v-if="isLocal"
+				:user="localUid"
+				:disable-tooltip="true"
+				:size="128" />
+			<NcAvatar v-else
+				:url="accountInfo.avatar"
+				:disable-tooltip="true"
+				:size="128" />
+			<h2>{{ displayName }}</h2>
+			<ul class="user-profile__info user-profile__sections">
+				<li>
+					<router-link :to="{ name: 'profile', params: { account: uid } }">
+						{{ accountInfo.statuses_count }} {{ t('social', 'posts') }}
+					</router-link>
+				</li>
+				<li>
+					<router-link :to="{ name: 'profile.following', params: { account: uid } }">
+						{{ accountInfo.following_count }}  {{ t('social', 'following') }}
+					</router-link>
+				</li>
+				<li>
+					<router-link :to="{ name: 'profile.followers', params: { account: uid } }">
+						{{ accountInfo.followers_count }}  {{ t('social', 'followers') }}
+					</router-link>
+				</li>
+			</ul>
+			<div class="user-profile__actions">
+				<FollowButton :uid="uid" />
+				<NcButton v-if="serverData.public"
+					type="primary"
+					@click="followRemote">
+					{{ t('social', 'Follow') }}
+				</NcButton>
+			</div>
+			<MessageContent v-if="accountInfo.note" class="user-profile__note" :item="{content: accountInfo.note, tag: [], mentions: []}" />
 		</div>
-		<MessageContent v-if="accountInfo.note" class="user-profile__note" :item="{content: accountInfo.note, tag: [], mentions: []}" />
 	</div>
 </template>
 
@@ -44,6 +51,8 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import axios from '@nextcloud/axios'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import currentUser from '../mixins/currentUserMixin.js'
@@ -73,6 +82,7 @@ export default {
 	data() {
 		return {
 			followingText: t('social', 'Following'),
+			bannerUrl: null,
 		}
 	},
 	computed: {
@@ -88,12 +98,40 @@ export default {
 		website() {
 			return this.accountInfo.fields.find(field => field.name === 'Website')
 		},
+		isOwnProfile() {
+			return this.currentUser?.uid && this.localUid === this.currentUser.uid
+		},
+		headerStyle() {
+			const url = this.bannerUrl || this.accountInfo.header
+			if (url) {
+				return { backgroundImage: `url(${url})` }
+			}
+			return {}
+		},
 	},
 	methods: {
 		followRemote() {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
+		async uploadBanner(event) {
+			const file = event.target.files[0]
+			if (!file) return
 
+			const formData = new FormData()
+			formData.append('file', file)
+
+			try {
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/banner'),
+					formData,
+					{ headers: { 'Content-Type': 'multipart/form-data' } }
+				)
+				this.bannerUrl = data.result.url
+				showSuccess(t('social', 'Banner uploaded successfully'))
+			} catch (error) {
+				showError(t('social', 'Failed to upload banner'))
+			}
+		},
 		t: translate,
 	},
 }
@@ -107,14 +145,71 @@ export default {
 	width: 100%;
 	max-width: 600px;
 	margin: 0 auto calc(var(--default-grid-baseline) * 6);
-	padding: calc(var(--default-grid-baseline) * 6) calc(var(--default-grid-baseline) * 4);
 	text-align: center;
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
 	border-radius: 8px;
+	overflow: hidden;
+	position: relative;
+
+	&__banner {
+		min-height: 120px;
+		max-height: 200px;
+		background-size: cover;
+		background-position: center 0%;
+		background-repeat: no-repeat;
+		background-color: var(--color-background-dark);
+	}
+
+	&__banner-upload {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		z-index: 10;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 14px;
+		background: rgba(0, 0, 0, 0.5);
+		color: #fff;
+		border-radius: 6px;
+		cursor: pointer;
+		font-size: 13px;
+		opacity: 0;
+		transition: opacity 0.2s;
+
+		input {
+			display: none;
+		}
+
+		&:hover,
+		&:focus-within {
+			opacity: 1;
+		}
+	}
+
+	&:hover &__banner-upload {
+		opacity: 1;
+	}
+
+	&__content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		width: 100%;
+		padding: 56px calc(var(--default-grid-baseline) * 4) calc(var(--default-grid-baseline) * 4);
+		background: var(--color-main-background);
+		position: relative;
+		z-index: 1;
+
+		:deep(.avatardiv) {
+			position: absolute;
+			top: -48px;
+		}
+	}
 
 	h2 {
-		margin-top: 16px;
+		margin-top: 28px;
 		font-size: 26px;
 		font-weight: 700;
 		letter-spacing: -.02em;

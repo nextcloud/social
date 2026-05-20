@@ -5,7 +5,6 @@
 <template>
 	<NcButton :value="currentVisibilityPostLabel"
 		:disabled="disabled"
-		native-type="submit"
 		type="primary"
 		@click.prevent="handleClick">
 		<template #icon>
@@ -26,6 +25,7 @@ export default {
 		NcButton,
 		Send,
 	},
+	emits: ['click'],
 	props: {
 		visibility: {
 			type: String,

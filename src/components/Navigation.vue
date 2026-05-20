@@ -63,7 +63,7 @@
 						</template>
 					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('social', 'Help &amp; documentation')"
-						:href="'https://github.com/nextcloud/social/wiki'"
+						:href="'https://github.com/SchBenedikt/social/'"
 						target="_blank">
 						<template #icon>
 							<IconHelpCircle :size="20" />

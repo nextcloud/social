@@ -281,9 +281,27 @@ class AccountService {
 			} catch (ItemUnknownException|ItemAlreadyExistsException $e) {
 			}
 
+			$this->loadLocalActorHeader($actor);
+
 			$this->addLocalActorDetailCount($actor);
 			$this->actorService->cacheLocalActor($actor);
 		} catch (ActorDoesNotExistException $e) {
+		}
+	}
+
+
+	/**
+	 * Load the cached header document URL for a local actor.
+	 *
+	 * @param Person $actor
+	 */
+	private function loadLocalActorHeader(Person $actor): void {
+		try {
+			$headerUrl = $this->actorService->getCachedHeader($actor);
+			if ($headerUrl !== '') {
+				$actor->setHeader($headerUrl);
+			}
+		} catch (Exception $e) {
 		}
 	}
 

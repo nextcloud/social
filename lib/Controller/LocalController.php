@@ -10,17 +10,21 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
+use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActorService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
@@ -36,6 +40,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
@@ -65,6 +70,9 @@ class LocalController extends Controller {
 	private ?Person $viewer = null;
 	private LoggerInterface $logger;
 
+	private ActorService $actorService;
+	private CacheDocumentService $cacheDocumentService;
+
 	public function __construct(
 		IRequest $request, ?string $userId, AccountService $accountService, CacheActorService $cacheActorService,
 		HashtagService $hashtagService,
@@ -74,6 +82,8 @@ class LocalController extends Controller {
 		MiscService $miscService,
 		ConfigService $configService,
 		LoggerInterface $logger,
+		ActorService $actorService,
+		CacheDocumentService $cacheDocumentService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -91,6 +101,8 @@ class LocalController extends Controller {
 		$this->miscService = $miscService;
 		$this->configService = $configService;
 		$this->logger = $logger;
+		$this->actorService = $actorService;
+		$this->cacheDocumentService = $cacheDocumentService;
 	}
 
 	/**
@@ -102,6 +114,62 @@ class LocalController extends Controller {
 		try {
 			throw new \BadMethodCallException('uploadAttachment is not implemented yet');
 		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
+
+	/**
+	 * Upload a banner/header image for the current user's profile.
+	 *
+	 * @NoAdminRequired
+	 * @NoCSRFRequired
+	 */
+	public function uploadBanner(): DataResponse {
+		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
+
+			$file = $_FILES['file'] ?? [];
+			if (empty($file) || $file['error'] !== UPLOAD_ERR_OK) {
+				throw new Exception('no banner file provided');
+			}
+
+			$tmpName = $file['tmp_name'];
+
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			$image = new Image();
+			$image->setLocal(true);
+			$image->setAccount($actor->getPreferredUsername());
+			$image->setUrlCloud($this->configService->getCloudUrl());
+			$image->generateUniqueId('/documents/header');
+			$image->setPublic(true);
+
+			$this->cacheDocumentService->saveFromTempToCache($image, $tmpName);
+			$image->setUrl($image->getMediaUrl(\OC::$server->get(\OCP\IURLGenerator::class), $image->getMimeType()));
+
+			$interface = AP::$activityPub->getInterfaceForItem($image);
+			$interface->save($image);
+
+			$actor->setHeader($image->getUrl());
+			$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());
+
+			$this->logger->info('[LocalController] Banner uploaded', [
+				'userId' => $this->userId,
+				'url' => $image->getUrl()
+			]);
+
+			return $this->success([
+				'url' => $image->getUrl(),
+				'id' => $image->getId()
+			]);
+		} catch (Exception $e) {
+			$this->logger->error('[LocalController] uploadBanner failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			return $this->fail($e);
 		}
 	}
@@ -743,6 +811,29 @@ class LocalController extends Controller {
 			} else {
 				throw new InvalidResourceException('no avatar for this Actor');
 			}
+		} catch (Exception $e) {
+			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @PublicPage
+	 */
+	public function globalActorHeader(string $id): Response {
+		try {
+			$actor = $this->cacheActorService->getFromId($id);
+			$headerUrl = $actor->getHeader();
+			if ($headerUrl === '') {
+				throw new InvalidResourceException('no header for this Actor');
+			}
+
+			$response = new RedirectResponse($headerUrl);
+			$response->cacheFor(86400);
+
+			return $response;
 		} catch (Exception $e) {
 			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		}

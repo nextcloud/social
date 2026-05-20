@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -150,17 +151,19 @@ class SocialPubController extends Controller {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function displayPost(string $username, int $token): TemplateResponse {
+	public function displayPost(string $username, string $token): Response {
 		try {
 			$viewer = $this->accountService->getCurrentViewer();
 			$this->streamService->setViewer($viewer);
 		} catch (AccountDoesNotExistException $e) {
 		}
 
-		//		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
-		$stream = $this->streamService->getStreamByNid($token);
-		if (strtolower($stream->getActor()->getDisplayName()) !== strtolower($username)) {
+		$stream = $this->streamService->getStreamById($postId, false);
+
+		if (strtolower($stream->getActor()->getDisplayName()) !== strtolower($username)
+			&& strtolower($stream->getActor()->getPreferredUsername()) !== strtolower($username)) {
 			throw new StreamNotFoundException();
 		}
 
@@ -168,6 +171,8 @@ class SocialPubController extends Controller {
 			'application' => 'Social'
 		];
 
+		$stream->setCompleteDetails(true);
+		$stream->setExportFormat(ACore::FORMAT_LOCAL);
 		$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $stream);
 		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', [
 			'public' => ($this->userId === null),
