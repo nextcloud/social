@@ -1,9 +1,11 @@
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<label v-if="isOwnProfile" class="user-profile__banner-upload">
-			<input type="file" accept="image/*" @change="uploadBanner">
+		<NcButton v-if="isOwnProfile" class="user-profile__banner-upload" @click="openFilePicker">
+			<template #icon>
+				<ImagePlus :size="20" />
+			</template>
 			{{ t('social', 'Change banner') }}
-		</label>
+		</NcButton>
 		<div class="user-profile__banner" :style="headerStyle"></div>
 		<div class="user-profile__content">
 			<NcAvatar v-if="isLocal"
@@ -46,12 +48,13 @@
 </template>
 
 <script>
-import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
+import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
 import { showError, showSuccess } from '@nextcloud/dialogs'
+import { getFilePickerBuilder } from '@nextcloud/dialogs'
 import axios from '@nextcloud/axios'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
@@ -65,7 +68,7 @@ export default {
 		FollowButton,
 		NcAvatar,
 		NcButton,
-		OpenInNew,
+		ImagePlus,
 		MessageContent,
 	},
 	mixins: [
@@ -83,6 +86,7 @@ export default {
 		return {
 			followingText: t('social', 'Following'),
 			bannerUrl: null,
+			loading: false,
 		}
 	},
 	computed: {
@@ -113,14 +117,31 @@ export default {
 		followRemote() {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
-		async uploadBanner(event) {
-			const file = event.target.files[0]
-			if (!file) return
-
-			const formData = new FormData()
-			formData.append('file', file)
+		async openFilePicker() {
+			const picker = getFilePickerBuilder(t('social', 'Select a banner image'))
+				.setMimeTypeFilter(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+				.setMultiSelect(false)
+				.allowDirectories(false)
+				.pick()
 
 			try {
+				const [path] = await picker
+				if (!path) return
+				await this.uploadBannerFromPath(path)
+			} catch (error) {
+				// picker was closed without selection
+			}
+		},
+
+		async uploadBannerFromPath(path) {
+			this.loading = true
+			try {
+				const { data: blob } = await axios.get(generateUrl('/apps/files/api/v1/download' + path), {
+					responseType: 'blob',
+				})
+				const file = new File([blob], path.split('/').pop(), { type: blob.type })
+				const formData = new FormData()
+				formData.append('file', file)
 				const { data } = await axios.post(
 					generateUrl('apps/social/api/v1/banner'),
 					formData,
@@ -130,6 +151,8 @@ export default {
 				showSuccess(t('social', 'Banner uploaded successfully'))
 			} catch (error) {
 				showError(t('social', 'Failed to upload banner'))
+			} finally {
+				this.loading = false
 			}
 		},
 		t: translate,
@@ -166,29 +189,12 @@ export default {
 		top: 12px;
 		right: 12px;
 		z-index: 10;
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 14px;
-		background: rgba(0, 0, 0, 0.5);
-		color: #fff;
-		border-radius: 6px;
-		cursor: pointer;
-		font-size: 13px;
 		opacity: 0;
 		transition: opacity 0.2s;
-
-		input {
-			display: none;
-		}
-
-		&:hover,
-		&:focus-within {
-			opacity: 1;
-		}
 	}
 
-	&:hover &__banner-upload {
+	&:hover &__banner-upload,
+	&__banner-upload:focus-visible {
 		opacity: 1;
 	}
 
