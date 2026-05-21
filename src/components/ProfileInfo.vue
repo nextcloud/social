@@ -141,6 +141,11 @@ export default {
 				)
 				this.bannerUrl = data.result.url
 				await this.showSuccess(t('social', 'Banner uploaded successfully'))
+				try {
+					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+				} catch (e) {
+					// non-fatal: banner preview already updated locally
+				}
 			} catch (error) {
 				await this.showError(t('social', 'Failed to upload banner'))
 			} finally {
