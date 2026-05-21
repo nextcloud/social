@@ -125,8 +125,7 @@ class ActivityPubController extends Controller {
 
 			return $this->activityPubSuccess($actor);
 		} catch (Exception $e) {
-			http_response_code(404);
-			exit();
+			return $this->fail($e, [], 404);
 		}
 	}
 
