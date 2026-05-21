@@ -692,6 +692,15 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
+
+		$source = json_decode($this->getSource(), true);
+		if (is_array($source)) {
+			$image = $this->get('image.url', $source, '');
+			if ($image !== '') {
+				$this->setHeader($image);
+			}
+		}
+
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
 			->setUserId($this->get('user_id', $data, ''))
 			->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
