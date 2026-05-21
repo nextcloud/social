@@ -23,6 +23,7 @@ use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -73,6 +74,13 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		if ($activity->getType() === Delete::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$this->delete($item);
+		}
+
+		if ($activity->getType() === Update::TYPE) {
+			$activity->checkOrigin($item->getId());
+			$activity->checkOrigin($item->getAttributedTo());
+			$item->setActivityId($activity->getId());
+			$this->streamRequest->update($item);
 		}
 	}
 

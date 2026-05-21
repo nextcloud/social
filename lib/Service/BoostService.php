@@ -21,8 +21,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\Traits\TStringTools;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class BoostService
@@ -38,11 +40,14 @@ class BoostService {
 	private ActivityService $activityService;
 	private StreamActionService $streamActionService;
 	private StreamQueueService $streamQueueService;
+	private CacheActorService $cacheActorService;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService,
+		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -50,6 +55,8 @@ class BoostService {
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
 		$this->streamQueueService = $streamQueueService;
+		$this->cacheActorService = $cacheActorService;
+		$this->logger = $logger;
 	}
 
 
@@ -81,6 +88,20 @@ class BoostService {
 		$announce->setTo(ACore::CONTEXT_PUBLIC);
 		$announce->addCc($actor->getFollowers());
 		//	$announce->addcc($note->getAttributedTo());
+
+		try {
+			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+			$announce->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('Could not resolve actor inbox for Boost federation', [
+				'attributedTo' => $note->getAttributedTo(),
+				'exception' => $e,
+			]);
+		}
 
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
@@ -137,6 +158,20 @@ class BoostService {
 		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
 			throw new StreamNotFoundException('Stream is not a Note');
+		}
+
+		try {
+			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+			$undo->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('Could not resolve actor inbox for Boost Undo federation', [
+				'attributedTo' => $note->getAttributedTo(),
+				'exception' => $e,
+			]);
 		}
 
 		try {

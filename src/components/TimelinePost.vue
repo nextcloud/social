@@ -29,61 +29,81 @@
 				class="post-visibility"
 				:visibility="visibility.id" />
 		</div>
-		<div v-if="item.content" class="post-message">
+		<div v-if="isEditing" class="post-edit-inline">
+			<textarea ref="editInput"
+				v-model="editContent"
+				class="post-edit-textarea"
+				:placeholder="t('social', 'Edit your post')"
+				@keydown.ctrl.enter="saveEdit" />
+			<div class="post-edit-actions">
+				<NcButton type="primary"
+					:aria-label="t('social', 'Save')"
+					@click="saveEdit">
+					{{ t('social', 'Save') }}
+				</NcButton>
+				<NcButton :aria-label="t('social', 'Cancel')"
+					@click="cancelEdit">
+					{{ t('social', 'Cancel') }}
+				</NcButton>
+			</div>
+		</div>
+		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="item.account.note" />
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
-			<NcButton :title="t('social', 'Reply')"
-				:aria-label="t('social', 'Reply')"
-				type="tertiary"
-				@click="reply">
-				<template #icon>
-					<Reply :size="20" />
-				</template>
-				<template>
-					{{ item.replies_count > 0 ? item.replies_count : '' }}
-				</template>
-			</NcButton>
-			<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-				:title="t('social', 'Boost')"
-				:aria-label="t('social', 'Boost')"
-				type="tertiary"
-				@click="boost">
-				<template #icon>
-					<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-				</template>
-				<template>
-					{{ item.reblogs_count > 0 ? item.reblogs_count : '' }}
-				</template>
-			</NcButton>
-			<NcButton v-if="!isLiked"
-				:title="t('social', 'Like')"
-				:aria-label="t('social', 'Like')"
-				type="tertiary"
-				@click="like">
-				<template #icon>
-					<HeartOutline :size="20" />
-				</template>
-				<template>
-					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
-				</template>
-			</NcButton>
-			<NcButton v-if="isLiked"
-				:title="t('social', 'Undo Like')"
-				:aria-label="t('social', 'Undo Like')"
-				type="tertiary"
-				@click="like">
-				<template #icon>
-					<Heart :size="20" :fill-color="'var(--color-element-error)'" />
-				</template>
-				<template>
-					{{ item.favourites_count > 0 ? item.favourites_count : '' }}
-				</template>
-			</NcButton>
+			<div class="post-action-group">
+				<NcButton :title="t('social', 'Reply')"
+					:aria-label="t('social', 'Reply')"
+					type="tertiary"
+					@click="reply">
+					<template #icon>
+						<Reply :size="20" />
+					</template>
+				</NcButton>
+				<span v-if="item.replies_count > 0" class="post-action-count">{{ item.replies_count }}</span>
+			</div>
+			<div class="post-action-group">
+				<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
+					:title="t('social', 'Boost')"
+					:aria-label="t('social', 'Boost')"
+					type="tertiary"
+					@click="boost">
+					<template #icon>
+						<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+					</template>
+				</NcButton>
+				<span v-if="item.reblogs_count > 0" class="post-action-count">{{ item.reblogs_count }}</span>
+			</div>
+			<div class="post-action-group">
+				<NcButton v-if="!isLiked"
+					:title="t('social', 'Like')"
+					:aria-label="t('social', 'Like')"
+					type="tertiary"
+					@click="like">
+					<template #icon>
+						<HeartOutline :size="20" />
+					</template>
+				</NcButton>
+				<NcButton v-if="isLiked"
+					:title="t('social', 'Undo Like')"
+					:aria-label="t('social', 'Undo Like')"
+					type="tertiary"
+					@click="like">
+					<template #icon>
+						<Heart :size="20" :fill-color="'var(--color-element-error)'" />
+					</template>
+				</NcButton>
+				<span v-if="item.favourites_count > 0" class="post-action-count">{{ item.favourites_count }}</span>
+			</div>
 			<NcActions>
+				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
+					icon="icon-rename"
+					@click="editPost">
+					{{ t('social', 'Edit') }}
+				</NcActionButton>
 				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
 					icon="icon-delete"
 					@click="remove()">
@@ -130,6 +150,12 @@ export default {
 		VisibilityIcon,
 	},
 	mixins: [currentUser],
+	data() {
+		return {
+			isEditing: false,
+			editContent: '',
+		}
+	},
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
 		item: {
@@ -244,6 +270,33 @@ export default {
 			} else {
 				this.$store.dispatch('postBoost', params)
 			}
+		},
+		editPost() {
+			const rawContent = this.item.content || this.item.account?.note || ''
+			this.editContent = rawContent.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+			this.isEditing = true
+			this.$nextTick(() => {
+				if (this.$refs.editInput) {
+					this.$refs.editInput.focus()
+				}
+			})
+		},
+		async saveEdit() {
+			if (this.editContent.trim() === '') {
+				return
+			}
+			await this.$store.dispatch('postEdit', {
+				status: this.item,
+				content: this.editContent.trim(),
+				spoiler_text: '',
+				sensitive: false,
+			})
+			this.isEditing = false
+			this.editContent = ''
+		},
+		cancelEdit() {
+			this.isEditing = false
+			this.editContent = ''
 		},
 		remove() {
 			this.$store.dispatch('postDelete', this.item)
@@ -362,6 +415,37 @@ export default {
 		}
 	}
 
+	.post-edit-inline {
+		margin-bottom: 10px;
+
+		.post-edit-textarea {
+			width: 100%;
+			min-height: 100px;
+			padding: 8px;
+			border: 1px solid var(--color-border);
+			border-radius: 8px;
+			background: var(--color-main-background);
+			color: var(--color-main-text);
+			font-family: inherit;
+			font-size: 15px;
+			line-height: 1.65;
+			resize: vertical;
+			box-sizing: border-box;
+
+			&:focus {
+				outline: none;
+				border-color: var(--color-primary-element);
+			}
+		}
+
+		.post-edit-actions {
+			display: flex;
+			gap: 8px;
+			margin-top: 8px;
+			justify-content: flex-end;
+		}
+	}
+
 	.post-actions {
 		display: flex;
 		align-items: center;
@@ -369,6 +453,19 @@ export default {
 		margin-top: 10px;
 		padding-top: 10px;
 		border-top: 1px solid var(--color-border);
+
+		.post-action-group {
+			display: inline-flex;
+			align-items: center;
+		gap: 4px;
+		}
+
+		.post-action-count {
+			font-size: 12px;
+			color: var(--color-text-lighter);
+			min-width: 16px;
+			text-align: center;
+		}
 
 		:deep(.button-vue) {
 			border-radius: 8px;
@@ -381,6 +478,10 @@ export default {
 		:deep(.button-vue--icon-only) {
 			min-height: 36px;
 			min-width: 36px;
+		}
+
+		:deep(.actions) {
+			margin-left: auto;
 		}
 	}
 }

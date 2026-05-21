@@ -379,6 +379,11 @@ class StreamService {
 	}
 
 
+	public function updateStream(Stream $stream): void {
+		$this->streamRequest->update($stream);
+	}
+
+
 	/**
 	 * @param string $id
 	 * @param int $since

@@ -58,6 +58,7 @@ return [
 		['name' => 'Api#mediaGet', 'url' => '/api/v1/media/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#mediaOpen', 'url' => '/media/{uuid}', 'verb' => 'GET'],
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
+		['name' => 'Api#statusUpdate', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'PUT'],
 		['name' => 'Api#statusGet', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],

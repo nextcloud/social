@@ -97,6 +97,11 @@ const mutations = {
 			state.statuses[status.id].reblogs_count--
 		}
 	},
+	updateStatus(state, updatedStatus) {
+		if (state.statuses[updatedStatus.id] !== undefined) {
+			state.statuses[updatedStatus.id] = updatedStatus
+		}
+	},
 }
 
 const getters = {
@@ -198,6 +203,20 @@ const actions = {
 		} catch (error) {
 			showError('Failed to create a status')
 			logger.error('Failed to create a status', { error })
+		}
+	},
+	async postEdit(context, { status, content, spoiler_text, sensitive }) {
+		try {
+			const response = await axios.put(
+				generateUrl(`apps/social/api/v1/statuses/${status.id}`),
+				{ status: content, spoiler_text, sensitive }
+			)
+			context.commit('updateStatus', response.data)
+			logger.info('Post edited', response.data.id)
+			return response
+		} catch (error) {
+			showError('Failed to edit the status')
+			logger.error('Failed to edit the status', { error })
 		}
 	},
 	async postDelete(context, status) {

@@ -26,6 +26,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
@@ -116,6 +117,28 @@ class ActivityService {
 		$this->saveActivity($activity);
 
 		return $this->request($activity);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param ACore $item
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function updateActivity(Person $actor, ACore $item): string {
+		$update = new Update();
+		$item->setParent($update);
+
+		$update->setObject($item);
+		$update->setId($item->getId() . '/activity#update');
+		$update->setInstancePaths($item->getInstancePaths());
+
+		$update->setActor($actor);
+		$this->signatureService->signObject($actor, $update);
+
+		return $this->request($update);
 	}
 
 

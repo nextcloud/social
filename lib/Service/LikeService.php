@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\Traits\TStringTools;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class LikeService
@@ -47,7 +48,11 @@ class LikeService {
 
 	private StreamQueueService $streamQueueService;
 
+	private CacheActorService $cacheActorService;
+
 	private MiscService $miscService;
+
+	private LoggerInterface $logger;
 
 
 	/**
@@ -59,12 +64,15 @@ class LikeService {
 	 * @param ActivityService $activityService
 	 * @param StreamActionService $streamActionService
 	 * @param StreamQueueService $streamQueueService
+	 * @param CacheActorService $cacheActorService
 	 * @param MiscService $miscService
+	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, MiscService $miscService,
+		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		MiscService $miscService, LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -72,7 +80,9 @@ class LikeService {
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
 		$this->streamQueueService = $streamQueueService;
+		$this->cacheActorService = $cacheActorService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -102,6 +112,7 @@ class LikeService {
 		//		}
 
 		$like->setObjectId($note->getId());
+		$like->setTo($note->getAttributedTo());
 		$this->assignInstance($like, $actor, $note);
 
 		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
@@ -178,15 +189,23 @@ class LikeService {
 	 * @param Stream $note
 	 */
 	private function assignInstance(ACore $item, Person $actor, Stream $note) {
-		//		$item->addInstancePath(
-		//			new InstancePath(
-		//				$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-		//			)
-		//		);
-		$item->addInstancePath(
-			new InstancePath(
-				$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
-			)
-		);
+		try {
+			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+			$item->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('Could not resolve actor inbox for Like federation', [
+				'attributedTo' => $note->getAttributedTo(),
+				'exception' => $e,
+			]);
+			$item->addInstancePath(
+				new InstancePath(
+					$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		}
 	}
 }

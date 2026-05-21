@@ -287,6 +287,44 @@ class ApiController extends Controller {
 	 * @PublicPage
 	 * @NoCSRFRequired
 	 *
+	 * @param int $nid
+	 *
+	 * @return DataResponse
+	 */
+	public function statusUpdate(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = file_get_contents('php://input');
+			$status = new Status();
+			$status->import($this->convertInput($input));
+
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			$item = $this->postService->editPost(
+				$nid,
+				$actor,
+				nl2br($status->getStatus()),
+				$status->getSpoilerText() !== '' ? $status->getSpoilerText() : null,
+				$status->isSensitive()
+			);
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (Exception $e) {
+			$this->logger->error('[ApiController] statusUpdate failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
 	 * @return DataResponse
 	 */
 	public function mediaNew(): DataResponse {
