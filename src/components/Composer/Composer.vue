@@ -239,16 +239,20 @@ export default {
 				return false
 			}
 
-			if (Object.keys(this.attachments).length > 0) {
-				return true
-			}
-
 			if (this.statusIsTooLong) {
 				return false
 			}
 
 			if (this.statusIsEmpty) {
 				return false
+			}
+
+			if (this.visibility === 'direct' && !this.hasMentions) {
+				return false
+			}
+
+			if (Object.keys(this.attachments).length > 0) {
+				return true
 			}
 
 			return true
@@ -259,6 +263,11 @@ export default {
 
 		statusIsTooLong() {
 			return this.statusContent.length > 500
+		},
+
+		hasMentions() {
+			const text = he.decode(this.statusContent.replace(/<[^>]+>/g, ' '))
+			return /(?:^|\s)@[a-zA-Z0-9_.-]+/i.test(text)
 		},
 	},
 	mounted() {

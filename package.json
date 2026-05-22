@@ -68,6 +68,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@babel/plugin-syntax-dynamic-import": "^7.8.3",
     "@cypress/browserify-preprocessor": "^3.0.2",
     "@nextcloud/babel-config": "^1.0.0",
     "@nextcloud/browserslist-config": "^2.3.0",

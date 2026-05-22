@@ -115,6 +115,7 @@ class LikeService {
 		$like->setTo($note->getAttributedTo());
 		$this->assignInstance($like, $actor, $note);
 
+		$like->setPublished(date('c'));
 		$this->signatureService->signObject($actor, $like);
 
 		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
@@ -173,6 +174,9 @@ class LikeService {
 			$undo->setObject($like);
 
 			$interface->delete($like);
+
+			$undo->setPublished(date('c'));
+			$this->signatureService->signObject($actor, $undo);
 
 			$token = $this->activityService->request($undo);
 		} catch (ItemUnknownException $e) {
