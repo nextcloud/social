@@ -6,10 +6,34 @@
 			</template>
 			{{ loading ? t('social', 'Uploading…') : t('social', 'Change banner') }}
 		</NcButton>
+		<NcButton v-if="isOwnProfile" class="user-profile__banner-url" :disabled="loading" @click="showBannerUrlModal = true">
+			<template #icon>
+				<LinkVariant :size="20" />
+			</template>
+			{{ t('social', 'Set from URL') }}
+		</NcButton>
+		<NcModal v-if="showBannerUrlModal" @close="showBannerUrlModal = false">
+			<div class="user-profile__banner-url-modal">
+				<h3>{{ t('social', 'Set banner from URL') }}</h3>
+				<input
+					v-model="bannerUrlInput"
+					type="url"
+					class="user-profile__banner-url-input"
+					:placeholder="t('social', 'https://example.com/image.jpg')"
+					@keyup.enter="uploadBannerByUrl"
+				/>
+				<NcButton type="primary" :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
+					{{ loadingUrl ? t('social', 'Downloading…') : t('social', 'Apply') }}
+				</NcButton>
+			</div>
+		</NcModal>
 		<div
+			ref="bannerEl"
 			class="user-profile__banner"
-			:class="{ 'user-profile__banner--editable': isOwnProfile }"
-			:style="headerStyle"
+			:class="{
+				'user-profile__banner--editable': isOwnProfile,
+				'user-profile__banner--visible': bannerStyle !== '',
+			}"
 			@click="isOwnProfile ? openFilePicker() : undefined"
 		></div>
 		<!-- hidden fallback input for environments where the dialogs picker API is incompatible -->
@@ -56,8 +80,10 @@
 
 <script>
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
+import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcModal from '@nextcloud/vue/components/NcModal'
 import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
@@ -73,7 +99,9 @@ export default {
 		FollowButton,
 		NcAvatar,
 		NcButton,
+		NcModal,
 		ImagePlus,
+		LinkVariant,
 		MessageContent,
 	},
 	mixins: [
@@ -92,6 +120,9 @@ export default {
 			followingText: t('social', 'Following'),
 			bannerUrl: null,
 			loading: false,
+			showBannerUrlModal: false,
+			bannerUrlInput: '',
+			loadingUrl: false,
 		}
 	},
 	computed: {
@@ -110,12 +141,15 @@ export default {
 		isOwnProfile() {
 			return this.currentUser?.uid && this.localUid === this.currentUser.uid
 		},
-		headerStyle() {
-			const url = this.bannerUrl || this.accountInfo.header
-			if (url) {
-				return { backgroundImage: `url(${url})` }
-			}
-			return {}
+		bannerStyle() {
+			const info = this.accountInfo || {}
+			return this.bannerUrl || info.header || ''
+		},
+		watch: {
+			bannerStyle: {
+				handler: 'applyBanner',
+				immediate: true,
+			},
 		},
 	},
 	methods: {
@@ -128,37 +162,41 @@ export default {
 			}
 		},
 
-		async uploadBanner(event) {
-			const file = event?.target?.files?.[0]
-			if (!file) return
-			this.loading = true
-			try {
-				const formData = new FormData()
-				formData.append('file', file)
-				const { data } = await axios.post(
-					generateUrl('apps/social/api/v1/banner'),
-					formData
-				)
-				this.bannerUrl = data.result.url
-				await this.showSuccess(t('social', 'Banner uploaded successfully'))
-				try {
-					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
-				} catch (e) {
-					// non-fatal: banner preview already updated locally
-				}
-			} catch (error) {
-				await this.showError(t('social', 'Failed to upload banner'))
-			} finally {
-				this.loading = false
-				// reset input so same file can be selected again if needed
-				if (event && event.target) event.target.value = ''
-			}
-		},
+async uploadBanner(event) {
+    const file = event?.target?.files?.[0]
+    if (!file) return
+    console.log('[Social] Banner upload started', { fileName: file.name, fileSize: file.size, fileType: file.type })
+    this.loading = true
+    try {
+        const formData = new FormData()
+        formData.append('file', file)
+        console.log('[Social] Sending POST to /api/v1/banner')
+        const { data } = await axios.post(
+            generateUrl('apps/social/api/v1/banner'),
+            formData
+        )
+        console.log('[Social] Banner upload response', data)
+        this.bannerUrl = data.result.url
+        await this.showSuccess(t('social', 'Banner uploaded successfully'))
+        try {
+            await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+            console.log('[Social] Account info refreshed after banner upload')
+        } catch (e) {
+            console.warn('[Social] Failed to refresh account info after banner upload', e)
+        }
+    } catch (error) {
+        console.error('[Social] Banner upload failed', error)
+        await this.showError(t('social', 'Failed to upload banner'))
+    } finally {
+        this.loading = false
+        if (event && event.target) event.target.value = ''
+    }
+},
 
 		async uploadBannerFromPath(path) {
+			console.log('[Social] Banner upload from path started', { path })
 			this.loading = true
 			try {
-				// Normalise builder return types (string or object)
 				let filePath = path
 				if (filePath && typeof filePath === 'object') {
 					filePath = filePath.path || filePath.value || filePath.fullPath || filePath.name || filePath[0] || null
@@ -173,15 +211,16 @@ export default {
 						generateRemoteUrl('dav/files/' + encodeURIComponent(this.currentUser.uid) + filePath)
 					)
 				}
+				console.log('[Social] Download candidates for banner', downloadCandidates)
 				let blob = null
 				for (const candidate of downloadCandidates) {
 					if (!candidate) continue
 					try {
 						const resp = await axios.get(candidate, { responseType: 'blob' })
 						blob = resp.data
+						console.log('[Social] Downloaded banner from', candidate)
 						break
 					} catch (e) {
-						// try next candidate
 						continue
 					}
 				}
@@ -190,19 +229,53 @@ export default {
 				const file = new File([blob], filename, { type: blob.type })
 				const formData = new FormData()
 				formData.append('file', file)
+				console.log('[Social] Sending POST to /api/v1/banner (from path)')
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/banner'), formData)
+				console.log('[Social] Banner upload response', data)
 				this.bannerUrl = data.result.url
 				await this.showSuccess(t('social', 'Banner uploaded successfully'))
-				// Refresh account info so UI/store and potential ActivityPub broadcasts are in sync
 				try {
 					this.$store && this.$store.dispatch && await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+					console.log('[Social] Account info refreshed after banner upload')
 				} catch (e) {
-					// non-fatal
+					console.warn('[Social] Failed to refresh account info after banner upload', e)
 				}
 			} catch (error) {
+				console.error('[Social] Banner upload from path failed', error)
 				await this.showError(t('social', 'Failed to upload banner'))
 			} finally {
 				this.loading = false
+			}
+		},
+		async uploadBannerByUrl() {
+			const url = this.bannerUrlInput.trim()
+			if (!url) return
+			console.log('[Social] Banner upload by URL started', { url })
+			this.loadingUrl = true
+			try {
+				const formData = new URLSearchParams()
+				formData.append('url', url)
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/banner/url'),
+					formData,
+					{ headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+				)
+				console.log('[Social] Banner upload by URL response', data)
+				this.bannerUrl = data.result.url
+				this.showBannerUrlModal = false
+				this.bannerUrlInput = ''
+				await this.showSuccess(t('social', 'Banner set successfully'))
+				try {
+					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+					console.log('[Social] Account info refreshed after banner URL upload')
+				} catch (e) {
+					console.warn('[Social] Failed to refresh account info', e)
+				}
+			} catch (error) {
+				console.error('[Social] Banner upload by URL failed', error)
+				await this.showError(t('social', 'Failed to set banner from URL'))
+			} finally {
+				this.loadingUrl = false
 			}
 		},
 		async showSuccess(message) {
@@ -212,6 +285,20 @@ export default {
 		async showError(message) {
 			const { showError } = await import('@nextcloud/dialogs')
 			showError(message)
+		},
+		applyBanner(url) {
+			const el = this.$refs.bannerEl
+			if (!el) return
+			if (url) {
+				el.style.backgroundImage = `url(${url})`
+				el.style.backgroundSize = 'cover'
+				el.style.backgroundPosition = 'center 0%'
+				el.style.backgroundRepeat = 'no-repeat'
+				el.style.backgroundColor = ''
+			} else {
+				el.style.backgroundImage = ''
+				el.style.backgroundColor = 'var(--color-background-dark)'
+			}
 		},
 		t: translate,
 	},
@@ -354,6 +441,43 @@ export default {
 					pointer-events: none;
 				}
 			}
+		}
+	}
+
+	&__banner-url {
+		position: absolute;
+		top: 52px;
+		right: 12px;
+		z-index: 10;
+		opacity: 1;
+		transition: opacity 0.2s;
+	}
+
+	&__banner-url-modal {
+		padding: 32px;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+
+		h3 {
+			margin: 0;
+			font-size: 18px;
+			font-weight: 700;
+		}
+	}
+
+	&__banner-url-input {
+		width: 100%;
+		padding: 10px 12px;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		font-size: 14px;
+		background: var(--color-main-background);
+		color: var(--color-main-text);
+
+		&:focus {
+			border-color: var(--color-primary-element);
+			outline: none;
 		}
 	}
 }

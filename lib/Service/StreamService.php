@@ -120,7 +120,7 @@ class StreamService {
 				$stream->setTo($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -131,7 +131,7 @@ class StreamService {
 				$stream->setTo($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -140,7 +140,7 @@ class StreamService {
 			case Stream::TYPE_ANNOUNCE:
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -155,7 +155,7 @@ class StreamService {
 				$stream->addCc($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -316,6 +316,15 @@ class StreamService {
 		}
 
 		$item->setActorId($item->getAttributedTo());
+		try {
+			$actor = $this->cacheActorService->getFromId($item->getAttributedTo());
+			$item->addInstancePath(
+				new InstancePath(
+					$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (\Exception $e) {
+		}
 		$this->activityService->deleteActivity($item);
 		$this->streamRequest->deleteById($item->getId(), $type);
 	}

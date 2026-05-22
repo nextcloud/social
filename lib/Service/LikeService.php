@@ -115,6 +115,8 @@ class LikeService {
 		$like->setTo($note->getAttributedTo());
 		$this->assignInstance($like, $actor, $note);
 
+		$this->signatureService->signObject($actor, $like);
+
 		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
 		$interface->save($like);
 

@@ -310,13 +310,12 @@ class ActivityService {
 	 * @return InstancePath[]
 	 */
 	private function generateInstancePathsFollowers(InstancePath $instancePath): array {
-		$follows = $this->followsRequest->getByFollowId($instancePath->getUri());
+		$follows = $this->followsRequest->getFollowersByActorId($instancePath->getUri());
 
 		$sharedInboxes = [];
 		$instancePaths = [];
 		foreach ($follows as $follow) {
 			if (!$follow->hasActor()) {
-				// TODO - check if cache can be empty at this point ?
 				continue;
 			}
 

@@ -67,8 +67,8 @@
 			</div>
 			<div class="post-action-group">
 				<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
-					:title="t('social', 'Boost')"
-					:aria-label="t('social', 'Boost')"
+					:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+					:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 					type="tertiary"
 					@click="boost">
 					<template #icon>

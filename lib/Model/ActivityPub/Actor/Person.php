@@ -801,10 +801,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$headerUrl = $this->getHeader();
-		if ($headerUrl === '' && $this->hasIcon()) {
-			$headerUrl = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
-		}
-
 		$details = $this->getDetailsAll();
 		$result =
 			[

@@ -26,6 +26,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -213,10 +214,16 @@ class PostService {
 		$this->streamService->updateStream($stream);
 
 		$updated = $this->streamService->getStreamByNid($nid);
+		$updated->addInstancePath(
+			new InstancePath(
+				$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+			)
+		);
 
 		try {
 			$this->activityService->updateActivity($actor, $updated);
 		} catch (\Exception $e) {
+			$this->logger->warning('Failed to federate post update', ['exception' => $e]);
 		}
 
 		return $updated;
