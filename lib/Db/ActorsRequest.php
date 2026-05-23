@@ -47,7 +47,9 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 	public function update(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
-		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()));
+		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
+			->set('summary', $qb->createNamedParameter($actor->getSummary()))
+			->set('name', $qb->createNamedParameter($actor->getName()));
 		$this->limitToIdString($qb, $actor->getId());
 
 		$qb->executeStatement();

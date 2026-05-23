@@ -36,6 +36,8 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\JSONResponse;
+use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IInitialStateService;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 
@@ -54,6 +56,7 @@ class ActivityPubController extends Controller {
 	private FollowService $followService;
 	private StreamService $streamService;
 	private ConfigService $configService;
+	private IInitialStateService $initialStateService;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -68,6 +71,7 @@ class ActivityPubController extends Controller {
 		FollowService $followService,
 		StreamService $streamService,
 		ConfigService $configService,
+		IInitialStateService $initialStateService,
 		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -82,6 +86,7 @@ class ActivityPubController extends Controller {
 		$this->followService = $followService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
+		$this->initialStateService = $initialStateService;
 		$this->logger = $logger;
 
 		$this->registerResponder('activity+json', function($response) {
@@ -370,26 +375,45 @@ class ActivityPubController extends Controller {
 		} catch (RealTokenException $e) {
 		}
 
-		if (!$this->checkSourceActivityStreams()) {
-			return $this->socialPubController->displayPost($username, $token);
-		}
+		if ($this->checkSourceActivityStreams()) {
+			try {
+				$viewer = $this->accountService->getCurrentViewer();
+				$this->streamService->setViewer($viewer);
+			} catch (AccountDoesNotExistException $e) {
+			}
 
-		try {
-			$viewer = $this->accountService->getCurrentViewer();
-			$this->streamService->setViewer($viewer);
-		} catch (AccountDoesNotExistException $e) {
+			$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+			try {
+				$stream = $this->streamService->getStreamById($postId, true);
+			} catch (StreamNotFoundException $e) {
+				return $this->fail($e, ['stream' => $postId], Http::STATUS_NOT_FOUND);
+			}
+
+			$stream->setCompleteDetails(false);
+
+			return $this->activityPubSuccess($stream);
 		}
 
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 		try {
-			$stream = $this->streamService->getStreamById($postId, true);
+			$post = $this->streamService->getStreamById($postId, true);
 		} catch (StreamNotFoundException $e) {
-			return $this->fail($e, ['stream' => $postId], Http::STATUS_NOT_FOUND);
+			$post = null;
 		}
 
-		$stream->setCompleteDetails(false);
+		$serverData = [
+			'public' => true,
+			'firstrun' => false,
+			'setup' => false,
+		];
 
-		return $this->activityPubSuccess($stream);
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+
+		if ($post !== null) {
+			$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $post);
+		}
+
+		return new TemplateResponse(Application::APP_ID, 'main', []);
 	}
 
 

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
+use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
@@ -41,6 +42,7 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 		$context->registerEventListener(UserUpdatedEvent::class, UserAccountListener::class);
 		$context->registerDashboardWidget(SocialWidget::class);
+		$context->registerDashboardWidget(SocialTimelineWidget::class);
 		$context->registerNotifierService(Notifier::class);
 	}
 

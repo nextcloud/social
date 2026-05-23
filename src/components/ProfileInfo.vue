@@ -73,7 +73,7 @@
 					{{ t('social', 'Follow') }}
 				</NcButton>
 			</div>
-			<MessageContent v-if="accountInfo.note" class="user-profile__note" :item="{content: accountInfo.note, tag: [], mentions: []}" />
+
 		</div>
 	</div>
 </template>
@@ -91,7 +91,6 @@ import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
-import MessageContent from './MessageContent.js'
 
 export default {
 	name: 'ProfileInfo',
@@ -102,7 +101,6 @@ export default {
 		NcModal,
 		ImagePlus,
 		LinkVariant,
-		MessageContent,
 	},
 	mixins: [
 		accountMixins,
@@ -123,6 +121,7 @@ export default {
 			showBannerUrlModal: false,
 			bannerUrlInput: '',
 			loadingUrl: false,
+
 		}
 	},
 	computed: {
@@ -145,11 +144,12 @@ export default {
 			const info = this.accountInfo || {}
 			return this.bannerUrl || info.header || ''
 		},
-		watch: {
-			bannerStyle: {
-				handler: 'applyBanner',
-				immediate: true,
-			},
+	},
+
+	watch: {
+		bannerStyle: {
+			handler: 'applyBanner',
+			immediate: true,
 		},
 	},
 	methods: {
@@ -286,6 +286,7 @@ async uploadBanner(event) {
 			const { showError } = await import('@nextcloud/dialogs')
 			showError(message)
 		},
+
 		applyBanner(url) {
 			const el = this.$refs.bannerEl
 			if (!el) return
@@ -395,27 +396,15 @@ async uploadBanner(event) {
 	&__note {
 		text-align: start;
 		width: 100%;
-		margin-top: 18px;
-		padding-top: 18px;
+		margin: 18px 0 0;
+		padding: 18px 0 0;
 		border-top: 1px solid var(--color-border);
 		font-size: 14px;
 		line-height: 1.7;
 		overflow-wrap: break-word;
 		word-wrap: break-word;
 		word-break: break-word;
-		hyphens: auto;
-
-		p {
-			margin: 0 0 8px;
-			&:last-child {
-				margin-bottom: 0;
-			}
-		}
-
-		a {
-			color: var(--color-primary-element);
-			text-decoration: underline;
-		}
+		white-space: pre-wrap;
 	}
 
 	&__sections {
@@ -480,5 +469,6 @@ async uploadBanner(event) {
 			outline: none;
 		}
 	}
+
 }
 </style>

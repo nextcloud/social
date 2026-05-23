@@ -619,7 +619,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
+		$this->setDescription($this->validate(ACore::AS_CONTENT, 'summary', $data, ''))
+			->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
 			->setPublicKey($this->get('publicKey.publicKeyPem', $data))
 			->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
 			->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
