@@ -16,3 +16,4 @@ cypress/snapshots
 *.key
 *.csr
 *.crt
+RELEASE.md
