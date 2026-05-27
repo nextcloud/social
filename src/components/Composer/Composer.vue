@@ -383,7 +383,10 @@ export default {
 				emoji.replaceWith(em)
 			})
 
-			let status = element.innerHTML.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
+			const tempDiv = document.createElement('div')
+			tempDiv.innerHTML = element.innerHTML
+			tempDiv.querySelectorAll('div').forEach(d => d.after(document.createTextNode('\n')))
+			let status = tempDiv.textContent.trim()
 			status = he.decode(status)
 
 			const statusData = {

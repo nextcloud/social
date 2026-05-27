@@ -8,6 +8,9 @@
 
 name: Static analysis
 
+permissions:
+  contents: read
+
 on: pull_request
 
 concurrency:

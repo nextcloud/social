@@ -273,7 +273,10 @@ export default {
 		},
 		editPost() {
 			const rawContent = this.item.content || this.item.account?.note || ''
-			this.editContent = rawContent.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+			const div = document.createElement('div')
+			div.innerHTML = rawContent
+			div.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
+			this.editContent = div.textContent || ''
 			this.isEditing = true
 			this.$nextTick(() => {
 				if (this.$refs.editInput) {
