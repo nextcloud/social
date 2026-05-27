@@ -273,10 +273,7 @@ export default {
 		},
 		editPost() {
 			const rawContent = this.item.content || this.item.account?.note || ''
-			const div = document.createElement('div')
-			div.innerHTML = rawContent
-			div.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
-			this.editContent = div.textContent || ''
+			this.editContent = htmlToPlainText(rawContent)
 			this.isEditing = true
 			this.$nextTick(() => {
 				if (this.$refs.editInput) {
@@ -316,6 +313,44 @@ export default {
 			}
 		},
 	},
+}
+
+function htmlToPlainText(html) {
+	const parser = new DOMParser()
+	const dom = parser.parseFromString(`<div id="rootwrapper">${html}</div>`, 'text/html')
+	const root = dom.getElementById('rootwrapper')
+	if (!root) {
+		return ''
+	}
+
+	return nodeToPlainText(root).trim()
+}
+
+function nodeToPlainText(node) {
+	let text = ''
+	for (const child of Array.from(node.childNodes)) {
+		if (child.nodeType === Node.TEXT_NODE) {
+			text += child.textContent || ''
+			continue
+		}
+
+		if (child.nodeType !== Node.ELEMENT_NODE) {
+			continue
+		}
+
+		const element = child
+		if (element.tagName === 'BR') {
+			text += '\n'
+			continue
+		}
+
+		text += nodeToPlainText(element)
+		if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)) {
+			text += '\n'
+		}
+	}
+
+	return text
 }
 </script>
 <style scoped lang="scss">

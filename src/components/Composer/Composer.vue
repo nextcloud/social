@@ -296,13 +296,20 @@ export default {
 				handle += `@${this.hostname}`
 			}
 
-			this.$refs.composerInput.innerHTML
-				= '<span class="mention" contenteditable="false">'
-					+ `<a href="${account.url}" target="_blank">`
-						+ `<img src="${account.avatar}"/>`
-						+ `@${handle}`
-					+ '</a>'
-				+ '</span>&nbsp;'
+			const mention = document.createElement('span')
+			mention.className = 'mention'
+			mention.contentEditable = 'false'
+
+			const link = document.createElement('a')
+			link.href = account.url
+			link.target = '_blank'
+
+			const avatar = document.createElement('img')
+			avatar.src = account.avatar
+			link.append(avatar, document.createTextNode(`@${handle}`))
+			mention.append(link)
+
+			this.$refs.composerInput.replaceChildren(mention, document.createTextNode('\u00a0'))
 			this.updateStatusContent()
 		},
 		updateStatusContent() {
@@ -383,10 +390,7 @@ export default {
 				emoji.replaceWith(em)
 			})
 
-			const tempDiv = document.createElement('div')
-			tempDiv.innerHTML = element.innerHTML
-			tempDiv.querySelectorAll('div').forEach(d => d.after(document.createTextNode('\n')))
-			let status = tempDiv.textContent.trim()
+			let status = nodeToPlainText(element).trim()
 			status = he.decode(status)
 
 			const statusData = {
@@ -429,6 +433,33 @@ export default {
 			this.attachments = newAttachments
 		},
 	},
+}
+
+function nodeToPlainText(node) {
+	let text = ''
+	for (const child of Array.from(node.childNodes)) {
+		if (child.nodeType === Node.TEXT_NODE) {
+			text += child.textContent || ''
+			continue
+		}
+
+		if (child.nodeType !== Node.ELEMENT_NODE) {
+			continue
+		}
+
+		const element = child
+		if (element.tagName === 'BR') {
+			text += '\n'
+			continue
+		}
+
+		text += nodeToPlainText(element)
+		if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)) {
+			text += '\n'
+		}
+	}
+
+	return text
 }
 </script>
 

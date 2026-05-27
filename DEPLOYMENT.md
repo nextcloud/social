@@ -1,10 +1,9 @@
-<!--
-  - SPDX-FileCopyrightText: 2024 Nextcloud GmbH and Nextcloud contributors
-  - SPDX-License-Identifier: AGPL-3.0-or-later
--->
+
 # Deployment Guide for Nextcloud Social
 
 This guide provides instructions for deploying the Nextcloud Social app in a production environment.
+
+! This tutorial could be outdated and is no longer maintainend!
 
 ## Prerequisites
 
