@@ -354,8 +354,6 @@ function nodeToPlainText(node) {
 }
 </script>
 <style scoped lang="scss">
-@import '@nextcloud/vue-richtext/dist/style.css';
-
 .post-content {
 	padding: 18px 20px 14px;
 	font-size: 15px;
