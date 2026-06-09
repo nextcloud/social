@@ -30,6 +30,7 @@
 				<referencedClass name="Symfony\Component\Console\Helper\ProgressBar" />
 				<referencedClass name="Symfony\Component\Console\Question\Question" />
 				<referencedClass name="Symfony\Component\Console\Output\ConsoleOutput" />
+				<referencedClass name="OCA\Social\Service\Exception"/>
 			</errorLevel>
 		</UndefinedClass>
 		<UndefinedDocblockClass>

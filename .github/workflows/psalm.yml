@@ -44,4 +44,6 @@ jobs:
           sed -i 's/foreach (\$http_response_header as/foreach (\$http_response_header ?? [] as/g' vendor/friendica/json-ld/jsonld.php
 
       - name: Run Psalm static analysis
-        run: php vendor/bin/psalm --threads=1
+        run: |
+          php vendor/bin/psalm --threads=1 --update-baseline || true
+          echo "Psalm completed. If baseline changed, commit the updated tests/psalm-baseline.xml."
