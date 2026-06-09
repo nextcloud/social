@@ -1,3 +1,7 @@
+<!--
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public"
@@ -35,8 +39,7 @@
 						type="url"
 						class="setup-input"
 						required>
-					<NcButton
-						type="primary"
+					<NcButton type="primary"
 						native-type="submit">
 						{{ t('social', 'Finish setup') }}
 					</NcButton>
@@ -297,6 +300,5 @@ img.emoji {
 	font-size: 12px;
 	color: var(--color-text-lighter);
 }
-
 
 </style>

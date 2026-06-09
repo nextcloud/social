@@ -1,14 +1,16 @@
+<!--
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<NcAppNavigation>
 		<template #search>
-			<NcAppNavigationSearch
-				v-model="localSearch"
+			<NcAppNavigationSearch v-model="localSearch"
 				:label="t('social', 'Search …')"
 				@update:modelValue="onSearchInput" />
 		</template>
 		<template #list>
-			<NcAppNavigationItem
-				:name="t('social', 'New post')"
+			<NcAppNavigationItem :name="t('social', 'New post')"
 				@click="showComposer = true">
 				<template #icon>
 					<IconPlus :size="20" />
@@ -37,8 +39,7 @@
 
 			<NcAppNavigationSpacer />
 
-			<NcAppNavigationItem
-				:name="menu.profile.title"
+			<NcAppNavigationItem :name="menu.profile.title"
 				:active="isActive(menu.profile)"
 				@click="navigate(menu.profile)">
 				<template #icon>
@@ -87,8 +88,12 @@
 		@close="showErrors = false">
 		<div class="modal-errors">
 			<div v-for="error in appErrors" :key="error.id" class="modal-errors__item">
-				<div class="modal-errors__title">{{ error.title }}</div>
-				<div class="modal-errors__message">{{ error.message }}</div>
+				<div class="modal-errors__title">
+					{{ error.title }}
+				</div>
+				<div class="modal-errors__message">
+					{{ error.message }}
+				</div>
 				<NcButton type="tertiary" @click="dismissError(error.id)">
 					{{ t('social', 'Dismiss') }}
 				</NcButton>
@@ -209,16 +214,16 @@ export default {
 						to: { name: 'timeline', params: { type: 'favourites' } },
 					},
 				],
-			profile: {
-				key: 'social-profile',
-				icon: 'user',
-				title: t('social', 'Profile'),
-				to: { name: 'profile', params: { account: this.currentUser?.uid } },
-			},
+				profile: {
+					key: 'social-profile',
+					icon: 'user',
+					title: t('social', 'Profile'),
+					to: { name: 'profile', params: { account: this.currentUser?.uid } },
+				},
 			}
 		},
 	},
-		methods: {
+	methods: {
 		dismissError(id) {
 			this.$store.dispatch('dismissAppError', id)
 		},

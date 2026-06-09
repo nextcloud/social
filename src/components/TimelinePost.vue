@@ -150,12 +150,6 @@ export default {
 		VisibilityIcon,
 	},
 	mixins: [currentUser],
-	data() {
-		return {
-			isEditing: false,
-			editContent: '',
-		}
-	},
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
 		item: {
@@ -166,6 +160,12 @@ export default {
 			type: String,
 			required: true,
 		},
+	},
+	data() {
+		return {
+			isEditing: false,
+			editContent: '',
+		}
 	},
 	computed: {
 		/**
@@ -315,6 +315,10 @@ export default {
 	},
 }
 
+/**
+ *
+ * @param html
+ */
 function htmlToPlainText(html) {
 	const parser = new DOMParser()
 	const dom = parser.parseFromString(`<div id="rootwrapper">${html}</div>`, 'text/html')
@@ -326,6 +330,10 @@ function htmlToPlainText(html) {
 	return nodeToPlainText(root).trim()
 }
 
+/**
+ *
+ * @param node
+ */
 function nodeToPlainText(node) {
 	let text = ''
 	for (const child of Array.from(node.childNodes)) {
@@ -493,7 +501,7 @@ function nodeToPlainText(node) {
 		.post-action-group {
 			display: inline-flex;
 			align-items: center;
-		gap: 4px;
+			gap: 4px;
 		}
 
 		.post-action-count {

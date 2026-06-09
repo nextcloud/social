@@ -56,6 +56,7 @@ export default {
 	align-items: center;
 	width: 100%;
 }
+
 .guest-box {
 	color: var(--color-main-text);
 	background-color: var(--color-main-background);

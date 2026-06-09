@@ -29,10 +29,10 @@ use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\CurlService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
@@ -44,10 +44,10 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\Files\NotFoundException;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
-use OCP\Files\NotFoundException;
 use Psr\Log\LoggerInterface;
 
 /**

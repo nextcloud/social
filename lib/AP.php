@@ -11,7 +11,6 @@ namespace OCA\Social;
 
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;

@@ -1,12 +1,22 @@
+<!--
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div v-if="profileAccount && accountInfo" class="user-profile">
-		<NcButton v-if="isOwnProfile" class="user-profile__banner-upload" :disabled="loading" @click="openFilePicker">
+		<NcButton v-if="isOwnProfile"
+			class="user-profile__banner-upload"
+			:disabled="loading"
+			@click="openFilePicker">
 			<template #icon>
 				<ImagePlus :size="20" />
 			</template>
 			{{ loading ? t('social', 'Uploading…') : t('social', 'Change banner') }}
 		</NcButton>
-		<NcButton v-if="isOwnProfile" class="user-profile__banner-url" :disabled="loading" @click="showBannerUrlModal = true">
+		<NcButton v-if="isOwnProfile"
+			class="user-profile__banner-url"
+			:disabled="loading"
+			@click="showBannerUrlModal = true">
 			<template #icon>
 				<LinkVariant :size="20" />
 			</template>
@@ -15,29 +25,29 @@
 		<NcModal v-if="showBannerUrlModal" @close="showBannerUrlModal = false">
 			<div class="user-profile__banner-url-modal">
 				<h3>{{ t('social', 'Set banner from URL') }}</h3>
-				<input
-					v-model="bannerUrlInput"
+				<input v-model="bannerUrlInput"
 					type="url"
 					class="user-profile__banner-url-input"
 					:placeholder="t('social', 'https://example.com/image.jpg')"
-					@keyup.enter="uploadBannerByUrl"
-				/>
+					@keyup.enter="uploadBannerByUrl">
 				<NcButton type="primary" :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
 					{{ loadingUrl ? t('social', 'Downloading…') : t('social', 'Apply') }}
 				</NcButton>
 			</div>
 		</NcModal>
-		<div
-			ref="bannerEl"
+		<div ref="bannerEl"
 			class="user-profile__banner"
 			:class="{
 				'user-profile__banner--editable': isOwnProfile,
 				'user-profile__banner--visible': bannerStyle !== '',
 			}"
-			@click="isOwnProfile ? openFilePicker() : undefined"
-		></div>
+			@click="isOwnProfile ? openFilePicker() : undefined" />
 		<!-- hidden fallback input for environments where the dialogs picker API is incompatible -->
-		<input ref="bannerInput" type="file" accept="image/*" style="display:none" @change="uploadBanner" />
+		<input ref="bannerInput"
+			type="file"
+			accept="image/*"
+			style="display:none"
+			@change="uploadBanner">
 		<div class="user-profile__content">
 			<NcAvatar v-if="isLocal"
 				:user="localUid"
@@ -73,7 +83,6 @@
 					{{ t('social', 'Follow') }}
 				</NcButton>
 			</div>
-
 		</div>
 	</div>
 </template>
@@ -162,36 +171,36 @@ export default {
 			}
 		},
 
-async uploadBanner(event) {
-    const file = event?.target?.files?.[0]
-    if (!file) return
-    console.log('[Social] Banner upload started', { fileName: file.name, fileSize: file.size, fileType: file.type })
-    this.loading = true
-    try {
-        const formData = new FormData()
-        formData.append('file', file)
-        console.log('[Social] Sending POST to /api/v1/banner')
-        const { data } = await axios.post(
-            generateUrl('apps/social/api/v1/banner'),
-            formData
-        )
-        console.log('[Social] Banner upload response', data)
-        this.bannerUrl = data.result.url
-        await this.showSuccess(t('social', 'Banner uploaded successfully'))
-        try {
-            await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
-            console.log('[Social] Account info refreshed after banner upload')
-        } catch (e) {
-            console.warn('[Social] Failed to refresh account info after banner upload', e)
-        }
-    } catch (error) {
-        console.error('[Social] Banner upload failed', error)
-        await this.showError(t('social', 'Failed to upload banner'))
-    } finally {
-        this.loading = false
-        if (event && event.target) event.target.value = ''
-    }
-},
+		async uploadBanner(event) {
+			const file = event?.target?.files?.[0]
+			if (!file) return
+			console.log('[Social] Banner upload started', { fileName: file.name, fileSize: file.size, fileType: file.type })
+			this.loading = true
+			try {
+				const formData = new FormData()
+				formData.append('file', file)
+				console.log('[Social] Sending POST to /api/v1/banner')
+				const { data } = await axios.post(
+					generateUrl('apps/social/api/v1/banner'),
+					formData,
+				)
+				console.log('[Social] Banner upload response', data)
+				this.bannerUrl = data.result.url
+				await this.showSuccess(t('social', 'Banner uploaded successfully'))
+				try {
+					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+					console.log('[Social] Account info refreshed after banner upload')
+				} catch (e) {
+					console.warn('[Social] Failed to refresh account info after banner upload', e)
+				}
+			} catch (error) {
+				console.error('[Social] Banner upload failed', error)
+				await this.showError(t('social', 'Failed to upload banner'))
+			} finally {
+				this.loading = false
+				if (event && event.target) event.target.value = ''
+			}
+		},
 
 		async uploadBannerFromPath(path) {
 			console.log('[Social] Banner upload from path started', { path })
@@ -208,7 +217,7 @@ async uploadBanner(event) {
 					}
 				} else {
 					downloadCandidates.push(
-						generateRemoteUrl('dav/files/' + encodeURIComponent(this.currentUser.uid) + filePath)
+						generateRemoteUrl('dav/files/' + encodeURIComponent(this.currentUser.uid) + filePath),
 					)
 				}
 				console.log('[Social] Download candidates for banner', downloadCandidates)
@@ -258,7 +267,7 @@ async uploadBanner(event) {
 				const { data } = await axios.post(
 					generateUrl('apps/social/api/v1/banner/url'),
 					formData,
-					{ headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+					{ headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
 				)
 				console.log('[Social] Banner upload by URL response', data)
 				this.bannerUrl = data.result.url

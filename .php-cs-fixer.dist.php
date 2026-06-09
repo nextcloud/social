@@ -18,5 +18,6 @@ $config
 	->notPath('l10n')
 	->notPath('src')
 	->notPath('vendor')
+	->notPath('node_modules')
 	->in(__DIR__);
 return $config;

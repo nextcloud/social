@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
-use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -23,7 +22,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
-use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;

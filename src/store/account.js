@@ -1,5 +1,11 @@
+/**
+ * SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { showError } from '@nextcloud/dialogs'
 import { translate as t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
@@ -312,15 +318,15 @@ const actions = {
 			return error
 		}
 	},
-	async fetchAccountFollowers(context, { account, max_id } = {}) {
+	async fetchAccountFollowers(context, { account, maxId } = {}) {
 		const key = _keyForAccount(account)
 		if (context.state.accountsFollowersLoading[key]) return
 		context.commit('setFollowersLoading', { actorId: key, loading: true })
 		try {
 			const params = {}
-			if (max_id) params.max_id = max_id
+			if (maxId) params.max_id = maxId
 			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/followers`), { params })
-			if (!max_id) {
+			if (!maxId) {
 				context.commit('addFollowers', { account, data: response.data })
 			} else {
 				context.commit('addFollowersAppend', { account, data: response.data })
@@ -336,15 +342,15 @@ const actions = {
 			context.commit('setFollowersLoading', { actorId: key, loading: false })
 		}
 	},
-	async fetchAccountFollowing(context, { account, max_id } = {}) {
+	async fetchAccountFollowing(context, { account, maxId } = {}) {
 		const key = _keyForAccount(account)
 		if (context.state.accountsFollowingsLoading[key]) return
 		context.commit('setFollowingsLoading', { actorId: key, loading: true })
 		try {
 			const params = {}
-			if (max_id) params.max_id = max_id
+			if (maxId) params.max_id = maxId
 			const response = await axios.get(generateUrl(`apps/social/api/v1/accounts/${account}/following`), { params })
-			if (!max_id) {
+			if (!maxId) {
 				context.commit('addFollowing', { account, data: response.data })
 			} else {
 				context.commit('addFollowingAppend', { account, data: response.data })

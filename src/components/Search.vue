@@ -1,3 +1,7 @@
+<!--
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div class="social__wrapper">
 		<div v-if="allResults.length < 1 && hashtags.length < 1" id="emptycontent" :class="{'icon-loading': loading || remoteLoading}">
@@ -114,6 +118,7 @@ export default {
 		margin-top: -3px;
 		margin-left: 47px;
 	}
+
 	.tag {
 		list-style-type: none;
 		margin: 0;

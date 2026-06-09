@@ -1,3 +1,7 @@
+<!--
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div class="new-post" data-id="">
 		<input id="file-upload"
@@ -100,7 +104,6 @@ import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
-import Tribute from 'tributejs'
 import he from 'he'
 import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
@@ -435,6 +438,10 @@ export default {
 	},
 }
 
+/**
+ *
+ * @param node
+ */
 function nodeToPlainText(node) {
 	let text = ''
 	for (const child of Array.from(node.childNodes)) {
@@ -648,6 +655,7 @@ function nodeToPlainText(node) {
 
 			span {
 				display: block;
+				font-weight: bold;
 			}
 
 			&.highlight,
@@ -664,10 +672,6 @@ function nodeToPlainText(node) {
 				margin-right: 10px;
 				margin-left: -3px;
 				margin-top: 3px;
-			}
-
-			span {
-				font-weight: bold;
 			}
 
 			&.no-match {
