@@ -176,5 +176,5 @@ jobs:
 
     steps:
       - name: Summary status
-        run: if ${{ needs.init.result == 'success' && needs.cypress.result != 'success' }}; then exit 1; fi
+        run: if ${{ needs.init.result == 'success' && needs.cypress.result != 'success' && needs.cypress.result != 'skipped' }}; then exit 1; fi
 

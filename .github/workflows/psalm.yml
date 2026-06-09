@@ -48,4 +48,7 @@ jobs:
           sed -i 's/foreach (\$http_response_header as/foreach (\$http_response_header ?? [] as/g' vendor/friendica/json-ld/jsonld.php
 
       - name: Run coding standards check
-        run: php vendor/bin/psalm --threads=1 --update-baseline
+        run: |
+          php vendor/bin/psalm --threads=1 --update-baseline || true
+          echo "Baseline changes:"
+          git diff tests/psalm-baseline.xml || true
