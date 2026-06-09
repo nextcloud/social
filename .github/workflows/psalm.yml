@@ -43,5 +43,9 @@ jobs:
       - name: Install dependencies
         run: composer i
 
+      - name: Patch friendica/json-ld for PHP 8.4+ compatibility
+        run: |
+          sed -i 's/foreach (\$http_response_header as/foreach (\$http_response_header ?? [] as/g' vendor/friendica/json-ld/jsonld.php
+
       - name: Run coding standards check
-        run: php -d error_reporting="E_ALL & ~E_DEPRECATED" vendor/bin/psalm --threads=1 --update-baseline
+        run: php vendor/bin/psalm --threads=1 --update-baseline
