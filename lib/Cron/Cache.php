@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 use Exception;
-use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;

@@ -154,8 +154,8 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 *
 	 * For Undo(theirFollow): remote unfollowed us → delete from DB.
 	 *
-	 * @param ACore $activity  The wrapping activity (Accept/Reject/Undo)
-	 * @param ACore $item      The Follow object inside the activity
+	 * @param ACore $activity The wrapping activity (Accept/Reject/Undo)
+	 * @param ACore $item The Follow object inside the activity
 	 *
 	 * @throws InvalidOriginException
 	 */

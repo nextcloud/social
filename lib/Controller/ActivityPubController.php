@@ -35,7 +35,6 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
-use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IInitialStateService;
 use OCP\IRequest;
@@ -89,12 +88,12 @@ class ActivityPubController extends Controller {
 		$this->initialStateService = $initialStateService;
 		$this->logger = $logger;
 
-		$this->registerResponder('activity+json', function($response) {
+		$this->registerResponder('activity+json', function ($response) {
 			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
 			$resp->addHeader('Content-Type', 'application/activity+json; charset=utf-8');
 			return $resp;
 		});
-		$this->registerResponder('ld+json; profile="https://www.w3.org/ns/activitystreams"', function($response) {
+		$this->registerResponder('ld+json; profile="https://www.w3.org/ns/activitystreams"', function ($response) {
 			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
 			$resp->addHeader('Content-Type', 'ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8');
 			return $resp;

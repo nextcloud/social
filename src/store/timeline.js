@@ -1,3 +1,8 @@
+/**
+ * SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
@@ -15,6 +20,11 @@ const state = {
 	searchQuery: '',
 }
 
+/**
+ *
+ * @param state
+ * @param status
+ */
 function addToStatuses(state, status) {
 	state.statuses = { ...state.statuses, [status.id]: status }
 	if (status.reblog !== undefined && status.reblog !== null) {
@@ -187,7 +197,7 @@ const actions = {
 					headers: {
 						'Content-Type': 'multipart/form-data',
 					},
-				}
+				},
 			)
 			logger.info('Media created with id ' + data.id)
 			return data
@@ -209,7 +219,7 @@ const actions = {
 		try {
 			const response = await axios.put(
 				generateUrl(`apps/social/api/v1/statuses/${status.id}`),
-				{ status: content, spoiler_text, sensitive }
+				{ status: content, spoiler_text, sensitive },
 			)
 			context.commit('updateStatus', response.data)
 			logger.info('Post edited', response.data.id)

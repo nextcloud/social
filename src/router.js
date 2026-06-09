@@ -1,3 +1,8 @@
+/**
+ * SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
 import { createRouter, createWebHistory } from 'vue-router'
 
 const Timeline = () => import('./views/Timeline.vue')
@@ -6,6 +11,9 @@ const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile.v
 const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline.vue')
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 
+/**
+ *
+ */
 function getBase() {
 	if (window.OC && window.OC.webroot) {
 		return window.OC.webroot + '/apps/social/'

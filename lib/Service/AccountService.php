@@ -28,7 +28,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Accounts\IAccountManager;
 use OCP\IUser;
 use OCP\IUserManager;

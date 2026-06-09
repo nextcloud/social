@@ -25,7 +25,6 @@ export default {
 		NcButton,
 		Send,
 	},
-	emits: ['click'],
 	props: {
 		visibility: {
 			type: String,
@@ -36,6 +35,7 @@ export default {
 			default: true,
 		},
 	},
+	emits: ['click'],
 	computed: {
 		/** @return {string} */
 		postTo() {
