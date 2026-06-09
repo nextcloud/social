@@ -44,4 +44,4 @@ jobs:
         run: composer i
 
       - name: Run coding standards check
-        run: composer run psalm
+        run: php -d error_reporting="E_ALL & ~E_DEPRECATED" vendor/bin/psalm --threads=1 --update-baseline
