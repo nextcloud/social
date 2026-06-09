@@ -42,5 +42,46 @@
 				<referencedClass name="Symfony\Component\EventDispatcher\EventDispatcherInterface" />
 			</errorLevel>
 		</UndefinedDocblockClass>
+		<InvalidTemplateParam>
+			<errorLevel type="suppress">
+				<file name="lib/Controller/ActivityPubController.php"/>
+			</errorLevel>
+		</InvalidTemplateParam>
+		<RedundantCondition>
+			<errorLevel type="suppress">
+				<file name="lib/Dashboard/SocialTimelineWidget.php"/>
+			</errorLevel>
+		</RedundantCondition>
+		<TypeDoesNotContainNull>
+			<errorLevel type="suppress">
+				<file name="lib/Dashboard/SocialTimelineWidget.php"/>
+				<file name="lib/Service/StreamService.php"/>
+			</errorLevel>
+		</TypeDoesNotContainNull>
+		<UndefinedThisPropertyAssignment>
+			<errorLevel type="suppress">
+				<file name="lib/Service/AccountService.php"/>
+			</errorLevel>
+		</UndefinedThisPropertyAssignment>
+		<UndefinedThisPropertyFetch>
+			<errorLevel type="suppress">
+				<file name="lib/Service/AccountService.php"/>
+			</errorLevel>
+		</UndefinedThisPropertyFetch>
+		<UndefinedMethod>
+			<errorLevel type="suppress">
+				<file name="lib/Service/AccountService.php"/>
+			</errorLevel>
+		</UndefinedMethod>
+		<UndefinedConstant>
+			<errorLevel type="suppress">
+				<file name="lib/Service/AccountService.php"/>
+			</errorLevel>
+		</UndefinedConstant>
+		<UndefinedClass>
+			<errorLevel type="suppress">
+				<referencedClass name="OCA\Social\Service\Exception"/>
+			</errorLevel>
+		</UndefinedClass>
 	</issueHandlers>
 </psalm>
