@@ -23,6 +23,7 @@ use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -74,6 +75,13 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$activity->checkOrigin($item->getId());
 			$this->delete($item);
 		}
+
+		if ($activity->getType() === Update::TYPE) {
+			$activity->checkOrigin($item->getId());
+			$activity->checkOrigin($item->getAttributedTo());
+			$item->setActivityId($activity->getId());
+			$this->streamRequest->update($item);
+		}
 	}
 
 	public function save(ACore $item): void {
@@ -102,8 +110,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		try {
 			$orig = $this->streamRequest->getStreamById($stream->getInReplyTo());
-			$count = $this->streamRequest->countRepliesTo($stream->getInReplyTo());
-			$orig->setDetailInt('replies', $count);
+			$remoteReplies = $orig->getDetailInt('remote_replies');
+			$localReplies = $this->streamRequest->countRepliesTo($stream->getInReplyTo());
+			$orig->setDetailInt('replies', $remoteReplies + $localReplies);
 
 			$this->streamRequest->updateDetails($orig);
 		} catch (StreamNotFoundException $e) {

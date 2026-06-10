@@ -1,6 +1,5 @@
 # SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
-js/
 \.idea/
 node_modules/
 build/
@@ -12,3 +11,9 @@ cypress/snapshots
 
 .php-cs-fixer.cache
 .vscode/settings.json
+
+# NEVER commit these - private key and certificate signing request
+*.key
+*.csr
+*.crt
+RELEASE.md

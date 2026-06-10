@@ -341,10 +341,11 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$idPrim = $this->prim($actor->getId());
 
-		$on = $expr->andX();
-		$on->add($this->exprLimitToDBFieldInt('accepted', 1, $alias));
-		$on->add($this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $alias));
-		$on->add($expr->eq($pf . 'attributed_to_prim', $alias . '.object_id_prim'));
+		$on = $expr->andX(
+			$this->exprLimitToDBFieldInt('accepted', 1, $alias),
+			$this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $alias),
+			$expr->eq($pf . 'attributed_to_prim', $alias . '.object_id_prim')
+		);
 
 		$this->leftJoin($this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, $alias, $on);
 	}
@@ -387,16 +388,18 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias($alias . '.boosted', 'streamaction_boosted')
 			->selectAlias($alias . '.replied', 'streamaction_replied');
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.id_prim'));
-		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim'));
-
-		$on = $expr->andX();
 		$viewer = $this->getViewer();
 		$idPrim = $this->prim($viewer->getId());
 
-		$on->add($expr->eq($alias . '.actor_id_prim', $this->createNamedParameter($idPrim)));
-		$on->add($orX);
+		$orX = $expr->orX(
+			$expr->eq($alias . '.stream_id_prim', $pf . '.id_prim'),
+			$expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim')
+		);
+
+		$on = $expr->andX(
+			$expr->eq($alias . '.actor_id_prim', $this->createNamedParameter($idPrim)),
+			$orX
+		);
 
 		$this->leftJoin(
 			$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_STREAM_ACTIONS, $alias, $on
@@ -429,10 +432,11 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = '',
 	): ICompositeExpression {
 		$expr = $this->expr();
-		$andX = $expr->andX();
 		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
-		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
-		$andX->add($expr->eq($aliasDest . '.type', $this->createNamedParameter($type)));
+		$andX = $expr->andX(
+			$expr->eq($aliasDest . '.stream_id', $pf . $field),
+			$expr->eq($aliasDest . '.type', $this->createNamedParameter($type))
+		);
 
 		return $andX;
 	}
@@ -473,16 +477,17 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		string $aliasFollowing = 'f', string $alias = '',
 	): ICompositeExpression {
 		$expr = $this->expr();
-		$andX = $expr->andX();
 
 		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
 
 		$idPrim = $this->prim($actorId);
-		$andX->add($this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $aliasFollowing));
-		$andX->add($this->exprLimitToDBFieldInt('accepted', 1, $aliasFollowing));
-		$andX->add($expr->eq($aliasFollowing . '.follow_id_prim', $aliasDest . '.actor_id'));
-		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
-		$andX->add($expr->eq($aliasDest . '.type', $this->createNamedParameter($type)));
+		$andX = $expr->andX(
+			$this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $aliasFollowing),
+			$this->exprLimitToDBFieldInt('accepted', 1, $aliasFollowing),
+			$expr->eq($aliasFollowing . '.follow_id_prim', $aliasDest . '.actor_id'),
+			$expr->eq($aliasDest . '.stream_id', $pf . $field),
+			$expr->eq($aliasDest . '.type', $this->createNamedParameter($type))
+		);
 
 		return $andX;
 	}

@@ -346,20 +346,28 @@ class Document extends ACore implements JsonSerializable {
 
 
 	public function getMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
-		$mime = ($mime === '') ? '' : '.' . $mime;
+		$ext = '';
+		if ($mime !== '') {
+			$parts = explode('/', $mime, 2);
+			$ext = '.' . end($parts);
+		}
 
 		return $urlGenerator->linkToRouteAbsolute(
 			'social.Api.mediaOpen',
-			['uuid' => $this->getLocalCopy() . $mime]
+			['uuid' => $this->getLocalCopy() . $ext]
 		);
 	}
 
 	public function getResizedMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
-		$mime = ($mime === '') ? '' : '.' . $mime;
+		$ext = '';
+		if ($mime !== '') {
+			$parts = explode('/', $mime, 2);
+			$ext = '.' . end($parts);
+		}
 
 		return $urlGenerator->linkToRouteAbsolute(
 			'social.Api.mediaOpen',
-			['uuid' => $this->getResizedCopy() . $mime]
+			['uuid' => $this->getResizedCopy() . $ext]
 		);
 	}
 

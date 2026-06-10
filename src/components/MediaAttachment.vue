@@ -15,7 +15,7 @@
 
 <script>
 import { decode } from 'blurhash'
-import NcLoadingIcon from '@nextcloud/vue/dist/Components/NcLoadingIcon.js'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 
 export default {
 	name: 'MediaAttachment',
@@ -48,6 +48,10 @@ export default {
 				return
 			}
 
+			if (!this.$refs.canvas) {
+				return
+			}
+
 			const ctx = this.$refs.canvas.getContext('2d')
 			const imageData = ctx.createImageData(this.attachment.meta.small.width, this.attachment.meta.small.height)
 			const pixels = decode(this.attachment.blurhash, this.attachment.meta.small.width, this.attachment.meta.small.height)
@@ -64,18 +68,29 @@ export default {
 	height: 100%;
 	width: 100%;
 
-	&__blurhash, &__preview {
+	&__blurhash {
 		position: absolute;
 		top: 0;
 		height: 100%;
 		width: 100%;
 		object-fit: cover;
+		z-index: 1;
+	}
+
+	&__preview {
+		position: absolute;
+		top: 0;
+		height: 100%;
+		width: 100%;
+		object-fit: cover;
+		z-index: 2;
 	}
 
 	.loading-icon {
 		position: absolute;
 		top: calc(50% - 20px);
 		left: calc(50% - 20px);
+		z-index: 3;
 	}
 }
 </style>

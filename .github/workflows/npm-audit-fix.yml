@@ -8,6 +8,9 @@
 
 name: Npm audit fix and compile
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   schedule:

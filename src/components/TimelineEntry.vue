@@ -170,105 +170,132 @@ export default {
 }
 </script>
 <style scoped lang="scss">
-	.wrapper {
+.wrapper {
+	display: flex;
+	gap: 12px;
+	padding: 0;
+
+	&:focus {
+		background-color: var(--color-background-hover);
+	}
+
+	.entry__avatar {
+		flex-shrink: 0;
+		margin-top: 6px;
+	}
+
+	.entry__content {
+		flex-grow: 1;
+		min-width: 0;
+	}
+}
+
+.timeline-entry {
+	margin-bottom: 14px;
+	padding: 0;
+	border-radius: 8px;
+
+	&:last-child {
+		margin-bottom: 0;
+	}
+
+	&.with-header {
+		background: var(--color-main-background);
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		padding: 14px;
+	}
+
+	&.notification {
+		margin-bottom: 10px;
+	}
+}
+
+.notification {
+	&__header {
 		display: flex;
-		margin: auto;
-		padding: 0;
-
-		&:focus {
-			background-color: rgba(47, 47, 47, 0.068);
-		}
-
-		.entry__avatar {
-			flex-shrink: 0;
-		}
-
-		.entry__content {
-			flex-grow: 1;
-			width: 0;
-		}
+		gap: 8px;
+		align-items: center;
+		margin-bottom: 8px;
+		padding-bottom: 4px;
 	}
 
-	.notification-header {
+	&__summary {
+		flex-grow: 1;
 		display: flex;
-		align-items: bottom;
-	}
-
-	.notification {
-		border-bottom: 1px solid var(--color-border);
-
-		&__header {
-			display: flex;
-			gap: 0.2rem;
-			margin-top: 1rem;
-		}
-
-		&__summary {
-			flex-grow: 1;
-			display: inline-block;
-			grid-row: 1;
-			grid-column: 2;
-			color: var(--color-text-lighter);
-			position: relative;
-			margin-bottom: 8px;
-
-			img {
-				width: 32px;
-				border-radius: 50%;
-				overflow: hidden;
-				vertical-align: middle;
-				margin-top: -1px;
-				margin-right: 8px;
-			}
-
-			.material-design-icon {
-				position: absolute;
-				top: 16px;
-				left: 20px;
-				padding: 2px;
-				background: var(--color-main-background);
-				border-radius: 50%;
-				border: 1px solid var(--color-background-dark);
-			}
-		}
-
-		&__details .post-timestamp {
-			color: var(--color-text-lighter);
-		}
-		&__details a {
-			&:hover {
-				text-decoration: underline;
-			}
-		}
-
-		:deep(.post-header) {
-			.post-visibility {
-				display: none;
-			}
-
-			.post-timestamp {
-				display: none;
-			}
-		}
-
-		:deep(.user-entry) {
-			.user-avatar {
-				display: none;
-			}
-		}
-	}
-
-	.boost {
+		align-items: center;
+		gap: 6px;
 		color: var(--color-text-lighter);
-		display: flex;
-		margin-left: 21px; // To align with status' text.
+		font-size: 13px;
+		position: relative;
 
 		img {
-			width: 16px;
+			width: 24px;
+			height: 24px;
 			border-radius: 50%;
-			vertical-align: middle;
-			margin-top: -4px;
-			margin-left: 4px;
+			object-fit: cover;
+		}
+
+		.material-design-icon {
+			position: absolute;
+			top: 12px;
+			left: 14px;
+			padding: 2px;
+			background: var(--color-main-background);
+			border-radius: 50%;
+			border: 1px solid var(--color-background-dark);
 		}
 	}
+
+	&__details {
+		font-size: 12px;
+
+		.post-timestamp {
+			color: var(--color-text-lighter);
+		}
+
+		a:hover {
+			text-decoration: underline;
+		}
+	}
+
+	:deep(.post-header) {
+		.post-visibility,
+		.post-timestamp {
+			display: none;
+		}
+	}
+
+	:deep(.user-entry) {
+		.user-avatar {
+			display: none;
+		}
+	}
+}
+
+.boost {
+	color: var(--color-text-lighter);
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 10px;
+	padding-left: 4px;
+
+	img {
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+
+	a {
+		font-weight: 600;
+		color: var(--color-main-text);
+
+		&:hover {
+			color: var(--color-primary-element);
+		}
+	}
+}
 </style>

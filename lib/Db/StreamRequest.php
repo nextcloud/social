@@ -91,6 +91,24 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->set(
 			'to_array', $qb->createNamedParameter(json_encode($stream->getToArray(), JSON_UNESCAPED_SLASHES))
 		);
+		$qb->set('content', $qb->createNamedParameter($stream->getContent()));
+		$qb->set('summary', $qb->createNamedParameter($stream->getSummary()));
+		$qb->set('source', $qb->createNamedParameter($stream->getSource()));
+		if ($stream->getType() === Note::TYPE && $stream instanceof Note) {
+			$qb->set('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags(), JSON_UNESCAPED_SLASHES)));
+			$qb->set(
+				'attachments', $qb->createNamedParameter(
+					json_encode($stream->getAttachments(), JSON_UNESCAPED_SLASHES)
+				)
+			);
+		}
+		$qb->set('published', $qb->createNamedParameter($stream->getPublished()));
+		try {
+			$dTime = new DateTime();
+			$dTime->setTimestamp($stream->getPublishedTime());
+			$qb->set('published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE));
+		} catch (Exception $e) {
+		}
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 		$qb->executeStatement();
 

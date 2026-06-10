@@ -14,11 +14,18 @@ export default {
 	components: {
 		TimelineList,
 	},
-	computed: {
-
+	watch: {
+		'$route.params.account': 'loadTimeline',
 	},
 	beforeMount() {
-		this.$store.dispatch('changeTimelineTypeAccount', this.$route.params.account)
+		this.loadTimeline()
+	},
+	methods: {
+		loadTimeline() {
+			if (this.$route.params.account) {
+				this.$store.dispatch('changeTimelineTypeAccount', this.$route.params.account)
+			}
+		},
 	},
 }
 </script>

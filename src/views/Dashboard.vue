@@ -27,8 +27,8 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
-import NcDashboardWidget from '@nextcloud/vue/dist/Components/NcDashboardWidget.js'
-import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { notificationSummary } from '../services/notifications.js'
 
 export default {
@@ -193,7 +193,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
-::v-deep .connect-button {
+:deep(.connect-button) {
 	margin-top: 10px;
 }
 </style>

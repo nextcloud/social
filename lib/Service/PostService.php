@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -21,8 +22,11 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -35,6 +39,7 @@ use OCP\Files\NotPermittedException;
 use Psr\Log\LoggerInterface;
 
 class PostService {
+	private StreamRequest $streamRequest;
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
@@ -44,9 +49,10 @@ class PostService {
 	private LoggerInterface $logger;
 
 	public function __construct(
-		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
+		StreamRequest $streamRequest, StreamService $streamService, AccountService $accountService, ActivityService $activityService,
 		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService, LoggerInterface $logger,
 	) {
+		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
@@ -183,6 +189,44 @@ class PostService {
 
 
 		return $document;
+	}
+
+
+	/**
+	 * @throws \Exception
+	 */
+	public function editPost(int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null): Stream {
+		$stream = $this->streamService->getStreamByNid($nid);
+
+		if ($stream->getAttributedTo() !== $actor->getId()) {
+			throw new \Exception('Not authorized to edit this post');
+		}
+
+		$stream->setContent($content);
+		if ($spoilerText !== null) {
+			$stream->setSpoilerText($spoilerText);
+		}
+		if ($sensitive !== null) {
+			$stream->setSensitive($sensitive);
+		}
+		$stream->setPublished(date('c'));
+
+		$this->streamService->updateStream($stream);
+
+		$updated = $this->streamService->getStreamByNid($nid);
+		$updated->addInstancePath(
+			new InstancePath(
+				$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+			)
+		);
+
+		try {
+			$this->activityService->updateActivity($actor, $updated);
+		} catch (\Exception $e) {
+			$this->logger->warning('Failed to federate post update', ['exception' => $e]);
+		}
+
+		return $updated;
 	}
 
 

@@ -202,7 +202,7 @@ class DocumentService {
 	 * @throws NotFoundException
 	 */
 	public function getFromUuid(string $uuid): ISimpleFile {
-		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $uuid)
+		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $uuid)
 			!== 1) {
 			throw new NotFoundException('invalid document');
 		}
@@ -231,7 +231,7 @@ class DocumentService {
 
 		$count = 0;
 		foreach ($update as $item) {
-			if ($item->getLocalCopy() === 'avatar') {
+			if ($item->getLocalCopy() === 'avatar' || $item->getLocalCopy() === 'header') {
 				continue;
 			}
 
@@ -286,5 +286,45 @@ class DocumentService {
 		}
 
 		return $icon->getId();
+	}
+
+
+	/**
+	 * Cache a banner/header image for a local actor.
+	 *
+	 * @param Person $actor
+	 * @param string $tmpPath
+	 * @param string $mimeType
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
+	 * @throws ItemAlreadyExistsException
+	 * @throws CacheContentMimeTypeException
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function cacheLocalHeaderByUsername(Person $actor, string $tmpPath, string $mimeType = 'image/jpeg'): string {
+		/** @var Image $image */
+		$image = AP::$activityPub->getItemFromType(Image::TYPE);
+		$image->generateUniqueId('/documents/header');
+		$image->setUrl($this->urlGenerator->linkToRouteAbsolute(
+			'social.Local.globalActorHeader', ['id' => $actor->getId()]
+		));
+		$image->setMediaType($mimeType);
+		$image->setMimeType($mimeType);
+		$image->setPublic(true);
+
+		$this->cacheService->saveFromTempToCache($image, $tmpPath);
+
+		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
+
+		$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+		$interface->save($image);
+
+		$actor->setHeader($image->getUrl());
+
+		return $image->getId();
 	}
 }

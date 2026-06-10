@@ -32,6 +32,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
@@ -43,6 +44,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\Files\NotFoundException;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
@@ -70,6 +72,7 @@ class ApiController extends Controller {
 	private ActionService $actionService;
 	private PostService $postService;
 	private ConfigService $configService;
+	private CurlService $curlService;
 
 	private string $bearer = '';
 	private ?SocialClient $client = null;
@@ -91,6 +94,7 @@ class ApiController extends Controller {
 		ActionService $actionService,
 		PostService $postService,
 		ConfigService $configService,
+		CurlService $curlService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -108,6 +112,7 @@ class ApiController extends Controller {
 		$this->actionService = $actionService;
 		$this->postService = $postService;
 		$this->configService = $configService;
+		$this->curlService = $curlService;
 
 		$authHeader = trim($this->request->getHeader('Authorization'));
 		if (strpos($authHeader, ' ')) {
@@ -225,7 +230,9 @@ class ApiController extends Controller {
 			$status = new Status();
 			$status->import($this->convertInput($input));
 
-			$post = new Post($this->accountService->getActorFromUserId($this->currentSession()));
+			// Use the viewer that was already initialized
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+			$post = new Post($actor);
 			$post->setContent(nl2br($status->getStatus()));
 			$post->setType($status->getVisibility());
 
@@ -260,10 +267,55 @@ class ApiController extends Controller {
 				ACore::FORMAT_LOCAL
 			);
 
+			$this->logger->info('[ApiController] Status created successfully', [
+				'postId' => $activity->getObjectId()
+			]);
+
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->warning('issues while statusNew', ['exception' => $e]);
+			$this->logger->error('[ApiController] statusNew failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 *
+	 * @param int $nid
+	 *
+	 * @return DataResponse
+	 */
+	public function statusUpdate(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = file_get_contents('php://input');
+			$status = new Status();
+			$status->import($this->convertInput($input));
+
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			$item = $this->postService->editPost(
+				$nid,
+				$actor,
+				nl2br($status->getStatus()),
+				$status->getSpoilerText() !== '' ? $status->getSpoilerText() : null,
+				$status->isSensitive()
+			);
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($item, Http::STATUS_OK);
+		} catch (Exception $e) {
+			$this->logger->error('[ApiController] statusUpdate failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
@@ -361,6 +413,8 @@ class ApiController extends Controller {
 			return new FileDisplayResponse(
 				$file, Http::STATUS_OK, ['Content-Type' => $this->mimeFromExt($ext)]
 			);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
 			$this->logger->warning('issues while mediaOpen', ['exception' => $e]);
 
@@ -403,8 +457,19 @@ class ApiController extends Controller {
 		int $min_id = 0,
 		int $since_id = 0,
 	): DataResponse {
+		$this->logger->info('[ApiController] timelines called', [
+			'timeline' => $timeline,
+			'local' => $local,
+			'limit' => $limit,
+			'max_id' => $max_id,
+			'min_id' => $min_id,
+			'since_id' => $since_id
+		]);
 		try {
 			$this->initViewer(true);
+			$this->logger->debug('[ApiController] Viewer initialized', [
+				'viewerId' => $this->viewer?->getId()
+			]);
 
 			if (!in_array(
 				strtolower($timeline),
@@ -416,6 +481,9 @@ class ApiController extends Controller {
 					ProbeOptions::FAVOURITES
 				]
 			)) {
+				$this->logger->error('[ApiController] Unknown timeline requested', [
+					'timeline' => $timeline
+				]);
 				throw new UnknownProbeException('unknown timeline');
 			}
 
@@ -429,9 +497,18 @@ class ApiController extends Controller {
 				->setSince($since_id);
 
 			$posts = $this->streamService->getTimeline($options);
+			$this->logger->info('[ApiController] Timeline retrieved', [
+				'timeline' => $timeline,
+				'postsCount' => count($posts)
+			]);
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Exception $e) {
+			$this->logger->error('[ApiController] Timeline request failed', [
+				'timeline' => $timeline,
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			return $this->error($e->getMessage());
 		}
 	}
@@ -447,9 +524,10 @@ class ApiController extends Controller {
 	 */
 	public function statusGet(int $nid): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 
 			$item = $this->streamService->getStreamByNid($nid);
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
@@ -468,7 +546,7 @@ class ApiController extends Controller {
 	 */
 	public function statusContext(int $nid): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 			$context = $this->streamService->getContextByNid($nid);
 
 			return new DataResponse($context, Http::STATUS_OK);
@@ -495,6 +573,8 @@ class ApiController extends Controller {
 			if ($item === null) {
 				$item = $this->streamService->getStreamByNid($nid);
 			}
+
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
@@ -541,9 +621,10 @@ class ApiController extends Controller {
 		int $since_id = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 
-			$local = $this->cacheActorService->getFromLocalAccount($account);
+			$local = $this->cacheActorService->getFromAccount($account);
+			$this->streamService->syncRemoteTimeline($local);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -579,13 +660,25 @@ class ApiController extends Controller {
 		int $since = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(true);
-			$local = $this->cacheActorService->getFromLocalAccount($account);
+			$this->initViewer(false);
+			$actor = $this->cacheActorService->getFromAccount($account);
+
+			$parts = explode('@', $account);
+			$domain = end($parts);
+			$cloudHost = $this->configService->getCloudHost();
+			$socialAddress = $this->configService->getSocialAddress();
+			if ($domain !== '' && $domain !== $cloudHost && $domain !== $socialAddress) {
+				$followingUrl = $actor->getFollowing();
+				if (!empty($followingUrl)) {
+					$result = $this->fetchRemoteCollection($followingUrl, $limit);
+					return new DataResponse($result, Http::STATUS_OK);
+				}
+			}
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
 			$options->setProbe(ProbeOptions::FOLLOWING)
-				->setAccountId($local->getId())
+				->setAccountId($actor->getId())
 				->setLimit($limit)
 				->setMaxId($max_id)
 				->setMinId($min_id)
@@ -614,14 +707,26 @@ class ApiController extends Controller {
 		int $since = 0,
 	): DataResponse {
 		try {
-			$this->initViewer(true);
+			$this->initViewer(false);
 
-			$local = $this->cacheActorService->getFromLocalAccount($account);
+			$actor = $this->cacheActorService->getFromAccount($account);
+
+			$parts = explode('@', $account);
+			$domain = end($parts);
+			$cloudHost = $this->configService->getCloudHost();
+			$socialAddress = $this->configService->getSocialAddress();
+			if ($domain !== '' && $domain !== $cloudHost && $domain !== $socialAddress) {
+				$followersUrl = $actor->getFollowers();
+				if (!empty($followersUrl)) {
+					$result = $this->fetchRemoteCollection($followersUrl, $limit);
+					return new DataResponse($result, Http::STATUS_OK);
+				}
+			}
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
 			$options->setProbe(ProbeOptions::FOLLOWERS)
-				->setAccountId($local->getId())
+				->setAccountId($actor->getId())
 				->setLimit($limit)
 				->setMaxId($max_id)
 				->setMinId($min_id)
@@ -748,6 +853,80 @@ class ApiController extends Controller {
 
 
 	/**
+	 * @param string $url
+	 * @param int $limit
+	 *
+	 * @return array
+	 */
+	private function fetchRemoteCollection(string $url, int $limit = 20): array {
+		try {
+			$collectionData = $this->curlService->retrieveObject($url);
+		} catch (Exception $e) {
+			return [];
+		}
+
+		$pageData = $collectionData;
+		if (isset($collectionData['first'])) {
+			$pageUrl = is_array($collectionData['first'])
+				? ($collectionData['first']['id'] ?? '')
+				: $collectionData['first'];
+			if (!empty($pageUrl) && is_string($pageUrl)) {
+				try {
+					$pageData = $this->curlService->retrieveObject($pageUrl);
+				} catch (Exception $e) {
+					return [];
+				}
+			} elseif (is_array($collectionData['first'])) {
+				$pageData = $collectionData['first'];
+			}
+		}
+
+		$items = $pageData['orderedItems'] ?? $pageData['items'] ?? [];
+		if (!is_array($items)) {
+			return [];
+		}
+
+		$actors = [];
+		$count = 0;
+		foreach ($items as $item) {
+			if ($count >= $limit) {
+				break;
+			}
+
+			if (is_array($item) && isset($item['id'])) {
+				try {
+					$person = AP::$activityPub->getItemFromData($item);
+					if (AP::$activityPub->isActor($person)) {
+						$person->setExportFormat(ACore::FORMAT_LOCAL);
+						$actors[] = $person;
+						$count++;
+					}
+				} catch (Exception $e) {
+					continue;
+				}
+				continue;
+			}
+
+			$actorId = is_string($item) ? $item : '';
+			if ($actorId === '') {
+				continue;
+			}
+
+			try {
+				$person = $this->cacheActorService->getFromId($actorId);
+				$person->setExportFormat(ACore::FORMAT_LOCAL);
+				$actors[] = $person;
+				$count++;
+			} catch (Exception $e) {
+				continue;
+			}
+		}
+
+		return $actors;
+	}
+
+
+	/**
 	 *
 	 * @param bool $exception
 	 *
@@ -762,16 +941,42 @@ class ApiController extends Controller {
 				'[ApiController] initViewer: ' . $userId . ' (bearer=' . $this->bearer . ')'
 			);
 
-			$account = $this->accountService->getActorFromUserId($userId);
-			$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			// Get or create the actor
+			$account = $this->accountService->getActorFromUserId($userId, true);
+			$this->logger->debug('[ApiController] Actor retrieved/created', [
+				'userId' => $userId,
+				'username' => $account->getPreferredUsername()
+			]);
+
+			// Try to get from cache, if it fails, cache it first
+			try {
+				$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			} catch (Exception $e) {
+				$this->logger->warning('[ApiController] Actor not in cache, caching now', [
+					'username' => $account->getPreferredUsername(),
+					'exception' => $e->getMessage()
+				]);
+				// Cache the actor and retry
+				$this->accountService->cacheLocalActorByUsername($account->getPreferredUsername());
+				$this->viewer = $this->cacheActorService->getFromLocalAccount($account->getPreferredUsername());
+			}
+
 			$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);
 			$this->cacheActorService->setViewer($this->viewer);
 
+			$this->logger->info('[ApiController] Viewer initialized successfully', [
+				'viewerId' => $this->viewer->getId()
+			]);
+
 			return true;
 		} catch (Exception $e) {
+			$this->logger->error('[ApiController] initViewer failed', [
+				'exception' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
 			if ($exception) {
 				throw new ClientNotFoundException('the access_token was revoked');
 			}

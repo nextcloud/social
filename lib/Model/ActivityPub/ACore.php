@@ -682,7 +682,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 
 		$this->addEntry('id', $this->getId());
 		$this->addEntry('type', $this->getType());
-		$this->addEntry('subtype', $this->getSubType());
 		$this->addEntry('url', $this->getUrl());
 		$this->addEntry('to', $this->getTo());
 		$this->addEntryArray('to', $this->getToArray());
@@ -741,6 +740,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		if ($this->getNid() > 0) {
 			$result['id'] = (string)$this->getNid();
 		}
+		$result['nid'] = $this->getNid();
 
 		return $result;
 	}

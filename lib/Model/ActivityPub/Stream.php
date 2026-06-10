@@ -418,6 +418,20 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		} catch (ItemAlreadyExistsException $e) {
 		}
 		$this->convertPublished();
+
+		if (isset($data['likes']['totalItems'])) {
+			$remoteLikes = (int)$data['likes']['totalItems'];
+			$this->setDetailInt('likes', $remoteLikes);
+			$this->setDetailInt('remote_likes', $remoteLikes);
+		}
+		if (isset($data['shares']['totalItems'])) {
+			$remoteShares = (int)$data['shares']['totalItems'];
+			$this->setDetailInt('boosts', $remoteShares);
+			$this->setDetailInt('remote_boosts', $remoteShares);
+		}
+		if (isset($data['replies']['totalItems'])) {
+			$this->setDetailInt('replies', (int)$data['replies']['totalItems']);
+		}
 	}
 
 
@@ -485,6 +499,32 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 		$this->setDetailsAll($this->getArray('details', $data, []));
+
+		$source = $this->get('source', $data, '');
+		if ($source !== '') {
+			$sourceData = json_decode($source, true);
+			if (is_array($sourceData)) {
+				$details = $this->getDetailsAll();
+				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
+					$remoteLikes = (int)$sourceData['likes']['totalItems'];
+					$this->setDetailInt('remote_likes', $remoteLikes);
+					if (!array_key_exists('likes', $details) || $details['likes'] === 0) {
+						$this->setDetailInt('likes', $remoteLikes);
+					}
+				}
+				if (!array_key_exists('remote_boosts', $details) && isset($sourceData['shares']['totalItems'])) {
+					$remoteBoosts = (int)$sourceData['shares']['totalItems'];
+					$this->setDetailInt('remote_boosts', $remoteBoosts);
+					if (!array_key_exists('boosts', $details) || $details['boosts'] === 0) {
+						$this->setDetailInt('boosts', $remoteBoosts);
+					}
+				}
+				if (isset($sourceData['replies']['totalItems'])) {
+					$this->setDetailInt('replies', (int)$sourceData['replies']['totalItems']);
+				}
+			}
+		}
+
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
 		$this->setAttachments($this->getArray('attachments', $data, []));
 		$this->setMentions($this->getDetails('mentions'));

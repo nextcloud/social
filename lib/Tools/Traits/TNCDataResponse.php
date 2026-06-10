@@ -66,4 +66,16 @@ trait TNCDataResponse {
 	protected function directSuccess(JsonSerializable $result): DataResponse {
 		return new DataResponse($result, Http::STATUS_OK);
 	}
+
+	/**
+	 * Return JSON-LD response with ActivityPub content type.
+	 */
+	protected function activityPubSuccess(JsonSerializable $result): DataResponse {
+		$response = new DataResponse($result, Http::STATUS_OK);
+		$response->addHeader(
+			'Content-Type',
+			'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+		);
+		return $response;
+	}
 }

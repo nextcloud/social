@@ -3,19 +3,21 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcEmptyContent :title="item.title" :description="item.description">
-		<template v-if="item.image" #icon>
-			<img class="empty-content__image"
-				:src="imageUrl"
-				alt="">
-		</template>
-	</NcEmptyContent>
+	<div class="empty-content">
+		<NcEmptyContent :title="item.title" :description="item.description">
+			<template v-if="item.image" #icon>
+				<img class="empty-content__image"
+					:src="imageUrl"
+					alt="">
+			</template>
+		</NcEmptyContent>
+	</div>
 </template>
 
 <script>
 
 import { linkTo } from '@nextcloud/router'
-import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 
 export default {
 	name: 'EmptyContent',
@@ -37,6 +39,13 @@ export default {
 }
 </script>
 <style scoped>
+.empty-content {
+	min-height: 60vh;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
 .empty-content__image {
 	height: 256px;
 	width: 256px;

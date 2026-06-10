@@ -239,14 +239,13 @@ class RequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
+		$conditions = [$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))];
 
 		if ($orNull === true) {
-			$orX->add($expr->isNull($field));
+			$conditions[] = $expr->isNull($field);
 		}
 
-		$qb->andWhere($orX);
+		$qb->andWhere($expr->orX(...$conditions));
 	}
 
 
@@ -265,10 +264,11 @@ class RequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
-
-		$qb->andWhere($orX);
+		$qb->andWhere(
+			$expr->orX(
+				$expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+			)
+		);
 	}
 
 
@@ -282,12 +282,12 @@ class RequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
+		$conditions = [];
 		foreach ($values as $value) {
-			$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
+			$conditions[] = $expr->eq($field, $qb->createNamedParameter($value));
 		}
 
-		$qb->andWhere($orX);
+		$qb->andWhere($expr->orX(...$conditions));
 	}
 
 

@@ -32,7 +32,7 @@ export default {
 		icon() {
 			return twemoji.convert.toCodePoint(this.emoji.indexOf(U200D) < 0
 				? this.emoji.replace(UFE0Fg, '')
-				: this.emoji
+				: this.emoji,
 			)
 		},
 

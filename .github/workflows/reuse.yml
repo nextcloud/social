@@ -9,6 +9,9 @@
 
 name: REUSE Compliance Check
 
+permissions:
+  contents: read
+
 on: [pull_request]
 
 jobs:

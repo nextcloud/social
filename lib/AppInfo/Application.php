@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
+use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
@@ -24,11 +25,6 @@ use OCP\Profile\BeforeTemplateRenderedEvent;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-/**
- * Class Application
- *
- * @package OCA\Social\AppInfo
- */
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'social';
 	public const APP_NAME = 'Social';
@@ -39,18 +35,18 @@ class Application extends App implements IBootstrap {
 		parent::__construct(self::APP_ID, $params);
 	}
 
+	#[\Override]
 	public function register(IRegistrationContext $context): void {
 		$context->registerSearchProvider(UnifiedSearchProvider::class);
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 		$context->registerEventListener(UserUpdatedEvent::class, UserAccountListener::class);
-
 		$context->registerDashboardWidget(SocialWidget::class);
+		$context->registerDashboardWidget(SocialTimelineWidget::class);
+		$context->registerNotifierService(Notifier::class);
 	}
 
+	#[\Override]
 	public function boot(IBootContext $context): void {
-		$manager = $context->getServerContainer()
-			->getNotificationManager();
-		$manager->registerNotifierService(Notifier::class);
 	}
 }

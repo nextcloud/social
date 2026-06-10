@@ -7,39 +7,33 @@
 	xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>social</id>
 	<name>Social</name>
-	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
-	<description><![CDATA[
-**Disclaimer: this is a BETA version**
+	<summary>Nextcloud becomes part of the federated social networks</summary>
+	<description><![CDATA[Nextcloud Social connects your Nextcloud account to the Fediverse through the ActivityPub standard.
 
-**🎉 Nextcloud becomes part of the federated social networks!**
+Features:
+- 🧭 Timelines: browse the public, local, and home timelines
+- ✍️ Posts: create posts, replies, and mentions
+- ✏️ Edit posts: update local posts and federate them as ActivityPub `Update` activities
+- 👍 🔁 💬 Actions: like, boost, and reply
+- 🌐 Federation: send and receive ActivityPub activities
+- 👥 Following: discover and follow remote accounts
 
-**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!
-
-**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.
-
-**👐 Own your posts:** Everything you post stays on your Nextcloud!
-
-**🕸 Open standards:** We use the established ActivityPub standard!
-	]]></description>
-	<version>0.8.0</version>
+This release restores the core social features and improves interoperability with the Fediverse.]]></description>
+	<version>0.10.0</version>
 	<licence>agpl</licence>
-	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
-	<author mail="jus@bitgrid.net">Julius Härtl</author>
-	<author mail="jonas@violoncello.ch" homepage="https://violoncello.ch">Jonas Sulzer</author>
-	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph
-		Borchardt</author>
-	<author mail="cyrpub@bollu.be">Cyrille Bollu</author>
+	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
 	<category>social</category>
-	<website>https://github.com/nextcloud/social</website>
-	<bugs>https://github.com/nextcloud/social/issues</bugs>
-	<repository type="git">https://github.com/nextcloud/social.git</repository>
-	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
+	<website>https://github.com/schBenedikt/social</website>
+	<bugs>https://github.com/schBenedikt/social/issues</bugs>
+	<repository type="git">https://github.com/schBenedikt/social.git</repository>
+	<screenshot>https://raw.githubusercontent.com/schBenedikt/social/master/img/screenshot.png</screenshot>
 	<dependencies>
+		<php min-version="8.1" max-version="8.5" />
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="28" max-version="30" />
+		<nextcloud min-version="28" max-version="34" />
 	</dependencies>
 
 	<background-jobs>

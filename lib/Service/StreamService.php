@@ -34,6 +34,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 class StreamService {
 	use TArrayTools;
@@ -43,6 +44,8 @@ class StreamService {
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
+	private CurlService $curlService;
+	private LoggerInterface $logger;
 
 	private const ANCESTOR_LIMIT = 5;
 
@@ -52,12 +55,16 @@ class StreamService {
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
+		CurlService $curlService,
+		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->streamRequest = $streamRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
+		$this->curlService = $curlService;
+		$this->logger = $logger;
 	}
 
 
@@ -111,7 +118,7 @@ class StreamService {
 				$stream->setTo($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -122,7 +129,7 @@ class StreamService {
 				$stream->setTo($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -131,7 +138,7 @@ class StreamService {
 			case Stream::TYPE_ANNOUNCE:
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -146,7 +153,7 @@ class StreamService {
 				$stream->addCc($actor->getFollowers());
 				$stream->addInstancePath(
 					new InstancePath(
-						$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS,
+						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
 				);
@@ -307,6 +314,15 @@ class StreamService {
 		}
 
 		$item->setActorId($item->getAttributedTo());
+		try {
+			$actor = $this->cacheActorService->getFromId($item->getAttributedTo());
+			$item->addInstancePath(
+				new InstancePath(
+					$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (\Exception $e) {
+		}
 		$this->activityService->deleteActivity($item);
 		$this->streamRequest->deleteById($item->getId(), $type);
 	}
@@ -367,6 +383,11 @@ class StreamService {
 	 */
 	public function getStreamByNid(int $nid): Stream {
 		return $this->streamRequest->getStreamByNid($nid);
+	}
+
+
+	public function updateStream(Stream $stream): void {
+		$this->streamRequest->update($stream);
 	}
 
 
@@ -551,19 +572,187 @@ class StreamService {
 	 *
 	 * @return OrderedCollection
 	 */
+	/**
+	 * @param Person $actor
+	 *
+	 * @return OrderedCollection
+	 */
 	public function getOutboxCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
 		$collection->setId($actor->getOutbox());
 		$collection->setTotalItems($this->getInt('post', $actor->getDetails('count')));
 
-		$link = $this->urlGenerator->linkToRouteAbsolute(
-			'social.ActivityPub.outbox',
-			['username' => $actor->getPreferredUsername()]
-		);
-
+		$link = $actor->getOutbox();
 		$collection->setFirst($link . '?page=1');
 		$collection->setLast($link . '?page=1&min_id=0');
 
 		return $collection;
+	}
+
+	/**
+	 * @param Person $actor
+	 */
+	public function syncRemoteTimeline(Person $actor): int {
+		if ($actor->isLocal()) {
+			return 0;
+		}
+
+		$synced = 0;
+		try {
+			$outboxUrl = $actor->getOutbox();
+			if (empty($outboxUrl)) {
+				$this->logger->info('[syncRemoteTimeline] No outbox URL for actor', ['actor' => $actor->getId()]);
+				return 0;
+			}
+
+			$this->logger->debug('[syncRemoteTimeline] Fetching outbox', ['url' => $outboxUrl, 'actor' => $actor->getId()]);
+			$outboxData = $this->curlService->retrieveObject($outboxUrl);
+
+			// Follow 'first' to get the first page
+			$pageData = $outboxData;
+			if (isset($outboxData['first'])) {
+				if (is_array($outboxData['first'])) {
+					$pageData = $outboxData['first'];
+				} elseif (is_string($outboxData['first'])) {
+					$this->logger->debug('[syncRemoteTimeline] Following first page', ['url' => $outboxData['first']]);
+					$pageData = $this->curlService->retrieveObject($outboxData['first']);
+				}
+			}
+
+			$items = $pageData['orderedItems'] ?? $pageData['items'] ?? [];
+			if (!is_array($items)) {
+				$this->logger->debug('[syncRemoteTimeline] No items in page', ['actor' => $actor->getId()]);
+				return 0;
+			}
+
+			$this->logger->info('[syncRemoteTimeline] Processing items', ['actor' => $actor->getId(), 'count' => count($items)]);
+
+			foreach ($items as $itemData) {
+				try {
+					// Extract the Note data from the activity item
+					$noteData = null;
+					$itemType = $this->get('type', $itemData, '');
+					if ($itemType === 'Create' && isset($itemData['object']) && is_array($itemData['object'])) {
+						$noteData = $itemData['object'];
+					} elseif ($itemType === 'Note') {
+						$noteData = $itemData;
+					} else {
+						continue;
+					}
+
+					if ($noteData === null) {
+						continue;
+					}
+
+					$noteId = $noteData['id'] ?? '';
+					if ($noteId === '') {
+						continue;
+					}
+
+					// Check if we already have it
+					try {
+						$this->streamRequest->getStreamById($noteId);
+						continue;
+					} catch (StreamNotFoundException $e) {
+					}
+
+					// Manually create a Note with only the fields we need (no attachment processing)
+					$note = new Note();
+					$note->setId($noteId);
+					$note->setType('Note');
+					$note->setUrl($noteData['url'] ?? '');
+					$note->setAttributedTo($noteData['attributedTo'] ?? $actor->getId());
+					$note->setPublished($noteData['published'] ?? date('c'));
+					$note->setContent($noteData['content'] ?? '');
+					$note->setSummary($noteData['summary'] ?? '');
+					$note->setSensitive(!empty($noteData['sensitive']));
+					$note->setSource(json_encode($noteData, JSON_UNESCAPED_SLASHES));
+					$note->setLocal(false);
+
+					// Set conversation / context
+					if (!empty($noteData['conversation'])) {
+						$note->setConversation($noteData['conversation']);
+					}
+					if (!empty($noteData['context'])) {
+						$note->setConversation($noteData['context']);
+					}
+					if (!empty($noteData['inReplyTo'])) {
+						$note->setInReplyTo($noteData['inReplyTo']);
+					}
+
+					// Set to/cc arrays
+					$to = $noteData['to'] ?? [];
+					$cc = $noteData['cc'] ?? [];
+					$note->setToArray(is_array($to) ? $to : [$to]);
+					$note->setCcArray(is_array($cc) ? $cc : [$cc]);
+
+					// Process tags (hashtags, mentions) without triggering downloads
+					$tagData = $noteData['tag'] ?? [];
+					if (is_array($tagData)) {
+						$hashtags = [];
+						$allTags = [];
+						foreach ($tagData as $tag) {
+							if (is_array($tag)) {
+								$tagType = $tag['type'] ?? '';
+								if ($tagType === 'Hashtag') {
+									$hashtags[] = ltrim($tag['name'] ?? '', '#');
+								}
+								$allTags[] = $tag;
+							}
+						}
+						$note->setHashtags($hashtags);
+						if (!empty($allTags)) {
+							$note->setTags($allTags);
+						}
+					}
+
+					// Attachments are not processed during sync to avoid
+					// memory-exhausting remote file downloads. They will be
+					// fetched lazily from the source JSON when needed.
+
+					// Convert published time
+					try {
+						$note->convertPublished();
+					} catch (Exception $e) {
+					}
+
+					// Extract likes/shares/replies counts from ActivityPub collections
+					if (isset($noteData['likes']['totalItems'])) {
+						$remoteLikes = (int)$noteData['likes']['totalItems'];
+						$note->setDetailInt('likes', $remoteLikes);
+						$note->setDetailInt('remote_likes', $remoteLikes);
+					}
+					if (isset($noteData['shares']['totalItems'])) {
+						$remoteBoosts = (int)$noteData['shares']['totalItems'];
+						$note->setDetailInt('boosts', $remoteBoosts);
+						$note->setDetailInt('remote_boosts', $remoteBoosts);
+					}
+					if (isset($noteData['replies']['totalItems'])) {
+						$note->setDetailInt('replies', (int)$noteData['replies']['totalItems']);
+					}
+
+					// Save the Note directly without going through NoteInterface
+					// (which would trigger attachment downloads)
+					$this->streamRequest->save($note);
+					$synced++;
+					$this->logger->debug('[syncRemoteTimeline] Saved post', ['id' => $note->getId()]);
+				} catch (Exception $e) {
+					$this->logger->warning('[syncRemoteTimeline] Failed to process item', [
+						'error' => $e->getMessage(),
+					]);
+				}
+			}
+		} catch (Exception $e) {
+			$this->logger->warning('[syncRemoteTimeline] Failed to fetch outbox', [
+				'actor' => $actor->getId(),
+				'error' => $e->getMessage()
+			]);
+		}
+
+		if ($synced > 0) {
+			$this->logger->info('[syncRemoteTimeline] Sync complete', ['actor' => $actor->getId(), 'synced' => $synced]);
+		}
+
+		return $synced;
 	}
 }

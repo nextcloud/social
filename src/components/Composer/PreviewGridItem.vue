@@ -21,7 +21,7 @@
 
 <script>
 import Close from 'vue-material-design-icons/Close.vue'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import { translate } from '@nextcloud/l10n'
 import MediaAttachment from '../MediaAttachment.vue'
 

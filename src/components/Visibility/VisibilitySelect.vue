@@ -20,8 +20,8 @@
 	</NcActions>
 </template>
 <script>
-import NcActions from '@nextcloud/vue/dist/Components/NcActions.js'
-import NcActionButton from '@nextcloud/vue/dist/Components/NcActionButton.js'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import { translate } from '@nextcloud/l10n'
 import visibilitiesInfo from './VisibilitiesInfos.js'
 import VisibilityIcon from './VisibilityIcon.vue'

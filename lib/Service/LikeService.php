@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\Traits\TStringTools;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class LikeService
@@ -47,7 +48,11 @@ class LikeService {
 
 	private StreamQueueService $streamQueueService;
 
+	private CacheActorService $cacheActorService;
+
 	private MiscService $miscService;
+
+	private LoggerInterface $logger;
 
 
 	/**
@@ -59,12 +64,15 @@ class LikeService {
 	 * @param ActivityService $activityService
 	 * @param StreamActionService $streamActionService
 	 * @param StreamQueueService $streamQueueService
+	 * @param CacheActorService $cacheActorService
 	 * @param MiscService $miscService
+	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, MiscService $miscService,
+		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		MiscService $miscService, LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -72,7 +80,9 @@ class LikeService {
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
 		$this->streamQueueService = $streamQueueService;
+		$this->cacheActorService = $cacheActorService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -92,23 +102,48 @@ class LikeService {
 		$like->setId($actor->getId() . '#like/' . $this->uuid(8));
 		$like->setActor($actor);
 
+		$this->logger->info('LikeService::create - start', [
+			'actorId' => $actor->getId(),
+			'actorPreferredUsername' => $actor->getPreferredUsername(),
+			'postId' => $postId,
+		]);
+
 		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
+			$this->logger->warning('LikeService::create - stream is not a Note', [
+				'postId' => $postId,
+				'type' => $note->getType(),
+			]);
 			throw new StreamNotFoundException('Stream is not a Note');
 		}
 
-		//		if (!$note->isPublic()) {
-		//			throw new StreamNotFoundException('Stream is not Public');
-		//		}
+		$this->logger->info('LikeService::create - note found', [
+			'noteId' => $note->getId(),
+			'noteAttributedTo' => $note->getAttributedTo(),
+			'noteType' => $note->getType(),
+		]);
 
 		$like->setObjectId($note->getId());
+		$like->setTo($note->getAttributedTo());
 		$this->assignInstance($like, $actor, $note);
+
+		$this->logger->info('LikeService::create - instance paths', [
+			'paths' => array_map(function ($p) { return $p->getAddress(); }, $like->getInstancePaths()),
+			'likeId' => $like->getId(),
+		]);
+
+		$like->setPublished(date('c'));
+		$this->signatureService->signObject($actor, $like);
 
 		$interface = AP::$activityPub->getInterfaceFromType(Like::TYPE);
 		$interface->save($like);
 
 		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::LIKED, true);
 		$token = $this->activityService->request($like);
+
+		$this->logger->info('LikeService::create - request done', [
+			'token' => $token,
+		]);
 
 		return $like;
 	}
@@ -161,6 +196,9 @@ class LikeService {
 
 			$interface->delete($like);
 
+			$undo->setPublished(date('c'));
+			$this->signatureService->signObject($actor, $undo);
+
 			$token = $this->activityService->request($undo);
 		} catch (ItemUnknownException $e) {
 		} catch (ItemNotFoundException $e) {
@@ -178,15 +216,34 @@ class LikeService {
 	 * @param Stream $note
 	 */
 	private function assignInstance(ACore $item, Person $actor, Stream $note) {
-		//		$item->addInstancePath(
-		//			new InstancePath(
-		//				$actor->getFollowers(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
-		//			)
-		//		);
-		$item->addInstancePath(
-			new InstancePath(
-				$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
-			)
-		);
+		$this->logger->info('LikeService::assignInstance - start', [
+			'attributedTo' => $note->getAttributedTo(),
+			'actorId' => $actor->getId(),
+		]);
+
+		try {
+			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+			$this->logger->info('LikeService::assignInstance - target resolved', [
+				'targetId' => $target->getId(),
+				'targetInbox' => $target->getInbox(),
+				'targetIsLocal' => $target->isLocal(),
+			]);
+			$item->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('Could not resolve actor inbox for Like federation', [
+				'attributedTo' => $note->getAttributedTo(),
+				'exception' => get_class($e),
+				'message' => $e->getMessage(),
+			]);
+			$item->addInstancePath(
+				new InstancePath(
+					$note->getAttributedTo(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		}
 	}
 }
