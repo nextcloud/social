@@ -96,6 +96,11 @@
     "webpack": "^5.106.2",
     "webpack-cli": "^6.0.1"
   },
+  "overrides": {
+    "uuid": "^14.0.0",
+    "fast-xml-parser": ">=5.7.0",
+    "joi": ">=18.2.1"
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
