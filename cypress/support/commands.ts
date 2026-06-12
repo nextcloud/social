@@ -34,7 +34,7 @@ Cypress.Commands.overwrite('login', (originalFn, user: User | string, password?:
 
 Cypress.Commands.add('createUser', (user: User) => {
 	const baseUrl = Cypress.env('baseUrl')
-	cy.request({
+	return cy.request({
 		method: 'POST',
 		url: `${baseUrl}/ocs/v2.php/cloud/users`,
 		headers: {

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { User } from "@nextcloud/cypress"
+import { User } from "../support/commands"
 import { randHash } from "../utils"
 
 const alice = new User(`alice_${randHash()}`)
