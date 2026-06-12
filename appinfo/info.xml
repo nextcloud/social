@@ -24,10 +24,10 @@ This release restores the core social features and improves interoperability wit
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
 	<category>social</category>
-	<website>https://github.com/schBenedikt/social</website>
-	<bugs>https://github.com/schBenedikt/social/issues</bugs>
-	<repository type="git">https://github.com/schBenedikt/social.git</repository>
-	<screenshot>https://raw.githubusercontent.com/schBenedikt/social/master/img/screenshot.png</screenshot>
+	<website>https://github.com/nextcloud/social</website>
+	<bugs>https://github.com/nextcloud/social/issues</bugs>
+	<repository type="git">https://github.com/nextcloud/social.git</repository>
+	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
 		<php min-version="8.1" max-version="8.5" />
 		<database>pgsql</database>
