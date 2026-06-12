@@ -195,7 +195,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_', $qb->getFormat());
+			$actor = $qb->parseLeftJoinCacheActors($data, 'ca_', $qb->getFormat());
 			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);
@@ -203,7 +203,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$object = $qb->parseLeftJoinStream($data, 'objectstream_', ACore::FORMAT_LOCAL);
+			$object = $qb->parseLeftJoinStream($data, 'os_', ACore::FORMAT_LOCAL);
 			$item->setObject($object);
 		} catch (InvalidResourceException $e) {
 		}

@@ -872,23 +872,23 @@ class CoreRequestBuilder {
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
-		$qb->selectAlias('ca.id', 'cacheactor_id')
-			->selectAlias('ca.type', 'cacheactor_type')
-			->selectAlias('ca.account', 'cacheactor_account')
-			->selectAlias('ca.following', 'cacheactor_following')
-			->selectAlias('ca.followers', 'cacheactor_followers')
-			->selectAlias('ca.inbox', 'cacheactor_inbox')
-			->selectAlias('ca.shared_inbox', 'cacheactor_shared_inbox')
-			->selectAlias('ca.outbox', 'cacheactor_outbox')
-			->selectAlias('ca.featured', 'cacheactor_featured')
-			->selectAlias('ca.url', 'cacheactor_url')
-			->selectAlias('ca.preferred_username', 'cacheactor_preferred_username')
-			->selectAlias('ca.name', 'cacheactor_name')
-			->selectAlias('ca.summary', 'cacheactor_summary')
-			->selectAlias('ca.public_key', 'cacheactor_public_key')
-			->selectAlias('ca.source', 'cacheactor_source')
-			->selectAlias('ca.creation', 'cacheactor_creation')
-			->selectAlias('ca.local', 'cacheactor_local');
+		$qb->selectAlias('ca.id', 'ca_id')
+			->selectAlias('ca.type', 'ca_type')
+			->selectAlias('ca.account', 'ca_account')
+			->selectAlias('ca.following', 'ca_following')
+			->selectAlias('ca.followers', 'ca_followers')
+			->selectAlias('ca.inbox', 'ca_inbox')
+			->selectAlias('ca.shared_inbox', 'ca_shared_inbox')
+			->selectAlias('ca.outbox', 'ca_outbox')
+			->selectAlias('ca.featured', 'ca_featured')
+			->selectAlias('ca.url', 'ca_url')
+			->selectAlias('ca.preferred_username', 'ca_preferred_username')
+			->selectAlias('ca.name', 'ca_name')
+			->selectAlias('ca.summary', 'ca_summary')
+			->selectAlias('ca.public_key', 'ca_public_key')
+			->selectAlias('ca.source', 'ca_source')
+			->selectAlias('ca.creation', 'ca_creation')
+			->selectAlias('ca.local', 'ca_local');
 
 		if ($author !== null) {
 			$andX = $expr->andX(
