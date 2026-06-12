@@ -97,6 +97,7 @@ class WebfingerHandler implements IHandler {
 	 */
 	public function handleWebfinger(IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
 		$subject = $this->getSubjectFromRequest($context->getHttpRequest());
+		$subjectAcct = $subject;
 		if (str_starts_with($subject, 'acct:')) {
 			$subject = substr($subject, 5);
 		}
@@ -139,9 +140,10 @@ class WebfingerHandler implements IHandler {
 		}
 
 		// ActivityPub profile
-		$href = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
-		$href = rtrim($href, '/');
-		$response = new JrdResponse($subject);
+		$href = $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $actor->getPreferredUsername()])
+		);
+		$response = new JrdResponse($subjectAcct);
 		$response->addAlias($href);
 		$response->addLink('self', 'application/activity+json', $href);
 

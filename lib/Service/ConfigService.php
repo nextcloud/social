@@ -358,8 +358,8 @@ class ConfigService {
 	 */
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
-			$url = $this->getCloudUrl(true) . $this->urlGenerator->linkToRoute(
-				'social.Navigation.navigate'
+			$url = $this->urlGenerator->getAbsoluteURL(
+				$this->urlGenerator->linkToRoute('social.Navigation.navigate')
 			);
 		}
 
