@@ -19,7 +19,7 @@ Features:
 - 👥 Following: discover and follow remote accounts
 
 This release restores the core social features and improves interoperability with the Fediverse.]]></description>
-	<version>0.10.0</version>
+	<version>0.10.1</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
