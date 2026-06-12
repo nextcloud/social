@@ -4,7 +4,6 @@
  */
 
 import axios from '@nextcloud/axios'
-import { addCommands } from '@nextcloud/cypress'
 import { basename } from 'path'
 
 export class User {
@@ -17,19 +16,38 @@ export class User {
 	}
 }
 
-// Add custom commands
-import 'cypress-wait-until'
-addCommands()
-
 const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
 
-// Override login to accept User objects
-Cypress.Commands.overwrite('login', (originalFn, user: User | string, password?: string, route?: string) => {
-	if (typeof user === 'object' && user.userId) {
-		return originalFn(user.userId, user.password, route ?? '/apps/files')
-	}
-	return originalFn(user, password ?? user as string, route ?? '/apps/files')
+// Custom login using cy.session() (Cypress 12+ API, compatible with Cypress 15)
+Cypress.Commands.add('login', (user: User | string, password?: string, route?: string) => {
+	const username = typeof user === 'object' ? user.userId : user
+	const pass = typeof user === 'object' ? user.password : (password ?? user as string)
+	const targetRoute = route ?? '/apps/social'
+
+	cy.session([username, pass, targetRoute], () => {
+		cy.clearCookies()
+		cy.visit(targetRoute)
+		cy.get('input[name=user]').type(username)
+		cy.get('input[name=password]').type(pass)
+		cy.get('form[name=login] [type=submit]').click()
+		cy.url().should('include', targetRoute)
+	}, {
+		validate() {
+			cy.visit(targetRoute)
+			cy.get('body').should('not.have.descendants', 'form[name=login]')
+		},
+	})
+})
+
+// Custom logout
+Cypress.Commands.add('logout', () => {
+	cy.document().then(document => {
+		const tokenElement = document.getElementsByTagName('head')[0]
+		const token = tokenElement.getAttribute('data-requesttoken') || ''
+		cy.visit(`/logout?requesttoken=${encodeURIComponent(token)}`)
+		cy.url().should('include', '/login')
+	})
 })
 
 Cypress.Commands.add('createUser', (user: User) => {
