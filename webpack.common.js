@@ -41,4 +41,9 @@ webpackConfig.resolve.fallback = {
 	buffer: require.resolve('buffer/'),
 }
 
+// Preserve .htaccess when cleaning output directory
+webpackConfig.output.clean = {
+	keep: /\.htaccess/,
+}
+
 module.exports = webpackConfig

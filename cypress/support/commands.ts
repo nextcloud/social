@@ -33,20 +33,19 @@ Cypress.Commands.overwrite('login', (originalFn, user: User | string, password?:
 })
 
 Cypress.Commands.add('createUser', (user: User) => {
-	const token = Cypress.env('adminToken') || ''
-	return cy.window().then(async (window) => {
-		const requestToken = window.OC?.requestToken || token
-		await axios.post(
-			`${Cypress.env('baseUrl')}/ocs/v2.php/cloud/users`,
-			{ userid: user.userId, password: user.password },
-			{
-				headers: {
-					requesttoken: requestToken,
-					'Content-Type': 'application/x-www-form-urlencoded',
-					'OCS-APIRequest': 'true',
-				},
-			},
-		)
+	const baseUrl = Cypress.env('baseUrl')
+	cy.request({
+		method: 'POST',
+		url: `${baseUrl}/ocs/v2.php/cloud/users`,
+		headers: {
+			'OCS-APIRequest': 'true',
+			'Content-Type': 'application/x-www-form-urlencoded',
+		},
+		body: `userid=${user.userId}&password=${user.password}`,
+		auth: {
+			username: 'admin',
+			password: 'admin',
+		},
 	})
 })
 
