@@ -4,8 +4,18 @@
  */
 
 import axios from '@nextcloud/axios'
-import { addCommands, User } from '@nextcloud/cypress'
+import { addCommands } from '@nextcloud/cypress'
 import { basename } from 'path'
+
+export class User {
+	userId: string
+	password: string
+
+	constructor(userId: string, password?: string) {
+		this.userId = userId
+		this.password = password || 'password'
+	}
+}
 
 // Add custom commands
 import 'cypress-wait-until'
@@ -13,6 +23,39 @@ addCommands()
 
 const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
+
+// Override login to accept User objects
+Cypress.Commands.overwrite('login', (originalFn, user: User | string, password?: string, route?: string) => {
+	if (typeof user === 'object' && user.userId) {
+		return originalFn(user.userId, user.password, route ?? '/apps/files')
+	}
+	return originalFn(user, password ?? user as string, route ?? '/apps/files')
+})
+
+Cypress.Commands.add('createUser', (user: User) => {
+	const token = Cypress.env('adminToken') || ''
+	return cy.window().then(async (window) => {
+		const requestToken = window.OC?.requestToken || token
+		await axios.post(
+			`${Cypress.env('baseUrl')}/ocs/v2.php/cloud/users`,
+			{ userid: user.userId, password: user.password },
+			{
+				headers: {
+					requesttoken: requestToken,
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'OCS-APIRequest': 'true',
+				},
+			},
+		)
+	})
+})
+
+Cypress.Commands.add('createRandomUser', () => {
+	const randomId = Math.random().toString(36).replace(/[^a-z]+/g, '').slice(0, 10)
+	const user = new User(randomId)
+	cy.createUser(user)
+	return cy.wrap(user)
+})
 
 Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
 	// get fixture
