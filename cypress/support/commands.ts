@@ -22,7 +22,7 @@ Cypress.env('baseUrl', url)
 Cypress.Commands.add('login', (submission: User | string, password?: string, route?: string) => {
 	const username = typeof submission === 'object' ? submission.userId : submission
 	const pass = typeof submission === 'object' ? submission.password : (password ?? submission as string)
-	const targetRoute = route ?? '/apps/social'
+	const targetRoute = route ?? '/apps/files'
 
 	cy.clearCookies()
 	cy.visit(targetRoute)
