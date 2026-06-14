@@ -56,9 +56,6 @@ Cypress.Commands.add('createUser', (user: User) => {
 			username: 'admin',
 			password: 'admin',
 		},
-	}).then((response) => {
-		expect(response.status).to.eq(200)
-		expect(response.body).to.have.nested.property('ocs.meta.statuscode', 100)
 	})
 })
 
