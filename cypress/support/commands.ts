@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import axios from '@nextcloud/axios'
 import { basename } from 'path'
 
 export class User {
@@ -77,14 +76,18 @@ Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
 		try {
 			const file = new File([blob], fileName, { type: mimeType })
 			return cy.window().then(async window => {
-				await axios.put(`${Cypress.env('baseUrl')}/remote.php/webdav${path}/${fileName}`, file, {
+				const response = await fetch(`${Cypress.env('baseUrl')}/remote.php/webdav${path}/${fileName}`, {
+					method: 'PUT',
 					headers: {
 						requesttoken: window.OC.requestToken,
 						'Content-Type': mimeType,
 					},
-				}).then(response => {
-					cy.log(`Uploaded ${fileName}`, response)
+					body: file,
 				})
+				if (!response.ok) {
+					throw new Error(`Upload failed: ${response.status}`)
+				}
+				cy.log(`Uploaded ${fileName}`, response)
 			})
 		} catch (error) {
 			cy.log(error)
@@ -126,19 +129,24 @@ Cypress.Commands.add('deleteFile', fileName => {
 Cypress.Commands.add('createLinkShare', path => {
 	return cy.window().then(async window => {
 		try {
-			const request = await axios.post(`${Cypress.env('baseUrl')}/ocs/v2.php/apps/files_sharing/api/v1/shares`, {
-				path,
-				shareType: window.OC.Share.SHARE_TYPE_LINK,
-			}, {
+			const formData = new URLSearchParams()
+			formData.append('path', path)
+			formData.append('shareType', window.OC.Share.SHARE_TYPE_LINK.toString())
+			const response = await fetch(`${Cypress.env('baseUrl')}/ocs/v2.php/apps/files_sharing/api/v1/shares`, {
+				method: 'POST',
 				headers: {
 					requesttoken: window.OC.requestToken,
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'OCS-APIRequest': 'true',
 				},
+				body: formData.toString(),
 			})
-			if (!('ocs' in request.data) || !('token' in request.data.ocs.data && request.data.ocs.data.token.length > 0)) {
-				throw request
+			const json = await response.json()
+			if (!json.ocs?.data?.token) {
+				throw new Error('No token in response')
 			}
-			cy.log('Share link created', request.data.ocs.data.token)
-			return cy.wrap(request.data.ocs.data.token)
+			cy.log('Share link created', json.ocs.data.token)
+			return cy.wrap(json.ocs.data.token)
 		} catch (error) {
 			console.error(error)
 		}
