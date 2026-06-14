@@ -8,6 +8,7 @@ describe('Social app setup', () => {
 		cy.createRandomUser()
 			.then((user) => {
 				cy.login(user)
+				cy.visit('/apps/social')
 			})
 	})
 

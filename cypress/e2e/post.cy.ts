@@ -12,9 +12,11 @@ describe('Create posts', () => {
 	before(() => {
 		cy.createUser(alice)
 		cy.login(alice)
+		cy.visit('/apps/social')
 		cy.createRandomUser()
 			.then((user) => {
 				cy.login(user)
+				cy.visit('/apps/social')
 			})
 	})
 

@@ -43,6 +43,7 @@ Cypress.Commands.add('logout', () => {
 })
 
 Cypress.Commands.add('createUser', (user: User) => {
+	cy.clearCookies()
 	const baseUrl = Cypress.env('baseUrl')
 	return cy.request({
 		method: 'POST',
