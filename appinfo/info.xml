@@ -33,7 +33,7 @@ This release restores the core social features and improves interoperability wit
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="28" max-version="34" />
+		<nextcloud min-version="28" max-version="35" />
 	</dependencies>
 
 	<background-jobs>
