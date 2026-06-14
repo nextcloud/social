@@ -19,25 +19,18 @@ export class User {
 const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
 
-// Custom login using cy.session() (Cypress 12+ API, compatible with Cypress 15)
-Cypress.Commands.add('login', (user: User | string, password?: string, route?: string) => {
-	const username = typeof user === 'object' ? user.userId : user
-	const pass = typeof user === 'object' ? user.password : (password ?? user as string)
+// Custom login - clear cookies, visit target route (triggers redirect to /login), login, get redirected back
+Cypress.Commands.add('login', (submission: User | string, password?: string, route?: string) => {
+	const username = typeof submission === 'object' ? submission.userId : submission
+	const pass = typeof submission === 'object' ? submission.password : (password ?? submission as string)
 	const targetRoute = route ?? '/apps/social'
 
-	cy.session([username, pass, targetRoute], () => {
-		cy.clearCookies()
-		cy.visit(targetRoute)
-		cy.get('input[name=user]').type(username)
-		cy.get('input[name=password]').type(pass)
-		cy.get('form[name=login] [type=submit]').click()
-		cy.url().should('include', targetRoute)
-	}, {
-		validate() {
-			cy.visit(targetRoute)
-			cy.get('body').should('not.have.descendants', 'form[name=login]')
-		},
-	})
+	cy.clearCookies()
+	cy.visit(targetRoute)
+	cy.get('input[name=user]').type(username)
+	cy.get('input[name=password]').type(pass)
+	cy.get('form[name=login] [type=submit]').click()
+	cy.url().should('include', targetRoute)
 })
 
 // Custom logout
@@ -64,14 +57,16 @@ Cypress.Commands.add('createUser', (user: User) => {
 			username: 'admin',
 			password: 'admin',
 		},
+	}).then((response) => {
+		expect(response.status).to.eq(200)
+		expect(response.body).to.have.nested.property('ocs.meta.statuscode', 100)
 	})
 })
 
 Cypress.Commands.add('createRandomUser', () => {
 	const randomId = Math.random().toString(36).replace(/[^a-z]+/g, '').slice(0, 10)
 	const user = new User(randomId)
-	cy.createUser(user)
-	return cy.wrap(user)
+	return cy.createUser(user).then(() => cy.wrap(user))
 })
 
 Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
