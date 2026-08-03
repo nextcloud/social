@@ -394,7 +394,7 @@ class SignatureService {
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
 
-		if (!empty(array_diff(['(request-target)', 'date', 'digest', 'host'], $keys))) {
+		if (!empty(array_diff(['(request-target)', 'date'], $keys))) {
 			throw new SignatureException('missing elements in \'headers\'');
 		}
 

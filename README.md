@@ -41,17 +41,6 @@ If an uploaded banner does not appear immediately:
 - Check server logs for upload or permission errors.
 - Re-fetch the account data or sign out/sign in to refresh the local cache.
 
-If you'd like, I can implement an immediate client-side cache refresh after a successful upload so the new banner appears right away.
-
-## 📝 Release notes / changes in this branch
-
-- Added PUT endpoint for status updates (API: `/api/v1/statuses/{nid}`)
-- Backend edit flow: posts can be edited and federated as `Update` activities
-- Stream/Note persistence now stores additional fields (content, summary, source, published timestamps)
-- Boost and Like federation attempt to resolve target inboxes and log fallbacks on failures
-- UI: inline post editing with save/cancel flow
-- Generated JS assets were rebuilt during the release process
-
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build/tests locally before merging.

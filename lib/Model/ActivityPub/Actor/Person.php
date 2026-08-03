@@ -742,6 +742,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsActivityPub(): array {
+		if ($this->getPublicKey() !== '') {
+			$this->setDisplayW3ContextSecurity(true);
+		}
+
 		$data = [
 			'aliases' => [
 				$this->getUrlSocial() . '@' . $this->getPreferredUsername(),

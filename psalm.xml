@@ -79,10 +79,5 @@
 				<file name="lib/Service/AccountService.php"/>
 			</errorLevel>
 		</UndefinedConstant>
-		<UndefinedClass>
-			<errorLevel type="suppress">
-				<referencedClass name="OCA\Social\Service\Exception"/>
-			</errorLevel>
-		</UndefinedClass>
 	</issueHandlers>
 </psalm>

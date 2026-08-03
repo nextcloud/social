@@ -87,28 +87,28 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
 		}
 
-		$this->selectAlias($pf . '.id', 'cacheactor_id')
-			->selectAlias($pf . '.nid', 'cacheactor_nid')
-			->selectAlias($pf . '.type', 'cacheactor_type')
-			->selectAlias($pf . '.icon_id', 'cacheactor_icon_id')
-			->selectAlias($pf . '.account', 'cacheactor_account')
-			->selectAlias($pf . '.following', 'cacheactor_following')
-			->selectAlias($pf . '.followers', 'cacheactor_followers')
-			->selectAlias($pf . '.inbox', 'cacheactor_inbox')
-			->selectAlias($pf . '.shared_inbox', 'cacheactor_shared_inbox')
-			->selectAlias($pf . '.outbox', 'cacheactor_outbox')
-			->selectAlias($pf . '.featured', 'cacheactor_featured')
-			->selectAlias($pf . '.url', 'cacheactor_url')
-			->selectAlias($pf . '.preferred_username', 'cacheactor_preferred_username')
-			->selectAlias($pf . '.name', 'cacheactor_name')
-			->selectAlias($pf . '.summary', 'cacheactor_summary')
-			->selectAlias($pf . '.public_key', 'cacheactor_public_key')
-			->selectAlias($pf . '.source', 'cacheactor_source')
-			->selectAlias($pf . '.details', 'cacheactor_details')
-			->selectAlias($pf . '.creation', 'cacheactor_creation')
-			->selectAlias($pf . '.local', 'cacheactor_local');
+		$this->selectAlias($pf . '.id', 'ca_id')
+			->selectAlias($pf . '.nid', 'ca_nid')
+			->selectAlias($pf . '.type', 'ca_type')
+			->selectAlias($pf . '.icon_id', 'ca_icon_id')
+			->selectAlias($pf . '.account', 'ca_account')
+			->selectAlias($pf . '.following', 'ca_following')
+			->selectAlias($pf . '.followers', 'ca_followers')
+			->selectAlias($pf . '.inbox', 'ca_inbox')
+			->selectAlias($pf . '.shared_inbox', 'ca_shared_inbox')
+			->selectAlias($pf . '.outbox', 'ca_outbox')
+			->selectAlias($pf . '.featured', 'ca_featured')
+			->selectAlias($pf . '.url', 'ca_url')
+			->selectAlias($pf . '.preferred_username', 'ca_preferred_username')
+			->selectAlias($pf . '.name', 'ca_name')
+			->selectAlias($pf . '.summary', 'ca_summary')
+			->selectAlias($pf . '.public_key', 'ca_public_key')
+			->selectAlias($pf . '.source', 'ca_source')
+			->selectAlias($pf . '.details', 'ca_details')
+			->selectAlias($pf . '.creation', 'ca_creation')
+			->selectAlias($pf . '.local', 'ca_local');
 
-		$this->leftJoinCacheDocuments('icon_id', $pf, 'cacheactor_cachedocument_', 'cacd');
+		$this->leftJoinCacheDocuments('icon_id', $pf, 'ca_cachedocument_', 'cacd');
 	}
 
 
@@ -139,7 +139,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$stream->importFromDatabase($new);
 		$stream->setExportFormat($exportFormat);
 
-		$actor = $this->parseLeftJoinCacheActors($data, $prefix . 'cacheactor_', $exportFormat);
+		$actor = $this->parseLeftJoinCacheActors($data, $prefix . 'ca_', $exportFormat);
 		$stream->setActor($actor);
 
 		return $stream;
@@ -268,7 +268,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
 
 		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_STREAM] as $field) {
-			$this->selectAlias($leftAlias . '.' . $field, 'objectstream_' . $field);
+			$this->selectAlias($leftAlias . '.' . $field, 'os_' . $field);
 		}
 
 		$this->leftJoin(
@@ -282,7 +282,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			'attributed_to_prim',
 			$leftAlias,
 			'osca',
-			'objectstream_'
+			'os_'
 		);
 	}
 
@@ -308,7 +308,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
 
 		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_CACHE_ACTORS] as $field) {
-			$this->selectAlias($leftAlias . '.' . $field, $prefix . 'cacheactor_' . $field);
+			$this->selectAlias($leftAlias . '.' . $field, $prefix . 'ca_' . $field);
 		}
 
 		$this->leftJoin(
@@ -321,7 +321,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$this->leftJoinCacheDocuments(
 			'icon_id',
 			$leftAlias,
-			$prefix . 'cacheactor_cachedocument_',
+			$prefix . 'ca_cachedocument_',
 			$leftAlias . 'cacd'
 		);
 	}

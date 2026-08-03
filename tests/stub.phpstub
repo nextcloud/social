@@ -466,6 +466,7 @@ namespace OC\User {
 namespace OC\DB {
     use OCP\IDBConnection;
     class ConnectionAdapter {}
+    class Connection extends ConnectionAdapter {}
 
     class SchemaWrapper {
         public function __construct(IDBConnection $connection) {}

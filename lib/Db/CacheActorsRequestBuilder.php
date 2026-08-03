@@ -135,6 +135,7 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		}
 
 		$actor->importFromDatabase($data);
+		$actor->setUrlSocial($this->configService->getSocialUrl());
 
 		$this->assignViewerLink($qb, $actor);
 		$this->assignDetails($actor, $data);

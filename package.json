@@ -1,7 +1,7 @@
 {
   "name": "social",
   "description": "Nextcloud becomes part of the federated social networks!",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "authors": [
     {
       "name": "Benedikt Schächner",
@@ -22,15 +22,14 @@
     "stylelint:fix": "stylelint src --fix",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "cypress": "npm run cypress:component && npm run cypress:e2e",
-    "cypress:component": "cypress run --component",
+    "cypress": "cypress run --e2e",
     "cypress:e2e": "cypress run --e2e",
     "cypress:gui": "cypress open",
     "precypress:update-snapshots": "TESTING=true npm run dev"
   },
   "dependencies": {
     "@nextcloud/auth": "^2.0.0",
-    "@nextcloud/axios": "^2.3.0",
+    "@nextcloud/axios": "2.5.2",
     "@nextcloud/dialogs": "^7.3.0",
     "@nextcloud/initial-state": "^3.0.0",
     "@nextcloud/l10n": "^3.4.1",
@@ -95,6 +94,12 @@
     "wait-on": "^7.0.1",
     "webpack": "^5.106.2",
     "webpack-cli": "^6.0.1"
+  },
+  "overrides": {
+    "uuid": "^14.0.0",
+    "fast-xml-parser": ">=5.7.0",
+    "joi": ">=18.2.1",
+    "@nextcloud/axios": "2.5.2"
   },
   "jest": {
     "moduleFileExtensions": [

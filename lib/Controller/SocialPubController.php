@@ -71,9 +71,6 @@ class SocialPubController extends Controller {
 	 * @throws SocialAppConfigException
 	 */
 	private function renderPage(string $username): Response {
-		if ($this->userId) {
-			return $this->navigationController->navigate('');
-		}
 		$data = [
 			'application' => 'Social'
 		];
