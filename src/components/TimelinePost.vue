@@ -50,8 +50,9 @@
 		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
+		<!-- Sanitized: the bio is remote HTML, see sanitizeHtml.js -->
 		<!-- eslint-disable-next-line vue/no-v-html -->
-		<div v-else class="post-message" v-html="item.account.note" />
+		<div v-else class="post-message" v-html="sanitizedAccountNote" />
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<div class="post-action-group">
@@ -121,6 +122,7 @@ import 'linkify-plugin-mention'
 import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
+import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
@@ -168,6 +170,14 @@ export default {
 		}
 	},
 	computed: {
+		/**
+		 * The author's bio, reduced to markup that is safe to inject.
+		 *
+		 * @return {string}
+		 */
+		sanitizedAccountNote() {
+			return sanitizeHtml(this.item.account?.note ?? '')
+		},
 		/**
 		 * @return {string}
 		 */

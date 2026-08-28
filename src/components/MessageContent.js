@@ -5,6 +5,7 @@
 
 import { h, resolveComponent } from 'vue'
 import Emoji from './Emoji.vue'
+import { isAllowedUrl } from '../utils/sanitizeHtml.js'
 
 export default {
 	name: 'MessageContent',
@@ -45,18 +46,41 @@ export function formatMessage(hFn, routerLink, item) {
  * @param context
  */
 function domToVue(hFn, routerLink, node, context) {
-	switch (node.tagName) {
-	case 'P':
-		return cleanCopy(hFn, routerLink, node, context)
-	case 'BR':
-		return cleanCopy(hFn, routerLink, node, context)
-	case 'SPAN':
-		return cleanCopy(hFn, routerLink, node, context)
-	case 'A':
+	if (node.tagName === 'A') {
 		return cleanLink(hFn, routerLink, node, context)
-	default:
-		return transformText(hFn, routerLink, node.textContent ?? '')
 	}
+	if (STRUCTURAL_TAGS.includes(node.tagName)) {
+		return cleanCopy(hFn, routerLink, node, context)
+	}
+	// Anything else is reduced to its text, which also drops every attribute
+	return transformText(hFn, routerLink, node.textContent ?? '')
+}
+
+/**
+ * Elements copied through as-is (without attributes), matching the server's
+ * allowlist in HtmlSanitizer.php so a post from Mastodon keeps its quotes,
+ * lists and code blocks.
+ */
+const STRUCTURAL_TAGS = [
+	'P', 'BR', 'SPAN',
+	'DEL', 'S', 'PRE', 'BLOCKQUOTE', 'CODE',
+	'B', 'STRONG', 'U', 'I', 'EM',
+	'UL', 'OL', 'LI',
+	'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+]
+
+/**
+ * A link target the browser may follow, or undefined to render a dead link.
+ *
+ * The server strips disallowed schemes already; this keeps a `javascript:`
+ * href out of the DOM even if content reached the client another way.
+ *
+ * @param {Element} node - The anchor element
+ * @return {string|undefined}
+ */
+function safeHref(node) {
+	const href = node.getAttribute('href') ?? ''
+	return isAllowedUrl(href) ? href : undefined
 }
 
 const mentionRegex = /(\W|^)((@\w+)@[\w.\-_]+)/ig
@@ -141,7 +165,7 @@ function cleanLink(hFn, routerLink, node, context) {
 		if (tag) {
 			attributes.rel = 'nofollow noopener noreferrer'
 			attributes.target = '_blank'
-			attributes.href = node.getAttribute('href')
+			attributes.href = safeHref(node)
 			attributes.title = tag.name
 
 			return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent)])
@@ -162,7 +186,7 @@ function cleanLink(hFn, routerLink, node, context) {
 	default:
 		attributes.rel = 'nofollow noopener noreferrer'
 		attributes.target = '_blank'
-		attributes.href = node.getAttribute('href')
+		attributes.href = safeHref(node)
 
 		return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent)])
 	}

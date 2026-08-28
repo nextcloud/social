@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
+use OCA\Social\Tools\HtmlSanitizer;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
@@ -520,16 +521,18 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 				return $value;
 
 			case self::AS_STRING:
-				$value = strip_tags($value);
+				// Decode first: stripping tags and *then* decoding entities lets
+				// `&lt;script&gt;` come back to life as a real element
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
+				$value = strip_tags($value);
 
 				return $value;
 
 			case self::AS_CONTENT:
-				$value = strip_tags($value, ['a', 'p', 'span', 'br']);
-				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
-
-				return $value;
+				// Remote HTML is rendered into every local reader's timeline.
+				// strip_tags() cannot do this job: it keeps attributes on the
+				// tags it allows, so `onclick` and `javascript:` survive it.
+				return HtmlSanitizer::sanitize($value);
 
 			case self::AS_USERNAME:
 				$value = strip_tags($value);
