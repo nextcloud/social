@@ -39,7 +39,7 @@
     "@nextcloud/vue": "^9.8.0",
     "blurhash": "^2.0.5",
     "debounce": "^1.2.1",
-    "dompurify": "^3.4.10",
+    "dompurify": "^3.4.14",
     "he": "^1.2.0",
     "ical.js": "^2.2.1",
     "linkify-plugin-mention": "^4.1.0",
