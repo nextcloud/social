@@ -39,6 +39,7 @@
     "@nextcloud/vue": "^9.8.0",
     "blurhash": "^2.0.5",
     "debounce": "^1.2.1",
+    "dompurify": "^3.4.10",
     "he": "^1.2.0",
     "ical.js": "^2.2.1",
     "linkify-plugin-mention": "^4.1.0",
@@ -65,7 +66,6 @@
     "npm": "^10.0.0"
   },
   "devDependencies": {
-    "elliptic": "file:patches/elliptic-6.6.2.tgz",
     "@babel/core": "^7.29.0",
     "@babel/plugin-syntax-dynamic-import": "^7.8.3",
     "@cypress/browserify-preprocessor": "^3.0.2",
@@ -82,10 +82,12 @@
     "cypress-visual-regression": "^2.1.1",
     "cypress-wait-until": "^1.7.2",
     "dockerode": "^5.0.0",
+    "elliptic": "file:patches/elliptic-6.6.2.tgz",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-n": "^16.0.0",
     "eslint-plugin-vue": "^9.33.0",
     "jest": "^29.5.0",
+    "jest-environment-jsdom": "^29.7.0",
     "node-polyfill-webpack-plugin": "^4.0.0",
     "sass-loader": "^16.0.8",
     "style-loader": "^4.0.0",
@@ -110,11 +112,7 @@
       "^@/(.*)$": "<rootDir>/src/$1"
     },
     "transform": {
-      "^.+\\.js$": "<rootDir>/node_modules/babel-jest",
-      ".*\\.(vue)$": "<rootDir>/node_modules/vue-jest"
-    },
-    "snapshotSerializers": [
-      "<rootDir>/node_modules/jest-serializer-vue"
-    ]
+      "^.+\\.js$": "<rootDir>/node_modules/babel-jest"
+    }
   }
 }

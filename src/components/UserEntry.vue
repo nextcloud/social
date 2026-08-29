@@ -32,8 +32,9 @@
 						{{ item.acct }}
 					</span>
 				</a>
+				<!-- Sanitized: the bio is remote HTML, see sanitizeHtml.js -->
 				<!-- eslint-disable-next-line vue/no-v-html -->
-				<p v-html="item.note" />
+				<p v-html="sanitizedNote" />
 			</div>
 			<FollowButton v-if="displayFollowButton" :uid="item.acct" />
 		</div>
@@ -44,6 +45,7 @@
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
+import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 
 export default {
 	name: 'UserEntry',
@@ -71,6 +73,14 @@ export default {
 		}
 	},
 	computed: {
+		/**
+		 * The account's bio, reduced to markup that is safe to inject.
+		 *
+		 * @return {string}
+		 */
+		sanitizedNote() {
+			return sanitizeHtml(this.item.note ?? '')
+		},
 		/**
 		 * @return {boolean}
 		 */
