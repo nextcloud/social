@@ -282,11 +282,14 @@ export default {
 		this.tributeTarget = this.$refs.composerInput
 		this.tribute.attach(this.tributeTarget)
 
-		eventBus.on('composer-reply', (data) => {
+		// Keep the handler so unmounted() removes only this one and not the
+		// listeners other components registered for the same event.
+		this.onComposerReply = (data) => {
 			this.replyTo = data
 			this.prefillMessageWithMention(data.account)
 			this.visibility = data.visibility
-		})
+		}
+		eventBus.on('composer-reply', this.onComposerReply)
 
 		if (this.initialMention !== null) {
 			this.prefillMessageWithMention(this.initialMention)
@@ -296,7 +299,7 @@ export default {
 		if (this.tribute && this.tributeTarget) {
 			this.tribute.detach(this.tributeTarget)
 		}
-		eventBus.off('composer-reply')
+		eventBus.off('composer-reply', this.onComposerReply)
 	},
 	methods: {
 		prefillMessageWithMention(account) {

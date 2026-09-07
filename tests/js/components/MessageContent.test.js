@@ -150,6 +150,37 @@ describe('MessageContent', () => {
 			expect(wrapper.find('a').exists()).toBe(false)
 			expect(wrapper.text()).toBe('@bob hi')
 		})
+
+		it('matches a short-name mention through the host of its listed url', () => {
+			// Mastodon renders the anchor text as @bob while acct is bob@remote.example;
+			// the lookup must compare the user part of acct, not its host.
+			const wrapper = mountContent(
+				'<p><a href="https://remote.example/@bob" class="u-url mention">@bob</a> hi</p>',
+				{ mentions: [{ id: '9', username: 'bob', acct: 'bob@remote.example', url: 'https://remote.example/@bob' }] },
+			)
+
+			const link = wrapper.find('a')
+			expect(link.attributes('href')).toBe('https://remote.example/@bob')
+			expect(link.text()).toBe('@bob')
+		})
+
+		it('links every handle when a text node carries several', () => {
+			// a stateful (global) regex used to skip every second mention
+			const wrapper = mountContent('<p>cc @carol@other.example and @dave@other.example and @erin@other.example</p>')
+
+			expect(wrapper.findAll('a').map((a) => a.text())).toEqual(['@carol', '@dave', '@erin'])
+		})
+
+		it('survives a mention anchor with a relative href', () => {
+			// The server sanitizer keeps scheme-less hrefs; new URL() on one
+			// throws, which used to break rendering of the whole post.
+			const wrapper = mountContent(
+				'<p><a href="/@bob" class="mention">@bob</a> hi</p>',
+				{ mentions: [{ id: '9', username: 'bob', acct: 'bob@remote.example', url: 'https://remote.example/@bob' }] },
+			)
+
+			expect(wrapper.text()).toBe('@bob hi')
+		})
 	})
 
 	describe('emoji', () => {
@@ -161,6 +192,14 @@ describe('MessageContent', () => {
 			expect(emoji.attributes('src')).toBe('/apps/social/img/twemoji/1f9d1-200d-1f91d-200d-1f9d1.svg')
 			expect(emoji.attributes('draggable')).toBe('false')
 			expect(wrapper.text()).toBe('Hi  there')
+		})
+
+		it('replaces a plain single-codepoint emoji too', () => {
+			const wrapper = mountContent('<p>Hi 😀 there</p>')
+
+			const emoji = wrapper.find('img.emoji')
+			expect(emoji.exists()).toBe(true)
+			expect(emoji.attributes('alt')).toBe('😀')
 		})
 	})
 

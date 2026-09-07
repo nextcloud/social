@@ -265,9 +265,13 @@ const actions = {
 			return response
 		} catch (error) {
 			if (context.state.type === 'favourites') {
+				// addToTimeline restores the caller's pre-unlike copy of the
+				// status (favourited, original count) — a likeStatus on top of
+				// that would count the like twice.
 				context.commit('addToTimeline', [status])
+			} else {
+				context.commit('likeStatus', { status })
 			}
-			context.commit('likeStatus', { status })
 			showError('Failed to unlike status')
 			logger.error('Failed to unlike status', { error })
 		}
