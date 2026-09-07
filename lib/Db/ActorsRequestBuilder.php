@@ -11,10 +11,31 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Security\PrivateKeyCipher;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IDBConnection;
+use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
+
+	protected PrivateKeyCipher $keyCipher;
+
+	public function __construct(
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		ConfigService $configService,
+		MiscService $miscService,
+		PrivateKeyCipher $keyCipher,
+	) {
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
+
+		$this->keyCipher = $keyCipher;
+	}
 
 
 	/**
@@ -89,6 +110,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		$actor = new Person();
 		$actor->importFromDatabase($data);
+		$actor->setPrivateKey($this->keyCipher->open($actor->getPrivateKey()));
 		$actor->setId($root . '@' . $actor->getPreferredUsername());
 		$actor->setType('Person');
 		$actor->setInbox($actor->getId() . '/inbox')

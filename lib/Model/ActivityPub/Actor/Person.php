@@ -69,6 +69,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private int $headerVersion = -1;
 	private string $viewerLink = '';
 
+	/** @var string[] */
+	private array $alsoKnownAs = [];
+
 	/**
 	 * Person constructor.
 	 *
@@ -610,6 +613,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The actor ids this actor also answers to — a `Move` is only valid when
+	 * its target lists the moving actor here.
+	 *
+	 * @return string[]
+	 */
+	public function getAlsoKnownAs(): array {
+		return $this->alsoKnownAs;
+	}
+
+	/**
+	 * @param string[] $alsoKnownAs
+	 */
+	public function setAlsoKnownAs(array $alsoKnownAs): self {
+		$this->alsoKnownAs = array_values(array_filter($alsoKnownAs, 'is_string'));
+
+		return $this;
+	}
+
+	/**
 	 * @param array $data
 	 *
 	 * @throws ItemUnknownException
@@ -629,7 +651,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
 			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
 			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
-			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
+			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
+			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []));
 
 		/** @var Image $icon */
 		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
@@ -700,6 +723,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			if ($image !== '') {
 				$this->setHeader($image);
 			}
+			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
 		}
 
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
@@ -765,6 +789,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'publicKeyPem' => $this->getPublicKey()
 			]
 		];
+
+		if ($this->getAlsoKnownAs() !== []) {
+			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
+		}
 
 		if ($this->hasIcon()) {
 			$icon = $this->getIcon();

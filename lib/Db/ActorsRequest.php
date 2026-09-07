@@ -36,7 +36,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 			)
 			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-			->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
+			->setValue('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())))
 			->setValue(
 				'creation',
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
@@ -58,7 +58,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function refreshKeys(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-			->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+			->set('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())));
 
 		try {
 			$qb->set(

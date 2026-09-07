@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Interfaces\Activity;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -30,11 +31,14 @@ use PHPUnit\Framework\MockObject\MockObject;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
 
+// see also PersonTest for the alsoKnownAs import/export round-trip
 class MoveInterfaceTest extends ActivityPubTestCase {
 	private const CAROL = 'https://other.example/users/carol';
 
 	/** @var ActionsRequest&MockObject */
 	private $actionsRequest;
+	/** @var CacheActorsRequest&MockObject */
+	private $cacheActorsRequest;
 	/** @var CacheDocumentsRequest&MockObject */
 	private $cacheDocumentsRequest;
 	/** @var FollowsRequest&MockObject */
@@ -54,6 +58,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		parent::setUp();
 
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
@@ -62,6 +67,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 
 		$this->handler = new MoveInterface(
 			$this->actionsRequest,
+			$this->cacheActorsRequest,
 			$this->cacheDocumentsRequest,
 			$this->followsRequest,
 			$this->streamRequest,
@@ -71,6 +77,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 
 		$this->old = $this->person(self::REMOTE_URL . '/users/bob');
 		$this->new = $this->person('https://new.example/users/bob');
+		$this->new->setAlsoKnownAs([$this->old->getId()]);
 	}
 
 	private function dest(string $streamId, string $type = 'recipient', string $subtype = 'to'): StreamDest {
@@ -186,10 +193,10 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 	}
 
 	public function testIncomingMoveOfAKnownActorIsAppliedToItsTarget(): void {
-		$this->cacheActorService->method('getFromAccount')
-			->willReturnCallback(function (string $account) {
-				return $account === $this->old->getId() ? $this->old : $this->new;
-			});
+		$this->cacheActorsRequest->method('getFromId')
+			->with($this->old->getId())->willReturn($this->old);
+		$this->cacheActorService->method('getFromId')
+			->with($this->new->getId(), true)->willReturn($this->new);
 		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
 
 		$this->followsRequest->expects($this->once())
@@ -199,9 +206,10 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 	}
 
 	public function testIncomingMoveOfAnUnknownActorIsIgnored(): void {
-		$this->cacheActorService->method('getFromAccount')
+		$this->cacheActorsRequest->method('getFromId')
 			->willThrowException(new CacheActorDoesNotExistException());
 
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 		$this->actionsRequest->expects($this->never())->method('moveAccount');
 		$this->followsRequest->expects($this->never())->method('moveAccountFollowers');
 
@@ -209,7 +217,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 	}
 
 	public function testIncomingMoveNotComingFromTheActorsOriginIsRefused(): void {
-		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->cacheActorsRequest->expects($this->never())->method('getFromId');
 		$this->followsRequest->expects($this->never())->method('moveAccountFollowers');
 
 		$this->expectException(InvalidOriginException::class);
@@ -221,10 +229,43 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$move = $this->move();
 		$move->setObjectId(self::CAROL);
 
-		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->cacheActorsRequest->expects($this->never())->method('getFromId');
 
 		$this->expectException(InvalidOriginException::class);
 
 		$this->handler->processIncomingRequest($move);
+	}
+
+	public function testIncomingMoveIsRefusedWhenTheTargetDoesNotAcknowledgeTheActor(): void {
+		$this->new->setAlsoKnownAs(['https://new.example/users/someoneelse']);
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->old);
+		$this->cacheActorService->method('getFromId')->willReturn($this->new);
+
+		$this->actionsRequest->expects($this->never())->method('moveAccount');
+		$this->followsRequest->expects($this->never())->method('moveAccountFollowers');
+		$this->streamRequest->expects($this->never())->method('updateAuthor');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->processIncomingRequest($this->move());
+	}
+
+	public function testIncomingMoveIsRefusedWhenTheTargetHasNoAlsoKnownAs(): void {
+		$this->new->setAlsoKnownAs([]);
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->old);
+		$this->cacheActorService->method('getFromId')->willReturn($this->new);
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->processIncomingRequest($this->move());
+	}
+
+	public function testTheTargetIsRefreshedSoTheGuardSeesACurrentAlsoKnownAs(): void {
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->old);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromId')->with($this->new->getId(), true)->willReturn($this->new);
+		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
+
+		$this->handler->processIncomingRequest($this->move());
 	}
 }

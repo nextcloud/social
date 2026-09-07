@@ -78,6 +78,37 @@ class PersonTest extends TestCase {
 		$this->assertSame('Person', (new Person())->getType());
 	}
 
+	public function testImportReadsAlsoKnownAs(): void {
+		$person = new Person();
+		$actor = $this->mastodonActor();
+		$actor['alsoKnownAs'] = ['https://old.example/users/alice', 42, ['nested']];
+
+		$person->import($actor);
+
+		$this->assertSame(['https://old.example/users/alice'], $person->getAlsoKnownAs(), 'non-strings are dropped');
+	}
+
+	public function testAlsoKnownAsSurvivesTheActorCache(): void {
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => '{"alsoKnownAs":["https://old.example/users/alice"]}',
+		]);
+
+		$this->assertSame(['https://old.example/users/alice'], $person->getAlsoKnownAs());
+	}
+
+	public function testAlsoKnownAsIsExportedOnlyWhenSet(): void {
+		$person = new Person();
+		$person->setUrlSocial('https://cloud.example.org/apps/social/');
+
+		$this->assertArrayNotHasKey('alsoKnownAs', $person->exportAsActivityPub());
+
+		$person->setAlsoKnownAs(['https://old.example/users/alice']);
+		$this->assertSame(['https://old.example/users/alice'], $person->exportAsActivityPub()['alsoKnownAs']);
+	}
+
 	public function testImportReadsAMastodonActorDocument(): void {
 		$person = new Person();
 
