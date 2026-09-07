@@ -163,9 +163,9 @@ class StreamService {
 
 
 	/**
-	 * @param $stream
+	 * Classify a stream by who can see it, for `DetailsService`.
 	 */
-	public function detectType(Stream $stream) {
+	public function detectType(Stream $stream): void {
 		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getToAll())) {
 			$stream->setTimeline(Stream::TYPE_PUBLIC);
 
@@ -173,17 +173,25 @@ class StreamService {
 		}
 
 		if (in_array(ACore::CONTEXT_PUBLIC, $stream->getCcArray())) {
-			$stream->setType(Stream::TYPE_UNLISTED);
+			$stream->setTimeline(Stream::TYPE_UNLISTED);
 
 			return;
 		}
 
 		try {
 			$actor = $this->cacheActorService->getFromId($stream->getAttributedTo());
-			echo json_encode($actor) . "\n";
 		} catch (Exception $e) {
 			return;
 		}
+
+		$followers = $actor->getFollowers();
+		$recipients = array_merge($stream->getToAll(), $stream->getCcArray());
+
+		$stream->setTimeline(
+			($followers !== '' && in_array($followers, $recipients, true))
+				? Stream::TYPE_FOLLOWERS
+				: Stream::TYPE_DIRECT
+		);
 	}
 
 

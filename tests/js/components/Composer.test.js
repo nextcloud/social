@@ -73,8 +73,6 @@ const mountComposer = (props = {}) => {
 		global: {
 			mocks: { $store },
 			stubs: {
-				// the template uses <Tribute> without registering a component for it
-				Tribute: { template: '<div class="tribute-stub"><slot /></div>' },
 				NcEmojiPicker: { name: 'NcEmojiPicker', emits: ['select'], template: '<div class="emoji-picker-stub"><slot /></div>' },
 				NcAvatar: true,
 				ActorAvatar: true,
@@ -467,6 +465,25 @@ describe('Composer', () => {
 			await flushPromises()
 			expect(input(wrapper).find('.mention a').text()).toBe('@bob@remote.example')
 			expect(canPost(wrapper)).toBe(true)
+		})
+	})
+
+	describe('mention autocomplete', () => {
+		it('is wired up to the message input', () => {
+			const { wrapper } = mountComposer()
+			expect(input(wrapper).attributes('data-tribute')).toBe('true')
+		})
+
+		it('lets go of the message input when the composer disappears', async () => {
+			const { wrapper } = mountComposer()
+			const message = input(wrapper).element
+			wrappers.pop()
+
+			expect(() => wrapper.unmount()).not.toThrow()
+
+			// tributejs cleans the marker off the element one macrotask later
+			await new Promise((resolve) => setTimeout(resolve))
+			expect(message.hasAttribute('data-tribute')).toBe(false)
 		})
 	})
 

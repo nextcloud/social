@@ -44,16 +44,14 @@
 			<MessageContent :item="replyTo" />
 		</div>
 		<form class="new-post-form" @submit.prevent>
-			<Tribute :options="tributeOptions">
-				<div ref="composerInput"
-					:contenteditable="!loading"
-					class="message"
-					:placeholder="t('social', 'What would you like to share?')"
-					:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
-					@keyup.prevent.enter="keyup"
-					@input="updateStatusContent"
-					@tribute-replaced="updatePostFromTribute" />
-			</Tribute>
+			<div ref="composerInput"
+				:contenteditable="!loading"
+				class="message"
+				:placeholder="t('social', 'What would you like to share?')"
+				:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
+				@keyup.prevent.enter="keyup"
+				@input="updateStatusContent"
+				@tribute-replaced="updatePostFromTribute" />
 
 			<PreviewGrid :uploading="false"
 				:upload-progress="0.4"
@@ -114,6 +112,7 @@ import PreviewGrid from './PreviewGrid.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
 import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
+import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
 
 export default {
@@ -274,6 +273,15 @@ export default {
 		},
 	},
 	mounted() {
+		// tributejs is a plain DOM library, not a component: it attaches to the
+		// contenteditable and appends its menu to the body, which the unscoped
+		// .tribute-container rule at the end of this file styles.
+		this.tribute = new Tribute(this.tributeOptions)
+		// Kept, because $refs is cleared before unmounted() runs and detach() rejects
+		// anything that is not a node.
+		this.tributeTarget = this.$refs.composerInput
+		this.tribute.attach(this.tributeTarget)
+
 		eventBus.on('composer-reply', (data) => {
 			this.replyTo = data
 			this.prefillMessageWithMention(data.account)
@@ -285,6 +293,9 @@ export default {
 		}
 	},
 	unmounted() {
+		if (this.tribute && this.tributeTarget) {
+			this.tribute.detach(this.tributeTarget)
+		}
 		eventBus.off('composer-reply')
 	},
 	methods: {

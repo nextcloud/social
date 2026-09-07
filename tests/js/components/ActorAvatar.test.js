@@ -20,6 +20,13 @@ const mountAvatar = (props) => mount(ActorAvatar, {
 })
 
 const local = { username: 'bob', acct: 'bob', avatar: 'https://cloud.example.org/avatar/bob/128' }
+const remote = {
+	username: 'bob',
+	acct: 'bob@remote.example',
+	url: 'https://remote.example/users/bob',
+	avatar: 'https://cloud.example.org/index.php/apps/social/document/get/abcdef',
+}
+const AVATAR_ENDPOINT = '/index.php/apps/social/api/v1/global/actor/avatar?id='
 
 describe('ActorAvatar', () => {
 	it('resolves a local actor through the server avatar endpoint by username', () => {
@@ -45,5 +52,22 @@ describe('ActorAvatar', () => {
 		const avatar = mountAvatar({ actor: { username: 'bob', acct: 'bob' } }).findComponent(NcAvatarStub)
 		expect(avatar.props('user')).toBe('bob')
 		expect(avatar.props('url')).toBeUndefined()
+	})
+
+	it('shows a remote actor with the avatar URL that was delivered with it', () => {
+		const avatar = mountAvatar({ actor: remote }).findComponent(NcAvatarStub)
+		expect(avatar.props('url')).toBe(remote.avatar)
+		expect(avatar.props('user')).toBeUndefined()
+	})
+
+	it('resolves a remote actor without an avatar through the proxy endpoint, by its escaped ActivityPub id', () => {
+		const avatar = mountAvatar({ actor: { ...remote, avatar: undefined } }).findComponent(NcAvatarStub)
+		expect(avatar.props('url')).toBe(`${AVATAR_ENDPOINT}https%3A%2F%2Fremote.example%2Fusers%2Fbob`)
+	})
+
+	it('still shows a remote actor that has neither an avatar nor an ActivityPub id', () => {
+		const avatar = mountAvatar({ actor: { username: 'bob', acct: 'bob@remote.example' } }).findComponent(NcAvatarStub)
+		expect(avatar.exists()).toBe(true)
+		expect(avatar.props('url')).toBe(AVATAR_ENDPOINT)
 	})
 })

@@ -223,7 +223,15 @@ const getters = {
 		return _getActorIdForAccount
 	},
 	isFollowingUser(state) {
-		return (followingAccount) => state.accountsRelationships[_getActorIdForAccount(followingAccount)]?.following || false
+		return (followingAccount) => {
+			// Relationships are keyed by the Mastodon numeric id (see addRelationship).
+			// Callers pass either a handle, which resolves through the actor URL, or that
+			// id directly.
+			const actorId = _getActorIdForAccount(followingAccount)
+			const relationshipId = (actorId && state.accounts[actorId]?.id) || followingAccount
+
+			return state.accountsRelationships[relationshipId]?.following || false
+		}
 	},
 }
 

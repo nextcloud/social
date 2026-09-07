@@ -255,7 +255,7 @@ const actions = {
 	},
 	async postUnlike(context, { status }) {
 		try {
-			if (state.type === 'liked') {
+			if (context.state.type === 'favourites') {
 				context.commit('removeStatus', status)
 			}
 			context.commit('unlikeStatus', { status })
@@ -264,7 +264,7 @@ const actions = {
 			context.commit('addToStatuses', response.data)
 			return response
 		} catch (error) {
-			if (state.type === 'liked') {
+			if (context.state.type === 'favourites') {
 				context.commit('addToTimeline', [status])
 			}
 			context.commit('likeStatus', { status })

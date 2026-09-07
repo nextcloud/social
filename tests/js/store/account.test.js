@@ -137,6 +137,37 @@ describe('account store mutations and getters', () => {
 		expect(store.getters.getRelationshipWith('11')).toBeUndefined()
 	})
 
+	it('isFollowingUser says yes for the handle of an account the user follows', () => {
+		store.commit('addAccount', { actorId: bob.url, data: bob })
+		store.commit('addRelationship', { actorId: bob.id, data: { id: bob.id, following: true } })
+
+		expect(store.getters.isFollowingUser(bob.acct)).toBe(true)
+	})
+
+	it('isFollowingUser says no for the handle of an account the user does not follow', () => {
+		store.commit('addAccount', { actorId: bob.url, data: bob })
+		store.commit('addRelationship', { actorId: bob.id, data: { id: bob.id, following: false } })
+
+		expect(store.getters.isFollowingUser(bob.acct)).toBe(false)
+	})
+
+	it('isFollowingUser also answers for the plain account id, which the remote follow dialog passes', () => {
+		store.commit('addRelationship', { actorId: bob.id, data: { id: bob.id, following: true } })
+
+		expect(store.getters.isFollowingUser(bob.id)).toBe(true)
+	})
+
+	it('isFollowingUser says no while the relationship of a known account has not been loaded', () => {
+		store.commit('addAccount', { actorId: bob.url, data: bob })
+
+		expect(store.getters.isFollowingUser(bob.acct)).toBe(false)
+	})
+
+	it('isFollowingUser says no for a handle that is unknown, instead of failing', () => {
+		expect(() => store.getters.isFollowingUser('nobody@remote.tld')).not.toThrow()
+		expect(store.getters.isFollowingUser('nobody@remote.tld')).toBe(false)
+	})
+
 	it('addFollowers replaces the list, indexes each follower and remembers the last id', () => {
 		store.commit('addAccount', { actorId: alice.url, data: alice })
 
