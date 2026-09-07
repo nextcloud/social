@@ -104,6 +104,15 @@ class ConfigService {
 	 *
 	 * @return string
 	 */
+	/**
+	 * Whether a user's block is also sent to the blocked account's server as a
+	 * Block activity (Mastodon behaviour, the default). Disable to keep blocks
+	 * strictly local:  occ config:app:set social federate_blocks --value 0
+	 */
+	public function isBlockFederationEnabled(): bool {
+		return $this->config->getAppValue(Application::APP_ID, 'federate_blocks', '1') !== '0';
+	}
+
 	public function getAppValue($key) {
 		$defaultValue = null;
 		if (array_key_exists($key, $this->defaults)) {

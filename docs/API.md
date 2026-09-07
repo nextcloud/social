@@ -50,7 +50,13 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/accounts/verify_credentials` | public, no-csrf | — | The viewer's `Person` actor serialised in local format. 401 `{"error": ...}` when unauthenticated. |
+| GET | `/api/v1/blocks` | public, no-csrf (viewer required) | `limit` (40, capped at 50) | Accounts the viewer has blocked. |
+| GET | `/api/v1/mutes` | public, no-csrf (viewer required) | `limit` (40, capped at 50) | Accounts the viewer has muted. |
 | GET | `/api/v1/accounts/relationships` | public, no-csrf | `id` (array, required) | Relationship entries from `FollowService::getRelationships()`. Sent as `id[]=…` on the wire. |
+| POST | `/api/v1/accounts/{id}/block` | public, no-csrf (viewer required) | — | Blocks the account (`{id}` is the numeric id or a full actor id; accepts slashes). Severs the follow relationship in both directions and, unless `federate_blocks` is `0`, sends a `Block` activity to the account's server. Returns the updated relationship entity. |
+| POST | `/api/v1/accounts/{id}/unblock` | public, no-csrf (viewer required) | — | Lifts a block (federates `Undo{Block}` under the same setting). Returns the updated relationship entity. |
+| POST | `/api/v1/accounts/{id}/mute` | public, no-csrf (viewer required) | `notifications` (true) | Mutes the account — purely local, never federated. With `notifications=true` (default) the account's notifications are hidden too. Returns the updated relationship entity. |
+| POST | `/api/v1/accounts/{id}/unmute` | public, no-csrf (viewer required) | — | Lifts a mute. Returns the updated relationship entity. |
 | GET | `/api/v1/accounts/{account}/statuses` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | Statuses of `{account}`; syncs the remote timeline first. `{account}` accepts slashes (`requirements: .+`). |
 | GET | `/api/v1/accounts/{account}/followers` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since` (0) | Followers of `{account}`. For a remote domain the actor's `followers` collection is fetched over HTTP and up to `limit` actors are returned; otherwise the local cache is probed. Note the fourth parameter is `since`, not `since_id`. |
 | GET | `/api/v1/accounts/{account}/following` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since` (0) | Same as above for the `following` collection. |

@@ -70,7 +70,7 @@ There is no `lib/bootstrap.php`; Composer's autoloader is pulled in by `lib/AppI
 
 ## Database Schema
 
-Fourteen tables are created by `lib/Migration/Version1000Date20221118000001.php`, all prefixed with `social_`:
+The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all prefixed with `social_`:
 
 | Table | Purpose |
 |-------|---------|
@@ -88,8 +88,9 @@ Fourteen tables are created by `lib/Migration/Version1000Date20221118000001.php`
 | `social_stream_dest` | Stream visibility targets (who sees what) |
 | `social_stream_queue` | Inbound stream processing queue |
 | `social_stream_tag` | Stream-to-hashtag mapping |
+| `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, and `Version1000Date20260907000002` adds `social_actor_relation`.
 
 Note that `CoreRequestBuilder::TABLE_NOTIFICATION` (`social_notif`) is declared but no migration creates that table and no repository queries it; it is a leftover constant. In-app notifications are stored in `social_stream` as `SocialAppNotification` items.
 
@@ -104,6 +105,7 @@ The business logic lives in `lib/Service/`.
 - **AccountService** — Creates local actors (generating an RSA key pair via `SignatureService`) and marks them deleted, refreshes the local actor cache (avatar, display name, follower/following/post counts), performs "blind key rotation", and reaps actors past their deletion retention
 - **ActorService** — Saves/updates cached `Person` rows and resolves an actor's cached header image
 - **CacheActorService** — Central actor cache/resolver. Looks up actors by ActivityPub id or `user@host`, fetches unknown remote actors over WebFinger + HTTP on a cache miss, and probes their followers/following/outbox counts
+- **RelationshipService** — blocking and muting: stores the relation, severs follows in both directions on a block, and federates `Block`/`Undo{Block}` unless the `federate_blocks` app setting is `0`. Mutes are purely local and never federated.
 
 ### Content & Timelines
 
@@ -116,6 +118,7 @@ The business logic lives in `lib/Service/`.
 - **HashtagService** — Recomputes hashtag trends over 1h/12h/1d/3d/10d windows and searches hashtags
 - **StreamActionService** — Writes the per-viewer flags in `social_stream_act`
 - **SearchService** — Backing searches for accounts, hashtags and URIs; `searchStreamContent()` exists but no caller uses it
+- Every timeline query filters actors the viewer has blocked or muted (and actors who blocked the viewer) through one anti-join, `SocialLimitsQueryBuilder::filterHiddenActors()` — blocks apply everywhere, mutes to aggregated timelines and threads but not to a muted account's own profile or a directly opened post, and muted-with-notifications to the notification stream.
 
 ### Federation
 
@@ -204,6 +207,8 @@ The app never emits Reject, Add, Remove, Move or Block. It can parse all of them
 **Object types that are dropped:** `AP::getItemFromType()` can build `Group`, `Organization`, `Application`, `OrderedCollection` and `Stream`, but `AP::getInterfaceFromType()` has no case for any of them. An incoming activity whose top-level type is one of these raises `ItemUnknownException`, which the inbox controller catches and ignores, so the message is silently discarded. In practice only Person and Service actors federate; Group, Organization and Application actors are not processed.
 
 `Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
+
+An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
 
 ### Discovery
 

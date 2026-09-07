@@ -223,7 +223,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
 		if ($asViewer) {
-			$qb->limitToViewer('sd', 'f', true, true);
+			$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
 			$qb->leftJoinStreamAction('sa');
 		}
 
@@ -250,7 +250,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToNid($nid);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
-		$qb->limitToViewer('sd', 'f', true, true);
+		$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
 		$qb->leftJoinStreamAction('sa');
 
 		return $this->getStreamFromRequest($qb);
@@ -490,6 +490,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->selectDestFollowing('sd', '');
 		$qb->limitToDest($viewer->getId(), 'dm', '', 'sd');
 
+		$qb->filterHiddenActors();
+
 		return $this->getStreamsFromRequest($qb);
 	}
 
@@ -524,6 +526,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
 
+		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+
 		return $this->getStreamsFromRequest($qb);
 	}
 
@@ -546,6 +550,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
 		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
 		$qb->andWhere($expr->eq('sa.liked', $qb->createNamedParameter(1)));
+
+		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -592,6 +598,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
 		$qb->leftJoinObjectStatus();
+
+		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -740,6 +748,8 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
+
+		$qb->filterHiddenActors();
 
 		return $this->getStreamsFromRequest($qb);
 	}

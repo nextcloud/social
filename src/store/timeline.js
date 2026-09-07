@@ -64,6 +64,20 @@ const mutations = {
 			state.parentsTimeline.splice(parentsTimelineIndex, 1)
 		}
 	},
+	removeStatusesByActor(state, accountId) {
+		const id = String(accountId)
+		const isByActor = (status) => String(status?.account?.id) === id
+			|| (status?.reblog && String(status.reblog.account?.id) === id)
+		const removed = new Set(Object.values(state.statuses).filter(isByActor).map(status => status.id))
+		if (removed.size === 0) {
+			return
+		}
+		state.timeline = state.timeline.filter(statusId => !removed.has(statusId))
+		state.parentsTimeline = state.parentsTimeline.filter(statusId => !removed.has(statusId))
+		const statuses = { ...state.statuses }
+		removed.forEach(statusId => delete statuses[statusId])
+		state.statuses = statuses
+	},
 	resetTimeline(state) {
 		state.timeline = []
 		state.parentsTimeline = []

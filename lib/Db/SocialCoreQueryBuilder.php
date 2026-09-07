@@ -22,6 +22,14 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Db
  */
 class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
+	/** filterHiddenActors(): hide blocked AND muted actors (aggregated timelines, threads). */
+	public const HIDDEN_TIMELINE = 'timeline';
+	/** filterHiddenActors(): hide blocked actors and muted-with-notifications actors. */
+	public const HIDDEN_NOTIFICATIONS = 'notifications';
+	/** filterHiddenActors(): hide blocked actors only — a muted actor's own profile
+	 * and a directly opened post stay visible, matching Mastodon's mute semantics. */
+	public const HIDDEN_DIRECT = 'direct';
+
 	private ?Person $viewer = null;
 
 	public function __construct(

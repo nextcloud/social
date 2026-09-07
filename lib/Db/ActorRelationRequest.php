@@ -1,0 +1,142 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Db;
+
+use DateTime;
+use OCA\Social\Model\ActorRelation;
+use OCP\DB\Exception as DBException;
+use OCP\DB\QueryBuilder\IQueryBuilder;
+
+/**
+ * Storage for block/mute relations. All reads and writes are keyed by the prim
+ * hash of the two actor ids, matching the rest of the schema.
+ */
+class ActorRelationRequest extends ActorRelationRequestBuilder {
+	/**
+	 * Idempotent: saving an already-existing relation only refreshes its
+	 * `notifications` flag (relevant when re-muting with a different setting).
+	 */
+	public function save(string $actorId, string $objectId, string $type, bool $notifications = true): void {
+		$qb = $this->getActorRelationInsertSql();
+		$qb->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
+			->setValue('object_id', $qb->createNamedParameter($objectId))
+			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($objectId)))
+			->setValue('type', $qb->createNamedParameter($type))
+			->setValue('notifications', $qb->createNamedParameter($notifications, IQueryBuilder::PARAM_BOOL))
+			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+
+		try {
+			$qb->executeStatement();
+		} catch (DBException $e) {
+			if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			$update = $this->getQueryBuilder();
+			$update->update(self::TABLE_ACTOR_RELATION)
+				->set('notifications', $update->createNamedParameter($notifications, IQueryBuilder::PARAM_BOOL));
+			$update->where(
+				$update->expr()->eq('actor_id_prim', $update->createNamedParameter($update->prim($actorId))),
+				$update->expr()->eq('object_id_prim', $update->createNamedParameter($update->prim($objectId))),
+				$update->expr()->eq('type', $update->createNamedParameter($type))
+			);
+			$update->executeStatement();
+		}
+	}
+
+	public function delete(string $actorId, string $objectId, string $type): void {
+		$qb = $this->getActorRelationDeleteSql();
+		$qb->where(
+			$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))),
+			$qb->expr()->eq('object_id_prim', $qb->createNamedParameter($qb->prim($objectId))),
+			$qb->expr()->eq('type', $qb->createNamedParameter($type))
+		);
+
+		$qb->executeStatement();
+	}
+
+	public function exists(string $actorId, string $objectId, string $type): bool {
+		return $this->getRelation($actorId, $objectId, $type) !== null;
+	}
+
+	public function getRelation(string $actorId, string $objectId, string $type): ?ActorRelation {
+		$qb = $this->getActorRelationSelectSql();
+		$qb->andWhere(
+			$qb->expr()->eq('ar.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))),
+			$qb->expr()->eq('ar.object_id_prim', $qb->createNamedParameter($qb->prim($objectId))),
+			$qb->expr()->eq('ar.type', $qb->createNamedParameter($type))
+		);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			return null;
+		}
+
+		return $this->parseActorRelationSelectSql($data);
+	}
+
+	/**
+	 * Every relation two actors have with each other, in both directions —
+	 * feeds the Mastodon relationship flags in one query.
+	 *
+	 * @return ActorRelation[]
+	 */
+	public function getBetween(string $actorId, string $objectId): array {
+		$qb = $this->getActorRelationSelectSql();
+		$expr = $qb->expr();
+		$qb->andWhere($expr->eq('ar.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($expr->eq('ar.object_id_prim', $qb->createNamedParameter($qb->prim($objectId))));
+
+		return $this->fetchAll($qb);
+	}
+
+	/**
+	 * @return ActorRelation[]
+	 */
+	public function getByActor(string $actorId, string $type, int $limit = 40): array {
+		$qb = $this->getActorRelationSelectSql();
+		$qb->andWhere($qb->expr()->eq('ar.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($qb->expr()->eq('ar.type', $qb->createNamedParameter($type)));
+		$qb->orderBy('ar.id', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->fetchAll($qb);
+	}
+
+	/** Removes every relation owned by or targeting the actor (account deletion). */
+	public function deleteRelatedId(string $actorId): void {
+		$qb = $this->getActorRelationDeleteSql();
+		$prim = $qb->prim($actorId);
+		$qb->where(
+			$qb->expr()->orX(
+				$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($prim)),
+				$qb->expr()->eq('object_id_prim', $qb->createNamedParameter($prim))
+			)
+		);
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * @return ActorRelation[]
+	 */
+	private function fetchAll(SocialQueryBuilder $qb): array {
+		$relations = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$relations[] = $this->parseActorRelationSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $relations;
+	}
+}

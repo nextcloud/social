@@ -24,7 +24,9 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 
 These are absent from the code today, not merely rough edges:
 
-- **No blocking, muting or reporting.** The `Block` activity model exists but nothing creates or acts on it; `mute`/`unmute`, `bookmark`/`unbookmark` and `pin`/`unpin` are accepted by the status-action endpoint and then silently ignored (`lib/Service/ActionService.php`, `action()` has no `case` for them).
+- **Blocking and muting** are supported: block an account to sever the relationship in both directions and hide it everywhere (federated as a `Block` activity unless `occ config:app:set social federate_blocks --value 0`); mute an account to hide it from your timelines — and optionally notifications — without it ever knowing. Exposed over the Mastodon API (`/api/v1/accounts/{id}/block|unblock|mute|unmute`, `/api/v1/blocks`, `/api/v1/mutes`).
+
+- **No reporting.** Blocking and muting exist (see below), but there is no `Flag`/report flow. `bookmark`/`unbookmark` and `pin`/`unpin` are accepted by the status-action endpoint and then silently ignored (`lib/Service/ActionService.php`, `action()` has no `case` for them).
 - **No approvable follow requests.** `manuallyApprovesFollowers` is not implemented; every incoming `Follow` is confirmed straight away with an `Accept` (`lib/Interfaces/Object/FollowInterface.php`, `confirmFollowRequest()`). There is no request queue, no accept/reject endpoint, and `follow_requests_count` is hard-coded to `0` (`lib/Model/ActivityPub/Actor/Person.php`). Accounts cannot be locked.
 - **No profile metadata fields.** `fields` is always exported as an empty array (`lib/Model/ActivityPub/Actor/Person.php`), so the profile "Website" row never appears and there is nothing to edit.
 - **No polls, bookmarks or lists.** The Mastodon type definitions in `src/types/Mastodon.js` mention polls, but no poll, bookmark or list feature exists on either side.

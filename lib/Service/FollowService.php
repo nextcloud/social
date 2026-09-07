@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -26,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -45,6 +47,7 @@ class FollowService {
 
 	private IURLGenerator $urlGenerator;
 	private FollowsRequest $followsRequest;
+	private ActorRelationRequest $actorRelationRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
@@ -64,6 +67,7 @@ class FollowService {
 	public function __construct(
 		IURLGenerator $urlGenerator,
 		FollowsRequest $followsRequest,
+		ActorRelationRequest $actorRelationRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
@@ -71,6 +75,7 @@ class FollowService {
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->followsRequest = $followsRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
@@ -360,6 +365,15 @@ class FollowService {
 	 *
 	 * @return Relationship
 	 */
+	/**
+	 * The viewer's relationship with one resolved actor. Unlike getRelationships()
+	 * this takes the Person directly, so it always returns an entry (the block/mute
+	 * endpoints need the updated relationship back even right after the change).
+	 */
+	public function getRelationshipWith(Person $target): Relationship {
+		return $this->generateRelationship($target->getNid(), $this->viewer->getId(), $target->getId());
+	}
+
 	private function generateRelationship(int $nid, string $viewerId, string $actorId): Relationship {
 		$relationship = new Relationship($nid);
 
@@ -384,6 +398,21 @@ class FollowService {
 				$relationship->setFollowedBy(true);
 			}
 		} catch (FollowNotFoundException $e) {
+		}
+
+		foreach ($this->actorRelationRequest->getBetween($viewerId, $actorId) as $relation) {
+			switch ($relation->getType()) {
+				case ActorRelation::TYPE_BLOCK:
+					$relationship->setBlocking(true);
+					break;
+				case ActorRelation::TYPE_BLOCKED_BY:
+					$relationship->setBlockedBy(true);
+					break;
+				case ActorRelation::TYPE_MUTE:
+					$relationship->setMuting(true);
+					$relationship->setMutingNotifications($relation->isNotifications());
+					break;
+			}
 		}
 
 		return $relationship;

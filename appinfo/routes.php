@@ -64,6 +64,12 @@ return [
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
 		['name' => 'Api#relationships', 'url' => '/api/v1/accounts/relationships', 'verb' => 'GET'],
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
+		['name' => 'Api#accountBlock', 'url' => '/api/v1/accounts/{id}/block', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Api#accountUnblock', 'url' => '/api/v1/accounts/{id}/unblock', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Api#accountMute', 'url' => '/api/v1/accounts/{id}/mute', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Api#accountUnmute', 'url' => '/api/v1/accounts/{id}/unmute', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Api#blocks', 'url' => '/api/v1/blocks', 'verb' => 'GET'],
+		['name' => 'Api#mutes', 'url' => '/api/v1/mutes', 'verb' => 'GET'],
 		['name' => 'Api#accountFollowers', 'url' => '/api/v1/accounts/{account}/followers', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 

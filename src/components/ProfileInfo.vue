@@ -58,6 +58,9 @@
 				:disable-tooltip="true"
 				:size="128" />
 			<h2>{{ displayName }}</h2>
+			<span v-if="relationship && relationship.blocking" class="user-profile__blocked-hint">
+				{{ t('social', 'Blocked') }}
+			</span>
 			<ul class="user-profile__info user-profile__sections">
 				<li>
 					<router-link :to="{ name: 'profile', params: { account: uid } }">
@@ -76,20 +79,63 @@
 				</li>
 			</ul>
 			<div class="user-profile__actions">
-				<FollowButton :uid="uid" />
+				<FollowButton v-if="!relationship || !relationship.blocking" :uid="uid" />
 				<NcButton v-if="serverData.public"
 					type="primary"
 					@click="followRemote">
 					{{ t('social', 'Follow') }}
 				</NcButton>
+				<NcActions v-if="canModerate" force-menu>
+					<NcActionButton v-if="!relationship.blocking"
+						:disabled="relationshipLoading"
+						close-after-click
+						@click="toggleBlock">
+						<template #icon>
+							<Cancel :size="20" />
+						</template>
+						{{ t('social', 'Block') }}
+					</NcActionButton>
+					<NcActionButton v-else
+						:disabled="relationshipLoading"
+						close-after-click
+						@click="toggleBlock">
+						<template #icon>
+							<Cancel :size="20" />
+						</template>
+						{{ t('social', 'Unblock') }}
+					</NcActionButton>
+					<NcActionButton v-if="!relationship.muting"
+						:disabled="relationshipLoading"
+						close-after-click
+						@click="toggleMute">
+						<template #icon>
+							<VolumeOff :size="20" />
+						</template>
+						{{ t('social', 'Mute') }}
+					</NcActionButton>
+					<NcActionButton v-else
+						:disabled="relationshipLoading"
+						close-after-click
+						@click="toggleMute">
+						<template #icon>
+							<VolumeHigh :size="20" />
+						</template>
+						{{ t('social', 'Unmute') }}
+					</NcActionButton>
+				</NcActions>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script>
+import Cancel from 'vue-material-design-icons/Cancel.vue'
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
 import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
+import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
+import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActions from '@nextcloud/vue/components/NcActions'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
@@ -104,12 +150,17 @@ import FollowButton from './FollowButton.vue'
 export default {
 	name: 'ProfileInfo',
 	components: {
+		Cancel,
 		FollowButton,
+		NcActionButton,
+		NcActions,
 		NcAvatar,
 		NcButton,
 		NcModal,
 		ImagePlus,
 		LinkVariant,
+		VolumeHigh,
+		VolumeOff,
 	},
 	mixins: [
 		accountMixins,
@@ -130,7 +181,7 @@ export default {
 			showBannerUrlModal: false,
 			bannerUrlInput: '',
 			loadingUrl: false,
-
+			relationshipLoading: false,
 		}
 	},
 	computed: {
@@ -148,6 +199,10 @@ export default {
 		},
 		isOwnProfile() {
 			return this.currentUser?.uid && this.localUid === this.currentUser.uid
+		},
+		/** @return {boolean} whether the block/mute menu applies to this profile */
+		canModerate() {
+			return !this.serverData.public && !this.isOwnProfile && this.relationship !== undefined
 		},
 		bannerStyle() {
 			const info = this.accountInfo || {}
@@ -167,6 +222,24 @@ export default {
 		this.applyBanner(this.bannerStyle)
 	},
 	methods: {
+		async toggleBlock() {
+			this.relationshipLoading = true
+			try {
+				const action = this.relationship.blocking ? 'unblockAccount' : 'blockAccount'
+				await this.$store.dispatch(action, { id: this.relationship.id })
+			} finally {
+				this.relationshipLoading = false
+			}
+		},
+		async toggleMute() {
+			this.relationshipLoading = true
+			try {
+				const action = this.relationship.muting ? 'unmuteAccount' : 'muteAccount'
+				await this.$store.dispatch(action, { id: this.relationship.id })
+			} finally {
+				this.relationshipLoading = false
+			}
+		},
 		followRemote() {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
@@ -378,6 +451,16 @@ export default {
 		font-size: 26px;
 		font-weight: 700;
 		letter-spacing: -.02em;
+	}
+
+	&__blocked-hint {
+		margin-top: 4px;
+		padding: 2px 10px;
+		border-radius: var(--border-radius-pill, 12px);
+		background: var(--color-background-dark);
+		color: var(--color-text-lighter);
+		font-size: 13px;
+		font-weight: 600;
 	}
 
 	&__info {

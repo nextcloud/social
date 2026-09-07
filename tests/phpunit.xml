@@ -17,6 +17,7 @@
 	<testsuites>
 		<testsuite name="Social App Tests">
 			<directory suffix="Test.php">.</directory>
+			<exclude>./Integration</exclude>
 		</testsuite>
 	</testsuites>
 	<coverage>

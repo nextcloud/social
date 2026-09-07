@@ -142,6 +142,53 @@ describe('timeline store mutations', () => {
 		expect(state.parentsTimeline).toEqual([])
 	})
 
+	it('removeStatusesByActor drops exactly that actor\'s statuses from both lists and the index', () => {
+		const byBob = (id) => makeStatus(id, { account: { id: '22', acct: 'bob@remote.tld' } })
+		const byCarol = (id) => makeStatus(id, { account: { id: '33', acct: 'carol@remote.tld' } })
+		mutations.addToTimeline(state, {
+			ancestors: [byBob('1'), byCarol('2')],
+			descendants: [byBob('3'), byCarol('4')],
+		})
+
+		mutations.removeStatusesByActor(state, '22')
+
+		expect(state.timeline).toEqual(['4'])
+		expect(state.parentsTimeline).toEqual(['2'])
+		expect(Object.keys(state.statuses).sort()).toEqual(['2', '4'])
+	})
+
+	it('removeStatusesByActor also matches a numeric account id against string status ids', () => {
+		mutations.addToTimeline(state, [makeStatus('1', { account: { id: '22', acct: 'bob@remote.tld' } })])
+
+		mutations.removeStatusesByActor(state, 22)
+
+		expect(state.timeline).toEqual([])
+		expect(state.statuses['1']).toBeUndefined()
+	})
+
+	it('removeStatusesByActor drops boosts that wrap a status of the actor', () => {
+		const inner = makeStatus('1', { account: { id: '22', acct: 'bob@remote.tld' } })
+		const boost = makeStatus('2', { reblog: inner, content: '', account: { id: '33', acct: 'carol@remote.tld' } })
+		mutations.addToTimeline(state, [boost, makeStatus('3', { account: { id: '33', acct: 'carol@remote.tld' } })])
+
+		mutations.removeStatusesByActor(state, '22')
+
+		expect(state.timeline).toEqual(['3'])
+		expect(state.statuses['1']).toBeUndefined()
+		expect(state.statuses['2']).toBeUndefined()
+		expect(state.statuses['3']).toBeDefined()
+	})
+
+	it('removeStatusesByActor leaves the state untouched when the actor has no statuses', () => {
+		mutations.addToTimeline(state, [makeStatus('1', { account: { id: '33', acct: 'carol@remote.tld' } })])
+		const statusesBefore = state.statuses
+
+		mutations.removeStatusesByActor(state, '22')
+
+		expect(state.timeline).toEqual(['1'])
+		expect(state.statuses).toBe(statusesBefore)
+	})
+
 	it('resetTimeline empties both id lists but keeps the index and the type', () => {
 		state.type = 'tags'
 		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })

@@ -11,6 +11,7 @@ import { showError } from '@nextcloud/dialogs'
 
 import account from '../../../src/store/account.js'
 import errors from '../../../src/store/errors.js'
+import timeline from '../../../src/store/timeline.js'
 import logger from '../../../src/services/logger.js'
 
 vi.mock('@nextcloud/axios', () => ({
@@ -406,6 +407,107 @@ describe('account store actions', () => {
 
 			expect(showError).toHaveBeenCalledWith('Failed to unfollow user bob@remote.tld')
 			expect(store.getters.getRelationshipWith(bob.id)).toMatchObject({ following: true })
+		})
+	})
+
+	describe('blockAccount, unblockAccount, muteAccount and unmuteAccount', () => {
+		// These actions also purge the timeline, so they need the timeline module.
+		const statusBy = (id, author) => ({
+			id,
+			content: `<p>post ${id}</p>`,
+			created_at: '2026-01-01T10:00:00.000Z',
+			account: { id: author.id, acct: author.acct },
+		})
+
+		beforeEach(() => {
+			Object.assign(timeline.state, {
+				statuses: {},
+				timeline: [],
+				parentsTimeline: [],
+				type: 'home',
+				params: {},
+				account: '',
+				composerDisplayStatus: false,
+				searchQuery: '',
+			})
+			store = createStore({ modules: { account, errors, timeline } })
+			store.commit('addAccount', { actorId: bob.url, data: bob })
+			store.commit('addToTimeline', [statusBy('1', bob), statusBy('2', carol)])
+		})
+
+		it('blockAccount POSTs to the block endpoint, stores the returned relationship and purges the actor\'s posts', async () => {
+			const relationship = { ...defaultRelationship(bob.id, false), blocking: true }
+			axios.post.mockResolvedValue({ data: relationship })
+
+			await expect(store.dispatch('blockAccount', { id: bob.id })).resolves.toEqual(relationship)
+
+			expect(axios.post).toHaveBeenCalledWith(`${API}/accounts/${bob.id}/block`)
+			expect(store.getters.getRelationshipWith(bob.id)).toEqual(relationship)
+			expect(store.state.timeline.timeline).toEqual(['2'])
+			expect(store.state.timeline.statuses['1']).toBeUndefined()
+			expect(showError).not.toHaveBeenCalled()
+		})
+
+		it('unblockAccount POSTs to the unblock endpoint and updates the relationship without purging', async () => {
+			store.commit('addRelationship', { actorId: bob.id, data: { ...defaultRelationship(bob.id, false), blocking: true } })
+			const relationship = defaultRelationship(bob.id, false)
+			axios.post.mockResolvedValue({ data: relationship })
+
+			await expect(store.dispatch('unblockAccount', { id: bob.id })).resolves.toEqual(relationship)
+
+			expect(axios.post).toHaveBeenCalledWith(`${API}/accounts/${bob.id}/unblock`)
+			expect(store.getters.getRelationshipWith(bob.id)).toEqual(relationship)
+			expect(store.state.timeline.timeline).toEqual(['1', '2'])
+		})
+
+		it('muteAccount POSTs without a body so the backend mutes notifications by default, and purges', async () => {
+			const relationship = { ...defaultRelationship(bob.id, true), muting: true, muting_notifications: true }
+			axios.post.mockResolvedValue({ data: relationship })
+
+			await expect(store.dispatch('muteAccount', { id: bob.id })).resolves.toEqual(relationship)
+
+			expect(axios.post).toHaveBeenCalledTimes(1)
+			expect(axios.post).toHaveBeenCalledWith(`${API}/accounts/${bob.id}/mute`)
+			expect(axios.post.mock.calls[0]).toHaveLength(1)
+			expect(store.getters.getRelationshipWith(bob.id)).toEqual(relationship)
+			expect(store.state.timeline.timeline).toEqual(['2'])
+		})
+
+		it('unmuteAccount POSTs to the unmute endpoint and updates the relationship without purging', async () => {
+			const relationship = defaultRelationship(bob.id, true)
+			axios.post.mockResolvedValue({ data: relationship })
+
+			await expect(store.dispatch('unmuteAccount', { id: bob.id })).resolves.toEqual(relationship)
+
+			expect(axios.post).toHaveBeenCalledWith(`${API}/accounts/${bob.id}/unmute`)
+			expect(store.getters.getRelationshipWith(bob.id)).toEqual(relationship)
+			expect(store.state.timeline.timeline).toEqual(['1', '2'])
+		})
+
+		it('stores nothing when the backend answers without a relationship entity', async () => {
+			// relationshipAction returns [] when it cannot find the relationship
+			axios.post.mockResolvedValue({ data: [] })
+
+			await expect(store.dispatch('blockAccount', { id: bob.id })).resolves.toEqual([])
+
+			expect(store.state.account.accountsRelationships).toEqual({})
+			expect(store.state.timeline.timeline).toEqual(['1', '2'])
+		})
+
+		it.each([
+			['blockAccount', 'Failed to block the account'],
+			['unblockAccount', 'Failed to unblock the account'],
+			['muteAccount', 'Failed to mute the account'],
+			['unmuteAccount', 'Failed to unmute the account'],
+		])('%s shows an error and changes nothing when the request fails', async (action, message) => {
+			axios.post.mockRejectedValue(new Error('boom'))
+
+			await expect(store.dispatch(action, { id: bob.id })).resolves.toBeUndefined()
+
+			expect(showError).toHaveBeenCalledWith(message)
+			expect(logger.error).toHaveBeenCalledWith(message, { error: expect.any(Error) })
+			expect(store.state.account.accountsRelationships).toEqual({})
+			expect(store.state.timeline.timeline).toEqual(['1', '2'])
 		})
 	})
 

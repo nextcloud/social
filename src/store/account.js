@@ -326,6 +326,57 @@ const actions = {
 			return error
 		}
 	},
+	async blockAccount(context, { id }) {
+		try {
+			const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/block`))
+			if (response.data?.id) {
+				context.commit('addRelationship', { actorId: response.data.id, data: response.data })
+				context.commit('removeStatusesByActor', response.data.id)
+			}
+			return response.data
+		} catch (error) {
+			showError(t('social', 'Failed to block the account'))
+			logger.error('Failed to block the account', { error })
+		}
+	},
+	async unblockAccount(context, { id }) {
+		try {
+			const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/unblock`))
+			if (response.data?.id) {
+				context.commit('addRelationship', { actorId: response.data.id, data: response.data })
+			}
+			return response.data
+		} catch (error) {
+			showError(t('social', 'Failed to unblock the account'))
+			logger.error('Failed to unblock the account', { error })
+		}
+	},
+	async muteAccount(context, { id }) {
+		try {
+			// No body: the backend mutes notifications by default
+			const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/mute`))
+			if (response.data?.id) {
+				context.commit('addRelationship', { actorId: response.data.id, data: response.data })
+				context.commit('removeStatusesByActor', response.data.id)
+			}
+			return response.data
+		} catch (error) {
+			showError(t('social', 'Failed to mute the account'))
+			logger.error('Failed to mute the account', { error })
+		}
+	},
+	async unmuteAccount(context, { id }) {
+		try {
+			const response = await axios.post(generateUrl(`apps/social/api/v1/accounts/${id}/unmute`))
+			if (response.data?.id) {
+				context.commit('addRelationship', { actorId: response.data.id, data: response.data })
+			}
+			return response.data
+		} catch (error) {
+			showError(t('social', 'Failed to unmute the account'))
+			logger.error('Failed to unmute the account', { error })
+		}
+	},
 	async fetchAccountFollowers(context, { account, maxId } = {}) {
 		const key = _keyForAccount(account)
 		if (context.state.accountsFollowersLoading[key]) return

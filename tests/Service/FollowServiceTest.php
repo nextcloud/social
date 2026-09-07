@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -18,6 +19,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
@@ -37,6 +39,8 @@ class FollowServiceTest extends TestCase {
 
 	private IURLGenerator|MockObject $urlGenerator;
 	private FollowsRequest|MockObject $followsRequest;
+	/** @var ActorRelationRequest&MockObject */
+	private $actorRelationRequest;
 	private ActivityService|MockObject $activityService;
 	private CacheActorService|MockObject $cacheActorService;
 	private FollowService $service;
@@ -46,12 +50,14 @@ class FollowServiceTest extends TestCase {
 
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 
 		$this->service = new FollowService(
 			$this->urlGenerator,
 			$this->followsRequest,
+			$this->actorRelationRequest,
 			$this->activityService,
 			$this->cacheActorService,
 			$this->createMock(ConfigService::class),
@@ -393,6 +399,83 @@ class FollowServiceTest extends TestCase {
 		$this->followsRequest->expects($this->never())->method('getByPersons');
 
 		$this->assertSame([], $this->service->getRelationships(['https://gone.example/users/x', '0', 'abc']));
+	}
+
+	/**
+	 * The relations getBetween() reports for viewer/actor, against the flags the
+	 * relationship entity must carry.
+	 *
+	 * @return array<string, array{array<int, array{string, bool}>, array<string, bool>}>
+	 */
+	public function relationFlagsProvider(): array {
+		return [
+			'viewer blocks the actor' => [
+				[[ActorRelation::TYPE_BLOCK, true]],
+				['blocking' => true, 'blocked_by' => false, 'muting' => false, 'muting_notifications' => false],
+			],
+			'actor blocks the viewer' => [
+				[[ActorRelation::TYPE_BLOCKED_BY, true]],
+				['blocking' => false, 'blocked_by' => true, 'muting' => false, 'muting_notifications' => false],
+			],
+			'muted keeping notifications' => [
+				[[ActorRelation::TYPE_MUTE, false]],
+				['blocking' => false, 'blocked_by' => false, 'muting' => true, 'muting_notifications' => false],
+			],
+			'muted hiding notifications' => [
+				[[ActorRelation::TYPE_MUTE, true]],
+				['blocking' => false, 'blocked_by' => false, 'muting' => true, 'muting_notifications' => true],
+			],
+			'no relation' => [
+				[],
+				['blocking' => false, 'blocked_by' => false, 'muting' => false, 'muting_notifications' => false],
+			],
+		];
+	}
+
+	/**
+	 * @dataProvider relationFlagsProvider
+	 *
+	 * @param array<int, array{string, bool}> $relations
+	 * @param array<string, bool> $expected
+	 */
+	public function testGetRelationshipsCarriesTheBlockAndMuteFlags(array $relations, array $expected): void {
+		$this->service->setViewer($this->alice());
+		$this->cacheActorService->method('getFromNids')->willReturn([$this->person(self::BOB_ID, 'bob', 2)]);
+		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+
+		$this->actorRelationRequest->expects($this->once())
+			->method('getBetween')
+			->with(self::ALICE_ID, self::BOB_ID)
+			->willReturn(array_map(
+				fn (array $relation): ActorRelation => (new ActorRelation())
+					->setType($relation[0])
+					->setNotifications($relation[1]),
+				$relations
+			));
+
+		$relationships = $this->service->getRelationships(['2']);
+
+		$this->assertCount(1, $relationships);
+		$serialized = $relationships[0]->jsonSerialize();
+		foreach ($expected as $flag => $value) {
+			$this->assertSame($value, $serialized[$flag], 'flag ' . $flag);
+		}
+	}
+
+	public function testGetRelationshipWithAlwaysReturnsAnEntryCarryingTheFlags(): void {
+		$this->service->setViewer($this->alice());
+		$this->cacheActorService->expects($this->never())->method('getFromNids');
+		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+		$this->actorRelationRequest->expects($this->once())
+			->method('getBetween')
+			->with(self::ALICE_ID, self::BOB_ID)
+			->willReturn([(new ActorRelation())->setType(ActorRelation::TYPE_BLOCK)]);
+
+		$relationship = $this->service->getRelationshipWith($this->person(self::BOB_ID, 'bob', 2));
+
+		$this->assertSame(2, $relationship->getId());
+		$this->assertTrue($relationship->isBlocking());
+		$this->assertFalse($relationship->isFollowing());
 	}
 
 	public function testGetRelationshipsDoesNotFlagPendingFollowerAsFollowedBy(): void {

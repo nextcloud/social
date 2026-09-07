@@ -9,22 +9,102 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
-use OCA\Social\AP;
-use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActorRelation;
+use Psr\Log\LoggerInterface;
 
+/**
+ * A remote actor blocked (or un-blocked) one of the local users.
+ *
+ * The block is remembered as a `blocked_by` relation — it feeds the relationship
+ * flags and hides the blocker from the local user's timelines — and the follow
+ * relationship is severed in both directions, matching how Mastodon treats an
+ * incoming Block.
+ */
 class BlockInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	public function __construct(
+		private ActorRelationRequest $actorRelationRequest,
+		private FollowsRequest $followsRequest,
+		private CacheActorsRequest $cacheActorsRequest,
+		private LoggerInterface $logger,
+	) {
+	}
+
 	public function processIncomingRequest(ACore $item): void {
-		if (!$item->hasObject()) {
+		$item->checkOrigin($item->getActorId());
+
+		$local = $this->getLocalTarget($item);
+		if ($local === null) {
 			return;
 		}
-		$object = $item->getObject();
+
+		$this->actorRelationRequest->save(
+			$local, $item->getActorId(), ActorRelation::TYPE_BLOCKED_BY
+		);
+
+		foreach ([[$local, $item->getActorId()], [$item->getActorId(), $local]] as $pair) {
+			try {
+				$follow = $this->followsRequest->getByPersons($pair[0], $pair[1]);
+				$this->followsRequest->delete($follow);
+			} catch (FollowNotFoundException $e) {
+			}
+		}
+	}
+
+	/**
+	 * Undo{Block}: the remote actor lifted the block.
+	 */
+	public function activity(ACore $activity, ACore $item): void {
+		if ($activity->getType() !== Undo::TYPE) {
+			return;
+		}
+
+		$activity->checkOrigin($item->getActorId());
+
+		$local = $this->getLocalTarget($item);
+		if ($local === null) {
+			return;
+		}
+
+		$this->actorRelationRequest->delete(
+			$local, $item->getActorId(), ActorRelation::TYPE_BLOCKED_BY
+		);
+	}
+
+	/**
+	 * Returns the id of the local actor the Block targets, null when the target is
+	 * unknown or not local (nothing to enforce here then).
+	 */
+	private function getLocalTarget(ACore $block): ?string {
+		$objectId = $block->getObjectId();
+		if ($objectId === '' && $block->hasObject()) {
+			$objectId = $block->getObject()->getId();
+		}
+		if ($objectId === '') {
+			return null;
+		}
 
 		try {
-			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
-			$service->activity($item, $object);
-		} catch (ItemUnknownException $e) {
+			// DB-only lookup: a local target is always cached, and an unknown target
+			// must not trigger a remote fetch on an attacker-supplied URI.
+			$target = $this->cacheActorsRequest->getFromId($objectId);
+		} catch (CacheActorDoesNotExistException $e) {
+			return null;
 		}
+
+		if (!$target->isLocal()) {
+			$this->logger->debug('BlockInterface - target is not local', ['objectId' => $objectId]);
+
+			return null;
+		}
+
+		return $target->getId();
 	}
 }
