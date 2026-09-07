@@ -522,7 +522,7 @@ describe('timeline store actions', () => {
 			expect(tl().statuses['1']).toMatchObject({ favourited: false })
 		})
 
-		it('puts the post back when the server refuses the unlike', async () => {
+		it('puts the post back unchanged when the server refuses the unlike', async () => {
 			axios.post.mockRejectedValue(new Error('boom'))
 			store.commit('setTimelineType', 'favourites')
 			store.commit('addToTimeline', [liked()])
@@ -530,7 +530,9 @@ describe('timeline store actions', () => {
 			await store.dispatch('postUnlike', { status: liked() })
 
 			expect(tl().timeline).toEqual(['1'])
-			expect(tl().statuses['1']).toMatchObject({ favourited: true })
+			// exactly the pre-unlike state: restoring the status AND re-liking
+			// it used to leave favourites_count one too high
+			expect(tl().statuses['1']).toMatchObject({ favourited: true, favourites_count: 3 })
 			expect(showError).toHaveBeenCalledWith('Failed to unlike status')
 		})
 	})

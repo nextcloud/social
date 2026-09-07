@@ -273,7 +273,6 @@ export default {
 		boost() {
 			const params = {
 				status: this.item,
-				parentAnnounce: this.reblog,
 			}
 			if (this.isBoosted) {
 				this.$store.dispatch('postUnBoost', params)
@@ -314,7 +313,6 @@ export default {
 		like() {
 			const params = {
 				status: this.item,
-				parentAnnounce: this.reblog,
 			}
 			if (this.isLiked) {
 				this.$store.dispatch('postUnlike', params)

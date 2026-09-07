@@ -91,17 +91,20 @@ export default {
 			},
 		})
 
-		eventBus.on('composer-reply', (item) => {
+		// Keep the handler so unmounted() removes only this one — a bare
+		// eventBus.off('composer-reply') would also detach the Composer's.
+		this.onComposerReply = (item) => {
 			this.$nextTick(() => {
 				this.$refs.socialWrapper.querySelector(`[data-social-status="${item.id}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' })
 			})
-		})
+		}
+		eventBus.on('composer-reply', this.onComposerReply)
 
 		const response = await this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account)
 		this.uid = response.username
 	},
 	unmounted() {
-		eventBus.off('composer-reply')
+		eventBus.off('composer-reply', this.onComposerReply)
 	},
 }
 </script>

@@ -52,14 +52,14 @@ export default {
 
 		axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${encodeURIComponent(uid)}`)).then(({ data }) => {
 			this.accountInfo = data
-			logger.log(this.accountInfo)
+			logger.debug('Loaded profile account info', { accountInfo: this.accountInfo })
 		}).catch((error) => {
 			logger.error('Failed to load profile account info', { error, uid })
 		})
 
 		axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(uid)}/statuses`)).then(({ data }) => {
 			this.timeline = data
-			logger.log(this.timeline)
+			logger.debug('Loaded profile timeline', { timeline: this.timeline })
 		}).catch((error) => {
 			logger.error('Failed to load profile timeline', { error, uid })
 		})
