@@ -150,21 +150,6 @@ class LikeService {
 
 
 	/**
-	 * @param string $postId
-	 *
-	 * @return Stream
-	 * @throws ItemUnknownException
-	 * @throws SocialAppConfigException
-	 * @throws StreamNotFoundException
-	 */
-	public function get(string $postId): Stream {
-		$stream = $this->streamRequest->getStreamByObjectId($postId, Like::TYPE);
-
-		return $stream;
-	}
-
-
-	/**
 	 * @param Person $actor
 	 * @param string $postId
 	 * @param string $token

@@ -728,7 +728,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			if ($deletedValue === '' || $deletedValue === '0000-00-00 00:00:00') {
 				return;
 			}
-			$dTime = new DateTime();
+			$dTime = new DateTime($deletedValue);
 			$deleted = $dTime->getTimestamp();
 			if ($deleted > 0) {
 				$this->setDeleted($deleted);
@@ -817,7 +817,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'bot' => $this->isBot(),
 				'discoverable' => $this->isDiscoverable(),
 				'group' => false,
-				'created_at' => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
+				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				'note' => $this->getDescription(),
 				'url' => $this->getId(),
 				'avatar' => $avatar ?? $this->getAvatar(),

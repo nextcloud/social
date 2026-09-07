@@ -100,4 +100,13 @@ class TStringToolsTest extends TestCase {
 			$this->assertMatchesRegularExpression('/^[a-z]+$/', $word);
 		}
 	}
+
+	public function testTokenCanEmitEveryCharsetCharacter(): void {
+		// The charset ends in '0'; an off-by-one in the random_int upper bound
+		// made that character unreachable. 5000 draws miss a reachable
+		// character with probability (61/62)^5000 ≈ 10^-36.
+		$token = $this->tools->token(5000);
+
+		$this->assertStringContainsString('0', $token);
+	}
 }

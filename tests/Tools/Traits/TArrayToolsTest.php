@@ -272,4 +272,26 @@ class TArrayToolsTest extends TestCase {
 
 		$this->assertSame(['zero' => 0, 'false' => false, 'null' => null, 'str' => 'a', 'list' => [1]], $cleaned);
 	}
+
+	public function testGetFloatKeepsTheDecimals(): void {
+		$this->assertSame(1.5, $this->tools->getFloat('float', $this->sample()));
+		$this->assertSame(1.5, $this->tools->getFloat('k', ['k' => '1.5']));
+	}
+
+	public function testGetBoolFallsBackWhenADottedPathCrossesAScalar(): void {
+		$this->assertTrue($this->tools->getBool('str.sub', $this->sample(), true));
+		$this->assertFalse($this->tools->getBool('str.sub', $this->sample()));
+	}
+
+	public function testGetListSkipsEntriesTheImportMethodCannotTake(): void {
+		$list = $this->tools->getList('paths', [
+			'paths' => [
+				'not-an-array',
+				['uri' => 'https://a.example/inbox', 'type' => 1],
+			],
+		], [InstancePath::class, 'import']);
+
+		$this->assertCount(1, $list);
+		$this->assertSame('https://a.example/inbox', $list[0]->getUri());
+	}
 }

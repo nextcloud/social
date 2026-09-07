@@ -451,10 +451,12 @@ class ACoreTest extends TestCase {
 		$item->addEntry('empty', '')
 			->addEntryInt('zero', 0)
 			->addEntryArray('none', [])
+			->addEntryBool('no', false)
 			->addEntry('str', 'value')
 			->addEntryInt('int', 3)
-			->addEntryArray('arr', ['a']);
+			->addEntryArray('arr', ['a'])
+			->addEntryBool('yes', true);
 
-		$this->assertSame(['str' => 'value', 'int' => 3, 'arr' => ['a']], $item->getEntries());
+		$this->assertSame(['str' => 'value', 'int' => 3, 'arr' => ['a'], 'yes' => true], $item->getEntries());
 	}
 }

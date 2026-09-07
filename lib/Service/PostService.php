@@ -9,10 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use Exception;
-use OCA\Social\AP;
-use OCA\Social\Db\StreamRequest;
-use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -20,10 +16,8 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
@@ -34,31 +28,21 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCP\Files\NotFoundException;
-use OCP\Files\NotPermittedException;
 use Psr\Log\LoggerInterface;
 
 class PostService {
-	private StreamRequest $streamRequest;
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
-	private CacheDocumentService $cacheDocumentService;
-	private ConfigService $configService;
-	private MiscService $miscService;
 	private LoggerInterface $logger;
 
 	public function __construct(
-		StreamRequest $streamRequest, StreamService $streamService, AccountService $accountService, ActivityService $activityService,
-		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService, LoggerInterface $logger,
+		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
+		LoggerInterface $logger,
 	) {
-		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
-		$this->cacheDocumentService = $cacheDocumentService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 		$this->logger = $logger;
 	}
 
@@ -106,91 +90,6 @@ class PostService {
 
 		return $activity;
 	}
-
-
-	/**
-	 * @param Note $note
-	 * @param Post $post
-	 */
-	private function generateDocumentsFromAttachments(Note $note, Post $post) {
-		$documents = [];
-		if (!isset($_FILES['attachments'])) {
-			return;
-		}
-		if (is_array($_FILES['attachments']['error'])) {
-			foreach ($_FILES['attachments']['error'] as $key => $error) {
-				if ($error == UPLOAD_ERR_OK) {
-					try {
-						$document = $this->generateDocumentFromAttachment($note, $key);
-
-						$service = AP::$activityPub->getInterfaceForItem($document);
-						$service->save($document);
-
-						$documents[] = $document;
-					} catch (Exception $e) {
-					}
-				}
-			}
-		} else {
-			try {
-				$tmp_name = $_FILES['attachments']['tmp_name'];
-				$name = basename($_FILES['attachments']['name']);
-				$tmpFile = tmpfile();
-				$tmpPath = stream_get_meta_data($tmpFile)['uri'];
-				if (move_uploaded_file($tmp_name, $tmpPath)) {
-					$document = new Document();
-					$document->setUrlCloud($this->configService->getCloudUrl());
-					$document->generateUniqueId('/documents/local');
-					$document->setParentId($note->getId());
-					$document->setPublic(true);
-
-					$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
-				}
-
-				$service = AP::$activityPub->getInterfaceForItem($document);
-				$service->save($document);
-
-				$documents[] = $document;
-			} catch (Exception $e) {
-				$this->logger->error($e->getMessage(), [
-					'exception' => $e,
-				]);
-			}
-		}
-		$post->setDocuments($documents);
-	}
-
-
-	/**
-	 * @param Note $note
-	 * @param string $attachment
-	 *
-	 * @return Document
-	 * @throws CacheContentMimeTypeException
-	 * @throws NotFoundException
-	 * @throws NotPermittedException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 */
-	private function generateDocumentFromAttachment(Note $note, int $key): Document {
-		$tmp_name = $_FILES['attachments']['tmp_name'][$key];
-		$name = basename($_FILES['attachments']['name'][$key]);
-		$tmpFile = tmpfile();
-		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
-		if (move_uploaded_file($tmp_name, $tmpPath)) {
-			$document = new Document();
-			$document->setUrlCloud($this->configService->getCloudUrl());
-			$document->generateUniqueId('/documents/local');
-			$document->setParentId($note->getId());
-			$document->setPublic(true);
-
-			$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
-		}
-
-
-		return $document;
-	}
-
 
 	/**
 	 * @throws \Exception

@@ -124,4 +124,17 @@ class SearchServiceTest extends TestCase {
 		$this->assertSame([], $this->service->searchStreamContent('anything'));
 		$this->assertSame([], $this->service->searchStreamContent(''));
 	}
+
+	public function testSearchAccountsIgnoresAHashtagSearch(): void {
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->cacheActorService->expects($this->never())->method('searchCachedAccounts');
+
+		$this->assertSame([], $this->service->searchAccounts('#nextcloud'));
+	}
+
+	public function testSearchHashtagsIgnoresAnAccountSearch(): void {
+		$this->hashtagService->expects($this->never())->method('searchHashtags');
+
+		$this->assertSame([], $this->service->searchHashtags('@bob@remote.example'));
+	}
 }

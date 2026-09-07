@@ -367,4 +367,15 @@ class PersonTest extends TestCase {
 		$this->assertSame(0, $person->getDeleted());
 		$this->assertSame('https://files.mastodon.social/headers/alice.jpg', $person->getHeader(), 'header comes from the stored source');
 	}
+
+	public function testImportFromDatabaseParsesTheStoredDeletionTime(): void {
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'deleted' => '2019-01-01 00:00:00',
+		]);
+
+		$this->assertSame(1546300800, $person->getDeleted(), 'the stored time, not the current one');
+	}
 }

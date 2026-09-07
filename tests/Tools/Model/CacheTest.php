@@ -71,6 +71,17 @@ class CacheTest extends TestCase {
 		$this->assertSame([$fresh, $other], $cache->getItems(), 'order and the other entry are kept');
 	}
 
+	public function testUpdateItemHonoursTheCreateFlagForUnknownUrls(): void {
+		$cache = new Cache();
+		$item = new CacheItem('https://a.example/1');
+
+		$cache->updateItem($item, false);
+		$this->assertFalse($cache->hasItem('https://a.example/1'), 'create=false must not add');
+
+		$cache->updateItem($item);
+		$this->assertTrue($cache->hasItem('https://a.example/1'), 'create=true (default) must add');
+	}
+
 	public function testJsonSerializeListsTheUrlsAndEmbedsEachItem(): void {
 		$cache = new Cache();
 		$item = (new CacheItem('https://a.example/1'))->setContent('{"type":"Note"}')->setStatus(200)->setCreation(1714564800);
