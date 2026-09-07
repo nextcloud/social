@@ -429,7 +429,8 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			return;
 		}
 
-		$this->selectDestFollowing($aliasDest, $aliasFollowing);
+		$this->selectDestFollowing($aliasDest, '');
+		$this->leftJoinFollowing($aliasFollowing);
 		$expr = $this->expr();
 		$actor = $this->getViewer();
 
