@@ -6,7 +6,7 @@
 	<component :is="element" class="timeline-entry" :class="{ 'notification': isNotification, 'with-header': hasHeader }">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
-				<img :src="notification.account.avatar">
+				<img :src="notification.account.avatar" alt="">
 				<Heart v-if="notification.type === 'favourite'" :size="16" />
 				<Repeat v-if="notification.type === 'reblog'" :size="16" />
 				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
@@ -41,7 +41,7 @@
 			<div class="boost">
 				<Repeat :size="16" />
 				<router-link :to="{ name: 'profile', params: { account: item.account.acct } }">
-					<img :src="item.account.avatar">
+					<img :src="item.account.avatar" alt="">
 					<span :title="item.account.acct" class="post-author">
 						{{ item.account.display_name }}&ensp;
 					</span>

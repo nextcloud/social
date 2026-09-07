@@ -8,6 +8,7 @@
 		<img v-if="attachment !== null"
 			class="attachment__preview"
 			:src="attachment.preview_url"
+			:alt="attachment.description || ''"
 			@load="previewLoaded = true">
 		<NcLoadingIcon v-if="attachment === null || !previewLoaded" :size="40" />
 	</div>
