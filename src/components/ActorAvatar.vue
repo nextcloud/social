@@ -44,7 +44,11 @@ export default {
 	computed: {
 		/** @return {string} */
 		avatarUrl() {
-			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+			// Remote actors are delivered with an avatar URL already pointing at this
+			// server's document cache. Actors cached without an icon have none, so fall
+			// back to the endpoint that resolves one from the ActivityPub id.
+			return this.actor.avatar
+				|| generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + encodeURIComponent(this.actor.url ?? ''))
 		},
 		/**
 		 * @return {boolean}

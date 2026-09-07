@@ -64,9 +64,17 @@ export default {
 	},
 	watch: {
 		parentsTimeline(_, previousValue) {
-			if (previousValue.length === 0 && this.$refs.socialWrapper.parentElement.scrollTop === 0) {
-				this.$nextTick(() => this.$refs.mainPost.$el.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+			// beforeMount() resets the timeline, so this fires during the first render's
+			// pre-flush, before the template refs exist.
+			if (previousValue.length !== 0 || !this.$refs.socialWrapper) {
+				return
 			}
+
+			if (this.$refs.socialWrapper.parentElement?.scrollTop !== 0) {
+				return
+			}
+
+			this.$nextTick(() => this.$refs.mainPost?.$el?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 		},
 	},
 	async beforeMount() {

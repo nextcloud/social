@@ -81,6 +81,21 @@ const memoryStorage = () => {
 Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage(), configurable: true, writable: true })
 Object.defineProperty(globalThis, 'sessionStorage', { value: memoryStorage(), configurable: true, writable: true })
 
+// jsdom does not implement the HTML editing API, so `contentEditable` is undefined
+// even on an element that carries the attribute. tributejs reads that property to
+// decide whether it may attach to the composer's contenteditable.
+if (!('contentEditable' in HTMLElement.prototype)) {
+	Object.defineProperty(HTMLElement.prototype, 'contentEditable', {
+		configurable: true,
+		get() {
+			return this.getAttribute('contenteditable') ?? 'inherit'
+		},
+		set(value) {
+			this.setAttribute('contenteditable', String(value))
+		},
+	})
+}
+
 // jsdom lacks these; components touch them during mount.
 if (!globalThis.matchMedia) {
 	globalThis.matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {} })

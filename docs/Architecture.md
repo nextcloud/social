@@ -201,7 +201,9 @@ The app never emits Reject, Add, Remove, Move or Block. It can parse all of them
 
 **Incoming activities that are accepted but do nothing:** `Add`, `Remove` and `Block` are dispatched to a handler that forwards to the wrapped object's `activity()` method, and no object handler recognises those activity types. `BlockInterface` in particular means Block is a no-op — the app has no blocking implementation.
 
-**Object types that are dropped:** `AP::getItemFromType()` can build `Tombstone`, `Group`, `Organization`, `Application`, `OrderedCollection` and `Stream`, but `AP::getInterfaceFromType()` has no case for any of them. An incoming activity whose top-level type is one of these raises `ItemUnknownException`, which the inbox controller catches and ignores, so the message is silently discarded. In practice this means only Person and Service actors federate; Group, Organization and Application actors, and Tombstone deletions, are not processed.
+**Object types that are dropped:** `AP::getItemFromType()` can build `Group`, `Organization`, `Application`, `OrderedCollection` and `Stream`, but `AP::getInterfaceFromType()` has no case for any of them. An incoming activity whose top-level type is one of these raises `ItemUnknownException`, which the inbox controller catches and ignores, so the message is silently discarded. In practice only Person and Service actors federate; Group, Organization and Application actors are not processed.
+
+`Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
 
 ### Discovery
 
@@ -260,7 +262,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 `src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
 
-`Composer.vue` still wraps its input in a `<Tribute>` element and carries a full `tributeOptions` config for `@` account and `#` hashtag completion, but no `Tribute` component is imported or registered anywhere in `src/` and the `tributejs` dependency is never imported. The element therefore does not resolve and neither autocomplete works. The emoji picker is a separate `NcEmojiPicker` and is unaffected.
+`Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
 
 ---
 

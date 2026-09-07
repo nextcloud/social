@@ -230,6 +230,79 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(Stream::TYPE_PUBLIC, $note->getTimeline());
 	}
 
+	public function testDetectTypeMarksUnlistedStreamsAsUnlistedTimelineWithoutRewritingTheirType(): void {
+		$note = new Note();
+		$note->setTo(self::ACTOR_FOLLOWERS);
+		$note->addCc(ACore::CONTEXT_PUBLIC);
+
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->service->detectType($note);
+
+		$this->assertSame(Stream::TYPE_UNLISTED, $note->getTimeline());
+		// the timeline is not the ActivityPub type: an unlisted Note is still a Note
+		$this->assertSame(Note::TYPE, $note->getType());
+	}
+
+	/**
+	 * @return array<string, array{string, string[]}>
+	 */
+	public function followersAddressingProvider(): array {
+		return [
+			'followers collection in to' => [self::ACTOR_FOLLOWERS, []],
+			'followers collection in cc' => ['', [self::ACTOR_FOLLOWERS]],
+		];
+	}
+
+	/**
+	 * @dataProvider followersAddressingProvider
+	 */
+	public function testDetectTypeMarksStreamsAddressedToTheFollowersCollectionAsFollowers(
+		string $to,
+		array $cc,
+	): void {
+		$note = new Note();
+		$note->setAttributedTo(self::ACTOR_ID);
+		$note->setTo($to);
+		$note->setCcArray($cc);
+
+		$this->cacheActorService->expects($this->once())
+			->method('getFromId')
+			->with(self::ACTOR_ID)
+			->willReturn($this->actor());
+
+		$this->service->detectType($note);
+
+		$this->assertSame(Stream::TYPE_FOLLOWERS, $note->getTimeline());
+	}
+
+	public function testDetectTypeMarksStreamsAddressedToASingleRecipientAsDirect(): void {
+		$note = new Note();
+		$note->setAttributedTo(self::ACTOR_ID);
+		$note->setTo($this->remoteActor()->getId());
+
+		$this->cacheActorService->method('getFromId')->with(self::ACTOR_ID)->willReturn($this->actor());
+
+		// classifying a stream never writes anything to the HTTP response body
+		$this->expectOutputString('');
+
+		$this->service->detectType($note);
+
+		$this->assertSame(Stream::TYPE_DIRECT, $note->getTimeline());
+	}
+
+	public function testDetectTypeLeavesTheTimelineUnsetWhenTheAuthorCannotBeResolved(): void {
+		$note = new Note();
+		$note->setAttributedTo('https://remote.example/users/ghost');
+		$note->setTo($this->remoteActor()->getId());
+
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new CacheActorDoesNotExistException());
+
+		$this->service->detectType($note);
+
+		$this->assertSame('', $note->getTimeline());
+	}
 
 	// addRecipient() / addRecipients()
 

@@ -39,6 +39,8 @@ const TimelineEntryStub = {
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob' }
 const status = { id: '123', uri: 'https://remote.example/users/bob/statuses/123', content: '<p>Hello</p>', created_at: '2026-01-01T00:00:00Z', account: bob }
 const fromServer = { ...status, content: '<p>Server copy</p>' }
+const parent = { id: '120', uri: 'https://remote.example/users/bob/statuses/120', content: '<p>Parent</p>', created_at: '2026-01-01T00:00:00Z', account: bob }
+const grandParent = { ...parent, id: '119', uri: 'https://remote.example/users/bob/statuses/119' }
 
 let store
 let dispatch
@@ -65,23 +67,11 @@ const makeStore = (serverData = {}) => {
 	return store
 }
 
-// Known app bug (src/views/TimelineSinglePost.vue:66-70): resetting the
-// timeline in beforeMount fires the parentsTimeline watcher in the pre-flush
-// phase of the first render, before template refs exist, so it throws
-// "Cannot read properties of undefined (reading 'parentElement')". Vue Test
-// Utils rethrows every error reaching the app error handler during mount, so a
-// host component stops it earlier to keep the view's other behaviour testable.
-const Host = {
-	components: { TimelineSinglePost },
-	errorCaptured: () => false,
-	template: '<TimelineSinglePost />',
-}
-
 // every view registers an event bus listener, so unmount them after each test
 const mounted = []
 
 const mountView = () => {
-	const wrapper = mount(Host, {
+	const wrapper = mount(TimelineSinglePost, {
 		attachTo: document.body,
 		global: {
 			plugins: [store],
@@ -169,6 +159,44 @@ describe('TimelineSinglePost', () => {
 		store.commit('setComposerDisplayStatus', true)
 		await nextTick()
 		expect(composer()).toBe('')
+	})
+
+	it('survives the ancestors arriving, whenever they arrive', async () => {
+		const wrapper = mountView()
+		expect(wrapper.find('.social__wrapper').exists()).toBe(true)
+
+		store.commit('addToTimeline', { ancestors: [parent], descendants: [] })
+		await nextTick()
+
+		expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
+	})
+
+	it('scrolls the post into view when its first ancestors are loaded', async () => {
+		const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+		const wrapper = mountView()
+		expect(scrollIntoView).not.toHaveBeenCalled()
+
+		store.commit('addToTimeline', { ancestors: [parent], descendants: [] })
+		await nextTick()
+		await nextTick()
+
+		expect(scrollIntoView).toHaveBeenCalledTimes(1)
+		expect(scrollIntoView.mock.instances[0]).toBe(wrapper.findComponent(TimelineEntryStub).element)
+		expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+	})
+
+	it('does not scroll again when more ancestors follow', async () => {
+		const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+		mountView()
+		store.commit('addToTimeline', { ancestors: [parent], descendants: [] })
+		await nextTick()
+		await nextTick()
+
+		store.commit('addToTimeline', { ancestors: [parent, grandParent], descendants: [] })
+		await nextTick()
+		await nextTick()
+
+		expect(scrollIntoView).toHaveBeenCalledTimes(1)
 	})
 
 	it('scrolls to the post being replied to and stops listening after unmount', async () => {

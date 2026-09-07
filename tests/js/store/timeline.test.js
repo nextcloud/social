@@ -472,6 +472,44 @@ describe('timeline store actions', () => {
 		})
 	})
 
+	describe('postUnlike on the Liked timeline', () => {
+		const liked = () => makeStatus('1', { favourited: true, favourites_count: 3 })
+
+		it('takes the post off the list of liked posts', async () => {
+			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false, favourites_count: 2 }) })
+			store.commit('setTimelineType', 'favourites')
+			store.commit('addToTimeline', [liked(), makeStatus('2', { favourited: true })])
+
+			await store.dispatch('postUnlike', { status: liked() })
+
+			expect(tl().timeline).toEqual(['2'])
+			expect(tl().statuses['1']).toMatchObject({ favourited: false })
+		})
+
+		it('leaves the post where it is on every other timeline', async () => {
+			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false, favourites_count: 2 }) })
+			store.commit('setTimelineType', 'home')
+			store.commit('addToTimeline', [liked()])
+
+			await store.dispatch('postUnlike', { status: liked() })
+
+			expect(tl().timeline).toEqual(['1'])
+			expect(tl().statuses['1']).toMatchObject({ favourited: false })
+		})
+
+		it('puts the post back when the server refuses the unlike', async () => {
+			axios.post.mockRejectedValue(new Error('boom'))
+			store.commit('setTimelineType', 'favourites')
+			store.commit('addToTimeline', [liked()])
+
+			await store.dispatch('postUnlike', { status: liked() })
+
+			expect(tl().timeline).toEqual(['1'])
+			expect(tl().statuses['1']).toMatchObject({ favourited: true })
+			expect(showError).toHaveBeenCalledWith('Failed to unlike status')
+		})
+	})
+
 	describe('fetchTimeline', () => {
 		const statuses = [makeStatus('1'), makeStatus('2')]
 
