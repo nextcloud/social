@@ -859,6 +859,12 @@ class ApiController extends Controller {
 	 * @return array
 	 */
 	private function fetchRemoteCollection(string $url, int $limit = 20): array {
+		// A remote page can carry far more entries than asked for, and each
+		// unresolved id below is a remote fetch, so both the limit and the number of
+		// entries walked are bounded — an anonymous caller must not be able to turn
+		// one request into thousands of outbound fetches.
+		$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
+
 		try {
 			$collectionData = $this->curlService->retrieveObject($url);
 		} catch (Exception $e) {
@@ -888,7 +894,9 @@ class ApiController extends Controller {
 
 		$actors = [];
 		$count = 0;
-		foreach ($items as $item) {
+		// array_slice bounds the walk itself: the $count guard alone only limits
+		// successes, so a page of unresolvable ids would still be fetched one by one.
+		foreach (array_slice($items, 0, $limit) as $item) {
 			if ($count >= $limit) {
 				break;
 			}

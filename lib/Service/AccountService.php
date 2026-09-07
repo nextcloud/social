@@ -40,6 +40,15 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Service
  */
 class AccountService {
+	/** How long a soft-deleted actor is kept before `manageDeletedActors()` purges it. */
+	public const TIME_RETENTION = 3600;
+
+	/**
+	 * Age, in days, past which `blindKeyRotation()` would renew an actor's key pair.
+	 * The rotation is not currently scheduled; the constant exists so the method does
+	 * not fatal on an undefined constant if it is ever called.
+	 */
+	public const KEY_PAIR_LIFESPAN = 60;
 
 	private ?string $userId = null;
 

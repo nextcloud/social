@@ -342,6 +342,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * @deprecated - use paginate()
 	 */
 	public function limitPaginate(int $since = 0, int $limit = 5) {
+		$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
 		try {
 			if ($since > 0) {
 				$dTime = new DateTime();

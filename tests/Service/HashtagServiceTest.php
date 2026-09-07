@@ -94,6 +94,43 @@ class HashtagServiceTest extends TestCase {
 		$this->assertSame(0, $this->service->manageHashtags());
 	}
 
+	public function testManageHashtagsAggregatesASharedHashtagAcrossNotes(): void {
+		$now = time();
+		// Two notes share #nextcloud, so every window's trend must count it twice.
+		// The window bounding lives in the DB layer; at service level getNoteSince()
+		// drives the aggregation of the hashtags carried by the returned notes.
+		$notes = [
+			$this->note(['nextcloud'], $now - 30),
+			$this->note(['nextcloud'], $now - 45),
+		];
+		$requestedSince = [];
+		$this->streamRequest->method('getNoteSince')
+			->willReturnCallback(function (int $since) use ($notes, &$requestedSince): array {
+				$requestedSince[] = $since;
+
+				return $notes;
+			});
+		$this->hashtagsRequest->method('getAll')->willReturn([]);
+
+		$saved = [];
+		$this->hashtagsRequest->expects($this->once())
+			->method('save')
+			->willReturnCallback(function (string $hashtag, array $trend) use (&$saved): void {
+				$saved[$hashtag] = $trend;
+			});
+		$this->hashtagsRequest->expects($this->never())->method('update');
+
+		$count = $this->service->manageHashtags();
+
+		$this->assertSame(1, $count);
+		$this->assertCount(5, $requestedSince);
+		$windows = [HashtagService::TREND_1H, HashtagService::TREND_12H, HashtagService::TREND_1D, HashtagService::TREND_3D, HashtagService::TREND_10D];
+		foreach ($windows as $i => $window) {
+			$this->assertEqualsWithDelta($now - $window, $requestedSince[$i], 2);
+		}
+		$this->assertSame(['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2], $saved['nextcloud']);
+	}
+
 	public function testGetHashtagPrependsTheHashSign(): void {
 		$this->hashtagsRequest->expects($this->exactly(2))
 			->method('getHashtag')

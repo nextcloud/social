@@ -564,7 +564,13 @@ class LocalController extends Controller {
 			$this->initViewer();
 
 			$account = $this->cacheActorService->getFromAccount($username);
-			$this->streamService->syncRemoteTimeline($account);
+			// Best-effort: a slow or unreachable remote must not fail the profile
+			// view — it falls back to whatever is already cached.
+			try {
+				$this->streamService->syncRemoteTimeline($account);
+			} catch (\Exception $e) {
+				$this->logger->debug('[LocalController] outbox sync skipped', ['exception' => $e]);
+			}
 			$posts = $this->streamService->getStreamAccount($account->getId(), $since, $limit);
 
 			return $this->success($posts);

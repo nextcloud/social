@@ -20,7 +20,7 @@ What it does:
 - 🌐 Federation: signed delivery of ActivityPub activities, with a delivery queue processed by cron
 
 This is a partial implementation of ActivityPub and of the Mastodon client API. It does not offer blocking, muting or reporting, approvable follow requests, polls, bookmarks, lists, or video and audio attachments.]]></description>
-	<version>0.10.1</version>
+	<version>0.10.2</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
