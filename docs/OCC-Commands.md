@@ -259,12 +259,13 @@ this command. Each matching row is printed as one line of JSON.
 Run the cache maintenance steps once, printing a counter per step.
 
 ```
-php occ social:cache:refresh [-f|--force]
+php occ social:cache:refresh [-f|--force] [--rotate-keys]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `-f`, `--force` | none | Refresh cached remote actors even if they are not due |
+| `--rotate-keys` | none | Renew the RSA key pair of local actors older than `AccountService::KEY_PAIR_LIFESPAN` (60) days. Blind rotation: no `Update` is federated, remote servers pick the new key up when they next fetch the actor (most do so after a failed signature check), so expect a short delivery hiccup. Deliberately opt-in and never run by the cron |
 
 Steps and their output lines: local accounts deleted, local accounts regenerated,
 remote accounts created, remote accounts updated, remote accounts details updated,
