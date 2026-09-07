@@ -1,0 +1,340 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Controller;
+
+use OCA\Social\Controller\OAuthController;
+use OCA\Social\Exceptions\ClientException;
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Model\Instance;
+use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ClientService;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\InstanceService;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
+use OCP\IRequest;
+use OCP\IURLGenerator;
+use OCP\IUser;
+use OCP\IUserSession;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
+
+class OAuthControllerTest extends TestCase {
+	private const OOB = 'urn:ietf:wg:oauth:2.0:oob';
+
+	/** @var IUserSession&MockObject */
+	private $userSession;
+	/** @var IURLGenerator&MockObject */
+	private $urlGenerator;
+	/** @var InstanceService&MockObject */
+	private $instanceService;
+	/** @var AccountService&MockObject */
+	private $accountService;
+	/** @var ClientService&MockObject */
+	private $clientService;
+	/** @var ConfigService&MockObject */
+	private $configService;
+	/** @var IInitialState&MockObject */
+	private $initialState;
+	private OAuthController $controller;
+
+	protected function setUp(): void {
+		$this->userSession = $this->createMock(IUserSession::class);
+		$this->urlGenerator = $this->createMock(IURLGenerator::class);
+		$this->instanceService = $this->createMock(InstanceService::class);
+		$this->accountService = $this->createMock(AccountService::class);
+		$this->clientService = $this->createMock(ClientService::class);
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->initialState = $this->createMock(IInitialState::class);
+
+		$this->controller = new OAuthController(
+			$this->createMock(IRequest::class),
+			$this->userSession,
+			$this->urlGenerator,
+			$this->instanceService,
+			$this->accountService,
+			$this->clientService,
+			$this->configService,
+			new NullLogger(),
+			$this->initialState
+		);
+	}
+
+	protected function tearDown(): void {
+		\OC::$server->reset();
+	}
+
+	private function loggedIn(string $uid = 'alice'): void {
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn($uid);
+		$this->userSession->method('getUser')->willReturn($user);
+		$actor = $this->createMock(Person::class);
+		$actor->method('getPreferredUsername')->willReturn($uid);
+		$this->accountService->method('getActorFromUserId')->with($uid)->willReturn($actor);
+	}
+
+	private function knownClient(string $clientId = 'client-1', string $appName = 'Tusky'): SocialClient {
+		$client = new SocialClient();
+		$client->setAppClientId($clientId)->setAppName($appName);
+		$this->clientService->method('getFromClientId')->with($clientId)->willReturn($client);
+
+		return $client;
+	}
+
+
+	// nodeinfo2()
+
+	public function testNodeinfo2DescribesTheLocalInstance(): void {
+		$instance = new Instance();
+		$instance->setTitle('My Social')->setVersion('0.10.1')->setUsage(['users' => ['total' => 3]])->setRegistrations(true);
+		$this->instanceService->method('getLocal')->willReturn($instance);
+		$this->urlGenerator->method('linkToRouteAbsolute')->with('social.Navigation.navigate')->willReturn('https://cloud.example/apps/social/');
+
+		$response = $this->controller->nodeinfo2();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([
+			'version' => '2.0',
+			'software' => ['name' => 'My Social', 'version' => '0.10.1'],
+			'protocols' => ['activitypub'],
+			'rootUrl' => 'https://cloud.example/apps/social',
+			'usage' => ['users' => ['total' => 3]],
+			'openRegistrations' => true,
+		], $response->getData());
+	}
+
+	public function testNodeinfo2FallsBackToAppDefaultsWithoutAnInstance(): void {
+		$this->instanceService->method('getLocal')->willThrowException(new InstanceDoesNotExistException());
+		$this->configService->method('getAppValue')->with('installed_version')->willReturn('0.10.1');
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example/apps/social/');
+
+		$data = $this->controller->nodeinfo2()->getData();
+
+		$this->assertSame(['name' => 'Nextcloud Social', 'version' => '0.10.1'], $data['software']);
+		$this->assertSame([], $data['usage']);
+		$this->assertFalse($data['openRegistrations']);
+	}
+
+
+	// apps()
+
+	public function testAppsRegistersAClientAndReturnsItsCredentials(): void {
+		$this->clientService->expects($this->once())->method('createApp')
+			->willReturnCallback(function (SocialClient $client): void {
+				$this->assertSame('Tusky', $client->getAppName());
+				$this->assertSame('https://tusky.app', $client->getAppWebsite());
+				$this->assertSame(['https://tusky.app/callback'], $client->getAppRedirectUris());
+				$this->assertSame(['read', 'write'], $client->getAppScopes());
+				$client->setId(7)->setAppClientId('cid')->setAppClientSecret('csecret');
+			});
+
+		$response = $this->controller->apps('Tusky', 'https://tusky.app/callback', 'https://tusky.app', 'read write');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([
+			'id' => 7,
+			'name' => 'Tusky',
+			'website' => 'https://tusky.app',
+			'scopes' => 'read write',
+			'client_id' => 'cid',
+			'client_secret' => 'csecret',
+		], $response->getData());
+	}
+
+	public function testAppsAcceptsAListOfRedirectUris(): void {
+		$this->clientService->expects($this->once())->method('createApp')
+			->with($this->callback(fn (SocialClient $c): bool => $c->getAppRedirectUris() === ['https://a/cb', 'https://b/cb']));
+
+		$this->controller->apps('App', ['https://a/cb', 'https://b/cb']);
+	}
+
+	public function testAppsDefaultsToReadScope(): void {
+		$this->clientService->method('createApp');
+
+		$this->assertSame('read', $this->controller->apps('App', 'https://a/cb')->getData()['scopes']);
+	}
+
+
+	// authorize()
+
+	public function testAuthorizeRendersTheConsentPageForAKnownClient(): void {
+		$this->loggedIn();
+		$this->knownClient();
+		$this->initialState->expects($this->once())->method('provideInitialState')->with('appName', 'Tusky');
+
+		$response = $this->controller->authorize('client-1', self::OOB, 'code', 'read write');
+
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertSame('oauth2', $response->getTemplateName());
+		$this->assertSame([
+			'request' => [
+				'clientId' => 'client-1',
+				'redirectUri' => self::OOB,
+				'responseType' => 'code',
+				'scope' => 'read write',
+			],
+		], $response->getParams());
+	}
+
+	public function testAuthorizeRejectsNonCodeResponseTypes(): void {
+		$this->loggedIn();
+		$this->clientService->expects($this->never())->method('getFromClientId');
+
+		$this->expectException(ClientNotFoundException::class);
+		$this->expectExceptionMessage('invalid response type');
+
+		$this->controller->authorize('client-1', self::OOB, 'token');
+	}
+
+	public function testAuthorizeRejectsUnknownClients(): void {
+		$this->loggedIn();
+		$this->clientService->method('getFromClientId')->willThrowException(new ClientNotFoundException('unknown'));
+
+		$this->expectException(ClientNotFoundException::class);
+
+		$this->controller->authorize('nope', self::OOB, 'code');
+	}
+
+
+	// authorizing()
+
+	public function testAuthorizingIssuesACodeBoundToTheUser(): void {
+		$this->loggedIn('alice');
+		$client = $this->knownClient();
+		$this->clientService->expects($this->once())->method('confirmData')
+			->with($client, $this->callback(fn (array $data): bool => $data['app_scopes'] === 'read write'));
+		$this->clientService->expects($this->once())->method('authClient')
+			->willReturnCallback(function (SocialClient $c): void {
+				$this->assertSame(['read', 'write'], $c->getAuthScopes());
+				$this->assertSame('alice', $c->getAuthAccount());
+				$this->assertSame('alice', $c->getAuthUserId());
+				$c->setAuthCode('auth-code-1');
+			});
+
+		$response = $this->controller->authorizing('client-1', self::OOB, 'code', 'read write');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['code' => 'auth-code-1'], $response->getData());
+	}
+
+	public function testAuthorizingRejectsNonCodeResponseTypes(): void {
+		$this->loggedIn();
+		$this->clientService->expects($this->never())->method('authClient');
+
+		$response = $this->controller->authorizing('client-1', self::OOB, 'token');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'invalid response type'], $response->getData());
+	}
+
+	public function testAuthorizingRejectsUnknownClients(): void {
+		$this->loggedIn();
+		$this->clientService->method('getFromClientId')->willThrowException(new ClientNotFoundException('unknown client'));
+
+		$response = $this->controller->authorizing('nope', self::OOB, 'code');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'unknown client'], $response->getData());
+	}
+
+	public function testAuthorizingRejectsMismatchingClientData(): void {
+		$this->loggedIn();
+		$this->knownClient();
+		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong scopes'));
+		$this->clientService->expects($this->never())->method('authClient');
+
+		$response = $this->controller->authorizing('client-1', self::OOB, 'code', 'admin');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'wrong scopes'], $response->getData());
+	}
+
+
+	// token()
+
+	public function testTokenExchangesAnAuthorizationCodeForABearerToken(): void {
+		$client = $this->knownClient();
+		$client->setCreation(1700000000);
+		$confirmations = [];
+		$this->clientService->method('confirmData')->willReturnCallback(function (SocialClient $c, array $data) use (&$confirmations): void {
+			$confirmations[] = $data;
+		});
+		$this->clientService->expects($this->once())->method('generateToken')
+			->willReturnCallback(fn (SocialClient $c) => $c->setToken('bearer-token'));
+
+		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code', 'read', 'auth-code-1');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([
+			'access_token' => 'bearer-token',
+			'token_type' => 'Bearer',
+			'scope' => 'read',
+			'created_at' => 1700000000,
+		], $response->getData());
+		$this->assertSame([
+			['client_secret' => 'secret', 'redirect_uri' => self::OOB, 'auth_scopes' => 'read'],
+			['code' => 'auth-code-1'],
+		], $confirmations);
+	}
+
+	public function testTokenRequiresACodeForTheAuthorizationCodeGrant(): void {
+		$this->knownClient();
+		$this->clientService->expects($this->never())->method('generateToken');
+
+		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'missing code'], $response->getData());
+	}
+
+	public function testTokenRejectsUnknownGrantTypes(): void {
+		$this->knownClient();
+
+		$response = $this->controller->token('client-1', 'secret', self::OOB, 'password');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'invalid value for grant_type'], $response->getData());
+	}
+
+	public function testTokenClientCredentialsGrantIsNotIssuedYet(): void {
+		$this->knownClient();
+		$this->clientService->expects($this->never())->method('generateToken');
+
+		$response = $this->controller->token('client-1', 'secret', self::OOB, 'client_credentials');
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'issue generating access_token'], $response->getData());
+	}
+
+	public function testTokenRejectsUnknownClientIds(): void {
+		$this->clientService->method('getFromClientId')->willThrowException(new ClientNotFoundException());
+
+		$response = $this->controller->token('nope', 'secret', self::OOB, 'authorization_code', 'read', 'c');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => 'unknown client_id'], $response->getData());
+	}
+
+	public function testTokenRejectsAWrongClientSecret(): void {
+		$this->knownClient();
+		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong client_secret'));
+		$this->clientService->expects($this->never())->method('generateToken');
+
+		$response = $this->controller->token('client-1', 'wrong', self::OOB, 'authorization_code', 'read', 'c');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => 'wrong client_secret'], $response->getData());
+	}
+}
