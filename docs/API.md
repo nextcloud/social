@@ -111,11 +111,13 @@ Incoming federated reports (`Flag` activities from other instances) are stored t
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| POST | `/api/v1/media` | public, no-csrf | `file` (multipart, read from `$_FILES['file']`) | Uploads an attachment, caches it and returns the `MediaAttachment`. No mime-type or size restriction is applied. Failure returns HTTP 400 `{"error": "..."}`. |
-| GET | `/api/v1/media/{nid}` | public, no-csrf | `nid` (path), `preview` (default `''`) | **Stub.** The body ignores both parameters and returns an empty array `[]` with HTTP 200. |
+| POST | `/api/v2/media` | public, no-csrf | Same as POST `/api/v1/media` | Identical upload endpoint — modern Mastodon clients POST v2 and only fall back to v1 on a 404. |
+| POST | `/api/v1/media` | public, no-csrf | `file` (multipart, read from `$_FILES['file']`), `description` (the alt text), `focus` (accepted, not stored) | Uploads an attachment (jpeg/gif/png, sniffed from the content), caches it and returns the `MediaAttachment`. Failure returns HTTP 400 `{"error": "..."}`. |
+| GET | `/api/v1/media/{nid}` | public, no-csrf | `nid` (path), `preview` (default `''`, ignored) | One of the viewer's own attachments, by the id the upload returned. 404 for an unknown id or someone else's attachment. |
+| PUT | `/api/v1/media/{nid}` | public, no-csrf | Body: `description` | Updates the alt text of the viewer's own attachment and returns it. 404 for an unknown id or someone else's attachment. |
 | GET | `/media/{uuid}` | public, no-csrf | `uuid` (path, may carry a `.ext` suffix) | Streams a cached document by UUID. The `Content-Type` is the media type sniffed from the content at ingest; the extension in the URL is ignored. 404 when unknown. |
 
-`MediaApiController::uploadMedia()` also exists and is a stub returning `{"id": 1, "url": "", "preview_url": "", "remote_url": null, "description": ""}`, and its `IMAGE_MIME_TYPES` allowlist is never used. **It has no route** — no entry in `appinfo/routes.php` maps to `MediaApi#…`, so it is unreachable dead code. `POST /api/v1/media` is served by `ApiController::mediaNew()`.
+`POST /api/v1/media` and `POST /api/v2/media` are both served by `ApiController::mediaNew()`. On the wire an attachment's alt text travels as the ActivityPub `name`, both incoming and outgoing.
 
 ### Search (Mastodon-adjacent, app-specific shapes)
 

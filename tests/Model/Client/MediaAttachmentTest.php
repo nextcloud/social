@@ -75,7 +75,8 @@ class MediaAttachmentTest extends TestCase {
 			'type' => 'Document',
 			'mediaType' => '',
 			'url' => 'https://files.mastodon.social/media/cat.jpg',
-			'name' => null,
+			// the wire carries the alt text as `name`
+			'name' => 'A cat',
 			'blurhash' => 'UBL_:rOp',
 			'width' => 1200,
 			'height' => 800,

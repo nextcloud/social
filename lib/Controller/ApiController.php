@@ -504,6 +504,8 @@ class ApiController extends Controller {
 			$document->setUrlCloud($this->configService->getCloudUrl());
 			$document->generateUniqueId('/documents/local');
 			$document->setPublic(true);
+			// the alt text; `focus` is accepted but not stored (no focal-point support)
+			$document->setDescription((string)$this->request->getParam('description', ''));
 
 			$this->cacheDocumentService->saveFromTempToCache($document, $name);
 			$service = AP::$activityPub->getInterfaceForItem($document);
@@ -523,21 +525,87 @@ class ApiController extends Controller {
 
 
 	/**
+	 * Same upload as mediaNew — modern Mastodon clients POST /api/v2/media and
+	 * only fall back to v1 on a 404.
+	 *
 	 * @PublicPage
 	 * @NoCSRFRequired
+	 */
+	public function mediaNewV2(): DataResponse {
+		return $this->mediaNew();
+	}
+
+
+	/**
+	 * One of the viewer's own attachments, by the id mediaNew returned.
 	 *
-	 * @param string $id
-	 *
-	 * @return Response
+	 * @PublicPage
+	 * @NoCSRFRequired
 	 */
 	public function mediaGet(string $nid, string $preview = ''): Response {
 		try {
-			return new DataResponse([], Http::STATUS_OK);
-		} catch (Exception $e) {
-			$this->logger->warning('issues while mediaNew', ['exception' => $e]);
+			$this->initViewer(true);
 
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return new DataResponse($this->ownAttachment($nid), Http::STATUS_OK);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaGet', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
+	}
+
+
+	/**
+	 * Updates the alt text of the viewer's own attachment.
+	 *
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function mediaUpdate(string $nid): Response {
+		try {
+			$this->initViewer(true);
+
+			$document = $this->ownDocument($nid);
+			$input = $this->convertInput(file_get_contents('php://input'));
+			if (array_key_exists('description', $input)) {
+				$document->setDescription((string)$input['description']);
+				$this->documentService->updateDescription($document);
+			}
+
+			return new DataResponse(
+				$document->convertToMediaAttachment($this->urlGenerator), Http::STATUS_OK
+			);
+		} catch (NotFoundException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaUpdate', ['exception' => $e]);
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+		}
+	}
+
+
+	/**
+	 * @throws NotFoundException when the id is unknown or belongs to someone else
+	 */
+	private function ownDocument(string $nid): Document {
+		$documents = $this->documentService->getMediaFromArray(
+			[$nid], $this->viewer->getPreferredUsername()
+		);
+		if (count($documents) !== 1) {
+			throw new NotFoundException('unknown media');
+		}
+
+		return $documents[0];
+	}
+
+	/**
+	 * @throws NotFoundException
+	 */
+	private function ownAttachment(string $nid): MediaAttachment {
+		return $this->ownDocument($nid)->convertToMediaAttachment($this->urlGenerator);
 	}
 
 	/**
@@ -1344,7 +1412,7 @@ class ApiController extends Controller {
 		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
 
 		$accepted = match ($name) {
-			'statusNew', 'statusUpdate', 'mediaNew', 'statusAction',
+			'statusNew', 'statusUpdate', 'mediaNew', 'mediaNewV2', 'mediaUpdate', 'statusAction',
 			'updateCredentials', 'reportNew' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
