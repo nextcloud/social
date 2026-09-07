@@ -37,3 +37,19 @@ require_once $serverRoot . '/lib/base.php';
 
 \OC_App::loadApp('social');
 \OC_Hook::clear();
+
+// A freshly installed CI instance has never run the app's setup, so the cloud
+// and social URLs are unset — and everything from actor creation to timeline
+// row parsing throws (or silently skips rows) on SocialAppConfigException.
+// Configure them the way Config#setCloudAddress would.
+$configService = \OCP\Server::get(\OCA\Social\Service\ConfigService::class);
+try {
+	$configService->getCloudUrl();
+} catch (\OCA\Social\Exceptions\SocialAppConfigException $e) {
+	$configService->setCloudUrl('http://localhost:8080');
+}
+try {
+	$configService->getSocialUrl();
+} catch (\OCA\Social\Exceptions\SocialAppConfigException $e) {
+	$configService->setSocialUrl('http://localhost:8080/apps/social/');
+}
