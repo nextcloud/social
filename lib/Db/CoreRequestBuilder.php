@@ -219,6 +219,7 @@ class CoreRequestBuilder {
 			'liked',
 			'boosted',
 			'replied',
+			'bookmarked',
 			'values'
 		],
 		self::TABLE_STREAM_DEST => [
@@ -992,7 +993,8 @@ class CoreRequestBuilder {
 			->selectAlias('sa.stream_id', 'streamaction_stream_id')
 			->selectAlias('sa.liked', 'streamaction_liked')
 			->selectAlias('sa.boosted', 'streamaction_boosted')
-			->selectAlias('sa.replied', 'streamaction_replied');
+			->selectAlias('sa.replied', 'streamaction_replied')
+			->selectAlias('sa.bookmarked', 'streamaction_bookmarked');
 
 		$orX = $expr->orX(
 			$expr->eq('sa.stream_id_prim', $pf . '.id_prim'),

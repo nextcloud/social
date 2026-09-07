@@ -60,7 +60,7 @@ class StreamActionTest extends TestCase {
 		$this->assertSame([StreamAction::LIKED], $action->getAffected(), 'defaults do not count as changes');
 	}
 
-	public function testImportFromDatabaseReadsTheThreeFlags(): void {
+	public function testImportFromDatabaseReadsTheFourFlags(): void {
 		$action = new StreamAction();
 
 		$action->importFromDatabase([
@@ -70,13 +70,14 @@ class StreamActionTest extends TestCase {
 			'liked' => '1',
 			'boosted' => '0',
 			'replied' => true,
+			'bookmarked' => '1',
 		]);
 
 		$this->assertSame(7, $action->getId());
 		$this->assertSame('https://a.example/users/alice', $action->getActorId());
 		$this->assertSame('https://a.example/n/1', $action->getStreamId());
 		$this->assertSame(
-			[StreamAction::LIKED => true, StreamAction::BOOSTED => false, StreamAction::REPLIED => true],
+			[StreamAction::LIKED => true, StreamAction::BOOSTED => false, StreamAction::REPLIED => true, StreamAction::BOOKMARKED => true],
 			$action->getValues()
 		);
 	}

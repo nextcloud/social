@@ -406,19 +406,19 @@ class ApiController extends Controller {
 	 * @return Response
 	 */
 	public function mediaOpen(string $uuid): Response {
-		$ext = '';
 		if (strpos($uuid, '.') > 0) {
-			[$uuid, $ext] = explode('.', $uuid, 2);
+			[$uuid] = explode('.', $uuid, 2);
 		}
 
 		try {
-			$mime = '';
 			// Only public copies are served here: this route is unauthenticated, so a
 			// non-public document would otherwise be readable by anyone with the uuid.
-			[$file] = $this->documentService->getFromUuid($uuid, true);
+			[$file, $document] = $this->documentService->getFromUuid($uuid, true);
 
+			// The stored media type was sniffed from the content at ingest; the
+			// extension in the URL is whatever the requester chose to write there.
 			return new FileDisplayResponse(
-				$file, Http::STATUS_OK, ['Content-Type' => $this->mimeFromExt($ext)]
+				$file, Http::STATUS_OK, ['Content-Type' => $document->getMediaType()]
 			);
 		} catch (NotFoundException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
@@ -427,20 +427,6 @@ class ApiController extends Controller {
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
-	}
-
-	/**
-	 * @param string $ext
-	 *                    only support image actually
-	 *
-	 * @return string
-	 */
-	private function mimeFromExt(string $ext): string {
-		if ($ext === '') {
-			return '';
-		}
-
-		return 'image/' . $ext;
 	}
 
 	/**
@@ -882,6 +868,36 @@ class ApiController extends Controller {
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
 			$options->setProbe(ProbeOptions::FAVOURITES)
+				->setLimit($limit)
+				->setMaxId($max_id)
+				->setMinId($min_id)
+				->setSince($since_id);
+
+			$posts = $this->streamService->getTimeline($options);
+
+			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function bookmarks(
+		int $limit = 20,
+		int $max_id = 0,
+		int $min_id = 0,
+		int $since_id = 0,
+	): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$options = new ProbeOptions($this->request);
+			$options->setFormat(ACore::FORMAT_LOCAL);
+			$options->setProbe(ProbeOptions::BOOKMARKS)
 				->setLimit($limit)
 				->setMaxId($max_id)
 				->setMinId($min_id)

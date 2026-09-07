@@ -153,9 +153,11 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame($status, $response->getStatus());
 		$data = $response->getData();
 		$this->assertSame(-1, $data['status']);
-		$this->assertSame($exceptionClass, $data['exception']);
+		// internals ($exceptionClass, $message) must never reach the response
+		$this->assertSame('request failed', $data['error']);
+		$this->assertArrayNotHasKey('exception', $data);
 		if ($message !== null) {
-			$this->assertSame($message, $data['message']);
+			$this->assertArrayNotHasKey('message', $data);
 		}
 	}
 
@@ -407,7 +409,6 @@ class LocalControllerTest extends TestCase {
 		$response = $this->controller()->streamHome();
 
 		$this->assertFailure($response, AccountDoesNotExistException::class);
-		$this->assertStringContainsString('unable to initViewer', $response->getData()['message']);
 	}
 
 	public function testStreamAccountSyncsTheRemoteTimelineFirst(): void {
@@ -489,15 +490,38 @@ class LocalControllerTest extends TestCase {
 		$this->assertSuccess($this->controller(null)->accountFollowing('bob'), ['f2']);
 	}
 
-	public function testGlobalAccountInfoEnsuresALocalActorExists(): void {
+	public function testGlobalAccountInfoEnsuresTheViewersOwnActorExists(): void {
 		$actor = $this->createMock(Person::class);
 		$actor->method('isLocal')->willReturn(true);
-		$this->accountService->expects($this->once())->method('getActorFromUserId')->with('bob', true)->willReturn($this->createMock(Person::class));
+		// once from initViewer(), once — with create=true — from the ensure path
+		$created = false;
+		$this->accountService->method('getActorFromUserId')
+			->willReturnCallback(function (string $userId, bool $create = false) use (&$created): Person {
+				$this->assertSame('bob', $userId);
+				$created = $created || $create;
+
+				return $this->createMock(Person::class);
+			});
 		$this->accountService->expects($this->once())->method('cacheLocalActorByUsername')->with('bob');
 		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
 		$this->cacheActorService->expects($this->never())->method('getFromAccount');
 		$this->cacheActorService->expects($this->never())->method('addRemoteActorDetailCount');
 		$actor->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+
+		$response = $this->controller('bob')->globalAccountInfo('@bob');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($actor, $response->getData());
+		$this->assertTrue($created, 'the viewer asking about their own account creates the actor');
+	}
+
+	public function testGlobalAccountInfoNeverCreatesAnActorForOtherVisitors(): void {
+		// the route is public: creating here would let anonymous visitors force a
+		// Fediverse identity onto any Nextcloud user, and probe which users exist
+		$actor = $this->createMock(Person::class);
+		$actor->method('isLocal')->willReturn(true);
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+		$this->cacheActorService->method('getFromLocalAccount')->with('bob')->willReturn($actor);
 
 		$response = $this->controller(null)->globalAccountInfo('@bob');
 

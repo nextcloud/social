@@ -124,8 +124,9 @@ class ConfigControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$data = $response->getData();
 		$this->assertSame(-1, $data['status']);
-		$this->assertSame(\RuntimeException::class, $data['exception']);
-		$this->assertSame('webfinger down', $data['message']);
+		$this->assertSame('request failed', $data['error']);
+		$this->assertArrayNotHasKey('exception', $data, 'internals must not leak');
+		$this->assertArrayNotHasKey('message', $data);
 		$this->assertInstanceOf(SimpleDataStore::class, $data['result']);
 	}
 }

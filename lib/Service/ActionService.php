@@ -13,6 +13,7 @@ use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\Traits\TStringTools;
 
 class ActionService {
@@ -98,6 +99,22 @@ class ActionService {
 			case self::UNREBLOG:
 				$this->reblog($actor, $post->getId(), false);
 				break;
+
+			case self::BOOKMARK:
+				$this->bookmark($actor, $post->getId());
+				break;
+
+			case self::UNBOOKMARK:
+				$this->bookmark($actor, $post->getId(), false);
+				break;
+
+			case self::MUTE:
+			case self::UNMUTE:
+			case self::PIN:
+			case self::UNPIN:
+				// A silent no-op here makes the client display a state that was
+				// never stored. Refuse until the feature exists.
+				throw new InvalidActionException('the ' . $action . ' action is not supported yet');
 		}
 
 		return null;
@@ -130,5 +147,15 @@ class ActionService {
 		} else {
 			$this->boostService->delete($actor, $postId);
 		}
+	}
+
+	/**
+	 * Bookmarks are a purely local, per-viewer flag (as on Mastodon) — nothing
+	 * is federated.
+	 */
+	private function bookmark(Person $actor, string $postId, bool $enabled = true): void {
+		$this->streamActionService->setActionBool(
+			$actor->getId(), $postId, StreamAction::BOOKMARKED, $enabled
+		);
 	}
 }

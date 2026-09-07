@@ -290,7 +290,7 @@ const actions = {
 			const response = await axios.put(url)
 			console.debug('[Social] followAccount response', response.data)
 			if (response.data.status === -1) {
-				console.error('[Social] followAccount failed:', response.data.message, response.data.exception)
+				console.error('[Social] followAccount failed:', response.data)
 				return Promise.reject(response)
 			}
 			context.commit('followAccount', accountToFollow)
@@ -310,7 +310,7 @@ const actions = {
 			const response = await axios.delete(url)
 			console.debug('[Social] unfollowAccount response', response.data)
 			if (response.data.status === -1) {
-				console.error('[Social] unfollowAccount failed:', response.data.message, response.data.exception)
+				console.error('[Social] unfollowAccount failed:', response.data)
 				return Promise.reject(response)
 			}
 			context.commit('unfollowAccount', accountToUnfollow)

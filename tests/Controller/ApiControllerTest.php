@@ -960,6 +960,22 @@ class ApiControllerTest extends TestCase {
 		$this->assertStringStartsWith('https://cloud.example/documents/local/', $saved->getId());
 	}
 
+	public function testBookmarksIsTheBookmarksTimeline(): void {
+		$this->loggedInAs();
+		$posts = [$this->createMock(Stream::class)];
+		$grab = $this->captureTimelineOptions($posts);
+
+		$response = $this->controller()->bookmarks(30, 9, 4, 2);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($posts, $response->getData());
+		$options = $grab();
+		$this->assertSame('bookmarks', $options->getProbe());
+		$this->assertSame(30, $options->getLimit());
+		$this->assertSame(9, $options->getMaxId());
+		$this->assertSame(4, $options->getMinId());
+	}
+
 	public function testMediaGetIsAStubReturningNothing(): void {
 		$response = $this->controller()->mediaGet('1');
 
@@ -967,12 +983,14 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([], $response->getData());
 	}
 
-	public function testMediaOpenServesTheFileWithMimeDerivedFromExtension(): void {
+	public function testMediaOpenServesTheStoredMediaType(): void {
 		$file = $this->createMock(ISimpleFile::class);
 		$file->method('getName')->willReturn('abc');
 		$file->method('getETag')->willReturn('etag');
 		$file->method('getMTime')->willReturn(1700000000);
-		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc', true)->willReturn([$file, $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class)]);
+		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
+		$document->method('getMediaType')->willReturn('image/png');
+		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc', true)->willReturn([$file, $document]);
 
 		$response = $this->controller()->mediaOpen('abc.png');
 
@@ -981,12 +999,15 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('image/png', $response->getHeaders()['Content-Type']);
 	}
 
-	public function testMediaOpenWithoutExtensionHasNoContentType(): void {
+	public function testMediaOpenIgnoresTheRequestersExtension(): void {
+		// the media type was sniffed at ingest; the URL suffix is attacker-chosen
 		$file = $this->createMock(ISimpleFile::class);
 		$file->method('getName')->willReturn('abc');
-		$this->documentService->method('getFromUuid')->with('abc', true)->willReturn([$file, $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class)]);
+		$document = $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class);
+		$document->method('getMediaType')->willReturn('image/png');
+		$this->documentService->method('getFromUuid')->with('abc', true)->willReturn([$file, $document]);
 
-		$this->assertSame('', $this->controller()->mediaOpen('abc')->getHeaders()['Content-Type']);
+		$this->assertSame('image/png', $this->controller()->mediaOpen('abc.svg')->getHeaders()['Content-Type']);
 	}
 
 	public function testMediaOpenOfUnknownFileIs404(): void {

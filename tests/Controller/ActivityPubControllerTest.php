@@ -144,7 +144,11 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame($status, $response->getStatus());
 		$data = $response->getData();
 		$this->assertSame(-1, $data['status']);
-		$this->assertSame($exceptionClass, $data['exception']);
+		// several of these routes are public: the class and message of the
+		// exception ($exceptionClass here) must never reach the response
+		$this->assertSame('request failed', $data['error']);
+		$this->assertArrayNotHasKey('exception', $data);
+		$this->assertArrayNotHasKey('message', $data);
 	}
 
 
@@ -210,7 +214,6 @@ class ActivityPubControllerTest extends TestCase {
 		$response = $this->controller->actor('ghost');
 
 		$this->assertFailure($response, CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND);
-		$this->assertSame('nope', $response->getData()['message']);
 	}
 
 
@@ -242,7 +245,6 @@ class ActivityPubControllerTest extends TestCase {
 		$response = $this->controller->sharedInbox();
 
 		$this->assertFailure($response, SignatureException::class);
-		$this->assertSame('bad signature', $response->getData()['message']);
 		$this->assertSame(0, $this->controller->asyncCalls);
 	}
 

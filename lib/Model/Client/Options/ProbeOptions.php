@@ -26,6 +26,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	public const DIRECT = 'direct';
 	public const ACCOUNT = 'account';
 	public const FAVOURITES = 'favourites';
+	public const BOOKMARKS = 'bookmarks';
 	public const HASHTAG = 'hashtag';
 	public const NOTIFICATIONS = 'notifications';
 

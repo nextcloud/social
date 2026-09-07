@@ -632,6 +632,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$actions = ($this->hasAction()) ? $this->getAction()->getValues() : [];
 		$favorited = false;
 		$reblogged = false;
+		$bookmarked = false;
 		foreach ($actions as $action => $value) {
 			if ($value) {
 				switch ($action) {
@@ -640,6 +641,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 						break;
 					case StreamAction::LIKED:
 						$favorited = true;
+						break;
+					case StreamAction::BOOKMARKED:
+						$bookmarked = true;
 						break;
 				}
 			}
@@ -660,7 +664,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'favourited' => $favorited,
 			'reblogged' => $reblogged,
 			'muted' => false,
-			'bookmarked' => false,
+			'bookmarked' => $bookmarked,
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			'reblog' => null,
