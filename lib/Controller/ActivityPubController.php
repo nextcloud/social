@@ -176,7 +176,6 @@ class ActivityPubController extends Controller {
 	public function sharedInbox(): Response {
 		try {
 			$body = file_get_contents('php://input');
-			$this->logger->debug('[<<] sharedInbox: ' . $body);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
@@ -219,7 +218,6 @@ class ActivityPubController extends Controller {
 	public function inbox(string $username): Response {
 		try {
 			$body = file_get_contents('php://input');
-			$this->logger->debug('[<<] inbox', ['body' => $body]);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);

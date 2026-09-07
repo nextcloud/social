@@ -62,6 +62,10 @@ class ClientRequest extends ClientRequestBuilder {
 		$qb->set('auth_scopes', $qb->createNamedParameter(json_encode($client->getAuthScopes())));
 		$qb->set('auth_account', $qb->createNamedParameter($client->getAuthAccount()));
 		$qb->set('auth_user_id', $qb->createNamedParameter($client->getAuthUserId()));
+		// The row holds one token and one auth_user_id. Leaving the token in place
+		// while the user changes would let a token issued to the previous user act as
+		// the new one, so a fresh authorization invalidates it.
+		$qb->set('token', $qb->createNamedParameter(''));
 
 		$qb->limitToId($client->getId());
 

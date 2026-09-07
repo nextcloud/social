@@ -62,8 +62,6 @@ class OAuthController extends Controller {
 		$this->logger = $logger;
 		$this->initialState = $initialState;
 
-		$body = file_get_contents('php://input');
-		$logger->debug('[OAuthController] input: ' . $body);
 	}
 
 
@@ -165,6 +163,15 @@ class OAuthController extends Controller {
 
 		// check client exists in db
 		$client = $this->clientService->getFromClientId($client_id);
+		// A code must only ever travel to a URI the client registered; checked before
+		// the consent page exists, so there is nothing to confirm on a forged link.
+		$this->clientService->confirmData(
+			$client,
+			[
+				'app_scopes' => $scope,
+				'redirect_uri' => $redirect_uri
+			]
+		);
 		$this->initialState->provideInitialState('appName', $client->getAppName());
 
 		return new TemplateResponse(Application::APP_ID, 'oauth2', [
@@ -201,7 +208,7 @@ class OAuthController extends Controller {
 				$client,
 				[
 					'app_scopes' => $scope,
-					'redirect_uri', $redirect_uri
+					'redirect_uri' => $redirect_uri
 				]
 			);
 
@@ -261,7 +268,11 @@ class OAuthController extends Controller {
 				$this->clientService->confirmData($client, ['code' => $code]);
 				$this->clientService->generateToken($client);
 			} elseif ($grant_type === 'client_credentials') {
-				// TODO: manage client_credentials
+				// Falling through would return the token column of the client row —
+				// whatever token the last user's authorization-code grant put there.
+				return new DataResponse(
+					['error' => 'unsupported_grant_type'], Http::STATUS_BAD_REQUEST
+				);
 			} else {
 				return new DataResponse(
 					['error' => 'invalid value for grant_type'], Http::STATUS_BAD_REQUEST

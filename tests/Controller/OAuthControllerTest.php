@@ -207,6 +207,22 @@ class OAuthControllerTest extends TestCase {
 		$this->controller->authorize('nope', self::OOB, 'code');
 	}
 
+	public function testAuthorizeRejectsARedirectUriTheClientDidNotRegister(): void {
+		// The consent GET now confirms the redirect_uri against the client's registered
+		// URIs before rendering, so a code can never be steered to a forged link. A
+		// rejected redirect_uri throws before the consent page is prepared.
+		$this->loggedIn();
+		$client = $this->knownClient();
+		$this->clientService->expects($this->once())->method('confirmData')
+			->with($client, $this->callback(fn (array $data): bool => $data['redirect_uri'] === 'https://evil.example/steal'))
+			->willThrowException(new ClientException('unknown redirect_uri'));
+		$this->initialState->expects($this->never())->method('provideInitialState');
+
+		$this->expectException(ClientException::class);
+
+		$this->controller->authorize('client-1', 'https://evil.example/steal', 'code', 'read');
+	}
+
 
 	// authorizing()
 
@@ -308,14 +324,16 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(['error' => 'invalid value for grant_type'], $response->getData());
 	}
 
-	public function testTokenClientCredentialsGrantIsNotIssuedYet(): void {
+	public function testTokenClientCredentialsGrantIsRefused(): void {
 		$this->knownClient();
 		$this->clientService->expects($this->never())->method('generateToken');
 
 		$response = $this->controller->token('client-1', 'secret', self::OOB, 'client_credentials');
 
+		// Falling through would have returned whatever token the client row held from
+		// some user's authorization-code grant.
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'issue generating access_token'], $response->getData());
+		$this->assertSame(['error' => 'unsupported_grant_type'], $response->getData());
 	}
 
 	public function testTokenRejectsUnknownClientIds(): void {

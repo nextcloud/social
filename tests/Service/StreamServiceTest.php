@@ -798,6 +798,59 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
 	}
 
+	public function testSyncRemoteTimelineSkipsItemsForgedForAnotherServersActor(): void {
+		// The outbox is what a remote server says about itself, so it may only yield
+		// notes that live on that server and are attributed to the actor whose outbox
+		// is being read. A note whose attributedTo points at another instance is that
+		// server speaking for someone it does not host and must never be stored.
+		$bob = $this->remoteActor();
+		$legit = [
+			'type' => 'Note',
+			'id' => 'https://remote.example/notes/1',
+			'attributedTo' => $bob->getId(),
+			'content' => 'genuine',
+		];
+		$forged = [
+			'type' => 'Note',
+			'id' => 'https://remote.example/notes/2',
+			'attributedTo' => 'https://victim.example/users/alice',
+			'content' => 'impersonation',
+		];
+		$this->curlService->method('retrieveObject')->willReturn([
+			'orderedItems' => [$legit, $forged],
+		]);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$saved = [];
+		$this->streamRequest->expects($this->once())
+			->method('save')
+			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+				$saved[] = $stream->getId();
+			});
+
+		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
+		$this->assertSame(['https://remote.example/notes/1'], $saved);
+	}
+
+	public function testSyncRemoteTimelineSkipsNotesHostedOnAnotherServer(): void {
+		// Even when attribution is consistent with the note, a note whose id lives on
+		// a different host than the actor is not something this outbox may vouch for.
+		$bob = $this->remoteActor();
+		$foreign = [
+			'type' => 'Note',
+			'id' => 'https://victim.example/notes/9',
+			'attributedTo' => 'https://victim.example/users/alice',
+			'content' => 'not bobs to publish',
+		];
+		$this->curlService->method('retrieveObject')->willReturn([
+			'orderedItems' => [$foreign],
+		]);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamRequest->expects($this->never())->method('save');
+
+		$this->assertSame(0, $this->service->syncRemoteTimeline($bob));
+	}
+
 	public function testSyncRemoteTimelineSwallowsNetworkFailures(): void {
 		$bob = $this->remoteActor();
 		$this->curlService->method('retrieveObject')->willThrowException(new RequestNetworkException());

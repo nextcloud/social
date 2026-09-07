@@ -201,13 +201,34 @@ class DocumentService {
 	 * @return ISimpleFile
 	 * @throws NotFoundException
 	 */
-	public function getFromUuid(string $uuid): ISimpleFile {
+	/**
+	 * The copy behind `/media/{uuid}`, with the visibility its database row records.
+	 *
+	 * Serving by filename alone would hand out every cached copy — attachments of
+	 * direct and followers-only posts included — to anyone holding a uuid, so the
+	 * row is authoritative: no row, no file; a non-public row only for a viewer the
+	 * caller has authenticated.
+	 *
+	 * @return array{0: ISimpleFile, 1: Document}
+	 * @throws NotFoundException
+	 */
+	public function getFromUuid(string $uuid, bool $publicOnly = true): array {
 		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $uuid)
 			!== 1) {
 			throw new NotFoundException('invalid document');
 		}
 
-		return $this->cacheService->getFromUuid($uuid);
+		try {
+			$document = $this->cacheDocumentsRequest->getByLocalCopy($uuid);
+		} catch (CacheDocumentDoesNotExistException $e) {
+			throw new NotFoundException('unknown document');
+		}
+
+		if ($publicOnly && !$document->isPublic()) {
+			throw new NotFoundException('unknown document');
+		}
+
+		return [$this->cacheService->getFromUuid($uuid), $document];
 	}
 
 	/**

@@ -408,7 +408,9 @@ class ApiController extends Controller {
 
 		try {
 			$mime = '';
-			$file = $this->documentService->getFromUuid($uuid);
+			// Only public copies are served here: this route is unauthenticated, so a
+			// non-public document would otherwise be readable by anyone with the uuid.
+			[$file] = $this->documentService->getFromUuid($uuid, true);
 
 			return new FileDisplayResponse(
 				$file, Http::STATUS_OK, ['Content-Type' => $this->mimeFromExt($ext)]
@@ -937,9 +939,7 @@ class ApiController extends Controller {
 		try {
 			$userId = $this->currentSession();
 
-			$this->logger->debug(
-				'[ApiController] initViewer: ' . $userId . ' (bearer=' . $this->bearer . ')'
-			);
+			$this->logger->debug('[ApiController] initViewer: ' . $userId);
 
 			// Get or create the actor
 			$account = $this->accountService->getActorFromUserId($userId, true);

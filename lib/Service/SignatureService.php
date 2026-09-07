@@ -12,7 +12,6 @@ namespace OCA\Social\Service;
 use DateTime;
 use Exception;
 use JsonLdException;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -38,13 +37,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
-use OCP\Files\AppData\IAppDataFactory;
-use OCP\Files\NotFoundException;
-use OCP\Files\NotPermittedException;
-use OCP\Files\SimpleFS\ISimpleFile;
-use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\IRequest;
-use OCP\Server;
 use Psr\Log\LoggerInterface;
 use stdClass;
 
@@ -230,14 +223,20 @@ class SignatureService {
 
 		try {
 			return $this->checkRequestSignature($request, $data);
-		} catch (SignatureException $e) {
 		} catch (RequestContentException $e) {
 			if ($e->getCode() === Http::STATUS_GONE) {
 				throw new SignatureIsGoneException();
 			}
-		}
 
-		return '';
+			// The signing key could not be retrieved. Failing here, rather than
+			// returning an empty origin for a later check to reject, keeps this method
+			// the single place that decides whether a request is authenticated.
+			throw new SignatureException(
+				'signing key could not be retrieved: ' . get_class($e) . ' ' . $e->getMessage(),
+				0,
+				$e
+			);
+		}
 	}
 
 
@@ -346,6 +345,17 @@ class SignatureService {
 		$origin = $this->getKeyOrigin($keyId);
 
 		$headers = $sign['headers'];
+
+		// The digest is checked against the body earlier, but that binds nothing unless
+		// the digest itself is signed; and without host and date in the signed set, a
+		// captured request can be replayed against another instance or with a swapped
+		// body. Everything sending to the Fediverse signs at least these four.
+		$signedHeaders = explode(' ', strtolower($headers));
+		foreach (['(request-target)', 'host', 'date', 'digest'] as $mandatory) {
+			if (!in_array($mandatory, $signedHeaders, true)) {
+				throw new SignatureException('header is not signed: ' . $mandatory);
+			}
+		}
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
@@ -512,112 +522,37 @@ class SignatureService {
 	}
 
 
+	/** Shipped copies of the only JSON-LD contexts signature normalisation may use. */
+	public const LOCAL_CONTEXTS = [
+		'https://www.w3.org/ns/activitystreams' => 'www.w3.org.ns.activitystreams.json',
+		'https://w3id.org/security/v1' => 'w3id.org.security.v1.json',
+		'https://w3id.org/identity/v1' => 'w3id.org.identity.v1.json',
+	];
+
 	/**
-	 * @param string $url
+	 * Serves the JSON-LD contexts used during signature normalisation, exclusively
+	 * from the copies shipped with the app.
 	 *
-	 * @return stdClass
-	 * @throws NotPermittedException
+	 * A document's `@context` is remote input. Resolving it over the network would
+	 * hand every signing instance a URL this server then opens — with
+	 * `file_get_contents()`, that means any PHP stream wrapper — and a substituted
+	 * context would change the bytes a signature is computed over. An unknown context
+	 * therefore fails normalisation, which callers treat as an unverifiable
+	 * signature rather than an error.
+	 *
 	 * @throws JsonLdException
-	 * @throws NotFoundException
 	 */
 	public static function documentLoader($url): stdClass {
-		$recursion = 0;
-		$x = debug_backtrace();
-		if ($x) {
-			foreach ($x as $n) {
-				if ($n['function'] === __FUNCTION__) {
-					$recursion++;
-				}
-			}
+		$filename = self::LOCAL_CONTEXTS[$url] ?? '';
+		if ($filename === '') {
+			throw new JsonLdException('remote @context is not resolved: ' . $url, 'jsonld.LoadDocumentError');
 		}
 
-		if ($recursion > 5) {
-			exit();
+		$context = file_get_contents(__DIR__ . '/../../context/' . $filename);
+		if (is_bool($context)) {
+			throw new JsonLdException('shipped context cannot be read: ' . $filename, 'jsonld.LoadDocumentError');
 		}
 
-		$folder = self::getContextCacheFolder();
-		$filename = parse_url($url, PHP_URL_HOST) . parse_url($url, PHP_URL_PATH);
-		$filename = str_replace('/', '.', $filename) . '.json';
-
-		try {
-			$cache = $folder->getFile($filename);
-			self::updateContextCacheDocument($cache, $url);
-
-			$data = json_decode($cache->getContent());
-		} catch (NotFoundException $e) {
-			$data = self::generateContextCacheDocument($folder, $filename, $url);
-		}
-
-		return $data;
-	}
-
-
-	/**
-	 * @return ISimpleFolder
-	 * @throws NotPermittedException
-	 */
-	private static function getContextCacheFolder(): ISimpleFolder {
-		$path = 'context';
-
-		$appData = Server::get(IAppDataFactory::class)->get(Application::APP_ID);
-		try {
-			$folder = $appData->getFolder($path);
-		} catch (NotFoundException $e) {
-			$folder = $appData->newFolder($path);
-		}
-
-		return $folder;
-	}
-
-
-	/**
-	 * @param ISimpleFolder $folder
-	 * @param string $filename
-	 *
-	 * @param string $url
-	 *
-	 * @return stdClass
-	 * @throws JsonLdException
-	 * @throws NotPermittedException
-	 * @throws NotFoundException
-	 */
-	private static function generateContextCacheDocument(
-		ISimpleFolder $folder, string $filename, string $url,
-	): stdClass {
-		try {
-			$data = jsonld_default_document_loader($url);
-			$content = json_encode($data);
-		} catch (JsonLdException $e) {
-			$context = file_get_contents(__DIR__ . '/../../context/' . $filename);
-			if (is_bool($context)) {
-				throw $e;
-			}
-
-			$content = $context;
-			$data = json_decode($context);
-		}
-
-		$cache = $folder->newFile($filename);
-		$cache->putContent($content);
-
-		return $data;
-	}
-
-
-	/**
-	 * @param ISimpleFile $cache
-	 * @param string $url
-	 *
-	 * @throws NotPermittedException
-	 * @throws NotFoundException
-	 */
-	private static function updateContextCacheDocument(ISimpleFile $cache, string $url) {
-		if ($cache->getMTime() < (time() - 98765)) {
-			try {
-				$data = jsonld_default_document_loader($url);
-				$cache->putContent(json_encode($data));
-			} catch (JsonLdException $e) {
-			}
-		}
+		return json_decode($context);
 	}
 }

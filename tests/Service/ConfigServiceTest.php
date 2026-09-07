@@ -331,8 +331,29 @@ class ConfigServiceTest extends TestCase {
 		);
 		$this->assertArrayNotHasKey('Content-Type', $headers);
 		$this->assertTrue($request->isVerifyPeer());
-		$this->assertTrue($request->isLocalAddressAllowed());
 		$this->assertTrue($request->isFollowLocation());
+		// Local addresses are off unless the instance opts in — see the two tests below.
+		$this->assertFalse($request->isLocalAddressAllowed());
+	}
+
+	public function testConfigureRequestKeepsLocalAddressesOffByDefault(): void {
+		$this->config->method('getSystemValueBool')
+			->with('allow_local_remote_servers', false)->willReturn(false);
+		$request = new NCRequest('/users/bob', Request::TYPE_GET);
+
+		$this->service->configureRequest($request);
+
+		$this->assertFalse($request->isLocalAddressAllowed());
+	}
+
+	public function testConfigureRequestAllowsLocalAddressesWhenTheInstanceOptsIn(): void {
+		$this->config->method('getSystemValueBool')
+			->with('allow_local_remote_servers', false)->willReturn(true);
+		$request = new NCRequest('/users/bob', Request::TYPE_GET);
+
+		$this->service->configureRequest($request);
+
+		$this->assertTrue($request->isLocalAddressAllowed());
 	}
 
 	public function testConfigureRequestAddsContentTypeOnPost(): void {

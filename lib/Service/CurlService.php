@@ -30,6 +30,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use Psr\Log\LoggerInterface;
@@ -347,8 +348,8 @@ class CurlService {
 
 			$result = curl_exec($curl);
 			$this->logger->debug(
-				'[>>] ' . json_encode($request)
-				. '   result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']: ' . json_encode($result)
+				'[>>] ' . $request->getUsedProtocol() . '://' . $request->getHost()
+				. ' result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']'
 			);
 
 			if (in_array(curl_errno($curl), $ignoreProtocolOnErrors)) {
@@ -391,6 +392,16 @@ class CurlService {
 
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $request->isVerifyPeer());
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $request->isFollowLocation());
+
+		// Only ever speak HTTP(S), on the initial request and on any redirect. This is
+		// what keeps a remote-supplied url (an actor's inbox, an icon, a @context)
+		// from turning into a file://, gopher:// or dict:// fetch.
+		curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+		curl_setopt($curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+
+		if (!$request->isLocalAddressAllowed() && RemoteAddress::isLocalHost($request->getHost())) {
+			throw new RequestServerException('host resolves to a local address: ' . $request->getHost());
+		}
 
 		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
 		curl_setopt($curl, CURLOPT_NOPROGRESS, false);

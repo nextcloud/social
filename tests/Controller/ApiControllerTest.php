@@ -808,7 +808,7 @@ class ApiControllerTest extends TestCase {
 		$file->method('getName')->willReturn('abc');
 		$file->method('getETag')->willReturn('etag');
 		$file->method('getMTime')->willReturn(1700000000);
-		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc')->willReturn($file);
+		$this->documentService->expects($this->once())->method('getFromUuid')->with('abc', true)->willReturn([$file, $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class)]);
 
 		$response = $this->controller()->mediaOpen('abc.png');
 
@@ -820,7 +820,7 @@ class ApiControllerTest extends TestCase {
 	public function testMediaOpenWithoutExtensionHasNoContentType(): void {
 		$file = $this->createMock(ISimpleFile::class);
 		$file->method('getName')->willReturn('abc');
-		$this->documentService->method('getFromUuid')->with('abc')->willReturn($file);
+		$this->documentService->method('getFromUuid')->with('abc', true)->willReturn([$file, $this->createMock(\OCA\Social\Model\ActivityPub\Object\Document::class)]);
 
 		$this->assertSame('', $this->controller()->mediaOpen('abc')->getHeaders()['Content-Type']);
 	}

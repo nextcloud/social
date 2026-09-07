@@ -649,6 +649,23 @@ class StreamService {
 						continue;
 					}
 
+					// This path stores what a remote server said about itself, so it may
+					// only yield notes that live on that server and belong to the actor
+					// whose outbox is being read. Anything else is that server speaking
+					// for someone it does not host.
+					$actorHost = strtolower((string)parse_url($actor->getId(), PHP_URL_HOST));
+					$noteHost = strtolower((string)parse_url($noteId, PHP_URL_HOST));
+					$authorHost = strtolower(
+						(string)parse_url($noteData['attributedTo'] ?? $actor->getId(), PHP_URL_HOST)
+					);
+					if ($actorHost === '' || $noteHost !== $actorHost || $authorHost !== $actorHost) {
+						$this->logger->debug(
+							'[syncRemoteTimeline] Skipping foreign item',
+							['actor' => $actor->getId(), 'note' => $noteId]
+						);
+						continue;
+					}
+
 					// Check if we already have it
 					try {
 						$this->streamRequest->getStreamById($noteId);
