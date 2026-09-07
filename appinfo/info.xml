@@ -10,15 +10,16 @@
 	<summary>Nextcloud becomes part of the federated social networks</summary>
 	<description><![CDATA[Nextcloud Social connects your Nextcloud account to the Fediverse through the ActivityPub standard.
 
-Features:
-- 🧭 Timelines: browse the public, local, and home timelines
-- ✍️ Posts: create posts, replies, and mentions
-- ✏️ Edit posts: update local posts and federate them as ActivityPub `Update` activities
-- 👍 🔁 💬 Actions: like, boost, and reply
-- 🌐 Federation: send and receive ActivityPub activities
-- 👥 Following: discover and follow remote accounts
+What it does:
+- 🧭 Timelines: home, local, global (federated), direct messages, liked posts, notifications, hashtags
+- ✍️ Posts: write posts and replies with a visibility setting, mentions, hashtags and image attachments
+- ✏️ Edit and delete your own posts; edits are federated as ActivityPub Update activities
+- 👍 🔁 💬 Like, boost and reply
+- 👥 Follow and unfollow local and remote accounts; incoming follows are accepted automatically
+- 🔎 Find accounts and hashtags via WebFinger and search
+- 🌐 Federation: signed delivery of ActivityPub activities, with a delivery queue processed by cron
 
-This release restores the core social features and improves interoperability with the Fediverse.]]></description>
+This is a partial implementation of ActivityPub and of the Mastodon client API. It does not offer blocking, muting or reporting, approvable follow requests, polls, bookmarks, lists, or video and audio attachments.]]></description>
 	<version>0.10.1</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>

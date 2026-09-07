@@ -2,13 +2,18 @@
 
 All commands are invoked via `php occ <command>` from the Nextcloud root directory.
 
+This page documents the fourteen commands the app registers in `appinfo/info.xml`.
+Every command extends Nextcloud's `OC\Core\Command\Base`, so the generic
+`--output plain|json|json_pretty` option exists on all of them, but only
+`social:timeline` reads it (see below).
+
 ---
 
 ## Account Management
 
 ### `social:account:create`
 
-Create a new social account for a Nextcloud user.
+Create the Social actor for an existing Nextcloud user.
 
 ```
 php occ social:account:create [--handle HANDLE] <userId>
@@ -18,15 +23,18 @@ php occ social:account:create [--handle HANDLE] <userId>
 |----------|----------|-------------|
 | `userId` | Yes | Nextcloud username of the account |
 
-| Option | Description |
-|--------|-------------|
-| `--handle` | Social handle (defaults to the `userId` if omitted) |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--handle` | required | Social handle. If omitted, the `userId` is used as the handle. |
+
+Fails with `Unknown user` if no such Nextcloud user exists. On success the command
+prints nothing.
 
 ---
 
 ### `social:account:delete`
 
-Delete a local social account.
+Delete a local Social account.
 
 ```
 php occ social:account:delete <account>
@@ -34,13 +42,15 @@ php occ social:account:delete <account>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `account` | Yes | Social local account identifier |
+| `account` | Yes | Local Social account (the handle / preferred username) |
+
+Prints nothing on success.
 
 ---
 
 ### `social:account:following`
 
-Follow or unfollow a remote or local account.
+Follow or unfollow an account on behalf of a local user.
 
 ```
 php occ social:account:following [--local] [--unfollow] <userId> <account>
@@ -49,12 +59,16 @@ php occ social:account:following [--local] [--unfollow] <userId> <account>
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `userId` | Yes | Nextcloud user performing the action |
-| `account` | Yes | Target account handle/address to follow |
+| `account` | Yes | Account to follow (e.g. `user@example.org`) |
 
-| Option | Description |
-|--------|-------------|
-| `--local` | Indicates the target account is local |
-| `--unfollow` | Unfollow instead of follow |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--local` | none | Resolve `account` as a **local** account first, and use its canonical account name |
+| `--unfollow` | none | Send an `Undo`/unfollow instead of a follow |
+
+Prints progress lines (`Following account...`, the resolved local actor id and nid,
+then the result). This is the only command that returns exit code `1` on a handled
+failure; the rest let the exception surface.
 
 ---
 
@@ -62,7 +76,7 @@ php occ social:account:following [--local] [--unfollow] <userId> <account>
 
 ### `social:note:create`
 
-Create a new note (post) from a given user.
+Create a note (post) as a given user and federate it.
 
 ```
 php occ social:note:create [-r|--replyTo REPLYTO] [-t|--to TO] [-y|--type TYPE] [-g|--hashtag HASHTAG] <user_id> <content>
@@ -73,18 +87,25 @@ php occ social:note:create [-r|--replyTo REPLYTO] [-t|--to TO] [-y|--type TYPE] 
 | `user_id` | Yes | Nextcloud user ID of the author |
 | `content` | Yes | Content of the post |
 
-| Option | Description |
-|--------|-------------|
-| `-r`, `--replyTo` | In-reply-to an existing thread ID |
-| `-t`, `--to` | Mention specific people |
-| `-y`, `--type` | Visibility type: `public` (default), `followers`, `unlisted`, `direct` |
-| `-g`, `--hashtag` | Hashtag (without the leading `#`) |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-r`, `--replyTo` | optional | Id of the post this one replies to |
+| `-t`, `--to` | optional | A single mentioned account |
+| `-y`, `--type` | optional | Visibility: `unlisted`, `followers` or `direct`. Anything else — including omitting the option — results in a **public** post; the value is not validated (`StreamService::setRecipient()`, `lib/Service/StreamService.php:115`). |
+| `-g`, `--hashtag` | optional | A single hashtag, without the leading `#` |
+
+`--to` and `--hashtag` each accept only one value. In addition,
+`PostService::fixRecipientAndHashtags()` (`lib/Service/PostService.php:86`) scans the
+content for `@mentions` and `#hashtags` and adds those too.
+
+Prints the resulting activity as pretty JSON followed by `token: <request token>`
+(written with `echo`, so `--output json` does not change it).
 
 ---
 
 ### `social:note:boost`
 
-Boost or unboost a note.
+Boost (`Announce`) a note, or undo a boost.
 
 ```
 php occ social:note:boost [--unboost] <user_id> <note_id>
@@ -92,18 +113,20 @@ php occ social:note:boost [--unboost] <user_id> <note_id>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `user_id` | Yes | Nextcloud user ID (who is boosting) |
-| `note_id` | Yes | Note ID to boost |
+| `user_id` | Yes | Nextcloud user ID boosting the note |
+| `note_id` | Yes | Id of the note |
 
-| Option | Description |
-|--------|-------------|
-| `--unboost` | Unboost instead of boost |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--unboost` | none | Undo the boost instead of creating one |
+
+Prints the activity as pretty JSON plus `token: <request token>`.
 
 ---
 
 ### `social:note:like`
 
-Like or unlike a note.
+Like a note, or undo a like.
 
 ```
 php occ social:note:like [--unlike] <user_id> <note_id>
@@ -111,12 +134,14 @@ php occ social:note:like [--unlike] <user_id> <note_id>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `user_id` | Yes | Nextcloud user ID (who is liking) |
-| `note_id` | Yes | Note ID to like |
+| `user_id` | Yes | Nextcloud user ID liking the note |
+| `note_id` | Yes | Id of the note |
 
-| Option | Description |
-|--------|-------------|
-| `--unlike` | Unlike instead of like |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--unlike` | none | Undo the like instead of creating one |
+
+Prints the activity as pretty JSON plus `token: <request token>`.
 
 ---
 
@@ -124,7 +149,7 @@ php occ social:note:like [--unlike] <user_id> <note_id>
 
 ### `social:timeline`
 
-Get a timeline (stream of posts) for a given viewer.
+Print a timeline as seen by a given local viewer.
 
 ```
 php occ social:timeline [--local] [--min_id MIN] [--max_id MAX] [--since SINCE] [--limit N] [--account ACCOUNT] [--crop N] <userId> <timeline>
@@ -132,26 +157,44 @@ php occ social:timeline [--local] [--min_id MIN] [--max_id MAX] [--since SINCE] 
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `userId` | Yes | Nextcloud user whose timeline to view |
-| `timeline` | Yes | Timeline name: `home`, `public`, `direct`, `notifications`, `liked`, `account`; or `#hashtag` |
+| `userId` | Yes | Nextcloud user whose view is used. Fails with `Unknown user` if unknown. |
+| `timeline` | Yes | See the table of supported values below |
 
-| Option | Description |
-|--------|-------------|
-| `--local` | Local-only mode |
-| `--min_id` | Minimum ID for pagination (default: 0) |
-| `--max_id` | Maximum ID for pagination (default: 0) |
-| `--since` | Since Unix timestamp (default: 0) |
-| `--limit` | Number of items to return (default: 5) |
-| `--account` | Filter by specific account |
-| `--crop` | Character limit to crop content (default: 0 = no crop) |
+| Option | Value | Default | Description |
+|--------|-------|---------|-------------|
+| `--local` | none | off | Restrict to local content |
+| `--min_id` | required | `0` | Pagination bound |
+| `--max_id` | required | `0` | Pagination bound |
+| `--since` | required | `0` | Unix timestamp bound |
+| `--limit` | required | `5` | Number of items |
+| `--account` | required | `''` | A **local** account, resolved with `CacheActorService::getFromLocalAccount()`; used as the account filter |
+| `--crop` | required | `0` | Truncate the printed content to N characters (`0` = no cropping) |
 
-Supports JSON output via `--output json`.
+Supported `timeline` values (`StreamRequest::getTimeline()`,
+`lib/Db/StreamRequest.php:410`):
+
+| Value | Meaning |
+|-------|---------|
+| `home` | Own posts plus posts of followed accounts |
+| `public` | Public timeline |
+| `direct` | Direct messages |
+| `account` | Posts of one account (combine with `--account`) |
+| `favourites` | Liked posts |
+| `notifications` | Notifications (rendered in the notification format) |
+| `#<tag>` | A leading `#` selects the hashtag timeline for `<tag>` |
+
+`ProbeOptions` also defines `followers` and `following`, but `getTimeline()` has no
+case for them and silently returns an empty list (`lib/Db/StreamRequest.php:434`).
+Any other value behaves the same way.
+
+Output is a table (`Nid`, `Id`, `Source`, `Type`, `Author`, `Content`).
+`--output json` switches this command to a JSON dump of the streams.
 
 ---
 
 ### `social:details`
 
-Get details about a specific stream item (who can see it, on which timelines).
+Print who can see one stream item and which timelines it lands on.
 
 ```
 php occ social:details [--json] <streamId>
@@ -159,11 +202,18 @@ php occ social:details [--json] <streamId>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `streamId` | Yes | ID of the stream item |
+| `streamId` | Yes | Id of the stream item. Fails with `Unknown item` if it does not exist. |
 
-| Option | Description |
-|--------|-------------|
-| `--json` | Return output in JSON format |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--json` | none | Dump the details object as pretty JSON |
+
+Without `--json` it prints the item id, author and type, then `Affected Timelines`
+with the `Home` viewers, the `Direct` viewers, and the `Public` / `Federated` flags.
+This command uses its own `--json` flag; the inherited `--output` option is ignored.
+
+Note the command name is `social:details`, not `social:stream:details`, even though
+the class is `OCA\Social\Command\StreamDetails`.
 
 ---
 
@@ -171,27 +221,34 @@ php occ social:details [--json] <streamId>
 
 ### `social:queue:process`
 
-Process the request queue and stream queue (handles pending outbound federation and inbound stream processing).
+Process both queues once: the outbound request queue (federation delivery) and the
+stream queue (caching of not-yet-resolved incoming objects).
 
 ```
 php occ social:queue:process
 ```
 
-No arguments or options.
+No arguments or options. Prints how many items are in each queue, how many are
+processable right now, and a `.` per processed item.
 
 ---
 
 ### `social:queue:status`
 
-Get status of a specific request queue item by its token.
+Dump the request-queue rows belonging to one request token.
 
 ```
 php occ social:queue:status [-t|--token TOKEN]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-t`, `--token` | Token of the request (mandatory) |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-t`, `--token` | optional | Token of the request |
+
+The option is declared optional but the command throws
+`As of today, --token is mandatory` when it is missing
+(`lib/Command/QueueStatus.php:70`). There is no way to list the whole queue with
+this command. Each matching row is printed as one line of JSON.
 
 ---
 
@@ -199,15 +256,22 @@ php occ social:queue:status [-t|--token TOKEN]
 
 ### `social:cache:refresh`
 
-Update cached data: local accounts, remote actors, documents, and hashtags.
+Run the cache maintenance steps once, printing a counter per step.
 
 ```
 php occ social:cache:refresh [-f|--force]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-f`, `--force` | Enforce update of cached remote accounts |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-f`, `--force` | none | Refresh cached remote actors even if they are not due |
+
+Steps and their output lines: local accounts deleted, local accounts regenerated,
+remote accounts created, remote accounts updated, remote accounts details updated,
+documents cached, hashtags updated.
+
+Key-pair rotation is **not** part of this command; the `blindKeyRotation()` call is
+commented out (`lib/Command/CacheRefresh.php:51`).
 
 ---
 
@@ -215,28 +279,58 @@ php occ social:cache:refresh [-f|--force]
 
 ### `social:fediverse`
 
-Manage federation access control — allow or deny access to specific Fediverse instances.
+Inspect and change the Fediverse access list.
 
 ```
-php occ social:fediverse [-t|--type TYPE] [action] [address]
+php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| `action` | Action to perform: `add`, `remove`, `list`, `test`, `reset` (empty to list addresses) |
-| `address` | Instance address/host to act upon |
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, or empty |
+| `address` | No | `''` | Address / host the action applies to |
 
-| Option | Description |
-|--------|-------------|
-| `-t`, `--type` | Change the access type (blacklist/whitelist) |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-t`, `--type` | required | Set the access type. Only `all_but` (deny-list, the default) and `none_but` (allow-list) are accepted; anything else throws `invalid type` (`lib/Service/ConfigService.php:61`). |
 
-**Actions:**
-- _(empty)_ — list allowed/blocked addresses
-- `list` — list both known and listed addresses
-- `add <address>` — add an address to the list
-- `remove <address>` — remove an address from the list
-- `test <address>` — test if an address is authorized
-- `reset` — clear the entire list
+Passing `--type` **sets the type and exits** — the `action` argument is not executed
+in the same invocation (`lib/Command/Fediverse.php:53`). Without `--type`, the
+command first prints the current access type and then runs the action:
+
+| Action | Effect |
+|--------|--------|
+| _(empty)_ | Print the access list under `- List:` |
+| `list` | Print `- Known address:` followed by the access list |
+| `add <address>` | Add the address to the list |
+| `remove <address>` | Remove the address from the list |
+| `test <address>` | Print `Authorized` or `Unauthorized` for that address |
+| `reset` | Empty the list |
+
+An unknown action throws `specify action: add, remove, list, reset`.
+
+**What is actually enforced.** There is a single list (`access_list`) whose meaning
+depends on `access_type`: with `all_but` every address that is *not* listed is
+allowed; with `none_but` only listed addresses and the local host are allowed.
+`FediverseService::authorized()` is enforced on incoming activities
+(`lib/Controller/ActivityPubController.php:183` and `:226`) and on every outgoing
+HTTP request (`lib/Service/CurlService.php:259`), so the list does take effect for
+inbox delivery and for fetching remote data.
+
+**Known limitations:**
+
+- `list` always prints an empty `Known address:` section, because
+  `FediverseService::getKnownAddresses()` returns an empty array
+  (`lib/Service/FediverseService.php:121`).
+- The older two-list implementation (`blockAddress()`, `allowAddress()`,
+  `isBlocked()`, `isAllowed()`, and the separate blacklist/whitelist config keys) is
+  commented out (`lib/Service/FediverseService.php:178-255`). Only the single
+  `access_list` above exists; there is no separate block list.
+- Webfinger lookups are not filtered per address; `WebfingerHandler` only calls
+  `jailed()`, which refuses service when the instance is in `none_but` mode with an
+  empty list (`lib/WellKnown/WebfingerHandler.php:63`).
+- Matching is exact string comparison against the host
+  (`FediverseService::isListed()`); there is no wildcard or subdomain handling.
 
 ---
 
@@ -244,52 +338,66 @@ php occ social:fediverse [-t|--type TYPE] [action] [address]
 
 ### `social:check:install`
 
-Check the integrity of the installation and optionally regenerate the index.
+Check the integrity of the installation, or regenerate the stream index.
 
 ```
 php occ social:check:install [--index]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--index` | Regenerate the stream index (requires confirmation) |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--index` | none | Regenerate the stream index instead of running the checks |
 
 Without `--index`:
-- Checks installation status
-- Removes invalid followers and notes
-- Prints current configuration as JSON
 
-With `--index`:
-- Confirmation prompt ("Do you confirm this operation?")
-- Empties `stream_dest` and `stream_tags` tables
-- Regenerates the index for all streams with a progress bar
+- runs `CheckService::checkInstallationStatus()`,
+- prints how many invalid followers and invalid notes were removed,
+- prints the current app configuration as pretty JSON.
+
+With `--index` the checks are skipped entirely. The command warns that the operation
+takes a while, asks `Do you confirm this operation? (y/N)`, and on confirmation
+empties `stream_dest` and `stream_tags` and rebuilds both for every stream, with a
+progress bar. Answering anything but `y` exits without changes.
+
+A `--push` option for testing Nextcloud Push integration is present in the source but
+commented out (`lib/Command/CheckInstall.php:66-70`), so it is not available.
 
 ---
 
 ### `social:reset`
 
-Reset ALL Social app data (destructive). Optionally perform a full uninstall.
+Delete all Social data, or uninstall the app's database footprint.
 
 ```
 php occ social:reset [--uninstall]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--uninstall` | Full removal: drops all social tables, removes migrations, background jobs, and config |
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--uninstall` | none | Full removal instead of a data flush |
 
-Requires **double confirmation** before executing.
+The command always asks **two** confirmations before doing anything:
+
+1. `Do you confirm this operation? (y/N)`
+2. `Operation is destructive. Are you sure about this? (y/N)`
+
+Answering anything but `y` to either question aborts with exit code `0`.
 
 Without `--uninstall`:
-- Empties all social data tables
-- Re-runs installation checks
-- Optionally allows changing the cloud base URL
+
+- empties every Social table (`CoreRequestBuilder::emptyAll()`),
+- re-runs `checkInstallationStatus(true)`,
+- offers to change the cloud base address, pre-filled with the current one; entering
+  the same value leaves it unchanged.
 
 With `--uninstall`:
-- Drops all `social_*` database tables
-- Removes migration entries from the migrations table
-- Removes background jobs (Cron)
-- Removes app configuration
+
+- drops the Social tables,
+- removes the app's rows from the migrations table,
+- removes the app's background jobs,
+- unsets the app configuration.
+
+The app files themselves are not removed, and the app is not disabled.
 
 ---
 
@@ -297,16 +405,17 @@ With `--uninstall`:
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success |
-| 1 | General error / failure |
+| 0 | Success, and also an aborted confirmation prompt or a caught error in `social:reset` |
+| 1 | `social:account:following` handled failure, or an uncaught exception in any command |
 
 ---
 
 ## Background Jobs
 
-In addition to CLI commands, the app registers two background jobs that run automatically via Nextcloud's cron system:
+The app also registers two `TimedJob`s, both with an interval of 12 minutes, run by
+Nextcloud's cron:
 
-| Job | Class | Interval | Description |
-|-----|-------|----------|-------------|
-| Cache maintenance | `OCA\Social\Cron\Cache` | Periodic | Refreshes actor cache, updates hashtag trends, performs key rotation, cleans deleted actors |
-| Queue processing | `OCA\Social\Cron\Queue` | Periodic | Processes outbound ActivityPub delivery queue (sends pending activities to remote inboxes) |
+| Job | Class | Description |
+|-----|-------|-------------|
+| Cache maintenance | `OCA\Social\Cron\Cache` | Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally syncs the timelines of cached remote actors. No key rotation is performed. |
+| Queue processing | `OCA\Social\Cron\Queue` | Processes the outbound request queue **and** the stream queue, like `social:queue:process`. |
