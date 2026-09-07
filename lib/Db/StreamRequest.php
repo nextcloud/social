@@ -421,6 +421,9 @@ class StreamRequest extends StreamRequestBuilder {
 			case ProbeOptions::FAVOURITES:
 				$result = $this->getTimelineFavourites($options);
 				break;
+			case ProbeOptions::BOOKMARKS:
+				$result = $this->getTimelineBookmarks($options);
+				break;
 			case ProbeOptions::HASHTAG:
 				$result = $this->getTimelineHashtag($options);
 				break;
@@ -550,6 +553,31 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
 		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
 		$qb->andWhere($expr->eq('sa.liked', $qb->createNamedParameter(1)));
+
+		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineBookmarks(ProbeOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$actor = $qb->getViewer();
+		$expr = $qb->expr();
+
+		$qb->limitToType(Note::TYPE);
+		$qb->paginate($options);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$qb->selectStreamActions('sa');
+		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
+		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
+		$qb->andWhere($expr->eq('sa.bookmarked', $qb->createNamedParameter(1)));
 
 		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
 

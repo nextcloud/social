@@ -71,16 +71,17 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | GET | `/api/v1/statuses/{nid}/context` | public, no-csrf | — | Ancestors/descendants of the status. |
 | POST | `/api/v1/statuses/{nid}/{act}` | public, no-csrf | `act` (path) | Performs an action on a status — see the action table below. |
 
-`{act}` is validated against `ActionService::$availableStatusAction`. Accepted values are `translate`, `favourite`, `unfavourite`, `reblog`, `unreblog`, `bookmark`, `unbookmark`, `mute`, `unmute`, `pin`, `unpin`; anything else throws `InvalidActionException`. Only five of them do anything:
+`{act}` is validated against `ActionService::$availableStatusAction`. Accepted values are `translate`, `favourite`, `unfavourite`, `reblog`, `unreblog`, `bookmark`, `unbookmark`, `mute`, `unmute`, `pin`, `unpin`; anything else throws `InvalidActionException`:
 
 | `act` value | Effect |
 |-------------|--------|
 | `favourite`, `unfavourite` | Creates/deletes a Like (`LikeService`). |
 | `reblog`, `unreblog` | Creates/deletes an Announce (`BoostService`). The Mastodon-ish names `boost` and `unboost` are **not** accepted. |
+| `bookmark`, `unbookmark` | Toggles the viewer's local bookmark flag (`social_stream_act.bookmarked`). Purely local, never federated; the bookmarked posts are served by `/api/v1/bookmarks`. |
 | `translate` | Returns the status unchanged (translation is a TODO). |
-| `bookmark`, `unbookmark`, `mute`, `unmute`, `pin`, `unpin` | Accepted by the validator but **not implemented** — no branch in the switch, so the request succeeds and returns the unchanged status without doing anything. |
+| `mute`, `unmute`, `pin`, `unpin` | **Not implemented** — refused with `InvalidActionException` rather than silently accepted, so a client never displays a state that was not stored. |
 
-The response is always the status itself in local format (for the no-op actions, the unmodified status).
+The response is the status itself in local format.
 
 ### Timelines and notifications
 
@@ -89,6 +90,7 @@ The response is always the status itself in local format (for the no-op actions,
 | GET | `/api/v1/timelines/{timeline}/` | public, no-csrf | `local` (false), `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | `{timeline}` must be one of `home`, `account`, `public`, `direct`, `favourites` (case-insensitive); anything else raises `UnknownProbeException` → 401 `{"error": "unknown timeline"}`. |
 | GET | `/api/v1/timelines/tag/{hashtag}` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0), `local` (false), `only_media` (false) | Posts carrying `{hashtag}`. |
 | GET | `/api/v1/favourites/` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | The viewer's favourited posts. |
+| GET | `/api/v1/bookmarks` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | The viewer's bookmarked posts. |
 | GET | `/api/v1/notifications` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0), `types` (array), `exclude_types` (array), `accountId` (string) | Notification stream for the viewer. |
 
 All four return a bare JSON array of statuses (no envelope, no `Link` header).
@@ -99,7 +101,7 @@ All four return a bare JSON array of statuses (no envelope, no `Link` header).
 |--------|-------|------|------------|-------------|
 | POST | `/api/v1/media` | public, no-csrf | `file` (multipart, read from `$_FILES['file']`) | Uploads an attachment, caches it and returns the `MediaAttachment`. No mime-type or size restriction is applied. Failure returns HTTP 400 `{"error": "..."}`. |
 | GET | `/api/v1/media/{nid}` | public, no-csrf | `nid` (path), `preview` (default `''`) | **Stub.** The body ignores both parameters and returns an empty array `[]` with HTTP 200. |
-| GET | `/media/{uuid}` | public, no-csrf | `uuid` (path, may carry a `.ext` suffix) | Streams a cached document by UUID. The `Content-Type` is derived naively from the extension as `image/<ext>` (empty when there is no suffix). 404 when unknown. |
+| GET | `/media/{uuid}` | public, no-csrf | `uuid` (path, may carry a `.ext` suffix) | Streams a cached document by UUID. The `Content-Type` is the media type sniffed from the content at ingest; the extension in the URL is ignored. 404 when unknown. |
 
 `MediaApiController::uploadMedia()` also exists and is a stub returning `{"id": 1, "url": "", "preview_url": "", "remote_url": null, "description": ""}`, and its `IMAGE_MIME_TYPES` allowlist is never used. **It has no route** — no entry in `appinfo/routes.php` maps to `MediaApi#…`, so it is unreachable dead code. `POST /api/v1/media` is served by `ApiController::mediaNew()`.
 
@@ -164,7 +166,7 @@ All eight take `since` (int, 0) and `limit` (int, 5) and return `{"result": [sta
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/account/{username}/info` | user, public | — | Local account with complete details, returned **unwrapped** as a `Person`; rebuilds the actor cache if it is missing. |
-| GET | `/api/v1/global/account/info` | user, public | `account` (required, e.g. `user` or `user@domain`) | Local or remote account, returned **unwrapped**. A leading `@` is stripped; local actors are created/cached on demand, remote ones get follower/following/post counts fetched. |
+| GET | `/api/v1/global/account/info` | user, public | `account` (required, e.g. `user` or `user@domain`) | Local or remote account, returned **unwrapped**. A leading `@` is stripped; remote accounts get follower/following/post counts fetched. A local actor is created on demand only when the logged-in viewer asks about their **own** account — the route is public, so creating for anyone would let anonymous visitors force a Fediverse identity onto any Nextcloud user. |
 | GET | `/api/v1/global/actor/info` | user, public | `id` (required, ActivityPub actor id) | `{"result": {"actor": <Person>}, "status": 1}`. |
 | GET | `/api/v1/global/actor/avatar` | user, public, no-csrf | `id` (required) | Streams the cached avatar with a 24 h cache header; 404 (envelope shape) when the actor has no icon. |
 | GET | `/api/v1/global/actor/header` | user, public, no-csrf | `id` (required) | HTTP **redirect** to the actor's header URL, 24 h cache; 404 when unset. |
@@ -249,7 +251,7 @@ The `nodeinfo` service returns a single link with rel `http://nodeinfo.diaspora.
 |--------|-------|------|------------|-------------|
 | GET | `/ostatus/follow/` | user, no-csrf | `uri` (required) | Resolves `uri` as an account, then as an actor id, and renders the Vue app with `account` and `currentUser` in initial state. Requires a logged-in user; failures return the error envelope. |
 | GET | `/api/v1/ostatus/followRemote/{local}` | public, user, no-csrf | — | Renders the Vue app with the **guest** layout, providing `local` and `account` in initial state, so a remote visitor can follow the local account `{local}`. |
-| GET | `/api/v1/ostatus/link/{local}/{account}` | public, user, no-csrf | — | WebFingers `{account}`, extracts its `http://ostatus.org/schema/1.0/subscribe` link template, substitutes `{uri}` with `{local}`'s account, and returns `{"result": {"url": "<subscribe url>"}, "status": 1}`. |
+| GET | `/api/v1/ostatus/link/{local}/{account}` | public, user, no-csrf, rate-limited (10/5min per IP) | — | WebFingers `{account}`, extracts its `http://ostatus.org/schema/1.0/subscribe` link template, substitutes `{uri}` with `{local}`'s account, and returns `{"result": {"url": "<subscribe url>"}, "status": 1}`. |
 
 ---
 
@@ -272,7 +274,7 @@ These serve HTML or files for the app's own UI; they are not client API endpoint
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| POST | `/async/request/{token}` | public, no-csrf | `token` (path) | Internal endpoint the app calls against itself to deliver queued federation requests for `{token}`. It closes the connection (`async()`) and then processes each standby request with the async timeout. It writes **no response body** — the method ends in `exit()`. |
+| POST | `/async/request/{token}` | public, no-csrf | `token` (path) | Internal endpoint the app calls against itself to deliver queued federation requests for `{token}`. With nothing queued it returns an empty HTTP 200. Otherwise it closes the connection (`async()`) and processes standby requests for at most `QueueController::MAX_DURATION` (90 s) — whatever is left stays standby for the cron — then ends in `exit()`, since the connection is already gone. |
 
 ---
 
@@ -289,10 +291,10 @@ There is no single error format; three shapes exist.
 on success (`success()`; `more` keys are merged in at the top level), and
 
 ```json
-{"status": -1, "exception": "OCA\\Social\\Exceptions\\AccountDoesNotExistException", "message": "User not logged in"}
+{"status": -1, "error": "request failed"}
 ```
 
-on failure (`fail()`). The HTTP status is whatever the caller passed — the default is **500**, callers also use 404, and `Config#remote` deliberately returns the failure envelope with HTTP 200. Failures are logged as warnings unless the caller disables it. Two related helpers bypass the envelope: `directSuccess()` returns the object as-is with HTTP 200, and `activityPubSuccess()` does the same while setting `Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"`.
+on failure (`fail()`) — the exception class and message go to the log, never into the response, since several callers are public pages. The HTTP status is whatever the caller passed — the default is **500**, callers also use 404, and `Config#remote` deliberately returns the failure envelope with HTTP 200. Failures are logged as warnings unless the caller disables it. Two related helpers bypass the envelope: `directSuccess()` returns the object as-is with HTTP 200, and `activityPubSuccess()` does the same while setting `Content-Type: application/ld+json; profile="https://www.w3.org/ns/activitystreams"`.
 
 **2. `ApiController` errors** — a bare object, never the envelope:
 

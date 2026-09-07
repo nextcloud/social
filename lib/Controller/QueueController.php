@@ -17,6 +17,9 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Tools\Traits\TAsync;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 /**
@@ -44,25 +47,43 @@ class QueueController extends Controller {
 
 
 	/**
+	 * The whole worker's time budget. Whatever is left over stays STANDBY and is
+	 * delivered by the cron, so a post with many recipient inboxes (or a slow
+	 * remote) cannot pin a PHP worker indefinitely.
+	 */
+	public const MAX_DURATION = 90;
+
+	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
 	 */
-	public function asyncForRequest(string $token) {
+	public function asyncForRequest(string $token): Response {
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 
-		if (!empty($requests)) {
-			$this->async();
+		if (empty($requests)) {
+			return new DataResponse([], Http::STATUS_OK);
+		}
 
-			$this->activityService->manageInit();
-			foreach ($requests as $request) {
-				$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
-				try {
-					$this->activityService->manageRequest($request);
-				} catch (SocialAppConfigException $e) {
-				}
+		// From here the request is detached: async() has flushed an empty body and
+		// closed the connection, and this worker only delivers queued activities.
+		$this->async();
+
+		$deadline = time() + self::MAX_DURATION;
+		$this->activityService->manageInit();
+		foreach ($requests as $request) {
+			if (time() >= $deadline) {
+				break;
+			}
+			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
+			try {
+				$this->activityService->manageRequest($request);
+			} catch (SocialAppConfigException $e) {
 			}
 		}
-		// or it will feed the logs.
+
+		// exit(), not a Response: the connection is gone and headers are sent, so
+		// letting the framework render a response would only feed warnings into the
+		// log. Registered shutdown handlers still run.
 		exit();
 	}
 }

@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\LikeService;
@@ -26,6 +27,7 @@ class ActionServiceTest extends TestCase {
 	private StreamService|MockObject $streamService;
 	private BoostService|MockObject $boostService;
 	private LikeService|MockObject $likeService;
+	private StreamActionService|MockObject $streamActionService;
 	private ActionService $service;
 	private Person $actor;
 	private Note $post;
@@ -34,11 +36,12 @@ class ActionServiceTest extends TestCase {
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->boostService = $this->createMock(BoostService::class);
 		$this->likeService = $this->createMock(LikeService::class);
+		$this->streamActionService = $this->createMock(StreamActionService::class);
 		$this->service = new ActionService(
 			$this->streamService,
 			$this->boostService,
 			$this->likeService,
-			$this->createMock(StreamActionService::class),
+			$this->streamActionService,
 		);
 
 		$this->actor = new Person();
@@ -102,11 +105,29 @@ class ActionServiceTest extends TestCase {
 		$this->assertSame($this->post, $this->service->action($this->actor, 42, 'translate'));
 	}
 
-	/** @return array<string, array{string}> */
-	public function noopActionProvider(): array {
+	/** @return array<string, array{string, bool}> */
+	public function bookmarkActionProvider(): array {
 		return [
-			'bookmark' => ['bookmark'],
-			'unbookmark' => ['unbookmark'],
+			'bookmark' => ['bookmark', true],
+			'unbookmark' => ['unbookmark', false],
+		];
+	}
+
+	/** @dataProvider bookmarkActionProvider */
+	public function testBookmarkTogglesTheLocalFlagAndFederatesNothing(string $action, bool $expected): void {
+		$this->streamService->expects($this->once())->method('getStreamByNid')->willReturn($this->post);
+		$this->likeService->expects($this->never())->method($this->anything());
+		$this->boostService->expects($this->never())->method($this->anything());
+		$this->streamActionService->expects($this->once())
+			->method('setActionBool')
+			->with($this->actor->getId(), $this->post->getId(), StreamAction::BOOKMARKED, $expected);
+
+		$this->assertNull($this->service->action($this->actor, 42, $action));
+	}
+
+	/** @return array<string, array{string}> */
+	public function unsupportedActionProvider(): array {
+		return [
 			'mute' => ['mute'],
 			'unmute' => ['unmute'],
 			'pin' => ['pin'],
@@ -114,12 +135,13 @@ class ActionServiceTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider noopActionProvider */
-	public function testKnownButUnimplementedActionsAreAcceptedSilently(string $action): void {
-		$this->streamService->expects($this->once())->method('getStreamByNid')->willReturn($this->post);
-		$this->likeService->expects($this->never())->method($this->anything());
-		$this->boostService->expects($this->never())->method($this->anything());
+	/** @dataProvider unsupportedActionProvider */
+	public function testUnimplementedActionsAreRefusedInsteadOfSilentlyIgnored(string $action): void {
+		// a silent no-op made the client display a state that was never stored
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$this->streamActionService->expects($this->never())->method($this->anything());
 
-		$this->assertNull($this->service->action($this->actor, 42, $action));
+		$this->expectException(InvalidActionException::class);
+		$this->service->action($this->actor, 42, $action);
 	}
 }

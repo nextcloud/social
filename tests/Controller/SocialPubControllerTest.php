@@ -154,6 +154,7 @@ class SocialPubControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
 		$this->assertSame(-1, $response->getData()['status']);
-		$this->assertSame(\RuntimeException::class, $response->getData()['exception']);
+		$this->assertSame('request failed', $response->getData()['error']);
+		$this->assertArrayNotHasKey('exception', $response->getData(), 'internals must not leak');
 	}
 }

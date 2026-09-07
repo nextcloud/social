@@ -39,16 +39,17 @@ class TNCDataResponseTest extends TestCase {
 		$logger = $this->createMock(LoggerInterface::class);
 		$logger->expects($this->once())->method('warning')
 			->with($this->callback(fn (string $message): bool => str_starts_with($message, '500 - ')
-				&& str_contains($message, '"exception":"RuntimeException"')
-				&& str_contains($message, '"message":"boom"')));
+				&& str_contains($message, 'RuntimeException')
+				&& str_contains($message, 'boom')));
 		\OC::$server->register(LoggerInterface::class, $logger);
 
 		$response = $this->controller->fail(new \RuntimeException('boom'), ['context' => 'x']);
 
 		$this->assertInstanceOf(DataResponse::class, $response);
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		// the details go to the log only; the response stays generic
 		$this->assertSame(
-			['context' => 'x', 'status' => -1, 'exception' => \RuntimeException::class, 'message' => 'boom'],
+			['context' => 'x', 'status' => -1, 'error' => 'request failed'],
 			$response->getData()
 		);
 	}
@@ -61,7 +62,7 @@ class TNCDataResponseTest extends TestCase {
 		$response = $this->controller->fail(new \InvalidArgumentException('bad'), [], Http::STATUS_BAD_REQUEST, false);
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(\InvalidArgumentException::class, $response->getData()['exception']);
+		$this->assertArrayNotHasKey('exception', $response->getData());
 	}
 
 	public function testSuccessWrapsTheResult(): void {

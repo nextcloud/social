@@ -88,7 +88,9 @@ class OStatusControllerTest extends TestCase {
 	private function assertFailure(DataResponse $response, string $exceptionClass): void {
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
 		$this->assertSame(-1, $response->getData()['status']);
-		$this->assertSame($exceptionClass, $response->getData()['exception']);
+		// internals ($exceptionClass) must never reach the response
+		$this->assertSame('request failed', $response->getData()['error']);
+		$this->assertArrayNotHasKey('exception', $response->getData());
 	}
 
 	public function testSubscribeRendersTheAppWithTargetAccountAndCurrentUser(): void {
@@ -125,7 +127,6 @@ class OStatusControllerTest extends TestCase {
 		$response = $this->controller->subscribe('bob@remote.example');
 
 		$this->assertFailure($response, \Exception::class);
-		$this->assertSame('Failed to retrieve current user', $response->getData()['message']);
 	}
 
 	public function testSubscribeFailsForUnknownActor(): void {

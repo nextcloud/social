@@ -885,10 +885,13 @@ class LocalController extends Controller {
 				}
 			}
 
-			if ($isLocal) {
+			if ($isLocal && $this->userId === $username) {
 				$this->logger->debug('[LocalController] Local account detected', ['username' => $username]);
 				try {
-					// Try to get or create the local actor and refresh its cached avatar/header.
+					// Only the user themself triggers actor creation. This route is
+					// public: creating on any request would let anonymous visitors
+					// force a Fediverse identity (RSA key pair and all) onto every
+					// Nextcloud user, and confirm which usernames exist.
 					$this->accountService->getActorFromUserId($username, true);
 					$this->accountService->cacheLocalActorByUsername($username);
 					$this->logger->info('[LocalController] Local actor ensured', ['username' => $username]);

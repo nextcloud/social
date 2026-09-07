@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.10.3  
+**App version:** 0.11.1  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -84,13 +84,13 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_instance` | Known federated instances (version, metadata) |
 | `social_req_queue` | Outbound ActivityPub delivery queue |
 | `social_stream` | Core content table: posts, notes, activities |
-| `social_stream_act` | Per-viewer stream flags (`liked`, `boosted`, `replied`, `values`) |
+| `social_stream_act` | Per-viewer stream flags (`liked`, `boosted`, `replied`, `bookmarked`, `values`) |
 | `social_stream_dest` | Stream visibility targets (who sees what) |
 | `social_stream_queue` | Inbound stream processing queue |
 | `social_stream_tag` | Stream-to-hashtag mapping |
 | `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, and `Version1000Date20260907000002` adds `social_actor_relation`.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, and `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`.
 
 Note that `CoreRequestBuilder::TABLE_NOTIFICATION` (`social_notif`) is declared but no migration creates that table and no repository queries it; it is a leftover constant. In-app notifications are stored in `social_stream` as `SocialAppNotification` items.
 
@@ -114,7 +114,7 @@ The business logic lives in `lib/Service/`.
 - **FollowService** — Follow/unfollow flows, follower/following collections, and relationship lookups
 - **LikeService** — Creates and undoes Like activities
 - **BoostService** — Creates and undoes Announce (boost/reblog) activities
-- **ActionService** — Dispatcher for the Mastodon-style status actions. It validates the action against a list that includes `translate`, `favourite`, `unfavourite`, `reblog`, `unreblog`, `bookmark`, `unbookmark`, `mute`, `unmute`, `pin` and `unpin`, but the switch statement only implements favourite/unfavourite and reblog/unreblog. Bookmark, mute and pin are accepted and then silently do nothing, and `translate` returns the status unchanged
+- **ActionService** — Dispatcher for the Mastodon-style status actions. favourite/unfavourite create and delete a Like, reblog/unreblog an Announce, and bookmark/unbookmark toggle the viewer's local `bookmarked` flag (never federated, served by `/api/v1/bookmarks`). `translate` returns the status unchanged, and the unimplemented `mute`, `unmute`, `pin` and `unpin` are refused with `InvalidActionException` instead of silently doing nothing
 - **HashtagService** — Recomputes hashtag trends over 1h/12h/1d/3d/10d windows and searches hashtags
 - **StreamActionService** — Writes the per-viewer flags in `social_stream_act`
 - **SearchService** — Backing searches for accounts, hashtags and URIs; `searchStreamContent()` exists but no caller uses it
