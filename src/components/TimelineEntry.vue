@@ -18,9 +18,9 @@
 				{{ actionSummary }}
 			</span>
 			<span class="notification__details">
-				<router-link v-if="!notificationIsAboutAnAccount"
+				<router-link v-if="!notificationIsAboutAnAccount && notification.status"
 					:to="{ name: 'single-post', params: {
-						account: item.account.display_name,
+						account: item.account.acct,
 						id: notification.status.id,
 						type: 'single-post',
 					} }"

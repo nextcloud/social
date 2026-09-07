@@ -119,6 +119,29 @@ describe('timeline store mutations', () => {
 		expect(state.parentsTimeline).toEqual(['1'])
 	})
 
+	it('removeStatus leaves a non-empty parentsTimeline intact when the status is only in the timeline', () => {
+		mutations.addToTimeline(state, {
+			ancestors: [makeStatus('1'), makeStatus('2')],
+			descendants: [makeStatus('3')],
+		})
+
+		mutations.removeStatus(state, { id: '3' })
+
+		expect(state.timeline).toEqual([])
+		expect(state.parentsTimeline).toEqual(['1', '2'])
+	})
+
+	it('removeStatus drops the status from both lists when it is in both', () => {
+		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
+		// the same status also sits in the timeline
+		state.timeline.push('1')
+
+		mutations.removeStatus(state, { id: '1' })
+
+		expect(state.timeline).toEqual(['2'])
+		expect(state.parentsTimeline).toEqual([])
+	})
+
 	it('resetTimeline empties both id lists but keeps the index and the type', () => {
 		state.type = 'tags'
 		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
@@ -420,14 +443,16 @@ describe('timeline store actions', () => {
 			expect(showError).not.toHaveBeenCalled()
 		})
 
-		it('re-indexes the status and shows an error when the deletion fails', async () => {
+		it('re-indexes the status, restores it to the timeline and shows an error when the deletion fails', async () => {
 			const status = makeStatus('1')
-			store.commit('addToTimeline', [status])
+			store.commit('addToTimeline', [status, makeStatus('2')])
 			axios.delete.mockRejectedValue(new Error('boom'))
 
 			await store.dispatch('postDelete', status)
 
 			expect(tl().statuses['1']).toEqual(status)
+			expect(tl().timeline).toContain('1')
+			expect(tl().timeline).toEqual(['2', '1'])
 			expect(showError).toHaveBeenCalledWith('Failed to delete the status')
 		})
 	})

@@ -128,8 +128,8 @@ export default {
 		},
 		setCloudAddress() {
 			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
-				this.$store.commit('setServerDataEntry', 'setup', false)
-				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
+				this.$store.commit('setServerDataEntry', { key: 'setup', value: false })
+				this.$store.commit('setServerDataEntry', { key: 'cloudAddress', value: this.cloudAddress })
 			})
 		},
 		search(term) {

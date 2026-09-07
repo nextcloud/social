@@ -161,6 +161,11 @@ export default {
 			immediate: true,
 		},
 	},
+	// The immediate watcher above runs before the banner element exists and bails,
+	// so paint any existing header once the ref is available on first render.
+	mounted() {
+		this.applyBanner(this.bannerStyle)
+	},
 	methods: {
 		followRemote() {
 			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')

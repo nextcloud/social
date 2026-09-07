@@ -132,6 +132,18 @@ describe('ProfileFollowers', () => {
 		expect(dispatch).toHaveBeenLastCalledWith('fetchAccountFollowers', { account: 'carol@cloud.example.org' })
 	})
 
+	it('forwards the pagination cursor as maxId when loading more', async () => {
+		const wrapper = mountView({ name: 'profile.followers', params: { account: 'bob@remote.example' } })
+		await flushPromises()
+		// the first page set the cursor from the last loaded follower
+		expect(wrapper.vm.maxId).toBe(erin.id)
+		dispatch.mockClear()
+
+		wrapper.vm.loadMoreIfNeeded()
+
+		expect(dispatch).toHaveBeenCalledWith('fetchAccountFollowers', { account: 'bob@remote.example', maxId: erin.id })
+	})
+
 	it('watches the end of the list for infinite scrolling and stops on unmount', () => {
 		const observe = vi.fn()
 		const disconnect = vi.fn()

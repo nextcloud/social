@@ -200,4 +200,39 @@ describe('Profile', () => {
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
 		})
 	})
+
+	describe('when the account cannot be loaded', () => {
+		const NcEmptyContentStub = { name: 'NcEmptyContent', props: ['name', 'description'], template: '<div class="empty-content-stub" :data-name="name" />' }
+
+		// accountLoaded and getAccount read the same store map, so the empty state is
+		// only reachable with accountLoaded forced true while the account stays absent.
+		it('renders NcEmptyContent with the not-found message as its name prop', async () => {
+			Object.assign(account.state, structuredClone(pristine))
+			const emptyStore = createStore({
+				modules: {
+					timeline,
+					settings,
+					errors,
+					account: {
+						...account,
+						actions: { ...account.actions, fetchAccountInfo: fetchAccount, fetchPublicAccountInfo: fetchAccount, fetchAccountRelationshipInfo: vi.fn(async () => []) },
+						getters: { ...account.getters, accountLoaded: () => () => true },
+					},
+				},
+			})
+			emptyStore.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
+			const wrapper = mount(Profile, {
+				global: {
+					plugins: [emptyStore],
+					mocks: { $route: { name: 'profile', params: { account: 'nobody@remote.example' } } },
+					stubs: { ProfileInfo: ProfileInfoStub, Composer: ComposerStub, RouterView: RouterViewStub, NcEmptyContent: NcEmptyContentStub },
+				},
+			})
+			await flushPromises()
+			const empty = wrapper.findComponent(NcEmptyContentStub)
+			expect(empty.exists()).toBe(true)
+			expect(empty.props('name')).toBe('User not found')
+			expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(false)
+		})
+	})
 })

@@ -122,9 +122,9 @@ export default {
 		loadMoreIfNeeded() {
 			if (this.loading || this.allLoaded || !this.maxId) return
 			if (this.isFollowers) {
-				this.$store.dispatch('fetchAccountFollowers', { account: this.profileAccount, max_id: this.maxId })
+				this.$store.dispatch('fetchAccountFollowers', { account: this.profileAccount, maxId: this.maxId })
 			} else {
-				this.$store.dispatch('fetchAccountFollowing', { account: this.profileAccount, max_id: this.maxId })
+				this.$store.dispatch('fetchAccountFollowing', { account: this.profileAccount, maxId: this.maxId })
 			}
 		},
 		isSentinelVisible() {

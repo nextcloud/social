@@ -14,6 +14,14 @@ describe('EmptyContent', () => {
 		expect(wrapper.find('.empty-content__description').text()).toBe('Follow somebody to fill your timeline')
 	})
 
+	it('passes the title through as the name heading of NcEmptyContent', () => {
+		const wrapper = mountEmpty({ title: 'No posts', description: 'x', image: 'img/undraw/posts.svg' })
+		// NcEmptyContent 9 renamed the prop to `name`; the text must reach the heading,
+		// not leak onto the root as a `title=` attribute.
+		expect(wrapper.find('.empty-content__name').text()).toBe('No posts')
+		expect(wrapper.find('.empty-content').attributes('title')).toBeUndefined()
+	})
+
 	it('resolves the illustration relative to the app root', () => {
 		const img = mountEmpty({ description: 'x', image: 'img/undraw/posts.svg' }).find('img.empty-content__image')
 		expect(img.attributes('src')).toBe('/apps/social/img/undraw/posts.svg')

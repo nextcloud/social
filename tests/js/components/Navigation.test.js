@@ -140,7 +140,6 @@ describe('Navigation', () => {
 
 	describe('errors', () => {
 		beforeEach(() => {
-			vi.spyOn(Date, 'now').mockReturnValueOnce(1).mockReturnValueOnce(2)
 			store.commit('addError', { title: 'Account lookup failed', message: 'Could not load bob' })
 			store.commit('addError', { title: 'Post failed', message: 'Server unreachable' })
 		})
@@ -160,8 +159,9 @@ describe('Navigation', () => {
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Account lookup failed', 'Post failed'])
 			expect(modal.findAll('.modal-errors__message').map((message) => message.text())).toEqual(['Could not load bob', 'Server unreachable'])
 
+			const [firstError] = store.getters.appErrors
 			await modal.find('.modal-errors__item button').trigger('click')
-			expect(dispatch).toHaveBeenCalledWith('dismissAppError', 1)
+			expect(dispatch).toHaveBeenCalledWith('dismissAppError', firstError.id)
 			await nextTick()
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Post failed'])
 			expect(item(wrapper, 'Errors').attributes('data-counter')).toBe('1')
@@ -184,7 +184,7 @@ describe('Navigation', () => {
 		})
 
 		it('hides "Dismiss all" when only one error is left', async () => {
-			store.commit('dismissError', 2)
+			store.commit('dismissError', store.getters.appErrors[1].id)
 			const wrapper = mountNavigation()
 			await item(wrapper, 'Errors').trigger('click')
 			expect(wrapper.findAll('.modal-stub button').map((button) => button.text())).toEqual(['Dismiss'])

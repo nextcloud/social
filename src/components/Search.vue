@@ -33,6 +33,7 @@ import UserEntry from './UserEntry.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
+import { showError } from '@nextcloud/dialogs'
 
 export default {
 	name: 'Search',
@@ -81,7 +82,6 @@ export default {
 			this.loading = true
 			this.searchQuery(val).then((response) => {
 				this.results = response.data.result
-				this.loading = false
 
 				if (this.results.accounts.exact !== null) {
 					this.$store.commit('addAccount', { actorId: this.results.accounts.exact.id, data: this.results.accounts.exact })
@@ -90,6 +90,11 @@ export default {
 					this.$store.commit('addAccount', { actorId: account.id, data: account })
 				})
 				this.hashtags = this.results.hashtags.result
+			}).catch((error) => {
+				showError(translate('social', 'Failed to perform the search'))
+				console.error('Social search failed', error)
+			}).finally(() => {
+				this.loading = false
 			})
 		},
 		accountSearch(term) {
