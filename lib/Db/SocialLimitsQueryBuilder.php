@@ -473,7 +473,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		// announced object's row
 		$this->leftJoin(
 			$pf, CoreRequestBuilder::TABLE_STREAM, 'hd_o',
-			(string)$expr->andX(
+			$expr->andX(
 				$expr->eq('hd_o.id_prim', $pf . '.object_id_prim'),
 				$expr->eq($pf . '.type', $this->createNamedParameter(Announce::TYPE))
 			)
@@ -506,7 +506,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		$this->leftJoin(
 			$pf, CoreRequestBuilder::TABLE_ACTOR_RELATION, 'hd_r',
-			(string)$expr->andX(
+			$expr->andX(
 				$expr->eq('hd_r.actor_id_prim', $this->createNamedParameter($viewerPrim)),
 				$onTypes,
 				$expr->orX(
