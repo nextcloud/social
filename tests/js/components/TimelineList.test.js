@@ -147,10 +147,12 @@ describe('TimelineList', () => {
 			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { max_id: 20 })
 		})
 
-		it('requests the statuses newer than the first one shown in reverse order', async () => {
+		it('requests the statuses newer than the newest one shown in reverse order', async () => {
+			// The newest loaded id, regardless of the created_at display order —
+			// paging on any other entry refetches a page the store already has.
 			const { dispatch } = mountList({ timeline: [status('30'), status('20')], props: { reverseOrder: true } })
 			await flushPromises()
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 20 })
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
 		})
 
 		it('shows a spinner while a page is loading and the end marker afterwards', async () => {
@@ -238,7 +240,22 @@ describe('TimelineList', () => {
 			await flushPromises()
 
 			expect(dispatch).toHaveBeenCalledTimes(1)
-			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: '30' })
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+		})
+
+		it('polls with the highest id even when a newer-dated status has a lower one', async () => {
+			// A federated post can carry a high id with an old created_at. The
+			// display order sorts on created_at, so timeline[0] is not the
+			// newest id — polling on it would return the same page forever.
+			const highIdOldDate = { ...status('50'), created_at: '2026-01-01T10:00:00Z' }
+			const { dispatch } = mountList({ timeline: [status('30'), highIdOldDate] })
+			await flushPromises()
+			dispatch.mockClear()
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 50 })
 		})
 
 		it('does not poll for ancestors', async () => {

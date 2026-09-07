@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.10.1  
+**App version:** 0.10.3  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -200,7 +200,7 @@ The app never emits Reject, Add, Remove, Move or Block. It can parse all of them
 | `Undo` (Follow, Like, Announce) | The wrapped relation or action is deleted |
 | `Like` | Stored as an action, notification generated |
 | `Announce` | Stored as a boost, notification generated |
-| `Move` | Actions, follows, streams and cached documents are repointed to the target actor |
+| `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
 **Incoming activities that are accepted but do nothing:** `Add`, `Remove` and `Block` are dispatched to a handler that forwards to the wrapped object's `activity()` method, and no object handler recognises those activity types. `BlockInterface` in particular means Block is a no-op — the app has no blocking implementation.
 
@@ -298,7 +298,7 @@ Fourteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` holds
 - **HTTP Signatures on outbound requests** — every queued delivery is signed with the sending actor's RSA private key over `(request-target)`, `content-length`, `date`, `host` and `digest`
 - **HTTP Signature verification on inbound requests** — `SignatureService::checkRequest()` requires `(request-target)`, `host`, `date` and `digest` to all be within the signed header set, so the signature binds the body and cannot be replayed against another host; it rejects a stale `date`, a `content-length` that disagrees with the body, and a `digest` that does not match. A signature that does not verify, or whose key cannot be retrieved, is refused by `checkRequest()` itself (it throws), rather than returning an empty origin for a later check to catch
 - **Linked Data Signatures** — outgoing Create, Update, Delete, Like, Announce and Undo carry an RsaSignature2017 signature; incoming ones are verified by `SignatureService::checkObject()`, which also retries against a refreshed public key. Follow and Accept are not LD-signed
-- **Instance access control** — `FediverseService::authorized()` is checked on both inbox routes and on every outgoing `CurlService` request. It reads one app config value, `access_type`, which is either `all_but` (the default: everything is allowed unless the host is in the list) or `none_but` (only listed hosts, plus the local host, are allowed), together with a single host list in `access_list`. `occ social:fediverse` manages both
+- **Instance access control** — `FediverseService::authorized()` is checked on both inbox routes and on every outgoing `CurlService` request. It reads one app config value, `access_type`, which is either `all_but` (the default: everything is allowed unless the host is in the list) or `none_but` (only listed hosts, plus the local host, are allowed), together with a single host list in `access_list`; hosts are compared case-insensitively. `occ social:fediverse` manages both
 - **Outbound requests cannot be steered at the local network.** Every request `CurlService` makes is restricted to `http`/`https` on the initial request and on redirects, and — unless the instance has set `allow_local_remote_servers` — a host that is or resolves to a private, loopback, link-local, multicast or otherwise reserved address is refused (`lib/Tools/RemoteAddress.php`). The banner-by-URL endpoint applies the same rules and a size ceiling before fetching
 - **JSON-LD contexts are served only from the copies shipped in `context/`.** Signature normalisation never resolves a document's `@context` over the network, so a remote activity cannot make the server open an arbitrary URL and cannot substitute the bytes a signature is computed over; an unrecognised context makes the LD signature unverifiable rather than triggering a fetch
 - **HTML sanitisation** — remote HTML reaches local timelines, so `ACore` runs `lib/Tools/HtmlSanitizer.php` over every `AS_CONTENT` field it imports, and strips tags from string, username and account fields. The frontend sanitises again with DOMPurify in `src/utils/sanitizeHtml.js`
@@ -306,7 +306,7 @@ Fourteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` holds
 
 **Known gaps — these are real and deliberate to record**
 
-- **Actor private keys are stored unencrypted.** `social_actor.private_key` holds the PEM as written by `openssl_pkey_export()`. `ICrypto` is not used anywhere in the app, so anyone with database read access can impersonate any local actor across the Fediverse
+- **Actor private keys are encrypted at rest.** `social_actor.private_key` holds the PEM encrypted with the instance secret (`ICrypto`, via `PrivateKeyCipher`), so a database dump alone is not enough to impersonate a local actor — it also takes the `secret` from `config.php`. Rows written before encryption existed (recognisable by their `-----BEGIN` prefix) are still readable and are rewritten once by the `EncryptPrivateKeys` repair step on upgrade
 - **The federation endpoints are unauthenticated.** `ActivityPubController::actor()`, `actorAlias()`, `outbox()`, `followers()`, `following()` and `displayPost()` are all annotated `@PublicPage` with `@NoCSRFRequired`, and there is no signed-fetch (authorized-fetch) requirement. Any anonymous caller can read a local actor's profile, outbox, follower and following collections and individual posts
 - **There is no blocking.** `BlockInterface` accepts an incoming Block and forwards it to a handler that ignores it, and the app never sends one. Per-actor blocks and mutes do not exist; the `mute`/`unmute` status actions are accepted by the API and discarded
 - **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**, along with `PushService`. What remains is the single-list `access_type`/`access_list` mechanism described above

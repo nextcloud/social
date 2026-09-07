@@ -53,7 +53,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $activityId = '';
 	private string $content = '';
 	private string $visibility = '';
-	private string $spoilerText = '';
 	private string $language = 'en';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
@@ -135,10 +134,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 
 	/**
+	 * The content warning. On ActivityPub this is the object's `summary`
+	 * (which is also the database column), so the two accessors share one field —
+	 * a remote CW survives the AP import and a local one survives the save.
+	 *
 	 * @return string
 	 */
 	public function getSpoilerText(): string {
-		return $this->spoilerText;
+		return $this->getSummary();
 	}
 
 	/**
@@ -147,7 +150,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @return Stream
 	 */
 	public function setSpoilerText(string $text): self {
-		$this->spoilerText = $text;
+		$this->setSummary($text);
 
 		return $this;
 	}
@@ -662,7 +665,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'url' => $this->getId(),
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
-			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'noindex' => false
 		];
 
@@ -702,7 +705,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$result = [
 			'id' => (string)$this->getNid(),
 			'type' => $type,
-			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'status' => $this->getObject(),
 		];
 

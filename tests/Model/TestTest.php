@@ -28,6 +28,14 @@ class TestTest extends TestCase {
 		$this->assertSame(Test::SEVERITY_OPTIONAL, (new Test('x'))->getSeverity());
 	}
 
+	public function testDataStoreIsInitialized(): void {
+		// Without parent::__construct() the store was null and any read fataled.
+		$test = new Test('x');
+
+		$this->assertSame('', $test->g('missing'));
+		$this->assertSame([], $test->gAll());
+	}
+
 	public function testMessagesAccumulate(): void {
 		$test = new Test('x');
 

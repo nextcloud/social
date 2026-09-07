@@ -175,7 +175,7 @@ class MediaAttachment implements JsonSerializable {
 	 * @return array
 	 */
 	public function asDocument(): array {
-		$original = $this->getMeta()->getOriginal();
+		$original = $this->getMeta()?->getOriginal();
 
 		return
 			[

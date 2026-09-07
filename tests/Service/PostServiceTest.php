@@ -22,10 +22,8 @@ use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
-use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -72,13 +70,9 @@ class PostServiceTest extends TestCase {
 		);
 
 		$this->service = new PostService(
-			$this->streamRequest,
 			$streamService,
 			$this->accountService,
 			$this->activityService,
-			$this->createMock(CacheDocumentService::class),
-			$configService,
-			$this->createMock(MiscService::class),
 			new NullLogger()
 		);
 	}

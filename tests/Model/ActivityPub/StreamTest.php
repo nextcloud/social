@@ -89,6 +89,41 @@ class StreamTest extends TestCase {
 		$this->assertSame(1, $stream->getDetailInt('replies'));
 	}
 
+	public function testARemoteSummaryBecomesTheContentWarning(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/112000000000000001',
+			'type' => 'Note',
+			'summary' => 'CW: cats',
+			'content' => '<p>cat</p>',
+		]);
+
+		$this->assertSame('CW: cats', $stream->getSpoilerText());
+		$this->assertSame('CW: cats', $stream->exportAsLocal()['spoiler_text']);
+	}
+
+	public function testTheContentWarningIsStoredAsTheSummary(): void {
+		$stream = new Stream();
+
+		$stream->setSpoilerText('CW: dogs');
+
+		$this->assertSame('CW: dogs', $stream->getSummary(), 'summary is the database column');
+	}
+
+	public function testCreatedAtIsUtcRegardlessOfTheServerTimezone(): void {
+		$previous = date_default_timezone_get();
+		date_default_timezone_set('America/New_York');
+
+		try {
+			$stream = new Stream();
+			$stream->setPublishedTime(1714564800);
+
+			$this->assertSame('2024-05-01T12:00:00.000Z', $stream->exportAsLocal()['created_at']);
+		} finally {
+			date_default_timezone_set($previous);
+		}
+	}
+
 	public function testImportLeavesCountsAloneWhenTheCollectionsCarryNoTotals(): void {
 		$stream = new Stream();
 

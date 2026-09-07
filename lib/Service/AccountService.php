@@ -52,6 +52,19 @@ class AccountService {
 
 	private ?string $userId = null;
 
+	private IUserManager $userManager;
+	private IUserSession $userSession;
+	private IAccountManager $accountManager;
+	private ActorsRequest $actorsRequest;
+	private FollowsRequest $followsRequest;
+	private StreamRequest $streamRequest;
+	private ActorService $actorService;
+	private ActivityService $activityService;
+	private DocumentService $documentService;
+	private SignatureService $signatureService;
+	private ConfigService $configService;
+	private LoggerInterface $logger;
+
 	public function __construct(
 		IUserManager $userManager,
 		IUserSession $userSession,

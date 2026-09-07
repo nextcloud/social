@@ -214,4 +214,16 @@ describe('TimelineSinglePost', () => {
 		await nextTick()
 		expect(scrollIntoView).toHaveBeenCalledTimes(1)
 	})
+
+	it('leaves other composer-reply listeners attached when it unmounts', () => {
+		const other = vi.fn()
+		eventBus.on('composer-reply', other)
+		const wrapper = mountView()
+
+		wrapper.unmount()
+		eventBus.emit('composer-reply', { id: 'reply-1' })
+
+		expect(other).toHaveBeenCalledTimes(1)
+		eventBus.off('composer-reply', other)
+	})
 })

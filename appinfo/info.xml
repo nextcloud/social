@@ -45,6 +45,7 @@ This is a partial implementation of ActivityPub and of the Mastodon client API. 
 	<repair-steps>
 		<post-migration>
 			<step>OCA\Social\Migration\RenameDocumentLocalCopy</step>
+			<step>OCA\Social\Migration\EncryptPrivateKeys</step>
 		</post-migration>
 	</repair-steps>
 

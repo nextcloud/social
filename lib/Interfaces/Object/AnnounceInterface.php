@@ -35,7 +35,6 @@ use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\StreamQueueService;
-use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -205,38 +204,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	}
 
 	public function event(ACore $item, string $source): void {
-		return;
-		/** @var Stream $item */
-		switch ($source) {
-			// do we still need this ?
-			case 'updateCache':
-				$objectId = $item->getObjectId();
-				try {
-					$cachedItem = $item->getCache()
-						->getItem($objectId);
-				} catch (CacheItemNotFoundException $e) {
-					return;
-				}
-
-				try {
-					if ($item->hasActor()) {
-						$actor = $item->getActor();
-					} else {
-						$actor = $this->cacheActorService->getFromId($item->getActorId());
-					}
-
-					$post = $this->streamRequest->getStreamById(
-						$item->getObjectId(),
-						false,
-						ACore::FORMAT_LOCAL
-					);
-					$this->updateDetails($post);
-					$this->generateNotification($post, $actor);
-				} catch (Exception $e) {
-				}
-
-				break;
-		}
 	}
 
 	private function undoAnnounceAction(ACore $announce): void {

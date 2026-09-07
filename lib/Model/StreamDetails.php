@@ -37,7 +37,9 @@ class StreamDetails implements JsonSerializable {
 	 * StreamDetails constructor.
 	 */
 	public function __construct(?Stream $stream = null) {
-		$this->stream = $stream;
+		if ($stream !== null) {
+			$this->stream = $stream;
+		}
 	}
 
 	public function getStream(): Stream {

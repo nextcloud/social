@@ -163,4 +163,11 @@ class ActorServiceTest extends TestCase {
 
 		$this->assertSame('', $this->service->getCachedHeader($this->alice()));
 	}
+
+	public function testGetCachedHeaderIsEmptyWhenTheActorIsNotCached(): void {
+		$this->cacheActorsRequest->method('getFromLocalAccount')
+			->willThrowException(new CacheActorDoesNotExistException());
+
+		$this->assertSame('', $this->service->getCachedHeader($this->alice()));
+	}
 }

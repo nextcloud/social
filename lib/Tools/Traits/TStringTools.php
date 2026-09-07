@@ -29,7 +29,7 @@ trait TStringTools {
 		$max = strlen($chars);
 		for ($i = 0; $i < $length; $i++) {
 			try {
-				$str .= $chars[random_int(0, $max - 2)];
+				$str .= $chars[random_int(0, $max - 1)];
 			} catch (Exception $e) {
 			}
 		}

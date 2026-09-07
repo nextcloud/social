@@ -7,6 +7,7 @@
 
 namespace OCA\Social\Service;
 
+use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;

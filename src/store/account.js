@@ -207,9 +207,6 @@ const getters = {
 	currentAccount(state, getters) {
 		return getters.getAccount(state.currentAccount)
 	},
-	accountFollowing(state) {
-		return (account, isFollowing) => _getActorIdForAccount(isFollowing) in state.accounts[_getActorIdForAccount(account)]
-	},
 	accountLoaded(state) {
 		return (account) => state.accounts[_getActorIdForAccount(account)]
 	},

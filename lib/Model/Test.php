@@ -43,6 +43,8 @@ class Test extends SimpleDataStore implements JsonSerializable {
 	 * @param string $severity
 	 */
 	public function __construct(string $name = '', string $severity = self::SEVERITY_OPTIONAL) {
+		parent::__construct();
+
 		$this->name = $name;
 		$this->severity = $severity;
 	}

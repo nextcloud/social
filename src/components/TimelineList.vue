@@ -122,7 +122,7 @@ export default {
 				return this.$route.name === 'timeline' ? this.emptyContent.default : content
 			}
 
-			logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
+			logger.debug('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
 			return this.emptyContent.default
 		},
 
@@ -173,10 +173,17 @@ export default {
 			const params = {}
 
 			if (this.timeline.length !== 0) {
-				if (this.reverseOrder) {
-					params.min_id = Number.parseInt(this.timeline[0].id)
-				} else {
-					params.max_id = Number.parseInt(this.timeline[this.timeline.length - 1].id)
+				// The timeline getter sorts by created_at while min_id/max_id
+				// filter on the numeric id, and a federated post can have a
+				// high id with an old date — so page on the ids themselves,
+				// or the cursor never advances and the same page loops forever.
+				const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+				if (ids.length !== 0) {
+					if (this.reverseOrder) {
+						params.min_id = Math.max(...ids)
+					} else {
+						params.max_id = Math.min(...ids)
+					}
 				}
 			}
 
@@ -200,9 +207,14 @@ export default {
 				return
 			}
 
+			// Newest by id, not this.timeline[0] (sorted by created_at): a
+			// federated post with a high id but an old date would otherwise
+			// keep min_id stuck and this method would refetch forever.
+			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+
 			try {
 				const response = await this.$store.dispatch('fetchTimeline', {
-					min_id: this.timeline[0]?.id,
+					min_id: ids.length === 0 ? undefined : Math.max(...ids),
 				})
 
 				if (response.length > 0) {
