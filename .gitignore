@@ -19,3 +19,7 @@ js/*.map
 *.csr
 *.crt
 RELEASE.md
+
+# test artefacts
+tests/.phpunit.result.cache
+coverage/

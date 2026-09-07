@@ -24,6 +24,14 @@
 			"OCA\\Social\\": "lib/"
 		}
 	},
+	"autoload-dev": {
+		"psr-4": {
+			"OCA\\Social\\Tests\\": "tests/"
+		},
+		"exclude-from-classmap": [
+			"tests/bootstrap.php"
+		]
+	},
 	"require": {
 		"php": ">=8.1",
 		"gumlet/php-image-resize": "2.0.*",

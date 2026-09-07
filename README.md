@@ -41,6 +41,26 @@ If an uploaded banner does not appear immediately:
 - Check server logs for upload or permission errors.
 - Re-fetch the account data or sign out/sign in to refresh the local cache.
 
+## ✅ Tests
+
+Backend and frontend unit tests run without a Nextcloud server or database.
+
+```bash
+composer install            # PHPUnit + OCP interface stubs
+composer run test:unit      # PHP: vendor/bin/phpunit -c tests/phpunit.xml
+
+npm ci
+npm test                    # JS: vitest run (tests/js/** and src/**/*.test.js)
+npm run test:coverage       # with a coverage report in coverage/js
+```
+
+PHP tests live in `tests/` mirroring `lib/` (`lib/Service/PostService.php` →
+`tests/Service/PostServiceTest.php`). Everything a class needs is mocked; code that
+reaches the container statically finds a `TestContainer` behind `\OC::$server`
+(see `tests/Helper/TestContainer.php`). Frontend tests use Vitest with
+`@vue/test-utils` and jsdom; `tests/js/setup.js` provides the Nextcloud globals
+(`t`, `n`, `OC`, `OCA`, `localStorage`, router webroots).
+
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build/tests locally before merging.
