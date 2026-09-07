@@ -33,22 +33,33 @@ describe('errors store', () => {
 		expect(store.getters.hasErrors).toBe(false)
 	})
 
-	it('addError appends an entry stamped with the current time as id', () => {
+	it('addError appends an entry with a unique numeric id', () => {
 		store.commit('addError', { title: 'Account lookup failed', message: 'Could not load account bob' })
 
 		expect(store.getters.appErrors).toEqual([
-			{ id: Date.now(), title: 'Account lookup failed', message: 'Could not load account bob' },
+			{ id: expect.any(Number), title: 'Account lookup failed', message: 'Could not load account bob' },
 		])
 		expect(store.getters.hasErrors).toBe(true)
 	})
 
-	it('keeps errors in the order they were added', () => {
+	it('keeps errors in the order they were added and gives each a distinct id', () => {
 		store.commit('addError', { title: 'first', message: 'a' })
-		vi.advanceTimersByTime(5)
 		store.commit('addError', { title: 'second', message: 'b' })
 
 		expect(store.getters.appErrors.map(e => e.title)).toEqual(['first', 'second'])
-		expect(store.getters.appErrors[1].id - store.getters.appErrors[0].id).toBe(5)
+		expect(store.getters.appErrors[1].id).not.toBe(store.getters.appErrors[0].id)
+	})
+
+	it('gives back-to-back errors distinct ids within the same millisecond so dismissing one keeps the other', () => {
+		// the clock is frozen, so a Date.now() based id would collide
+		store.commit('addError', { title: 'first', message: 'a' })
+		store.commit('addError', { title: 'second', message: 'b' })
+		const [first, second] = store.getters.appErrors
+		expect(first.id).not.toBe(second.id)
+
+		store.commit('dismissError', first.id)
+
+		expect(store.getters.appErrors).toEqual([second])
 	})
 
 	it('dismissError removes only the entry with that id', () => {
@@ -81,7 +92,7 @@ describe('errors store', () => {
 		await store.dispatch('addAppError', { title: 'Account lookup failed', message: 'nope' })
 
 		expect(logger.error).toHaveBeenCalledWith('App error', { title: 'Account lookup failed', message: 'nope' })
-		expect(store.getters.appErrors).toEqual([{ id: Date.now(), title: 'Account lookup failed', message: 'nope' }])
+		expect(store.getters.appErrors).toEqual([{ id: expect.any(Number), title: 'Account lookup failed', message: 'nope' }])
 	})
 
 	it('dismissAppError dismisses by id', async () => {

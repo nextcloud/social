@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore } from 'vuex'
 import axios from '@nextcloud/axios'
+import { showError } from '@nextcloud/dialogs'
 import Search from '../../../src/components/Search.vue'
 import account from '../../../src/store/account.js'
 import settings from '../../../src/store/settings.js'
@@ -14,6 +15,11 @@ vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
+
+vi.mock('@nextcloud/dialogs', async (importOriginal) => ({
+	...await importOriginal(),
+	showError: vi.fn(),
+}))
 
 const pristine = structuredClone(account.state)
 
@@ -58,6 +64,26 @@ describe('Search', () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks()
+		vi.mocked(showError).mockClear()
+	})
+
+	it('clears the spinner and reports the error when a search fails, and does not block later searches', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		get.mockRejectedValueOnce(new Error('boom'))
+		const wrapper = mountSearch('boom')
+		await flushPromises()
+
+		expect(showError).toHaveBeenCalled()
+		expect(wrapper.vm.loading).toBe(false)
+		expect(wrapper.find('#emptycontent').classes()).not.toContain('icon-loading')
+
+		// the stuck loading flag used to block every later search
+		get.mockResolvedValueOnce(response({ accounts: [bob] }))
+		await wrapper.setProps({ term: 'bob' })
+		await flushPromises()
+
+		expect(get).toHaveBeenCalledTimes(2)
+		expect(wrapper.findAllComponents(UserEntryStub).map((entry) => entry.props('item'))).toEqual([bob])
 	})
 
 	it('queries the search endpoint for the initial term and shows a spinner meanwhile', () => {

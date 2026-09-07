@@ -10,7 +10,7 @@
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<NcEmptyContent v-if="accountLoaded && !accountInfo"
-			:title="t('social', 'User not found')"
+			:name="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
 			<template #icon>
 				<img :src="emptyContentImage"

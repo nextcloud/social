@@ -5,13 +5,15 @@
 
 import logger from '../services/logger.js'
 
+let nextErrorId = 0
+
 const state = {
 	errors: [],
 }
 
 const mutations = {
 	addError(state, { title, message }) {
-		state.errors = [...state.errors, { id: Date.now(), title, message }]
+		state.errors = [...state.errors, { id: ++nextErrorId, title, message }]
 	},
 	dismissError(state, id) {
 		state.errors = state.errors.filter(e => e.id !== id)

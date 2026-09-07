@@ -218,6 +218,10 @@ describe('App', () => {
 			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/config/cloudAddress', { cloudAddress: 'https://social.example.org' })
 
 			await flushPromises()
+			// the mutation takes an object payload, so both the flag and the
+			// address are actually stored (the address was dropped by the old bug)
+			expect(store.state.settings.serverData.setup).toBe(false)
+			expect(store.state.settings.serverData.cloudAddress).toBe('https://social.example.org')
 			expect(wrapper.find('.setup h2').exists()).toBe(false)
 			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
 		})

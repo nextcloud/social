@@ -60,7 +60,7 @@ const mutations = {
 			state.timeline.splice(timelineIndex, 1)
 		}
 		const parentsTimelineIndex = state.parentsTimeline.indexOf(status.id)
-		if (timelineIndex !== -1) {
+		if (parentsTimelineIndex !== -1) {
 			state.parentsTimeline.splice(parentsTimelineIndex, 1)
 		}
 	},
@@ -235,7 +235,7 @@ const actions = {
 			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${status.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
 		} catch (error) {
-			context.commit('addToStatuses', status)
+			context.commit('addToTimeline', [status])
 			showError('Failed to delete the status')
 			logger.error('Failed to delete the status', { error })
 		}

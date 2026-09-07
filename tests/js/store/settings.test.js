@@ -33,6 +33,19 @@ describe('settings store', () => {
 		expect(store.getters.getServerData).toEqual({ public: true })
 	})
 
+	it('setServerDataEntry sets a single key from an object payload, including falsy values', () => {
+		store.commit('setServerData', { setup: true, cloudAddress: 'https://cloud.example.org' })
+
+		store.commit('setServerDataEntry', { key: 'setup', value: false })
+
+		expect(store.getters.getServerData.setup).toBe(false)
+		expect(store.getters.getServerData.cloudAddress).toBe('https://cloud.example.org')
+
+		store.commit('setServerDataEntry', { key: 'cloudAddress', value: 'https://social.example.org' })
+
+		expect(store.getters.getServerData.cloudAddress).toBe('https://social.example.org')
+	})
+
 	it('exposes the getter reactively so components see the data loaded later', () => {
 		const before = store.getters.getServerData
 

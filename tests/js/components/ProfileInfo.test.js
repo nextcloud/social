@@ -175,6 +175,13 @@ describe('ProfileInfo', () => {
 		expect(bannerOf(mountProfile('carol')).classes()).not.toContain('user-profile__banner--visible')
 	})
 
+	it('paints an existing header image onto the banner on first render', async () => {
+		const wrapper = mountProfile('bob@remote.example')
+		await nextTick()
+		expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://remote.example/media/bob-header.png')
+		expect(bannerOf(wrapper).element.style.backgroundSize).toBe('cover')
+	})
+
 	it('paints the header image onto the banner when it changes and clears it when removed', async () => {
 		const wrapper = mountProfile('carol')
 		store.commit('addAccount', { actorId: carol.url, data: { header: 'https://cloud.example.org/carol-header.png' } })

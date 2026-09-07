@@ -97,6 +97,20 @@ describe('Dashboard', () => {
 		])
 	})
 
+	it('merges only unseen notifications on later polls, deduplicated by id', async () => {
+		get.mockResolvedValueOnce({ data: [notifications[2]] }) // [n1]
+		const wrapper = mountWidget()
+		await flushPromises()
+		expect(wrapper.findComponent(NcDashboardWidgetStub).props('items').map((i) => i.id)).toEqual(['n1'])
+
+		// the next poll returns a brand new notification plus the one we already have
+		get.mockResolvedValueOnce({ data: [notifications[0], notifications[2]] }) // [n3, n1]
+		vi.advanceTimersByTime(10000)
+		await flushPromises()
+
+		expect(wrapper.findComponent(NcDashboardWidgetStub).props('items').map((i) => i.id)).toEqual(['n3', 'n1'])
+	})
+
 	it('renders an empty state without items and keeps polling', async () => {
 		get.mockResolvedValue({ data: [] })
 		const wrapper = mountWidget()

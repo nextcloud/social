@@ -4,7 +4,7 @@
 -->
 <template>
 	<div class="empty-content">
-		<NcEmptyContent :title="item.title" :description="item.description">
+		<NcEmptyContent :name="item.title" :description="item.description">
 			<template v-if="item.image" #icon>
 				<img class="empty-content__image"
 					:src="imageUrl"

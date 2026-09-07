@@ -19,6 +19,11 @@ const NcAvatarStub = {
 	props: ['url', 'user', 'size', 'disableTooltip'],
 	template: '<span class="nc-avatar-stub" />',
 }
+const ActorAvatarStub = {
+	name: 'ActorAvatar',
+	props: ['actor', 'size'],
+	template: '<span class="actor-avatar-stub" />',
+}
 
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob', display_name: 'Bob' }
 const currentUser = { uid: 'alice', displayName: 'Alice' }
@@ -49,7 +54,7 @@ const makeStore = () => {
 	return store
 }
 
-const mountView = () => mount(OStatus, { global: { plugins: [store], stubs: { NcAvatar: NcAvatarStub } } })
+const mountView = () => mount(OStatus, { global: { plugins: [store], stubs: { NcAvatar: NcAvatarStub, ActorAvatar: ActorAvatarStub } } })
 
 describe('OStatus', () => {
 	beforeEach(() => {
@@ -84,6 +89,10 @@ describe('OStatus', () => {
 			expect(headings).toEqual(['Follow on Nextcloud Social', 'bob@remote.example'])
 			expect(wrapper.text()).toContain('Hello')
 			expect(wrapper.text()).toContain('Alice')
+			// the greeting avatar is the real ActorAvatar, fed the current user as a local actor
+			const greeting = wrapper.findComponent(ActorAvatarStub)
+			expect(greeting.props('actor')).toEqual({ username: 'alice', acct: 'alice' })
+			expect(greeting.props('size')).toBe(16)
 			expect(wrapper.text()).toContain('Please confirm that you want to follow this account:')
 			expect(wrapper.find('form input[type="submit"]').element.value).toBe('Follow')
 			expect(wrapper.text()).not.toContain('You are following this account')
@@ -98,12 +107,19 @@ describe('OStatus', () => {
 			expect(wrapper.findComponent(NcAvatarStub).props('size')).toBe(128)
 		})
 
-		it('dispatches the follow with the cloud id of the current user on submit', async () => {
+		it('shows the display name from the loaded Mastodon account', async () => {
+			pending = Promise.resolve(bob)
+			const wrapper = mountView()
+			await flushPromises()
+			expect(wrapper.findAll('h2').map((heading) => heading.text())).toEqual(['Follow on Nextcloud Social', 'Bob'])
+		})
+
+		it('dispatches the follow with the cloud id of the current user and the account handle on submit', async () => {
 			pending = Promise.resolve(bob)
 			const wrapper = mountView()
 			await flushPromises()
 			await wrapper.find('form').trigger('submit')
-			expect(dispatch).toHaveBeenCalledWith('followAccount', expect.objectContaining({ currentAccount: 'alice@cloud.example.org' }))
+			expect(dispatch).toHaveBeenCalledWith('followAccount', expect.objectContaining({ currentAccount: 'alice@cloud.example.org', accountToFollow: 'bob@remote.example' }))
 		})
 	})
 

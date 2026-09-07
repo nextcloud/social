@@ -10,7 +10,7 @@ const mutations = {
 	setServerData(state, data) {
 		state.serverData = data
 	},
-	setServerDataEntry(state, key, value) {
+	setServerDataEntry(state, { key, value }) {
 		state.serverData[key] = value
 	},
 }
