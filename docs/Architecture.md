@@ -197,7 +197,7 @@ The app never emits Reject, Add, Remove, Move or Block. It can parse all of them
 | `Undo` (Follow, Like, Announce) | The wrapped relation or action is deleted |
 | `Like` | Stored as an action, notification generated |
 | `Announce` | Stored as a boost, notification generated |
-| `Move` | Actions, follows, streams and cached documents are repointed to the target actor |
+| `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
 **Incoming activities that are accepted but do nothing:** `Add`, `Remove` and `Block` are dispatched to a handler that forwards to the wrapped object's `activity()` method, and no object handler recognises those activity types. `BlockInterface` in particular means Block is a no-op — the app has no blocking implementation.
 
@@ -301,7 +301,7 @@ Fourteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` holds
 
 **Known gaps — these are real and deliberate to record**
 
-- **Actor private keys are stored unencrypted.** `social_actor.private_key` holds the PEM as written by `openssl_pkey_export()`. `ICrypto` is not used anywhere in the app, so anyone with database read access can impersonate any local actor across the Fediverse
+- **Actor private keys are encrypted at rest.** `social_actor.private_key` holds the PEM encrypted with the instance secret (`ICrypto`, via `PrivateKeyCipher`), so a database dump alone is not enough to impersonate a local actor — it also takes the `secret` from `config.php`. Rows written before encryption existed (recognisable by their `-----BEGIN` prefix) are still readable and are rewritten once by the `EncryptPrivateKeys` repair step on upgrade
 - **The federation endpoints are unauthenticated.** `ActivityPubController::actor()`, `actorAlias()`, `outbox()`, `followers()`, `following()` and `displayPost()` are all annotated `@PublicPage` with `@NoCSRFRequired`, and there is no signed-fetch (authorized-fetch) requirement. Any anonymous caller can read a local actor's profile, outbox, follower and following collections and individual posts
 - **There is no blocking.** `BlockInterface` accepts an incoming Block and forwards it to a handler that ignores it, and the app never sends one. Per-actor blocks and mutes do not exist; the `mute`/`unmute` status actions are accepted by the API and discarded
 - **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**, along with `PushService`. What remains is the single-list `access_type`/`access_list` mechanism described above
