@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.social/users/alice#follows/2/undo",
+  "type": "Undo",
+  "actor": "https://mastodon.social/users/alice",
+  "object": {
+    "id": "https://mastodon.social/8b6bcb96-7a34-4cf1-9a4c-2a4a2f5f04c5",
+    "type": "Follow",
+    "actor": "https://mastodon.social/users/alice",
+    "object": "https://cloud.example.org/apps/social/@bob"
+  }
+}

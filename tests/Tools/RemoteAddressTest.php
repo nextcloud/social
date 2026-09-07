@@ -37,6 +37,12 @@ class RemoteAddressTest extends TestCase {
 			'unique local v6' => ['fc00::1'],
 			'multicast v6' => ['ff02::1'],
 			'multicast v4' => ['224.0.0.1'],
+			'v4-mapped loopback' => ['::ffff:127.0.0.1'],
+			'v4-mapped private' => ['::ffff:10.0.0.1'],
+			'v4-mapped metadata' => ['::ffff:169.254.169.254'],
+			'v4-mapped long form' => ['0:0:0:0:0:ffff:7f00:1'],
+			'NAT64-embedded loopback' => ['64:ff9b::7f00:1'],
+			'NAT64-embedded private' => ['64:ff9b::a00:1'],
 		];
 	}
 
@@ -56,6 +62,7 @@ class RemoteAddressTest extends TestCase {
 			'cloudflare dns' => ['1.1.1.1'],
 			'public v4' => ['93.184.216.34'],
 			'public v6' => ['2606:2800:220:1:248:1893:25c8:1946'],
+			'NAT64-embedded public' => ['64:ff9b::808:808'],
 			'not an ip' => ['example.com'],
 		];
 	}

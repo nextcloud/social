@@ -1,0 +1,7 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.social/users/alice#likes/99",
+  "type": "Like",
+  "actor": "https://mastodon.social/users/alice",
+  "object": "https://cloud.example.org/apps/social/@bob/97"
+}

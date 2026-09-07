@@ -94,6 +94,17 @@ reaches the container statically finds a `TestContainer` behind `\OC::$server`
 `@vue/test-utils` and jsdom; `tests/js/setup.js` provides the Nextcloud globals
 (`t`, `n`, `OC`, `OCA`, `localStorage`, router webroots).
 
+A second PHP suite in `tests/Integration/` runs against a real Nextcloud and
+database — migrations, query SQL and storage boundaries the mocks cannot reach.
+CI runs it on SQLite, MySQL and PostgreSQL; locally, point it at an installed
+server:
+
+```bash
+NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
+```
+
+See `tests/Integration/README.md` for what it covers.
+
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build and tests locally

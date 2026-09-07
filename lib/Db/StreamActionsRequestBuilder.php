@@ -58,7 +58,7 @@ class StreamActionsRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'sa.id', 'sa.actor_id', 'sa.stream_id',
-			'sa.boosted', 'sa.liked', 'sa.replied'
+			'sa.boosted', 'sa.liked', 'sa.replied', 'sa.bookmarked'
 		)
 			->from(self::TABLE_STREAM_ACTIONS, 'sa');
 
