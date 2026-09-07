@@ -258,7 +258,7 @@ class SignatureServiceTest extends TestCase {
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
-	public function testCheckRequestRefreshesTheKeyOnceBeforeGivingUp(): void {
+	public function testCheckRequestRefreshesTheKeyOnceThenRefusesABadSignature(): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey);
 		$this->cacheActorService->expects($this->exactly(2))
@@ -266,7 +266,11 @@ class SignatureServiceTest extends TestCase {
 			->withConsecutive([self::REMOTE_KEY_ID, false], [self::REMOTE_KEY_ID, true])
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
 
-		$this->assertSame('', $this->service->checkRequest($this->incomingRequest($headers), $body));
+		// A signature that does not verify against either the cached or the refreshed
+		// key is refused here, rather than being returned as an empty origin for a
+		// later check to reject.
+		$this->expectException(SignatureException::class);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
 	public function testCheckRequestAcceptsAfterRefreshingAStaleCachedKey(): void {
@@ -282,12 +286,15 @@ class SignatureServiceTest extends TestCase {
 		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
 	}
 
-	public function testCheckRequestWithAnUnknownActorYieldsNoOrigin(): void {
+	public function testCheckRequestWithAnUnknownActorIsRefused(): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey);
 		$this->cacheActorService->method('getFromId')->willThrowException(new RequestContentException('not found', 404));
 
-		$this->assertSame('', $this->service->checkRequest($this->incomingRequest($headers), $body));
+		// The signing key cannot be fetched, so the request cannot be verified and is
+		// refused here rather than proceeding with an empty origin.
+		$this->expectException(SignatureException::class);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
 	public function testCheckRequestSignalsAGoneActor(): void {
@@ -299,12 +306,27 @@ class SignatureServiceTest extends TestCase {
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
-	public function testCheckRequestRequiresRequestTargetAndDateToBeSigned(): void {
+	/**
+	 * @dataProvider incompleteSignedHeaderSets
+	 */
+	public function testCheckRequestRefusesASignatureThatDoesNotCoverEveryMandatoryHeader(string $headerList): void {
 		$body = '{"type":"Follow"}';
-		$headers = $this->signedHeaders($body, self::$privateKey, [], 'host digest');
+		$headers = $this->signedHeaders($body, self::$privateKey, [], $headerList);
 		$this->cacheActorService->expects($this->never())->method('getFromId');
 
-		$this->assertSame('', $this->service->checkRequest($this->incomingRequest($headers), $body));
+		// (request-target), host, date and digest must all be in the signed set, so the
+		// signature binds the body and cannot be replayed elsewhere.
+		$this->expectException(SignatureException::class);
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function incompleteSignedHeaderSets(): array {
+		return [
+			'missing (request-target)' => ['host date digest'],
+			'missing host' => ['(request-target) date digest'],
+			'missing date' => ['(request-target) host digest'],
+			'missing digest' => ['(request-target) host date'],
+		];
 	}
 
 	public function testCheckRequestRejectsAKeyIdWithoutHost(): void {
@@ -313,6 +335,81 @@ class SignatureServiceTest extends TestCase {
 
 		$this->expectException(InvalidOriginException::class);
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestAcceptsAFullySignedRequestFromAKnownActor(): void {
+		// Guard proving the tightened checks did not break legitimate federation: a
+		// request that signs every mandatory header — (request-target), host, date and
+		// digest — plus content-length with a key that verifies is still accepted and
+		// yields the key's origin.
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body,
+			self::$privateKey,
+			[],
+			'(request-target) host date digest content-length',
+		);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromId')
+			->with(self::REMOTE_KEY_ID, false)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$time = 0;
+		$origin = $this->service->checkRequest($this->incomingRequest($headers), $body, $time);
+
+		$this->assertSame('remote.example', $origin);
+		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
+	}
+
+	/**
+	 * @dataProvider allowedContexts
+	 */
+	public function testDocumentLoaderServesEachShippedContext(string $url): void {
+		$this->assertInstanceOf(\stdClass::class, SignatureService::documentLoader($url));
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public function allowedContexts(): array {
+		return array_map(
+			fn (string $url): array => [$url],
+			array_keys(SignatureService::LOCAL_CONTEXTS),
+		);
+	}
+
+	/**
+	 * A document's @context is remote input. Resolving an arbitrary URL would open it
+	 * with a PHP stream wrapper (SSRF, `file://`, the cloud metadata endpoint) and let
+	 * a substituted context change the bytes a signature is computed over. Only the
+	 * three shipped contexts may resolve; every other URL must be refused, never
+	 * fetched.
+	 *
+	 * NOTE: the fix constructs `new JsonLdException($msg)` with a single argument, but
+	 * that constructor requires a second `$type` argument, so the refusal currently
+	 * surfaces as an uncatchable \ArgumentCountError rather than the intended, catchable
+	 * \JsonLdException. This assertion pins the security property (a non-allowlisted URL
+	 * /**
+	 * A document's @context is remote input; resolving one that is not shipped would
+	 * mean opening an attacker-chosen URL. An unknown context is refused with a
+	 * catchable JsonLdException (not a fatal), so verify() treats it as unverifiable.
+	 *
+	 * @dataProvider rejectedContexts
+	 */
+	public function testDocumentLoaderRefusesAnyUrlOutsideTheAllowlist(string $url): void {
+		$this->expectException(\JsonLdException::class);
+		SignatureService::documentLoader($url);
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public function rejectedContexts(): array {
+		return [
+			'remote https context' => ['https://evil.example/context'],
+			'local file scheme' => ['file:///etc/passwd'],
+			'cloud metadata endpoint' => ['http://169.254.169.254/'],
+		];
 	}
 
 	/**

@@ -101,11 +101,35 @@ class DocumentServiceTest extends TestCase {
 		$this->service->getFromUuid('../../etc/passwd');
 	}
 
-	public function testGetFromUuidDelegatesForAWellFormedId(): void {
+	public function testGetFromUuidReturnsThePublicCopyAndItsRow(): void {
 		$file = $this->createMock(ISimpleFile::class);
+		$document = $this->createMock(Document::class);
+		$document->method('isPublic')->willReturn(true);
+		$this->cacheDocumentsRequest->expects($this->once())
+			->method('getByLocalCopy')->with(self::UUID)->willReturn($document);
 		$this->cacheService->expects($this->once())->method('getFromUuid')->with(self::UUID)->willReturn($file);
 
-		$this->assertSame($file, $this->service->getFromUuid(self::UUID));
+		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID));
+	}
+
+	public function testGetFromUuidRefusesANonPublicCopyByDefault(): void {
+		$document = $this->createMock(Document::class);
+		$document->method('isPublic')->willReturn(false);
+		$this->cacheDocumentsRequest->method('getByLocalCopy')->with(self::UUID)->willReturn($document);
+		$this->cacheService->expects($this->never())->method('getFromUuid');
+
+		$this->expectException(NotFoundException::class);
+		$this->service->getFromUuid(self::UUID);
+	}
+
+	public function testGetFromUuidServesANonPublicCopyOnlyWhenNotRestricted(): void {
+		$file = $this->createMock(ISimpleFile::class);
+		$document = $this->createMock(Document::class);
+		$document->method('isPublic')->willReturn(false);
+		$this->cacheDocumentsRequest->method('getByLocalCopy')->with(self::UUID)->willReturn($document);
+		$this->cacheService->method('getFromUuid')->with(self::UUID)->willReturn($file);
+
+		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID, false));
 	}
 
 	public function testCacheRemoteDocumentReturnsAnAlreadyCachedDocument(): void {

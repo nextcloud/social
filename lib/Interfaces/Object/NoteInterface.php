@@ -87,6 +87,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	public function save(ACore $item): void {
 		/** @var Note $note */
 		$note = $item;
+		$this->checkAuthorship($note);
 		try {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
@@ -94,6 +95,30 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->updateDetails($note);
 			$this->generateNotification($note);
 			$this->pushService->onNewStream($note->getId());
+		}
+	}
+
+	/**
+	 * A note lives on its author's instance, so `attributedTo` must share the host of
+	 * the note's own id. This is the invariant every path into storage relies on: the
+	 * Create path also matches both against the request origin, but the fetch-and-store
+	 * paths (an announced object being cached, an outbox being synced) have no request
+	 * to compare against — without this check, a document served by one instance could
+	 * claim an author on another and be stored as that author's post.
+	 *
+	 * @throws InvalidOriginException
+	 */
+	private function checkAuthorship(Note $note): void {
+		$noteHost = parse_url($note->getId(), PHP_URL_HOST);
+		$authorHost = parse_url($note->getAttributedTo(), PHP_URL_HOST);
+
+		if (!is_string($noteHost) || $noteHost === ''
+			|| !is_string($authorHost)
+			|| strtolower($noteHost) !== strtolower($authorHost)) {
+			throw new InvalidOriginException(
+				'NoteInterface::checkAuthorship - id: ' . $note->getId()
+				. ' - attributedTo: ' . $note->getAttributedTo()
+			);
 		}
 	}
 

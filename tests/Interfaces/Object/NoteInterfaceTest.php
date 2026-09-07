@@ -150,6 +150,19 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
 
+	public function testSaveRefusesANoteWhoseAuthorIsOnAnotherServer(): void {
+		// save() is the invariant every fetch-and-store path relies on (a cached
+		// announced object, a synced outbox) where there is no request origin to
+		// compare against: the note's id host and its attributedTo host must match.
+		$note = $this->note(self::NOTE, $this->carol->getId());
+
+		$this->streamRequest->expects($this->never())->method('save');
+
+		$this->expectException(InvalidOriginException::class);
+
+		$this->handler->save($note);
+	}
+
 	public function testCreateNotComingFromTheNotesServerIsRefused(): void {
 		$note = $this->incomingNote();
 

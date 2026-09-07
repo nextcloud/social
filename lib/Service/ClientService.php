@@ -142,7 +142,7 @@ class ClientService {
 		}
 
 		if (array_key_exists('client_secret', $data)
-			&& $data['client_secret'] !== $client->getAppClientSecret()) {
+			&& !hash_equals($client->getAppClientSecret(), (string)$data['client_secret'])) {
 			throw new ClientException('wrong client_secret');
 		}
 
@@ -172,7 +172,8 @@ class ClientService {
 			}
 		}
 
-		if (array_key_exists('code', $data) && $data['code'] !== $client->getAuthCode()) {
+		if (array_key_exists('code', $data)
+			&& !hash_equals($client->getAuthCode(), (string)$data['code'])) {
 			throw new ClientException('unknown code');
 		}
 	}

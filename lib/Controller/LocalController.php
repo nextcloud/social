@@ -37,6 +37,7 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -54,6 +55,9 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Controller
  */
 class LocalController extends Controller {
+	/** Ceiling for a banner fetched by URL. */
+	private const BANNER_MAX_SIZE = 10 * 1024 * 1024;
+
 	use TArrayTools;
 	use TNCDataResponse;
 
@@ -211,9 +215,23 @@ class LocalController extends Controller {
 				throw new Exception('No URL provided');
 			}
 
+			// A user hands us this URL, so it must not become a way to read the
+			// server's own network. Only http(s) to a non-local host, no local
+			// addresses unless the admin opted in, and a hard size ceiling.
+			$parsed = parse_url($url);
+			$scheme = strtolower($parsed['scheme'] ?? '');
+			$host = $parsed['host'] ?? '';
+			if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+				throw new Exception('Unsupported banner URL');
+			}
+			$allowLocal = $this->configService->isLocalNetworkAllowed();
+			if (!$allowLocal && RemoteAddress::isLocalHost($host)) {
+				throw new Exception('Unsupported banner URL');
+			}
+
 			$this->logger->info('[LocalController] Banner upload by URL', [
 				'userId' => $this->userId,
-				'url' => $url,
+				'host' => $host,
 			]);
 
 			$tmpFile = tempnam(sys_get_temp_dir(), 'social_banner_');
@@ -225,6 +243,10 @@ class LocalController extends Controller {
 				CURLOPT_FOLLOWLOCATION => true,
 				CURLOPT_MAXREDIRS => 5,
 				CURLOPT_TIMEOUT => 30,
+				CURLOPT_CONNECTTIMEOUT => 10,
+				CURLOPT_MAXFILESIZE => self::BANNER_MAX_SIZE,
+				CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+				CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
 				CURLOPT_USERAGENT => 'Nextcloud-Social/0.10',
 			]);
 			$success = curl_exec($ch);
@@ -236,6 +258,13 @@ class LocalController extends Controller {
 			if (!$success || $httpCode < 200 || $httpCode >= 300) {
 				unlink($tmpFile);
 				throw new Exception('Failed to download image from URL (HTTP ' . $httpCode . ')');
+			}
+
+			// CURLOPT_MAXFILESIZE trusts Content-Length; enforce the ceiling on the
+			// bytes that actually landed as well.
+			if (filesize($tmpFile) > self::BANNER_MAX_SIZE) {
+				unlink($tmpFile);
+				throw new Exception('Banner image is too large');
 			}
 
 			$actor = $this->accountService->getActorFromUserId($this->userId);

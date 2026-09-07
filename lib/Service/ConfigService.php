@@ -263,6 +263,17 @@ class ConfigService {
 
 
 	/**
+	 * Whether outbound requests may reach the instance's own network.
+	 *
+	 * The standard Nextcloud setting, off by default; the single switch every
+	 * outbound path consults before contacting a local address.
+	 */
+	public function isLocalNetworkAllowed(): bool {
+		return $this->config->getSystemValueBool('allow_local_remote_servers', false);
+	}
+
+
+	/**
 	 * getCloudHost - cloud.example.com
 	 *
 	 * @return string
@@ -408,7 +419,10 @@ class ConfigService {
 			}
 		}
 
-		$request->setLocalAddressAllowed(true);
+		// Federation reaches arbitrary public hosts, but must not be pointed at the
+		// instance's own network. Local targets are permitted only where the admin has
+		// opted in through the standard Nextcloud setting (default off).
+		$request->setLocalAddressAllowed($this->isLocalNetworkAllowed());
 		$request->setFollowLocation(true);
 	}
 }

@@ -126,6 +126,27 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException
 	 */
+	/**
+	 * The document row behind a served copy, by the uuid `/media/{uuid}` exposes.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getByLocalCopy(string $uuid): Document {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$this->limitToDBField($qb, 'local_copy', $uuid, false);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
+		return $this->parseCacheDocumentsSelectSql($data);
+	}
+
+
 	public function getByUrl(string $url) {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToUrl($qb, $url);

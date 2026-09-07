@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Model;
 
+use Exception;
 use JsonSerializable;
 use OCA\Social\Exceptions\LinkedDataSignatureMissingException;
 use OCA\Social\Service\SignatureService;
@@ -139,8 +140,16 @@ class LinkedDataSignature implements JsonSerializable {
 			'created' => $this->getCreated()
 		];
 
-		$hashHeader = $this->hashedCanonicalize($header, true);
-		$hashObject = $this->hashedCanonicalize($this->getObject());
+		try {
+			$hashHeader = $this->hashedCanonicalize($header, true);
+			$hashObject = $this->hashedCanonicalize($this->getObject());
+		} catch (Exception $e) {
+			// Normalisation refuses contexts that are not shipped with the app
+			// (SignatureService::documentLoader), so a document using one cannot be
+			// verified — which is a false result, not an error: the caller falls back
+			// to the HTTP-signature origin.
+			return false;
+		}
 
 		$algo = OPENSSL_ALGO_SHA256;
 		if ($this->getType() === 'RsaSignature2017') {
