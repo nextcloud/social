@@ -14,6 +14,7 @@ use OCA\Social\Db\ClientRequest;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Security\SecretHasher;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\MiscService;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -25,7 +26,7 @@ class ClientServiceTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->clientRequest = $this->createMock(ClientRequest::class);
-		$this->service = new ClientService($this->clientRequest, $this->createMock(MiscService::class));
+		$this->service = new ClientService($this->clientRequest, new SecretHasher(), $this->createMock(MiscService::class));
 	}
 
 	private function registeredClient(): SocialClient {
@@ -105,23 +106,26 @@ class ClientServiceTest extends TestCase {
 		$this->assertSame($client, $this->service->getFromClientId('client-id'));
 	}
 
-	public function testGetFromTokenRefreshesARecentlyUsedToken(): void {
+	public function testGetFromTokenDoesNotRewriteAFreshlyRefreshedToken(): void {
 		$client = $this->registeredClient();
 		$client->setLastUpdate(time() - 60);
 		$this->clientRequest->method('getFromToken')->with('tok')->willReturn($client);
-		$this->clientRequest->expects($this->once())
-			->method('updateTime')
-			->with($this->identicalTo($client));
+		$this->clientRequest->expects($this->never())->method('updateTime');
 		$this->clientRequest->expects($this->never())->method('deprecateToken');
 
 		$this->assertSame($client, $this->service->getFromToken('tok'));
 	}
 
-	public function testGetFromTokenDoesNotTouchAnOlderValidToken(): void {
+	public function testGetFromTokenRefreshesATokenInUse(): void {
+		// last_update follows usage (at most one write per TIME_TOKEN_REFRESH), so an
+		// actively used token never ages into the TTL. The old inverted comparison
+		// only rewrote recently-written rows, so real usage never refreshed anything.
 		$client = $this->registeredClient();
 		$client->setLastUpdate(time() - ClientService::TIME_TOKEN_REFRESH - 60);
 		$this->clientRequest->method('getFromToken')->willReturn($client);
-		$this->clientRequest->expects($this->never())->method('updateTime');
+		$this->clientRequest->expects($this->once())
+			->method('updateTime')
+			->with($this->identicalTo($client));
 
 		$this->assertSame($client, $this->service->getFromToken('tok'));
 	}
@@ -195,5 +199,66 @@ class ClientServiceTest extends TestCase {
 		$this->expectException(ClientException::class);
 		$this->expectExceptionMessage($message);
 		$this->service->confirmData($this->registeredClient(), $data);
+	}
+
+	public function testConfirmDataAcceptsSecretsStoredHashed(): void {
+		$hasher = new SecretHasher();
+		$client = $this->registeredClient();
+		$client->setAppClientSecret($hasher->hash('s3cret'));
+		$client->setAuthCode($hasher->hash('c0de'));
+		$client->setLastUpdate(time() - 60);
+
+		$this->service->confirmData($client, ['client_secret' => 's3cret', 'code' => 'c0de']);
+		$this->addToAssertionCount(1);
+	}
+
+	public function testConfirmDataRejectsTheStoredHashAsThePresentedSecret(): void {
+		$hasher = new SecretHasher();
+		$client = $this->registeredClient();
+		$client->setAppClientSecret($hasher->hash('s3cret'));
+
+		// a database leak must not hand out a working credential
+		$this->expectException(ClientException::class);
+		$this->service->confirmData($client, ['client_secret' => $hasher->hash('s3cret')]);
+	}
+
+	public function testConfirmDataRejectsAnExpiredCode(): void {
+		$client = $this->registeredClient();
+		$client->setLastUpdate(time() - ClientService::TIME_CODE_TTL - 60);
+
+		$this->expectException(ClientException::class);
+		$this->expectExceptionMessage('code expired');
+		$this->service->confirmData($client, ['code' => 'c0de']);
+	}
+
+	public function testConfirmDataAcceptsAFreshCode(): void {
+		$client = $this->registeredClient();
+		$client->setLastUpdate(time() - 60);
+
+		$this->service->confirmData($client, ['code' => 'c0de']);
+		$this->addToAssertionCount(1);
+	}
+
+	public function testRevokeTokenClearsTheClientsOwnToken(): void {
+		$client = $this->registeredClient();
+		$client->setId(7);
+		$this->clientRequest->method('getFromToken')->with('tok')->willReturn($client);
+		$this->clientRequest->expects($this->once())
+			->method('revokeToken')
+			->with($this->identicalTo($client));
+
+		$this->service->revokeToken($client, 'tok');
+	}
+
+	public function testRevokeTokenRefusesAnotherClientsToken(): void {
+		$owner = $this->registeredClient();
+		$owner->setId(7);
+		$caller = $this->registeredClient();
+		$caller->setId(8);
+		$this->clientRequest->method('getFromToken')->willReturn($owner);
+		$this->clientRequest->expects($this->never())->method('revokeToken');
+
+		$this->expectException(ClientException::class);
+		$this->service->revokeToken($caller, 'tok');
 	}
 }
