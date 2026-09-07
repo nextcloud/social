@@ -1,0 +1,31 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", {"ostatus": "http://ostatus.org#", "sensitive": "as:sensitive"}],
+  "id": "https://mastodon.social/users/alice/statuses/113000000000000001/activity",
+  "type": "Create",
+  "actor": "https://mastodon.social/users/alice",
+  "published": "2026-09-01T12:00:00Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://mastodon.social/users/alice/followers", "https://cloud.example.org/apps/social/@bob"],
+  "object": {
+    "id": "https://mastodon.social/users/alice/statuses/113000000000000001",
+    "type": "Note",
+    "summary": "CW: long post about cats",
+    "inReplyTo": "https://cloud.example.org/apps/social/@bob/97",
+    "published": "2026-09-01T12:00:00Z",
+    "url": "https://mastodon.social/@alice/113000000000000001",
+    "attributedTo": "https://mastodon.social/users/alice",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "cc": ["https://mastodon.social/users/alice/followers", "https://cloud.example.org/apps/social/@bob"],
+    "sensitive": true,
+    "conversation": "tag:mastodon.social,2026-09-01:objectId=4711:objectType=Conversation",
+    "content": "<p><span class=\"h-card\"><a href=\"https://cloud.example.org/apps/social/@bob\" class=\"u-url mention\">@<span>bob</span></a></span> look, a <a href=\"https://mastodon.social/tags/cat\" class=\"mention hashtag\" rel=\"tag\">#<span>cat</span></a> 😺</p>",
+    "attachment": [],
+    "tag": [
+      {"type": "Mention", "href": "https://cloud.example.org/apps/social/@bob", "name": "@bob@cloud.example.org"},
+      {"type": "Hashtag", "href": "https://mastodon.social/tags/cat", "name": "#cat"}
+    ],
+    "replies": {"id": "https://mastodon.social/users/alice/statuses/113000000000000001/replies", "type": "Collection", "totalItems": 2},
+    "likes": {"id": "https://mastodon.social/users/alice/statuses/113000000000000001/likes", "type": "Collection", "totalItems": 7},
+    "shares": {"id": "https://mastodon.social/users/alice/statuses/113000000000000001/shares", "type": "Collection", "totalItems": 3}
+  }
+}

@@ -48,6 +48,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 
 		// update entry/field in database, based only on affected action
 		// to avoid race condition on 2 different actions
+		$fields = 0;
 		foreach ($action->getAffected() as $entry) {
 			$field = match ($entry) {
 				StreamAction::LIKED => 'liked',
@@ -59,7 +60,14 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 
 			if ($field !== '') {
 				$qb->set($field, $qb->createNamedParameter(($action->getValueBool($entry)) ? 1 : 0));
+				$fields++;
 			}
+		}
+
+		if ($fields === 0) {
+			// setting a flag to the value it already has affects nothing — an
+			// UPDATE without a SET clause is invalid SQL, not a no-op
+			return 0;
 		}
 
 		$qb->limitToActorIdPrim($qb->prim($action->getActorId()));

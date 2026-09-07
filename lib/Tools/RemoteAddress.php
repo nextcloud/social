@@ -43,6 +43,14 @@ final class RemoteAddress {
 			return (int)explode('.', $ip)[0] >= 224;
 		}
 
+		// NAT64 (64:ff9b::/96) embeds an IPv4 address that a translating
+		// network delivers to; classify by the embedded address.
+		$packed = inet_pton($ip);
+		if ($packed !== false && strlen($packed) === 16
+			&& str_starts_with(bin2hex($packed), '0064ff9b0000000000000000')) {
+			return self::isLocalIp(inet_ntop(substr($packed, 12)));
+		}
+
 		return str_starts_with(strtolower($ip), 'ff');
 	}
 

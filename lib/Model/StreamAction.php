@@ -35,7 +35,8 @@ class StreamAction implements JsonSerializable {
 	private array $accepted = [
 		self::LIKED,
 		self::BOOSTED,
-		self::REPLIED
+		self::REPLIED,
+		self::BOOKMARKED
 	];
 
 	/**
