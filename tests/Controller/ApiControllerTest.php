@@ -681,6 +681,36 @@ class ApiControllerTest extends TestCase {
 	}
 
 
+	public function testRemoteFollowerFanOutIsBoundedByMaxLimit(): void {
+		$this->localHosts();
+		$actor = $this->createMock(Person::class);
+		$actor->method('getFollowers')->willReturn('https://remote.example/users/bob/followers');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+
+		// A remote page far larger than MAX_LIMIT, every id unresolvable: each would be
+		// an outbound fetch, so the walk itself must stop at ProbeOptions::MAX_LIMIT
+		// regardless of the (already large) limit the caller asked for.
+		$ids = [];
+		for ($i = 0; $i < 500; $i++) {
+			$ids[] = 'https://remote.example/users/u' . $i;
+		}
+		$this->curlService->method('retrieveObject')->willReturn(['orderedItems' => $ids]);
+
+		$calls = 0;
+		$this->cacheActorService->method('getFromId')
+			->willReturnCallback(function () use (&$calls): Person {
+				$calls++;
+
+				throw new CacheActorDoesNotExistException();
+			});
+
+		$response = $this->controller()->accountFollowers('bob@remote.example', 500);
+
+		$this->assertSame([], $response->getData());
+		$this->assertLessThanOrEqual(ProbeOptions::MAX_LIMIT, $calls, 'the fan-out walk must be bounded by MAX_LIMIT');
+	}
+
+
 	// favourites / notifications / tag
 
 	public function testFavouritesProbeTheFavouritesTimeline(): void {

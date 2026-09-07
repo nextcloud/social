@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
@@ -224,19 +225,30 @@ class ImportServiceTest extends TestCase {
 		$this->service->parseIncomingRequest($note);
 	}
 
-	public function testParseIncomingRequestLogsProcessingFailures(): void {
+	public function testParseIncomingRequestPropagatesAnUnexpectedFailure(): void {
 		$ap = $this->createMock(AP::class);
 		AP::$activityPub = $ap;
 		$interface = $this->createMock(NoteInterface::class);
+		// A database or other unexpected failure must not be swallowed behind a 200:
+		// it propagates so the inbox answers 5xx and the sender retries.
 		$interface->method('processIncomingRequest')->willThrowException(new Exception('boom'));
 		$ap->method('getInterfaceForItem')->willReturn($interface);
-		$this->miscService->expects($this->once())
-			->method('log')
-			->with($this->logicalAnd(
-				$this->stringContains('Cannot parse Note'),
-				$this->stringContains('Exception boom'),
-			));
 
+		$this->expectException(Exception::class);
+		$this->service->parseIncomingRequest($this->incomingNote('remote.example'));
+	}
+
+	public function testParseIncomingRequestToleratesAnUnprocessableActivity(): void {
+		$ap = $this->createMock(AP::class);
+		AP::$activityPub = $ap;
+		$interface = $this->createMock(NoteInterface::class);
+		$interface->method('processIncomingRequest')
+			->willThrowException(new InvalidResourceException('nothing to resolve'));
+		$ap->method('getInterfaceForItem')->willReturn($interface);
+		$this->miscService->expects($this->once())->method('log')
+			->with($this->stringContains('Ignoring Note'));
+
+		// No exception escapes: an understood-but-unprocessable activity is a no-op.
 		$this->service->parseIncomingRequest($this->incomingNote('remote.example'));
 	}
 

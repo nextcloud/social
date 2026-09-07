@@ -19,6 +19,12 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class RequestQueueService {
+	/** A request is abandoned after this many failed delivery attempts. */
+	public const MAX_TRIES = 15;
+
+	/** A `running` request older than this (seconds) is treated as stranded. */
+	public const STALE_RUNNING_SECONDS = 3600;
+
 	use TArrayTools;
 
 
@@ -103,7 +109,7 @@ class RequestQueueService {
 				}
 
 				$next = $requests[1];
-				if ($next->getStatus() < InstancePath::PRIORITY_HIGH) {
+				if ($next->getPriority() < InstancePath::PRIORITY_HIGH) {
 					return $request;
 				}
 				break;
@@ -130,6 +136,13 @@ class RequestQueueService {
 
 		$result = [];
 		foreach ($requests as $request) {
+			// A request that has exhausted its retries is abandoned rather than kept
+			// on standby forever against a host that is never coming back.
+			if ($request->getTries() >= self::MAX_TRIES) {
+				$this->deleteRequest($request);
+				continue;
+			}
+
 			$delay = floor(pow($request->getTries(), 4) / 3);
 			if ($request->getLast() < (time() - $delay)) {
 				$result[] = $request;
@@ -172,12 +185,22 @@ class RequestQueueService {
 	public function endRequest(RequestQueue $queue, bool $success) {
 		try {
 			if ($success === true) {
-				$this->requestQueueRequest->setAsSuccess($queue);
+				// A successfully delivered request has nothing left to record, so it is
+				// removed rather than kept forever as a STATUS_SUCCESS row.
+				$this->requestQueueRequest->delete($queue);
 			} else {
 				$this->requestQueueRequest->setAsFailure($queue);
 			}
 		} catch (QueueStatusException $e) {
 		}
+	}
+
+	/**
+	 * Return requests stuck `running` past the reaper cutoff to standby, so a worker
+	 * that died mid-delivery does not strand them forever.
+	 */
+	public function reapStaleRunning(): int {
+		return $this->requestQueueRequest->resetStaleRunning(time() - self::STALE_RUNNING_SECONDS);
 	}
 
 

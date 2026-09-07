@@ -35,6 +35,9 @@ class Queue extends TimedJob {
 	}
 
 	private function manageRequestQueue() {
+		// Re-queue anything a dead worker left stranded mid-delivery before draining.
+		$this->requestQueueService->reapStaleRunning();
+
 		$requests = $this->requestQueueService->getRequestStandby();
 		$this->activityService->manageInit();
 

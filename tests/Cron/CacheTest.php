@@ -22,6 +22,7 @@ use OCP\BackgroundJob\IJobList;
 use OCP\BackgroundJob\TimedJob;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class CacheTest extends TestCase {
 	private const NOW = 1700000000;
@@ -40,6 +41,8 @@ class CacheTest extends TestCase {
 	private $cacheActorsRequest;
 	/** @var IJobList&MockObject */
 	private $jobList;
+	/** @var LoggerInterface&MockObject */
+	private $logger;
 	private Cache $job;
 
 	protected function setUp(): void {
@@ -52,6 +55,7 @@ class CacheTest extends TestCase {
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->jobList = $this->createMock(IJobList::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$this->job = new Cache(
 			$time,
@@ -60,7 +64,8 @@ class CacheTest extends TestCase {
 			$this->documentService,
 			$this->hashtagService,
 			$this->streamService,
-			$this->cacheActorsRequest
+			$this->cacheActorsRequest,
+			$this->logger
 		);
 	}
 
@@ -101,7 +106,10 @@ class CacheTest extends TestCase {
 	}
 
 	public function testAFailingStepDoesNotStopTheOthers(): void {
-		$this->accountService->method('manageDeletedActors')->willThrowException(new \RuntimeException('db'));
+		// An Error (e.g. the undefined-constant fatal manageDeletedActors used to
+		// raise) is not an Exception, so a catch (Exception) would have let it kill
+		// the whole run; the cron catches Throwable.
+		$this->accountService->method('manageDeletedActors')->willThrowException(new \Error('undefined constant'));
 		$this->cacheActorService->method('manageCacheRemoteActors')->willThrowException(new \RuntimeException('network'));
 		$this->accountService->expects($this->once())->method('manageCacheLocalActors');
 		$this->cacheActorService->expects($this->once())->method('manageDetailsRemoteActors');
