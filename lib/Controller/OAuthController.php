@@ -105,6 +105,7 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
+	 * @AnonRateThrottle(limit=15, period=300)
 	 *
 	 * @param array|string $redirect_uris
 	 *
@@ -307,5 +308,37 @@ class OAuthController extends Controller {
 
 			return $response;
 		}
+	}
+
+
+	/**
+	 * Token revocation (RFC 7009). Only the client the token was issued to may
+	 * revoke it. Always answers 200 for a token that (no longer) exists, so the
+	 * endpoint is not an oracle; wrong client credentials are throttled like the
+	 * token endpoint.
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @PublicPage
+	 * @BruteForceProtection(action=socialOauthToken)
+	 */
+	public function revoke(string $client_id, string $client_secret, string $token): DataResponse {
+		try {
+			$client = $this->clientService->getFromClientId($client_id);
+			$this->clientService->confirmData($client, ['client_secret' => $client_secret]);
+		} catch (Exception $e) {
+			$response = new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			$response->throttle(['action' => 'socialOauthToken']);
+
+			return $response;
+		}
+
+		try {
+			$this->clientService->revokeToken($client, $token);
+		} catch (Exception $e) {
+			// RFC 7009: an unknown or already-revoked token is a success
+		}
+
+		return new DataResponse([], Http::STATUS_OK);
 	}
 }

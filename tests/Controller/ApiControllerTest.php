@@ -90,12 +90,23 @@ class ApiControllerTest extends TestCase {
 	private $curlService;
 
 	private array $filesBackup;
+	/** the value getParam('_route') hands the controller, per test */
+	private string $route = '';
+	/** what passesCSRFCheck() reports, per test */
+	private bool $csrf = true;
 
 	protected function setUp(): void {
 		$this->filesBackup = $_FILES;
 		$_FILES = [];
 
 		$this->request = $this->createMock(IRequest::class);
+		// the app's own frontend sends the requesttoken header on every call
+		$this->csrf = true;
+		$this->request->method('passesCSRFCheck')->willReturnCallback(fn (): bool => $this->csrf);
+		$this->route = '';
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $key, $default = null) => $key === '_route' ? $this->route : $default
+		);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->instanceService = $this->createMock(InstanceService::class);
@@ -213,6 +224,7 @@ class ApiControllerTest extends TestCase {
 	}
 
 	public function testAppsCredentialsForBearerTokenDescribesTheOAuthClient(): void {
+		$this->route = 'social.Api.appsCredentials';
 		$client = new SocialClient();
 		$client->setAppName('Tusky')->setAppWebsite('https://tusky.app')->setAuthUserId('alice');
 		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
@@ -226,6 +238,96 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller('Bearer s3cret')->appsCredentials();
 
 		$this->assertSame(['name' => 'Tusky', 'website' => 'https://tusky.app'], $response->getData());
+	}
+
+	/** A bearer client for alice, granted the given scopes. */
+	private function bearerFor(array $scopes, string $uid = 'alice'): void {
+		$client = new SocialClient();
+		$client->setAppName('Tusky')->setAuthUserId($uid)->setAuthScopes($scopes);
+		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
+
+		$account = $this->createMock(Person::class);
+		$account->method('getPreferredUsername')->willReturn($uid);
+		$account->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
+		$this->accountService->method('getActorFromUserId')->with($uid, true)->willReturn($account);
+
+		$viewer = $this->createMock(Person::class);
+		$viewer->method('getPreferredUsername')->willReturn($uid);
+		$viewer->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
+		$this->cacheActorService->method('getFromLocalAccount')->with($uid)->willReturn($viewer);
+	}
+
+
+	// token scopes
+
+	public function testAWriteRouteRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.statusNew';
+		$this->bearerFor(['read']);
+		$this->postService->expects($this->never())->method('createPost');
+
+		$response = $this->controller('Bearer s3cret')->statusNew();
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(
+			['error' => 'token scope does not allow this request (needs write)'],
+			$response->getData()
+		);
+	}
+
+	public function testABlockRouteRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.accountMute';
+		$this->bearerFor(['read']);
+
+		$this->assertUnauthorized(
+			$this->controller('Bearer s3cret')->accountMute('42'),
+			'token scope does not allow this request (needs follow or write)'
+		);
+	}
+
+	public function testAReadRouteRefusesAScopelessToken(): void {
+		$this->route = 'social.Api.verifyCredentials';
+		$this->bearerFor([]);
+
+		$this->assertUnauthorized(
+			$this->controller('Bearer s3cret')->verifyCredentials(),
+			'token scope does not allow this request (needs read)'
+		);
+	}
+
+	public function testAGranularWriteScopeSatisfiesAWriteRoute(): void {
+		$this->route = 'social.Api.statusNew';
+		$this->bearerFor(['read', 'write:statuses']);
+		$this->request->method('getParams')->willReturn(['status' => 'hi']);
+
+		$activity = $this->createMock(ACore::class);
+		$activity->method('getObjectId')->willReturn('https://cloud.example/apps/social/@alice/n1');
+		$this->postService->method('createPost')->willReturn($activity);
+		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller('Bearer s3cret')->statusNew()->getStatus());
+	}
+
+	public function testABearerTokenIsScopedEvenWhenASessionExists(): void {
+		// the token's grant must not silently widen to the cookie's full access
+		$this->route = 'social.Api.statusNew';
+		$this->loggedInAs();
+		$this->bearerFor(['read']);
+		$this->postService->expects($this->never())->method('createPost');
+
+		$response = $this->controller('Bearer s3cret')->statusNew();
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(
+			['error' => 'token scope does not allow this request (needs write)'],
+			$response->getData()
+		);
+	}
+
+	public function testASessionWithoutACsrfTokenIsRefused(): void {
+		$this->csrf = false;
+		$this->loggedInAs();
+
+		$this->assertUnauthorized($this->controller()->verifyCredentials());
 	}
 
 	public function testNonBearerAuthorizationIsIgnored(): void {

@@ -377,4 +377,37 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame(['error' => 'wrong client_secret'], $response->getData());
 	}
+
+
+	// revoke()
+
+	public function testRevokeClearsTheToken(): void {
+		$client = $this->knownClient();
+		$this->clientService->expects($this->once())
+			->method('revokeToken')
+			->with($this->identicalTo($client), 'tok');
+
+		$response = $this->controller->revoke('client-1', 's3cret', 'tok');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
+	}
+
+	public function testRevokeOfAnUnknownTokenIsStillASuccess(): void {
+		$this->knownClient();
+		$this->clientService->method('revokeToken')->willThrowException(new ClientNotFoundException());
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->revoke('client-1', 's3cret', 'gone')->getStatus());
+	}
+
+	public function testRevokeThrottlesWrongClientCredentials(): void {
+		$this->knownClient();
+		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong client_secret'));
+		$this->clientService->expects($this->never())->method('revokeToken');
+
+		$response = $this->controller->revoke('client-1', 'wrong', 'tok');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertTrue($response->isThrottled());
+	}
 }

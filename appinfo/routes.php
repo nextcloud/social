@@ -44,6 +44,7 @@ return [
 		['name' => 'OAuth#authorize', 'url' => '/oauth/authorize', 'verb' => 'GET'],
 		['name' => 'OAuth#authorizing', 'url' => '/oauth/authorize', 'verb' => 'POST'],
 		['name' => 'OAuth#token', 'url' => '/oauth/token', 'verb' => 'POST'],
+		['name' => 'OAuth#revoke', 'url' => '/oauth/revoke', 'verb' => 'POST'],
 
 		['name' => 'Api#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],

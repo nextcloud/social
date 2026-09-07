@@ -15,6 +15,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -1098,6 +1099,11 @@ class ApiController extends Controller {
 			]);
 
 			return true;
+		} catch (InsufficientScopeException $e) {
+			// the token is fine, its grant is not — tell the client which scope it lacks
+			if ($exception) {
+				throw $e;
+			}
 		} catch (Exception $e) {
 			$this->logger->error('[ApiController] initViewer failed', [
 				'exception' => $e->getMessage(),
@@ -1143,19 +1149,62 @@ class ApiController extends Controller {
 	 * @throws AccountDoesNotExistException
 	 * @throws ClientNotFoundException
 	 */
+	/**
+	 * A bearer token wins over the session cookie: an OAuth client stays inside
+	 * the scopes it was granted even when the browser also carries a session.
+	 * The cookie is only accepted together with a valid CSRF token — these
+	 * routes are @NoCSRFRequired so that external clients (which cannot obtain
+	 * one) work, and without this check a cross-site form POST would act as the
+	 * logged-in user.
+	 */
 	private function currentSession(): string {
-		$user = $this->userSession->getUser();
-		if ($user !== null) {
-			return $user->getUID();
-		}
-
 		if ($this->bearer !== '') {
 			$this->client = $this->clientService->getFromToken($this->bearer);
+			$this->checkTokenScope();
 
 			return $this->client->getAuthUserId();
 		}
 
+		$user = $this->userSession->getUser();
+		if ($user !== null && $this->request->passesCSRFCheck()) {
+			return $user->getUID();
+		}
+
 		throw new AccountDoesNotExistException('userId not defined');
+	}
+
+
+	/**
+	 * The scope a bearer token needs for the current route. Everything defaults
+	 * to 'read'; the state-changing routes are enumerated. A scope is satisfied
+	 * by itself or any of its granular variants ('write' by 'write:statuses').
+	 *
+	 * @throws ClientNotFoundException
+	 */
+	private function checkTokenScope(): void {
+		$route = $this->request->getParam('_route', '');
+		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
+
+		$accepted = match ($name) {
+			'statusNew', 'statusUpdate', 'mediaNew', 'statusAction' => ['write'],
+			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute' => ['follow', 'write'],
+			'appsCredentials' => [],
+			default => ['read'],
+		};
+
+		foreach ($accepted as $scope) {
+			foreach ($this->client->getAuthScopes() as $granted) {
+				if ($granted === $scope || str_starts_with($granted, $scope . ':')) {
+					return;
+				}
+			}
+		}
+
+		if ($accepted !== []) {
+			throw new InsufficientScopeException(
+				'token scope does not allow this request (needs ' . implode(' or ', $accepted) . ')'
+			);
+		}
 	}
 
 
