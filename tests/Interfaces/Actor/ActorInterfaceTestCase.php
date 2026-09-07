@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Interfaces\Actor;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -43,6 +44,8 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	protected $cacheDocumentsRequest;
 	/** @var FollowsRequest&MockObject */
 	protected $followsRequest;
+	/** @var ActorRelationRequest&MockObject */
+	protected $actorRelationRequest;
 	/** @var RequestQueueRequest&MockObject */
 	protected $requestQueueRequest;
 	/** @var StreamRequest&MockObject */
@@ -66,6 +69,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->requestQueueRequest = $this->createMock(RequestQueueRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
@@ -135,6 +139,7 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->cacheDocumentsRequest->expects($this->once())->method('deleteByParent')->with(self::BOB);
 		$this->requestQueueRequest->expects($this->once())->method('deleteByAuthor')->with(self::BOB);
 		$this->followsRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
+		$this->actorRelationRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
 		$this->streamRequest->expects($this->once())->method('deleteByAuthor')->with(self::BOB);
 		$this->streamDestRequest->expects($this->once())->method('deleteRelatedToActor')->with(self::BOB);
 

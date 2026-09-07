@@ -45,6 +45,14 @@ const NcModalStub = {
 	emits: ['close'],
 	template: '<div class="modal-stub"><slot /></div>',
 }
+// NcActions only renders its entries inside a popover once opened; these
+// stand-ins render them inline so the menu content can be asserted.
+const NcActionsStub = { name: 'NcActions', template: '<div class="profile-menu"><slot /></div>' }
+const NcActionButtonStub = {
+	name: 'NcActionButton',
+	emits: ['click'],
+	template: '<button class="profile-menu__item" @click="$emit(\'click\')"><slot /></button>',
+}
 
 const bob = {
 	id: 'https://remote.example/users/bob',
@@ -102,7 +110,14 @@ const mountProfile = (uid) => mount(ProfileInfo, {
 	props: { uid },
 	global: {
 		plugins: [store],
-		stubs: { NcAvatar: NcAvatarStub, FollowButton: FollowButtonStub, RouterLink: RouterLinkStub, NcModal: NcModalStub },
+		stubs: {
+			NcAvatar: NcAvatarStub,
+			FollowButton: FollowButtonStub,
+			RouterLink: RouterLinkStub,
+			NcModal: NcModalStub,
+			NcActions: NcActionsStub,
+			NcActionButton: NcActionButtonStub,
+		},
 	},
 })
 
@@ -195,6 +210,74 @@ describe('ProfileInfo', () => {
 		expect(bannerOf(wrapper).element.style.backgroundImage).toBe('')
 		expect(bannerOf(wrapper).element.style.backgroundColor).toBe('var(--color-background-dark)')
 		expect(bannerOf(wrapper).classes()).not.toContain('user-profile__banner--visible')
+	})
+
+	describe('block and mute menu', () => {
+		const relationship = (extra = {}) => ({
+			id: '42',
+			following: false,
+			followed_by: false,
+			blocking: false,
+			blocked_by: false,
+			muting: false,
+			muting_notifications: false,
+			requested: false,
+			...extra,
+		})
+		const menuItems = (wrapper) => wrapper.findAll('.profile-menu__item').map((button) => button.text())
+		const menuItem = (wrapper, label) => wrapper.findAll('.profile-menu__item').find((button) => button.text() === label)
+
+		it('shows no menu while the relationship has not been loaded', () => {
+			expect(menuItems(mountProfile('bob@remote.example'))).toEqual([])
+		})
+
+		it('offers Block and Mute for an account that is neither blocked nor muted', () => {
+			store.commit('addRelationship', { actorId: bob.id, data: relationship() })
+			const wrapper = mountProfile('bob@remote.example')
+			expect(menuItems(wrapper)).toEqual(['Block', 'Mute'])
+			expect(wrapper.findComponent(FollowButtonStub).exists()).toBe(true)
+			expect(wrapper.find('.user-profile__blocked-hint').exists()).toBe(false)
+		})
+
+		it('flips to Unblock, shows the Blocked hint and hides the follow button for a blocked account', () => {
+			store.commit('addRelationship', { actorId: bob.id, data: relationship({ blocking: true }) })
+			const wrapper = mountProfile('bob@remote.example')
+			expect(menuItems(wrapper)).toEqual(['Unblock', 'Mute'])
+			expect(wrapper.find('.user-profile__blocked-hint').text()).toBe('Blocked')
+			expect(wrapper.findComponent(FollowButtonStub).exists()).toBe(false)
+		})
+
+		it('flips to Unmute for a muted account', () => {
+			store.commit('addRelationship', { actorId: bob.id, data: relationship({ muting: true, muting_notifications: true }) })
+			expect(menuItems(mountProfile('bob@remote.example'))).toEqual(['Block', 'Unmute'])
+		})
+
+		it.each([
+			['Block', relationship(), 'blockAccount'],
+			['Unblock', relationship({ blocking: true }), 'unblockAccount'],
+			['Mute', relationship(), 'muteAccount'],
+			['Unmute', relationship({ muting: true }), 'unmuteAccount'],
+		])('clicking %s dispatches %s with the relationship id', async (label, data, action) => {
+			store.commit('addRelationship', { actorId: bob.id, data })
+			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(data)
+			const wrapper = mountProfile('bob@remote.example')
+
+			await menuItem(wrapper, label).trigger('click')
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith(action, { id: '42' })
+		})
+
+		it('shows no menu on the own profile', () => {
+			store.commit('addRelationship', { actorId: alice.id, data: relationship() })
+			expect(menuItems(mountProfile('alice'))).toEqual([])
+		})
+
+		it('shows no menu on the public page', () => {
+			makeStore({ public: true })
+			store.commit('addRelationship', { actorId: bob.id, data: relationship() })
+			expect(menuItems(mountProfile('bob@remote.example'))).toEqual([])
+		})
 	})
 
 	describe('on the public page', () => {

@@ -11,6 +11,7 @@ namespace OCA\Social\Interfaces\Object;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -28,6 +29,7 @@ use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
@@ -47,21 +49,53 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
  */
 class FollowInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private FollowsRequest $followsRequest;
+	private ActorRelationRequest $actorRelationRequest;
 	private CacheActorService $cacheActorService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
 	private MiscService $miscService;
 
 	public function __construct(
-		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
+		FollowsRequest $followsRequest, ActorRelationRequest $actorRelationRequest,
+		CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
 		MiscService $miscService,
 	) {
 		$this->followsRequest = $followsRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
+	}
+
+	/**
+	 * Refuse a follow request: federate a Reject and make sure no follow row stays.
+	 */
+	public function rejectFollowRequest(Follow $follow): void {
+		try {
+			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
+
+			/** @var Reject $reject */
+			$reject = AP::$activityPub->getItemFromType(Reject::TYPE);
+			$reject->generateUniqueId('#reject/follows');
+			$reject->setActorId($follow->getObjectId());
+			$reject->setObject($follow);
+
+			$reject->addInstancePath(
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
+			);
+
+			$this->activityService->request($reject);
+			$this->followsRequest->deleteByPersons($follow);
+		} catch (Exception $e) {
+			$this->miscService->log(
+				'exception while rejectFollowRequest: ' . get_class($e) . ' - ' . $e->getMessage(),
+				2
+			);
+		}
 	}
 
 	public function confirmFollowRequest(Follow $follow): void {
@@ -124,6 +158,21 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		/** @var Follow $follow */
 		$follow = $item;
 		$follow->checkOrigin($follow->getActorId());
+
+		// A follow from an actor the target has blocked is refused outright, so the
+		// block cannot be re-established as a follow relationship.
+		try {
+			$target = $this->cacheActorService->getFromId($follow->getObjectId());
+			if ($target->isLocal()
+				&& $this->actorRelationRequest->exists(
+					$target->getId(), $follow->getActorId(), ActorRelation::TYPE_BLOCK
+				)) {
+				$this->rejectFollowRequest($follow);
+
+				return;
+			}
+		} catch (Exception $e) {
+		}
 
 		try {
 			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());

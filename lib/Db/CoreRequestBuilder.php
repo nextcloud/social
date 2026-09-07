@@ -37,6 +37,7 @@ use Psr\Log\LoggerInterface;
 class CoreRequestBuilder {
 	public const TABLE_ACTIONS = 'social_action';
 	public const TABLE_ACTORS = 'social_actor';
+	public const TABLE_ACTOR_RELATION = 'social_actor_relation';
 	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
 	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
 	public const TABLE_CLIENT = 'social_client';

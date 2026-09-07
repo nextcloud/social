@@ -20,11 +20,13 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
+use OCA\Social\Model\Relationship;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
@@ -36,6 +38,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -73,6 +76,8 @@ class ApiControllerTest extends TestCase {
 	private $documentService;
 	/** @var FollowService&MockObject */
 	private $followService;
+	/** @var RelationshipService&MockObject */
+	private $relationshipService;
 	/** @var StreamService&MockObject */
 	private $streamService;
 	/** @var ActionService&MockObject */
@@ -100,6 +105,7 @@ class ApiControllerTest extends TestCase {
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->followService = $this->createMock(FollowService::class);
+		$this->relationshipService = $this->createMock(RelationshipService::class);
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->actionService = $this->createMock(ActionService::class);
 		$this->postService = $this->createMock(PostService::class);
@@ -132,6 +138,7 @@ class ApiControllerTest extends TestCase {
 			$this->cacheDocumentService,
 			$this->documentService,
 			$this->followService,
+			$this->relationshipService,
 			$this->streamService,
 			$this->actionService,
 			$this->postService,
@@ -558,6 +565,133 @@ class ApiControllerTest extends TestCase {
 
 	public function testRelationshipsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->relationships([1]));
+	}
+
+
+	// blocking / muting
+
+	/**
+	 * A target account resolvable by its numeric id, as resolveTargetAccount() does.
+	 *
+	 * @return Person&MockObject
+	 */
+	private function knownTarget(int $nid = 42): Person {
+		$target = $this->createMock(Person::class);
+		$target->method('getNid')->willReturn($nid);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromNids')->with([$nid])->willReturn([$target]);
+
+		return $target;
+	}
+
+	public function testAccountBlockBlocksTheResolvedAccountAndReturnsTheRelationship(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->relationshipService->expects($this->once())
+			->method('block')
+			->with($this->identicalTo($viewer), $this->identicalTo($target));
+
+		$relationship = new Relationship(42);
+		$this->followService->expects($this->once())
+			->method('getRelationshipWith')->with($this->identicalTo($target))->willReturn($relationship);
+
+		$response = $this->controller()->accountBlock('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($relationship, $response->getData());
+	}
+
+	public function testAccountUnblockUnblocksTheResolvedAccount(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->relationshipService->expects($this->once())
+			->method('unblock')
+			->with($this->identicalTo($viewer), $this->identicalTo($target));
+		$this->relationshipService->expects($this->never())->method('block');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnblock('42')->getStatus());
+	}
+
+	public function testAccountMuteHidesNotificationsByDefault(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->relationshipService->expects($this->once())
+			->method('mute')
+			->with($this->identicalTo($viewer), $this->identicalTo($target), true);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountMute('42')->getStatus());
+	}
+
+	public function testAccountMuteCanKeepNotifications(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->relationshipService->expects($this->once())
+			->method('mute')
+			->with($this->identicalTo($viewer), $this->identicalTo($target), false);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountMute('42', false)->getStatus());
+	}
+
+	public function testAccountUnmuteUnmutesTheResolvedAccount(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->relationshipService->expects($this->once())
+			->method('unmute')
+			->with($this->identicalTo($viewer), $this->identicalTo($target));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnmute('42')->getStatus());
+	}
+
+	public function testAccountBlockOfAnUnknownAccountIsAnErrorAndBlocksNothing(): void {
+		$this->loggedInAs();
+		$this->cacheActorService->method('getFromNids')->with([42])->willReturn([]);
+		$this->cacheActorService->method('getFromId')
+			->with('42')
+			->willThrowException(new CacheActorDoesNotExistException('who?'));
+		$this->relationshipService->expects($this->never())->method('block');
+
+		$this->assertUnauthorized($this->controller()->accountBlock('42'), 'who?');
+	}
+
+	public function testAccountBlockRequiresAViewer(): void {
+		$this->relationshipService->expects($this->never())->method('block');
+
+		$this->assertUnauthorized($this->controller()->accountBlock('42'));
+	}
+
+	public function testBlocksListTheBlockedAccountsForLocalExport(): void {
+		$viewer = $this->loggedInAs();
+		$blocked = $this->createMock(Person::class);
+		$blocked->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+		$this->relationshipService->expects($this->once())
+			->method('getRelated')
+			->with($this->identicalTo($viewer), ActorRelation::TYPE_BLOCK, 40)
+			->willReturn([$blocked]);
+
+		$response = $this->controller()->blocks();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$blocked], $response->getData());
+	}
+
+	public function testMutesListTheMutedAccounts(): void {
+		$viewer = $this->loggedInAs();
+		$muted = $this->createMock(Person::class);
+		$this->relationshipService->expects($this->once())
+			->method('getRelated')
+			->with($this->identicalTo($viewer), ActorRelation::TYPE_MUTE, 40)
+			->willReturn([$muted]);
+
+		$response = $this->controller()->mutes();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$muted], $response->getData());
+	}
+
+	public function testBlocksRequireAViewer(): void {
+		$this->relationshipService->expects($this->never())->method('getRelated');
+
+		$this->assertUnauthorized($this->controller()->blocks());
 	}
 
 	public function testAccountStatusesSyncsThenProbesTheAccountTimeline(): void {

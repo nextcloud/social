@@ -21,6 +21,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
@@ -37,6 +38,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
+use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -68,6 +70,7 @@ class ApiController extends Controller {
 	private CacheDocumentService $cacheDocumentService;
 	private DocumentService $documentService;
 	private FollowService $followService;
+	private RelationshipService $relationshipService;
 	private StreamService $streamService;
 	private ActionService $actionService;
 	private PostService $postService;
@@ -90,6 +93,7 @@ class ApiController extends Controller {
 		CacheDocumentService $cacheDocumentService,
 		DocumentService $documentService,
 		FollowService $followService,
+		RelationshipService $relationshipService,
 		StreamService $streamService,
 		ActionService $actionService,
 		PostService $postService,
@@ -108,6 +112,7 @@ class ApiController extends Controller {
 		$this->cacheDocumentService = $cacheDocumentService;
 		$this->documentService = $documentService;
 		$this->followService = $followService;
+		$this->relationshipService = $relationshipService;
 		$this->streamService = $streamService;
 		$this->actionService = $actionService;
 		$this->postService = $postService;
@@ -584,6 +589,119 @@ class ApiController extends Controller {
 		}
 	}
 
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function accountBlock(string $id): DataResponse {
+		return $this->relationshipAction($id, 'block');
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function accountUnblock(string $id): DataResponse {
+		return $this->relationshipAction($id, 'unblock');
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function accountMute(string $id, bool $notifications = true): DataResponse {
+		return $this->relationshipAction($id, 'mute', $notifications);
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function accountUnmute(string $id): DataResponse {
+		return $this->relationshipAction($id, 'unmute');
+	}
+
+	private function relationshipAction(string $id, string $action, bool $notifications = true): DataResponse {
+		try {
+			$this->initViewer(true);
+			$target = $this->resolveTargetAccount($id);
+
+			switch ($action) {
+				case 'block':
+					$this->relationshipService->block($this->viewer, $target);
+					break;
+				case 'unblock':
+					$this->relationshipService->unblock($this->viewer, $target);
+					break;
+				case 'mute':
+					$this->relationshipService->mute($this->viewer, $target, $notifications);
+					break;
+				case 'unmute':
+					$this->relationshipService->unmute($this->viewer, $target);
+					break;
+			}
+
+			// Mastodon clients expect the updated relationship entity back
+			$this->followService->setViewer($this->viewer);
+
+			return new DataResponse(
+				$this->followService->getRelationshipWith($target), Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function blocks(int $limit = 40): DataResponse {
+		return $this->listRelatedAccounts(ActorRelation::TYPE_BLOCK, $limit);
+	}
+
+	/**
+	 * @PublicPage
+	 * @NoCSRFRequired
+	 */
+	public function mutes(int $limit = 40): DataResponse {
+		return $this->listRelatedAccounts(ActorRelation::TYPE_MUTE, $limit);
+	}
+
+	private function listRelatedAccounts(string $type, int $limit): DataResponse {
+		try {
+			$this->initViewer(true);
+			$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
+
+			$accounts = [];
+			foreach ($this->relationshipService->getRelated($this->viewer, $type, $limit) as $person) {
+				$person->setExportFormat(ACore::FORMAT_LOCAL);
+				$accounts[] = $person;
+			}
+
+			return new DataResponse($accounts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * Resolve a Mastodon-style account reference: the numeric id every API entity
+	 * carries, or a full actor id.
+	 *
+	 * @throws Exception
+	 */
+	private function resolveTargetAccount(string $id): Person {
+		if (is_numeric($id) && (int)$id > 0) {
+			$actors = $this->cacheActorService->getFromNids([(int)$id]);
+			if ($actors !== []) {
+				return $actors[0];
+			}
+		}
+
+		return $this->cacheActorService->getFromId($id);
+	}
 
 	/**
 	 * @NoCSRFRequired

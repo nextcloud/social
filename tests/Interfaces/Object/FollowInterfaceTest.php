@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Object;
 
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -22,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
@@ -36,6 +38,8 @@ require_once __DIR__ . '/../ActivityPubTestCase.php';
 class FollowInterfaceTest extends ActivityPubTestCase {
 	/** @var FollowsRequest&MockObject */
 	private $followsRequest;
+	/** @var ActorRelationRequest&MockObject */
+	private $actorRelationRequest;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
 	/** @var AccountService&MockObject */
@@ -54,6 +58,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		parent::setUp();
 
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -61,6 +66,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 		$this->handler = new FollowInterface(
 			$this->followsRequest,
+			$this->actorRelationRequest,
 			$this->cacheActorService,
 			$this->accountService,
 			$this->activityService,
@@ -166,6 +172,50 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->assertSame($follow->getId() . '/notification', $notification->getId());
 		$this->assertSame('bob@remote.example', $notification->getDetailsAll()['account']);
 		$this->assertTrue($notification->isLocal());
+	}
+
+	public function testFollowFromAnActorBlockedByTheTargetIsRejected(): void {
+		$this->noKnownFollow();
+		$follow = $this->incomingFollow();
+		$this->actorRelationRequest->method('exists')
+			->with($this->alice->getId(), $this->bob->getId(), ActorRelation::TYPE_BLOCK)
+			->willReturn(true);
+
+		$this->followsRequest->expects($this->never())->method('save');
+		$this->followsRequest->expects($this->never())->method('accepted');
+		$this->followsRequest->expects($this->once())
+			->method('deleteByPersons')->with($this->identicalTo($follow));
+		$this->notificationInterface->expects($this->never())->method('save');
+
+		$sent = null;
+		$this->capture($this->activityService, 'request', $sent, '');
+
+		$this->handler->processIncomingRequest($follow);
+
+		$this->assertInstanceOf(Reject::class, $sent);
+		$this->assertSame($this->alice->getId(), $sent->getActorId());
+		$this->assertSame($follow, $sent->getObject());
+		$this->assertStringStartsWith(self::LOCAL_URL . '/', $sent->getId());
+
+		$paths = $sent->getInstancePaths();
+		$this->assertCount(1, $paths);
+		$this->assertSame($this->bob->getInbox(), $paths[0]->getUri());
+		$this->assertSame(InstancePath::TYPE_INBOX, $paths[0]->getType());
+	}
+
+	public function testFollowFromANonBlockedActorConsultsTheBlockListAndIsAccepted(): void {
+		$this->noKnownFollow();
+		$follow = $this->incomingFollow();
+		$this->actorRelationRequest->expects($this->once())
+			->method('exists')
+			->with($this->alice->getId(), $this->bob->getId(), ActorRelation::TYPE_BLOCK)
+			->willReturn(false);
+
+		$this->followsRequest->expects($this->once())->method('save')->with($this->identicalTo($follow));
+		$this->followsRequest->expects($this->never())->method('deleteByPersons');
+		$this->activityService->expects($this->once())->method('request')->with($this->isInstanceOf(Accept::class));
+
+		$this->handler->processIncomingRequest($follow);
 	}
 
 	public function testFollowOfARemoteActorIsRefused(): void {

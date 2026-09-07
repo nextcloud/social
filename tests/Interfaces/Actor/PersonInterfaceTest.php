@@ -33,6 +33,7 @@ class PersonInterfaceTest extends ActorInterfaceTestCase {
 			$this->cacheActorsRequest,
 			$this->cacheDocumentsRequest,
 			$this->followsRequest,
+			$this->actorRelationRequest,
 			$this->requestQueueRequest,
 			$this->streamRequest,
 			$this->streamDestRequest,
