@@ -21,6 +21,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class RequestQueueRequest extends RequestQueueRequestBuilder {
+	/** How many standby requests a single cron pass hydrates. */
+	public const STANDBY_BATCH = 200;
+
 	/**
 	 * Create a new Queue in the database.
 	 *
@@ -67,6 +70,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb = $this->getRequestQueueSelectSql();
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
 		$qb->orderBy('id', 'asc');
+		$qb->setMaxResults(self::STANDBY_BATCH);
 
 		$requests = [];
 		$cursor = $qb->executeQuery();
@@ -167,7 +171,27 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			throw new QueueStatusException();
 		}
 
-		$queue->setStatus(RequestQueue::STATUS_SUCCESS);
+		$queue->setStatus(RequestQueue::STATUS_STANDBY);
+	}
+
+
+	/**
+	 * Return every request stuck `running` since before $before to standby.
+	 *
+	 * @return int the number of requests re-queued
+	 * @throws Exception
+	 */
+	public function resetStaleRunning(int $before): int {
+		$qb = $this->getRequestQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY));
+		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$qb->andWhere(
+			$qb->expr()->lt('last', $qb->createNamedParameter(
+				new DateTime('@' . $before), IQueryBuilder::PARAM_DATE
+			))
+		);
+
+		return $qb->executeStatement();
 	}
 
 

@@ -848,11 +848,20 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 * @throws DateTimeException
 	 */
+	/** Notes are hydrated for hashtag trends, so the window is bounded to the most
+	 * recent ones — an unbounded fetch over a busy instance is a cron memory fatal.
+	 * (A SQL COUNT(*) … GROUP BY hashtag over social_stream_tag would remove the
+	 * hydration entirely and is the better long-term fix; it needs integration-test
+	 * coverage this suite does not yet have.) */
+	public const TREND_SAMPLE = 1000;
+
 	public function getNoteSince(int $since): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToSince($since, 'published_time');
 		$qb->limitToType(Note::TYPE);
 		$qb->leftJoinStreamAction();
+		$qb->setMaxResults(self::TREND_SAMPLE);
+		$qb->orderBy($qb->getDefaultSelectAlias() . '.published_time', 'desc');
 
 		return $this->getStreamsFromRequest($qb);
 	}

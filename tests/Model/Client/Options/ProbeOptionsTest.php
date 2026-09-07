@@ -76,6 +76,20 @@ class ProbeOptionsTest extends TestCase {
 		$this->assertTrue($options->isLocal());
 	}
 
+	public function testSetLimitClampsToBounds(): void {
+		$this->assertSame(ProbeOptions::MAX_LIMIT, (new ProbeOptions())->setLimit(1000000)->getLimit());
+		$this->assertSame(1, (new ProbeOptions())->setLimit(-5)->getLimit());
+		$this->assertSame(20, (new ProbeOptions())->setLimit(20)->getLimit());
+	}
+
+	public function testRequestLimitIsClampedToMaxLimit(): void {
+		// A request asking for a million items must not reach setMaxResults() unbounded.
+		$request = $this->createMock(IRequest::class);
+		$request->method('getParams')->willReturn(['limit' => '1000000']);
+
+		$this->assertSame(ProbeOptions::MAX_LIMIT, (new ProbeOptions($request))->getLimit());
+	}
+
 	public function testProbeIsLowercased(): void {
 		$options = new ProbeOptions();
 

@@ -176,9 +176,11 @@ class RequestQueueServiceTest extends TestCase {
 		$this->service->initRequest($this->queued(InstancePath::PRIORITY_LOW));
 	}
 
-	public function testEndRequestOnSuccess(): void {
+	public function testEndRequestOnSuccessRemovesTheRequest(): void {
 		$queue = $this->queued(InstancePath::PRIORITY_LOW);
-		$this->requestQueueRequest->expects($this->once())->method('setAsSuccess')->with($this->identicalTo($queue));
+		// A delivered request is deleted rather than left as a permanent STATUS_SUCCESS
+		// row that would grow social_req_queue without bound.
+		$this->requestQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
 		$this->requestQueueRequest->expects($this->never())->method('setAsFailure');
 
 		$this->service->endRequest($queue, true);
@@ -204,5 +206,57 @@ class RequestQueueServiceTest extends TestCase {
 		$this->requestQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
 
 		$this->service->deleteRequest($queue);
+	}
+
+	public function testGetRequestStandbyAbandonsRequestsPastTheRetryCap(): void {
+		$now = time();
+		// A request that has burned through MAX_TRIES is deleted and never handed back,
+		// so a dead host cannot keep it on standby forever.
+		$exhausted = $this->queued(InstancePath::PRIORITY_LOW)->setTries(RequestQueueService::MAX_TRIES)->setLast($now - 100000);
+		$ready = $this->queued(InstancePath::PRIORITY_LOW)->setTries(2)->setLast($now - 60); // delay 5s, elapsed
+		$this->requestQueueRequest->method('getStandby')->willReturn([$exhausted, $ready]);
+		$this->requestQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($exhausted));
+
+		$total = 0;
+		$result = $this->service->getRequestStandby($total);
+
+		$this->assertSame(2, $total);
+		$this->assertSame([$ready], $result);
+		$this->assertNotContains($exhausted, $result);
+	}
+
+	public function testReapStaleRunningReturnsStrandedRunningToStandby(): void {
+		$cutoff = null;
+		$this->requestQueueRequest->expects($this->once())
+			->method('resetStaleRunning')
+			->willReturnCallback(function (int $before) use (&$cutoff): int {
+				$cutoff = $before;
+
+				return 4;
+			});
+
+		$reaped = $this->service->reapStaleRunning();
+
+		$this->assertSame(4, $reaped);
+		$this->assertEqualsWithDelta(time() - RequestQueueService::STALE_RUNNING_SECONDS, $cutoff, 2);
+	}
+
+	public function testHighPriorityFollowedByALowerPriorityRequestIsRunInline(): void {
+		$high = $this->queued(InstancePath::PRIORITY_HIGH);
+		$this->requestQueueRequest->method('getFromToken')
+			->willReturn([$high, $this->queued(InstancePath::PRIORITY_MEDIUM)]);
+
+		$this->assertSame($high, $this->service->getPriorityRequest('tok'));
+	}
+
+	public function testTwoHighPriorityRequestsAreDeferred(): void {
+		// Pins the getStatus()->getPriority() fix: a second HIGH request whose
+		// STATUS_STANDBY is 0 must not look "lower" than PRIORITY_HIGH and wrongly
+		// let the first be delivered inline.
+		$this->requestQueueRequest->method('getFromToken')
+			->willReturn([$this->queued(InstancePath::PRIORITY_HIGH), $this->queued(InstancePath::PRIORITY_HIGH)]);
+
+		$this->expectException(NoHighPriorityRequestException::class);
+		$this->service->getPriorityRequest('tok');
 	}
 }
