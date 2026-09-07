@@ -399,7 +399,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return ACore
 	 */
 	public function addEntryBool(string $k, bool $v): ACore {
-		if ($v === 0) {
+		if ($v === false) {
 			return $this;
 		}
 

@@ -172,4 +172,36 @@ class FediverseServiceTest extends TestCase {
 	public function testKnownAddressesIsEmpty(): void {
 		$this->assertSame([], $this->service->getKnownAddresses());
 	}
+
+	public function testListedAddressesToleratesAnUnreadableStoredValue(): void {
+		$this->configService->method('getAppValue')->willReturn('');
+
+		$this->assertSame([], $this->service->getListedAddresses());
+		$this->assertFalse($this->service->isListed('spam.example'));
+	}
+
+	public function testIsListedIgnoresHostnameCase(): void {
+		$this->withAccess('all_but', ['spam.example']);
+
+		$this->assertTrue($this->service->isListed('SPAM.Example'));
+	}
+
+	public function testBlacklistModeBlocksListedAddressesRegardlessOfCase(): void {
+		$this->withAccess('all_but', ['spam.example']);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('Spam.EXAMPLE');
+	}
+
+	public function testRemoveAddressKeepsTheListAList(): void {
+		$this->withAccess('all_but', ['a.example', 'b.example', 'c.example']);
+		$this->configService->expects($this->once())
+			->method('setAppValue')
+			->with(
+				ConfigService::SOCIAL_ACCESS_LIST,
+				$this->callback(fn (string $json): bool => $json === json_encode(['a.example', 'c.example']))
+			);
+
+		$this->service->removeAddress('B.example');
+	}
 }

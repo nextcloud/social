@@ -83,7 +83,7 @@ class SearchService {
 	public function searchAccounts(string $search): array {
 		$type = $this->getTypeFromSearch($search);
 
-		if ($search === '' || !$type & self::SEARCH_ACCOUNTS) {
+		if ($search === '' || !($type & self::SEARCH_ACCOUNTS)) {
 			return [];
 		}
 
@@ -107,7 +107,7 @@ class SearchService {
 	public function searchHashtags(string $search): array {
 		$result = [];
 		$type = $this->getTypeFromSearch($search);
-		if ($search === '' || !$type & self::SEARCH_HASHTAGS) {
+		if ($search === '' || !($type & self::SEARCH_HASHTAGS)) {
 			return $result;
 		}
 
@@ -128,7 +128,7 @@ class SearchService {
 		$result = [];
 
 		$type = $this->getTypeFromSearch($search);
-		if ($search === '' || !$type & self::SEARCH_CONTENT) {
+		if ($search === '' || !($type & self::SEARCH_CONTENT)) {
 			return $result;
 		}
 

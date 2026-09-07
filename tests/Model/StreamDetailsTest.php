@@ -27,6 +27,15 @@ class StreamDetailsTest extends TestCase {
 		$this->assertFalse($details->isFederated());
 	}
 
+	public function testConstructorAcceptsNoStream(): void {
+		$details = new StreamDetails();
+		$note = new Note();
+
+		$details->setStream($note);
+
+		$this->assertSame($note, $details->getStream());
+	}
+
 	public function testViewersCanBeAddedAndReplaced(): void {
 		$alice = (new Person())->setPreferredUsername('alice');
 		$bob = (new Person())->setPreferredUsername('bob');

@@ -82,6 +82,13 @@ class MediaAttachmentTest extends TestCase {
 		], $media->asDocument());
 	}
 
+	public function testAsDocumentWithoutMetaUsesZeroDimensions(): void {
+		$document = (new MediaAttachment())->asDocument();
+
+		$this->assertSame(0, $document['width']);
+		$this->assertSame(0, $document['height']);
+	}
+
 	public function testAsDocumentWithoutDimensionsUsesZero(): void {
 		$media = new MediaAttachment();
 		$media->import(['id' => '1', 'url' => 'https://a.example/x.png']);

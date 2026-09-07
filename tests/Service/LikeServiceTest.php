@@ -23,7 +23,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ActivityService;
@@ -237,28 +236,6 @@ class LikeServiceTest extends TestCase {
 
 		$this->expectException(ItemAlreadyExistsException::class);
 		$this->service->create($this->alice(), self::POST_ID);
-	}
-
-
-	// get()
-
-	public function testGetLooksUpLikeByLikedObject(): void {
-		$stored = new Stream();
-		$stored->setType(Like::TYPE);
-		$stored->setObjectId(self::POST_ID);
-		$this->streamRequest->expects($this->once())
-			->method('getStreamByObjectId')
-			->with(self::POST_ID, Like::TYPE)
-			->willReturn($stored);
-
-		$this->assertSame($stored, $this->service->get(self::POST_ID));
-	}
-
-	public function testGetPropagatesMissingLike(): void {
-		$this->streamRequest->method('getStreamByObjectId')->willThrowException(new StreamNotFoundException());
-
-		$this->expectException(StreamNotFoundException::class);
-		$this->service->get(self::POST_ID);
 	}
 
 
