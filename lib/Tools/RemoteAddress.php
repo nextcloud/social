@@ -31,6 +31,20 @@ final class RemoteAddress {
 			return false;
 		}
 
+		// An IPv6 address that only wraps an IPv4 one is classified by the
+		// address it wraps: IPv4-mapped (::ffff:a.b.c.d — PHP's range flags
+		// only learned these in later PHP versions, so never rely on them)
+		// and NAT64 (64:ff9b::/96, delivered to the embedded address by a
+		// translating network).
+		$packed = inet_pton($ip);
+		if ($packed !== false && strlen($packed) === 16) {
+			$hex = bin2hex($packed);
+			if (str_starts_with($hex, '00000000000000000000ffff')
+				|| str_starts_with($hex, '0064ff9b0000000000000000')) {
+				return self::isLocalIp(inet_ntop(substr($packed, 12)));
+			}
+		}
+
 		// A public address survives both flags; anything private or reserved
 		// (10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, ::1, fc00::/7, fe80::/10,
 		// 0/8, 240/4, …) is filtered out and returns false here.
@@ -41,14 +55,6 @@ final class RemoteAddress {
 		// Multicast is not covered by the reserved-range flag; reject it too.
 		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
 			return (int)explode('.', $ip)[0] >= 224;
-		}
-
-		// NAT64 (64:ff9b::/96) embeds an IPv4 address that a translating
-		// network delivers to; classify by the embedded address.
-		$packed = inet_pton($ip);
-		if ($packed !== false && strlen($packed) === 16
-			&& str_starts_with(bin2hex($packed), '0064ff9b0000000000000000')) {
-			return self::isLocalIp(inet_ntop(substr($packed, 12)));
 		}
 
 		return str_starts_with(strtolower($ip), 'ff');

@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\QueryBuilder\ICompositeExpression;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class SocialCrossQueryBuilder
@@ -39,6 +40,32 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		if ($aliasFollowing !== '') {
 			$this->from(CoreRequestBuilder::TABLE_FOLLOWS, $aliasFollowing);
 		}
+	}
+
+	/**
+	 * The viewer's accepted follows as a LEFT JOIN. A plain `FROM social_follow`
+	 * next to the stream table is a cartesian product: with an *empty* follow
+	 * table it collapses every row — so on a fresh instance even the public and
+	 * hashtag timelines came back empty until somebody followed someone. Bound
+	 * as a join, an OR-branch that does not use the follows (public, DM) is
+	 * unaffected by whether any exist.
+	 */
+	public function leftJoinFollowing(string $alias = 'f'): void {
+		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
+			return;
+		}
+
+		$expr = $this->expr();
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, $alias,
+			$expr->andX(
+				$expr->eq(
+					$alias . '.actor_id_prim',
+					$this->createNamedParameter($this->prim($this->getViewer()->getId()))
+				),
+				$expr->eq($alias . '.accepted', $this->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+			)
+		);
 	}
 
 
