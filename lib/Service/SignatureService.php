@@ -37,6 +37,8 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 use stdClass;
@@ -53,10 +55,19 @@ class SignatureService {
 
 	public const DATE_DELAY = 300;
 
+	/**
+	 * How far an LD signature's `created` may lie from now. Forwarded
+	 * activities arrive with the original signature, so the window is generous —
+	 * it exists to bound the replay cache, which is what actually blocks
+	 * re-posting a captured activity.
+	 */
+	public const LD_WINDOW = 86400; // 24h
+
 	private CacheActorService $cacheActorService;
 	private ActorsRequest $actorsRequest;
 	private CurlService $curlService;
 	private ConfigService $configService;
+	private ICache $seenSignatures;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -64,18 +75,23 @@ class SignatureService {
 		CacheActorService $cacheActorService,
 		CurlService $curlService,
 		ConfigService $configService,
+		ICacheFactory $cacheFactory,
 		LoggerInterface $logger,
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
+		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
 		$this->logger = $logger;
 	}
 
 
 	/**
 	 * @param Person $actor
+	 */
+	/**
+	 * @throws SignatureException
 	 */
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
@@ -85,10 +101,18 @@ class SignatureService {
 			]
 		);
 
-		openssl_pkey_export($res, $privateKey);
-		$publicKey = openssl_pkey_get_details($res)['key'];
+		// Unchecked, a failure here would persist an actor with an empty key
+		// pair — every delivery from it fails signature checks, undiagnosably.
+		if ($res === false || !openssl_pkey_export($res, $privateKey)) {
+			throw new SignatureException('cannot generate a key pair: ' . openssl_error_string());
+		}
 
-		$actor->setPublicKey($publicKey);
+		$details = openssl_pkey_get_details($res);
+		if ($details === false || ($details['key'] ?? '') === '') {
+			throw new SignatureException('cannot export the public key: ' . openssl_error_string());
+		}
+
+		$actor->setPublicKey($details['key']);
 		$actor->setPrivateKey($privateKey);
 	}
 
@@ -98,6 +122,7 @@ class SignatureService {
 	 * @param RequestQueue $queue
 	 *
 	 * @throws ActorDoesNotExistException
+	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 */
 	public function signRequest(NCRequest $request, RequestQueue $queue): void {
@@ -116,7 +141,14 @@ class SignatureService {
 		];
 
 		$signing = $this->generateHeaders($headersElements, $allElements, $request);
-		openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
+		// the warning a bad key raises is handled right here, as an exception
+		if (!@openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256)) {
+			// an empty or undecryptable private key must fail loudly, not send
+			// base64('') as the signature
+			throw new SignatureException(
+				'cannot sign request for ' . $localActor->getId() . ': ' . openssl_error_string()
+			);
+		}
 
 		$signed = base64_encode($signed);
 		$signature = $this->generateSignature($headersElements, $localActor->getId(), $signed);
@@ -206,8 +238,19 @@ class SignatureService {
 			);
 		}
 
+		if ($request->getHeader('date') === '') {
+			// an absent Date would silently parse as "now" and never age out
+			throw new SignatureException('missing date header');
+		}
+
 		if ($time < (time() - self::DATE_DELAY)) {
 			throw new SignatureException('object is too old');
+		}
+
+		if ($time > (time() + self::DATE_DELAY)) {
+			// without an upper bound, a request stamped into the far future
+			// stays replayable until that date is finally "too old"
+			throw new SignatureException('object is from the future');
 		}
 
 		if (strlen($data) !== (int)$request->getHeader('content-length')) {
@@ -281,6 +324,25 @@ class SignatureService {
 					'datetime exception: ' . $e->getMessage() . ' - ' . $signature->getCreated()
 				);
 			}
+
+			// An LD signature stays valid forever on its own, so any instance
+			// that ever saw the activity could re-POST it indefinitely. Bound it
+			// in time and remember what was already accepted inside that window.
+			if ($signature->getCreated() === '' || abs(time() - $time) > self::LD_WINDOW) {
+				$this->logger->notice('LD signature outside its validity window', [
+					'actorId' => $actorId, 'created' => $signature->getCreated(),
+				]);
+
+				return false;
+			}
+
+			$seenKey = hash('sha256', $signature->getSignatureValue());
+			if ($this->seenSignatures->get($seenKey) !== null) {
+				$this->logger->notice('LD signature replayed', ['actorId' => $actorId]);
+
+				return false;
+			}
+			$this->seenSignatures->set($seenKey, 1, self::LD_WINDOW * 2);
 
 			$object->setOrigin(
 				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time

@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -33,6 +34,8 @@ use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -52,6 +55,8 @@ class SignatureServiceTest extends TestCase {
 	private ActorsRequest|MockObject $actorsRequest;
 	private CacheActorService|MockObject $cacheActorService;
 	private SignatureService $service;
+	/** @var array<string, mixed> backing store of the mocked replay cache */
+	private array $seenSignatures = [];
 
 	public static function setUpBeforeClass(): void {
 		[self::$privateKey, self::$publicKey] = self::keyPair();
@@ -72,11 +77,24 @@ class SignatureServiceTest extends TestCase {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
 
+		// an in-memory stand-in for the distributed LD-signature replay cache
+		$this->seenSignatures = [];
+		$cache = $this->createMock(ICache::class);
+		$cache->method('get')->willReturnCallback(fn (string $key) => $this->seenSignatures[$key] ?? null);
+		$cache->method('set')->willReturnCallback(function (string $key, $value) {
+			$this->seenSignatures[$key] = $value;
+
+			return true;
+		});
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('createDistributed')->willReturn($cache);
+
 		$this->service = new SignatureService(
 			$this->actorsRequest,
 			$this->cacheActorService,
 			$this->createMock(CurlService::class),
 			$configService,
+			$cacheFactory,
 			new NullLogger(),
 		);
 	}
@@ -238,6 +256,29 @@ class SignatureServiceTest extends TestCase {
 
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage('too old');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAFutureDate(): void {
+		// without the upper bound, a request stamped into the future would stay
+		// replayable until that date finally became "too old"
+		$body = '{"type":"Follow"}';
+		$future = gmdate(SignatureService::DATE_HEADER, time() + SignatureService::DATE_DELAY + 30);
+		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => $future]);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('from the future');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAMissingDate(): void {
+		// an absent Date would parse as "now" and never age out
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$headers['date'] = '';
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('missing date');
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
@@ -523,5 +564,65 @@ class SignatureServiceTest extends TestCase {
 		$this->cacheActorService->expects($this->never())->method('getFromId');
 
 		$this->assertFalse($this->service->checkObject($received));
+	}
+
+	/** A note the way it arrives on the wire, signed with the class key pair. */
+	private function receivedSignedNote(?string $created = null): Note {
+		$signed = $this->note();
+		if ($created === null) {
+			$this->service->signObject($this->person(self::LOCAL_ACTOR, self::$publicKey, self::$privateKey), $signed);
+		} else {
+			// signObject() with a chosen creation time: `created` is part of what
+			// is signed, so an expired-window test needs a genuine old signature
+			$signature = new LinkedDataSignature();
+			$signature->setPrivateKey(self::$privateKey);
+			$signature->setType('RsaSignature2017');
+			$signature->setCreator(self::LOCAL_ACTOR . '#main-key');
+			$signature->setCreated($created);
+			$signature->setObject(json_decode(json_encode($signed), true));
+			$signature->sign();
+			$signed->setSignature($signature);
+		}
+
+		$received = new Note();
+		$received->setSource(json_encode($signed, JSON_UNESCAPED_SLASHES));
+		$received->setActorId(self::LOCAL_ACTOR);
+
+		return $received;
+	}
+
+	public function testCheckObjectRejectsAReplayedSignature(): void {
+		$this->registerContextCache();
+		$received = $this->receivedSignedNote();
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey));
+
+		$this->assertTrue($this->service->checkObject($received), 'first delivery is accepted');
+		$this->assertFalse($this->service->checkObject($received), 'the same signature must not verify twice');
+	}
+
+	public function testCheckObjectRejectsASignatureOutsideItsWindow(): void {
+		$this->registerContextCache();
+		$received = $this->receivedSignedNote(
+			gmdate(SignatureService::DATE_OBJECT, time() - SignatureService::LD_WINDOW - 3600)
+		);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey));
+
+		$this->assertFalse($this->service->checkObject($received));
+		$this->assertSame('', $received->getOrigin());
+	}
+
+	public function testSignRequestWithAnEmptyPrivateKeyFailsLoudly(): void {
+		$request = new NCRequest('/users/bob/inbox', Request::TYPE_POST);
+		$request->setData(['type' => 'Create']);
+		$queue = new RequestQueue('{}', new InstancePath('https://remote.example/users/bob/inbox', InstancePath::TYPE_INBOX), self::LOCAL_ACTOR);
+		$this->actorsRequest->method('getFromId')
+			->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey, ''));
+
+		// an undecryptable or missing key used to emit base64('') as the signature
+		$this->expectException(SignatureException::class);
+
+		$this->service->signRequest($request, $queue);
 	}
 }
