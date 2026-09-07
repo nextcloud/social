@@ -305,6 +305,28 @@ class OAuthControllerTest extends TestCase {
 		], $confirmations);
 	}
 
+	public function testTokenThrottlesAWrongClientSecret(): void {
+		$this->knownClient();
+		$this->clientService->method('confirmData')
+			->willThrowException(new ClientException('wrong client_secret'));
+
+		$response = $this->controller->token('client-1', 'guess', self::OOB, 'authorization_code', 'read', 'c');
+
+		// A credential guess is throttled so /oauth/token cannot be brute-forced.
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertTrue($response->isThrottled());
+	}
+
+	public function testTokenThrottlesAnUnknownClient(): void {
+		$this->clientService->method('getFromClientId')
+			->willThrowException(new ClientNotFoundException('unknown'));
+
+		$response = $this->controller->token('nope', 'secret', self::OOB, 'authorization_code', 'read', 'c');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertTrue($response->isThrottled());
+	}
+
 	public function testTokenRequiresACodeForTheAuthorizationCodeGrant(): void {
 		$this->knownClient();
 		$this->clientService->expects($this->never())->method('generateToken');

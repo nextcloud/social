@@ -240,6 +240,7 @@ class OAuthController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
+	 * @BruteForceProtection(action=socialOauthToken)
 	 */
 	public function token(
 		string $client_id,
@@ -294,9 +295,17 @@ class OAuthController extends Controller {
 				], Http::STATUS_OK
 			);
 		} catch (ClientNotFoundException $e) {
-			return new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			// A wrong client id / secret / code is a credential guess; throttle it so
+			// the public token endpoint cannot be brute-forced.
+			$response = new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			$response->throttle(['action' => 'socialOauthToken']);
+
+			return $response;
 		} catch (Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			$response = new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			$response->throttle(['action' => 'socialOauthToken']);
+
+			return $response;
 		}
 	}
 }
