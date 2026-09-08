@@ -216,6 +216,7 @@ class StreamPruneTest extends TestCase {
 			'type' => 'Document', 'parent_id' => $this->id('stale'), 'parent_id_prim' => $prim,
 			'media_type' => 'image/png', 'mime_type' => 'image/png', 'url' => 'https://remote.example/doc.png',
 			'local_copy' => '', 'resized_copy' => '', 'account' => '', 'error' => 0,
+			'meta' => '', 'blurhash' => '', 'description' => '',
 		]);
 
 		$result = $this->service->prune(90);
