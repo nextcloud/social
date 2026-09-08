@@ -401,6 +401,102 @@ class PersonTest extends TestCase {
 		$this->assertTrue($person->isLocked(), 'cache actor rows carry the flag in their source document');
 	}
 
+	public function testProfileFieldsRoundTripThroughTheActivityPubExport(): void {
+		$person = new Person();
+		$person->setId('https://social.example/@alice');
+		$person->setFields([
+			['name' => 'Website', 'value' => 'https://example.org'],
+			['name' => 'Pronouns', 'value' => 'they/them'],
+		]);
+
+		$exported = $person->exportAsActivityPub();
+		$this->assertSame([
+			['type' => 'PropertyValue', 'name' => 'Website', 'value' => 'https://example.org'],
+			['type' => 'PropertyValue', 'name' => 'Pronouns', 'value' => 'they/them'],
+		], $exported['attachment']);
+
+		$copy = new Person();
+		$copy->import(json_decode(json_encode($exported), true));
+		$this->assertSame($person->getFields(), $copy->getFields());
+	}
+
+	public function testSetFieldsDropsIncompleteEntriesAndCapsAtFour(): void {
+		$person = new Person();
+		$person->setFields([
+			['name' => ' Website ', 'value' => ' https://example.org '],
+			['name' => 'no value', 'value' => '  '],
+			['value' => 'no name'],
+			'not even an array',
+			['name' => 'Two', 'value' => '2'],
+			['name' => 'Three', 'value' => '3'],
+			['name' => 'Four', 'value' => '4'],
+			['name' => 'Five', 'value' => '5'],
+		]);
+
+		$fields = $person->getFields();
+		$this->assertCount(4, $fields);
+		$this->assertSame(['name' => 'Website', 'value' => 'https://example.org'], $fields[0]);
+		$this->assertSame('Four', $fields[3]['name'], 'the fifth complete entry is dropped');
+	}
+
+	public function testImportIgnoresNonPropertyValueAttachments(): void {
+		$person = new Person();
+		$person->import([
+			'id' => 'https://mastodon.social/users/alice',
+			'type' => 'Person',
+			'preferredUsername' => 'alice',
+			'attachment' => [
+				['type' => 'Document', 'url' => 'https://mastodon.social/media/1.png'],
+				['type' => 'PropertyValue', 'name' => 'Website', 'value' => '<a href="https://example.org">example.org</a>'],
+			],
+		]);
+
+		$this->assertSame(
+			[['name' => 'Website', 'value' => '<a href="https://example.org">example.org</a>']],
+			$person->getFields()
+		);
+	}
+
+	public function testProfileFieldsSurviveTheActorCacheViaTheSource(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => json_encode(['attachment' => [
+				['type' => 'PropertyValue', 'name' => 'Website', 'value' => 'https://example.org'],
+			]]),
+		]);
+
+		$this->assertSame([['name' => 'Website', 'value' => 'https://example.org']], $person->getFields());
+	}
+
+	public function testTheFieldsColumnOfTheActorRowWins(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'source' => json_encode(['attachment' => [
+				['type' => 'PropertyValue', 'name' => 'Stale', 'value' => 'from the cache'],
+			]]),
+			'fields' => json_encode([['name' => 'Fresh', 'value' => 'from the actor row']]),
+		]);
+
+		$this->assertSame([['name' => 'Fresh', 'value' => 'from the actor row']], $person->getFields());
+	}
+
+	public function testFieldsReachTheAccountEntityWithAVerifiedAtKey(): void {
+		$person = new Person();
+		$person->setFields([['name' => 'Website', 'value' => 'https://example.org']]);
+
+		$exported = $person->exportAsLocal();
+		$this->assertSame(
+			[['name' => 'Website', 'value' => 'https://example.org', 'verified_at' => null]],
+			$exported['fields']
+		);
+		$this->assertSame(
+			[['name' => 'Website', 'value' => 'https://example.org']],
+			$exported['source']['fields']
+		);
+	}
+
 	public function testCustomEmojiInTheDisplayNameReachTheAccountEntity(): void {
 		$person = new Person();
 		$person->import([

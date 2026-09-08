@@ -85,6 +85,14 @@
 					@click="followRemote">
 					{{ t('social', 'Follow') }}
 				</NcButton>
+				<NcButton v-if="isOwnProfile"
+					type="tertiary"
+					@click="openFieldsModal">
+					<template #icon>
+						<TableEdit :size="20" />
+					</template>
+					{{ t('social', 'Edit profile fields') }}
+				</NcButton>
 				<NcActions v-if="canModerate" force-menu>
 					<NcActionButton v-if="!relationship.blocking"
 						:disabled="relationshipLoading"
@@ -124,14 +132,63 @@
 					</NcActionButton>
 				</NcActions>
 			</div>
+			<dl v-if="profileFields.length" class="user-profile__fields">
+				<div v-for="(field, index) in profileFields" :key="index" class="user-profile__field">
+					<dt>{{ field.name }}</dt>
+					<dd>
+						<a v-if="field.href"
+							:href="field.href"
+							target="_blank"
+							rel="nofollow noopener noreferrer">{{ field.text }}</a>
+						<template v-else>
+							{{ field.text }}
+						</template>
+					</dd>
+				</div>
+			</dl>
+			<NcModal v-if="showFieldsModal" @close="showFieldsModal = false">
+				<div class="user-profile__fields-modal">
+					<h3>{{ t('social', 'Profile fields') }}</h3>
+					<p>{{ t('social', 'Up to four name/value pairs, shown on your profile and shared with other servers.') }}</p>
+					<div v-for="(row, index) in fieldRows" :key="index" class="user-profile__fields-row">
+						<input v-model="row.name"
+							type="text"
+							maxlength="255"
+							:placeholder="t('social', 'Label')">
+						<input v-model="row.value"
+							type="text"
+							maxlength="500"
+							:placeholder="t('social', 'Content')">
+						<NcButton type="tertiary"
+							:aria-label="t('social', 'Remove field')"
+							@click="fieldRows.splice(index, 1)">
+							<template #icon>
+								<Close :size="18" />
+							</template>
+						</NcButton>
+					</div>
+					<div class="user-profile__fields-modal-actions">
+						<NcButton v-if="fieldRows.length < 4"
+							type="tertiary"
+							@click="fieldRows.push({ name: '', value: '' })">
+							{{ t('social', 'Add field') }}
+						</NcButton>
+						<NcButton type="primary" :disabled="savingFields" @click="saveFields">
+							{{ savingFields ? t('social', 'Saving…') : t('social', 'Save') }}
+						</NcButton>
+					</div>
+				</div>
+			</NcModal>
 		</div>
 	</div>
 </template>
 
 <script>
 import Cancel from 'vue-material-design-icons/Cancel.vue'
+import Close from 'vue-material-design-icons/Close.vue'
 import ImagePlus from 'vue-material-design-icons/ImagePlus.vue'
 import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
+import TableEdit from 'vue-material-design-icons/TableEdit.vue'
 import VolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
@@ -151,6 +208,7 @@ export default {
 	name: 'ProfileInfo',
 	components: {
 		Cancel,
+		Close,
 		FollowButton,
 		NcActionButton,
 		NcActions,
@@ -159,6 +217,7 @@ export default {
 		NcModal,
 		ImagePlus,
 		LinkVariant,
+		TableEdit,
 		VolumeHigh,
 		VolumeOff,
 	},
@@ -182,6 +241,9 @@ export default {
 			bannerUrlInput: '',
 			loadingUrl: false,
 			relationshipLoading: false,
+			showFieldsModal: false,
+			fieldRows: [],
+			savingFields: false,
 		}
 	},
 	computed: {
@@ -196,6 +258,24 @@ export default {
 		},
 		website() {
 			return this.accountInfo.fields.find(field => field.name === 'Website')
+		},
+		/**
+		 * Remote field values arrive as HTML; render only their text, as a
+		 * link when the field is one.
+		 *
+		 * @return {Array} [{name, text, href}]
+		 */
+		profileFields() {
+			return (this.accountInfo.fields || []).map(field => {
+				const doc = new DOMParser().parseFromString(field.value || '', 'text/html')
+				const text = doc.body.textContent.trim()
+				const anchor = doc.body.querySelector('a[href]')
+				let href = anchor ? anchor.getAttribute('href') : text
+				if (!/^https?:\/\//.test(href)) {
+					href = ''
+				}
+				return { name: field.name, text, href }
+			})
 		},
 		isOwnProfile() {
 			return this.currentUser?.uid && this.localUid === this.currentUser.uid
@@ -238,6 +318,35 @@ export default {
 				await this.$store.dispatch(action, { id: this.relationship.id })
 			} finally {
 				this.relationshipLoading = false
+			}
+		},
+		openFieldsModal() {
+			const fields = this.accountInfo.source?.fields || this.accountInfo.fields || []
+			this.fieldRows = fields.map(field => ({ name: field.name, value: field.value }))
+			if (this.fieldRows.length === 0) {
+				this.fieldRows.push({ name: '', value: '' })
+			}
+			this.showFieldsModal = true
+		},
+		async saveFields() {
+			this.savingFields = true
+			try {
+				const fields = this.fieldRows
+					.map(row => ({ name: row.name.trim(), value: row.value.trim() }))
+					.filter(row => row.name !== '' && row.value !== '')
+				await axios.put(generateUrl('apps/social/api/v1/account/fields'), { fields })
+				this.showFieldsModal = false
+				await this.showSuccess(t('social', 'Profile fields saved'))
+				try {
+					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
+				} catch (e) {
+					console.warn('[Social] Failed to refresh account info after saving fields', e)
+				}
+			} catch (error) {
+				console.error('[Social] Failed to save profile fields', error)
+				await this.showError(t('social', 'Failed to save profile fields'))
+			} finally {
+				this.savingFields = false
 			}
 		},
 		followRemote() {
@@ -528,6 +637,86 @@ export default {
 				}
 			}
 		}
+	}
+
+	&__fields {
+		width: 100%;
+		margin: 12px 0 0;
+		padding: 12px calc(var(--default-grid-baseline) * 4) 0;
+		border-top: 1px solid var(--color-border);
+		background: var(--color-main-background);
+		text-align: start;
+	}
+
+	&__field {
+		display: flex;
+		gap: 12px;
+		padding: 6px 0;
+		font-size: 14px;
+
+		dt {
+			flex: 0 0 30%;
+			font-weight: 600;
+			color: var(--color-text-lighter);
+			overflow-wrap: break-word;
+		}
+
+		dd {
+			flex: 1;
+			overflow-wrap: anywhere;
+
+			a {
+				color: var(--color-primary-element);
+
+				&:hover {
+					text-decoration: underline;
+				}
+			}
+		}
+	}
+
+	&__fields-modal {
+		padding: 32px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+
+		h3 {
+			margin: 0;
+			font-size: 18px;
+			font-weight: 700;
+		}
+
+		p {
+			color: var(--color-text-lighter);
+		}
+	}
+
+	&__fields-row {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+
+		input {
+			flex: 1;
+			padding: 8px 10px;
+			border: 1px solid var(--color-border);
+			border-radius: 8px;
+			font-size: 14px;
+			background: var(--color-main-background);
+			color: var(--color-main-text);
+
+			&:focus {
+				border-color: var(--color-primary-element);
+				outline: none;
+			}
+		}
+	}
+
+	&__fields-modal-actions {
+		display: flex;
+		justify-content: space-between;
+		gap: 8px;
 	}
 
 	&__banner-url {

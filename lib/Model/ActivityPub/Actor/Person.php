@@ -70,6 +70,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/** @var string[] */
 	private array $alsoKnownAs = [];
 
+	/** @var array[] profile metadata, [['name' => string, 'value' => string], …] */
+	private array $fields = [];
+
 	/**
 	 * Person constructor.
 	 *
@@ -621,6 +624,61 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * Profile metadata (the name/value table under the bio), federated as
+	 * `attachment` entries of type PropertyValue. Mastodon-compatible: at most
+	 * four fields, both halves required.
+	 *
+	 * @return array[]
+	 */
+	public function getFields(): array {
+		return $this->fields;
+	}
+
+	/**
+	 * @param array[] $fields [['name' => string, 'value' => string], …]
+	 */
+	public function setFields(array $fields): self {
+		$this->fields = [];
+		foreach ($fields as $field) {
+			if (!is_array($field)) {
+				continue;
+			}
+			$name = trim((string)($field['name'] ?? ''));
+			$value = trim((string)($field['value'] ?? ''));
+			if ($name === '' || $value === '') {
+				continue;
+			}
+			$this->fields[] = [
+				'name' => mb_substr($name, 0, 255),
+				'value' => mb_substr($value, 0, 500)
+			];
+			if (count($this->fields) === 4) {
+				break;
+			}
+		}
+
+		return $this;
+	}
+
+	/**
+	 * @return array[] the PropertyValue entries of an actor's `attachment`
+	 */
+	private function extractFieldsFromAttachment(array $data): array {
+		$fields = [];
+		foreach ($this->getArray('attachment', $data, []) as $entry) {
+			if (!is_array($entry) || ($entry['type'] ?? '') !== 'PropertyValue') {
+				continue;
+			}
+			$fields[] = [
+				'name' => (string)($entry['name'] ?? ''),
+				'value' => (string)($entry['value'] ?? '')
+			];
+		}
+
+		return $fields;
+	}
+
+	/**
 	 * @param array $data
 	 *
 	 * @throws ItemUnknownException
@@ -644,6 +702,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
 			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []));
 		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
+		$this->setFields($this->extractFieldsFromAttachment($data));
 
 		/** @var Image $icon */
 		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
@@ -684,6 +743,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$this->setPrivacy($this->get('source.privacy', $data));
 		$this->setSensitive($this->getBool('source.sensitive', $data));
 		$this->setLanguage($this->get('source.language', $data));
+		$this->setFields($this->getArray('fields', $data, []));
 
 		try {
 			$dTime = new DateTime($this->get('created_at', $data, 'yesterday'));
@@ -719,6 +779,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
 			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
 			$this->setEmojis($this->extractEmojisFromTag($source));
+			$this->setFields($this->extractFieldsFromAttachment($source));
+		}
+
+		// local actor rows carry the canonical fields in their own column
+		$storedFields = json_decode($this->get('fields', $data, ''), true);
+		if (is_array($storedFields)) {
+			$this->setFields($storedFields);
 		}
 
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
@@ -790,6 +857,17 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
 		}
 
+		if ($this->fields !== []) {
+			$data['attachment'] = array_map(
+				static fn (array $field): array => [
+					'type' => 'PropertyValue',
+					'name' => $field['name'],
+					'value' => $field['value']
+				],
+				$this->fields
+			);
+		}
+
 		if ($this->hasIcon()) {
 			$icon = $this->getIcon();
 			$data['icon'] = [
@@ -830,6 +908,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$headerUrl = $this->getHeader();
 		$details = $this->getDetailsAll();
+		$fields = array_map(
+			static fn (array $field): array => array_merge($field, ['verified_at' => null]),
+			$this->getFields()
+		);
 		$result
 			= [
 				'id' => (string)$this->getNid(),
@@ -856,11 +938,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 					'sensitive' => $this->isSensitive(),
 					'language' => $this->getLanguage(),
 					'note' => $this->getDescription(),
-					'fields' => [],
+					'fields' => $this->getFields(),
 					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
 				],
 				'emojis' => $this->getEmojis(),
-				'fields' => []
+				'fields' => $fields
 			];
 
 		return array_merge(parent::exportAsLocal(), $result);

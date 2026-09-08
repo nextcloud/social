@@ -57,6 +57,17 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
+	 * Stores changed profile metadata fields.
+	 */
+	public function updateFields(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('fields', $qb->createNamedParameter(json_encode($actor->getFields())));
+		$this->limitToIdString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * Stores a changed locked flag (manuallyApprovesFollowers).
 	 */
 	public function updateLocked(Person $actor): void {
