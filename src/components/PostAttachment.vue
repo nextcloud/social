@@ -23,7 +23,16 @@
 			@previous="current--"
 			@next="current++">
 			<div class="attachment__viewer">
-				<img :src="attachments[current].url" :alt="attachments[current].description">
+				<video v-if="attachments[current].type === 'video'"
+					:src="attachments[current].url"
+					:aria-label="attachments[current].description || ''"
+					controls
+					autoplay />
+				<audio v-else-if="attachments[current].type === 'audio'"
+					:src="attachments[current].url"
+					:aria-label="attachments[current].description || ''"
+					controls />
+				<img v-else :src="attachments[current].url" :alt="attachments[current].description">
 			</div>
 		</NcModal>
 	</div>

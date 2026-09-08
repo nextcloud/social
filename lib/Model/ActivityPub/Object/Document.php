@@ -383,7 +383,12 @@ class Document extends ACore implements JsonSerializable {
 
 		if (!is_null($urlGenerator)) {
 			$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
-			$media->setPreviewUrl($this->getResizedMediaUrl($urlGenerator, $mime));
+			// video/audio carry no resized copy; the preview is the media itself
+			$media->setPreviewUrl(
+				($this->getResizedCopy() === '')
+					? $this->getMediaUrl($urlGenerator, $mime)
+					: $this->getResizedMediaUrl($urlGenerator, $mime)
+			);
 		}
 
 		$media->setRemoteUrl($this->getUrl());

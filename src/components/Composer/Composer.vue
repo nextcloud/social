@@ -7,7 +7,7 @@
 		<input id="file-upload"
 			ref="fileUploadInput"
 			type="file"
-			accept="image/*"
+			accept="image/*,video/*,audio/*"
 			multiple="true"
 			tabindex="-1"
 			aria-hidden="true"

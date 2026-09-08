@@ -148,6 +148,20 @@ class DocumentTest extends TestCase {
 		$this->assertSame($media->getMeta(), $document->getMeta(), 'the generated meta is kept on the document');
 	}
 
+	public function testConvertToMediaAttachmentOfAVideoUsesTheMediaAsItsOwnPreview(): void {
+		$document = new Document();
+		$document->setNid(9)
+			->setMediaType('video/mp4')
+			->setLocalCopy('vid')
+			->setResizedCopy('');
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('video', $media->getType());
+		$this->assertSame('https://cloud.example.org/social.Api.mediaOpen/vid.mp4', $media->getUrl());
+		$this->assertSame($media->getUrl(), $media->getPreviewUrl(), 'no resized copy: the media is the preview');
+	}
+
 	public function testConvertToMediaAttachmentWithoutUrlGeneratorLeavesLocalUrlsEmpty(): void {
 		$document = new Document();
 		$document->setMediaType('video/mp4')
