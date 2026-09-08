@@ -99,6 +99,8 @@ class ApiControllerTest extends TestCase {
 	private string $route = '';
 	/** what passesCSRFCheck() reports, per test */
 	private bool $csrf = true;
+	/** the value getParam('description') hands the controller, per test */
+	private string $description = '';
 
 	protected function setUp(): void {
 		$this->filesBackup = $_FILES;
@@ -110,7 +112,11 @@ class ApiControllerTest extends TestCase {
 		$this->request->method('passesCSRFCheck')->willReturnCallback(fn (): bool => $this->csrf);
 		$this->route = '';
 		$this->request->method('getParam')->willReturnCallback(
-			fn (string $key, $default = null) => $key === '_route' ? $this->route : $default
+			fn (string $key, $default = null) => match ($key) {
+				'_route' => $this->route,
+				'description' => ($this->description === '') ? $default : $this->description,
+				default => $default,
+			}
 		);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
@@ -1297,11 +1303,92 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(4, $options->getMinId());
 	}
 
-	public function testMediaGetIsAStubReturningNothing(): void {
-		$response = $this->controller()->mediaGet('1');
+	public function testMediaNewStoresTheAltText(): void {
+		$this->loggedInAs();
+		$_FILES['file'] = ['tmp_name' => '/tmp/php-upload', 'size' => 10, 'type' => 'image/png', 'error' => UPLOAD_ERR_OK];
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
+
+		$saved = null;
+		$this->cacheDocumentService->method('saveFromTempToCache')
+			->willReturnCallback(function (Document $document) use (&$saved): void {
+				$saved = $document;
+			});
+		$interface = $this->createMock(IActivityPubInterface::class);
+		AP::$activityPub = $this->createMock(AP::class);
+		AP::$activityPub->method('getInterfaceForItem')->willReturn($interface);
+
+		$this->description = 'a cat sleeping on a laptop';
+		$this->controller()->mediaNew();
+
+		$this->assertSame('a cat sleeping on a laptop', $saved->getDescription());
+	}
+
+	public function testMediaNewV2IsTheSameUpload(): void {
+		// modern clients POST /api/v2/media and only fall back to v1 on a 404
+		$this->loggedInAs();
+
+		$response = $this->controller()->mediaNewV2();
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'no media found'], $response->getData());
+	}
+
+	private function ownDocumentInService(string $nid, string $description = ''): Document {
+		$document = new Document();
+		$document->setNid((int)$nid);
+		$document->setId('https://cloud.example/documents/local/doc-' . $nid);
+		$document->setDescription($description);
+		$this->documentService->method('getMediaFromArray')
+			->with([$nid], 'alice')
+			->willReturn([$document]);
+
+		return $document;
+	}
+
+	public function testMediaGetReturnsTheViewersOwnAttachment(): void {
+		$this->loggedInAs();
+		$this->ownDocumentInService('7', 'alt text');
+
+		$response = $this->controller()->mediaGet('7');
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertSame([], $response->getData());
+		$attachment = $response->getData();
+		$this->assertInstanceOf(MediaAttachment::class, $attachment);
+		$this->assertSame('7', $attachment->getId());
+		$this->assertSame('alt text', $attachment->getDescription());
+	}
+
+	public function testMediaGetOfSomeoneElsesAttachmentIsA404(): void {
+		$this->loggedInAs();
+		$this->documentService->method('getMediaFromArray')->willReturn([]);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->mediaGet('7')->getStatus());
+	}
+
+	public function testMediaUpdateChangesTheAltText(): void {
+		$this->loggedInAs();
+		$document = $this->ownDocumentInService('7', 'old');
+		$this->request->method('getHeader')->willReturnCallback(
+			fn (string $name): string => $name === 'Content-Type' ? 'application/x-www-form-urlencoded' : ''
+		);
+		$this->request->method('getParams')->willReturn(['description' => 'new alt text']);
+		$this->documentService->expects($this->once())
+			->method('updateDescription')
+			->with($this->identicalTo($document));
+
+		$response = $this->controller()->mediaUpdate('7');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('new alt text', $document->getDescription());
+		$this->assertSame('new alt text', $response->getData()->getDescription());
+	}
+
+	public function testMediaUpdateOfSomeoneElsesAttachmentIsA404(): void {
+		$this->loggedInAs();
+		$this->documentService->method('getMediaFromArray')->willReturn([]);
+		$this->documentService->expects($this->never())->method('updateDescription');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->mediaUpdate('7')->getStatus());
 	}
 
 	public function testMediaOpenServesTheStoredMediaType(): void {

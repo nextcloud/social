@@ -241,6 +241,13 @@ class DocumentService {
 		return $this->cacheDocumentsRequest->getFromArray($getMediaIds, $account);
 	}
 
+	/**
+	 * Stores a changed alt text.
+	 */
+	public function updateDescription(Document $document): void {
+		$this->cacheDocumentsRequest->updateDescription($document);
+	}
+
 
 
 	/**

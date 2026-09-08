@@ -33,7 +33,7 @@ These are absent from the code today, not merely rough edges:
 - **Images only for attachments.** The file picker is `accept="image/*"` (`src/components/Composer/Composer.vue:10`) and the server only keeps `image/jpeg`, `image/gif` and `image/png` (`lib/Service/CacheDocumentService.php`, `filterMimeTypes()`). No video, audio or document attachments.
 - **No link previews** and no custom emoji: `/api/v1/custom_emojis` returns an empty list (`lib/Controller/ApiController.php`, `customEmojis()`).
 - **No status translation.** The `translate` action returns the post unchanged (`lib/Service/ActionService.php`).
-- **`lib/Controller/MediaApiController.php` is a stub.** Its `uploadMedia()` returns a hard-coded empty response and it is not wired to any route; real uploads go through `Api#mediaNew` (`POST /api/v1/media`) in `lib/Controller/ApiController.php`.
+- **Media uploads** go through `POST /api/v2/media` (or v1) in `lib/Controller/ApiController.php`: jpeg/gif/png, with alt text via `description`, editable with `PUT /api/v1/media/{id}` and attachable to statuses via `media_ids`.
 
 ## 📦 Quickstart (install & develop)
 

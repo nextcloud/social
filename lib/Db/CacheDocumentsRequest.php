@@ -89,6 +89,15 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	/**
 	 * @throws \OCP\DB\Exception
 	 */
+	public function updateDescription(Document $document): void {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$this->limitToIdString($qb, $document->getId());
+		$qb->set('description', $qb->createNamedParameter($document->getDescription()));
+
+		$qb->executeStatement();
+	}
+
+
 	public function initCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$this->limitToIdString($qb, $document->getId());
