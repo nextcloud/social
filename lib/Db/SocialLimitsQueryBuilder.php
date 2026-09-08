@@ -14,6 +14,8 @@ use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Tools\Exceptions\DateTimeException;
