@@ -322,6 +322,8 @@ These serve HTML or files for the app's own UI; they are not client API endpoint
 |--------|-------|------|------------|-------------|
 | GET | `/` | user, no-csrf | `cloudAddress` (read from the request during first-run setup, admins only) | Renders the Vue app (`main` template) and provides `serverData` (`public`, `firstrun`, `setup`, `isAdmin`, `cliUrl`, `cloudAddress`, plus `checks` for admins). Creates the user's actor on first visit and tries to auto-configure the cloud address. |
 | GET | `/timeline/{path}` | user, no-csrf | `path` (default `''`, `requirements: .+`) | Same page; `path` is accepted and then ignored — the method just calls `navigate()`. |
+| GET | `/follow_requests` | user, no-csrf | — | Same page. The path belongs to the client-side router; the server answers it so that reloading or bookmarking the follow-requests page works instead of 404ing. |
+| GET | `/blocked` | user, no-csrf | — | Same page, for the blocked-and-muted-accounts view (**Settings → Blocked and muted accounts** in the app's sidebar). |
 | GET | `/document/get` | user, no-csrf | `id` (required) | Streams a cached document with its stored mime type. Errors: error envelope, HTTP 500. |
 | GET | `/document/public` | public, no-csrf | `id` (required) | Same for documents marked public. |
 | GET | `/document/get/resized` | user, no-csrf | `id` (required) | Streams the resized/preview variant. |

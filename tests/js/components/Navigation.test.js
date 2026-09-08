@@ -25,9 +25,9 @@ const stubs = {
 		template: '<input class="nav-search" :value="modelValue" :aria-label="label" @input="$emit(\'update:modelValue\', $event.target.value)">',
 	},
 	NcAppNavigationItem: {
-		props: ['name', 'active', 'counter', 'href', 'target'],
+		props: ['name', 'active', 'counter', 'href', 'target', 'to'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-counter="counter" :data-href="href" @click="$emit(\'click\')">'
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-counter="counter" :data-href="href" :data-to="to && to.name" @click="$emit(\'click\')">'
 			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span><slot name="subname" /><slot /></li>',
 	},
 	NcAppNavigationSpacer: { template: '<hr>' },
@@ -71,6 +71,7 @@ describe('Navigation', () => {
 			'Follow requests',
 			'Liked posts',
 			'Profile',
+			'Blocked and muted accounts',
 			'Reset local cache',
 			'Help & documentation',
 		])
@@ -89,6 +90,15 @@ describe('Navigation', () => {
 		const wrapper = mountNavigation()
 		await item(wrapper, name).trigger('click')
 		expect(router.push).toHaveBeenCalledWith(to)
+	})
+
+	it('offers the blocked and muted accounts in the settings section', () => {
+		const wrapper = mountNavigation()
+		const entry = item(wrapper, 'Blocked and muted accounts')
+
+		// a route rather than a click handler, so the entry behaves like a link
+		expect(entry.attributes('data-to')).toBe('blocked-accounts')
+		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
 	})
 
 	it('shows the notifications counter placeholder', () => {

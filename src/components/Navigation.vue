@@ -57,6 +57,12 @@
 		<template #footer>
 			<div class="navigation__footer">
 				<NcAppNavigationSettings :name="t('social', 'Settings')">
+					<NcAppNavigationItem :name="t('social', 'Blocked and muted accounts')"
+						:to="{ name: 'blocked-accounts' }">
+						<template #icon>
+							<IconCancel :size="20" />
+						</template>
+					</NcAppNavigationItem>
 					<NcAppNavigationItem :name="t('social', 'Reset local cache')"
 						@click="$emit('reset-cache')">
 						<template #icon>
@@ -128,6 +134,7 @@ import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconHelpCircle from 'vue-material-design-icons/HelpCircle.vue'
 import IconDelete from 'vue-material-design-icons/Delete.vue'
+import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
 import currentuserMixin from '../mixins/currentUserMixin.js'
@@ -158,6 +165,7 @@ export default {
 		IconPlus,
 		IconHelpCircle,
 		IconDelete,
+		IconCancel,
 		IconAlertCircle,
 	},
 	mixins: [currentuserMixin],

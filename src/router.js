@@ -12,6 +12,7 @@ const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile.v
 const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline.vue')
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
+const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
 
 /**
  * The path the app is actually served from, which is what the history base has
@@ -91,6 +92,13 @@ export default createRouter({
 				default: FollowRequests,
 			},
 			name: 'follow-requests',
+		},
+		{
+			path: '/blocked',
+			components: {
+				default: BlockedAccounts,
+			},
+			name: 'blocked-accounts',
 		},
 		{
 			path: '/@:account/:id',

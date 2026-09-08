@@ -19,6 +19,12 @@ return [
 			'requirements' => ['path' => '.+'],
 			'defaults' => ['path' => '']
 		],
+		// the client-side router owns these paths; the server has to answer them
+		// too, or reloading or bookmarking one of those pages is a 404
+		// 'postfix' keeps the route names unique: routes are keyed by name, so
+		// re-using 'Navigation#navigate' without it drops all but the last one
+		['name' => 'Navigation#navigate', 'url' => '/follow_requests', 'verb' => 'GET', 'postfix' => 'followrequests'],
+		['name' => 'Navigation#navigate', 'url' => '/blocked', 'verb' => 'GET', 'postfix' => 'blocked'],
 		['name' => 'Navigation#documentGet', 'url' => '/document/get', 'verb' => 'GET'],
 		['name' => 'Navigation#documentGetPublic', 'url' => '/document/public', 'verb' => 'GET'],
 		['name' => 'Navigation#resizedGet', 'url' => '/document/get/resized', 'verb' => 'GET'],
