@@ -49,7 +49,7 @@ class ApiContractTest extends TestCase {
 
 		// 'account' joins the set when an actor is attached; 'nid' is app-specific
 		$expected = [
-			'bookmarked', 'content', 'created_at', 'favourited', 'favourites_count', 'id',
+			'bookmarked', 'content', 'created_at', 'emojis', 'favourited', 'favourites_count', 'id',
 			'in_reply_to_account_id', 'in_reply_to_id', 'language', 'local',
 			'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'reblog',
 			'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',

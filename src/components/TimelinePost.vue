@@ -11,7 +11,7 @@
 						params: { account: item.account.acct }
 					}">
 					<span class="post-author">
-						{{ item.account.display_name }}
+						<DisplayName :text="item.account.display_name" :emojis="item.account.emojis" />
 					</span>
 					<span class="post-author-id">
 						@{{ item.account.username }}
@@ -157,6 +157,7 @@ import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
+import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 
@@ -174,6 +175,7 @@ export default {
 		Heart,
 		HeartOutline,
 		MessageContent,
+		DisplayName,
 		VisibilityIcon,
 	},
 	mixins: [currentUser],

@@ -33,7 +33,7 @@ These are absent from the code today, not merely rough edges:
 - **No profile metadata fields.** `fields` is always exported as an empty array (`lib/Model/ActivityPub/Actor/Person.php`), so the profile "Website" row never appears and there is nothing to edit.
 - **No polls, bookmarks or lists.** The Mastodon type definitions in `src/types/Mastodon.js` mention polls, but no poll, bookmark or list feature exists on either side.
 - **Images only for attachments.** The file picker is `accept="image/*"` (`src/components/Composer/Composer.vue:10`) and the server only keeps `image/jpeg`, `image/gif` and `image/png` (`lib/Service/CacheDocumentService.php`, `filterMimeTypes()`). No video, audio or document attachments.
-- **No link previews** and no custom emoji: `/api/v1/custom_emojis` returns an empty list (`lib/Controller/ApiController.php`, `customEmojis()`).
+- **Custom emoji from other instances render** — `Emoji` tags on remote statuses and actors survive the cache (via the stored wire source) and are served in the `emojis` field of status and account entities; the web client shows them inline in content and display names. The instance has no custom emoji of its own: `/api/v1/custom_emojis` returns an empty list. **No link previews.**
 - **No status translation.** The `translate` action returns the post unchanged (`lib/Service/ActionService.php`).
 - **Media uploads** go through `POST /api/v2/media` (or v1) in `lib/Controller/ApiController.php`: jpeg/gif/png, with alt text via `description`, editable with `PUT /api/v1/media/{id}` and attachable to statuses via `media_ids`.
 

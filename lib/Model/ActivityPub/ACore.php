@@ -557,6 +557,33 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	/**
 	 * @param array $data
 	 */
+	/**
+	 * Mastodon-style custom emoji from a raw wire `tag` array: entries of
+	 * type Emoji with an icon URL become {shortcode, url, static_url,
+	 * visible_in_picker} entries the client API serves.
+	 */
+	protected function extractEmojisFromTag(array $data): array {
+		$emojis = [];
+		foreach ($this->getArray('tag', $data, []) as $tag) {
+			if (!is_array($tag) || ($tag['type'] ?? '') !== 'Emoji') {
+				continue;
+			}
+			$shortcode = trim((string)($tag['name'] ?? ''), ':');
+			$url = (string)($tag['icon']['url'] ?? '');
+			if ($shortcode === '' || !str_starts_with($url, 'https://')) {
+				continue;
+			}
+			$emojis[$shortcode] = [
+				'shortcode' => $shortcode,
+				'url' => $url,
+				'static_url' => $url,
+				'visible_in_picker' => false,
+			];
+		}
+
+		return array_values($emojis);
+	}
+
 	public function import(array $data) {
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));

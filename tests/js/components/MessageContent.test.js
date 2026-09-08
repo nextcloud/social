@@ -203,6 +203,35 @@ describe('MessageContent', () => {
 		})
 	})
 
+	describe('custom emoji', () => {
+		const blobcat = { shortcode: 'blobcat', url: 'https://remote.example/emoji/blobcat.png', static_url: 'https://remote.example/emoji/blobcat.png', visible_in_picker: false }
+
+		it('replaces known shortcodes with inline images', () => {
+			const wrapper = mountContent('<p>hi :blobcat: !</p>', { emojis: [blobcat] })
+
+			const img = wrapper.find('img.custom-emoji')
+			expect(img.exists()).toBe(true)
+			expect(img.attributes('src')).toBe(blobcat.url)
+			expect(img.attributes('alt')).toBe(':blobcat:')
+			expect(wrapper.text()).toContain('hi')
+		})
+
+		it('leaves unknown shortcodes as text', () => {
+			const wrapper = mountContent('<p>hi :missing: !</p>', { emojis: [blobcat] })
+
+			expect(wrapper.find('img.custom-emoji').exists()).toBe(false)
+			expect(wrapper.text()).toContain(':missing:')
+		})
+
+		it('never uses the emoji list as HTML', () => {
+			const evil = { shortcode: 'x', url: '"><script>alert(1)</script>' }
+			const wrapper = mountContent('<p>:x:</p>', { emojis: [evil] })
+
+			expect(wrapper.find('script').exists()).toBe(false)
+			expect(wrapper.find('img.custom-emoji').attributes('src')).toBe(evil.url)
+		})
+	})
+
 	describe('hostile markup', () => {
 		it('never renders script or image elements from the content', () => {
 			const wrapper = mountContent('<p>a<script>alert(1)</script><img src="x" onerror="alert(1)">b</p>')
