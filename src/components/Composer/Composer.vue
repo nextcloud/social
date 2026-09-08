@@ -394,6 +394,10 @@ export default {
 		}
 		eventBus.on('composer-reply', this.onComposerReply)
 
+		// the shortcuts help offers "n" to write a post; this is what answers it
+		this.onComposerFocus = () => this.focusInput()
+		eventBus.on('shortcut:compose', this.onComposerFocus)
+
 		if (this.initialMention !== null) {
 			this.prefillMessageWithMention(this.initialMention)
 		}
@@ -403,8 +407,23 @@ export default {
 			this.tribute.detach(this.tributeTarget)
 		}
 		eventBus.off('composer-reply', this.onComposerReply)
+		eventBus.off('shortcut:compose', this.onComposerFocus)
 	},
 	methods: {
+		/** Puts the caret in the composer, scrolling it into view if need be. */
+		focusInput() {
+			const input = this.$refs.composerInput
+			if (input === undefined) {
+				return
+			}
+
+			input.focus()
+			// the composer sits at the top of the timeline, which may be scrolled away
+			if (typeof input.scrollIntoView === 'function') {
+				input.scrollIntoView({ block: 'nearest' })
+			}
+		},
+
 		prefillMessageWithMention(account) {
 			if (!this.statusIsEmpty || this.$refs.composerInput === undefined) {
 				return
