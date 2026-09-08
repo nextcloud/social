@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Model\StreamCard;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Model\Cache;
 use OCA\Social\Tools\Model\CacheItem;
@@ -65,6 +66,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $timeline = '';
 	private bool $filterDuplicate = false;
 	private bool $pinned = false;
+	private ?StreamCard $card = null;
 
 	/**
 	 * Stream constructor.
@@ -264,6 +266,21 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	public function setPinned(bool $pinned): Stream {
 		$this->pinned = $pinned;
+
+		return $this;
+	}
+
+	/**
+	 * The link preview of this post. Cards are local, derived data attached
+	 * by LinkPreviewService where one is known — never part of the wire
+	 * object.
+	 */
+	public function getCard(): ?StreamCard {
+		return $this->card;
+	}
+
+	public function setCard(?StreamCard $card): Stream {
+		$this->card = $card;
 
 		return $this;
 	}
@@ -678,6 +695,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'muted' => false,
 			'bookmarked' => $bookmarked,
 			'pinned' => $this->isPinned(),
+			'card' => $this->card?->jsonSerialize(),
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			'reblog' => null,

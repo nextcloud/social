@@ -27,6 +27,7 @@ use OCA\Social\Service\BoostService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamQueueService;
@@ -81,6 +82,7 @@ class BoostServiceTest extends TestCase {
 			$this->cacheActorService,
 			$configService,
 			$this->createMock(CurlService::class),
+			$this->createMock(LinkPreviewService::class),
 			new NullLogger()
 		);
 

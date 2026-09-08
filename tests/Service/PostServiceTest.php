@@ -25,6 +25,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -67,6 +68,7 @@ class PostServiceTest extends TestCase {
 			$this->cacheActorService,
 			$configService,
 			$this->createMock(CurlService::class),
+			$this->createMock(LinkPreviewService::class),
 			new NullLogger()
 		);
 

@@ -212,6 +212,7 @@ class StreamPruneService {
 			[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'],
 			[CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'stream_id_prim'],
 			[CoreRequestBuilder::TABLE_STREAM_TAGS, 'stream_id'],
+			[CoreRequestBuilder::TABLE_STREAM_CARDS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->connection->getQueryBuilder();
 			$qb->delete($table)

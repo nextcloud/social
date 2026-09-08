@@ -49,6 +49,7 @@ class CoreRequestBuilder {
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
+	public const TABLE_STREAM_CARDS = 'social_stream_card';
 	public const TABLE_STREAM_DEST = 'social_stream_dest';
 	public const TABLE_STREAM_QUEUE = 'social_stream_queue';
 	public const TABLE_STREAM_TAGS = 'social_stream_tag';
@@ -251,6 +252,15 @@ class CoreRequestBuilder {
 			'category',
 			'local',
 			'resolved',
+			'creation'
+		],
+		self::TABLE_STREAM_CARDS => [
+			'stream_id_prim',
+			'url',
+			'title',
+			'description',
+			'image',
+			'provider_name',
 			'creation'
 		],
 	];

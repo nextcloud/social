@@ -28,8 +28,11 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
+use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
@@ -45,6 +48,8 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		CacheActorsRequest $cacheActorsRequest,
 		PollService $pollService,
 		PushService $pushService,
+		private StreamQueueService $streamQueueService,
+		private LinkPreviewService $linkPreviewService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -109,7 +114,23 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->updateDetails($note);
 			$this->generateNotification($note);
 			$this->pushService->onNewStream($note->getId());
+			$this->queueLinkPreview($note);
 		}
+	}
+
+	/**
+	 * A post that links somewhere gets its preview read by a background job:
+	 * reading the page here would hold up the inbox for as long as a stranger's
+	 * web server feels like taking.
+	 */
+	private function queueLinkPreview(Note $note): void {
+		if ($this->linkPreviewService->extractUrl($note->getContent()) === '') {
+			return;
+		}
+
+		$this->streamQueueService->generateStreamQueue(
+			$note->getRequestToken(), StreamQueue::TYPE_LINK_PREVIEW, $note->getId()
+		);
 	}
 
 	/**
@@ -139,6 +160,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	public function delete(ACore $item): void {
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
+		$this->linkPreviewService->deleteCard($item->getId());
 	}
 
 	public function updateDetails(Note $stream): void {

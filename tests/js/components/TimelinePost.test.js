@@ -144,6 +144,38 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('link preview', () => {
+		const card = {
+			url: 'https://example.org/news/today',
+			title: 'The headline',
+			description: 'What it is about',
+			provider_name: 'Example News',
+			image: null,
+		}
+
+		it('shows the preview of the linked page', () => {
+			const { wrapper } = mountPost({ item: makeItem({ card }) })
+			const preview = wrapper.findComponent({ name: 'PostCard' })
+
+			expect(preview.exists()).toBe(true)
+			expect(preview.props('card')).toEqual(card)
+		})
+
+		it('shows no preview for a post that links nowhere', () => {
+			expect(mountPost().wrapper.findComponent({ name: 'PostCard' }).exists()).toBe(false)
+			expect(mountPost({ item: makeItem({ card: null }) }).wrapper.findComponent({ name: 'PostCard' }).exists()).toBe(false)
+		})
+
+		it('leaves the preview out when the post carries media of its own', () => {
+			const item = makeItem({
+				card,
+				media_attachments: [{ id: '1', type: 'image', url: 'https://cloud.example.org/m.png' }],
+			})
+
+			expect(mountPost({ item }).wrapper.findComponent({ name: 'PostCard' }).exists()).toBe(false)
+		})
+	})
+
 	describe('opening the single post view', () => {
 		it('navigates to the single-post route for a local post', async () => {
 			const { wrapper, $router } = mountPost()

@@ -782,7 +782,7 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(false);
 
-			$item = $this->streamService->getStreamByNid($nid);
+			$item = $this->streamService->attachCard($this->streamService->getStreamByNid($nid));
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);

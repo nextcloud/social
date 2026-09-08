@@ -23,6 +23,7 @@ class StreamQueue implements JsonSerializable {
 	use TArrayTools;
 
 	public const TYPE_CACHE = 'Cache';
+	public const TYPE_LINK_PREVIEW = 'LinkPreview';
 	public const TYPE_VERIFY = 'Signature';
 
 	public const STATUS_STANDBY = 0;

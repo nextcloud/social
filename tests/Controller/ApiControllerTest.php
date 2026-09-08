@@ -498,6 +498,8 @@ class ApiControllerTest extends TestCase {
 		$this->userSession->method('getUser')->willReturn(null);
 		$item = $this->createMock(Stream::class);
 		$this->streamService->method('getStreamByNid')->with(42)->willReturn($item);
+		// a single status carries its link preview too
+		$this->streamService->expects($this->once())->method('attachCard')->with($item)->willReturn($item);
 		$item->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 
 		$response = $this->controller()->statusGet(42);
