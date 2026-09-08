@@ -14,6 +14,7 @@ use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -24,17 +25,20 @@ class ModerationControllerTest extends TestCase {
 	private ReportService|MockObject $reportService;
 	private FediverseService|MockObject $fediverseService;
 	private ConfigService|MockObject $configService;
+	private ModerationService|MockObject $moderationService;
 	private ModerationController $controller;
 
 	protected function setUp(): void {
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->moderationService = $this->createMock(ModerationService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
 			$this->fediverseService,
-			$this->configService
+			$this->configService,
+			$this->moderationService
 		);
 	}
 

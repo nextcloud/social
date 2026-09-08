@@ -45,6 +45,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\SignatureService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -54,13 +55,15 @@ class ImportServiceTest extends TestCase {
 	private const CLOUD_URL = 'https://cloud.example.com';
 
 	private MiscService|MockObject $miscService;
+	private ModerationService|MockObject $moderationService;
 	private ImportService $service;
 
 	protected function setUp(): void {
 		$this->miscService = $this->createMock(MiscService::class);
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudUrl')->willReturn(self::CLOUD_URL);
-		$this->service = new ImportService($configService, $this->miscService);
+		$this->moderationService = $this->createMock(ModerationService::class);
+		$this->service = new ImportService($configService, $this->miscService, $this->moderationService);
 	}
 
 	protected function tearDown(): void {
@@ -225,6 +228,28 @@ class ImportServiceTest extends TestCase {
 		$this->miscService->expects($this->never())->method('log');
 
 		$this->service->parseIncomingRequest($note);
+	}
+
+	public function testParseIncomingRequestRefusesASuspendedAccount(): void {
+		$ap = $this->createMock(AP::class);
+		AP::$activityPub = $ap;
+		$this->moderationService->method('isSuspended')->willReturn(true);
+
+		// a suspension that let the account keep posting would undo itself
+		$ap->expects($this->never())->method('getInterfaceForItem');
+
+		$this->service->parseIncomingRequest($this->incomingNote('remote.example'));
+	}
+
+	public function testParseIncomingRequestAcceptsAnAccountUnderNoDecision(): void {
+		$ap = $this->createMock(AP::class);
+		AP::$activityPub = $ap;
+		$this->moderationService->method('isSuspended')->willReturn(false);
+		$interface = $this->createMock(NoteInterface::class);
+		$interface->expects($this->once())->method('processIncomingRequest');
+		$ap->method('getInterfaceForItem')->willReturn($interface);
+
+		$this->service->parseIncomingRequest($this->incomingNote('remote.example'));
 	}
 
 	public function testParseIncomingRequestPropagatesAnUnexpectedFailure(): void {

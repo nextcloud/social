@@ -14,6 +14,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -31,8 +32,47 @@ class ModerationController extends Controller {
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
+		private ModerationService $moderationService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
+	}
+
+	/**
+	 * Silences or suspends an account, or lifts whatever stands against it.
+	 *
+	 * @param string $actorId the account
+	 * @param string $level 'silence', 'suspend', or '' to lift
+	 * @param string $comment why, for whoever reads the list later
+	 */
+	public function accountModerate(string $actorId, string $level, string $comment = ''): DataResponse {
+		$actorId = trim($actorId);
+		if ($actorId === '') {
+			return new DataResponse(['error' => 'no account given'], Http::STATUS_BAD_REQUEST);
+		}
+
+		if ($level === '') {
+			$this->moderationService->lift($actorId);
+
+			return new DataResponse(['actor_id' => $actorId, 'level' => '']);
+		}
+
+		try {
+			return new DataResponse($this->moderationService->decide($actorId, $level, $comment));
+		} catch (\InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/** Takes one post down, whoever wrote it. */
+	public function statusRemove(string $streamId): DataResponse {
+		$streamId = trim($streamId);
+		if ($streamId === '') {
+			return new DataResponse(['error' => 'no post given'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$this->moderationService->removeStream($streamId);
+
+		return new DataResponse(['stream_id' => $streamId]);
 	}
 
 	public function reportResolve(int $id, bool $resolved = true): DataResponse {

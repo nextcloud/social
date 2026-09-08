@@ -12,6 +12,7 @@ namespace OCA\Social\Settings;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Settings\ISettings;
@@ -27,6 +28,7 @@ class AdminSettings implements ISettings {
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
+		private ModerationService $moderationService,
 		private FederationHealthService $federationHealthService,
 	) {
 	}
@@ -40,7 +42,23 @@ class AdminSettings implements ISettings {
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
 			'federation' => $this->federationHealthService->summary(),
+			'moderation' => $this->currentDecisions(),
 		]);
+	}
+
+	/**
+	 * What stands against each account, keyed by actor id, so the reports
+	 * table can show its own state rather than only what was complained about.
+	 *
+	 * @return array<string, string>
+	 */
+	private function currentDecisions(): array {
+		$decisions = [];
+		foreach ($this->moderationService->decisions() as $decision) {
+			$decisions[$decision->getActorId()] = $decision->getLevel();
+		}
+
+		return $decisions;
 	}
 
 	public function getSection(): string {

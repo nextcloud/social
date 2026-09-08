@@ -35,7 +35,11 @@ class ImportService {
 	 * @param ConfigService $configService
 	 * @param MiscService $miscService
 	 */
-	public function __construct(ConfigService $configService, MiscService $miscService) {
+	public function __construct(
+		ConfigService $configService,
+		MiscService $miscService,
+		private ModerationService $moderationService,
+	) {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
@@ -66,6 +70,17 @@ class ImportService {
 	 */
 	public function parseIncomingRequest(ACore $activity) {
 		$activity->checkOrigin($activity->getId());
+
+		// a suspended account is not merely hidden here: nothing further it
+		// sends is taken in, or the suspension would undo itself the next time
+		// it posted
+		$author = $activity->getActorId() !== '' ? $activity->getActorId() : $activity->getId();
+		if ($this->moderationService->isSuspended($author)) {
+			$this->miscService->log('Refusing ' . $activity->getType() . ' from a suspended account');
+
+			return;
+		}
+
 		$activity->setRequestToken($this->uuid());
 
 		$interface = AP::$activityPub->getInterfaceForItem($activity);
