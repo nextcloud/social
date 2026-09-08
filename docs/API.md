@@ -106,6 +106,9 @@ The response is the status itself in local format.
 | GET | `/api/v1/favourites/` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | The viewer's favourited posts. |
 | GET | `/api/v1/bookmarks` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | The viewer's bookmarked posts. |
 | GET | `/api/v1/notifications` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0), `types` (array), `exclude_types` (array), `accountId` (string) | Notification stream for the viewer. |
+| GET | `/api/v1/notifications/unread_count` | public, no-csrf (viewer required) | — | `{"count": n}` — notifications newer than the viewer's `notifications` marker. Counted up to 99; past that the answer stays 99, which is all a badge shows. |
+| GET | `/api/v1/markers` | public, no-csrf (viewer required) | `timeline` (array of `home`, `notifications`; all of them when omitted) | How far through each timeline the viewer has read: `{"notifications": {"last_read_id": "42", "version": 3, "updated_at": "…"}}`. Absent timelines have no marker yet. |
+| POST | `/api/v1/markers` | public, no-csrf (viewer required, `write` scope) | Body (JSON or form-encoded): `home[last_read_id]`, `notifications[last_read_id]` | Moves markers forward and returns the ones it changed. A marker never moves backwards: two clients reading the same account report their own positions, and the one further behind must not un-read what the other has seen. |
 
 All four return a bare JSON array of statuses (no envelope, no `Link` header).
 
@@ -364,7 +367,7 @@ on failure (`fail()`) — the exception class and message go to the log, never i
 {"error": "the access_token was revoked"}
 ```
 
-with HTTP **401** from its private `error()` helper (used by most getters, including for the "unknown timeline" case), or HTTP **400** with the same shape from `statusNew()`, `statusUpdate()`, `mediaNew()` and `mediaGet()`. `mediaOpen()` uses HTTP 404 for a missing document.
+with HTTP **401** from its private `error()` helper (used by most getters, including for the "unknown timeline" case), or HTTP **400** with the same shape from `statusNew()`, `statusUpdate()`, `mediaNew()`, `mediaGet()` and `markersSet()`. `mediaOpen()` uses HTTP 404 for a missing document.
 
 **3. `OAuthController` errors** — `{"error": "..."}` with HTTP 400 (bad grant type, missing code, token generation failure) or HTTP 401 (`unknown client_id`, other exceptions).
 

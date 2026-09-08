@@ -9,6 +9,7 @@ import { createStore } from 'vuex'
 import Navigation from '../../../src/components/Navigation.vue'
 import axios from '@nextcloud/axios'
 import errors from '../../../src/store/errors.js'
+import notifications from '../../../src/store/notifications.js'
 import settings from '../../../src/store/settings.js'
 
 vi.hoisted(() => {
@@ -41,9 +42,15 @@ const stubs = {
 let store
 let router
 
-const mountNavigation = (route = { name: 'timeline', params: {} }) => mount(Navigation, {
-	global: { plugins: [store], mocks: { $route: route, $router: router }, stubs },
-})
+const mountNavigation = (options = {}, route = { name: 'timeline', params: {} }) => {
+	if (options.unread !== undefined) {
+		store.commit('setUnreadNotifications', options.unread)
+	}
+
+	return mount(Navigation, {
+		global: { plugins: [store], mocks: { $route: route, $router: router }, stubs },
+	})
+}
 
 const items = (wrapper) => wrapper.findAll('.nav-item')
 const itemNames = (wrapper) => items(wrapper).map((item) => item.attributes('data-name'))
@@ -55,7 +62,7 @@ vi.mock('@nextcloud/axios', () => ({
 
 describe('Navigation', () => {
 	beforeEach(() => {
-		store = createStore({ modules: { errors, settings } })
+		store = createStore({ modules: { errors, settings, notifications } })
 		store.commit('clearErrors')
 		store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
 		router = { push: vi.fn() }
@@ -155,8 +162,11 @@ describe('Navigation', () => {
 		})
 	})
 
-	it('shows the notifications counter placeholder', () => {
+	it('shows how many notifications are waiting', () => {
 		expect(item(mountNavigation(), 'Notifications').attributes('data-counter')).toBe('0')
+
+		// the badge used to be hard-coded to zero, so it never said anything
+		expect(item(mountNavigation({ unread: 5 }), 'Notifications').attributes('data-counter')).toBe('5')
 	})
 
 	it.each([
@@ -166,12 +176,12 @@ describe('Navigation', () => {
 		[{ name: 'profile', params: { account: 'alice' } }, 'Profile'],
 		[{ name: 'profile.followers', params: { account: 'alice' } }, 'Profile'],
 	])('marks only the entry matching route %o as active', (route, active) => {
-		const wrapper = mountNavigation(route)
+		const wrapper = mountNavigation({}, route)
 		expect(items(wrapper).filter((candidate) => candidate.classes('active')).map((candidate) => candidate.attributes('data-name'))).toEqual([active])
 	})
 
 	it('does not mark the own profile entry active for somebody else\'s profile', () => {
-		const wrapper = mountNavigation({ name: 'profile', params: { account: 'bob@remote.example' } })
+		const wrapper = mountNavigation({}, { name: 'profile', params: { account: 'bob@remote.example' } })
 		expect(items(wrapper).filter((candidate) => candidate.classes('active'))).toHaveLength(0)
 	})
 

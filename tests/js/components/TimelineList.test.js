@@ -324,6 +324,37 @@ describe('TimelineList', () => {
 		})
 	})
 
+	describe('marking notifications read', () => {
+		// the shape the server actually sends: the row id, as a string, in `id`
+		const notifications = [
+			{ id: '1788875057712399', type: 'mention', account: { id: 'a' } },
+			{ id: '1788875057712412', type: 'favourite', account: { id: 'b' } },
+		]
+
+		it('records the newest one seen, so the badge stops counting it', () => {
+			const { dispatch } = mountList({
+				timeline: notifications,
+				props: { type: 'notifications' },
+				route: { name: 'timeline', params: { type: 'notifications' } },
+			})
+
+			// the highest nid on screen, not the first or the last in the array
+			expect(dispatch).toHaveBeenCalledWith('markNotificationsRead', 1788875057712412)
+		})
+
+		it('leaves the marker alone on any other timeline', () => {
+			const { dispatch } = mountList({ timeline: notifications, props: { type: 'home' } })
+
+			expect(dispatch).not.toHaveBeenCalledWith('markNotificationsRead', expect.anything())
+		})
+
+		it('records nothing when there is nothing to show', () => {
+			const { dispatch } = mountList({ timeline: [], props: { type: 'notifications' } })
+
+			expect(dispatch).not.toHaveBeenCalledWith('markNotificationsRead', expect.anything())
+		})
+	})
+
 	describe('loading pages', () => {
 		it('requests the first page on mount', async () => {
 			const { dispatch } = mountList()

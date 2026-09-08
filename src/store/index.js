@@ -8,6 +8,7 @@ import timeline from './timeline.js'
 import account from './account.js'
 import settings from './settings.js'
 import errors from './errors.js'
+import notifications from './notifications.js'
 
 const debug = process.env.NODE_ENV !== 'production'
 
@@ -17,6 +18,7 @@ export default createStore({
 		account,
 		settings,
 		errors,
+		notifications,
 	},
 	strict: debug,
 })

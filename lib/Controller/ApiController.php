@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -42,6 +43,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
@@ -114,6 +116,8 @@ class ApiController extends Controller {
 		PollService $pollService,
 		private PinService $pinService,
 		private HashtagService $hashtagService,
+		private MarkerService $markerService,
+		private StreamRequest $streamRequest,
 		ReportService $reportService,
 		SearchService $searchService,
 		ConfigService $configService,
@@ -1293,6 +1297,85 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * How many notifications have arrived since the reader last looked.
+	 *
+	 * The sidebar badge asks for this; a client that keeps markers gets the
+	 * same answer from the same place.
+	 *
+	 * @return DataResponse
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function notificationsUnreadCount(): DataResponse {
+		try {
+			$this->initViewer(true);
+			$userId = $this->currentSession();
+
+			return new DataResponse([
+				'count' => $this->streamRequest->countNotificationsSince(
+					$this->viewer, $this->markerService->lastReadId($userId, 'notifications')
+				),
+			], Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * How far through each timeline the reader has got.
+	 *
+	 * @param array $timeline the timelines asked about; all of them when empty
+	 *
+	 * @return DataResponse
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function markersGet(array $timeline = []): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			return new DataResponse(
+				$this->markerService->get($this->currentSession(), $timeline), Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * Moves one or more markers forward.
+	 *
+	 * The body is Mastodon's: `{"notifications": {"last_read_id": "42"}}`, or
+	 * the same thing form-encoded as `notifications[last_read_id]=42`.
+	 *
+	 * @return DataResponse
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function markersSet(): DataResponse {
+		try {
+			$this->initViewer(true);
+			$userId = $this->currentSession();
+
+			$input = $this->convertInput(file_get_contents('php://input'));
+			$updated = [];
+			foreach (MarkerService::TIMELINES as $timeline) {
+				$lastReadId = $input[$timeline]['last_read_id'] ?? null;
+				if ($lastReadId === null || $lastReadId === '') {
+					continue;
+				}
+
+				$updated[$timeline] = $this->markerService->set($userId, $timeline, (string)$lastReadId);
+			}
+
+			return new DataResponse($updated, Http::STATUS_OK);
+		} catch (Exception $e) {
+			// the write routes answer 400, unlike the read routes' 401
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
 	 *
 	 * @return DataResponse
 	 */
@@ -1574,7 +1657,7 @@ class ApiController extends Controller {
 
 		$accepted = match ($name) {
 			'statusNew', 'statusUpdate', 'mediaNew', 'mediaNewV2', 'mediaUpdate', 'statusAction',
-			'updateCredentials', 'reportNew', 'pollVote' => ['write'],
+			'updateCredentials', 'reportNew', 'pollVote', 'markersSet' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'accountFollow', 'accountUnfollow',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],

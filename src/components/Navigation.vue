@@ -141,6 +141,7 @@ import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
+import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
@@ -151,6 +152,9 @@ import currentuserMixin from '../mixins/currentUserMixin.js'
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
+
+/** how often to re-read the badge when the server cannot push */
+const UNREAD_POLL_MS = 60 * 1000
 
 export default {
 	name: 'Navigation',
@@ -186,6 +190,8 @@ export default {
 			localSearch: '',
 			showComposer: false,
 			showErrors: false,
+			stopListening: null,
+			pollTimer: null,
 		}
 	},
 	computed: {
@@ -194,6 +200,9 @@ export default {
 		},
 		errorCount() {
 			return this.$store.getters.appErrors.length
+		},
+		unreadNotifications() {
+			return this.$store.getters.unreadNotifications
 		},
 		appErrors() {
 			return this.$store.getters.appErrors
@@ -212,7 +221,7 @@ export default {
 						icon: IconBell,
 						title: t('social', 'Notifications'),
 						to: { name: 'timeline', params: { type: 'notifications' } },
-						counter: '0',
+						counter: this.unreadNotifications,
 					},
 					{
 						key: 'social-direct',
@@ -262,6 +271,26 @@ export default {
 	},
 	mounted() {
 		this.fetchTrending()
+		this.$store.dispatch('fetchUnreadNotifications')
+
+		// the badge is only honest if it keeps up: with notify_push the server
+		// says when something arrived, and without it a slow poll is enough
+		this.stopListening = listen('social_timeline', () => {
+			this.$store.dispatch('fetchUnreadNotifications')
+		})
+		if (!this.stopListening) {
+			this.pollTimer = setInterval(
+				() => this.$store.dispatch('fetchUnreadNotifications'), UNREAD_POLL_MS,
+			)
+		}
+	},
+	beforeUnmount() {
+		if (typeof this.stopListening === 'function') {
+			this.stopListening()
+		}
+		if (this.pollTimer !== null) {
+			clearInterval(this.pollTimer)
+		}
 	},
 	methods: {
 		t: translate,
