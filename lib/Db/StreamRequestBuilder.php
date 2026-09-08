@@ -80,6 +80,43 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	}
 
 	/**
+	 * The same query, projecting one column.
+	 *
+	 * A timeline reads DISTINCT over eighty columns, several of them TEXT,
+	 * because joining the recipients and follows tables can return a stream
+	 * more than once. The database cannot deduplicate that without building
+	 * and sorting the whole matching set first, which is why a timeline used
+	 * to cost the same whether twenty rows were asked for or a hundred.
+	 *
+	 * Deduplicating one integer instead is cheap, so the page is chosen here
+	 * and the rows are fetched afterwards by id.
+	 */
+	protected function getStreamNidsSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->selectDistinct('s.nid')
+			->from(self::TABLE_STREAM, 's');
+		$qb->setDefaultSelectAlias('s');
+
+		return $qb;
+	}
+
+	/**
+	 * @param SocialQueryBuilder $qb a query projecting s.nid
+	 *
+	 * @return int[] the ids of the page, in the order the query put them
+	 */
+	protected function getNidsFromRequest(SocialQueryBuilder $qb): array {
+		$nids = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$nids[] = (int)$row['nid'];
+		}
+		$cursor->closeCursor();
+
+		return $nids;
+	}
+
+	/**
 	 * Base of the Sql Select request for Shares
 	 *
 	 * @return SocialQueryBuilder
