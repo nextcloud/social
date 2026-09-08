@@ -39,7 +39,7 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/api/v1/instance/` | public, no-csrf | — | Local instance metadata from `InstanceService::getLocal()` (title, version, usage, registrations). Returned as-is, not wrapped. |
+| GET | `/api/v1/instance/` | public, no-csrf | — | Local instance metadata from `InstanceService::getLocal()` (title, version, usage, registrations). Returned as-is, not wrapped. The `version` field is Pleroma-style — `4.1.0 (compatible; Nextcloud Social <app version>)` — because clients gate features on it; NodeInfo keeps reporting the real app version. |
 | GET | `/api/v1/apps/verify_credentials` | public, no-csrf | — | `{"name", "website"}` of the client behind the bearer token; falls back to `{"name": "Nextcloud Social", "website": "https://github.com/nextcloud/social/"}` when no client is identified. |
 | GET | `/api/v1/custom_emojis` | public, no-csrf | — | **Not implemented.** Always returns an empty array `[]` with HTTP 200. |
 | GET | `/api/saved_searches/list.json` | public, no-csrf | — | **Not implemented.** Initialises the viewer, then always returns `[]`. |
