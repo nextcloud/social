@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Tools\Traits\TArrayTools;
 use Psr\Log\LoggerInterface;
@@ -30,6 +31,7 @@ class SearchService {
 
 	private CacheActorService $cacheActorService;
 	private HashtagService $hashtagService;
+	private StreamRequest $streamRequest;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
 
@@ -44,13 +46,30 @@ class SearchService {
 	public function __construct(
 		CacheActorService $cacheActorService,
 		HashtagService $hashtagService,
+		StreamRequest $streamRequest,
 		ConfigService $configService,
 		LoggerInterface $logger,
 	) {
 		$this->cacheActorService = $cacheActorService;
 		$this->hashtagService = $hashtagService;
+		$this->streamRequest = $streamRequest;
 		$this->configService = $configService;
 		$this->logger = $logger;
+	}
+
+	/**
+	 * Full-text search over the statuses the viewer can see. The viewer bound
+	 * comes from StreamRequest::setViewer(), set by the caller.
+	 *
+	 * @return \OCA\Social\Model\ActivityPub\Stream[]
+	 */
+	public function searchStreamContent(string $search): array {
+		$type = $this->getTypeFromSearch($search);
+		if ($search === '' || !($type & self::SEARCH_CONTENT)) {
+			return [];
+		}
+
+		return $this->streamRequest->searchContent($search);
 	}
 
 	/**
@@ -118,17 +137,6 @@ class SearchService {
 	 *
 	 * @return array
 	 */
-	public function searchStreamContent(string $search): array {
-		$result = [];
-
-		$type = $this->getTypeFromSearch($search);
-		if ($search === '' || !($type & self::SEARCH_CONTENT)) {
-			return $result;
-		}
-
-		// TODO : search using FullTextSearch ?
-		return $result;
-	}
 
 	/**
 	 * @param string $search

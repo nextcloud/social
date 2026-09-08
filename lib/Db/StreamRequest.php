@@ -239,6 +239,36 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
+	/**
+	 * Full-text search over the statuses the viewer is allowed to see: their
+	 * own posts, public/unlisted content, and what is addressed to them. A
+	 * plain (case-insensitive) substring match — fine at the instance sizes
+	 * this app targets; no external search engine required.
+	 *
+	 * @return Stream[]
+	 */
+	public function searchContent(string $term, int $limit = 20): array {
+		if (strlen($term) < 3) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToType(Note::TYPE);
+		$expr = $qb->expr();
+		$qb->andWhere($expr->iLike(
+			's.content',
+			$qb->createNamedParameter('%' . $this->dbConnection->escapeLikeParameter($term) . '%')
+		));
+
+		$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		$qb->leftJoinStreamAction();
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->orderBy('s.published_time', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
 	public function getStreamByNid(int $nid): Stream {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToNid($nid);

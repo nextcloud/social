@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CacheActorService;
@@ -22,14 +23,17 @@ use Psr\Log\NullLogger;
 class SearchServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private HashtagService|MockObject $hashtagService;
+	private StreamRequest|MockObject $streamRequest;
 	private SearchService $service;
 
 	protected function setUp(): void {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
+		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->service = new SearchService(
 			$this->cacheActorService,
 			$this->hashtagService,
+			$this->streamRequest,
 			$this->createMock(ConfigService::class),
 			new NullLogger(),
 		);
