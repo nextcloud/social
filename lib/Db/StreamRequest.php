@@ -253,7 +253,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$expr = $qb->expr();
 		$qb->andWhere($expr->iLike(
 			's.content',

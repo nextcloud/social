@@ -133,7 +133,7 @@ class Question extends Note implements JsonSerializable {
 			'votes_count' => array_sum(array_column($this->options, 'votes_count')),
 			'voters_count' => $this->votersCount,
 			'options' => $this->options,
-			'emojis' => [],
+			'emojis' => $this->getEmojis(),
 			'voted' => ($ownVotes !== []),
 			'own_votes' => $ownVotes,
 		];
