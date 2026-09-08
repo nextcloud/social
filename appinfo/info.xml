@@ -15,7 +15,7 @@ What it does:
 - ✍️ Posts: write posts and replies with a visibility setting, mentions, hashtags and image attachments
 - ✏️ Edit and delete your own posts; edits are federated as ActivityPub Update activities
 - 👍 🔁 💬 Like, boost and reply
-- 👥 Follow and unfollow local and remote accounts; incoming follows are accepted automatically
+- 👥 Follow and unfollow local and remote accounts; incoming follows are accepted automatically unless the account is locked
 - 🔎 Find accounts and hashtags via WebFinger and search
 - 🌐 Federation: signed delivery of ActivityPub activities, with a delivery queue processed by cron
 
