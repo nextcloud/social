@@ -39,6 +39,25 @@
 
 			<NcAppNavigationSpacer />
 
+			<NcAppNavigationCaption v-if="trending.length > 0" :name="t('social', 'Trending')" />
+			<NcAppNavigationItem v-for="tag in trending"
+				:key="`trend-${tag.name}`"
+				class="navigation__trend"
+				:name="`#${tag.name}`"
+				:active="isTagActive(tag)"
+				@click="openTag(tag)">
+				<template #icon>
+					<IconPound :size="20" />
+				</template>
+				<template #subname>
+					<span class="navigation__subname">
+						{{ n('social', '%n post', '%n posts', usesOf(tag)) }}
+					</span>
+				</template>
+			</NcAppNavigationItem>
+
+			<NcAppNavigationSpacer v-if="trending.length > 0" />
+
 			<NcAppNavigationItem :name="menu.profile.title"
 				:active="isActive(menu.profile)"
 				@click="navigate(menu.profile)">
@@ -119,6 +138,11 @@ import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import IconEarth from 'vue-material-design-icons/Earth.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
+import IconBookmark from 'vue-material-design-icons/Bookmark.vue'
+import IconPound from 'vue-material-design-icons/Pound.vue'
+import { translate, translatePlural } from '@nextcloud/l10n'
+import axios from '@nextcloud/axios'
+import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
@@ -148,6 +172,8 @@ export default {
 		IconEarth,
 		IconHeart,
 		IconPlus,
+		IconBookmark,
+		IconPound,
 		IconCancel,
 		IconAlertCircle,
 	},
@@ -155,6 +181,8 @@ export default {
 	mixins: [currentuserMixin],
 	data() {
 		return {
+			/** the hashtags the instance is using most, newest counts first */
+			trending: [],
 			localSearch: '',
 			showComposer: false,
 			showErrors: false,
@@ -216,6 +244,12 @@ export default {
 						title: t('social', 'Liked posts'),
 						to: { name: 'timeline', params: { type: 'favourites' } },
 					},
+					{
+						key: 'social-bookmarks',
+						icon: IconBookmark,
+						title: t('social', 'Bookmarks'),
+						to: { name: 'timeline', params: { type: 'bookmarks' } },
+					},
 				],
 				profile: {
 					key: 'social-profile',
@@ -226,7 +260,47 @@ export default {
 			}
 		},
 	},
+	mounted() {
+		this.fetchTrending()
+	},
 	methods: {
+		t: translate,
+		n: translatePlural,
+		/**
+		 * What the instance is talking about. The counts are kept by cron, so
+		 * this is one cheap read; a failure leaves the section out rather than
+		 * bothering anyone about it.
+		 */
+		async fetchTrending() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/trends/tags'), {
+					params: { limit: 5 },
+				})
+				this.trending = Array.isArray(data) ? data : []
+			} catch (error) {
+				this.trending = []
+			}
+		},
+		/**
+		 * @param {object} tag a Tag entity
+		 * @return {number} how often it was used in the window the server chose
+		 */
+		usesOf(tag) {
+			return Number.parseInt(tag.history?.[0]?.uses ?? 0) || 0
+		},
+		/**
+		 * @param {object} tag a Tag entity
+		 * @return {boolean} whether its timeline is the one being shown
+		 */
+		isTagActive(tag) {
+			return this.$route?.name === 'tags' && this.$route?.params?.tag === tag.name
+		},
+		/**
+		 * @param {object} tag a Tag entity
+		 */
+		openTag(tag) {
+			this.$router.push({ name: 'tags', params: { tag: tag.name } })
+		},
 		dismissError(id) {
 			this.$store.dispatch('dismissAppError', id)
 		},

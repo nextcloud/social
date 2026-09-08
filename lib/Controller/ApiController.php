@@ -40,6 +40,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PollService;
@@ -112,6 +113,7 @@ class ApiController extends Controller {
 		PostService $postService,
 		PollService $pollService,
 		private PinService $pinService,
+		private HashtagService $hashtagService,
 		ReportService $reportService,
 		SearchService $searchService,
 		ConfigService $configService,
@@ -924,6 +926,39 @@ class ApiController extends Controller {
 				['accounts' => $accounts, 'statuses' => $statuses, 'hashtags' => $hashtags],
 				Http::STATUS_OK
 			);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * The hashtags used most on this instance lately, as Mastodon's Tag
+	 * entities. The counts come from the trend the cron already keeps for
+	 * every hashtag; this instance counts uses rather than distinct accounts,
+	 * so `accounts` is always 0.
+	 *
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): DataResponse {
+		try {
+			$this->initViewer(false);
+			$limit = max(1, min(20, $limit));
+			$day = (string)strtotime('today midnight');
+
+			$tags = [];
+			foreach ($this->hashtagService->getTrending($limit, $period) as $hashtag) {
+				$uses = (int)($hashtag['trend'][$period] ?? 0);
+				$tags[] = [
+					'name' => $hashtag['hashtag'],
+					'url' => $this->urlGenerator->linkToRouteAbsolute(
+						'social.Navigation.timeline', ['path' => 'tags/' . $hashtag['hashtag']]
+					),
+					'history' => [['day' => $day, 'uses' => (string)$uses, 'accounts' => '0']],
+				];
+			}
+
+			return new DataResponse($tags, Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}

@@ -121,6 +121,11 @@ const mutations = {
 			state.statuses[status.id].reblogs_count--
 		}
 	},
+	bookmarkStatus(state, { status, bookmarked }) {
+		if (state.statuses[status.id] !== undefined) {
+			state.statuses[status.id] = { ...state.statuses[status.id], bookmarked }
+		}
+	},
 	pinStatus(state, { status, pinned }) {
 		if (state.statuses[status.id] !== undefined) {
 			state.statuses[status.id] = { ...state.statuses[status.id], pinned }
@@ -321,6 +326,25 @@ const actions = {
 			logger.error('Failed to delete the boost', { error })
 		}
 	},
+	async postBookmark(context, { status, bookmarked }) {
+		// the flag flips first so the button answers at once, and is put back
+		// if the server refuses
+		context.commit('bookmarkStatus', { status, bookmarked })
+		try {
+			const action = bookmarked ? 'bookmark' : 'unbookmark'
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/${action}`))
+			logger.info(bookmarked ? 'Post bookmarked' : 'Bookmark removed')
+			context.commit('addToStatuses', response.data)
+			if (!bookmarked && context.state.type === 'bookmarks') {
+				context.commit('removeStatus', status)
+			}
+			return response
+		} catch (error) {
+			context.commit('bookmarkStatus', { status, bookmarked: !bookmarked })
+			showError(bookmarked ? 'Failed to bookmark the post' : 'Failed to remove the bookmark')
+			logger.error('Failed to change the bookmark', { error })
+		}
+	},
 	async postPin(context, { status, pinned }) {
 		// the flag is flipped first so the menu answers at once, and rolled
 		// back if the server refuses (somebody else's post, or the pin limit)
@@ -365,6 +389,10 @@ const actions = {
 			break
 		case 'notifications':
 			url = generateUrl('apps/social/api/v1/notifications')
+			break
+		case 'bookmarks':
+			// the only timeline the server serves without a trailing slash
+			url = generateUrl('apps/social/api/v1/bookmarks')
 			break
 		default:
 			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)

@@ -127,6 +127,13 @@
 					@click="remove()">
 					{{ t('social', 'Delete') }}
 				</NcActionButton>
+				<NcActionButton @click="toggleBookmark">
+					<template #icon>
+						<Bookmark v-if="item.bookmarked" :size="20" />
+						<BookmarkOutline v-else :size="20" />
+					</template>
+					{{ item.bookmarked ? t('social', 'Remove bookmark') : t('social', 'Bookmark') }}
+				</NcActionButton>
 				<NcActionButton v-if="canPin"
 					@click="togglePin">
 					<template #icon>
@@ -173,6 +180,8 @@ import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import Flag from 'vue-material-design-icons/Flag.vue'
+import Bookmark from 'vue-material-design-icons/Bookmark.vue'
+import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
 import axios from '@nextcloud/axios'
@@ -202,6 +211,8 @@ export default {
 		NcDialog,
 		Flag,
 		NcButton,
+		Bookmark,
+		BookmarkOutline,
 		Pin,
 		PinOff,
 		Repeat,
@@ -455,6 +466,9 @@ export default {
 		},
 		remove() {
 			this.$store.dispatch('postDelete', this.item)
+		},
+		toggleBookmark() {
+			this.$store.dispatch('postBookmark', { status: this.item, bookmarked: !this.item.bookmarked })
 		},
 		togglePin() {
 			this.$store.dispatch('postPin', { status: this.item, pinned: !this.item.pinned })

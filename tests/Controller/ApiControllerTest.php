@@ -38,6 +38,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PollService;
@@ -94,6 +95,8 @@ class ApiControllerTest extends TestCase {
 	private $pollService;
 	/** @var PinService&MockObject */
 	private $pinService;
+	/** @var HashtagService&MockObject */
+	private $hashtagService;
 	/** @var ReportService&MockObject */
 	private $reportService;
 	/** @var SearchService&MockObject */
@@ -142,6 +145,7 @@ class ApiControllerTest extends TestCase {
 		$this->postService = $this->createMock(PostService::class);
 		$this->pollService = $this->createMock(PollService::class);
 		$this->pinService = $this->createMock(PinService::class);
+		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->searchService = $this->createMock(SearchService::class);
 		$this->configService = $this->createMock(ConfigService::class);
@@ -179,6 +183,7 @@ class ApiControllerTest extends TestCase {
 			$this->postService,
 			$this->pollService,
 			$this->pinService,
+			$this->hashtagService,
 			$this->reportService,
 			$this->searchService,
 			$this->configService,
@@ -1084,6 +1089,42 @@ class ApiControllerTest extends TestCase {
 		$this->searchService->expects($this->never())->method('searchAccounts');
 
 		$this->assertUnauthorized($this->controller()->searchV2('bob'));
+	}
+
+	// trends
+
+	public function testTrendTagsReturnsTagEntitiesForWhatIsTrending(): void {
+		$this->loggedInAs();
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturnCallback(static fn (string $route, array $args): string => 'https://cloud.example/' . $args['path']);
+		$this->hashtagService->method('getTrending')->with(5, '1h')->willReturn([
+			['hashtag' => 'nextcloud', 'trend' => ['1h' => 12, '1d' => 40]],
+			['hashtag' => 'fediverse', 'trend' => ['1h' => 3]],
+		]);
+
+		$tags = $this->controller()->trendTags(5, '1h')->getData();
+
+		$this->assertSame(['nextcloud', 'fediverse'], array_column($tags, 'name'));
+		$this->assertSame('https://cloud.example/tags/nextcloud', $tags[0]['url']);
+		// the count is the one for the window that was asked for
+		$this->assertSame('12', $tags[0]['history'][0]['uses']);
+		// this instance counts uses, not distinct accounts
+		$this->assertSame('0', $tags[0]['history'][0]['accounts']);
+	}
+
+	public function testTrendTagsCapsTheLimit(): void {
+		$this->loggedInAs();
+		$this->hashtagService->expects($this->once())->method('getTrending')
+			->with(20, HashtagService::PERIOD_DEFAULT)->willReturn([]);
+
+		$this->assertSame([], $this->controller()->trendTags(500)->getData());
+	}
+
+	public function testTrendTagsIsReadableWithoutAViewer(): void {
+		// a public instance shows what is trending to anyone who can read it
+		$this->hashtagService->method('getTrending')->willReturn([]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->trendTags()->getStatus());
 	}
 
 	// reports
