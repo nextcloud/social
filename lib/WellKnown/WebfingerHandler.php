@@ -97,6 +97,11 @@ class WebfingerHandler implements IHandler {
 	 */
 	public function handleWebfinger(IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
 		$subject = $this->getSubjectFromRequest($context->getHttpRequest());
+		if ($subject === '') {
+			// RFC 7033, section 4.2: the resource parameter is required
+			return new JrdResponse('', Http::STATUS_BAD_REQUEST);
+		}
+
 		$subjectAcct = $subject;
 		if (str_starts_with($subject, 'acct:')) {
 			$subject = substr($subject, 5);
@@ -216,7 +221,7 @@ class WebfingerHandler implements IHandler {
 
 		// work around to extract resource:
 		// on some setup (i.e. tests) the data are not available from IRequest
-		parse_str(parse_url($request->getRequestUri(), PHP_URL_QUERY), $query);
+		parse_str((string)parse_url($request->getRequestUri(), PHP_URL_QUERY), $query);
 
 		return $query['resource'] ?? '';
 	}
