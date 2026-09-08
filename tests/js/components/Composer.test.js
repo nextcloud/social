@@ -149,6 +149,33 @@ describe('Composer', () => {
 		vi.restoreAllMocks()
 	})
 
+	describe('the length allowance', () => {
+		it('shows a ring that fills as the post grows, and only once there is text', async () => {
+			const { wrapper } = mountComposer()
+			expect(wrapper.find('.char-ring').exists()).toBe(false)
+
+			await setContent(wrapper, 'a'.repeat(250))
+
+			const ring = wrapper.find('.char-ring')
+			expect(ring.exists()).toBe(true)
+			expect(ring.attributes('style')).toContain('--char-progress: 0.5')
+			expect(ring.classes()).not.toContain('char-ring--warning')
+			expect(ring.find('.char-ring__count').exists()).toBe(false)
+		})
+
+		it('counts down out loud near the limit and turns over past it', async () => {
+			const { wrapper } = mountComposer()
+
+			await setContent(wrapper, 'a'.repeat(480))
+			expect(wrapper.find('.char-ring').classes()).toContain('char-ring--warning')
+			expect(wrapper.find('.char-ring__count').text()).toBe('20')
+
+			await setContent(wrapper, 'a'.repeat(510))
+			expect(wrapper.find('.char-ring').classes()).toContain('char-ring--over')
+			expect(wrapper.find('.char-ring__count').text()).toBe('-10')
+		})
+	})
+
 	describe('author', () => {
 		it('shows the current user with their federated handle', () => {
 			const { wrapper } = mountComposer()

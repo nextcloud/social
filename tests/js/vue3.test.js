@@ -106,7 +106,8 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 
 	it('guards its animations behind prefers-reduced-motion', () => {
 		for (const { name, content } of files) {
-			if (!/transition:\s*(?!none)/.test(content)) {
+			// both properties move things; both need an escape hatch
+			if (!/(?:transition|animation):\s*(?!none)/.test(content)) {
 				continue
 			}
 			expect(

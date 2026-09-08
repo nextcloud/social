@@ -50,16 +50,20 @@ describe('MediaAttachment', () => {
 		expect(context.putImageData).toHaveBeenCalledWith(imageData, 0, 0)
 	})
 
-	it('shows the placeholder and a spinner until the preview has loaded', async () => {
+	it('crossfades the image out of its own blurhash once it has loaded', async () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment } })
-		expect(wrapper.find('canvas.attachment__blurhash').exists()).toBe(true)
+		expect(wrapper.find('canvas.attachment__blurhash').classes())
+			.not.toContain('attachment__blurhash--hidden')
+		expect(wrapper.find('img.attachment__preview').classes()).not.toContain('attachment__preview--shown')
 		expect(wrapper.find('.loading-icon').exists()).toBe(true)
 
 		await wrapper.find('img').trigger('load')
 
-		expect(wrapper.find('canvas').exists()).toBe(false)
+		// the blurhash stays mounted and fades under the image; removing it
+		// in the same frame is what made the swap visible
+		expect(wrapper.find('canvas.attachment__blurhash').classes()).toContain('attachment__blurhash--hidden')
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
 		expect(wrapper.find('.loading-icon').exists()).toBe(false)
-		expect(wrapper.find('img.attachment__preview').exists()).toBe(true)
 	})
 
 	it('shows only a spinner while the attachment is still uploading', () => {

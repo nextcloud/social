@@ -144,6 +144,13 @@
 
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
+				<span v-if="statusContent.length > 0"
+					class="char-ring"
+					:class="{ 'char-ring--warning': charsLeft <= 50, 'char-ring--over': statusIsTooLong }"
+					:style="{ '--char-progress': charProgress }"
+					:title="n('social', '%n character left', '%n characters left', charsLeft)">
+					<span v-if="charsLeft <= 50" class="char-ring__count">{{ charsLeft }}</span>
+				</span>
 				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
 			</div>
 		</form>
@@ -160,6 +167,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
+import { translatePlural } from '@nextcloud/l10n'
 import he from 'he'
 import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
@@ -172,6 +180,9 @@ import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
 import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
+
+/** what the server accepts in one status */
+const MAX_LENGTH = 500
 
 export default {
 	name: 'Composer',
@@ -327,7 +338,17 @@ export default {
 		},
 
 		statusIsTooLong() {
-			return this.statusContent.length > 500
+			return this.statusContent.length > MAX_LENGTH
+		},
+
+		/** @return {number} how much of the allowance is spent, 0..1 */
+		charProgress() {
+			return Math.min(this.statusContent.length / MAX_LENGTH, 1)
+		},
+
+		/** @return {number} how many characters remain, negative once over */
+		charsLeft() {
+			return MAX_LENGTH - this.statusContent.length
 		},
 
 		hasMentions() {
@@ -463,6 +484,7 @@ export default {
 			console.debug('[Composer] update from tribute', event)
 			this.updateStatusContent()
 		},
+		n: translatePlural,
 		async createPost() {
 			const element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
@@ -814,6 +836,57 @@ function nodeToPlainText(node) {
 		align-items: center;
 		gap: 12px;
 		flex-wrap: wrap;
+	}
+}
+/* the allowance as a ring that fills, rather than a limit you discover */
+.char-ring {
+	position: relative;
+	width: 24px;
+	height: 24px;
+	flex-shrink: 0;
+	align-self: center;
+	border-radius: 50%;
+	background: conic-gradient(
+		var(--color-primary-element) calc(var(--char-progress) * 360deg),
+		var(--color-background-dark) 0
+	);
+	transition: background .2s ease;
+
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 3px;
+		border-radius: 50%;
+		background: var(--color-main-background);
+	}
+
+	&--warning {
+		background: conic-gradient(
+			var(--color-warning) calc(var(--char-progress) * 360deg),
+			var(--color-background-dark) 0
+		);
+	}
+
+	&--over {
+		background: var(--color-error);
+	}
+
+	&__count {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 10px;
+		font-weight: bold;
+		color: var(--color-main-text);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.char-ring {
+		transition: none;
 	}
 }
 </style>

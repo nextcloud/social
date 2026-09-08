@@ -72,11 +72,13 @@
 				</NcButton>
 				<span v-if="item.replies_count > 0" class="post-action-count">{{ item.replies_count }}</span>
 			</div>
-			<div class="post-action-group">
+			<div class="post-action-group"
+				:class="{ 'post-action-group--refused': refused === 'boost' }">
 				<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
 					:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 					:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 					type="tertiary"
+					:class="{ 'post-action--spun': celebrate === 'boost' }"
 					@click="boost">
 					<template #icon>
 						<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
@@ -84,7 +86,9 @@
 				</NcButton>
 				<span v-if="item.reblogs_count > 0" class="post-action-count">{{ item.reblogs_count }}</span>
 			</div>
-			<div class="post-action-group">
+			<div class="post-action-group post-action-group--like"
+				:class="{ 'post-action-group--refused': refused === 'like' }">
+				<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
 				<NcButton v-if="!isLiked"
 					:title="t('social', 'Like')"
 					:aria-label="t('social', 'Like')"
@@ -98,6 +102,7 @@
 					:title="t('social', 'Undo Like')"
 					:aria-label="t('social', 'Undo Like')"
 					type="tertiary"
+					:class="{ 'post-action--popped': celebrate === 'like' }"
 					@click="like">
 					<template #icon>
 						<Heart :size="20" :fill-color="'var(--color-element-error)'" />
@@ -216,6 +221,10 @@ export default {
 	data() {
 		return {
 			isEditing: false,
+			/** which action is playing its confirmation, '' when none */
+			celebrate: '',
+			/** which action the server refused, so the button can say so */
+			refused: '',
 			editContent: '',
 			showReportDialog: false,
 			reportComment: '',
@@ -319,7 +328,6 @@ export default {
 	},
 	methods: {
 		/**
-		 * @param {MouseEvent} e - The click event
 		 * @function getSinglePostTimeline
 		 * @description Opens the timeline of the post clicked
 		 */
@@ -361,15 +369,9 @@ export default {
 				showError(t('social', 'Failed to report the post'))
 			}
 		},
-		boost() {
-			const params = {
-				status: this.item,
-			}
-			if (this.isBoosted) {
-				this.$store.dispatch('postUnBoost', params)
-			} else {
-				this.$store.dispatch('postBoost', params)
-			}
+		async boost() {
+			const undo = this.isBoosted
+			await this.act('boost', undo ? 'postUnBoost' : 'postBoost', !undo)
 		},
 		editPost() {
 			const rawContent = this.item.content || this.item.account?.note || ''
@@ -404,14 +406,38 @@ export default {
 		togglePin() {
 			this.$store.dispatch('postPin', { status: this.item, pinned: !this.item.pinned })
 		},
-		like() {
-			const params = {
-				status: this.item,
+		async like() {
+			const undo = this.isLiked
+			await this.act('like', undo ? 'postUnlike' : 'postLike', !undo)
+		},
+		/**
+		 * Both actions are applied optimistically and rolled back by the store
+		 * when the server refuses — which used to happen invisibly. Confirming
+		 * one animation and refusing the other makes the difference legible.
+		 *
+		 * @param {string} name 'like' or 'boost', the class hook
+		 * @param {string} action the store action to dispatch
+		 * @param {boolean} celebrating whether this is the doing, not the undoing
+		 */
+		async act(name, action, celebrating) {
+			if (celebrating) {
+				this.celebrate = name
+				window.setTimeout(() => {
+					if (this.celebrate === name) {
+						this.celebrate = ''
+					}
+				}, 600)
 			}
-			if (this.isLiked) {
-				this.$store.dispatch('postUnlike', params)
-			} else {
-				this.$store.dispatch('postLike', params)
+
+			const response = await this.$store.dispatch(action, { status: this.item })
+			if (response === undefined) {
+				this.celebrate = ''
+				this.refused = name
+				window.setTimeout(() => {
+					if (this.refused === name) {
+						this.refused = ''
+					}
+				}, 400)
 			}
 		},
 	},
@@ -464,6 +490,31 @@ function nodeToPlainText(node) {
 }
 </script>
 <style scoped lang="scss">
+/* the like confirmation: a short overshoot, not a bounce */
+@keyframes post-pop {
+	0% { transform: scale(1); }
+	40% { transform: scale(1.35); }
+	70% { transform: scale(.92); }
+	100% { transform: scale(1); }
+}
+
+@keyframes post-burst {
+	0% { transform: scale(.2); opacity: .55; }
+	100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes post-spin {
+	0% { transform: rotate(0); }
+	100% { transform: rotate(360deg); }
+}
+
+/* the server refused: the optimistic change is being taken back */
+@keyframes post-refused {
+	0%, 100% { transform: translateX(0); }
+	25% { transform: translateX(-4px); }
+	75% { transform: translateX(4px); }
+}
+
 .post-content {
 	padding: 18px 20px 14px;
 	font-size: 15px;
@@ -473,6 +524,18 @@ function nodeToPlainText(node) {
 	border: 1px solid var(--color-border);
 	position: relative;
 	z-index: 1;
+	transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+
+	&:hover {
+		border-color: var(--color-primary-element);
+		box-shadow: 0 2px 10px rgb(0 0 0 / 7%);
+		transform: translateY(-1px);
+	}
+
+	&:focus-within {
+		border-color: var(--color-primary-element);
+		box-shadow: 0 0 0 2px var(--color-primary-element-light);
+	}
 
 	.post-header {
 		display: flex;
@@ -639,6 +702,58 @@ function nodeToPlainText(node) {
 		:deep(.actions) {
 			margin-left: auto;
 		}
+	}
+}
+
+.post-action-group {
+	position: relative;
+
+	&--refused :deep(button) {
+		animation: post-refused .4s ease;
+	}
+}
+
+.post-action--popped :deep(.material-design-icon) {
+	animation: post-pop .45s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.post-action--spun :deep(.material-design-icon) {
+	animation: post-spin .5s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* the ring that expands out of the heart once */
+.post-action__burst {
+	position: absolute;
+	top: 50%;
+	left: 22px;
+	width: 20px;
+	height: 20px;
+	margin: -10px 0 0 -10px;
+	border-radius: 50%;
+	background: var(--color-element-error);
+	pointer-events: none;
+	animation: post-burst .5s ease-out forwards;
+}
+
+.post-pinned {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.post-content,
+	.post-content:hover {
+		transition: none;
+		transform: none;
+	}
+
+	.post-action-group--refused :deep(button),
+	.post-action--popped :deep(.material-design-icon),
+	.post-action--spun :deep(.material-design-icon) {
+		animation: none;
+	}
+
+	.post-action__burst {
+		display: none;
 	}
 }
 </style>

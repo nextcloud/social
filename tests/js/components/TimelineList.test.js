@@ -9,6 +9,7 @@ import { showError } from '@nextcloud/dialogs'
 import TimelineList from '../../../src/components/TimelineList.vue'
 import { listen } from '@nextcloud/notify_push'
 import EmptyContent from '../../../src/components/EmptyContent.vue'
+import TimelineSkeleton from '../../../src/components/TimelineSkeleton.vue'
 
 vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
 vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn(() => false) }))
@@ -135,6 +136,57 @@ describe('TimelineList', () => {
 		})
 	})
 
+	describe('posts arriving while reading', () => {
+		afterEach(() => {
+			window.scrollY = 0
+		})
+
+		/** @param {number} y how far down the page the reader is */
+		const scrolledTo = (y) => {
+			Object.defineProperty(window, 'scrollY', { value: y, configurable: true, writable: true })
+		}
+
+		it('offers to jump to posts that arrived out of sight', async () => {
+			scrolledTo(800)
+			const { wrapper } = mountList({ responses: [[], [status('9'), status('8')]] })
+			await flushPromises()
+
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			const pill = wrapper.find('.new-posts-pill')
+			expect(pill.exists()).toBe(true)
+			expect(pill.text()).toContain('2')
+		})
+
+		it('says nothing when the top of the list is already on screen', async () => {
+			scrolledTo(0)
+			const { wrapper } = mountList({ responses: [[], [status('9')]] })
+			await flushPromises()
+
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			// up there the posts simply appear; a pill would be noise
+			expect(wrapper.find('.new-posts-pill').exists()).toBe(false)
+		})
+
+		it('scrolls back to the top and forgets the count when asked', async () => {
+			scrolledTo(800)
+			const scrollTo = vi.fn()
+			window.scrollTo = scrollTo
+			const { wrapper } = mountList({ responses: [[], [status('9')]] })
+			await flushPromises()
+			await wrapper.vm.fetchNewStatuses()
+			await flushPromises()
+
+			await wrapper.find('.new-posts-pill').trigger('click')
+
+			expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+			expect(wrapper.find('.new-posts-pill').exists()).toBe(false)
+		})
+	})
+
 	describe('loading pages', () => {
 		it('requests the first page on mount', async () => {
 			const { dispatch } = mountList()
@@ -157,19 +209,40 @@ describe('TimelineList', () => {
 			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
 		})
 
-		it('shows a spinner while a page is loading and the end marker afterwards', async () => {
+		it('shows post-shaped placeholders while the first page loads, not a spinner', async () => {
 			let finish
 			const { wrapper } = mountList({ responses: [new Promise((resolve) => { finish = resolve })] })
 			await flushPromises()
-			expect(wrapper.find('.icon-loading').exists()).toBe(true)
+
+			// an empty page with a spinner says nothing about what is coming
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(true)
+			expect(wrapper.find('.icon-loading').exists()).toBe(false)
 			expect(wrapper.find('.list-end').exists()).toBe(false)
 
 			finish([status('1')])
 			await flushPromises()
 
-			expect(wrapper.find('.icon-loading').exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(false)
 			expect(wrapper.find('.list-end').exists()).toBe(true)
 			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
+		})
+
+		it('shows a spinner for a later page, where the posts are already on screen', async () => {
+			let finish
+			const { wrapper } = mountList({
+				timeline: [status('1')],
+				responses: [[status('1')], new Promise((resolve) => { finish = resolve })],
+			})
+			await flushPromises()
+			await intersect()
+
+			expect(wrapper.find('.icon-loading').exists()).toBe(true)
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(false)
+
+			finish([status('22')])
+			await flushPromises()
+
+			expect(wrapper.find('.icon-loading').exists()).toBe(false)
 		})
 
 		it('reports a failed page and stops loading', async () => {
