@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
@@ -365,6 +366,31 @@ class PostServiceTest extends TestCase {
 			$note->getContent(),
 			'user text is escaped first, then newlines become <br />'
 		);
+	}
+
+	public function testCreatePostWithAPollBuildsAQuestion(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('Cats or dogs?');
+		$post->setPoll(['options' => ['Cats', 'Dogs', '  ', 'Birds', 'Fish', 'Too many'], 'expires_in' => 3600, 'multiple' => true]);
+		$this->service->createPost($post);
+
+		$this->assertInstanceOf(Question::class, $note);
+		$this->assertTrue($note->isMultiple());
+		$this->assertCount(4, $note->getOptions(), 'blank options dropped, capped at four');
+		$this->assertSame('Cats', $note->getOptions()[0]['title']);
+		$this->assertStringContainsString('anyOf', $note->getSource(), 'the poll snapshot lives in the source');
+	}
+
+	public function testCreatePostWithASingleOptionPollIsRefused(): void {
+		$this->activityService->expects($this->never())->method('createActivity');
+
+		$post = $this->post('broken');
+		$post->setPoll(['options' => ['Only one'], 'expires_in' => 3600]);
+
+		$this->expectException(\InvalidArgumentException::class);
+
+		$this->service->createPost($post);
 	}
 
 	// editPost()

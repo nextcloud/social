@@ -421,6 +421,7 @@ class ApiController extends Controller {
 			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 			$post = new Post($actor);
 			$post->setContent($status->getStatus());
+			$post->setPoll($status->getPoll());
 			$post->setType($status->getVisibility());
 
 			if (!empty($status->getMediaIds())) {

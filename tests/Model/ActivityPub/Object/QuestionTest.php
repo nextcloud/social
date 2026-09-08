@@ -113,6 +113,45 @@ class QuestionTest extends TestCase {
 		$this->assertSame('Dogs', $poll['options'][1]['title']);
 	}
 
+	public function testALocalPollSerializesTheMastodonWireShape(): void {
+		$question = new Question();
+		$question->setPollData(['Cats', 'Dogs'], false, 3600);
+		$question->countVote(1, true);
+
+		$wire = $question->jsonSerialize();
+
+		$this->assertArrayHasKey('oneOf', $wire);
+		$this->assertArrayNotHasKey('anyOf', $wire);
+		$this->assertSame('Dogs', $wire['oneOf'][1]['name']);
+		$this->assertSame(1, $wire['oneOf'][1]['replies']['totalItems']);
+		$this->assertSame(1, $wire['votersCount']);
+		$this->assertNotSame('', $wire['endTime']);
+
+		// and the shape round-trips through import
+		$copy = new Question();
+		$copy->import(json_decode(json_encode($wire), true));
+		$this->assertSame($question->getOptions(), $copy->getOptions());
+	}
+
+	public function testAMultipleChoicePollSerializesAnyOf(): void {
+		$question = new Question();
+		$question->setPollData(['A', 'B', 'C'], true, 3600);
+
+		$this->assertArrayHasKey('anyOf', $question->jsonSerialize());
+	}
+
+	public function testCountVoteBumpsVotersOnlyForNewVoters(): void {
+		$question = new Question();
+		$question->setPollData(['A', 'B'], true, 3600);
+		$question->countVote(0, true);
+		$question->countVote(1, false);
+		$question->countVote(7, true); // unknown option: ignored
+
+		$this->assertSame(1, $question->getVotersCount());
+		$this->assertSame(1, $question->getOptions()[0]['votes_count']);
+		$this->assertSame(1, $question->getOptions()[1]['votes_count']);
+	}
+
 	public function testANoteWithoutPollDataExportsNoPollEntity(): void {
 		$question = new Question();
 		$question->importFromDatabase([

@@ -26,6 +26,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
@@ -41,6 +42,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 	private $streamRequest;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
+	/** @var PollService&MockObject */
+	private $pollService;
 	/** @var PushService&MockObject */
 	private $pushService;
 	private NoteInterface $handler;
@@ -56,7 +59,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->pushService = $this->createMock(PushService::class);
 
-		$this->handler = new NoteInterface($this->streamRequest, $this->cacheActorsRequest, $this->pushService);
+		$this->pollService = $this->createMock(PollService::class);
+		$this->handler = new NoteInterface($this->streamRequest, $this->cacheActorsRequest, $this->pollService, $this->pushService);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
 		$this->bob = $this->person(self::REMOTE_URL . '/users/bob');
@@ -160,6 +164,15 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->save($note);
 
 		$this->assertSame('unlisted', $note->getVisibility());
+	}
+
+	public function testAConsumedPollVoteIsNeverStored(): void {
+		$this->nothingStored();
+		$this->pollService->method('handleIncomingVote')->willReturn(true);
+		$this->streamRequest->expects($this->never())->method('save');
+		$this->pushService->expects($this->never())->method('onNewStream');
+
+		$this->handler->save($this->incomingNote());
 	}
 
 	public function testCreateStoresTheNoteTaggedWithItsActivity(): void {

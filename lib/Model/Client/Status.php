@@ -19,6 +19,7 @@ class Status implements \JsonSerializable {
 	private string $visibility = '';
 	private string $spoilerText = '';
 	private array $mediaIds = [];
+	private ?array $poll = null;
 	private int $inReplyToId = 0;
 	private string $status = '';
 
@@ -147,8 +148,20 @@ class Status implements \JsonSerializable {
 		$this->setMediaIds($this->getArray('media_ids', $data));
 		$this->setInReplyToId($this->getInt('in_reply_to_id', $data));
 		$this->setStatus($this->get('status', $data));
+		$poll = $this->getArray('poll', $data);
+		$this->setPoll($poll === [] ? null : $poll);
 
 		return $this;
+	}
+
+	public function setPoll(?array $poll): self {
+		$this->poll = $poll;
+
+		return $this;
+	}
+
+	public function getPoll(): ?array {
+		return $this->poll;
 	}
 
 	public function jsonSerialize(): array {

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -38,6 +39,8 @@ class PollService {
 
 	public function __construct(
 		private StreamRequest $streamRequest,
+		private ActionsRequest $actionsRequest,
+		private AccountService $accountService,
 		private CacheActorService $cacheActorService,
 		private ActivityService $activityService,
 		private SignatureService $signatureService,
@@ -119,6 +122,91 @@ class PollService {
 		$poll->setAction($action);
 
 		return $poll;
+	}
+
+	/**
+	 * An incoming Note that is a vote on one of our polls: counted here, never
+	 * stored as a timeline item. Returns whether the note was consumed.
+	 *
+	 * A vote is a bare Note whose name is an option of a local poll it replies
+	 * to. Duplicate votes (per voter and option) and votes on expired polls
+	 * are swallowed without counting.
+	 */
+	public function handleIncomingVote(Note $note): bool {
+		if ($note->getName() === '' || $note->getInReplyTo() === '' || $note->isLocal()) {
+			return false;
+		}
+
+		try {
+			$target = $this->streamRequest->getStreamById($note->getInReplyTo());
+		} catch (StreamNotFoundException $e) {
+			return false;
+		}
+		if (!$target instanceof Question || !$target->isLocal()) {
+			return false;
+		}
+
+		$option = $target->findOption($note->getName());
+		if ($option === null || $target->isExpired()) {
+			return true; // a vote, but not a countable one — consume silently
+		}
+
+		$voter = $note->getAttributedTo();
+		if ($this->alreadyVoted($voter, $target->getId(), $option)) {
+			return true;
+		}
+		$newVoter = !$this->hasAnyVote($voter, $target);
+		$this->rememberVote($voter, $target->getId(), $option);
+
+		$target->countVote($option, $newVoter);
+		$target->setSource(json_encode($target, JSON_UNESCAPED_SLASHES));
+		$this->streamRequest->update($target);
+
+		// tell the followers the new counts
+		try {
+			$author = $this->accountService->getFromId($target->getAttributedTo());
+			$target->addInstancePath(new InstancePath(
+				$author->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+			));
+			$this->activityService->updateActivity($author, $target);
+		} catch (\Exception $e) {
+			$this->logger->warning('failed to federate poll counts', ['exception' => $e]);
+		}
+
+		return true;
+	}
+
+	private function voteId(string $voter, string $pollId, int $option): string {
+		return $pollId . '#vote-' . $option . '/' . md5($voter);
+	}
+
+	private function alreadyVoted(string $voter, string $pollId, int $option): bool {
+		try {
+			$this->actionsRequest->getAction($voter, $pollId . '#option-' . $option, 'Vote');
+
+			return true;
+		} catch (\Exception $e) {
+			return false;
+		}
+	}
+
+	private function hasAnyVote(string $voter, Question $poll): bool {
+		foreach (array_keys($poll->getOptions()) as $index) {
+			if ($this->alreadyVoted($voter, $poll->getId(), $index)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function rememberVote(string $voter, string $pollId, int $option): void {
+		$vote = new \OCA\Social\Model\ActivityPub\Object\Like();
+		$vote->setType('Vote');
+		$vote->setId($this->voteId($voter, $pollId, $option));
+		$vote->setActorId($voter);
+		$vote->setObjectId($pollId . '#option-' . $option);
+		$this->actionsRequest->save($vote);
 	}
 
 	private function federateVote(Person $viewer, Question $poll, string $option, Person $author): void {

@@ -309,6 +309,42 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('polls', () => {
+		it('attaches the poll options, duration and mode to the post', async () => {
+			const { wrapper, $store } = mountComposer({ defaultVisibility: 'public' })
+			await setContent(wrapper, 'Cats or dogs?')
+
+			await wrapper.find('button[aria-label="Add poll"]').trigger('click')
+			const inputs = wrapper.findAll('.poll-editor__option input')
+			await inputs[0].setValue('Cats')
+			await inputs[1].setValue('Dogs')
+			await wrapper.find('.poll-editor__settings input[type="checkbox"]').setValue(true)
+			await wrapper.find('.poll-editor__settings select').setValue(3600)
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).poll).toEqual({
+				options: ['Cats', 'Dogs'],
+				expires_in: 3600,
+				multiple: true,
+			})
+		})
+
+		it('sends no poll when the editor is closed or has fewer than two options', async () => {
+			const { wrapper, $store } = mountComposer()
+			await setContent(wrapper, 'no poll here')
+
+			await wrapper.find('button[aria-label="Add poll"]').trigger('click')
+			await wrapper.findAll('.poll-editor__option input')[0].setValue('Only one')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).poll).toBeUndefined()
+		})
+	})
+
 	describe('posting', () => {
 		it('sends the plain text of the message with the attachments and visibility', async () => {
 			const { wrapper, $store } = mountComposer({ defaultVisibility: 'public' })

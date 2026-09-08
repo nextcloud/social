@@ -28,6 +28,7 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -36,15 +37,18 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 
 	private StreamRequest $streamRequest;
 	private CacheActorsRequest $cacheActorsRequest;
+	private PollService $pollService;
 	private PushService $pushService;
 
 	public function __construct(
 		StreamRequest $streamRequest,
 		CacheActorsRequest $cacheActorsRequest,
+		PollService $pollService,
 		PushService $pushService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
+		$this->pollService = $pollService;
 		$this->pushService = $pushService;
 	}
 
@@ -88,6 +92,13 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		/** @var Note $note */
 		$note = $item;
 		$this->checkAuthorship($note);
+
+		// a bare note replying to one of our polls with an option as its name
+		// is a vote: counted, never stored as a timeline item
+		if ($this->pollService->handleIncomingVote($note)) {
+			return;
+		}
+
 		try {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
