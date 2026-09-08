@@ -201,21 +201,14 @@ class NavigationController extends Controller {
 	}
 
 	private function setupCloudAddress(): string {
-		$frontControllerActive
-			= ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
-			 || getenv('front_controller_active') === 'true');
-
-		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
+		// one definition of what the address should be, shared with the check
+		// that later notices the server's URL moving out from under it
+		$cloudAddress = $this->checkService->derivedCloudAddress();
 		if ($cloudAddress !== '') {
-			if (!$frontControllerActive) {
-				$cloudAddress .= '/index.php';
-			}
 			$this->configService->setCloudUrl($cloudAddress);
-
-			return $cloudAddress;
 		}
 
-		return '';
+		return $cloudAddress;
 	}
 
 	private function getCliUrl() {

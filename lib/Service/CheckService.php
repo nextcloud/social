@@ -87,6 +87,7 @@ class CheckService {
 	public function checkDefault(): array {
 		$checks = [];
 		$checks['wellknown'] = $this->checkWellKnown();
+		$checks['cloudAddress'] = $this->checkCloudAddress();
 
 		$success = true;
 		foreach ($checks as $check) {
@@ -97,8 +98,79 @@ class CheckService {
 
 		return [
 			'success' => $success,
-			'checks' => $checks
+			'checks' => $checks,
+			'addresses' => $this->cloudAddresses(),
 		];
+	}
+
+	/**
+	 * Whether the address the app builds its ids from still matches the one the
+	 * server says it is reachable at.
+	 *
+	 * The app reads `overwrite.cli.url` once, when it is first opened, and never
+	 * again — every actor id, every note id and the WebFinger answer are built
+	 * from that stored copy. Change the server's URL afterwards and the two
+	 * drift apart silently: WebFinger starts answering for a host nobody asks
+	 * about, and the app reports that .well-known is misconfigured when in fact
+	 * .well-known is fine and the app is looking in the wrong place.
+	 *
+	 * This is only ever reported, never corrected. The stored address is baked
+	 * into every id already written, so changing it is `occ social:reset`
+	 * territory and not something to do behind an administrator's back.
+	 */
+	public function checkCloudAddress(): bool {
+		$expected = $this->derivedCloudAddress();
+		$configured = $this->configuredCloudAddress();
+
+		// nothing to compare against, or nothing configured yet: the setup
+		// screen deals with the second case and there is no first case to fix
+		if ($expected === '' || $configured === '') {
+			return true;
+		}
+
+		return $this->sameAddress($configured, $expected);
+	}
+
+	/**
+	 * The address the app would derive from the server's configuration if it
+	 * were being set up right now.
+	 */
+	public function derivedCloudAddress(): string {
+		$address = rtrim((string)$this->config->getSystemValue('overwrite.cli.url', ''), '/');
+		if ($address === '') {
+			return '';
+		}
+
+		$frontControllerActive
+			= ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+			   || getenv('front_controller_active') === 'true');
+
+		return $frontControllerActive ? $address : $address . '/index.php';
+	}
+
+	/**
+	 * The address the app builds ids from, and the one the server reports.
+	 *
+	 * @return array{configured: string, expected: string}
+	 */
+	public function cloudAddresses(): array {
+		return [
+			'configured' => $this->configuredCloudAddress(),
+			'expected' => $this->derivedCloudAddress(),
+		];
+	}
+
+	private function configuredCloudAddress(): string {
+		try {
+			// getCloudUrl() predates return types and can hand back anything
+			return (string)$this->configService->getCloudUrl();
+		} catch (SocialAppConfigException $e) {
+			return '';
+		}
+	}
+
+	private function sameAddress(string $one, string $other): bool {
+		return strtolower(rtrim($one, '/')) === strtolower(rtrim($other, '/'));
 	}
 
 	/**

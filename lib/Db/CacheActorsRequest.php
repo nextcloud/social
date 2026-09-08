@@ -84,6 +84,16 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 	public function update(Person $actor): int {
 		$qb = $this->getCacheActorsUpdateSql();
+
+		// The handle is derived, not carried on the wire: a local actor gets it
+		// from the configured address, and a remote one from the host it was
+		// fetched over. A caller that has one is correcting it — refreshing a
+		// local actor after the address changed is the case that matters — and
+		// one that has none must not be able to erase what is stored.
+		if ($actor->getAccount() !== '') {
+			$qb->set('account', $qb->createNamedParameter($actor->getAccount()));
+		}
+
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
 			->set('followers', $qb->createNamedParameter($actor->getFollowers()))
 			->set('inbox', $qb->createNamedParameter($actor->getInbox()))

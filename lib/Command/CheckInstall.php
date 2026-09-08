@@ -89,10 +89,42 @@ class CheckInstall extends Base {
 		$output->writeln('- ' . $this->getInt('invalidNotes', $result, 0) . ' invalid notes removed');
 
 		$output->writeln('');
+		$this->reportChecks($output);
+
+		$output->writeln('');
 		$output->writeln('- Your current configuration: ');
 		$output->writeln(json_encode($this->configService->getConfig(), JSON_PRETTY_PRINT));
 
 		return 0;
+	}
+
+	/**
+	 * Reports an address that no longer matches the server's, because somebody
+	 * debugging a federation problem is already looking here.
+	 *
+	 * The .well-known probe is deliberately not run: it needs the request and
+	 * the session cache that a console command does not have. The app shows
+	 * that one on its first screen.
+	 */
+	private function reportChecks(OutputInterface $output): void {
+		$addresses = $this->checkService->cloudAddresses();
+
+		if ($this->checkService->checkCloudAddress()) {
+			$output->writeln('- <info>the configured address matches this server</info>');
+
+			return;
+		}
+
+		$output->writeln(
+			'<error>Social builds every id from ' . $addresses['configured']
+			. ', but this server reports ' . $addresses['expected'] . '.</error>'
+		);
+		$output->writeln('  Accounts here cannot be found under the address the server advertises.');
+		$output->writeln('  Point overwrite.cli.url back at the first, or accept the rename with');
+		$output->writeln(
+			'  "occ social:reset --uri=' . $addresses['expected']
+			. '" — which deletes everything Social holds.'
+		);
 	}
 
 	/**

@@ -66,6 +66,32 @@ npm run build        # production bundle into js/
    archive through the Makefile; despite the `sign_dir` name it only stages and tars,
    it does not sign anything.
 
+## 🧭 "`.well-known/webfinger` isn't properly set up!" — Troubleshooting
+
+That banner has two quite different causes, and the app now tells them apart.
+
+The first is the one it names: the server does not answer `/.well-known/webfinger`.
+Follow the [documented redirects](https://docs.nextcloud.com/server/latest/go.php?to=admin-setup-well-known-URL).
+
+The second is that **Social is set up for a different address than the server now
+uses**. Social reads `overwrite.cli.url` once, the first time the app is opened, and
+builds every account id, post id and WebFinger answer from that stored copy
+(`social.cloud_url`). Change the server's URL afterwards and the two drift apart in
+silence: WebFinger answers for a host nobody asks about, and the app blames
+`.well-known` when `.well-known` is fine.
+
+Social reports the mismatch with both addresses but will not correct it, because the
+stored address is baked into every id already written. Either point
+`overwrite.cli.url` back at the address Social knows, or accept the rename and run
+`occ social:reset --uri=<new address>`, which deletes everything Social holds.
+
+To see the two values:
+
+```bash
+occ config:app:get social cloud_url
+occ config:system:get overwrite.cli.url
+```
+
 ## 🖼️ Banner / Header upload — Troubleshooting
 
 Banner/header uploads work: the image is stored in the app's document cache, the
