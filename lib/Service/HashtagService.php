@@ -19,6 +19,10 @@ use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class HashtagService {
+	/** the windows the cron counts, and the one asked for when none is named */
+	public const PERIODS = ['1h', '12h', '1d', '3d', '10d'];
+	public const PERIOD_DEFAULT = '1d';
+
 	public const TREND_1H = 3600;
 	public const TREND_12H = 43200;
 	public const TREND_1D = 86400;
@@ -145,6 +149,39 @@ class HashtagService {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * The hashtags used most within one of the windows the cron already
+	 * counts, most used first.
+	 *
+	 * The counts live in a JSON column, which no supported database can be
+	 * asked to sort on portably, so the rows are ordered here. The table holds
+	 * one row per hashtag the instance has ever seen — small enough that this
+	 * is cheaper than a schema for it.
+	 *
+	 * @param int $limit how many to return
+	 * @param string $period one of 1h, 12h, 1d, 3d, 10d
+	 *
+	 * @return array[] [['hashtag' => string, 'trend' => array], …]
+	 */
+	public function getTrending(int $limit = 10, string $period = self::PERIOD_DEFAULT): array {
+		if (!in_array($period, self::PERIODS, true)) {
+			$period = self::PERIOD_DEFAULT;
+		}
+
+		$hashtags = array_filter(
+			$this->hashtagsRequest->getAll(),
+			static fn (array $hashtag): bool => (int)($hashtag['trend'][$period] ?? 0) > 0
+		);
+
+		usort(
+			$hashtags,
+			static fn (array $first, array $second): int => ((int)($second['trend'][$period] ?? 0))
+				<=> ((int)($first['trend'][$period] ?? 0))
+		);
+
+		return array_slice(array_values($hashtags), 0, max(1, $limit));
 	}
 
 	/**

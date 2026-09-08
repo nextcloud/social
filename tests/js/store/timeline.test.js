@@ -545,6 +545,56 @@ describe('timeline store actions', () => {
 	})
 
 	describe.each([
+		['bookmark', true, 'Failed to bookmark the post'],
+		['unbookmark', false, 'Failed to remove the bookmark'],
+	])('postBookmark (%s)', (endpoint, bookmarked, errorMessage) => {
+		it(`flips the flag, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
+			const status = makeStatus('1', { bookmarked: !bookmarked })
+			store.commit('addToTimeline', [status])
+			const serverCopy = makeStatus('1', { bookmarked, content: '<p>from server</p>' })
+			let duringRequest
+			axios.post.mockImplementation(async () => {
+				duringRequest = { ...tl().statuses['1'] }
+				return { data: serverCopy }
+			})
+
+			const response = await store.dispatch('postBookmark', { status, bookmarked })
+
+			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses/1/${endpoint}`)
+			expect(duringRequest).toMatchObject({ bookmarked })
+			expect(tl().statuses['1']).toEqual(serverCopy)
+			expect(response.data).toEqual(serverCopy)
+			expect(showError).not.toHaveBeenCalled()
+		})
+
+		it('puts the flag back and reports when the server refuses', async () => {
+			const status = makeStatus('1', { bookmarked: !bookmarked })
+			store.commit('addToTimeline', [status])
+			axios.post.mockRejectedValue(new Error('boom'))
+
+			await expect(store.dispatch('postBookmark', { status, bookmarked })).resolves.toBeUndefined()
+
+			expect(tl().statuses['1']).toMatchObject({ bookmarked: !bookmarked })
+			expect(showError).toHaveBeenCalledWith(errorMessage)
+		})
+	})
+
+	describe('unbookmarking on the bookmarks timeline', () => {
+		it('takes the post off the list it is no longer on', async () => {
+			axios.post.mockResolvedValue({ data: makeStatus('1', { bookmarked: false }) })
+			store.commit('setTimelineType', 'bookmarks')
+			store.commit('addToTimeline', [
+				makeStatus('1', { bookmarked: true }),
+				makeStatus('2', { bookmarked: true }),
+			])
+
+			await store.dispatch('postBookmark', { status: makeStatus('1', { bookmarked: true }), bookmarked: false })
+
+			expect(tl().timeline).toEqual(['2'])
+		})
+	})
+
+	describe.each([
 		['pin', true, 'Failed to pin the post'],
 		['unpin', false, 'Failed to unpin the post'],
 	])('postPin (%s)', (endpoint, pinned, errorMessage) => {

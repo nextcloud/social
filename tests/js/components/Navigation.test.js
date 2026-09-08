@@ -2,11 +2,12 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createStore } from 'vuex'
 import Navigation from '../../../src/components/Navigation.vue'
+import axios from '@nextcloud/axios'
 import errors from '../../../src/store/errors.js'
 import settings from '../../../src/store/settings.js'
 
@@ -48,6 +49,10 @@ const items = (wrapper) => wrapper.findAll('.nav-item')
 const itemNames = (wrapper) => items(wrapper).map((item) => item.attributes('data-name'))
 const item = (wrapper, name) => items(wrapper).find((candidate) => candidate.attributes('data-name') === name)
 
+vi.mock('@nextcloud/axios', () => ({
+	default: { get: vi.fn(() => Promise.resolve({ data: [] })) },
+}))
+
 describe('Navigation', () => {
 	beforeEach(() => {
 		store = createStore({ modules: { errors, settings } })
@@ -70,6 +75,7 @@ describe('Navigation', () => {
 			'Global',
 			'Follow requests',
 			'Liked posts',
+			'Bookmarks',
 			'Profile',
 			'Blocked and muted accounts',
 		])
@@ -83,6 +89,7 @@ describe('Navigation', () => {
 		['Global', { name: 'timeline', params: { type: 'federated' } }],
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Follow requests', { name: 'follow-requests' }],
+		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['Profile', { name: 'profile', params: { account: 'alice' } }],
 	])('navigates to the %s timeline on click', async (name, to) => {
 		const wrapper = mountNavigation()
@@ -97,6 +104,55 @@ describe('Navigation', () => {
 		// a route rather than a click handler, so the entry behaves like a link
 		expect(entry.attributes('data-to')).toBe('blocked-accounts')
 		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
+	})
+
+	describe('what the instance is talking about', () => {
+		const tag = (name, uses) => ({
+			name,
+			url: `https://cloud.example.org/timeline/tags/${name}`,
+			history: [{ day: '1757280000', uses: String(uses), accounts: '0' }],
+		})
+
+		it('lists the trending hashtags with how often they were used', async () => {
+			axios.get.mockResolvedValueOnce({ data: [tag('nextcloud', 12), tag('fediverse', 3)] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				'/index.php/apps/social/api/v1/trends/tags',
+				{ params: { limit: 5 } },
+			)
+			const trends = wrapper.findAll('.nav-item').filter((item) => item.attributes('data-name')?.startsWith('#'))
+			expect(trends.map((item) => item.attributes('data-name'))).toEqual(['#nextcloud', '#fediverse'])
+			expect(trends[0].text()).toContain('12')
+		})
+
+		it('opens the tag timeline when one is picked', async () => {
+			axios.get.mockResolvedValueOnce({ data: [tag('nextcloud', 12)] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			await item(wrapper, '#nextcloud').trigger('click')
+
+			expect(router.push).toHaveBeenCalledWith({ name: 'tags', params: { tag: 'nextcloud' } })
+		})
+
+		it('leaves the section out on a quiet instance', async () => {
+			axios.get.mockResolvedValueOnce({ data: [] })
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			expect(wrapper.findAll('.nav-item').filter((entry) => entry.attributes('data-name')?.startsWith('#'))).toHaveLength(0)
+		})
+
+		it('says nothing when the counts cannot be read', async () => {
+			axios.get.mockRejectedValueOnce(new Error('boom'))
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			// a sidebar section is not worth an error message
+			expect(wrapper.findAll('.nav-item').filter((entry) => entry.attributes('data-name')?.startsWith('#'))).toHaveLength(0)
+		})
 	})
 
 	it('shows the notifications counter placeholder', () => {

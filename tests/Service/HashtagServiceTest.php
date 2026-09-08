@@ -131,6 +131,72 @@ class HashtagServiceTest extends TestCase {
 		$this->assertSame(['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2], $saved['nextcloud']);
 	}
 
+	// --- what is trending
+
+	/** @param array<string, int> $counts the trend of one hashtag */
+	private function trending(string $name, array $counts): array {
+		return ['hashtag' => $name, 'trend' => $counts];
+	}
+
+	public function testTrendingIsOrderedByTheAskedWindowMostUsedFirst(): void {
+		$this->hashtagsRequest->method('getAll')->willReturn([
+			$this->trending('quiet', ['1h' => 0, '1d' => 2]),
+			$this->trending('loud', ['1h' => 9, '1d' => 40]),
+			$this->trending('spike', ['1h' => 12, '1d' => 12]),
+		]);
+
+		// the window decides the order: a spike leads over an hour, and the
+		// steady one leads over a day
+		$this->assertSame(
+			['spike', 'loud'],
+			array_column($this->service->getTrending(2, '1h'), 'hashtag')
+		);
+		$this->assertSame(
+			['loud', 'spike', 'quiet'],
+			array_column($this->service->getTrending(10, '1d'), 'hashtag')
+		);
+	}
+
+	public function testTrendingLeavesOutWhatWasNotUsedInThatWindow(): void {
+		$this->hashtagsRequest->method('getAll')->willReturn([
+			$this->trending('current', ['1h' => 3]),
+			$this->trending('stale', ['1h' => 0, '10d' => 200]),
+			$this->trending('unknown', []),
+		]);
+
+		$this->assertSame(['current'], array_column($this->service->getTrending(10, '1h'), 'hashtag'));
+	}
+
+	public function testTrendingHonoursTheLimit(): void {
+		$this->hashtagsRequest->method('getAll')->willReturn([
+			$this->trending('a', ['1d' => 3]),
+			$this->trending('b', ['1d' => 2]),
+			$this->trending('c', ['1d' => 1]),
+		]);
+
+		$this->assertCount(2, $this->service->getTrending(2, '1d'));
+		// a limit of nothing is not a thing to ask for
+		$this->assertCount(1, $this->service->getTrending(0, '1d'));
+	}
+
+	public function testTrendingFallsBackToTheDefaultWindowForAnUnknownOne(): void {
+		$this->hashtagsRequest->method('getAll')->willReturn([
+			$this->trending('yesterday', [HashtagService::PERIOD_DEFAULT => 5]),
+			$this->trending('nonsense-window', ['7y' => 500]),
+		]);
+
+		$this->assertSame(
+			['yesterday'],
+			array_column($this->service->getTrending(10, 'whenever'), 'hashtag')
+		);
+	}
+
+	public function testNothingIsTrendingOnAQuietInstance(): void {
+		$this->hashtagsRequest->method('getAll')->willReturn([]);
+
+		$this->assertSame([], $this->service->getTrending());
+	}
+
 	public function testGetHashtagPrependsTheHashSign(): void {
 		$this->hashtagsRequest->expects($this->exactly(2))
 			->method('getHashtag')
