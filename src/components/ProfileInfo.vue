@@ -3,7 +3,9 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div v-if="profileAccount && accountInfo" class="user-profile">
+	<div v-if="profileAccount && accountInfo"
+		class="user-profile"
+		:style="accent ? { '--profile-accent': accent, '--profile-accent-text': 'var(--color-primary-element-text)' } : {}">
 		<NcButton v-if="isOwnProfile"
 			class="user-profile__banner-upload"
 			:disabled="loading"
@@ -203,6 +205,7 @@ import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
+import { asAccent, dominantColour } from '../utils/dominantColour.js'
 
 export default {
 	name: 'ProfileInfo',
@@ -240,6 +243,8 @@ export default {
 			showBannerUrlModal: false,
 			bannerUrlInput: '',
 			loadingUrl: false,
+			/** the banner's own colour, tinting this profile only */
+			accent: '',
 			relationshipLoading: false,
 			showFieldsModal: false,
 			fieldRows: [],
@@ -292,7 +297,10 @@ export default {
 
 	watch: {
 		bannerStyle: {
-			handler: 'applyBanner',
+			handler(url) {
+				this.applyBanner(url)
+				this.readAccent(url)
+			},
 			immediate: true,
 		},
 	},
@@ -302,6 +310,21 @@ export default {
 		this.applyBanner(this.bannerStyle)
 	},
 	methods: {
+		/**
+		 * Tints this profile with its own banner. A banner that cannot be read
+		 * — cross-origin, missing, transparent — leaves the theme's colour in
+		 * place, which is what every profile looked like before.
+		 *
+		 * @param {string} url the banner currently shown
+		 */
+		async readAccent(url) {
+			if (!url) {
+				this.accent = ''
+				return
+			}
+
+			this.accent = asAccent(await dominantColour(url))
+		},
 		async toggleBlock() {
 			this.relationshipLoading = true
 			try {
@@ -506,6 +529,8 @@ export default {
 .user-profile {
 	display: flex;
 	flex-direction: column;
+	/* a profile arrives as a card rather than appearing */
+	animation: profile-settle .4s cubic-bezier(.22, 1, .36, 1) both;
 	align-items: center;
 	width: 100%;
 	max-width: 600px;
@@ -520,6 +545,8 @@ export default {
 	&__banner {
 		min-height: 120px;
 		max-height: 200px;
+		/* the banner drifts a little slower than the page it is on */
+		will-change: transform;
 		background-size: cover;
 		background-position: center 0%;
 		background-repeat: no-repeat;
@@ -625,9 +652,11 @@ export default {
 				font-weight: 600;
 				border-radius: 8px;
 
+				/* the profile's own colour, where the banner yielded one */
 				&.router-link-exact-active,
 				&:focus {
-					background: var(--color-background-hover);
+					background: var(--profile-accent, var(--color-background-hover));
+					color: var(--profile-accent-text, inherit);
 				}
 
 				&.disabled {
@@ -762,6 +791,41 @@ export default {
 	.user-profile__banner-upload,
 	.user-profile__banner-url {
 		transition: none;
+	}
+}
+/**
+ * A profile arrives as a card rather than appearing: the banner settles, and
+ * the avatar and name follow it a beat later.
+ */
+@keyframes profile-settle {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@supports (animation-timeline: view()) {
+	@media (prefers-reduced-motion: no-preference) {
+		@keyframes banner-drift {
+			from { transform: translateY(-6%) scale(1.06); }
+			to { transform: translateY(2%) scale(1.06); }
+		}
+
+		.user-profile__banner--visible {
+			animation: banner-drift linear both;
+			animation-timeline: view();
+		}
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.user-profile {
+		animation: none;
 	}
 }
 </style>

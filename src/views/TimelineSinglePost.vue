@@ -5,16 +5,20 @@
 <template>
 	<div ref="socialWrapper" class="social__wrapper">
 		<Composer v-show="composerDisplayStatus" />
-		<TimelineList v-if="timeline"
-			:show-parents="true"
-			:type="$route.params.type"
-			:reverse-order="true" />
-		<TimelineEntry ref="mainPost"
-			class="main-post"
-			:item="singlePost"
-			type="single-post"
-			element="div" />
-		<TimelineList v-if="timeline" class="descendants" :type="$route.params.type" />
+		<!-- the three lists are one conversation; the spine says so -->
+		<div class="thread">
+			<TimelineList v-if="timeline"
+				class="thread__ancestors"
+				:show-parents="true"
+				:type="$route.params.type"
+				:reverse-order="true" />
+			<TimelineEntry ref="mainPost"
+				class="main-post"
+				:item="singlePost"
+				type="single-post"
+				element="div" />
+			<TimelineList v-if="timeline" class="descendants thread__descendants" :type="$route.params.type" />
+		</div>
 	</div>
 </template>
 
@@ -111,7 +115,7 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .social__wrapper {
 	padding-bottom: 25%;
 }
@@ -120,13 +124,43 @@ export default {
 	margin-left: 16px;
 }
 
+/**
+ * A reply chain used to read as three unrelated stacks of cards. The spine is
+ * a single line behind the avatars: everything on it belongs to the same
+ * conversation, and the post being read sits raised off it.
+ */
+.thread {
+	position: relative;
+
+	&::before {
+		content: '';
+		position: absolute;
+		top: 12px;
+		bottom: 12px;
+		left: 42px;
+		width: 2px;
+		border-radius: 1px;
+		background: var(--color-border);
+		z-index: 0;
+	}
+
+	&__ancestors,
+	&__descendants {
+		position: relative;
+		z-index: 1;
+	}
+}
+
 .main-post {
+	position: relative;
+	z-index: 1;
 	background: var(--color-main-background);
-	border: 1px solid var(--color-border);
+	border: 1px solid var(--color-primary-element);
 	border-radius: 8px;
 	padding: 20px;
 	box-sizing: content-box;
 	margin: 16px 0;
+	box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
 }
 
 #app-content {

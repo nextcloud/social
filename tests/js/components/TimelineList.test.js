@@ -7,6 +7,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { showError } from '@nextcloud/dialogs'
 import TimelineList from '../../../src/components/TimelineList.vue'
+import eventBus from '../../../src/services/eventBus.js'
 import { listen } from '@nextcloud/notify_push'
 import EmptyContent from '../../../src/components/EmptyContent.vue'
 import TimelineSkeleton from '../../../src/components/TimelineSkeleton.vue'
@@ -184,6 +185,67 @@ describe('TimelineList', () => {
 
 			expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
 			expect(wrapper.find('.new-posts-pill').exists()).toBe(false)
+		})
+	})
+
+	describe('reading with the keyboard', () => {
+		afterEach(() => {
+			eventBus.all.clear()
+		})
+
+		const focusedIds = (wrapper) => wrapper.findAll('.timeline-entry--focused')
+			.map((entry) => entry.attributes('data-id'))
+
+		it('walks the list with j and k, and stops at both ends', async () => {
+			const { wrapper } = mountList({ timeline: [status('1'), status('22'), status('333')] })
+			await flushPromises()
+			// whatever order the list settled on is the order j walks
+			const order = entryIds(wrapper)
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+			expect(focusedIds(wrapper)).toEqual([order[0]])
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+			expect(focusedIds(wrapper)).toEqual([order[1]])
+
+			// k walks back, and the top is the top
+			eventBus.emit('shortcut:previous')
+			eventBus.emit('shortcut:previous')
+			eventBus.emit('shortcut:previous')
+			await wrapper.vm.$nextTick()
+			expect(focusedIds(wrapper)).toEqual([order[0]])
+		})
+
+		it('announces the focused post, so the post itself can act on l/b/r', async () => {
+			const heard = vi.fn()
+			eventBus.on('timeline:focused', heard)
+			const { wrapper } = mountList({ timeline: [status('1')] })
+			await flushPromises()
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			expect(heard).toHaveBeenCalledWith(expect.objectContaining({ id: '1' }))
+		})
+
+		it('does nothing on an empty timeline', async () => {
+			const { wrapper } = mountList({ timeline: [] })
+			await flushPromises()
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			expect(focusedIds(wrapper)).toEqual([])
+		})
+
+		it('stops listening once it is gone', async () => {
+			const { wrapper } = mountList({ timeline: [status('1')] })
+			await flushPromises()
+			wrapper.unmount()
+
+			expect(() => eventBus.emit('shortcut:next')).not.toThrow()
 		})
 	})
 

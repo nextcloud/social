@@ -3,7 +3,11 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div v-if="item.account" class="post-avatar">
+	<div v-if="item.account"
+		class="post-avatar"
+		:class="{ 'post-avatar--remote': !origin.local }"
+		:style="{ '--instance-colour': origin.colour }"
+		:title="origin.local ? undefined : origin.instance">
 		<NcAvatar v-if="isLocal"
 			class="messages__avatar__icon"
 			:show-user-status="false"
@@ -19,6 +23,7 @@
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import { originOf } from '../utils/instanceIdentity.js'
 
 export default {
 	name: 'TimelineAvatar',
@@ -43,6 +48,10 @@ export default {
 		isLocal() {
 			return !this.item.account.acct.includes('@')
 		},
+		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */
+		origin() {
+			return originOf(this.item.account.acct)
+		},
 	},
 }
 </script>
@@ -52,5 +61,11 @@ export default {
 	padding: 5px 10px 10px 5px;
 	height: 52px;
 	width: 52px;
+
+	/* a ring in the colour of the server the author is on, so a timeline
+	   visibly spans instances instead of hiding it after the @ */
+	&--remote :deep(.avatardiv) {
+		box-shadow: 0 0 0 2px var(--color-main-background), 0 0 0 4px var(--instance-colour);
+	}
 }
 </style>

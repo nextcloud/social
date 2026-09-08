@@ -5,6 +5,7 @@
 <template>
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public" @search="search" />
+		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
@@ -68,6 +69,9 @@ import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
 
 import Navigation from './components/Navigation.vue'
+import ShortcutHelp from './components/ShortcutHelp.vue'
+import { listenForShortcuts } from './services/shortcuts.js'
+import eventBus from './services/eventBus.js'
 
 import axios from '@nextcloud/axios'
 import currentuserMixin from './mixins/currentUserMixin.js'
@@ -81,6 +85,7 @@ export default {
 		NcAppContent,
 		NcButton,
 		Navigation,
+		ShortcutHelp,
 	},
 	mixins: [currentuserMixin],
 	data() {
@@ -88,9 +93,21 @@ export default {
 			infoHidden: false,
 			state: [],
 			cloudAddress: '',
+			shortcutHelpOpen: false,
+			stopShortcuts: null,
 		}
 	},
 	computed: {
+	},
+	mounted() {
+		this.stopShortcuts = listenForShortcuts()
+		eventBus.on('shortcut:help', this.toggleShortcutHelp)
+		eventBus.on('shortcut:home', this.goHome)
+	},
+	unmounted() {
+		this.stopShortcuts?.()
+		eventBus.off('shortcut:help', this.toggleShortcutHelp)
+		eventBus.off('shortcut:home', this.goHome)
 	},
 	watch: {
 		$route() {
@@ -109,6 +126,14 @@ export default {
 		}
 	},
 	methods: {
+		toggleShortcutHelp() {
+			this.shortcutHelpOpen = !this.shortcutHelpOpen
+		},
+		goHome() {
+			if (this.$route.name !== 'timeline' || this.$route.params.type) {
+				this.$router.push({ name: 'timeline' })
+			}
+		},
 		hideInfo() {
 			this.infoHidden = true
 		},
@@ -253,6 +278,35 @@ img.emoji {
 	.list-leave-active,
 	.list-move {
 		transition: none;
+	}
+}
+
+/**
+ * Posts ease in as they scroll into view. The browser drives this off the
+ * scroll position on the compositor — no scroll listener, no observer, no
+ * work on the main thread — and where the property is missing nothing
+ * happens at all, which is why it needs no fallback.
+ */
+@supports (animation-timeline: view()) {
+	@media (prefers-reduced-motion: no-preference) {
+		@keyframes timeline-entry-rise {
+			from {
+				opacity: 0;
+				transform: translateY(12px) scale(.99);
+			}
+
+			to {
+				opacity: 1;
+				transform: none;
+			}
+		}
+
+		.social__timeline .timeline-entry {
+			animation: timeline-entry-rise linear both;
+			animation-timeline: view();
+			/* only the arrival is animated, not the departure */
+			animation-range: entry 0% entry 45%;
+		}
 	}
 }
 

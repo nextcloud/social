@@ -14,8 +14,9 @@
 			</button>
 		</transition>
 		<transition-group name="list" tag="ul">
-			<TimelineEntry v-for="entry in timeline"
+			<TimelineEntry v-for="(entry, index) in timeline"
 				:key="entry.id"
+				:class="{ 'timeline-entry--focused': index === focused }"
 				:item="entry"
 				:type="type" />
 		</transition-group>
@@ -39,6 +40,7 @@ import TimelineSkeleton from './TimelineSkeleton.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
+import eventBus from '../services/eventBus.js'
 
 export default {
 	name: 'TimelineList',
@@ -70,6 +72,8 @@ export default {
 			intervalId: -1,
 			/** posts that arrived while the reader was further down the page */
 			arrived: 0,
+			/** index of the post the keyboard is on, -1 when none */
+			focused: -1,
 			loading: false,
 			allLoaded: false,
 			observer: null,
@@ -167,8 +171,12 @@ export default {
 		const hasPush = listen('social_timeline', () => this.fetchNewStatuses())
 		this.intervalId = setInterval(() => this.fetchNewStatuses(), (hasPush ? 300 : 30) * 1000)
 		this.setupIntersectionObserver()
+		eventBus.on('shortcut:next', this.focusNext)
+		eventBus.on('shortcut:previous', this.focusPrevious)
 	},
 	unmounted() {
+		eventBus.off('shortcut:next', this.focusNext)
+		eventBus.off('shortcut:previous', this.focusPrevious)
 		clearInterval(this.intervalId)
 		if (this.observer) {
 			this.observer.disconnect()
@@ -222,6 +230,35 @@ export default {
 				this.allLoaded = true
 				this.loading = false
 			}
+		},
+		focusNext() {
+			this.moveFocus(1)
+		},
+		focusPrevious() {
+			this.moveFocus(-1)
+		},
+		/**
+		 * Moves the keyboard's attention through the list and scrolls it into
+		 * view, so j/k reads a timeline without touching the mouse.
+		 *
+		 * @param {number} step 1 for the next post, -1 for the previous one
+		 */
+		moveFocus(step) {
+			if (this.timeline.length === 0) {
+				return
+			}
+
+			const next = Math.min(Math.max(this.focused + step, 0), this.timeline.length - 1)
+			this.focused = next
+			eventBus.emit('timeline:focused', this.timeline[next])
+
+			this.$nextTick(() => {
+				const entries = this.$el.querySelectorAll('.timeline-entry')
+				entries[next]?.scrollIntoView({
+					block: 'center',
+					behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+				})
+			})
 		},
 		showArrived() {
 			this.arrived = 0
@@ -328,5 +365,11 @@ export default {
 	.pill-leave-active {
 		transition: none;
 	}
+}
+/* where the keyboard is, for j/k readers */
+.timeline-entry--focused :deep(.post-content),
+.timeline-entry--focused :deep(.main-post) {
+	border-color: var(--color-primary-element);
+	box-shadow: 0 0 0 2px var(--color-primary-element-light);
 }
 </style>

@@ -9,6 +9,8 @@ import { nextTick, shallowRef } from 'vue'
 import { createStore } from 'vuex'
 import axios from '@nextcloud/axios'
 import App from '../../src/App.vue'
+import ShortcutHelp from '../../src/components/ShortcutHelp.vue'
+import eventBus from '../../src/services/eventBus.js'
 import account from '../../src/store/account.js'
 import errors from '../../src/store/errors.js'
 import settings from '../../src/store/settings.js'
@@ -91,6 +93,43 @@ describe('App', () => {
 	afterEach(() => {
 		vi.restoreAllMocks()
 		delete globalThis.OCA.Push
+	})
+
+	describe('keyboard shortcuts', () => {
+		afterEach(() => {
+			eventBus.all.clear()
+		})
+
+		it('opens and closes the shortcut sheet on ?', async () => {
+			const wrapper = mountApp()
+			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
+
+			eventBus.emit('shortcut:help')
+			await wrapper.vm.$nextTick()
+			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(true)
+
+			eventBus.emit('shortcut:help')
+			await wrapper.vm.$nextTick()
+			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
+		})
+
+		it('lists every shortcut with its keys and what it does', () => {
+			const wrapper = mountApp()
+			const shortcuts = wrapper.findComponent(ShortcutHelp).vm.shortcuts
+
+			expect(shortcuts.length).toBeGreaterThan(5)
+			for (const shortcut of shortcuts) {
+				expect(shortcut.keys.length).toBeGreaterThan(0)
+				expect(shortcut.label).toBeTruthy()
+			}
+		})
+
+		it('stops listening once the app is gone', () => {
+			const wrapper = mountApp()
+			wrapper.unmount()
+
+			expect(() => eventBus.emit('shortcut:help')).not.toThrow()
+		})
 	})
 
 	it('imports the server data and loads the current account', () => {
