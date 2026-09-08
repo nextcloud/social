@@ -18,6 +18,8 @@ use OCA\Social\Tools\Model\SimpleDataStore;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 
@@ -48,9 +50,9 @@ class ConfigController extends Controller {
 	/**
 	 * Local Version+Setup Test
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function local(): DataResponse {
 		$setup = false;
 		try {
@@ -70,9 +72,9 @@ class ConfigController extends Controller {
 	/**
 	 * Actor Test
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function remote(string $account): DataResponse {
 		if ($account === '' || $this->configService->getSystemValue('social.tests') === '') {
 			return $this->local();

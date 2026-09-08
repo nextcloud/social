@@ -35,6 +35,8 @@ use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -113,8 +115,6 @@ class ActivityPubController extends Controller {
 	 *
 	 * The format is pure Json
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -122,6 +122,8 @@ class ActivityPubController extends Controller {
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function actor(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->actor($username);
@@ -143,8 +145,6 @@ class ActivityPubController extends Controller {
 	 * Normal path is /apps/social/users/username
 	 * This alias is /apps/social/@username
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -152,6 +152,8 @@ class ActivityPubController extends Controller {
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function actorAlias(string $username): Response {
 		return $this->actor($username);
 	}
@@ -170,11 +172,11 @@ class ActivityPubController extends Controller {
 	 *     Create→cache post, Accept→mark follow as accepted)
 	 *  7. Send HTTP 200, then async-process the stream cache queue
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return Response
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function sharedInbox(): Response {
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
@@ -212,13 +214,13 @@ class ActivityPubController extends Controller {
 	 *
 	 * Same logic as sharedInbox but also verifies the local actor exists.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
 	 * @return Response
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function inbox(string $username): Response {
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
@@ -257,13 +259,13 @@ class ActivityPubController extends Controller {
 	 * Method is called when a remote ActivityPub server wants to GET in the INBOX of a USER
 	 * Checking that the user exists, and that the header is properly signed.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
 	 * @return Response
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function getInbox(string $username): Response {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
@@ -281,13 +283,13 @@ class ActivityPubController extends Controller {
 	/**
 	 * Outbox. does nothing.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
 	 * @return Response
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function outbox(string $username): Response {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
@@ -305,8 +307,6 @@ class ActivityPubController extends Controller {
 	/**
 	 * followers. does nothing.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -314,6 +314,8 @@ class ActivityPubController extends Controller {
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function followers(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
@@ -331,8 +333,6 @@ class ActivityPubController extends Controller {
 	/**
 	 * following. does nothing.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 *
@@ -340,6 +340,8 @@ class ActivityPubController extends Controller {
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function following(string $username): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
@@ -357,8 +359,6 @@ class ActivityPubController extends Controller {
 	/**
 	 * should return data about a post. do nothing.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $username
 	 * @param string $token
@@ -368,6 +368,8 @@ class ActivityPubController extends Controller {
 	 * @throws UrlCloudException
 	 * @throws StreamNotFoundException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function displayPost(string $username, string $token): Response {
 		try {
 			return $this->fixToken($username, $token);

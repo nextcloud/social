@@ -47,6 +47,8 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
@@ -136,11 +138,11 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function appsCredentials() {
 		try {
 			$this->initViewer(true);
@@ -166,11 +168,11 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function verifyCredentials() {
 		try {
 			$this->initViewer(true);
@@ -185,9 +187,9 @@ class ApiController extends Controller {
 	 * Minimal Mastodon-style profile update: only `locked` (manually approve
 	 * followers) is supported for now. Returns the updated account entity.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function updateCredentials(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -213,9 +215,9 @@ class ApiController extends Controller {
 	/**
 	 * The accounts waiting for the viewer's approval to follow them.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function followRequests(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -231,18 +233,14 @@ class ApiController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function followRequestAuthorize(string $id): DataResponse {
 		return $this->followRequestAction($id, true);
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function followRequestReject(string $id): DataResponse {
 		return $this->followRequestAction($id, false);
 	}
@@ -272,9 +270,9 @@ class ApiController extends Controller {
 	 * Files a moderation report about an account (and optionally some of its
 	 * statuses) for the instance admins.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function reportNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -312,21 +310,21 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function customEmojis(): DataResponse {
 		return new DataResponse([], Http::STATUS_OK);
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function savedSearches(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -338,12 +336,12 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 * @throws InstanceDoesNotExistException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function instance(): DataResponse {
 		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
@@ -351,11 +349,11 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 *
 	 * @return DataResponse
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function statusNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -419,13 +417,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 *
 	 * @param int $nid
 	 *
 	 * @return DataResponse
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function statusUpdate(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -456,11 +454,11 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 *
 	 * @return DataResponse
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function mediaNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -513,9 +511,9 @@ class ApiController extends Controller {
 	 * Same upload as mediaNew — modern Mastodon clients POST /api/v2/media and
 	 * only fall back to v1 on a 404.
 	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function mediaNewV2(): DataResponse {
 		return $this->mediaNew();
 	}
@@ -523,9 +521,9 @@ class ApiController extends Controller {
 	/**
 	 * One of the viewer's own attachments, by the id mediaNew returned.
 	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function mediaGet(string $nid, string $preview = ''): Response {
 		try {
 			$this->initViewer(true);
@@ -543,9 +541,9 @@ class ApiController extends Controller {
 	/**
 	 * Updates the alt text of the viewer's own attachment.
 	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function mediaUpdate(string $nid): Response {
 		try {
 			$this->initViewer(true);
@@ -591,13 +589,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *
 	 * @return Response
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function mediaOpen(string $uuid): Response {
 		if (strpos($uuid, '.') > 0) {
 			[$uuid] = explode('.', $uuid, 2);
@@ -623,8 +621,6 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $timeline
 	 * @param bool $local
@@ -635,6 +631,8 @@ class ApiController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function timelines(
 		string $timeline,
 		bool $local = false,
@@ -700,13 +698,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param int $nid
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function statusGet(int $nid): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -721,13 +719,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param int $nid
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function statusContext(int $nid): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -740,14 +738,14 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param int $nid
 	 * @param string $action
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function statusAction(int $nid, string $act): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -766,34 +764,26 @@ class ApiController extends Controller {
 		}
 	}
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function accountBlock(string $id): DataResponse {
 		return $this->relationshipAction($id, 'block');
 	}
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function accountUnblock(string $id): DataResponse {
 		return $this->relationshipAction($id, 'unblock');
 	}
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function accountMute(string $id, bool $notifications = true): DataResponse {
 		return $this->relationshipAction($id, 'mute', $notifications);
 	}
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function accountUnmute(string $id): DataResponse {
 		return $this->relationshipAction($id, 'unmute');
 	}
@@ -829,18 +819,14 @@ class ApiController extends Controller {
 		}
 	}
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function blocks(int $limit = 40): DataResponse {
 		return $this->listRelatedAccounts(ActorRelation::TYPE_BLOCK, $limit);
 	}
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function mutes(int $limit = 40): DataResponse {
 		return $this->listRelatedAccounts(ActorRelation::TYPE_MUTE, $limit);
 	}
@@ -880,13 +866,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param array $id
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function relationships(array $id): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -898,8 +884,6 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $account
 	 * @param int $limit
@@ -909,6 +893,8 @@ class ApiController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function accountStatuses(
 		string $account,
 		int $limit = 20,
@@ -940,13 +926,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $account
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function accountFollowing(
 		string $account,
 		int $limit = 20,
@@ -986,13 +972,13 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param string $account
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function accountFollowers(
 		string $account,
 		int $limit = 20,
@@ -1033,8 +1019,6 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @param int $limit
 	 * @param int $max_id
@@ -1043,6 +1027,8 @@ class ApiController extends Controller {
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function favourites(
 		int $limit = 20,
 		int $max_id = 0,
@@ -1068,10 +1054,8 @@ class ApiController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function bookmarks(
 		int $limit = 20,
 		int $max_id = 0,
@@ -1098,11 +1082,11 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function notifications(
 		int $limit = 20,
 		int $max_id = 0,
@@ -1135,11 +1119,11 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @return DataResponse
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function tag(
 		string $hashtag,
 		int $limit = 20,
@@ -1346,7 +1330,7 @@ class ApiController extends Controller {
 	 * A bearer token wins over the session cookie: an OAuth client stays inside
 	 * the scopes it was granted even when the browser also carries a session.
 	 * The cookie is only accepted together with a valid CSRF token — these
-	 * routes are @NoCSRFRequired so that external clients (which cannot obtain
+	 * routes carry #[NoCSRFRequired] so that external clients (which cannot obtain
 	 * one) work, and without this check a cross-site form POST would act as the
 	 * logged-in user.
 	 */

@@ -35,17 +35,25 @@ class ModerationControllerTest extends TestCase {
 	}
 
 	public function testModerationRoutesRequireAnAdminAndCsrf(): void {
-		// no @PublicPage/@NoAdminRequired/@NoCSRFRequired anywhere: the server
-		// only dispatches these routes for an admin session with a CSRF token
+		// no PublicPage/NoAdminRequired/NoCSRFRequired — neither as attribute
+		// nor as legacy annotation: the server only dispatches these routes
+		// for an admin session with a CSRF token
 		$reflection = new \ReflectionClass(ModerationController::class);
 		$doc = (string)$reflection->getDocComment();
+		$attributes = [];
 		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
 			$doc .= (string)$method->getDocComment();
+			foreach ($method->getAttributes() as $attribute) {
+				$attributes[] = $attribute->getName();
+			}
 		}
 
-		$this->assertStringNotContainsString('@PublicPage', $doc);
-		$this->assertStringNotContainsString('@NoAdminRequired', $doc);
-		$this->assertStringNotContainsString('@NoCSRFRequired', $doc);
+		foreach (['PublicPage', 'NoAdminRequired', 'NoCSRFRequired'] as $relaxation) {
+			$this->assertStringNotContainsString('@' . $relaxation, $doc);
+			foreach ($attributes as $attribute) {
+				$this->assertStringNotContainsString($relaxation, $attribute);
+			}
+		}
 	}
 
 	public function testReportResolveMarksTheReport(): void {
