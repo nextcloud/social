@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use CurlHandle;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -33,6 +32,9 @@ use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
+use OCP\Http\Client\IClient;
+use OCP\Http\Client\IClientService;
+use OCP\Http\Client\IResponse;
 use Psr\Log\LoggerInterface;
 
 class CurlService {
@@ -47,18 +49,11 @@ class CurlService {
 	private LoggerInterface $logger;
 
 	private int $maxDownloadSize;
-	private bool $maxDownloadSizeReached = false;
 
-	/**
-	 * CurlService constructor.
-	 *
-	 * @param ConfigService $configService
-	 * @param FediverseService $fediverseService
-	 * @param LoggerInterface $logger
-	 */
 	public function __construct(
 		ConfigService $configService,
 		FediverseService $fediverseService,
+		private IClientService $clientService,
 		LoggerInterface $logger,
 	) {
 		$this->configService = $configService;
@@ -321,187 +316,142 @@ class CurlService {
 	}
 
 	/**
+	 * Sends the request and returns the body. The protocol list is tried in
+	 * order: a connection or TLS failure falls through to the next one (an
+	 * instance reachable over http only), while an answer with an error status
+	 * ends the attempt right there.
+	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
 	 * @throws RequestResultSizeException
 	 * @throws RequestServerException
 	 */
 	public function doRequestOrig(Request $request): string {
-		$this->maxDownloadSizeReached = false;
+		$client = $this->clientService->newClient();
 
-		// allow falling back to the next protocol (e.g. http) when certain
-		// curl errors occur, like SSL hostname mismatch (60)
-		$ignoreProtocolOnErrors = [7, 60];
-		$result = '';
+		$networkFailure = null;
 		foreach ($request->getProtocols() as $protocol) {
 			$request->setUsedProtocol($protocol);
-			$curl = $this->initRequest($request);
 
-			$result = curl_exec($curl);
-			$this->logger->debug(
-				'[>>] ' . $request->getUsedProtocol() . '://' . $request->getHost()
-				. ' result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']'
-			);
-
-			if (in_array(curl_errno($curl), $ignoreProtocolOnErrors)) {
-				continue;
+			try {
+				return $this->send($client, $request);
+			} catch (RequestNetworkException $e) {
+				$networkFailure = $e;
 			}
-
-			if ($this->maxDownloadSizeReached === true) {
-				throw new RequestResultSizeException();
-			}
-
-			$this->parseRequestResult($curl, $request);
-			if ($request->getResultCode() >= 300) {
-				throw new RequestContentException(json_encode($request), $request->getResultCode());
-			}
-			break;
 		}
 
-		if ($result === false) {
-			return '';
+		if ($networkFailure !== null) {
+			throw $networkFailure;
 		}
 
-		return (string)$result;
+		return '';
 	}
 
 	/**
-	 * @param Request $request
-	 *
-	 * @return CurlHandle
+	 * @throws RequestContentException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultSizeException
+	 * @throws RequestServerException
 	 */
-	private function initRequest(Request $request): CurlHandle {
-		$curl = $this->generateCurlRequest($request);
-		$this->initRequestHeaders($curl, $request);
-
-		curl_setopt($curl, CURLOPT_USERAGENT, $request->getUserAgent());
-		curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, $request->getTimeout());
-		curl_setopt($curl, CURLOPT_TIMEOUT, $request->getTimeout());
-
-		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
-		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $request->isVerifyPeer());
-		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $request->isFollowLocation());
-
-		// Only ever speak HTTP(S), on the initial request and on any redirect. This is
-		// what keeps a remote-supplied url (an actor's inbox, an icon, a @context)
-		// from turning into a file://, gopher:// or dict:// fetch.
-		curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-		curl_setopt($curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-
+	private function send(IClient $client, Request $request): string {
 		if (!$request->isLocalAddressAllowed() && RemoteAddress::isLocalHost($request->getHost())) {
 			throw new RequestServerException('host resolves to a local address: ' . $request->getHost());
 		}
 
-		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
-		curl_setopt($curl, CURLOPT_NOPROGRESS, false);
-		curl_setopt(
-			$curl, CURLOPT_PROGRESSFUNCTION,
-			/**
-			 * @param $downloadSize
-			 * @param int $downloaded
-			 * @param $uploadSize
-			 * @param int $uploaded
-			 *
-			 * @return int
-			 */
-			function ($downloadSize, int $downloaded, $uploadSize, int $uploaded) {
-				if ($downloaded > $this->maxDownloadSize) {
-					$this->maxDownloadSizeReached = true;
-
-					return 1;
-				}
-
-				return 0;
-			}
-		);
-
-		return $curl;
-	}
-
-	/**
-	 * @param Request $request
-	 *
-	 * @return CurlHandle
-	 */
-	private function generateCurlRequest(Request $request): CurlHandle {
-		$url = $request->getUsedProtocol() . '://' . $request->getHost() . $request->getParsedUrl();
-		if ($request->getType() !== Request::TYPE_GET) {
-			$curl = curl_init($url);
-			curl_setopt($curl, CURLOPT_POSTFIELDS, $request->getDataBody());
-
-			return $curl;
-		}
-
-		$curl = curl_init($url . $request->getQueryString());
-		switch ($request->getType()) {
-			case Request::TYPE_POST:
-				curl_setopt($curl, CURLOPT_POST, true);
-				break;
-			case Request::TYPE_PUT:
-				curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'PUT');
-				break;
-			case Request::TYPE_DELETE:
-				curl_setopt($curl, CURLOPT_CUSTOMREQUEST, 'DELETE');
-				break;
-		}
-
-		return $curl;
-	}
-
-	/**
-	 * @param Request $request
-	 */
-	private function initRequestGet(Request $request) {
-		if ($request->getType() !== Request::TYPE_GET) {
-			return;
-		}
-	}
-
-	/**
-	 * @param CurlHandle $curl
-	 * @param Request $request
-	 */
-	private function initRequestHeaders(CurlHandle $curl, Request $request): void {
-		$headers = [];
-		foreach ($request->getHeaders() as $name => $value) {
-			$headers[] = $name . ': ' . $value;
-		}
-
-		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-	}
-
-	/**
-	 * @param CurlHandle $curl
-	 * @param Request $request
-	 *
-	 * @throws RequestContentException
-	 * @throws RequestServerException
-	 * @throws RequestNetworkException
-	 */
-	private function parseRequestResult(CurlHandle $curl, Request $request): void {
-		$this->parseRequestResultCurl($curl, $request);
-
-		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-		$contentType = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
-		$request->setContentType((!is_string($contentType)) ? '' : $contentType);
-		$request->setResultCode($code);
-	}
-
-	/**
-	 * @param CurlHandle $curl
-	 * @param Request $request
-	 *
-	 * @throws RequestNetworkException
-	 */
-	private function parseRequestResultCurl(CurlHandle $curl, Request $request): void {
-		$errno = curl_errno($curl);
-		if ($errno > 0) {
+		$url = $this->url($request);
+		try {
+			$response = $client->request(Request::method($request->getType()), $url, $this->requestOptions($request));
+		} catch (Exception $e) {
 			throw new RequestNetworkException(
-				$errno . ' - ' . curl_error($curl) . ' - ' . json_encode(
-					$request, JSON_UNESCAPED_SLASHES
-				), $errno
+				$e->getMessage() . ' - ' . json_encode($request, JSON_UNESCAPED_SLASHES), $e->getCode()
 			);
 		}
+
+		$request->setResultCode($response->getStatusCode());
+		$request->setContentType($response->getHeader('Content-Type'));
+
+		$this->logger->debug('[>>] ' . $url . ' result [' . $response->getStatusCode() . ']');
+
+		$body = $this->body($response);
+		if ($request->getResultCode() >= 300) {
+			throw new RequestContentException(json_encode($request), $request->getResultCode());
+		}
+
+		return $body;
+	}
+
+	private function url(Request $request): string {
+		$url = $request->getUsedProtocol() . '://' . $request->getHost() . $request->getParsedUrl();
+		if ($request->getType() === Request::TYPE_GET) {
+			$url .= $request->getQueryString();
+		}
+
+		return $url;
+	}
+
+	/**
+	 * The guarantees that matter for a url somebody else wrote:
+	 *
+	 * - local addresses are refused, and the server re-checks that on every
+	 *   redirect it follows (which is why `allow_redirects` is left to the
+	 *   server: overriding it would drop that check). Guzzle only ever follows
+	 *   a redirect to http(s), so a `file://` or `gopher://` location cannot
+	 *   be reached either way.
+	 * - the answer is read as a stream, so an endless body is cut off at
+	 *   `max_size` rather than filling memory.
+	 */
+	private function requestOptions(Request $request): array {
+		$options = [
+			'headers' => $request->getHeaders(),
+			'timeout' => $request->getTimeout(),
+			'connect_timeout' => $request->getTimeout(),
+			// the status code belongs to the caller, not to an exception
+			'http_errors' => false,
+			'stream' => true,
+			'nextcloud' => ['allow_local_address' => $request->isLocalAddressAllowed()],
+		];
+
+		if (!$request->isFollowLocation()) {
+			$options['allow_redirects'] = false;
+		}
+
+		if (!$request->isVerifyPeer()) {
+			$options['verify'] = false;
+		}
+
+		if ($request->getType() !== Request::TYPE_GET && $request->getDataBody() !== '') {
+			$options['body'] = $request->getDataBody();
+		}
+
+		return $options;
+	}
+
+	/**
+	 * @throws RequestResultSizeException
+	 */
+	private function body(IResponse $response): string {
+		$stream = $response->getBody();
+		if (!is_resource($stream)) {
+			// a client that does not stream (a test double, say) hands over
+			// the whole body at once
+			$body = (string)$stream;
+			if (strlen($body) > $this->maxDownloadSize) {
+				throw new RequestResultSizeException();
+			}
+
+			return $body;
+		}
+
+		try {
+			$body = (string)stream_get_contents($stream, $this->maxDownloadSize + 1);
+		} finally {
+			fclose($stream);
+		}
+
+		if (strlen($body) > $this->maxDownloadSize) {
+			throw new RequestResultSizeException();
+		}
+
+		return $body;
 	}
 }

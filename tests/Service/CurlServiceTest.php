@@ -20,6 +20,13 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCP\Http\Client\IResponse;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use Exception;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCP\Http\Client\IClient;
+use OCP\Http\Client\IClientService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -37,7 +44,12 @@ class CurlServiceTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
 	private CurlService|MockObject $service;
 	/** @var NCRequest[] every request handed to the (mocked) transport */
+	/** TEST-NET-3, so the classifier sees a public address without asking DNS */
+	private const PUBLIC_IP = '203.0.113.10';
+
 	private array $requests = [];
+	private IClientService|MockObject $clientService;
+	private IClient|MockObject $client;
 
 	protected function setUp(): void {
 		$this->configService = $this->createMock(ConfigService::class);
@@ -48,6 +60,9 @@ class CurlServiceTest extends TestCase {
 				default => '',
 			});
 		$this->fediverseService = $this->createMock(FediverseService::class);
+		$this->clientService = $this->createMock(IClientService::class);
+		$this->client = $this->createMock(IClient::class);
+		$this->clientService->method('newClient')->willReturn($this->client);
 	}
 
 	protected function tearDown(): void {
@@ -57,7 +72,9 @@ class CurlServiceTest extends TestCase {
 	/** CurlService with the network layer replaced: doRequest is answered by $responder(NCRequest): string. */
 	private function serviceAnsweringWith(callable $responder, string $mocked = 'doRequest'): CurlService {
 		$this->service = $this->getMockBuilder(CurlService::class)
-			->setConstructorArgs([$this->configService, $this->fediverseService, new NullLogger()])
+			->setConstructorArgs([
+				$this->configService, $this->fediverseService, $this->clientService, new NullLogger()
+			])
 			->onlyMethods([$mocked])
 			->getMock();
 		$this->service->method($mocked)->willReturnCallback(function (NCRequest $request) use ($responder) {
@@ -83,14 +100,14 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testConstructorConvertsTheMaxSizeToBytes(): void {
-		$service = new CurlService($this->configService, $this->fediverseService, new NullLogger());
+		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService, new NullLogger());
 		$property = new \ReflectionProperty(CurlService::class, 'maxDownloadSize');
 
 		$this->assertSame(10 * 1048576, $property->getValue($service));
 	}
 
 	public function testAssignUserAgentIncludesTheInstalledVersion(): void {
-		$service = new CurlService($this->configService, $this->fediverseService, new NullLogger());
+		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService, new NullLogger());
 		$request = new NCRequest('/users/bob');
 
 		$service->assignUserAgent($request);
@@ -359,5 +376,235 @@ class CurlServiceTest extends TestCase {
 
 		$service->asyncWithToken('abc-123');
 		$this->assertCount(1, $this->requests);
+	}
+
+	// --- the transport itself (the OCP http client)
+
+	/** An IResponse double; the body is streamed the way the real client does. */
+	private function answer(string $body, int $code = 200, string $contentType = 'application/json'): IResponse {
+		$response = $this->createMock(IResponse::class);
+		$response->method('getStatusCode')->willReturn($code);
+		$response->method('getHeader')->willReturnCallback(
+			static fn (string $key): string => (strtolower($key) === 'content-type') ? $contentType : ''
+		);
+		$response->method('getBody')->willReturnCallback(static function () use ($body) {
+			$stream = fopen('php://memory', 'r+');
+			fwrite($stream, $body);
+			rewind($stream);
+
+			return $stream;
+		});
+
+		return $response;
+	}
+
+	/** Captures what the client was asked to send. */
+	private function captureRequest(IResponse $response): callable {
+		$captured = null;
+		$this->client->method('request')->willReturnCallback(
+			function (string $method, string $url, array $options) use ($response, &$captured): IResponse {
+				$captured = ['method' => $method, 'url' => $url, 'options' => $options];
+
+				return $response;
+			}
+		);
+
+		return static function () use (&$captured): ?array {
+			return $captured;
+		};
+	}
+
+	private function service(): CurlService {
+		return new CurlService(
+			$this->configService, $this->fediverseService, $this->clientService, new NullLogger()
+		);
+	}
+
+	public function testTheRequestIsSentThroughTheServersHttpClient(): void {
+		$sent = $this->captureRequest($this->answer('{"ok":true}'));
+		$request = new NCRequest('/users/bob', Request::TYPE_GET);
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+		$request->addParam('page', '2');
+		$request->addHeader('Accept', 'application/activity+json');
+		$request->setTimeout(7);
+
+		$this->assertSame('{"ok":true}', $this->service()->doRequestOrig($request));
+
+		$this->assertSame('get', $sent()['method']);
+		$this->assertSame('https://' . self::PUBLIC_IP . '/users/bob?page=2', $sent()['url']);
+		$this->assertSame('application/activity+json', $sent()['options']['headers']['Accept']);
+		$this->assertSame(7, $sent()['options']['timeout']);
+		$this->assertSame(200, $request->getResultCode());
+		$this->assertSame('application/json', $request->getContentType());
+	}
+
+	public function testTheClientIsToldNotToReachLocalAddresses(): void {
+		$sent = $this->captureRequest($this->answer('{}'));
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+
+		$this->service()->doRequestOrig($request);
+
+		$this->assertFalse($sent()['options']['nextcloud']['allow_local_address']);
+		// left to the server, which re-checks every redirect it follows
+		$this->assertArrayNotHasKey('allow_redirects', $sent()['options']);
+		$this->assertTrue($sent()['options']['stream'], 'an endless body must not fill memory');
+		$this->assertFalse($sent()['options']['http_errors'], 'the status code belongs to the caller');
+	}
+
+	public function testARequestThatMayReachLocalAddressesSaysSo(): void {
+		$sent = $this->captureRequest($this->answer('{}'));
+		$request = new NCRequest('/inbox');
+		$request->setHost('localhost');
+		$request->setProtocol('http');
+		$request->setLocalAddressAllowed(true);
+
+		$this->service()->doRequestOrig($request);
+
+		$this->assertTrue($sent()['options']['nextcloud']['allow_local_address']);
+	}
+
+	/**
+	 * @dataProvider refusedHostProvider
+	 */
+	public function testALocalHostIsRefusedBeforeAnythingIsSent(string $host): void {
+		$this->client->expects($this->never())->method('request');
+		$request = new NCRequest('/users/bob');
+		$request->setHost($host);
+		$request->setProtocol('http');
+
+		$this->expectException(RequestServerException::class);
+		$this->service()->doRequestOrig($request);
+	}
+
+	/** @return array<string, array{string}> */
+	public function refusedHostProvider(): array {
+		return [
+			'loopback' => ['127.0.0.1'],
+			'private range' => ['10.0.0.5'],
+			'cloud metadata' => ['169.254.169.254'],
+			// a name that resolves to nothing is no legitimate peer either
+			'unresolvable' => ['mastodon.invalid'],
+		];
+	}
+
+	public function testRedirectsAreRefusedWhenTheRequestDoesNotWantThem(): void {
+		$sent = $this->captureRequest($this->answer('{}'));
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+		$request->setFollowLocation(false);
+
+		$this->service()->doRequestOrig($request);
+
+		$this->assertFalse($sent()['options']['allow_redirects']);
+	}
+
+	public function testABodyIsSentWithAWritingRequest(): void {
+		$sent = $this->captureRequest($this->answer('{}'));
+		$request = new NCRequest('/inbox', Request::TYPE_POST);
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+		$request->setDataJson('{"type":"Create"}');
+
+		$this->service()->doRequestOrig($request);
+
+		$this->assertSame('post', $sent()['method']);
+		$this->assertSame('{"type":"Create"}', $sent()['options']['body']);
+		$this->assertSame('https://' . self::PUBLIC_IP . '/inbox', $sent()['url'], 'no query string on a post');
+	}
+
+	public function testAnErrorStatusBecomesAContentException(): void {
+		$this->client->method('request')->willReturn($this->answer('gone', 410, 'text/plain'));
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+
+		try {
+			$this->service()->doRequestOrig($request);
+			$this->fail('an error status has to be raised');
+		} catch (RequestContentException $e) {
+			$this->assertSame(410, $e->getCode());
+			$this->assertSame(410, $request->getResultCode());
+		}
+	}
+
+	public function testATransportFailureBecomesANetworkException(): void {
+		$this->client->method('request')->willThrowException(new Exception('connection refused'));
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+
+		$this->expectException(RequestNetworkException::class);
+		$this->service()->doRequestOrig($request);
+	}
+
+	public function testTheNextProtocolIsTriedWhenOneCannotConnect(): void {
+		$attempts = [];
+		$this->client->method('request')->willReturnCallback(
+			function (string $method, string $url) use (&$attempts): IResponse {
+				$attempts[] = $url;
+				if (str_starts_with($url, 'https://')) {
+					throw new Exception('TLS handshake failed');
+				}
+
+				return $this->answer('{"ok":true}');
+			}
+		);
+		$request = new NCRequest('/.well-known/host-meta');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocols(['https', 'http']);
+
+		$this->assertSame('{"ok":true}', $this->service()->doRequestOrig($request));
+		$this->assertSame(
+			[
+				'https://' . self::PUBLIC_IP . '/.well-known/host-meta',
+				'http://' . self::PUBLIC_IP . '/.well-known/host-meta',
+			],
+			$attempts
+		);
+	}
+
+	public function testAnErrorStatusEndsTheAttemptInsteadOfTryingTheNextProtocol(): void {
+		$attempts = 0;
+		$this->client->method('request')->willReturnCallback(
+			function () use (&$attempts): IResponse {
+				$attempts++;
+
+				return $this->answer('nope', 404, 'text/plain');
+			}
+		);
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocols(['https', 'http']);
+
+		$this->expectException(RequestContentException::class);
+		try {
+			$this->service()->doRequestOrig($request);
+		} finally {
+			$this->assertSame(1, $attempts, 'an answer is an answer, whatever its status');
+		}
+	}
+
+	public function testABodyOverTheSizeLimitIsRefused(): void {
+		// the limit comes from the max_size app setting (10 MB here)
+		$this->client->method('request')->willReturn($this->answer(str_repeat('a', 10 * 1048576 + 1)));
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+
+		$this->expectException(RequestResultSizeException::class);
+		$this->service()->doRequestOrig($request);
+	}
+
+	public function testABodyAtTheSizeLimitIsKept(): void {
+		$this->client->method('request')->willReturn($this->answer(str_repeat('a', 1024)));
+		$request = new NCRequest('/users/bob');
+		$request->setHost(self::PUBLIC_IP);
+		$request->setProtocol('https');
+
+		$this->assertSame(1024, strlen($this->service()->doRequestOrig($request)));
 	}
 }
