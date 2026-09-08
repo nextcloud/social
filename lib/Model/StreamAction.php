@@ -26,6 +26,7 @@ class StreamAction implements JsonSerializable {
 	public const BOOSTED = 'boosted';
 	public const REPLIED = 'replied';
 	public const BOOKMARKED = 'bookmarked';
+	public const POLL_VOTES = 'poll_votes';
 
 	private int $id = 0;
 	private string $actorId = '';
@@ -36,7 +37,8 @@ class StreamAction implements JsonSerializable {
 		self::LIKED,
 		self::BOOSTED,
 		self::REPLIED,
-		self::BOOKMARKED
+		self::BOOKMARKED,
+		self::POLL_VOTES
 	];
 
 	/**
@@ -137,12 +139,16 @@ class StreamAction implements JsonSerializable {
 		$this->setId($this->getInt('id', $data, 0));
 		$this->setActorId($this->get('actor_id', $data, ''));
 		$this->setStreamId($this->get('stream_id', $data, ''));
-		$this->values = [
-			self::LIKED => $this->getBool('liked', $data),
-			self::BOOSTED => $this->getBool('boosted', $data),
-			self::REPLIED => $this->getBool('replied', $data),
-			self::BOOKMARKED => $this->getBool('bookmarked', $data)
-		];
+		$stored = json_decode($this->get('values', $data, '[]'), true);
+		$this->values = array_merge(
+			is_array($stored) ? $stored : [],
+			[
+				self::LIKED => $this->getBool('liked', $data),
+				self::BOOSTED => $this->getBool('boosted', $data),
+				self::REPLIED => $this->getBool('replied', $data),
+				self::BOOKMARKED => $this->getBool('bookmarked', $data),
+			]
+		);
 	}
 
 	public function jsonSerialize(): array {

@@ -39,6 +39,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
@@ -87,6 +88,8 @@ class ApiControllerTest extends TestCase {
 	private $actionService;
 	/** @var PostService&MockObject */
 	private $postService;
+	/** @var PollService&MockObject */
+	private $pollService;
 	/** @var ReportService&MockObject */
 	private $reportService;
 	/** @var ConfigService&MockObject */
@@ -131,6 +134,7 @@ class ApiControllerTest extends TestCase {
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->actionService = $this->createMock(ActionService::class);
 		$this->postService = $this->createMock(PostService::class);
+		$this->pollService = $this->createMock(PollService::class);
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->curlService = $this->createMock(CurlService::class);
@@ -165,6 +169,7 @@ class ApiControllerTest extends TestCase {
 			$this->streamService,
 			$this->actionService,
 			$this->postService,
+			$this->pollService,
 			$this->reportService,
 			$this->configService,
 			$this->curlService

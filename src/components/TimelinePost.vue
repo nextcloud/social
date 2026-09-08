@@ -53,6 +53,7 @@
 		<!-- Sanitized: the bio is remote HTML, see sanitizeHtml.js -->
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-else class="post-message" v-html="sanitizedAccountNote" />
+		<Poll v-if="localPoll" :poll="localPoll" @update:poll="localPoll = $event" />
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<div class="post-action-group">
@@ -157,6 +158,7 @@ import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
+import Poll from './Poll.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
@@ -175,6 +177,7 @@ export default {
 		Heart,
 		HeartOutline,
 		MessageContent,
+		Poll,
 		DisplayName,
 		VisibilityIcon,
 	},
@@ -196,6 +199,7 @@ export default {
 			editContent: '',
 			showReportDialog: false,
 			reportComment: '',
+			localPoll: this.item?.poll ?? null,
 		}
 	},
 	computed: {

@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 
 class Note extends Stream implements JsonSerializable {
+	private string $name = '';
 	public const TYPE = 'Note';
 
 	private array $hashtags = [];
@@ -96,8 +97,23 @@ class Note extends Stream implements JsonSerializable {
 		$this->setHashtags($this->getArray('hashtags', $data, []));
 	}
 
+	public function getName(): string {
+		return $this->name;
+	}
+
+	public function setName(string $name): self {
+		$this->name = $name;
+
+		return $this;
+	}
+
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
+
+		if ($this->getName() !== '') {
+			// a poll vote: the chosen option travels in `name`
+			$result['name'] = $this->getName();
+		}
 
 		if ($this->isCompleteDetails()) {
 			$result['hashtags'] = $this->getHashtags();

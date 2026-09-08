@@ -964,7 +964,8 @@ class CoreRequestBuilder {
 			->selectAlias('sa.liked', 'streamaction_liked')
 			->selectAlias('sa.boosted', 'streamaction_boosted')
 			->selectAlias('sa.replied', 'streamaction_replied')
-			->selectAlias('sa.bookmarked', 'streamaction_bookmarked');
+			->selectAlias('sa.bookmarked', 'streamaction_bookmarked')
+			->selectAlias('sa.values', 'streamaction_values');
 
 		$orX = $expr->orX(
 			$expr->eq('sa.stream_id_prim', $pf . '.id_prim'),

@@ -384,7 +384,8 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias('sa.liked', 'streamaction_liked')
 			->selectAlias('sa.boosted', 'streamaction_boosted')
 			->selectAlias('sa.replied', 'streamaction_replied')
-			->selectAlias('sa.bookmarked', 'streamaction_bookmarked');
+			->selectAlias('sa.bookmarked', 'streamaction_bookmarked')
+			->selectAlias('sa.values', 'streamaction_values');
 	}
 
 	/**
@@ -404,7 +405,8 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias($alias . '.liked', 'streamaction_liked')
 			->selectAlias($alias . '.boosted', 'streamaction_boosted')
 			->selectAlias($alias . '.replied', 'streamaction_replied')
-			->selectAlias($alias . '.bookmarked', 'streamaction_bookmarked');
+			->selectAlias($alias . '.bookmarked', 'streamaction_bookmarked')
+			->selectAlias($alias . '.values', 'streamaction_values');
 
 		$viewer = $this->getViewer();
 		$idPrim = $this->prim($viewer->getId());

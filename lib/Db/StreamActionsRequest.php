@@ -37,7 +37,8 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			->setValue('liked', $qb->createNamedParameter(($liked) ? 1 : 0))
 			->setValue('boosted', $qb->createNamedParameter(($boosted) ? 1 : 0))
 			->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0))
-			->setValue('bookmarked', $qb->createNamedParameter(($bookmarked) ? 1 : 0));
+			->setValue('bookmarked', $qb->createNamedParameter(($bookmarked) ? 1 : 0))
+			->setValue('values', $qb->createNamedParameter(json_encode($this->nonFlagValues($action))));
 
 		$qb->executeStatement();
 	}
@@ -48,6 +49,7 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		// update entry/field in database, based only on affected action
 		// to avoid race condition on 2 different actions
 		$fields = 0;
+		$valuesTouched = false;
 		foreach ($action->getAffected() as $entry) {
 			$field = match ($entry) {
 				StreamAction::LIKED => 'liked',
@@ -59,6 +61,11 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 
 			if ($field !== '') {
 				$qb->set($field, $qb->createNamedParameter(($action->getValueBool($entry)) ? 1 : 0));
+				$fields++;
+			} elseif (!$valuesTouched) {
+				// non-flag entries (poll votes) live in the values JSON
+				$qb->set('values', $qb->createNamedParameter(json_encode($this->nonFlagValues($action))));
+				$valuesTouched = true;
 				$fields++;
 			}
 		}
@@ -73,6 +80,19 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$qb->limitToStreamIdPrim($qb->prim($action->getStreamId()));
 
 		return $qb->executeStatement();
+	}
+
+	/**
+	 * The values that are not one of the four flag columns: what the `values`
+	 * JSON column stores.
+	 */
+	private function nonFlagValues(StreamAction $action): array {
+		return array_diff_key($action->getValues(), [
+			StreamAction::LIKED => true,
+			StreamAction::BOOSTED => true,
+			StreamAction::REPLIED => true,
+			StreamAction::BOOKMARKED => true,
+		]);
 	}
 
 	/**

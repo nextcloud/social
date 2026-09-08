@@ -59,6 +59,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -265,6 +266,10 @@ class AP {
 				$item = new Note();
 				break;
 
+			case Question::TYPE:
+				$item = new Question();
+				break;
+
 			case OrderedCollection::TYPE:
 				$item = new OrderedCollection();
 				break;
@@ -357,6 +362,7 @@ class AP {
 			case Move::TYPE:
 				return $this->moveInterface;
 			case Note::TYPE:
+			case Question::TYPE:
 				return $this->noteInterface;
 			case SocialAppNotification::TYPE:
 				return $this->notificationInterface;

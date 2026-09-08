@@ -386,7 +386,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function countNotesFromActorId(string $actorId): int {
 		$qb = $this->countNotesSelectSql();
 		$qb->limitToAttributedTo($actorId, true);
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
@@ -408,7 +408,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function lastNoteFromActorId(string $actorId): Stream {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToAttributedTo($actorId, true);
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
@@ -527,7 +527,7 @@ class StreamRequest extends StreamRequestBuilder {
 	private function getTimelineAccount(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$qb->paginate($options);
 
 		$actorId = $options->getAccountId();
@@ -560,7 +560,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$actor = $qb->getViewer();
 		$expr = $qb->expr();
 
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$qb->paginate($options);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
@@ -584,7 +584,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$actor = $qb->getViewer();
 		$expr = $qb->expr();
 
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$qb->paginate($options);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
@@ -605,7 +605,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	private function getTimelineHashtag(ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$qb->paginate($options);
 
 		$expr = $qb->expr();
@@ -776,7 +776,7 @@ class StreamRequest extends StreamRequestBuilder {
 		if ($options->isLocal()) {
 			$qb->limitToLocal(true);
 		}
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
@@ -808,7 +808,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitPaginate($since, $limit);
 
 		$qb->limitToLocal($localOnly);
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
@@ -838,7 +838,7 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$actor = $qb->getViewer();
 
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$qb->limitPaginate($since, $limit);
 
 		$expr = $qb->expr();
@@ -900,7 +900,7 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getNoteSince(int $since): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToSince($since, 'published_time');
-		$qb->limitToType(Note::TYPE);
+		$qb->limitToStatusTypes();
 		$qb->leftJoinStreamAction();
 		$qb->setMaxResults(self::TREND_SAMPLE);
 		$qb->orderBy($qb->getDefaultSelectAlias() . '.published_time', 'desc');
