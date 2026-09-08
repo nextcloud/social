@@ -45,6 +45,7 @@ use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -84,6 +85,7 @@ class ApiController extends Controller {
 	private PostService $postService;
 	private PollService $pollService;
 	private ReportService $reportService;
+	private SearchService $searchService;
 	private ConfigService $configService;
 	private CurlService $curlService;
 
@@ -109,6 +111,7 @@ class ApiController extends Controller {
 		PostService $postService,
 		PollService $pollService,
 		ReportService $reportService,
+		SearchService $searchService,
 		ConfigService $configService,
 		CurlService $curlService,
 	) {
@@ -130,6 +133,7 @@ class ApiController extends Controller {
 		$this->postService = $postService;
 		$this->pollService = $pollService;
 		$this->reportService = $reportService;
+		$this->searchService = $searchService;
 		$this->configService = $configService;
 		$this->curlService = $curlService;
 
@@ -818,6 +822,98 @@ class ApiController extends Controller {
 		}
 	}
 
+	/**
+	 * Follows the account, or asks to (a locked account leaves the
+	 * relationship in `requested`). Returns the updated relationship.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function accountFollow(string $id): DataResponse {
+		try {
+			$this->initViewer(true);
+			$target = $this->resolveTargetAccount($id);
+
+			$this->followService->followAccount($this->viewer, $target->getAccount());
+			$this->accountService->cacheLocalActorDetailCount($this->viewer);
+
+			return new DataResponse(
+				$this->followService->getRelationshipWith($target), Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function accountUnfollow(string $id): DataResponse {
+		try {
+			$this->initViewer(true);
+			$target = $this->resolveTargetAccount($id);
+
+			$this->followService->unfollowAccount($this->viewer, $target->getAccount());
+			$this->accountService->cacheLocalActorDetailCount($this->viewer);
+
+			return new DataResponse(
+				$this->followService->getRelationshipWith($target), Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * Mastodon's search endpoint: accounts, statuses (the viewer-bounded
+	 * full-text search) and hashtags, optionally narrowed with `type`.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function searchV2(string $q = '', string $type = '', int $limit = 20): DataResponse {
+		try {
+			$this->initViewer(true);
+			$q = trim($q);
+			$limit = min(max($limit, 1), 40);
+
+			$accounts = [];
+			if ($type === '' || $type === 'accounts') {
+				$found = array_merge(
+					$this->searchService->searchUri($q),
+					$this->searchService->searchAccounts($q)
+				);
+				$unique = [];
+				foreach ($found as $account) {
+					$unique[$account->getId()] = $account->setExportFormat(ACore::FORMAT_LOCAL);
+				}
+				$accounts = array_slice(array_values($unique), 0, $limit);
+			}
+
+			$statuses = [];
+			if ($type === '' || $type === 'statuses') {
+				$statuses = array_slice($this->searchService->searchStreamContent($q), 0, $limit);
+			}
+
+			$hashtags = [];
+			if ($type === '' || $type === 'hashtags') {
+				foreach (array_slice($this->searchService->searchHashtags($q), 0, $limit) as $hashtag) {
+					$hashtags[] = [
+						'name' => $hashtag['hashtag'],
+						'url' => $this->urlGenerator->linkToRouteAbsolute(
+							'social.Navigation.timeline', ['path' => 'tags/' . $hashtag['hashtag']]
+						),
+						'history' => [],
+					];
+				}
+			}
+
+			return new DataResponse(
+				['accounts' => $accounts, 'statuses' => $statuses, 'hashtags' => $hashtags],
+				Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function accountBlock(string $id): DataResponse {
@@ -1419,6 +1515,7 @@ class ApiController extends Controller {
 			'statusNew', 'statusUpdate', 'mediaNew', 'mediaNewV2', 'mediaUpdate', 'statusAction',
 			'updateCredentials', 'reportNew', 'pollVote' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
+			'accountFollow', 'accountUnfollow',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
 			'appsCredentials' => [],
 			default => ['read'],

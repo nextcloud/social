@@ -43,6 +43,7 @@ use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
+use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -92,6 +93,8 @@ class ApiControllerTest extends TestCase {
 	private $pollService;
 	/** @var ReportService&MockObject */
 	private $reportService;
+	/** @var SearchService&MockObject */
+	private $searchService;
 	/** @var ConfigService&MockObject */
 	private $configService;
 	/** @var CurlService&MockObject */
@@ -136,6 +139,7 @@ class ApiControllerTest extends TestCase {
 		$this->postService = $this->createMock(PostService::class);
 		$this->pollService = $this->createMock(PollService::class);
 		$this->reportService = $this->createMock(ReportService::class);
+		$this->searchService = $this->createMock(SearchService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->curlService = $this->createMock(CurlService::class);
 
@@ -171,6 +175,7 @@ class ApiControllerTest extends TestCase {
 			$this->postService,
 			$this->pollService,
 			$this->reportService,
+			$this->searchService,
 			$this->configService,
 			$this->curlService
 		);
@@ -951,6 +956,98 @@ class ApiControllerTest extends TestCase {
 			$this->controller('Bearer s3cret')->updateCredentials(),
 			'token scope does not allow this request (needs write)'
 		);
+	}
+
+	// follow / unfollow
+
+	public function testAccountFollowFollowsAndReturnsTheRelationship(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getAccount')->willReturn('bob@remote.example');
+		$this->followService->expects($this->once())
+			->method('followAccount')->with($this->identicalTo($viewer), 'bob@remote.example');
+		$this->accountService->expects($this->once())
+			->method('cacheLocalActorDetailCount')->with($this->identicalTo($viewer));
+
+		$relationship = new Relationship(42);
+		$this->followService->method('getRelationshipWith')->willReturn($relationship);
+
+		$response = $this->controller()->accountFollow('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($relationship, $response->getData());
+	}
+
+	public function testAccountUnfollowUnfollows(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getAccount')->willReturn('bob@remote.example');
+		$this->followService->expects($this->once())->method('unfollowAccount');
+		$this->followService->method('getRelationshipWith')->willReturn(new Relationship(42));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnfollow('42')->getStatus());
+	}
+
+	public function testAccountFollowRequiresAViewer(): void {
+		$this->followService->expects($this->never())->method('followAccount');
+
+		$this->assertUnauthorized($this->controller()->accountFollow('42'));
+	}
+
+	public function testAFollowRouteRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.accountFollow';
+		$this->bearerFor(['read']);
+		$this->followService->expects($this->never())->method('followAccount');
+
+		$this->assertUnauthorized(
+			$this->controller('Bearer s3cret')->accountFollow('42'),
+			'token scope does not allow this request (needs follow or write)'
+		);
+	}
+
+	// search v2
+
+	public function testSearchV2BundlesAccountsStatusesAndHashtags(): void {
+		$this->loggedInAs();
+		$account = $this->createMock(Person::class);
+		$account->method('getId')->willReturn('https://remote.example/@bob');
+		$account->method('setExportFormat')->willReturnSelf();
+		$this->searchService->method('searchUri')->with('bob')->willReturn([]);
+		$this->searchService->method('searchAccounts')->with('bob')->willReturn([$account, $account]);
+		$status = $this->createMock(Stream::class);
+		$this->searchService->method('searchStreamContent')->with('bob')->willReturn([$status]);
+		$this->searchService->method('searchHashtags')->with('bob')
+			->willReturn([['hashtag' => 'bobcats', 'trend' => []]]);
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example/tags/bobcats');
+
+		$response = $this->controller()->searchV2('  bob ');
+		$data = $response->getData();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertCount(1, $data['accounts'], 'duplicates collapse on the actor id');
+		$this->assertSame([$status], $data['statuses']);
+		$this->assertSame('bobcats', $data['hashtags'][0]['name']);
+		$this->assertSame('https://cloud.example/tags/bobcats', $data['hashtags'][0]['url']);
+	}
+
+	public function testSearchV2CanBeNarrowedByType(): void {
+		$this->loggedInAs();
+		$this->searchService->expects($this->never())->method('searchStreamContent');
+		$this->searchService->expects($this->never())->method('searchHashtags');
+		$this->searchService->method('searchUri')->willReturn([]);
+		$this->searchService->method('searchAccounts')->willReturn([]);
+
+		$data = $this->controller()->searchV2('bob', 'accounts')->getData();
+
+		$this->assertSame([], $data['accounts']);
+		$this->assertSame([], $data['statuses']);
+		$this->assertSame([], $data['hashtags']);
+	}
+
+	public function testSearchV2RequiresAViewer(): void {
+		$this->searchService->expects($this->never())->method('searchAccounts');
+
+		$this->assertUnauthorized($this->controller()->searchV2('bob'));
 	}
 
 	// reports
