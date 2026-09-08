@@ -62,3 +62,22 @@ OC::$server = new \OCA\Social\Tests\Helper\TestContainer();
 if (!class_exists('OC\\User\\NoUserException', false)) {
 	class_alias(\OCA\Social\Tests\Helper\NoUserException::class, 'OC\\User\\NoUserException');
 }
+
+// Util::addScript() constructs this one, so a settings page cannot be asked for
+// its form without it.
+if (!class_exists('OC\\AppScriptDependency', false)) {
+	class_alias(\OCA\Social\Tests\Helper\AppScriptDependency::class, 'OC\\AppScriptDependency');
+}
+
+// The escaping helpers every server-side template is written against. Same
+// behaviour as the server's: `p()` escapes, `print_unescaped()` does not.
+if (!function_exists('p')) {
+	function p($string): void {
+		print htmlspecialchars((string)$string, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+	}
+}
+if (!function_exists('print_unescaped')) {
+	function print_unescaped($string): void {
+		print (string)$string;
+	}
+}

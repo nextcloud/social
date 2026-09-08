@@ -12,6 +12,7 @@ namespace OCA\Social\Command;
 use Exception;
 use OC\Core\Command\Base;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\RequestQueueService;
 use Symfony\Component\Console\Input\InputInterface;
@@ -33,7 +34,10 @@ class QueueStatus extends Base {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		RequestQueueService $requestQueueService, ConfigService $configService, MiscService $miscService,
+		RequestQueueService $requestQueueService,
+		ConfigService $configService,
+		MiscService $miscService,
+		private FederationHealthService $federationHealthService,
 	) {
 		parent::__construct();
 
@@ -64,7 +68,11 @@ class QueueStatus extends Base {
 		$token = $input->getOption('token');
 
 		if ($token === null) {
-			throw new Exception('As of today, --token is mandatory');
+			// an administrator asking after "the queue" wants the state of the
+			// queue, not an argument about which request they meant
+			$this->reportHealth($output);
+
+			return 0;
 		}
 
 		$requests = $this->requestQueueService->getRequestFromToken($token);
@@ -74,5 +82,38 @@ class QueueStatus extends Base {
 		}
 
 		return 0;
+	}
+
+	private function reportHealth(OutputInterface $output): void {
+		$summary = $this->federationHealthService->summary();
+
+		$output->writeln($summary['waiting'] . ' deliveries waiting, ' . $summary['running'] . ' being sent');
+
+		if ($summary['failing'] === 0) {
+			$output->writeln('<info>nothing is failing to deliver</info>');
+
+			return;
+		}
+
+		$output->writeln(
+			'<comment>' . $summary['failing'] . ($summary['truncated'] ? '+' : '')
+			. ' have failed at least once, ' . $summary['atRisk']
+			. ' are close to being given up on (abandoned after '
+			. $summary['maxTries'] . ' attempts)</comment>'
+		);
+		$output->writeln('');
+
+		foreach ($summary['instances'] as $instance) {
+			$output->writeln(
+				sprintf(
+					'  %-40s %4d waiting   %2d/%d attempts   last %s',
+					$instance['host'],
+					$instance['requests'],
+					$instance['tries'],
+					$summary['maxTries'],
+					$instance['last'] > 0 ? gmdate('Y-m-d H:i', $instance['last']) : 'never'
+				)
+			);
+		}
 	}
 }

@@ -131,4 +131,70 @@ class RequestQueueLifecycleTest extends TestCase {
 			'a delivery whose worker died is retried instead of silently lost'
 		);
 	}
+
+	// what the administration page reads off this table
+
+	public function testTheQueueCountsItselfByState(): void {
+		$token = $this->enqueue();
+		$queue = $this->service->getRequestFromToken($token, RequestQueue::STATUS_STANDBY)[0];
+
+		$before = $this->request->countByStatus();
+		$this->service->initRequest($queue);
+		$after = $this->request->countByStatus();
+
+		$this->assertSame(
+			($before[RequestQueue::STATUS_STANDBY] ?? 0) - 1,
+			$after[RequestQueue::STATUS_STANDBY] ?? 0
+		);
+		$this->assertSame(
+			($before[RequestQueue::STATUS_RUNNING] ?? 0) + 1,
+			$after[RequestQueue::STATUS_RUNNING] ?? 0
+		);
+	}
+
+	public function testFailingDeliveriesComeBackWorstFirst(): void {
+		$fresh = $this->service->getRequestFromToken($this->enqueue())[0];
+		$struggling = $this->service->getRequestFromToken($this->enqueue())[0];
+
+		// one attempt that failed, then another
+		$this->service->initRequest($struggling);
+		$this->service->endRequest($struggling, false);
+		$this->service->initRequest($struggling);
+		$this->service->endRequest($struggling, false);
+
+		// the table is shared with whatever else this instance is trying to
+		// deliver, so pick out our own row rather than assuming a position
+		$failing = $this->request->getFailing();
+		$ours = array_values(array_filter(
+			$failing,
+			fn (RequestQueue $request): bool => $request->getId() === $struggling->getId()
+		));
+
+		$this->assertCount(1, $ours);
+		$this->assertSame(2, $ours[0]->getTries());
+		$this->assertSame(self::INBOX, $ours[0]->getInstance()->getUri(), 'the address survives the round trip');
+
+		$this->assertNotContains(
+			$fresh->getId(),
+			array_map(fn (RequestQueue $request): int => $request->getId(), $failing),
+			'a delivery that never failed is not failing'
+		);
+
+		$tries = array_map(fn (RequestQueue $request): int => $request->getTries(), $failing);
+		$sorted = $tries;
+		rsort($sorted);
+		$this->assertSame($sorted, $tries, 'worst first, so the top of the table is the worst news');
+	}
+
+	public function testTheFailureThresholdIsRespected(): void {
+		$queue = $this->service->getRequestFromToken($this->enqueue())[0];
+		$this->service->initRequest($queue);
+		$this->service->endRequest($queue, false);
+
+		$this->assertNotContains(
+			$queue->getId(),
+			array_map(fn (RequestQueue $r): int => $r->getId(), $this->request->getFailing(5)),
+			'one failure is not five'
+		);
+	}
 }
