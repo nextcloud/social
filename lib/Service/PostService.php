@@ -74,7 +74,7 @@ class PostService {
 		$this->streamService->assignItem($note, $actor, $post->getType());
 
 		$note->setAttributedTo($actor->getId());
-		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
+		$note->setContent(nl2br(htmlentities($post->getContent(), ENT_QUOTES)));
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
 
@@ -101,7 +101,7 @@ class PostService {
 			throw new \Exception('Not authorized to edit this post');
 		}
 
-		$stream->setContent($content);
+		$stream->setContent(nl2br(htmlentities($content, ENT_QUOTES)));
 		if ($spoilerText !== null) {
 			$stream->setSpoilerText($spoilerText);
 		}

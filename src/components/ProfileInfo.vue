@@ -241,7 +241,7 @@ export default {
 			}
 		},
 		followRemote() {
-			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
+			window.open(generateUrl('/apps/social/api/v1/ostatus/followRemote/' + encodeURI(this.localUid)), 'followRemote', 'width=433,height=600,toolbar=no,menubar=no,scrollbars=yes,resizable=yes')
 		},
 		async openFilePicker() {
 			if (this.$refs.bannerInput) {

@@ -592,7 +592,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($item, $response->getData());
-		$this->assertSame("hello<br />\nworld", $created->getContent());
+		$this->assertSame("hello\nworld", $created->getContent(), 'the raw text; PostService escapes and converts newlines');
 		$this->assertSame('unlisted', $created->getType());
 		$this->assertSame('https://remote.example/notes/7', $created->getReplyTo());
 	}
@@ -634,7 +634,7 @@ class ApiControllerTest extends TestCase {
 		]);
 		$item = $this->createMock(Stream::class);
 		$this->postService->expects($this->once())->method('editPost')
-			->with(5, $this->isInstanceOf(Person::class), "edited<br />\ntext", 'cw', true)
+			->with(5, $this->isInstanceOf(Person::class), "edited\ntext", 'cw', true)
 			->willReturn($item);
 		$item->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 
