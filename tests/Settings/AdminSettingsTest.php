@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Settings;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Settings\AdminSettings;
 use OCP\IL10N;
@@ -28,6 +29,8 @@ use PHPUnit\Framework\TestCase;
  */
 class AdminSettingsTest extends TestCase {
 	private FederationHealthService|MockObject $federationHealthService;
+	private ModerationService|MockObject $moderationService;
+	private ReportService|MockObject $reportService;
 	private AdminSettings $settings;
 
 	protected function setUp(): void {
@@ -35,19 +38,20 @@ class AdminSettingsTest extends TestCase {
 		// off the container rather than taking it as a dependency
 		\OC::$server->register(IFactory::class, $this->createMock(IFactory::class));
 
-		$reportService = $this->createMock(ReportService::class);
-		$reportService->method('getReports')->willReturn([]);
+		$this->reportService = $this->createMock(ReportService::class);
 
 		$fediverseService = $this->createMock(FediverseService::class);
 		$fediverseService->method('getAccessType')->willReturn('all_but');
 		$fediverseService->method('getListedAddresses')->willReturn([]);
 
 		$this->federationHealthService = $this->createMock(FederationHealthService::class);
+		$this->moderationService = $this->createMock(ModerationService::class);
 
 		$this->settings = new AdminSettings(
-			$reportService,
+			$this->reportService,
 			$fediverseService,
 			$this->createMock(ConfigService::class),
+			$this->moderationService,
 			$this->federationHealthService,
 		);
 	}
@@ -77,7 +81,9 @@ class AdminSettingsTest extends TestCase {
 	 * Renders the template the settings page returns, with warnings promoted to
 	 * failures so a key the template reads but nobody sets cannot pass quietly.
 	 */
-	private function render(array $summary): string {
+	private function render(array $summary, array $reports = [], array $decisions = []): string {
+		$this->reportService->method('getReports')->willReturn($reports);
+		$this->moderationService->method('decisions')->willReturn($decisions);
 		$this->federationHealthService->method('summary')->willReturn($summary);
 		$parameters = $this->settings->getForm()->getParams();
 
@@ -107,7 +113,50 @@ class AdminSettingsTest extends TestCase {
 		}
 	}
 
+	public function testTheReportsTableOffersTheDecisionsAModeratorCanMake(): void {
+		$target = $this->createMock(\OCA\Social\Model\ActivityPub\Actor\Person::class);
+		$target->method('getId')->willReturn('https://spam.example/users/spammer');
+		$target->method('getAccount')->willReturn('spammer@spam.example');
+
+		$report = $this->createMock(\OCA\Social\Model\Report::class);
+		$report->method('getId')->willReturn(1);
+		$report->method('getTargetAccount')->willReturn($target);
+		$report->method('getAccountId')->willReturn('https://spam.example/users/spammer');
+		$report->method('getActorId')->willReturn('https://cloud.example/users/alice');
+		$report->method('getStatusIds')->willReturn([]);
+		$report->method('getCategory')->willReturn('spam');
+		$report->method('getComment')->willReturn('endless crypto');
+
+		$html = $this->render($this->summary(), [$report], []);
+
+		// the panel used to describe a problem and offer no lever at all
+		$this->assertStringContainsString('Silence', $html);
+		$this->assertStringContainsString('Suspend', $html);
+		$this->assertStringContainsString('data-actor-id="https://spam.example/users/spammer"', $html);
+	}
+
+	public function testAnAccountAlreadyDealtWithSaysSo(): void {
+		$target = $this->createMock(\OCA\Social\Model\ActivityPub\Actor\Person::class);
+		$target->method('getId')->willReturn('https://spam.example/users/spammer');
+		$target->method('getAccount')->willReturn('spammer@spam.example');
+
+		$report = $this->createMock(\OCA\Social\Model\Report::class);
+		$report->method('getId')->willReturn(1);
+		$report->method('getTargetAccount')->willReturn($target);
+		$report->method('getStatusIds')->willReturn([]);
+		$report->method('getCategory')->willReturn('spam');
+		$report->method('getComment')->willReturn('');
+		$report->method('getActorId')->willReturn('');
+
+		$decision = new \OCA\Social\Model\Moderation('https://spam.example/users/spammer', 'suspend');
+		$html = $this->render($this->summary(), [$report], [$decision]);
+
+		$this->assertStringContainsString('Suspended', $html);
+	}
+
 	public function testTheFormCarriesTheFederationSummary(): void {
+		$this->reportService->method('getReports')->willReturn([]);
+		$this->moderationService->method('decisions')->willReturn([]);
 		$this->federationHealthService->expects($this->once())->method('summary')
 			->willReturn($this->summary(['waiting' => 4]));
 

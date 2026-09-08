@@ -16,6 +16,7 @@ $accessType = $_['accessType'];
 $accessList = $_['accessList'];
 $retentionDays = $_['retentionDays'];
 $federation = $_['federation'];
+$moderation = $_['moderation'];
 ?>
 
 <div id="social-moderation" class="section">
@@ -37,14 +38,17 @@ $federation = $_['federation'];
 					<th><?php p($l->t('Statuses')); ?></th>
 					<th><?php p($l->t('Date')); ?></th>
 					<th><?php p($l->t('Status')); ?></th>
+					<th><?php p($l->t('Account')); ?></th>
 					<th></th>
 				</tr>
 			</thead>
 			<tbody>
 			<?php foreach ($reports as $report): ?>
-				<tr data-report-id="<?php p((string)$report->getId()); ?>">
+				<?php $target = $report->getTargetAccount(); ?>
+				<?php $targetId = $target !== null ? $target->getId() : $report->getAccountId(); ?>
+				<tr data-report-id="<?php p((string)$report->getId()); ?>"
+					data-actor-id="<?php p($targetId); ?>">
 					<td>
-						<?php $target = $report->getTargetAccount(); ?>
 						<?php if ($target !== null): ?>
 							<a href="<?php p($target->getId()); ?>" target="_blank" rel="noreferrer noopener">
 								<?php p($target->getAccount() !== '' ? $target->getAccount() : $target->getPreferredUsername()); ?>
@@ -73,6 +77,21 @@ $federation = $_['federation'];
 					<td><?php p($report->getCreation() > 0 ? gmdate('Y-m-d H:i', $report->getCreation()) : ''); ?></td>
 					<td class="social-report-state">
 						<?php p($report->isResolved() ? $l->t('Resolved') : $l->t('Open')); ?>
+					</td>
+					<td class="social-moderation">
+						<span class="social-moderation-state"><?php
+							$level = $moderation[$targetId] ?? '';
+				p($level === 'suspend' ? $l->t('Suspended') : ($level === 'silence' ? $l->t('Silenced') : ''));
+				?></span>
+						<button type="button" class="social-moderate" data-level="silence"
+							<?php if ($level === 'silence') {
+								p('disabled');
+							} ?>><?php p($l->t('Silence')); ?></button>
+						<button type="button" class="social-moderate" data-level="suspend"
+							<?php if ($level === 'suspend') {
+								p('disabled');
+							} ?>><?php p($l->t('Suspend')); ?></button>
+						<button type="button" class="social-moderate" data-level=""><?php p($l->t('Lift')); ?></button>
 					</td>
 					<td>
 						<button type="button" class="social-report-toggle"

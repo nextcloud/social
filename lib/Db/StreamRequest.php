@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Moderation;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -41,9 +42,14 @@ class StreamRequest extends StreamRequestBuilder {
 	private StreamTagsRequest $streamTagsRequest;
 
 	public function __construct(
-		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
-		StreamDestRequest $streamDestRequest, StreamTagsRequest $streamTagsRequest,
-		ConfigService $configService, MiscService $miscService,
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		StreamDestRequest $streamDestRequest,
+		StreamTagsRequest $streamTagsRequest,
+		ConfigService $configService,
+		MiscService $miscService,
+		private ModerationRequest $moderationRequest,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
@@ -826,6 +832,27 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
+	/**
+	 * A silenced account keeps its followers and loses the public square.
+	 *
+	 * The list is small — a moderator acts rarely — so it is read and passed
+	 * as a literal set rather than joined against.
+	 */
+	private function filterSilencedActors(SocialQueryBuilder $qb): void {
+		$silenced = $this->moderationRequest->getActorIdsAt(Moderation::SILENCE);
+		if ($silenced === []) {
+			return;
+		}
+
+		$prims = array_map(fn (string $id): string => $qb->prim($id), $silenced);
+		$qb->andWhere(
+			$qb->expr()->notIn(
+				's.attributed_to_prim',
+				$qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
+			)
+		);
+	}
+
 	private function getTimelinePublic(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
 		$page->paginate($options);

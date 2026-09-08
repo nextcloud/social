@@ -41,6 +41,47 @@
 			.catch(() => OC.Notification.showTemporary(t('social', 'Could not update the report')))
 	}
 
+	/**
+	 * Silence, suspend or lift, from the row of the report that prompted it.
+	 * Suspending deletes, so it asks first and says what it will cost.
+	 */
+	function onModerate(event) {
+		const button = event.target.closest('.social-moderate')
+		if (button === null) {
+			return
+		}
+
+		const row = button.closest('tr')
+		const actorId = row.dataset.actorId
+		const level = button.dataset.level
+		if (!actorId) {
+			return
+		}
+
+		if (level === 'suspend' && !window.confirm(t('social',
+			'Suspending deletes every post this account has here and refuses anything it sends afterwards. '
+			+ 'Lifting the suspension later will not bring the posts back. Continue?'))) {
+			return
+		}
+
+		post('/accounts', { actorId, level, comment: '' })
+			.then(() => {
+				row.querySelectorAll('.social-moderate').forEach((other) => {
+					other.disabled = other.dataset.level === level && level !== ''
+				})
+				const state = row.querySelector('.social-moderation-state')
+				if (state) {
+					state.textContent = level === 'suspend'
+						? t('social', 'Suspended')
+						: (level === 'silence' ? t('social', 'Silenced') : '')
+				}
+				OC.Notification.showTemporary(level === ''
+					? t('social', 'The decision was lifted')
+					: t('social', 'The decision was applied'))
+			})
+			.catch(() => OC.Notification.showTemporary(t('social', 'Could not apply the decision')))
+	}
+
 	function renderAccessList(list) {
 		const ul = document.getElementById('social-access-list')
 		ul.textContent = ''
@@ -98,6 +139,11 @@
 	document.addEventListener('DOMContentLoaded', () => {
 		document.querySelectorAll('.social-report-toggle')
 			.forEach((button) => button.addEventListener('click', onToggleReport))
+
+		const reports = document.querySelector('.social-reports')
+		if (reports) {
+			reports.addEventListener('click', onModerate)
+		}
 
 		const retentionSave = document.getElementById('social-retention-save')
 		if (retentionSave) {

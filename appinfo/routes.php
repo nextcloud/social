@@ -138,6 +138,8 @@ return [
 		['name' => 'Moderation#fediverseAdd', 'url' => '/moderation/fediverse/add', 'verb' => 'POST'],
 		['name' => 'Moderation#fediverseRemove', 'url' => '/moderation/fediverse/remove', 'verb' => 'POST'],
 		['name' => 'Moderation#fediverseAccess', 'url' => '/moderation/fediverse/access', 'verb' => 'POST'],
-		['name' => 'Moderation#retention', 'url' => '/moderation/retention', 'verb' => 'POST']
+		['name' => 'Moderation#retention', 'url' => '/moderation/retention', 'verb' => 'POST'],
+		['name' => 'Moderation#accountModerate', 'url' => '/moderation/accounts', 'verb' => 'POST'],
+		['name' => 'Moderation#statusRemove', 'url' => '/moderation/statuses/remove', 'verb' => 'POST']
 	]
 ];

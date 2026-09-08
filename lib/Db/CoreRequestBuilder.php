@@ -44,6 +44,7 @@ class CoreRequestBuilder {
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_INSTANCE = 'social_instance';
+	public const TABLE_MODERATION = 'social_moderation';
 	public const TABLE_NOTIFICATION = 'social_notif';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';

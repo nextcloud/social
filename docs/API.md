@@ -247,6 +247,8 @@ Backing routes of the Social section in the administration settings. All of them
 | POST | `/moderation/fediverse/add` | admin, csrf | `address` (required) | Adds an instance to the Fediverse access list (the list `occ social:fediverse` manages). Invalid addresses are a 422. Returns `{"list": [...]}`. |
 | POST | `/moderation/fediverse/remove` | admin, csrf | `address` (required) | Removes an instance from the access list. Returns `{"list": [...]}`. |
 | POST | `/moderation/fediverse/access` | admin, csrf | `type` (required) | Switches the access mode: `all_but` (blocklist) or `none_but` (allowlist). Anything else is a 422. Returns `{"accessType": "..."}`. |
+| POST | `/moderation/accounts` | admin, csrf | `actorId` (required), `level` (`silence`, `suspend`, or empty to lift), `comment` | The instance's own decision about an account, as opposed to one user's block. **Silence** keeps the account reachable for the people who follow it and takes it out of the public and global timelines; it changes no data and is undone by lifting. **Suspend** deletes what the account has posted here, drops its cached actor and refuses everything it sends afterwards — lifting stops the refusal but does not bring back what was deleted. Returns the decision, or `{"actor_id": …, "level": ""}` when lifted. |
+| POST | `/moderation/statuses/remove` | admin, csrf | `streamId` (required) | Deletes one post, whoever wrote it. Returns `{"stream_id": …}`. |
 | POST | `/moderation/retention` | admin, csrf | `days` (required, 0–3650) | Sets the `retention_days` app setting: remote statuses older than this that no local user cares about are pruned (0 disables). Returns `{"retentionDays": n}`. |
 
 ---
