@@ -89,6 +89,34 @@ class CacheActorsRoundTripTest extends TestCase {
 		$this->assertSame('https://remote.example/catest/header.jpg', $read->getHeader());
 	}
 
+	public function testARefreshCorrectsTheStoredHandle(): void {
+		$this->request->save($this->erin());
+
+		// what happens after the instance address is corrected: the actor is
+		// rebuilt with the right handle and written back over the old row
+		$renamed = $this->erin();
+		$renamed->setAccount('erin@cloud.example');
+		$this->request->update($renamed);
+
+		$this->assertSame('erin@cloud.example', $this->request->getFromId(self::ACTOR)->getAccount());
+		$this->assertSame(self::ACTOR, $this->request->getFromAccount('erin@cloud.example')->getId());
+	}
+
+	public function testARefreshThatKnowsNoHandleLeavesTheStoredOneAlone(): void {
+		$this->request->save($this->erin());
+
+		// an incoming Update{Person} carries no handle — ActivityPub has no such
+		// field — and must not be able to blank one that is already right
+		$fromTheWire = $this->erin();
+		$fromTheWire->setAccount('');
+		$fromTheWire->setName('Erin Renamed');
+		$this->request->update($fromTheWire);
+
+		$read = $this->request->getFromId(self::ACTOR);
+		$this->assertSame('erin@remote.example', $read->getAccount());
+		$this->assertSame('Erin Renamed', $read->getName(), 'the rest of the refresh still applied');
+	}
+
 	public function testLookupByAccountAndDeletion(): void {
 		$this->request->save($this->erin());
 

@@ -400,6 +400,7 @@ Without `--index`:
 
 - runs `CheckService::checkInstallationStatus()`,
 - prints how many invalid followers and invalid notes were removed,
+- reports whether the address Social builds ids from still matches the one the server reports, printing both and what it would cost to change either when they disagree (the `.well-known` probe is not run here: it needs a request and a session cache the console does not have — the app shows that one on its first screen),
 - prints the current app configuration as pretty JSON.
 
 With `--index` the checks are skipped entirely. The command warns that the operation

@@ -182,6 +182,9 @@ class NavigationControllerTest extends TestCase {
 
 	public function testNavigateAutoConfiguresTheCloudAddressFromCliUrl(): void {
 		$this->systemValues(['overwrite.cli.url' => 'https://cloud.example/']);
+		// the derivation itself lives in CheckService, where it is tested; here
+		// it only matters that what it answers is what gets stored and returned
+		$this->checkService->method('derivedCloudAddress')->willReturn('https://cloud.example/index.php');
 		$this->configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
 		$this->configService->method('getSocialUrl')->willReturn('x');
 		$this->checkService->expects($this->once())->method('checkInstallationStatus')->with(true);

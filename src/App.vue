@@ -8,17 +8,7 @@
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
-				<h3 v-if="!serverData.checks.checks.wellknown">
-					{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
-				</h3>
-				<p v-if="!serverData.checks.checks.wellknown">
-					{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud cannot configure this automatically. To use Social, the administrator of this Nextcloud instance needs to manually configure the .well-known redirects:') }} <a class="external_link"
-						href="https://docs.nextcloud.com/server/latest/go.php?to=admin-setup-well-known-URL"
-						target="_blank"
-						rel="noreferrer noopener">
-						{{ t('social', 'Open documentation') }} ↗
-					</a>
-				</p>
+				<SetupChecks :checks="serverData.checks.checks" :addresses="serverData.checks.addresses" />
 			</div>
 			<router-view :key="$route.fullPath" />
 		</NcAppContent>
@@ -42,19 +32,9 @@
 						{{ t('social', 'Finish setup') }}
 					</NcButton>
 				</p>
-				<template v-if="!serverData.checks.success">
-					<h3 v-if="!serverData.checks.checks.wellknown">
-						{{ t('social', '.well-known/webfinger isn\'t properly set up!') }}
-					</h3>
-					<p v-if="!serverData.checks.checks.wellknown">
-						{{ t('social', 'Social needs the .well-known automatic discovery to be properly set up. If Nextcloud is not installed in the root of the domain, it is often the case that Nextcloud cannot configure this automatically. To use Social, the administrator of this Nextcloud instance needs to manually configure the .well-known redirects:') }} <a class="external_link"
-							href="https://docs.nextcloud.com/server/latest/go.php?to=admin-setup-well-known-URL"
-							target="_blank"
-							rel="noreferrer noopener">
-							{{ t('social', 'Open documentation') }} ↗
-						</a>
-					</p>
-				</template>
+				<SetupChecks v-if="!serverData.checks.success"
+					:checks="serverData.checks.checks"
+					:addresses="serverData.checks.addresses" />
 			</form>
 		</NcAppContent>
 		<NcAppContent v-else class="setup">
@@ -70,6 +50,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 
 import Navigation from './components/Navigation.vue'
 import ShortcutHelp from './components/ShortcutHelp.vue'
+import SetupChecks from './components/SetupChecks.vue'
 import { listenForShortcuts } from './services/shortcuts.js'
 import eventBus from './services/eventBus.js'
 
@@ -86,6 +67,7 @@ export default {
 		NcButton,
 		Navigation,
 		ShortcutHelp,
+		SetupChecks,
 	},
 	mixins: [currentuserMixin],
 	data() {

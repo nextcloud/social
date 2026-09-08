@@ -16,6 +16,7 @@ use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -47,6 +48,7 @@ class CheckServiceTest extends TestCase {
 	private StreamRequest|MockObject $streamRequest;
 	private AccountService|MockObject $accountService;
 	private MiscService|MockObject $miscService;
+	private ConfigService|MockObject $configService;
 	private CheckService $service;
 
 	protected function setUp(): void {
@@ -63,6 +65,7 @@ class CheckServiceTest extends TestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->miscService = $this->createMock(MiscService::class);
+		$this->configService = $this->createMock(ConfigService::class);
 
 		$this->service = new CheckService(
 			$this->userManager,
@@ -77,7 +80,7 @@ class CheckServiceTest extends TestCase {
 			$this->createMock(StreamDestRequest::class),
 			$this->streamRequest,
 			$this->accountService,
-			$this->createMock(ConfigService::class),
+			$this->configService,
 			$this->miscService,
 		);
 	}
@@ -150,18 +153,101 @@ class CheckServiceTest extends TestCase {
 		$this->assertFalse($this->service->checkWellKnown());
 	}
 
+	/** The server declares a URL and the app agrees with it. */
+	private function addressesAgree(): void {
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $key === 'overwrite.cli.url' ? 'https://cloud.example' : $default
+		);
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example/index.php');
+	}
+
 	public function testCheckDefaultReportsTheWellKnownCheck(): void {
 		$this->cache->method('get')->willReturn('true');
+		$this->addressesAgree();
 
-		$this->assertSame(['success' => true, 'checks' => ['wellknown' => true]], $this->service->checkDefault());
+		$this->assertSame(
+			[
+				'success' => true,
+				'checks' => ['wellknown' => true, 'cloudAddress' => true],
+				'addresses' => [
+					'configured' => 'https://cloud.example/index.php',
+					'expected' => 'https://cloud.example/index.php',
+				],
+			],
+			$this->service->checkDefault()
+		);
 	}
 
 	public function testCheckDefaultFailsWhenACheckFails(): void {
 		$this->cache->method('get')->willReturn(null);
 		$this->config->method('getAppValue')->willReturn('');
+		$this->addressesAgree();
 		$this->client->method('get')->willReturn($this->response(404));
 
-		$this->assertSame(['success' => false, 'checks' => ['wellknown' => false]], $this->service->checkDefault());
+		$result = $this->service->checkDefault();
+
+		$this->assertFalse($result['success']);
+		$this->assertFalse($result['checks']['wellknown']);
+	}
+
+	// the address the app builds ids from vs. the one the server says it has
+
+	public function testTheAddressCheckPassesWhenTheServerAndTheAppAgree(): void {
+		$this->addressesAgree();
+
+		$this->assertTrue($this->service->checkCloudAddress());
+	}
+
+	public function testTheAddressCheckFailsOnceTheServersUrlHasMovedOn(): void {
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $key === 'overwrite.cli.url' ? 'https://new.example' : $default
+		);
+		// what the app was set up with, and still builds every id from
+		$this->configService->method('getCloudUrl')->willReturn('https://old.example/index.php');
+
+		$this->assertFalse($this->service->checkCloudAddress());
+	}
+
+	public function testATrailingSlashIsNotADisagreement(): void {
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $key === 'overwrite.cli.url' ? 'https://cloud.example/' : $default
+		);
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example/index.php/');
+
+		$this->assertTrue($this->service->checkCloudAddress());
+	}
+
+	public function testAServerThatDeclaresNoUrlIsNotADisagreement(): void {
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $default
+		);
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example/index.php');
+
+		// nothing to compare against; this is not the app's problem to report
+		$this->assertTrue($this->service->checkCloudAddress());
+	}
+
+	public function testAnAppThatWasNeverSetUpIsNotADisagreement(): void {
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $key === 'overwrite.cli.url' ? 'https://cloud.example' : $default
+		);
+		$this->configService->method('getCloudUrl')
+			->willThrowException(new SocialAppConfigException());
+
+		// the setup screen handles this one; it is not a mismatch
+		$this->assertTrue($this->service->checkCloudAddress());
+	}
+
+	public function testTheIndexPhpSuffixFollowsTheFrontController(): void {
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => match ($key) {
+				'overwrite.cli.url' => 'https://cloud.example',
+				'htaccess.IgnoreFrontController' => true,
+				default => $default,
+			}
+		);
+
+		$this->assertSame('https://cloud.example', $this->service->derivedCloudAddress());
 	}
 
 	private function follow(string $id, string $actorId, string $objectId): Follow {
