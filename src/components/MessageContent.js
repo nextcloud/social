@@ -53,7 +53,7 @@ function domToVue(hFn, routerLink, node, context) {
 		return cleanCopy(hFn, routerLink, node, context)
 	}
 	// Anything else is reduced to its text, which also drops every attribute
-	return transformText(hFn, routerLink, node.textContent ?? '')
+	return transformText(hFn, routerLink, node.textContent ?? '', context)
 }
 
 /**
@@ -88,14 +88,62 @@ function safeHref(node) {
 const mentionRegex = /(\W|^)((@\w+)@[\w.\-_]+)/i
 const hashTagRegex = /(\W|^)(#\w+)/i
 
+const customEmojiRegex = /:([a-zA-Z0-9_]+):/
+
+/**
+ * Render a plain-text string (a display name) with its custom emoji replaced
+ * by inline images. Everything goes through createElement — never innerHTML.
+ *
+ * @param hFn the render function
+ * @param text the plain text
+ * @param emojis the CustomEmoji entries of the entity
+ */
+export function emojifyPlain(hFn, text, emojis) {
+	return transformTextRegex(text ?? '', [
+		{
+			regex: customEmojiRegex,
+			onMatch: match => {
+				const emoji = (emojis ?? []).find((entry) => entry.shortcode === match[1])
+				if (!emoji) {
+					return match[0]
+				}
+				return hFn('img', {
+					class: 'custom-emoji',
+					src: emoji.url,
+					alt: match[0],
+					title: match[0],
+					draggable: 'false',
+				})
+			},
+		},
+	])
+}
+
 /**
  *
  * @param hFn
  * @param routerLink
  * @param text
+ * @param context
  */
-function transformText(hFn, routerLink, text) {
+function transformText(hFn, routerLink, text, context = {}) {
 	return transformTextRegex(text, [
+		{
+			regex: customEmojiRegex,
+			onMatch: match => {
+				const emoji = (context.emojis ?? []).find((entry) => entry.shortcode === match[1])
+				if (!emoji) {
+					return match[0]
+				}
+				return hFn('img', {
+					class: 'custom-emoji',
+					src: emoji.url,
+					alt: match[0],
+					title: match[0],
+					draggable: 'false',
+				})
+			},
+		},
 		{
 			regex: mentionRegex,
 			onMatch: match => [
@@ -170,9 +218,9 @@ function cleanLink(hFn, routerLink, node, context) {
 			attributes.href = safeHref(node)
 			attributes.title = tag.name
 
-			return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent)])
+			return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent, context)])
 		} else {
-			return transformText(hFn, routerLink, node.textContent)
+			return transformText(hFn, routerLink, node.textContent, context)
 		}
 	case 'hashtag':
 		return hFn(

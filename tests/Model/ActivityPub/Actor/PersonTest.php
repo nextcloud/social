@@ -401,6 +401,34 @@ class PersonTest extends TestCase {
 		$this->assertTrue($person->isLocked(), 'cache actor rows carry the flag in their source document');
 	}
 
+	public function testCustomEmojiInTheDisplayNameReachTheAccountEntity(): void {
+		$person = new Person();
+		$person->import([
+			'id' => 'https://mastodon.social/users/alice',
+			'type' => 'Person',
+			'preferredUsername' => 'alice',
+			'name' => 'Alice :verified:',
+			'tag' => [
+				['type' => 'Emoji', 'name' => ':verified:', 'icon' => ['url' => 'https://mastodon.social/emoji/verified.png']],
+			],
+		]);
+
+		$this->assertSame('verified', $person->getEmojis()[0]['shortcode']);
+		$this->assertSame($person->getEmojis(), $person->exportAsLocal()['emojis']);
+	}
+
+	public function testCustomEmojiSurviveTheActorCacheViaTheSource(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => json_encode(['tag' => [
+				['type' => 'Emoji', 'name' => ':verified:', 'icon' => ['url' => 'https://mastodon.social/emoji/verified.png']],
+			]]),
+		]);
+
+		$this->assertSame('verified', $person->getEmojis()[0]['shortcode']);
+	}
+
 	public function testImportFromDatabaseReadsTheActorRow(): void {
 		$person = new Person();
 

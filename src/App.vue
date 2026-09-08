@@ -302,3 +302,13 @@ img.emoji {
 }
 
 </style>
+
+<style>
+/* remote custom emoji rendered inline in post content and display names */
+img.custom-emoji {
+	height: 1.25em;
+	width: auto;
+	vertical-align: text-bottom;
+	object-fit: contain;
+}
+</style>
