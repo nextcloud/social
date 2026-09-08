@@ -326,6 +326,35 @@ describe('TimelineList', () => {
 		})
 	})
 
+	describe('keyboard reading', () => {
+		const posts = [
+			{ id: '1', account: { id: 'a' }, content: 'one' },
+			{ id: '2', account: { id: 'b' }, content: 'two' },
+		]
+
+		it('moves the keyboard, not only a highlight', async () => {
+			const { wrapper } = mountList({ timeline: posts })
+			const entries = wrapper.findAll('.timeline-entry')
+			entries.forEach((entry) => {
+				entry.element.focus = vi.fn()
+				entry.element.scrollIntoView = vi.fn()
+			})
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			// scrolling alone leaves the keyboard where it was, which is the
+			// one thing a reader using j/k cannot afford
+			expect(entries[0].element.focus).toHaveBeenCalledWith({ preventScroll: true })
+		})
+
+		it('gives an entry somewhere for focus to land', () => {
+			const { wrapper } = mountList({ timeline: posts })
+
+			expect(wrapper.find('.timeline-entry').attributes('tabindex')).toBe('-1')
+		})
+	})
+
 	describe('marking notifications read', () => {
 		// the shape the server actually sends: the row id, as a string, in `id`
 		const notifications = [
