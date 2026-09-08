@@ -45,6 +45,7 @@ class CoreRequestBuilder {
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_NOTIFICATION = 'social_notif';
+	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
@@ -240,6 +241,17 @@ class CoreRequestBuilder {
 		self::TABLE_STREAM_TAGS => [
 			'stream_id',
 			'hashtag'
+		],
+		self::TABLE_REPORTS => [
+			'id',
+			'actor_id',
+			'account_id',
+			'status_ids',
+			'comment',
+			'category',
+			'local',
+			'resolved',
+			'creation'
 		],
 	];
 

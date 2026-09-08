@@ -67,7 +67,10 @@ class NotifierTest extends TestCase {
 	/** @return IL10N&MockObject */
 	private function translationsFor(string $language): IL10N {
 		$l10n = $this->createMock(IL10N::class);
-		$l10n->method('t')->willReturnCallback(fn (string $text): string => '[' . $language . '] ' . $text);
+		$l10n->method('t')->willReturnCallback(
+			fn (string $text, $params = []): string => '[' . $language . '] '
+				. ((array)$params === [] ? $text : vsprintf($text, (array)$params))
+		);
 		$this->factory->method('get')->with('social', $language)->willReturn($l10n);
 
 		return $l10n;
@@ -135,6 +138,52 @@ class NotifierTest extends TestCase {
 
 		$notification = $this->notification('social', 'update_alpha3', [$other]);
 		$notification->expects($this->once())->method('addParsedAction')->with($other);
+
+		$this->notifier->prepare($notification, 'en');
+	}
+
+	/** @return INotification&MockObject */
+	private function reportNotification(array $params): INotification {
+		$notification = $this->createMock(INotification::class);
+		$notification->method('getApp')->willReturn('social');
+		$notification->method('getSubject')->willReturn('report_new');
+		$notification->method('getSubjectParameters')->willReturn($params);
+		$notification->method('getActions')->willReturn([]);
+
+		return $notification;
+	}
+
+	public function testANewLocalReportLinksToTheAdminSettings(): void {
+		$this->translationsFor('en');
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->with('settings.AdminSettings.index', ['section' => 'social'])
+			->willReturn('https://cloud.example/settings/admin/social');
+
+		$notification = $this->reportNotification([
+			'reporter' => 'https://cloud.example/apps/social/@alice',
+			'account' => 'https://cloud.example/apps/social/@bob',
+			'local' => true,
+		]);
+		$notification->expects($this->once())->method('setParsedSubject')
+			->with('[en] New report about https://cloud.example/apps/social/@bob');
+		$notification->expects($this->once())->method('setParsedMessage')
+			->with($this->stringContains('administration settings'));
+		$notification->expects($this->once())->method('setLink')
+			->with('https://cloud.example/settings/admin/social');
+
+		$this->assertSame($notification, $this->notifier->prepare($notification, 'en'));
+	}
+
+	public function testANewRemoteReportSaysSo(): void {
+		$this->translationsFor('en');
+
+		$notification = $this->reportNotification([
+			'reporter' => 'https://mastodon.social/actor',
+			'account' => 'https://cloud.example/apps/social/@bob',
+			'local' => false,
+		]);
+		$notification->expects($this->once())->method('setParsedSubject')
+			->with('[en] New report about https://cloud.example/apps/social/@bob from another instance');
 
 		$this->notifier->prepare($notification, 'en');
 	}

@@ -28,6 +28,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
+use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
@@ -40,6 +41,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
+use OCA\Social\Service\ReportService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
@@ -85,6 +87,8 @@ class ApiControllerTest extends TestCase {
 	private $actionService;
 	/** @var PostService&MockObject */
 	private $postService;
+	/** @var ReportService&MockObject */
+	private $reportService;
 	/** @var ConfigService&MockObject */
 	private $configService;
 	/** @var CurlService&MockObject */
@@ -121,6 +125,7 @@ class ApiControllerTest extends TestCase {
 		$this->streamService = $this->createMock(StreamService::class);
 		$this->actionService = $this->createMock(ActionService::class);
 		$this->postService = $this->createMock(PostService::class);
+		$this->reportService = $this->createMock(ReportService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->curlService = $this->createMock(CurlService::class);
 
@@ -154,6 +159,7 @@ class ApiControllerTest extends TestCase {
 			$this->streamService,
 			$this->actionService,
 			$this->postService,
+			$this->reportService,
 			$this->configService,
 			$this->curlService
 		);
@@ -940,6 +946,71 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertUnauthorized(
 			$this->controller('Bearer s3cret')->updateCredentials(),
+			'token scope does not allow this request (needs write)'
+		);
+	}
+
+	// reports
+
+	public function testReportNewFilesAReportAgainstTheResolvedAccount(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->request->method('getParams')->willReturn([
+			'account_id' => '42',
+			'status_ids' => ['7', 8],
+			'comment' => 'spam bot',
+			'category' => 'spam',
+		]);
+
+		$report = new Report();
+		$this->reportService->expects($this->once())
+			->method('reportFromLocal')
+			->with($this->identicalTo($viewer), $this->identicalTo($target), ['7', '8'], 'spam bot', 'spam')
+			->willReturn($report);
+
+		$response = $this->controller()->reportNew();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($report, $response->getData());
+	}
+
+	public function testReportNewRequiresAnAccountId(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['comment' => 'no target']);
+		$this->reportService->expects($this->never())->method('reportFromLocal');
+
+		$response = $this->controller()->reportNew();
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
+	public function testReportNewRefusesReportingYourself(): void {
+		$viewer = $this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['account_id' => '42']);
+		$self = $this->createMock(Person::class);
+		$self->method('getNid')->willReturn(42);
+		$self->method('getId')->willReturn($viewer->getId());
+		$this->cacheActorService->method('getFromNids')->with([42])->willReturn([$self]);
+		$this->reportService->expects($this->never())->method('reportFromLocal');
+
+		$response = $this->controller()->reportNew();
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+	}
+
+	public function testReportNewRequiresAViewer(): void {
+		$this->reportService->expects($this->never())->method('reportFromLocal');
+
+		$this->assertUnauthorized($this->controller()->reportNew());
+	}
+
+	public function testReportNewRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.reportNew';
+		$this->bearerFor(['read']);
+		$this->reportService->expects($this->never())->method('reportFromLocal');
+
+		$this->assertUnauthorized(
+			$this->controller('Bearer s3cret')->reportNew(),
 			'token scope does not allow this request (needs write)'
 		);
 	}

@@ -52,6 +52,7 @@ return [
 		['name' => 'Api#followRequests', 'url' => '/api/v1/follow_requests', 'verb' => 'GET'],
 		['name' => 'Api#followRequestAuthorize', 'url' => '/api/v1/follow_requests/{id}/authorize', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#followRequestReject', 'url' => '/api/v1/follow_requests/{id}/reject', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Api#reportNew', 'url' => '/api/v1/reports', 'verb' => 'POST'],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
@@ -111,6 +112,12 @@ return [
 
 		['name' => 'Queue#asyncForRequest', 'url' => '/async/request/{token}', 'verb' => 'POST'],
 
-		['name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress', 'verb' => 'POST']
+		['name' => 'Config#setCloudAddress', 'url' => '/api/v1/config/cloudAddress', 'verb' => 'POST'],
+
+		// admin-only moderation actions (session + CSRF, never part of the client API)
+		['name' => 'Moderation#reportResolve', 'url' => '/moderation/reports/{id}/resolve', 'verb' => 'POST'],
+		['name' => 'Moderation#fediverseAdd', 'url' => '/moderation/fediverse/add', 'verb' => 'POST'],
+		['name' => 'Moderation#fediverseRemove', 'url' => '/moderation/fediverse/remove', 'verb' => 'POST'],
+		['name' => 'Moderation#fediverseAccess', 'url' => '/moderation/fediverse/access', 'verb' => 'POST']
 	]
 ];

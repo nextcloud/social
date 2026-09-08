@@ -28,6 +28,7 @@ use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
@@ -36,7 +37,7 @@ use OCA\Social\Service\ConfigService;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
- * Builds an AP dispatcher whose 22 interfaces are mocks, so model code that
+ * Builds an AP dispatcher whose 23 interfaces are mocks, so model code that
  * reaches AP::$activityPub can run without a server. Tests using it must reset
  * AP::$activityPub to null in tearDown().
  */
@@ -63,6 +64,7 @@ trait TActivityPubMocks {
 			CreateInterface::class,
 			DeleteInterface::class,
 			DocumentInterface::class,
+			FlagInterface::class,
 			FollowInterface::class,
 			ImageInterface::class,
 			LikeInterface::class,
@@ -107,7 +109,7 @@ trait TActivityPubMocks {
 	}
 
 	/**
-	 * @param class-string $class one of the 22 interface classes
+	 * @param class-string $class one of the 23 interface classes
 	 */
 	protected function apInterface(string $class): MockObject {
 		return $this->apInterfaces[$class];

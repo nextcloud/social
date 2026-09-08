@@ -29,6 +29,7 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\Client\Status;
 use OCA\Social\Model\Post;
+use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
@@ -41,6 +42,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
+use OCA\Social\Service\ReportService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
@@ -76,6 +78,7 @@ class ApiController extends Controller {
 	private StreamService $streamService;
 	private ActionService $actionService;
 	private PostService $postService;
+	private ReportService $reportService;
 	private ConfigService $configService;
 	private CurlService $curlService;
 
@@ -99,6 +102,7 @@ class ApiController extends Controller {
 		StreamService $streamService,
 		ActionService $actionService,
 		PostService $postService,
+		ReportService $reportService,
 		ConfigService $configService,
 		CurlService $curlService,
 	) {
@@ -118,6 +122,7 @@ class ApiController extends Controller {
 		$this->streamService = $streamService;
 		$this->actionService = $actionService;
 		$this->postService = $postService;
+		$this->reportService = $reportService;
 		$this->configService = $configService;
 		$this->curlService = $curlService;
 
@@ -265,6 +270,50 @@ class ApiController extends Controller {
 			);
 		} catch (FollowNotFoundException $e) {
 			return new DataResponse(['error' => 'no pending follow request'], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * Files a moderation report about an account (and optionally some of its
+	 * statuses) for the instance admins.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function reportNew(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = $this->convertInput(file_get_contents('php://input'));
+			$accountId = (string)($input['account_id'] ?? '');
+			if ($accountId === '') {
+				return new DataResponse(['error' => 'account_id is required'], Http::STATUS_UNPROCESSABLE_ENTITY);
+			}
+
+			$target = $this->resolveTargetAccount($accountId);
+			if ($target->getId() === $this->viewer->getId()) {
+				return new DataResponse(['error' => 'you cannot report yourself'], Http::STATUS_UNPROCESSABLE_ENTITY);
+			}
+
+			$statusIds = $input['status_ids'] ?? [];
+			if (!is_array($statusIds)) {
+				$statusIds = [$statusIds];
+			}
+			$statusIds = array_map('strval', $statusIds);
+
+			$report = $this->reportService->reportFromLocal(
+				$this->viewer,
+				$target,
+				$statusIds,
+				(string)($input['comment'] ?? ''),
+				(string)($input['category'] ?? Report::CATEGORY_OTHER)
+			);
+			$target->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($report, Http::STATUS_OK);
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}
@@ -1295,7 +1344,8 @@ class ApiController extends Controller {
 		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
 
 		$accepted = match ($name) {
-			'statusNew', 'statusUpdate', 'mediaNew', 'statusAction', 'updateCredentials' => ['write'],
+			'statusNew', 'statusUpdate', 'mediaNew', 'statusAction',
+			'updateCredentials', 'reportNew' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
 			'appsCredentials' => [],

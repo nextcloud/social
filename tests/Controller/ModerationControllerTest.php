@@ -1,0 +1,128 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Controller;
+
+use OCA\Social\Controller\ModerationController;
+use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Model\Report;
+use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\ReportService;
+use OCP\AppFramework\Http;
+use OCP\IRequest;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+
+class ModerationControllerTest extends TestCase {
+	private ReportService|MockObject $reportService;
+	private FediverseService|MockObject $fediverseService;
+	private ModerationController $controller;
+
+	protected function setUp(): void {
+		$this->reportService = $this->createMock(ReportService::class);
+		$this->fediverseService = $this->createMock(FediverseService::class);
+		$this->controller = new ModerationController(
+			$this->createMock(IRequest::class),
+			$this->reportService,
+			$this->fediverseService
+		);
+	}
+
+	public function testModerationRoutesRequireAnAdminAndCsrf(): void {
+		// no @PublicPage/@NoAdminRequired/@NoCSRFRequired anywhere: the server
+		// only dispatches these routes for an admin session with a CSRF token
+		$reflection = new \ReflectionClass(ModerationController::class);
+		$doc = (string)$reflection->getDocComment();
+		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			$doc .= (string)$method->getDocComment();
+		}
+
+		$this->assertStringNotContainsString('@PublicPage', $doc);
+		$this->assertStringNotContainsString('@NoAdminRequired', $doc);
+		$this->assertStringNotContainsString('@NoCSRFRequired', $doc);
+	}
+
+	public function testReportResolveMarksTheReport(): void {
+		$report = (new Report())->setId(7)->setResolved(true);
+		$this->reportService->expects($this->once())
+			->method('setResolved')->with(7, true)->willReturn($report);
+
+		$response = $this->controller->reportResolve(7);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($report, $response->getData());
+	}
+
+	public function testReportResolveCanReopen(): void {
+		$this->reportService->expects($this->once())
+			->method('setResolved')->with(7, false)->willReturn(new Report());
+
+		$this->controller->reportResolve(7, false);
+	}
+
+	public function testReportResolveOfAnUnknownReportIsNotFound(): void {
+		$this->reportService->method('setResolved')
+			->willThrowException(new ReportNotFoundException());
+
+		$response = $this->controller->reportResolve(999);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+	}
+
+	public function testFediverseAddNormalisesAndReturnsTheList(): void {
+		$this->fediverseService->expects($this->once())->method('addAddress')->with('evil.example');
+		$this->fediverseService->method('getListedAddresses')->willReturn(['evil.example']);
+
+		$response = $this->controller->fediverseAdd('  EVIL.example ');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['list' => ['evil.example']], $response->getData());
+	}
+
+	public function testFediverseAddRefusesAnInvalidAddress(): void {
+		$this->fediverseService->expects($this->never())->method('addAddress');
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller->fediverseAdd('not a hostname!')->getStatus()
+		);
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller->fediverseAdd('')->getStatus()
+		);
+	}
+
+	public function testFediverseRemoveReturnsTheRemainingList(): void {
+		$this->fediverseService->expects($this->once())->method('removeAddress')->with('evil.example');
+		$this->fediverseService->method('getListedAddresses')->willReturn([]);
+
+		$response = $this->controller->fediverseRemove('evil.example');
+
+		$this->assertSame(['list' => []], $response->getData());
+	}
+
+	public function testFediverseAccessRejectsAnUnknownType(): void {
+		$this->fediverseService->method('setAccessType')
+			->willThrowException(new \Exception('invalid type'));
+
+		$this->assertSame(
+			Http::STATUS_UNPROCESSABLE_ENTITY,
+			$this->controller->fediverseAccess('everything')->getStatus()
+		);
+	}
+
+	public function testFediverseAccessSwitchesTheMode(): void {
+		$this->fediverseService->expects($this->once())->method('setAccessType')->with('none_but');
+		$this->fediverseService->method('getAccessType')->willReturn('none_but');
+
+		$response = $this->controller->fediverseAccess('none_but');
+
+		$this->assertSame(['accessType' => 'none_but'], $response->getData());
+	}
+}

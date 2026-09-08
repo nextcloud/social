@@ -27,6 +27,7 @@ use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
@@ -49,6 +50,7 @@ use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
@@ -88,6 +90,7 @@ class APTest extends TestCase {
 			'Create' => ['Create', Create::class],
 			'Delete' => ['Delete', Delete::class],
 			'Document' => ['Document', Document::class],
+			'Flag' => ['Flag', Flag::class],
 			'Follow' => ['Follow', Follow::class],
 			'Image' => ['Image', Image::class],
 			'Like' => ['Like', Like::class],
@@ -154,6 +157,7 @@ class APTest extends TestCase {
 			'Create' => ['Create', CreateInterface::class],
 			'Delete' => ['Delete', DeleteInterface::class],
 			'Document' => ['Document', DocumentInterface::class],
+			'Flag' => ['Flag', FlagInterface::class],
 			'Follow' => ['Follow', FollowInterface::class],
 			'Image' => ['Image', ImageInterface::class],
 			'Like' => ['Like', LikeInterface::class],
