@@ -169,6 +169,7 @@
 // eslint-disable-next-line no-unused-vars
 // side-effect imports: they register the mention plugin and the string
 // interface that the rendered content relies on
+import { fromNow, fullDateTime } from '../utils/relativeTime.js'
 import 'linkify-plugin-mention'
 import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
@@ -194,7 +195,6 @@ import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { originOf } from '../utils/instanceIdentity.js'
-import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
 import DisplayName from './DisplayName.js'
@@ -291,13 +291,13 @@ export default {
 		 * @return {string}
 		 */
 		relativeTimestamp() {
-			return moment(this.item.created_at).fromNow()
+			return fromNow(this.item.created_at)
 		},
 		/**
 		 * @return {string}
 		 */
 		formattedDate() {
-			return moment(this.item.created_at).format('LLL')
+			return fullDateTime(this.item.created_at)
 		},
 		/**
 		 * @return {number}

@@ -70,6 +70,9 @@ export default {
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
+			pollEvery: 30000,
+			/** when the tab was last hidden, so returning can catch up */
+			hiddenSince: 0,
 			/** posts that arrived while the reader was further down the page */
 			arrived: 0,
 			/** index of the post the keyboard is on, -1 when none */
@@ -169,12 +172,17 @@ export default {
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
 		const hasPush = listen('social_timeline', () => this.fetchNewStatuses())
-		this.intervalId = setInterval(() => this.fetchNewStatuses(), (hasPush ? 300 : 30) * 1000)
+		this.pollEvery = (hasPush ? 300 : 30) * 1000
+		this.intervalId = setInterval(() => this.pollIfVisible(), this.pollEvery)
+		// a tab nobody is looking at does not need to ask; it catches up when
+		// it comes back
+		document.addEventListener('visibilitychange', this.pollOnReturn)
 		this.setupIntersectionObserver()
 		eventBus.on('shortcut:next', this.focusNext)
 		eventBus.on('shortcut:previous', this.focusPrevious)
 	},
 	unmounted() {
+		document.removeEventListener('visibilitychange', this.pollOnReturn)
 		eventBus.off('shortcut:next', this.focusNext)
 		eventBus.off('shortcut:previous', this.focusPrevious)
 		clearInterval(this.intervalId)
@@ -229,6 +237,31 @@ export default {
 				logger.error('Failed to load more timeline entries', { error })
 				this.allLoaded = true
 				this.loading = false
+			}
+		},
+		/**
+		 * The polling tick. Asking while the tab is hidden is traffic nobody
+		 * is waiting for — on an instance with many open tabs it is most of
+		 * the traffic there is.
+		 */
+		pollIfVisible() {
+			if (document.visibilityState === 'hidden') {
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			this.fetchNewStatuses()
+		},
+		/** Catches up once, on the way back to a tab that was left. */
+		pollOnReturn() {
+			if (document.visibilityState !== 'visible' || this.hiddenSince === 0) {
+				return
+			}
+
+			const away = Date.now() - this.hiddenSince
+			this.hiddenSince = 0
+			if (away >= this.pollEvery) {
+				this.fetchNewStatuses()
 			}
 		},
 		focusNext() {

@@ -62,6 +62,7 @@
 </template>
 
 <script>
+import { fromNow, fullDateTime } from '../utils/relativeTime.js'
 import Bell from 'vue-material-design-icons/Bell.vue'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
@@ -72,7 +73,6 @@ import Poll from 'vue-material-design-icons/Poll.vue'
 import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import { translate } from '@nextcloud/l10n'
-import moment from '@nextcloud/moment'
 import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
@@ -129,11 +129,11 @@ export default {
 		},
 		/** @return {string} */
 		notificationFormattedDate() {
-			return moment(this.notification.created_at).format('LLL')
+			return fullDateTime(this.notification.created_at)
 		},
 		/** @return {string} */
 		notificationRelativeTimestamp() {
-			return moment(this.notification.created_at).fromNow()
+			return fromNow(this.notification.created_at)
 		},
 		/** @return {boolean} */
 		isBoost() {

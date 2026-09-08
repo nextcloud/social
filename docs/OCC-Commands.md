@@ -274,6 +274,31 @@ this command. Each matching row is printed as one line of JSON.
 
 ---
 
+## Development
+
+### `social:benchmark`
+
+Seeds a plausible amount of content and times the queries behind the timelines, because a query's cost cannot be judged on the couple of dozen rows a development instance holds. **For development instances only** — it writes thousands of rows.
+
+```
+php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer=USER]
+                         [--seed-only] [--time-only] [--clean]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--actors` | int (200) | Remote actors to seed |
+| `--notes` | int (5000) | Public notes to seed, spread over the preceding weeks |
+| `--follows` | int (150) | How many of those actors the viewer follows, which is what the home timeline joins through |
+| `--viewer` | username | The local account the timelines are read as; the first local actor by default |
+| `--seed-only` | none | Write the rows without timing anything |
+| `--time-only` | none | Time what is already seeded |
+| `--clean` | none | Delete everything the command wrote and nothing else |
+
+Every row it writes carries `benchmark.invalid` in its id, which is what `--clean` matches on. The reported time is the second run of each query, so it measures a served request rather than a cold cache.
+
+---
+
 ## Cache
 
 ### `social:cache:refresh`
