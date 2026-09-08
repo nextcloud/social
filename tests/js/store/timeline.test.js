@@ -420,7 +420,7 @@ describe('timeline store actions', () => {
 
 			await expect(store.dispatch('createMedia', new File(['x'], 'x.txt'))).resolves.toBeUndefined()
 
-			expect(showError).toHaveBeenCalledWith('Failed to create a media')
+			expect(showError).toHaveBeenCalledWith('Could not upload the attachment')
 			expect(logger.error).toHaveBeenCalledWith('Failed to create a media', { error: expect.any(Error) })
 		})
 	})
@@ -441,7 +441,7 @@ describe('timeline store actions', () => {
 
 			await expect(store.dispatch('post', { status: 'x' })).resolves.toBeUndefined()
 
-			expect(showError).toHaveBeenCalledWith('Failed to create a status')
+			expect(showError).toHaveBeenCalledWith('Could not send the post')
 			expect(logger.error).toHaveBeenCalledWith('Failed to create a status', { error: expect.any(Error) })
 		})
 	})
@@ -468,7 +468,7 @@ describe('timeline store actions', () => {
 			await expect(store.dispatch('postEdit', { status, content: 'x', spoiler_text: '', sensitive: false })).resolves.toBeUndefined()
 
 			expect(tl().statuses['1']).toEqual(status)
-			expect(showError).toHaveBeenCalledWith('Failed to edit the status')
+			expect(showError).toHaveBeenCalledWith('Could not save the changes to the post')
 		})
 	})
 
@@ -500,15 +500,15 @@ describe('timeline store actions', () => {
 			expect(tl().statuses['1']).toEqual(status)
 			expect(tl().timeline).toContain('1')
 			expect(tl().timeline).toEqual(['2', '1'])
-			expect(showError).toHaveBeenCalledWith('Failed to delete the status')
+			expect(showError).toHaveBeenCalledWith('Could not delete the post')
 		})
 	})
 
 	describe.each([
-		['postLike', 'favourite', 'favourited', 'favourites_count', false, 1, 'Failed to like status'],
-		['postUnlike', 'unfavourite', 'favourited', 'favourites_count', true, -1, 'Failed to unlike status'],
-		['postBoost', 'reblog', 'reblogged', 'reblogs_count', false, 1, 'Failed to create a boost status'],
-		['postUnBoost', 'unreblog', 'reblogged', 'reblogs_count', true, -1, 'Failed to delete the boost'],
+		['postLike', 'favourite', 'favourited', 'favourites_count', false, 1, 'Could not like the post'],
+		['postUnlike', 'unfavourite', 'favourited', 'favourites_count', true, -1, 'Could not remove the like'],
+		['postBoost', 'reblog', 'reblogged', 'reblogs_count', false, 1, 'Could not boost the post'],
+		['postUnBoost', 'unreblog', 'reblogged', 'reblogs_count', true, -1, 'Could not undo the boost'],
 	])('%s', (action, endpoint, flag, counter, initialFlag, delta, errorMessage) => {
 		const initial = () => makeStatus('1', { [flag]: initialFlag, [counter]: 3 })
 
@@ -545,8 +545,8 @@ describe('timeline store actions', () => {
 	})
 
 	describe.each([
-		['bookmark', true, 'Failed to bookmark the post'],
-		['unbookmark', false, 'Failed to remove the bookmark'],
+		['bookmark', true, 'Could not bookmark the post'],
+		['unbookmark', false, 'Could not remove the bookmark'],
 	])('postBookmark (%s)', (endpoint, bookmarked, errorMessage) => {
 		it(`flips the flag, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
 			const status = makeStatus('1', { bookmarked: !bookmarked })
@@ -595,8 +595,8 @@ describe('timeline store actions', () => {
 	})
 
 	describe.each([
-		['pin', true, 'Failed to pin the post'],
-		['unpin', false, 'Failed to unpin the post'],
+		['pin', true, 'Could not pin the post'],
+		['unpin', false, 'Could not unpin the post'],
 	])('postPin (%s)', (endpoint, pinned, errorMessage) => {
 		it(`flips the flag optimistically, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
 			const status = makeStatus('1', { pinned: !pinned })
@@ -665,7 +665,7 @@ describe('timeline store actions', () => {
 			// exactly the pre-unlike state: restoring the status AND re-liking
 			// it used to leave favourites_count one too high
 			expect(tl().statuses['1']).toMatchObject({ favourited: true, favourites_count: 3 })
-			expect(showError).toHaveBeenCalledWith('Failed to unlike status')
+			expect(showError).toHaveBeenCalledWith('Could not remove the like')
 		})
 	})
 

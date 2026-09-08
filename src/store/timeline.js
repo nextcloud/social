@@ -6,6 +6,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
+import { translate as t } from '@nextcloud/l10n'
 
 import logger from '../services/logger.js'
 
@@ -226,7 +227,7 @@ const actions = {
 			logger.info('Media created with id ' + data.id)
 			return data
 		} catch (error) {
-			showError('Failed to create a media')
+			showError(t('social', 'Could not upload the attachment'))
 			logger.error('Failed to create a media', { error })
 		}
 	},
@@ -235,7 +236,7 @@ const actions = {
 			const { data } = await axios.post(generateUrl('apps/social/api/v1/statuses'), status)
 			logger.info('Post created', data.id)
 		} catch (error) {
-			showError('Failed to create a status')
+			showError(t('social', 'Could not send the post'))
 			logger.error('Failed to create a status', { error })
 		}
 	},
@@ -249,7 +250,7 @@ const actions = {
 			logger.info('Post edited', response.data.id)
 			return response
 		} catch (error) {
-			showError('Failed to edit the status')
+			showError(t('social', 'Could not save the changes to the post'))
 			logger.error('Failed to edit the status', { error })
 		}
 	},
@@ -260,7 +261,7 @@ const actions = {
 			logger.info('Post deleted with token ' + response.data.result.token)
 		} catch (error) {
 			context.commit('addToTimeline', [status])
-			showError('Failed to delete the status')
+			showError(t('social', 'Could not delete the post'))
 			logger.error('Failed to delete the status', { error })
 		}
 	},
@@ -273,7 +274,7 @@ const actions = {
 			return response
 		} catch (error) {
 			context.commit('unlikeStatus', { status })
-			showError('Failed to like status')
+			showError(t('social', 'Could not like the post'))
 			logger.error('Failed to like status', { error })
 		}
 	},
@@ -296,7 +297,7 @@ const actions = {
 			} else {
 				context.commit('likeStatus', { status })
 			}
-			showError('Failed to unlike status')
+			showError(t('social', 'Could not remove the like'))
 			logger.error('Failed to unlike status', { error })
 		}
 	},
@@ -309,7 +310,7 @@ const actions = {
 			return response
 		} catch (error) {
 			context.commit('unboostStatus', { status })
-			showError('Failed to create a boost status')
+			showError(t('social', 'Could not boost the post'))
 			logger.error('Failed to create a boost status', { error })
 		}
 	},
@@ -322,7 +323,7 @@ const actions = {
 			return response
 		} catch (error) {
 			context.commit('boostStatus', { status })
-			showError('Failed to delete the boost')
+			showError(t('social', 'Could not undo the boost'))
 			logger.error('Failed to delete the boost', { error })
 		}
 	},
@@ -341,7 +342,9 @@ const actions = {
 			return response
 		} catch (error) {
 			context.commit('bookmarkStatus', { status, bookmarked: !bookmarked })
-			showError(bookmarked ? 'Failed to bookmark the post' : 'Failed to remove the bookmark')
+			showError(bookmarked
+				? t('social', 'Could not bookmark the post')
+				: t('social', 'Could not remove the bookmark'))
 			logger.error('Failed to change the bookmark', { error })
 		}
 	},
@@ -357,7 +360,9 @@ const actions = {
 			return response
 		} catch (error) {
 			context.commit('pinStatus', { status, pinned: !pinned })
-			showError(pinned ? 'Failed to pin the post' : 'Failed to unpin the post')
+			showError(pinned
+				? t('social', 'Could not pin the post')
+				: t('social', 'Could not unpin the post'))
 			logger.error('Failed to change the pinned state', { error })
 		}
 	},
