@@ -104,7 +104,7 @@
 	"overrides": {
 		"uuid": "^14.0.0",
 		"fast-xml-parser": ">=5.7.0",
-		"joi": ">=18.2.1",
+		"joi": ">=18.2.8",
 		"@nextcloud/axios": "2.5.2"
 	}
 }
