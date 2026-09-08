@@ -12,7 +12,7 @@
  * The compiler does not complain about any of them, and a reviewer has to know
  * the Vue 2 spelling to notice, so they are asserted instead.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SHORTCUTS } from '../../src/services/shortcuts.js'
@@ -32,6 +32,47 @@ const sourceFiles = (dir = SRC, found = []) => {
 	}
 	return found
 }
+
+/** A comment mentioning prefers-reduced-motion is not a guard. */
+const withoutComments = (content) => content
+	.replace(/\/\*[\s\S]*?\*\//g, '')
+	.replace(/<!--[\s\S]*?-->/g, '')
+	.replace(/^\s*\/\/.*$/gm, '')
+
+/**
+ * Everything inside `@media (prefers-reduced-motion: reduce)` blocks, so the
+ * check can ask what those blocks actually turn off rather than whether the
+ * words appear somewhere in the file.
+ *
+ * @param {string} source a stylesheet or component, comments already stripped
+ * @return {string} the guarded declarations, concatenated
+ */
+const reducedMotionBlocks = (source) => {
+	let guarded = ''
+	const opener = /@media[^{]*prefers-reduced-motion[^{]*\{/g
+	let match
+	while ((match = opener.exec(source)) !== null) {
+		let depth = 1
+		let i = match.index + match[0].length
+		const start = i
+		while (i < source.length && depth > 0) {
+			if (source[i] === '{') {
+				depth++
+			} else if (source[i] === '}') {
+				depth--
+			}
+			i++
+		}
+		guarded += source.slice(start, i)
+	}
+
+	return guarded
+}
+
+const STYLES = resolve(process.cwd(), 'css')
+const shippedStyles = (existsSync(STYLES) ? readdirSync(STYLES) : [])
+	.filter((entry) => entry.endsWith('.css') || entry.endsWith('.scss'))
+	.map((entry) => ({ name: 'css/' + entry, content: readFileSync(join(STYLES, entry), 'utf8') }))
 
 const files = sourceFiles().map((path) => ({
 	name: relative(SRC, path),
@@ -106,13 +147,45 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 	})
 
 	it('guards its animations behind prefers-reduced-motion', () => {
+		// Counted, not merely looked for. The old check asked whether the string
+		// "prefers-reduced-motion" appeared anywhere in the file, which one
+		// guard, one comment or one variable name satisfied for a file with a
+		// dozen animations.
+		const offenders = []
 		for (const { name, content } of files) {
-			// both properties move things; both need an escape hatch
-			if (!/(?:transition|animation):\s*(?!none)/.test(content)) {
+			const source = withoutComments(content)
+			const moves = [...source.matchAll(
+				/(?:transition|animation|transition-property|animation-name|scroll-behavior)\s*:\s*(?!none|auto|initial|unset)/g,
+			)].length
+			if (moves === 0) {
+				continue
+			}
+
+			// how much of the file the reduced-motion blocks actually cover
+			const guarded = reducedMotionBlocks(source)
+			const movesGuarded = [...guarded.matchAll(
+				/(?:transition|animation|transition-property|animation-name|scroll-behavior)\s*:/g,
+			)].length
+
+			if (guarded === '') {
+				offenders.push(`${name}: ${moves} animated properties, no prefers-reduced-motion block`)
+			} else if (movesGuarded === 0) {
+				offenders.push(`${name}: has a prefers-reduced-motion block that turns nothing off`)
+			}
+		}
+
+		expect(offenders).toEqual([])
+	})
+
+	it('scans the stylesheets that ship outside src/ as well', () => {
+		// the scanner roots at src/, so anything in css/ was never looked at
+		for (const { name, content } of shippedStyles) {
+			const source = withoutComments(content)
+			if (!/(?:transition|animation)\s*:\s*(?!none|auto|initial|unset)/.test(source)) {
 				continue
 			}
 			expect(
-				content.includes('prefers-reduced-motion'),
+				source.includes('prefers-reduced-motion'),
 				`${name}: animates without a prefers-reduced-motion escape hatch`,
 			).toBe(true)
 		}

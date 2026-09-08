@@ -42,11 +42,44 @@ export function instanceOf(acct) {
 }
 
 /**
+ * How light a colour may be and still carry white text at 4.5:1.
+ *
+ * A fixed lightness cannot do this: at the same 52%, blue is dark enough for
+ * white text and yellow is nowhere near — `hsl(60, 62%, 52%)` against white is
+ * about 1.5:1, which is an unreadable badge for whoever happens to be on that
+ * instance. So the hue is kept and the lightness is brought down until the
+ * contrast is real.
+ */
+const TARGET_CONTRAST = 4.5
+
+/** One channel of an hsl() colour, 0..1. */
+function channel(hue, saturation, lightness, n) {
+	const a = saturation * Math.min(lightness, 1 - lightness)
+	const k = (n + hue / 30) % 12
+
+	return lightness - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+}
+
+/** Relative luminance per WCAG 2, from an hsl() triple. */
+function luminance(hue, saturation, lightness) {
+	const linear = (value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+
+	return 0.2126 * linear(channel(hue, saturation, lightness, 0))
+		+ 0.7152 * linear(channel(hue, saturation, lightness, 8))
+		+ 0.0722 * linear(channel(hue, saturation, lightness, 4))
+}
+
+/** Contrast of a colour against white, per WCAG 2. */
+function contrastWithWhite(hue, saturation, lightness) {
+	return 1.05 / (luminance(hue, saturation, lightness) + 0.05)
+}
+
+/**
  * A stable colour for one instance, as an `hsl()` string.
  *
- * Saturation and lightness are fixed so that every instance colour carries
- * the same weight next to the theme's own colours, and stays legible on both
- * a light and a dark background.
+ * The hue is the instance's own, so two servers stay tellable apart. The
+ * lightness is whatever that hue needs in order to carry white text at 4.5:1,
+ * which is not the same number for yellow as it is for blue.
  *
  * @param {string} host a hostname
  * @return {string} an hsl() colour, or '' for no host
@@ -56,7 +89,15 @@ export function instanceColour(host) {
 		return ''
 	}
 
-	return `hsl(${hash(host) % 360}, 62%, 52%)`
+	const hue = hash(host) % 360
+	const saturation = 0.62
+
+	let lightness = 0.52
+	while (lightness > 0.2 && contrastWithWhite(hue, saturation, lightness) < TARGET_CONTRAST) {
+		lightness -= 0.01
+	}
+
+	return `hsl(${hue}, 62%, ${Math.round(lightness * 100)}%)`
 }
 
 /**
