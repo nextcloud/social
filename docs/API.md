@@ -264,6 +264,7 @@ The handler first checks `FediverseService::jailed()` and passes the previous re
 
 - The app's own subject gets an extra link added to the existing response, carrying `app`, `name` and `version` properties.
 - For a local actor it returns a JRD document whose `subject` is the requested resource, with aliases for the actor URL and the Nextcloud profile page, a `self` link of type `application/activity+json` pointing at the `/@{username}/` route, an `http://webfinger.net/rel/profile-page` link (`text/html`) to the Nextcloud profile page, and an `http://ostatus.org/schema/1.0/subscribe` link with a `template` of `<social url>ostatus/follow/?uri={uri}`.
+- A missing or empty `resource` parameter is an empty JRD with HTTP 400 (RFC 7033 makes the parameter mandatory).
 - Unknown or non-local subjects produce an empty JRD with HTTP 404 (or hand back to the previous handler when the actor lookup fails outright).
 
 The `nodeinfo` service returns a single link with rel `http://nodeinfo.diaspora.software/ns/schema/2.0` pointing at the app's `/.well-known/nodeinfo/2.0` route; `host-meta` returns XRD (`application/xrd+xml`) with an `lrdd` template pointing at the instance's WebFinger URL.

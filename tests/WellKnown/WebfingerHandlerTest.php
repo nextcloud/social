@@ -188,6 +188,27 @@ class WebfingerHandlerTest extends TestCase {
 		$this->assertSame('alice@cloud.example', $json['subject']);
 	}
 
+	public function testAMissingResourceParameterIsABadRequest(): void {
+		// RFC 7033, section 4.2: the resource parameter is required
+		$this->resource('');
+		$this->request->method('getRequestUri')->willReturn('/.well-known/webfinger');
+		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
+
+		$response = $this->handler->handleWebfinger($this->context, null);
+
+		$this->assertInstanceOf(JrdResponse::class, $response);
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->toHttpResponse()->getStatus());
+	}
+
+	public function testAnEmptyRequestUriRaisesNoWarning(): void {
+		$this->resource('');
+		$this->request->method('getRequestUri')->willReturn('');
+
+		$response = $this->handler->handleWebfinger($this->context, null);
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->toHttpResponse()->getStatus());
+	}
+
 	public function testResourceIsReadFromTheRequestUriWhenParamsAreMissing(): void {
 		$this->resource('');
 		$this->request->method('getRequestUri')->willReturn('/.well-known/webfinger?resource=acct%3Aalice%40cloud.example&rel=self');
