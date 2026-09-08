@@ -141,7 +141,8 @@ class StreamPruneService {
 		$act->select($act->createFunction('1'))
 			->from(CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa')
 			->where('sa.stream_id_prim = s.id_prim')
-			->andWhere('(sa.liked = 1 OR sa.boosted = 1 OR sa.replied = 1 OR sa.bookmarked = 1)');
+			// quoted literals: these are boolean columns on PostgreSQL, ints elsewhere
+			->andWhere("(sa.liked = '1' OR sa.boosted = '1' OR sa.replied = '1' OR sa.bookmarked = '1')");
 		$qb->andWhere('NOT EXISTS (' . $act->getSQL() . ')');
 
 		// a Like/Announce action row pointing at the status
@@ -156,14 +157,14 @@ class StreamPruneService {
 		$follow->select($follow->createFunction('1'))
 			->from(CoreRequestBuilder::TABLE_FOLLOWS, 'f')
 			->where('f.object_id_prim = s.attributed_to_prim')
-			->andWhere('f.accepted = 1');
+			->andWhere("f.accepted = '1'");
 		$qb->andWhere('NOT EXISTS (' . $follow->getSQL() . ')');
 
 		// a local status replies to it, or a local stream (a boost) references it
 		$local = $this->connection->getQueryBuilder();
 		$local->select($local->createFunction('1'))
 			->from(CoreRequestBuilder::TABLE_STREAM, 's2')
-			->where('s2.local = 1')
+			->where("s2.local = '1'")
 			->andWhere('(s2.in_reply_to_prim = s.id_prim OR s2.object_id_prim = s.id_prim)');
 		$qb->andWhere('NOT EXISTS (' . $local->getSQL() . ')');
 
