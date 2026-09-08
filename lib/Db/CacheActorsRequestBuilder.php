@@ -19,7 +19,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class CacheActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Base of the Sql Insert request
 	 *
@@ -32,7 +31,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
 	 *
@@ -44,7 +42,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -72,7 +69,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 *
@@ -84,7 +80,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * @param SocialQueryBuilder $qb
@@ -103,7 +98,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 		return $result;
 	}
 
-
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
@@ -115,7 +109,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $result;
 	}
-
 
 	/**
 	 * @param array $data
@@ -142,7 +135,6 @@ class CacheActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $actor;
 	}
-
 
 	/**
 	 * @param SocialQueryBuilder $qb

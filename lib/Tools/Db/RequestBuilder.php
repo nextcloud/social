@@ -24,7 +24,6 @@ class RequestBuilder {
 	/** @var string */
 	protected $defaultSelectAlias;
 
-
 	/**
 	 * Limit the request to the Id
 	 *
@@ -34,7 +33,6 @@ class RequestBuilder {
 	protected function limitToId(IQueryBuilder $qb, int $id) {
 		$this->limitToDBFieldInt($qb, 'id', $id);
 	}
-
 
 	/**
 	 * Limit the request to the Id (string)
@@ -46,7 +44,6 @@ class RequestBuilder {
 		$this->limitToDBField($qb, 'id', $id, false);
 	}
 
-
 	/**
 	 * Limit the request to the UserId
 	 *
@@ -56,7 +53,6 @@ class RequestBuilder {
 	protected function limitToUserId(IQueryBuilder $qb, string $userId) {
 		$this->limitToDBField($qb, 'user_id', $userId, false);
 	}
-
 
 	/**
 	 * Limit the request to the creation
@@ -73,7 +69,6 @@ class RequestBuilder {
 		$this->limitToDBFieldDateTime($qb, 'creation', $date, true);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -88,7 +83,6 @@ class RequestBuilder {
 		$qb->andWhere($expr);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -102,7 +96,6 @@ class RequestBuilder {
 		$expr = $this->exprLimitToDBField($qb, $field, $value, false, $cs, $alias);
 		$qb->andWhere($expr);
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -141,7 +134,6 @@ class RequestBuilder {
 		}
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -155,7 +147,6 @@ class RequestBuilder {
 		$qb->andWhere($expr);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -168,7 +159,6 @@ class RequestBuilder {
 		$expr = $this->exprLimitToDBFieldInt($qb, $field, $value, $alias, false);
 		$qb->andWhere($expr);
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -199,7 +189,6 @@ class RequestBuilder {
 		return $expr->$comp($field, $qb->createNamedParameter($value));
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -212,7 +201,6 @@ class RequestBuilder {
 		$qb->andWhere($expr->eq($field, $qb->createNamedParameter('')));
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -224,7 +212,6 @@ class RequestBuilder {
 
 		$qb->andWhere($expr->neq($field, $qb->createNamedParameter('')));
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -248,7 +235,6 @@ class RequestBuilder {
 		$qb->andWhere($expr->orX(...$conditions));
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param int $timestamp
@@ -271,7 +257,6 @@ class RequestBuilder {
 		);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -289,7 +274,6 @@ class RequestBuilder {
 
 		$qb->andWhere($expr->orX(...$conditions));
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb

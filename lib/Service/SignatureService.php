@@ -86,7 +86,6 @@ class SignatureService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 */
@@ -115,7 +114,6 @@ class SignatureService {
 		$actor->setPublicKey($details['key']);
 		$actor->setPrivateKey($privateKey);
 	}
-
 
 	/**
 	 * @param NCRequest $request
@@ -156,7 +154,6 @@ class SignatureService {
 		$request->addHeader('Signature', $signature);
 	}
 
-
 	/**
 	 * @param array $elements
 	 * @param array $data
@@ -176,7 +173,6 @@ class SignatureService {
 		return implode("\n", $signingElements);
 	}
 
-
 	/**
 	 * @param array $elements
 	 * @param string $actorId
@@ -193,7 +189,6 @@ class SignatureService {
 		return implode(',', $signatureElements);
 	}
 
-
 	/**
 	 * @param string $data
 	 *
@@ -204,7 +199,6 @@ class SignatureService {
 
 		return 'SHA-256=' . base64_encode($encoded);
 	}
-
 
 	/**
 	 * @param IRequest $request
@@ -259,8 +253,8 @@ class SignatureService {
 
 		if ($this->generateDigest($data) !== $request->getHeader('digest')) {
 			throw new SignatureException(
-				'issue with digest -- sent: ' .
-				$request->getHeader('digest') . ', expected: ' . $this->generateDigest($data)
+				'issue with digest -- sent: '
+				. $request->getHeader('digest') . ', expected: ' . $this->generateDigest($data)
 			);
 		}
 
@@ -281,7 +275,6 @@ class SignatureService {
 			);
 		}
 	}
-
 
 	/**
 	 * @param ACore $object
@@ -355,7 +348,6 @@ class SignatureService {
 		return false;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 * @param ACore $object
@@ -374,7 +366,6 @@ class SignatureService {
 		} catch (Exception $e) {
 		}
 	}
-
 
 	/**
 	 * @param IRequest $request
@@ -432,7 +423,6 @@ class SignatureService {
 		return $origin;
 	}
 
-
 	/**
 	 * @param string $publicKey
 	 * @param array $sign
@@ -453,7 +443,6 @@ class SignatureService {
 			);
 		}
 	}
-
 
 	/**
 	 * @param string $headers
@@ -495,7 +484,6 @@ class SignatureService {
 		return trim($estimated, "\n");
 	}
 
-
 	/**
 	 * @param $signatureHeader
 	 *
@@ -521,7 +509,6 @@ class SignatureService {
 		return $sign;
 	}
 
-
 	/**
 	 * @param string $keyId
 	 *
@@ -546,7 +533,6 @@ class SignatureService {
 
 		return $actor->getPublicKey();
 	}
-
 
 	/**
 	 * @param $id
@@ -574,15 +560,12 @@ class SignatureService {
 		switch ($this->get('algorithm', $sign, '')) {
 			case 'rsa-sha512':
 				return 'sha512';
-
 			case 'rsa-sha256':
 				return 'sha256';
-
 			default:
 				return 'sha256';
 		}
 	}
-
 
 	/** Shipped copies of the only JSON-LD contexts signature normalisation may use. */
 	public const LOCAL_CONTEXTS = [

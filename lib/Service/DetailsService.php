@@ -28,7 +28,6 @@ class DetailsService {
 
 	private CacheActorService $cacheActorService;
 
-
 	/**
 	 * DetailsService constructor.
 	 *
@@ -46,7 +45,6 @@ class DetailsService {
 		$this->followService = $followService;
 		$this->cacheActorService = $cacheActorService;
 	}
-
 
 	/**
 	 * @param Stream $stream
@@ -70,7 +68,6 @@ class DetailsService {
 
 		return $details;
 	}
-
 
 	/**
 	 * @param StreamDetails $details

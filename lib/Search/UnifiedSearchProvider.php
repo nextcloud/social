@@ -50,7 +50,6 @@ class UnifiedSearchProvider implements IProvider {
 
 	private ?Person $viewer = null;
 
-
 	/**
 	 * UnifiedSearchProvider constructor.
 	 *
@@ -86,7 +85,6 @@ class UnifiedSearchProvider implements IProvider {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * return unique id of the provider
 	 */
@@ -94,14 +92,12 @@ class UnifiedSearchProvider implements IProvider {
 		return self::PROVIDER_ID;
 	}
 
-
 	/**
 	 * @return string
 	 */
 	public function getName(): string {
 		return $this->l10n->t('Social');
 	}
-
 
 	/**
 	 * @param string $route
@@ -112,7 +108,6 @@ class UnifiedSearchProvider implements IProvider {
 	public function getOrder(string $route, array $routeParameters): int {
 		return self::ORDER;
 	}
-
 
 	/**
 	 * @param IUser $user
@@ -137,7 +132,6 @@ class UnifiedSearchProvider implements IProvider {
 			$this->l10n->t('Social'), $result, ($query->getCursor() ?? 0) + $query->getLimit()
 		);
 	}
-
 
 	/**
 	 * TODO: switch to SessionService
@@ -170,7 +164,6 @@ class UnifiedSearchProvider implements IProvider {
 		}
 	}
 
-
 	/**
 	 * @param Person[] $accounts
 	 *
@@ -192,7 +185,6 @@ class UnifiedSearchProvider implements IProvider {
 
 		return $result;
 	}
-
 
 	/**
 	 * @param array $hashtags

@@ -54,7 +54,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$document->setNid($qb->getLastInsertId());
 	}
 
-
 	/**
 	 * Insert cache about an Actor in database.
 	 */
@@ -85,7 +84,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @throws \OCP\DB\Exception
 	 */
@@ -96,7 +94,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	public function initCaching(Document $document): void {
 		$qb = $this->getCacheDocumentsUpdateSql();
@@ -112,7 +109,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @throws \OCP\DB\Exception
 	 */
@@ -127,7 +123,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @param string $url
@@ -155,7 +150,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		return $this->parseCacheDocumentsSelectSql($data);
 	}
 
-
 	public function getByUrl(string $url) {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToUrl($qb, $url);
@@ -170,7 +164,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		return $this->parseCacheDocumentsSelectSql($data);
 	}
-
 
 	/**
 	 * @param array $mediaIds
@@ -220,7 +213,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		return $this->parseCacheDocumentsSelectSql($data);
 	}
 
-
 	/**
 	 * @param Document $item
 	 *
@@ -237,7 +229,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		return ($data !== false);
 	}
-
 
 	/**
 	 * @return Document[]
@@ -259,7 +250,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		return $documents;
 	}
 
-
 	/**
 	 * @param string $url
 	 */
@@ -269,7 +259,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @param string $id
@@ -287,7 +276,6 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	public function moveAccount(string $actorId, string $newId): void {
 		$qb = $this->getCacheDocumentsUpdateSql();

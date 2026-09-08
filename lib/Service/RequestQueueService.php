@@ -27,13 +27,11 @@ class RequestQueueService {
 
 	use TArrayTools;
 
-
 	private RequestQueueRequest $requestQueueRequest;
 
 	private ConfigService $configService;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * RequestQueueService constructor.
@@ -50,7 +48,6 @@ class RequestQueueService {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
-
 
 	/**
 	 * @param array $instancePaths
@@ -80,7 +77,6 @@ class RequestQueueService {
 		return $token;
 	}
 
-
 	/**
 	 * deciding if we run request on main thread,
 	 * based on set priority, and number of request linked to one token
@@ -102,7 +98,6 @@ class RequestQueueService {
 		switch ($request->getPriority()) {
 			case InstancePath::PRIORITY_TOP:
 				return $request;
-
 			case InstancePath::PRIORITY_HIGH:
 				if (sizeof($requests) === 1) {
 					return $request;
@@ -123,7 +118,6 @@ class RequestQueueService {
 
 		throw new NoHighPriorityRequestException();
 	}
-
 
 	/**
 	 * @param int $total
@@ -152,7 +146,6 @@ class RequestQueueService {
 		return $result;
 	}
 
-
 	/**
 	 * @param string $token
 	 * @param int $status
@@ -167,7 +160,6 @@ class RequestQueueService {
 		return $this->requestQueueRequest->getFromToken($token, $status);
 	}
 
-
 	/**
 	 * @param RequestQueue $queue
 	 *
@@ -176,7 +168,6 @@ class RequestQueueService {
 	public function initRequest(RequestQueue $queue) {
 		$this->requestQueueRequest->setAsRunning($queue);
 	}
-
 
 	/**
 	 * @param RequestQueue $queue
@@ -202,7 +193,6 @@ class RequestQueueService {
 	public function reapStaleRunning(): int {
 		return $this->requestQueueRequest->resetStaleRunning(time() - self::STALE_RUNNING_SECONDS);
 	}
-
 
 	/**
 	 * @param RequestQueue $queue

@@ -140,7 +140,6 @@ class LikeServiceTest extends TestCase {
 		return $like;
 	}
 
-
 	// create()
 
 	public function testCreateBuildsLikeSavesFlagsAndFederatesIt(): void {
@@ -237,7 +236,6 @@ class LikeServiceTest extends TestCase {
 		$this->expectException(ItemAlreadyExistsException::class);
 		$this->service->create($this->alice(), self::POST_ID);
 	}
-
 
 	// delete()
 

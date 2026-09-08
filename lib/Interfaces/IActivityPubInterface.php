@@ -24,12 +24,10 @@ interface IActivityPubInterface {
 	 */
 	public function processIncomingRequest(ACore $item): void;
 
-
 	/**
 	 * Freshly imported item can be processed/parsed on result of outgoing request.
 	 */
 	public function processResult(ACore $item): void;
-
 
 	/**
 	 * When an activity is triggered by an 'Model\ActivityPub\Activity' model.
@@ -38,20 +36,17 @@ interface IActivityPubInterface {
 	 */
 	public function activity(ACore $activity, ACore $item): void;
 
-
 	/**
 	 * Get Item by its Id.
 	 * @throws ItemNotFoundException
 	 */
 	public function getItemById(string $id): ACore;
 
-
 	/**
 	 * Get Item when Id is not known.
 	 * @throws ItemNotFoundException
 	 */
 	public function getItem(ACore $item): ACore;
-
 
 	/**
 	 * Save the current item.
@@ -62,7 +57,6 @@ interface IActivityPubInterface {
 	 */
 	public function save(ACore $item): void;
 
-
 	/**
 	 * Update the current item.
 	 *
@@ -72,14 +66,12 @@ interface IActivityPubInterface {
 	 */
 	public function update(ACore $item): void;
 
-
 	/**
 	 * Event on the current item.
 	 *
 	 * !! Should not be called from an other IActivityPubInterface !!
 	 */
 	public function event(ACore $item, string $source): void;
-
 
 	/**
 	 * Delete the current item.

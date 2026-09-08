@@ -41,7 +41,6 @@ class NoteBoost extends Base {
 		$this->accountService = $accountService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -53,7 +52,6 @@ class NoteBoost extends Base {
 			->addOption('unboost', '', InputOption::VALUE_NONE, 'Unboost')
 			->setDescription('Boost a note');
 	}
-
 
 	/**
 	 * @param InputInterface $input

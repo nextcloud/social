@@ -124,7 +124,6 @@ class PostServiceTest extends TestCase {
 			});
 	}
 
-
 	// createPost()
 
 	public function testCreatePostBuildsNoteAndWrapsItInCreateActivity(): void {
@@ -315,7 +314,6 @@ class PostServiceTest extends TestCase {
 		$this->assertSame([$carol->getId(), self::BOB_ID], $note->getToArray());
 	}
 
-
 	// fixRecipientAndHashtags()
 
 	/**
@@ -357,7 +355,6 @@ class PostServiceTest extends TestCase {
 		$this->assertSame(['Existing', 'tag'], $post->getHashtags());
 	}
 
-
 	public function testCreatePostEscapesHtmlAndTurnsNewlinesIntoBreaks(): void {
 		$this->expectCreateActivity($note);
 
@@ -369,7 +366,6 @@ class PostServiceTest extends TestCase {
 			'user text is escaped first, then newlines become <br />'
 		);
 	}
-
 
 	// editPost()
 

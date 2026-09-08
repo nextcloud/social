@@ -33,7 +33,6 @@ class StreamDetails extends ExtendedBase {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * StreamDetails constructor.
 	 *
@@ -51,7 +50,6 @@ class StreamDetails extends ExtendedBase {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -62,7 +60,6 @@ class StreamDetails extends ExtendedBase {
 			->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
 			->setDescription('Get details about a Stream item');
 	}
-
 
 	/**
 	 * @param InputInterface $input

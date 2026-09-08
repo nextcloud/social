@@ -42,7 +42,6 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	public function update(StreamAction $action): int {
 		$qb = $this->getStreamActionUpdateSql();
 
@@ -75,7 +74,6 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 
 		return $qb->executeStatement();
 	}
-
 
 	/**
 	 * @throws StreamActionDoesNotExistException

@@ -165,7 +165,6 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($response, AccountDoesNotExistException::class, 'User not logged in');
 	}
 
-
 	// postCreate()
 
 	public function testPostCreateBuildsThePostFromTheRequest(): void {
@@ -229,7 +228,6 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller()->postCreate('x'), \RuntimeException::class, 'cannot post');
 	}
 
-
 	// postGet() / postReplies() / postDelete()
 
 	public function testPostGetReturnsTheStreamDirectly(): void {
@@ -291,7 +289,6 @@ class LocalControllerTest extends TestCase {
 		$this->assertNotLoggedIn($this->controller(null)->postDelete('https://x/n/1'));
 	}
 
-
 	// like / boost
 
 	/** @return iterable<string, array{string, string, string, string}> */
@@ -332,7 +329,6 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller()->postLike('https://x/n/404'), StreamNotFoundException::class, 'no such post');
 	}
 
-
 	// follow / unfollow
 
 	public function testActionFollowFollowsAndRefreshesCounters(): void {
@@ -371,7 +367,6 @@ class LocalControllerTest extends TestCase {
 
 		$this->assertFailure($this->controller()->actionUnfollow('ghost'), CacheActorDoesNotExistException::class);
 	}
-
 
 	// stream*()
 
@@ -421,7 +416,6 @@ class LocalControllerTest extends TestCase {
 
 		$this->assertSuccess($this->controller(null)->streamAccount('bob@remote.example', 2, 6), ['p']);
 	}
-
 
 	// current* / account* / global*
 
@@ -582,7 +576,6 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller(null)->globalActorInfo('https://x'), CacheActorDoesNotExistException::class);
 	}
 
-
 	// avatar / header
 
 	public function testGlobalActorAvatarServesTheCachedIcon(): void {
@@ -646,7 +639,6 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
-
 	// search
 
 	public function testGlobalAccountsSearchWithEmptyTermIsEmpty(): void {
@@ -701,7 +693,6 @@ class LocalControllerTest extends TestCase {
 			['accounts' => ['a'], 'hashtags' => ['h'], 'content' => ['c']]
 		);
 	}
-
 
 	// documents / uploads
 

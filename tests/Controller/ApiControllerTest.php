@@ -217,7 +217,6 @@ class ApiControllerTest extends TestCase {
 		};
 	}
 
-
 	// credentials
 
 	public function testAppsCredentialsRequiresAViewer(): void {
@@ -269,7 +268,6 @@ class ApiControllerTest extends TestCase {
 		$viewer->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
 		$this->cacheActorService->method('getFromLocalAccount')->with($uid)->willReturn($viewer);
 	}
-
 
 	// token scopes
 
@@ -399,7 +397,6 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([], $response->getData());
 	}
 
-
 	// instance / emojis
 
 	public function testInstanceReturnsTheLocalInstanceInLocalFormat(): void {
@@ -418,7 +415,6 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([], $response->getData());
 	}
-
 
 	// timelines
 
@@ -480,7 +476,6 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertUnauthorized($this->controller()->timelines('home'), 'db down');
 	}
-
 
 	// statuses
 
@@ -559,7 +554,6 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertUnauthorized($this->controller()->statusAction(12, 'favourite'));
 	}
-
 
 	// statusNew / statusUpdate
 
@@ -665,7 +659,6 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['error' => 'gone'], $response->getData());
 	}
 
-
 	// relationships / accounts
 
 	public function testRelationshipsAreResolvedByFollowService(): void {
@@ -681,7 +674,6 @@ class ApiControllerTest extends TestCase {
 	public function testRelationshipsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->relationships([1]));
 	}
-
 
 	// blocking / muting
 
@@ -1141,7 +1133,6 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([], $response->getData());
 	}
 
-
 	public function testRemoteFollowerFanOutIsBoundedByMaxLimit(): void {
 		$this->localHosts();
 		$actor = $this->createMock(Person::class);
@@ -1170,7 +1161,6 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([], $response->getData());
 		$this->assertLessThanOrEqual(ProbeOptions::MAX_LIMIT, $calls, 'the fan-out walk must be bounded by MAX_LIMIT');
 	}
-
 
 	// favourites / notifications / tag
 
@@ -1222,7 +1212,6 @@ class ApiControllerTest extends TestCase {
 		$this->assertTrue($probe->isOnlyMedia());
 		$this->assertSame(6, $probe->getLimit());
 	}
-
 
 	// media
 

@@ -221,7 +221,6 @@ class AttachmentMeta implements JsonSerializable {
 		return $this;
 	}
 
-
 	public function jsonSerialize(): array {
 		return array_filter(
 			[

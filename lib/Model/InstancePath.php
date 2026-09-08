@@ -20,7 +20,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class InstancePath implements JsonSerializable {
 	use TArrayTools;
 
-
 	public const TYPE_PUBLIC = 0;
 	public const TYPE_INBOX = 1;
 	public const TYPE_GLOBAL = 2;
@@ -37,7 +36,6 @@ class InstancePath implements JsonSerializable {
 	private int $type = 0;
 	private int $priority = 0;
 
-
 	/**
 	 * InstancePath constructor.
 	 *
@@ -50,7 +48,6 @@ class InstancePath implements JsonSerializable {
 		$this->type = $type;
 		$this->priority = $priority;
 	}
-
 
 	/**
 	 * @param string $uri
@@ -70,7 +67,6 @@ class InstancePath implements JsonSerializable {
 		return $this->uri;
 	}
 
-
 	/**
 	 * @param int $type
 	 *
@@ -88,7 +84,6 @@ class InstancePath implements JsonSerializable {
 	public function getType(): int {
 		return $this->type;
 	}
-
 
 	/**
 	 * @return int
@@ -108,13 +103,11 @@ class InstancePath implements JsonSerializable {
 		return $this;
 	}
 
-
 	public function getProtocol(): string {
 		$info = parse_url($this->getUri());
 
 		return $this->get('scheme', $info, '');
 	}
-
 
 	/**
 	 * @return string
@@ -125,7 +118,6 @@ class InstancePath implements JsonSerializable {
 		return $this->get('host', $info, '');
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -135,7 +127,6 @@ class InstancePath implements JsonSerializable {
 		return $this->get('path', $info, '');
 	}
 
-
 	/**
 	 * @param array $data
 	 */
@@ -144,7 +135,6 @@ class InstancePath implements JsonSerializable {
 		$this->setType($this->getInt('type', $data, 0));
 		$this->setPriority($this->getInt('priority', $data, 0));
 	}
-
 
 	/**
 	 * @return array

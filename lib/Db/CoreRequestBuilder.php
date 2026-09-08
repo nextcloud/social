@@ -277,7 +277,6 @@ class CoreRequestBuilder {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 * @return SocialQueryBuilder
 	 */
@@ -296,7 +295,6 @@ class CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * @return IDBConnection
 	 */
@@ -304,14 +302,12 @@ class CoreRequestBuilder {
 		return $this->dbConnection;
 	}
 
-
 	/**
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
 		$this->viewer = $viewer;
 	}
-
 
 	/**
 	 * Limit the request to the Id
@@ -324,7 +320,6 @@ class CoreRequestBuilder {
 	protected function limitToId(IQueryBuilder &$qb, int $id) {
 		$this->limitToDBFieldInt($qb, 'id', $id);
 	}
-
 
 	/**
 	 * Limit the request to the Id (string)
@@ -339,7 +334,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'id', $id, false);
 	}
 
-
 	/**
 	 * Limit the request to the UserId
 	 *
@@ -353,7 +347,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'user_id', $userId, false);
 	}
 
-
 	/**
 	 * Limit the request to the ActivityId
 	 *
@@ -363,7 +356,6 @@ class CoreRequestBuilder {
 	protected function limitToActivityId(IQueryBuilder &$qb, string $activityId) {
 		$this->limitToDBField($qb, 'activity_id', $activityId, false);
 	}
-
 
 	/**
 	 * Limit the request to the Id (string)
@@ -377,7 +369,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'in_reply_to', $id, false);
 	}
 
-
 	/**
 	 * Limit the request to the StreamId
 	 *
@@ -387,7 +378,6 @@ class CoreRequestBuilder {
 	protected function limitToStreamId(IQueryBuilder &$qb, string $streamId) {
 		$this->limitToDBField($qb, 'stream_id', $streamId, false);
 	}
-
 
 	/**
 	 * Limit the request to the Type
@@ -399,7 +389,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'type', $type);
 	}
 
-
 	/**
 	 * Limit the request to the sub-type
 	 *
@@ -410,7 +399,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'subtype', $subType);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $type
@@ -418,7 +406,6 @@ class CoreRequestBuilder {
 	protected function filterType(IQueryBuilder $qb, string $type) {
 		$this->filterDBField($qb, 'type', $type);
 	}
-
 
 	/**
 	 * Limit the request to the Preferred Username
@@ -443,7 +430,6 @@ class CoreRequestBuilder {
 		);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 *
@@ -452,7 +438,6 @@ class CoreRequestBuilder {
 	protected function limitToPublic(IQueryBuilder &$qb) {
 		$this->limitToDBFieldInt($qb, 'public', 1);
 	}
-
 
 	/**
 	 * Limit the request to the token
@@ -474,7 +459,6 @@ class CoreRequestBuilder {
 		$qb->setMaxResults($limit);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 *
@@ -484,7 +468,6 @@ class CoreRequestBuilder {
 	protected function limitToHashtag(IQueryBuilder &$qb, string $hashtag) {
 		$this->limitToDBField($qb, 'hashtag', $hashtag, false);
 	}
-
 
 	/**
 	 * Limit the request to the ActorId
@@ -500,7 +483,6 @@ class CoreRequestBuilder {
 		);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 *
@@ -512,7 +494,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'actor_id', $actorId, false, $alias);
 	}
 
-
 	/**
 	 * Limit the request to the FollowId
 	 *
@@ -522,7 +503,6 @@ class CoreRequestBuilder {
 	protected function limitToFollowId(IQueryBuilder &$qb, string $followId) {
 		$this->limitToDBField($qb, 'follow_id', $followId, false);
 	}
-
 
 	/**
 	 * Limit the request to the FollowId
@@ -535,7 +515,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'accepted', ($accepted) ? '1' : '0', true, $alias);
 	}
 
-
 	/**
 	 * Limit the request to the ServiceId
 	 *
@@ -545,7 +524,6 @@ class CoreRequestBuilder {
 	protected function limitToObjectId(IQueryBuilder &$qb, string $objectId) {
 		$this->limitToDBField($qb, 'object_id', $objectId, false);
 	}
-
 
 	/**
 	 * Limit the request to the account
@@ -557,7 +535,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'account', $account, false);
 	}
 
-
 	/**
 	 * Limit the request to the account
 	 *
@@ -568,7 +545,6 @@ class CoreRequestBuilder {
 		$dbConn = $this->getConnection();
 		$this->searchInDBField($qb, 'account', $dbConn->escapeLikeParameter($account) . '%');
 	}
-
 
 	/**
 	 * Limit the request to the creation
@@ -585,7 +561,6 @@ class CoreRequestBuilder {
 		$this->limitToDBFieldDateTime($qb, 'creation', $date, true);
 	}
 
-
 	/**
 	 * Limit the request to the creation
 	 *
@@ -601,7 +576,6 @@ class CoreRequestBuilder {
 		$this->limitToDBFieldDateTime($qb, 'caching', $date, true);
 	}
 
-
 	/**
 	 * Limit the request to the url
 	 *
@@ -611,7 +585,6 @@ class CoreRequestBuilder {
 	protected function limitToUrl(IQueryBuilder &$qb, string $url) {
 		$this->limitToDBField($qb, 'url', $url);
 	}
-
 
 	/**
 	 * Limit the request to the url
@@ -623,7 +596,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'attributed_to', $actorId, false);
 	}
 
-
 	/**
 	 * Limit the request to the status
 	 *
@@ -633,7 +605,6 @@ class CoreRequestBuilder {
 	protected function limitToStatus(IQueryBuilder &$qb, int $status) {
 		$this->limitToDBFieldInt($qb, 'status', $status);
 	}
-
 
 	/**
 	 * Limit the request to the instance
@@ -645,7 +616,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'address', $address);
 	}
 
-
 	/**
 	 * Limit the request to the instance
 	 *
@@ -656,7 +626,6 @@ class CoreRequestBuilder {
 		$this->limitToDBField($qb, 'local', ($local) ? '1' : '0');
 	}
 
-
 	/**
 	 * Limit the request to the parent_id
 	 *
@@ -666,7 +635,6 @@ class CoreRequestBuilder {
 	protected function limitToParentId(IQueryBuilder &$qb, string $parentId) {
 		$this->limitToDBField($qb, 'parent_id', $parentId);
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -762,10 +730,8 @@ class CoreRequestBuilder {
 		}
 		$field = $pf . $field;
 
-
 		return $expr->eq($field, $qb->createNamedParameter($value));
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -778,7 +744,6 @@ class CoreRequestBuilder {
 
 		$qb->andWhere($expr->eq($field, $qb->createNamedParameter('')));
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -805,7 +770,6 @@ class CoreRequestBuilder {
 		}
 		$qb->andWhere($orX);
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -834,7 +798,6 @@ class CoreRequestBuilder {
 		$qb->andWhere($orX);
 	}
 
-
 	protected function limitToDBFieldArray(IQueryBuilder &$qb, string $field, array $values): void {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
@@ -850,7 +813,6 @@ class CoreRequestBuilder {
 		$qb->andWhere($orX);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $field
@@ -864,7 +826,6 @@ class CoreRequestBuilder {
 
 		$qb->andWhere($expr->iLike($field, $qb->createNamedParameter($value)));
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -927,7 +888,6 @@ class CoreRequestBuilder {
 		);
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
@@ -961,7 +921,6 @@ class CoreRequestBuilder {
 		);
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -985,7 +944,6 @@ class CoreRequestBuilder {
 
 		return $actor;
 	}
-
 
 	/**
 	 * @param SocialQueryBuilder $qb
@@ -1026,7 +984,6 @@ class CoreRequestBuilder {
 		);
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -1050,7 +1007,6 @@ class CoreRequestBuilder {
 
 		return $action;
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -1085,7 +1041,6 @@ class CoreRequestBuilder {
 		);
 	}
 
-
 	/**
 	 * @param array $data
 	 */
@@ -1102,7 +1057,6 @@ class CoreRequestBuilder {
 
 		//		return $action;
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -1132,7 +1086,7 @@ class CoreRequestBuilder {
 		// Build all conditions first for andX()
 		$conditions = [];
 		$conditions[] = $this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f');
-		
+
 		if ($asFollower === true) {
 			$conditions[] = $expr->eq(
 				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
@@ -1163,7 +1117,6 @@ class CoreRequestBuilder {
 			);
 	}
 
-
 	/**
 	 * @param array $data
 	 * @param string $prefix
@@ -1191,7 +1144,6 @@ class CoreRequestBuilder {
 		return $follow;
 	}
 
-
 	/**
 	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
@@ -1201,7 +1153,6 @@ class CoreRequestBuilder {
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -1229,7 +1180,6 @@ class CoreRequestBuilder {
 		$actor->setCompleteDetails(true);
 	}
 
-
 	/**
 	 * this just empty all tables from the app.
 	 */
@@ -1244,7 +1194,6 @@ class CoreRequestBuilder {
 		}
 	}
 
-
 	/**
 	 * this just empty all tables from the app.
 	 */
@@ -1258,7 +1207,6 @@ class CoreRequestBuilder {
 
 		$schema->performDropTableCalls();
 	}
-
 
 	/**
 	 *

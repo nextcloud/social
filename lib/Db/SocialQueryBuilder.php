@@ -17,7 +17,6 @@ namespace OCA\Social\Db;
 class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 	private int $format = 1;
 
-
 	/**
 	 * @param int $format
 	 */
@@ -32,7 +31,6 @@ class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 		return $this->format;
 	}
 
-
 	/**
 	 * @param string $id
 	 * @param string $field
@@ -44,7 +42,6 @@ class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 
 		$this->setValue($field, $this->createNamedParameter($this->prim($id)));
 	}
-
 
 	/**
 	 * search using username
@@ -66,7 +63,6 @@ class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 		$dbConn = $this->getConnection();
 		$this->searchInDBField('hashtag', (($all) ? '%' : '') . $dbConn->escapeLikeParameter($hashtag) . '%');
 	}
-
 
 	/**
 	 * Limit the request to the account

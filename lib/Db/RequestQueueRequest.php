@@ -59,7 +59,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * Return Queue from database based on the status=0
 	 *
@@ -81,7 +80,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 		return $requests;
 	}
-
 
 	/**
 	 * Return Queue from database based on the token
@@ -109,7 +107,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		return $requests;
 	}
 
-
 	/**
 	 * @throws QueueStatusException|Exception
 	 */
@@ -132,7 +129,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$queue->setStatus(RequestQueue::STATUS_RUNNING);
 	}
 
-
 	/**
 	 * @throws QueueStatusException|Exception
 	 */
@@ -150,7 +146,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 		$queue->setStatus(RequestQueue::STATUS_SUCCESS);
 	}
-
 
 	/**
 	 * @throws QueueStatusException|Exception
@@ -174,7 +169,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$queue->setStatus(RequestQueue::STATUS_STANDBY);
 	}
 
-
 	/**
 	 * Return every request stuck `running` since before $before to standby.
 	 *
@@ -193,7 +187,6 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 
 		return $qb->executeStatement();
 	}
-
 
 	public function delete(RequestQueue $queue): void {
 		$qb = $this->getRequestQueueDeleteSql();

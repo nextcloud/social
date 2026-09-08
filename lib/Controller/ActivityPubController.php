@@ -100,7 +100,6 @@ class ActivityPubController extends Controller {
 		});
 	}
 
-
 	/**
 	 * returns information about an Actor, based on the username.
 	 *
@@ -133,7 +132,6 @@ class ActivityPubController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Alias to the actor() method.
 	 *
@@ -152,7 +150,6 @@ class ActivityPubController extends Controller {
 	public function actorAlias(string $username): Response {
 		return $this->actor($username);
 	}
-
 
 	/**
 	 * Shared inbox — receives incoming ActivityPub activities from remote servers.
@@ -202,7 +199,6 @@ class ActivityPubController extends Controller {
 		}
 	}
 
-
 	/**
 	 * User-specific inbox — receives incoming ActivityPub activities for a specific user.
 	 *
@@ -246,7 +242,6 @@ class ActivityPubController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Method is called when a remote ActivityPub server wants to GET in the INBOX of a USER
 	 * Checking that the user exists, and that the header is properly signed.
@@ -272,7 +267,6 @@ class ActivityPubController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Outbox. does nothing.
 	 *
@@ -296,7 +290,6 @@ class ActivityPubController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * followers. does nothing.
@@ -324,7 +317,6 @@ class ActivityPubController extends Controller {
 		}
 	}
 
-
 	/**
 	 * following. does nothing.
 	 *
@@ -350,7 +342,6 @@ class ActivityPubController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * should return data about a post. do nothing.
@@ -413,7 +404,6 @@ class ActivityPubController extends Controller {
 		return new TemplateResponse(Application::APP_ID, 'main', []);
 	}
 
-
 	/**
 	 * @param string $username
 	 * @param string $token
@@ -464,7 +454,6 @@ class ActivityPubController extends Controller {
 
 		return false;
 	}
-
 
 	private function trimHeader(string $header) {
 		$header = trim($header);

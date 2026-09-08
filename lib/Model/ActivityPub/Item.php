@@ -146,7 +146,6 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @return Person
 	 */
@@ -171,7 +170,6 @@ class Item {
 		return true;
 	}
 
-
 	/**
 	 * @param string $actorId
 	 *
@@ -195,7 +193,6 @@ class Item {
 		return $this->actorId;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -213,7 +210,6 @@ class Item {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -233,7 +229,6 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -251,7 +246,6 @@ class Item {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -312,7 +306,6 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $cc
 	 *
@@ -350,7 +343,6 @@ class Item {
 		return (in_array($cc, $this->cc));
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -369,7 +361,6 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -387,7 +378,6 @@ class Item {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -410,7 +400,6 @@ class Item {
 		return $this->originCreationTime;
 	}
 
-
 	/**
 	 * @param string $origin
 	 *
@@ -427,7 +416,6 @@ class Item {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param string $published
@@ -446,7 +434,6 @@ class Item {
 	public function getPublished(): string {
 		return $this->published;
 	}
-
 
 	/**
 	 * @param array $tag
@@ -489,7 +476,6 @@ class Item {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -537,7 +523,6 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -556,7 +541,6 @@ class Item {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -574,7 +558,6 @@ class Item {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string

@@ -20,7 +20,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class StreamTagsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Base of the Sql Insert request
 	 *
@@ -33,7 +32,6 @@ class StreamTagsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
 	 *
@@ -45,7 +43,6 @@ class StreamTagsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -64,7 +61,6 @@ class StreamTagsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Delete request

@@ -41,7 +41,6 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 		parent::__construct($connection, $systemConfig, $logger);
 	}
 
-
 	public function hasViewer(): bool {
 		return ($this->viewer !== null);
 	}

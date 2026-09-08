@@ -150,7 +150,6 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
-
 	/**
 	 * Process an incoming Follow activity (remote user wants to follow a local user).
 	 *

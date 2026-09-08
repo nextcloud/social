@@ -29,7 +29,6 @@ trait TRequest {
 		$this->maxDownloadSize = $size;
 	}
 
-
 	/**
 	 * @param Request $request
 	 *
@@ -55,7 +54,6 @@ trait TRequest {
 
 		throw new RequestResultNotJsonException();
 	}
-
 
 	/**
 	 * @param Request $request
@@ -101,7 +99,6 @@ trait TRequest {
 		return $result;
 	}
 
-
 	/**
 	 * @param Request $request
 	 *
@@ -145,7 +142,6 @@ trait TRequest {
 		return $curl;
 	}
 
-
 	/**
 	 * @param Request $request
 	 *
@@ -153,8 +149,8 @@ trait TRequest {
 	 */
 	private function generateCurlRequest(Request $request) {
 		$port = ($request->getPort() > 0) ? ':' . $request->getPort() : '';
-		$url =
-			$request->getUsedProtocol() . '://' . $request->getHost() . $port . $request->getParsedUrl();
+		$url
+			= $request->getUsedProtocol() . '://' . $request->getHost() . $port . $request->getParsedUrl();
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
 		} else {
@@ -164,7 +160,6 @@ trait TRequest {
 		return $curl;
 	}
 
-
 	/**
 	 * @param Request $request
 	 */
@@ -173,7 +168,6 @@ trait TRequest {
 			return;
 		}
 	}
-
 
 	/**
 	 * @param resource $curl
@@ -221,7 +215,6 @@ trait TRequest {
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 	}
 
-
 	/**
 	 * @param resource $curl
 	 * @param Request $request
@@ -243,7 +236,6 @@ trait TRequest {
 		$this->parseRequestResultCode5xx($code, $request);
 	}
 
-
 	/**
 	 * @param resource $curl
 	 * @param Request $request
@@ -261,7 +253,6 @@ trait TRequest {
 		}
 	}
 
-
 	/**
 	 * @param int $code
 	 * @param Request $request
@@ -276,7 +267,6 @@ trait TRequest {
 		}
 	}
 
-
 	/**
 	 * @param int $code
 	 * @param Request $request
@@ -290,7 +280,6 @@ trait TRequest {
 			);
 		}
 	}
-
 
 	/**
 	 * @param int $code

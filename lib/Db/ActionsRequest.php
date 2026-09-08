@@ -49,7 +49,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param string $objectId
@@ -68,7 +67,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 		return $this->getActionFromRequest($qb);
 	}
 
-
 	/**
 	 * @param ACore $item
 	 *
@@ -84,7 +82,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 
 		return $this->getActionFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $objectId
@@ -104,7 +101,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 		return $this->getInt('count', $data, 0);
 	}
 
-
 	/**
 	 * @param string $objectId
 	 *
@@ -118,7 +114,6 @@ class ActionsRequest extends ActionsRequestBuilder {
 		return $this->getActionsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param ACore $item
 	 */
@@ -130,14 +125,12 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	public function deleteByActor(string $actorId): void {
 		$qb = $this->getActionsDeleteSql();
 		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
 
 		$qb->executeStatement();
 	}
-
 
 	public function moveAccount(string $actorId, string $newId): void {
 		$qb = $this->getActionsUpdateSql();

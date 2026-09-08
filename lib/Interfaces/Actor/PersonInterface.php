@@ -123,7 +123,6 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
-
 	public function delete(ACore $item): void {
 		if (!($item instanceof Person)) {
 			return;
@@ -138,7 +137,6 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 
 		$this->deleteStreamFromActor($item);
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -191,12 +189,10 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->streamDestRequest->deleteRelatedToActor($actor->getId());
 	}
 
-
 	// get stream's relative and remove everything
 	private function removeStreamAndRelated(string $idPrim): void {
 		$this->streamRequest->deleteById($idPrim);
 	}
-
 
 	private function updateActor(Person $actor, ACore $activity) {
 		$actor->setCreation($activity->getOriginCreationTime());

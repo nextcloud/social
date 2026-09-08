@@ -46,7 +46,6 @@ use Throwable;
 class FollowService {
 	use TArrayTools;
 
-
 	private IURLGenerator $urlGenerator;
 	private FollowsRequest $followsRequest;
 	private ActorRelationRequest $actorRelationRequest;
@@ -56,7 +55,6 @@ class FollowService {
 	private FollowInterface $followInterface;
 	private LoggerInterface $logger;
 	private ?Person $viewer = null;
-
 
 	/**
 	 * FollowService constructor.
@@ -86,7 +84,6 @@ class FollowService {
 		$this->followInterface = $followInterface;
 		$this->logger = $logger;
 	}
-
 
 	/**
 	 * The accounts whose follows towards the viewer wait for approval.
@@ -130,7 +127,6 @@ class FollowService {
 		$this->followInterface->rejectFollowRequest($follow);
 	}
 
-
 	/**
 	 * @param Person $viewer
 	 */
@@ -138,7 +134,6 @@ class FollowService {
 		$this->viewer = $viewer;
 		$this->followsRequest->setViewer($viewer);
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -215,7 +210,6 @@ class FollowService {
 		}
 	}
 
-
 	/**
 	 * @param Person $actor
 	 * @param string $account
@@ -259,7 +253,6 @@ class FollowService {
 		}
 	}
 
-
 	/**
 	 * @param Person $local
 	 * @param Person $actor
@@ -287,7 +280,6 @@ class FollowService {
 		return $links;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 *
@@ -298,7 +290,6 @@ class FollowService {
 	public function getFollowers(Person $actor): array {
 		return $this->followsRequest->getFollowersByActorId($actor->getId());
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -320,7 +311,6 @@ class FollowService {
 		return $collection;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 *
@@ -331,7 +321,6 @@ class FollowService {
 	public function getFollowing(Person $actor): array {
 		return $this->followsRequest->getFollowingByActorId($actor->getId());
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -352,7 +341,6 @@ class FollowService {
 
 		return $collection;
 	}
-
 
 	/**
 	 * @param string $recipient

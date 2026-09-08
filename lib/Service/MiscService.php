@@ -23,12 +23,10 @@ class MiscService {
 	private LoggerInterface $logger;
 	private IUserManager $userManager;
 
-
 	public function __construct(LoggerInterface $logger, IUserManager $userManager) {
 		$this->logger = $logger;
 		$this->userManager = $userManager;
 	}
-
 
 	/**
 	 * @param $message
@@ -42,7 +40,6 @@ class MiscService {
 
 		$this->logger->log($level, $message, $data);
 	}
-
 
 	/**
 	 * @return int

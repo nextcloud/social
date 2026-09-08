@@ -67,7 +67,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	public function refreshKeys(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
@@ -85,7 +84,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * Return Actor from database based on the username
@@ -127,7 +125,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 		return $this->parseActorsSelectSql($data);
 	}
 
-
 	/**
 	 * return Actor from database, based on the userId of the owner.
 	 *
@@ -152,7 +149,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 		return $this->parseActorsSelectSql($data);
 	}
 
-
 	public function setAsDeleted(string $handle): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set(
@@ -174,7 +170,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @return Person[]
 	 * @throws SocialAppConfigException
@@ -191,7 +186,6 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 		return $accounts;
 	}
-
 
 	/**
 	 * @return Person[]

@@ -172,7 +172,6 @@ class RelationshipServiceTest extends TestCase {
 		$this->assertSame(InstancePath::PRIORITY_TOP, $paths[0]->getPriority());
 	}
 
-
 	// mute() / unmute()
 
 	/**
@@ -233,7 +232,6 @@ class RelationshipServiceTest extends TestCase {
 
 		$this->service->block($this->alice(), $this->alice());
 	}
-
 
 	// block()
 
@@ -362,7 +360,6 @@ class RelationshipServiceTest extends TestCase {
 		$this->service->block($this->alice(), $this->bob());
 	}
 
-
 	// unblock()
 
 	public function testUnblockOfARemoteAccountDeletesTheRowAndSendsAnUndoBlock(): void {
@@ -408,7 +405,6 @@ class RelationshipServiceTest extends TestCase {
 
 		$this->service->unblock($this->alice(), $this->person(self::CAROL_ID, true));
 	}
-
 
 	// getRelated()
 

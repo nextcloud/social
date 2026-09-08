@@ -128,7 +128,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Upload a banner/header image for the current user's profile.
 	 *
@@ -402,7 +401,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Get replies about a post (limited to viewer rights).
 	 *
@@ -418,7 +416,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * Delete your own post.
@@ -448,7 +445,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Create a new boost.
 	 *
@@ -470,7 +466,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * Delete a boost.
@@ -494,7 +489,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Like a post.
 	 *
@@ -517,7 +511,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Unlike a post.
 	 *
@@ -539,7 +532,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -567,7 +559,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
@@ -582,7 +573,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -608,7 +598,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
@@ -623,7 +612,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * Get timeline
@@ -653,7 +641,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Get timeline
 	 *
@@ -669,7 +656,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * Get timeline
@@ -687,7 +673,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Get liked post
 	 *
@@ -703,7 +688,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -723,7 +707,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 */
@@ -741,7 +724,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -763,7 +745,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 */
@@ -783,7 +764,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 */
@@ -802,7 +782,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -839,7 +818,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 * @PublicPage
@@ -856,7 +834,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -934,7 +911,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 * @PublicPage
@@ -985,8 +961,8 @@ class LocalController extends Controller {
 				$mime = '';
 				$document = $this->documentService->getFromCache($avatar->getId(), $mime);
 
-				$response =
-					new FileDisplayResponse($document, Http::STATUS_OK, ['Content-Type' => $mime]);
+				$response
+					= new FileDisplayResponse($document, Http::STATUS_OK, ['Content-Type' => $mime]);
 				$response->cacheFor(86400);
 
 				return $response;
@@ -997,7 +973,6 @@ class LocalController extends Controller {
 			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -1020,7 +995,6 @@ class LocalController extends Controller {
 			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		}
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -1054,7 +1028,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 * @throws Exception
@@ -1085,7 +1058,6 @@ class LocalController extends Controller {
 		}
 	}
 
-
 	/**
 	 * TODO - remove this tag
 	 * @NoCSRFRequired
@@ -1104,7 +1076,6 @@ class LocalController extends Controller {
 
 		return $this->success($result);
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -1125,7 +1096,6 @@ class LocalController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @throws AccountDoesNotExistException

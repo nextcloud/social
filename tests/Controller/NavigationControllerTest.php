@@ -123,7 +123,6 @@ class NavigationControllerTest extends TestCase {
 		return $this->states['social']['serverData'];
 	}
 
-
 	// navigate()
 
 	public function testNavigateRendersTheAppForAReturningUser(): void {
@@ -267,7 +266,6 @@ class NavigationControllerTest extends TestCase {
 		$this->assertSame('main', $this->controller()->timeline('home')->getTemplateName());
 		$this->assertSame('main', $this->controller()->account('alice')->getTemplateName());
 	}
-
 
 	// documents
 

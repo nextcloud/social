@@ -38,7 +38,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -56,7 +55,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -76,7 +74,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -95,14 +92,12 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
 		parent::import($data);
 	}
-
 
 	/**
 	 * @param array $data
@@ -114,7 +109,6 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		$this->setFollowId($this->get('follow_id', $data, ''));
 		$this->setFollowIdPrim($this->get('follow_id_prim', $data, ''));
 	}
-
 
 	/**
 	 * @return array

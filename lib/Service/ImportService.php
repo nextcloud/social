@@ -25,11 +25,9 @@ class ImportService {
 	use TArrayTools;
 	use TStringTools;
 
-
 	private ConfigService $configService;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * ImportService constructor.
@@ -41,7 +39,6 @@ class ImportService {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
-
 
 	/**
 	 * @param string $json
@@ -60,7 +57,6 @@ class ImportService {
 
 		return AP::$activityPub->getItemFromData($data);
 	}
-
 
 	/**
 	 * @param ACore $activity

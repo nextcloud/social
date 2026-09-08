@@ -37,7 +37,6 @@ class Timeline extends ExtendedBase {
 
 	private ?int $count = null;
 
-
 	/**
 	 * Timeline constructor.
 	 *
@@ -62,7 +61,6 @@ class Timeline extends ExtendedBase {
 		$this->configService = $configService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -80,7 +78,6 @@ class Timeline extends ExtendedBase {
 			->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
 			->setDescription('Get stream by timeline and viewer');
 	}
-
 
 	/**
 	 * @param InputInterface $input

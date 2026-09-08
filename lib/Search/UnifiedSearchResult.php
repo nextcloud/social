@@ -35,7 +35,6 @@ class UnifiedSearchResult extends SearchResultEntry {
 		parent::__construct($thumbnailUrl, $title, $subline, $resourceUrl, $icon, $rounded);
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -53,7 +52,6 @@ class UnifiedSearchResult extends SearchResultEntry {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -73,7 +71,6 @@ class UnifiedSearchResult extends SearchResultEntry {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -91,7 +88,6 @@ class UnifiedSearchResult extends SearchResultEntry {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -111,7 +107,6 @@ class UnifiedSearchResult extends SearchResultEntry {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -129,7 +124,6 @@ class UnifiedSearchResult extends SearchResultEntry {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return bool

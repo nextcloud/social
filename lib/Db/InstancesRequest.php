@@ -23,7 +23,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class InstancesRequest extends InstancesRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * @param Instance $instance
 	 *                           TODO: store instance in db
@@ -48,7 +47,6 @@ class InstancesRequest extends InstancesRequestBuilder {
 			->setValue('account_prim', $qb->createNamedParameter($instance->getAccountPrim() ? $qb->prim($instance->getAccountPrim()) : null));
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @param int $format

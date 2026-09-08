@@ -27,7 +27,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	use TStringTools;
 	use TPathTools;
 
-
 	public const CONTEXT_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 	public const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	public const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
@@ -46,7 +45,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public const FORMAT_LOCAL = 2;
 	public const FORMAT_NOTIFICATION = 3;
 
-
 	/** @var null Item */
 	private $parent = null;
 
@@ -59,7 +57,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	private ?LinkedDataSignature $signature = null;
 	private int $format = self::FORMAT_ACTIVITYPUB;
 
-
 	/**
 	 * Core constructor.
 	 *
@@ -70,7 +67,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			$this->setParent($parent);
 		}
 	}
-
 
 	/**
 	 * @return string
@@ -95,7 +91,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @param ACore $parent
 	 *
@@ -113,7 +108,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public function getParent(): ACore {
 		return $this->parent;
 	}
-
 
 	/**
 	 * @return bool
@@ -157,7 +151,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return parent::getObjectId();
 	}
 
-
 	/**
 	 * @param bool $filter - will remove general url like Public
 	 *
@@ -172,7 +165,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 
 		return array_diff($recipients, [self::CONTEXT_PUBLIC]);
 	}
-
 
 	/**
 	 * @return bool
@@ -197,7 +189,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -216,14 +207,12 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
 	public function isPublic(): bool {
 		return in_array(self::CONTEXT_PUBLIC, $this->getRecipients());
 	}
-
 
 	/**
 	 * @return bool
@@ -247,7 +236,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $base
 	 * @param bool $root
@@ -270,7 +258,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		$this->setId($url . $base . '/' . $this->uuid());
 	}
 
-
 	/**
 	 * @param string $id
 	 *
@@ -289,7 +276,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			'ACore::checkOrigin - id: ' . $id . ' - origin: ' . $origin
 		);
 	}
-
 
 	/**
 	 * @param string $url
@@ -316,7 +302,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		}
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -338,7 +323,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this->getParent()
 			->getRoot($chain);
 	}
-
 
 	/**
 	 * @param array $arr
@@ -426,7 +410,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $k
 	 * @param ACore $v
@@ -445,7 +428,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
-
 	/**
 	 * @param int $as
 	 * @param string $k
@@ -461,7 +443,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			return $default;
 		}
 	}
-
 
 	/**
 	 * @param int $as
@@ -489,7 +470,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $result;
 	}
 
-
 	/**
 	 * // TODO - better checks
 	 *
@@ -510,7 +490,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 
 			case self::AS_TYPE:
 				return $value;
-
 			case self::AS_URL:
 				if (parse_url($value) !== false) {
 					return $value;
@@ -519,7 +498,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 
 			case self::AS_DATE:
 				return $value;
-
 			case self::AS_STRING:
 				// Decode first: stripping tags and *then* decoding entities lets
 				// `&lt;script&gt;` come back to life as a real element
@@ -527,18 +505,15 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 				$value = strip_tags($value);
 
 				return $value;
-
 			case self::AS_CONTENT:
 				// Remote HTML is rendered into every local reader's timeline.
 				// strip_tags() cannot do this job: it keeps attributes on the
 				// tags it allows, so `onclick` and `javascript:` survive it.
 				return HtmlSanitizer::sanitize($value);
-
 			case self::AS_USERNAME:
 				$value = strip_tags($value);
 
 				return $value;
-
 			case self::AS_ACCOUNT:
 				$value = strip_tags($value);
 
@@ -551,7 +526,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			return '';
 		}
 	}
-
 
 	/**
 	 * @param int $as
@@ -580,7 +554,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		throw new InvalidResourceEntryException($as . ' ' . json_encode($values));
 	}
 
-
 	/**
 	 * @param array $data
 	 */
@@ -596,7 +569,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
 		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $data, []));
 	}
-
 
 	/**
 	 * @param array $data
@@ -648,7 +620,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		return $this->format;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -663,7 +634,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 
 		return $this->exportAsActivityPub();
 	}
-
 
 	/**
 	 * @return array
@@ -730,7 +700,6 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 
 		return $result;
 	}
-
 
 	/**
 	 * @return array

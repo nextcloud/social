@@ -66,7 +66,6 @@ class Note extends Stream implements JsonSerializable {
 		$this->setDetailArray('mentions', $mentions);
 	}
 
-
 	public function fillHashtags(): void {
 		$tags = $this->getTags('Hashtag');
 		$hashtags = [];
@@ -81,7 +80,6 @@ class Note extends Stream implements JsonSerializable {
 		$this->setHashtags($hashtags);
 	}
 
-
 	/**
 	 * @throws ItemAlreadyExistsException
 	 */
@@ -91,7 +89,6 @@ class Note extends Stream implements JsonSerializable {
 		$this->fillHashtags();
 		$this->fillMentions();
 	}
-
 
 	public function importFromDatabase(array $data): void {
 		parent::importFromDatabase($data);

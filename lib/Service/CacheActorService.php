@@ -74,14 +74,12 @@ class CacheActorService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
 		$this->cacheActorsRequest->setViewer($viewer);
 	}
-
 
 	/**
 	 * @param string $id
@@ -150,7 +148,6 @@ class CacheActorService {
 
 		return $actor;
 	}
-
 
 	/**
 	 * @param string $account
@@ -237,7 +234,6 @@ class CacheActorService {
 		return $actor;
 	}
 
-
 	/**
 	 * @param string $search
 	 *
@@ -246,7 +242,6 @@ class CacheActorService {
 	public function searchCachedAccounts(string $search): array {
 		return $this->cacheActorsRequest->searchAccounts($search);
 	}
-
 
 	/**
 	 * @return int
@@ -266,7 +261,6 @@ class CacheActorService {
 		return sizeof($missing);
 	}
 
-
 	/**
 	 * @return int
 	 * @throws Exception
@@ -283,7 +277,6 @@ class CacheActorService {
 
 		return sizeof($update);
 	}
-
 
 	/**
 	 * @return int
@@ -305,7 +298,6 @@ class CacheActorService {
 		return sizeof($update);
 	}
 
-
 	public function addRemoteActorDetailCount(Person $actor): void {
 		try {
 			$followers = $this->getCollectionFromId($actor->getFollowers());
@@ -322,7 +314,6 @@ class CacheActorService {
 		];
 		$actor->setDetailArray('count', $count);
 	}
-
 
 	/**
 	 * @param string $id
@@ -345,7 +336,6 @@ class CacheActorService {
 
 		return $collection;
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -373,7 +363,6 @@ class CacheActorService {
 		}
 	}
 
-
 	/**
 	 * @param ProbeOptions $options
 	 *
@@ -382,7 +371,6 @@ class CacheActorService {
 	public function probeActors(ProbeOptions $options): array {
 		return $this->cacheActorsRequest->probeActors($options);
 	}
-
 
 	public function getFromNids(array $ids): array {
 		return $this->cacheActorsRequest->getFromNids($ids);

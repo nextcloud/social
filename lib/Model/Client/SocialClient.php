@@ -41,13 +41,11 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	//	/** @var array */
 	//	private $tokenScopes = [];
 
-
 	/**
 	 * SocialClient constructor.
 	 */
 	public function __construct() {
 	}
-
 
 	/**
 	 * @return int
@@ -67,7 +65,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -85,7 +82,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -105,7 +101,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -123,7 +118,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -143,7 +137,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -161,7 +154,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return array
@@ -181,7 +173,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -199,7 +190,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -219,7 +209,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -237,7 +226,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -276,7 +264,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	//		return $this;
 	//	}
 
-
 	/**
 	 * @return int
 	 */
@@ -294,7 +281,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -314,7 +300,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	//	/**
 	//	 * @return array
 	//	 */
@@ -333,7 +318,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	//		return $this;
 	//	}
 
-
 	/**
 	 * @return int
 	 */
@@ -348,7 +332,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		$this->creation = $creation;
 	}
 
-
 	/**
 	 * @param string $scopes
 	 *
@@ -357,7 +340,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	public function getScopesFromString(string $scopes): array {
 		return explode(' ', $scopes);
 	}
-
 
 	/**
 	 * @param array $data
@@ -385,7 +367,6 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return array

@@ -52,7 +52,6 @@ class OStatusController extends Controller {
 		$this->userSession = $userSession;
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
@@ -84,7 +83,6 @@ class OStatusController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired

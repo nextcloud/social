@@ -35,7 +35,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * return Queue from database based on the status=0
 	 *
@@ -55,7 +54,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 		return $requests;
 	}
-
 
 	/**
 	 * return Queue from database based on the token
@@ -77,7 +75,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 		return $queue;
 	}
-
 
 	/**
 	 * @param StreamQueue $queue
@@ -103,7 +100,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$queue->setStatus(StreamQueue::STATUS_RUNNING);
 	}
 
-
 	/**
 	 * @param StreamQueue $queue
 	 *
@@ -123,7 +119,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 		$queue->setStatus(StreamQueue::STATUS_SUCCESS);
 	}
-
 
 	/**
 	 * @param StreamQueue $queue
@@ -148,7 +143,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 
 		$queue->setStatus(StreamQueue::STATUS_SUCCESS);
 	}
-
 
 	/**
 	 * @param StreamQueue $queue

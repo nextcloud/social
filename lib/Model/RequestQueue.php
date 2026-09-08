@@ -49,7 +49,6 @@ class RequestQueue implements JsonSerializable {
 		$this->resetToken();
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -67,7 +66,6 @@ class RequestQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -97,7 +95,6 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -115,7 +112,6 @@ class RequestQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -135,7 +131,6 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	public function getInstance(): ?InstancePath {
 		return $this->instance;
 	}
@@ -151,7 +146,6 @@ class RequestQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -171,7 +165,6 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -189,7 +182,6 @@ class RequestQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -209,7 +201,6 @@ class RequestQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -227,7 +218,6 @@ class RequestQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param int $timeout

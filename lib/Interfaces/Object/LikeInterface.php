@@ -50,7 +50,6 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		$this->cacheActorService = $cacheActorService;
 	}
 
-
 	/**
 	 * @throws InvalidOriginException
 	 */
@@ -65,7 +64,6 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		} catch (ItemAlreadyExistsException $e) {
 		}
 	}
-
 
 	/**
 	 * @throws InvalidOriginException
@@ -157,7 +155,6 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		$this->streamRequest->updateDetails($post);
 	}
 
-
 	/**
 	 * @throws ItemAlreadyExistsException
 	 * @throws ItemNotFoundException
@@ -170,8 +167,8 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface =
-			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface
+			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
@@ -198,7 +195,6 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 	}
 
-
 	/**
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
@@ -209,8 +205,8 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface =
-			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface
+			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(

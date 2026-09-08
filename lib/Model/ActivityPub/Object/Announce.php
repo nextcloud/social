@@ -22,7 +22,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 class Announce extends Stream implements JsonSerializable {
 	public const TYPE = 'Announce';
 
-
 	/**
 	 * Follow constructor.
 	 *
@@ -33,7 +32,6 @@ class Announce extends Stream implements JsonSerializable {
 
 		$this->setType(self::TYPE);
 	}
-
 
 	/**
 	 * @param array $data

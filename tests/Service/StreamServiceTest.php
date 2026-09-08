@@ -115,7 +115,6 @@ class StreamServiceTest extends TestCase {
 		$this->fail('No instance path for ' . $uri . ' (type ' . $type . ', priority ' . $priority . ') in ' . json_encode($paths));
 	}
 
-
 	// assignItem() / assignStream()
 
 	public function testAssignItemGeneratesIdFromActorAndMarksItemLocal(): void {
@@ -204,7 +203,6 @@ class StreamServiceTest extends TestCase {
 			$this->assertSame([], $note->getInstancePaths());
 		}
 	}
-
 
 	// detectType()
 
@@ -400,7 +398,6 @@ class StreamServiceTest extends TestCase {
 		$this->assertCount(2, $note->getInstancePaths());
 	}
 
-
 	// addHashtag() / addHashtags()
 
 	public function testAddHashtagAddsLowercasedTagLink(): void {
@@ -442,7 +439,6 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(['Nextcloud'], $note->getHashtags());
 		$this->assertSame([], $note->getTags());
 	}
-
 
 	// replyTo()
 
@@ -492,7 +488,6 @@ class StreamServiceTest extends TestCase {
 		}
 	}
 
-
 	// deleteLocalItem()
 
 	public function testDeleteLocalItemFederatesDeleteAndRemovesRow(): void {
@@ -540,7 +535,6 @@ class StreamServiceTest extends TestCase {
 
 		$this->assertSame('', $item->getActorId());
 	}
-
 
 	// lookups delegating to StreamRequest
 
@@ -646,7 +640,6 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame([], $this->service->getStreamInternalTimeline(0, 20));
 	}
 
-
 	// getContextByNid()
 
 	public function testGetContextByNidCollectsAncestorsInThreadOrderAndDescendants(): void {
@@ -700,7 +693,6 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame('https://social.example/@alice/8', $context['ancestors'][4]->getId());
 	}
 
-
 	// getAuthorFromPostId()
 
 	public function testGetAuthorFromPostIdResolvesAttributedActor(): void {
@@ -720,7 +712,6 @@ class StreamServiceTest extends TestCase {
 		$this->expectException(StreamNotFoundException::class);
 		$this->service->getAuthorFromPostId('https://remote.example/notes/missing');
 	}
-
 
 	// getOutboxCollection()
 
@@ -742,7 +733,6 @@ class StreamServiceTest extends TestCase {
 
 		$this->assertSame(0, $collection->getTotalItems());
 	}
-
 
 	// syncRemoteTimeline()
 

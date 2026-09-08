@@ -159,7 +159,6 @@ class AP {
 		}
 	}
 
-
 	public function getItemFromData(array $data, ?ACore $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
 			throw new RedundancyLimitException((string)$level);
@@ -335,64 +334,44 @@ class AP {
 		switch ($type) {
 			case Accept::TYPE:
 				return $this->acceptInterface;
-
 			case Add::TYPE:
 				return $this->addInterface;
-
 			case Announce::TYPE:
 				return $this->announceInterface;
-
 			case Block::TYPE:
 				return $this->blockInterface;
-
 			case Create::TYPE:
 				return $this->createInterface;
-
 			case Delete::TYPE:
 				return $this->deleteInterface;
-
 			case Document::TYPE:
 				return $this->documentInterface;
-
 			case Flag::TYPE:
 				return $this->flagInterface;
-
 			case Follow::TYPE:
 				return $this->followInterface;
-
 			case Image::TYPE:
 				return $this->imageInterface;
-
 			case Like::TYPE:
 				return $this->likeInterface;
-
 			case Move::TYPE:
 				return $this->moveInterface;
-
 			case Note::TYPE:
 				return $this->noteInterface;
-
 			case SocialAppNotification::TYPE:
 				return $this->notificationInterface;
-
 			case Person::TYPE:
 				return $this->personInterface;
-
 			case Reject::TYPE:
 				return $this->rejectInterface;
-
 			case Remove::TYPE:
 				return $this->removeInterface;
-
 			case Service::TYPE:
 				return $this->serviceInterface;
-
 			case Undo::TYPE:
 				return $this->undoInterface;
-
 			case Update::TYPE:
 				return $this->updateInterface;
-
 			default:
 				throw new ItemUnknownException();
 		}

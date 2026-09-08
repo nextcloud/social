@@ -135,7 +135,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -166,7 +165,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -182,7 +180,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * Minimal Mastodon-style profile update: only `locked` (manually approve
@@ -213,7 +210,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * The accounts waiting for the viewer's approval to follow them.
 	 *
@@ -235,7 +231,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -244,7 +239,6 @@ class ApiController extends Controller {
 		return $this->followRequestAction($id, true);
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -252,7 +246,6 @@ class ApiController extends Controller {
 	public function followRequestReject(string $id): DataResponse {
 		return $this->followRequestAction($id, false);
 	}
-
 
 	private function followRequestAction(string $id, bool $authorize): DataResponse {
 		try {
@@ -274,7 +267,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * Files a moderation report about an account (and optionally some of its
@@ -319,7 +311,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -329,7 +320,6 @@ class ApiController extends Controller {
 	public function customEmojis(): DataResponse {
 		return new DataResponse([], Http::STATUS_OK);
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -347,7 +337,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -360,7 +349,6 @@ class ApiController extends Controller {
 
 		return new DataResponse($local, Http::STATUS_OK);
 	}
-
 
 	/**
 	 * @PublicPage
@@ -430,7 +418,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
@@ -467,7 +454,6 @@ class ApiController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
-
 
 	/**
 	 * @PublicPage
@@ -523,7 +509,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * Same upload as mediaNew — modern Mastodon clients POST /api/v2/media and
 	 * only fall back to v1 on a 404.
@@ -534,7 +519,6 @@ class ApiController extends Controller {
 	public function mediaNewV2(): DataResponse {
 		return $this->mediaNew();
 	}
-
 
 	/**
 	 * One of the viewer's own attachments, by the id mediaNew returned.
@@ -555,7 +539,6 @@ class ApiController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
 	}
-
 
 	/**
 	 * Updates the alt text of the viewer's own attachment.
@@ -585,7 +568,6 @@ class ApiController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 		}
 	}
-
 
 	/**
 	 * @throws NotFoundException when the id is unknown or belongs to someone else
@@ -717,7 +699,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -738,7 +719,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -785,7 +765,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * @PublicPage
@@ -960,7 +939,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -1006,7 +984,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -1055,7 +1032,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -1092,7 +1068,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -1121,7 +1096,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -1160,7 +1134,6 @@ class ApiController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -1197,7 +1170,6 @@ class ApiController extends Controller {
 			return $this->error($e->getMessage());
 		}
 	}
-
 
 	/**
 	 * @param string $url
@@ -1280,7 +1252,6 @@ class ApiController extends Controller {
 		return $actors;
 	}
 
-
 	/**
 	 *
 	 * @param bool $exception
@@ -1343,7 +1314,6 @@ class ApiController extends Controller {
 		return false;
 	}
 
-
 	private function convertInput(string $input): array {
 		$contentType = $this->request->getHeader('Content-Type');
 
@@ -1355,10 +1325,8 @@ class ApiController extends Controller {
 		switch ($contentType) {
 			case 'application/json':
 				return json_decode($input, true);
-
 			case 'application/x-www-form-urlencoded':
 				return $this->request->getParams();
-
 			default: // in case of no header ...
 				$result = json_decode($input, true);
 				if (is_array($result)) {
@@ -1368,7 +1336,6 @@ class ApiController extends Controller {
 				return $this->request->getParams();
 		}
 	}
-
 
 	/**
 	 * @return string
@@ -1398,7 +1365,6 @@ class ApiController extends Controller {
 
 		throw new AccountDoesNotExistException('userId not defined');
 	}
-
 
 	/**
 	 * The scope a bearer token needs for the current route. Everything defaults
@@ -1434,7 +1400,6 @@ class ApiController extends Controller {
 			);
 		}
 	}
-
 
 	/**
 	 * @param string $error

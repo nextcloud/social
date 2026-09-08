@@ -28,7 +28,6 @@ interface IInteractiveShellClient {
 	 */
 	public function fillCommandList(string $source, string $field): array;
 
-
 	/**
 	 * @param string $command
 	 *

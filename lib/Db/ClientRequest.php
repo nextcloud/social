@@ -52,7 +52,6 @@ class ClientRequest extends ClientRequestBuilder {
 		$client->setId($qb->getLastInsertId());
 	}
 
-
 	/**
 	 * @param SocialClient $client
 	 */
@@ -78,7 +77,6 @@ class ClientRequest extends ClientRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @param SocialClient $client
@@ -106,7 +104,6 @@ class ClientRequest extends ClientRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param SocialClient $client
 	 */
@@ -122,7 +119,6 @@ class ClientRequest extends ClientRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param string $clientId
 	 *
@@ -135,7 +131,6 @@ class ClientRequest extends ClientRequestBuilder {
 
 		return $this->getClientFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $token
@@ -157,7 +152,6 @@ class ClientRequest extends ClientRequestBuilder {
 
 		throw new ClientNotFoundException();
 	}
-
 
 	/**
 	 * @throws Exception

@@ -50,7 +50,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private array $excludeTypes = [];
 	private string $accountId = '';
 
-
 	/**
 	 * ProbeOptions constructor.
 	 *
@@ -61,7 +60,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 			$this->fromArray($request->getParams());
 		}
 	}
-
 
 	/**
 	 * @return string
@@ -81,7 +79,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -99,7 +96,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return bool
@@ -119,7 +115,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -137,7 +132,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -157,7 +151,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -176,7 +169,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -194,7 +186,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -216,7 +207,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -234,7 +224,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param string $argument
@@ -254,7 +243,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this->argument;
 	}
 
-
 	/**
 	 * @param array $types
 	 *
@@ -272,7 +260,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	public function getTypes(): array {
 		return $this->types;
 	}
-
 
 	/**
 	 * @param array $excludeTypes
@@ -292,7 +279,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this->excludeTypes;
 	}
 
-
 	/**
 	 * @param string $accountId
 	 *
@@ -304,14 +290,12 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
 	public function getAccountId(): string {
 		return $this->accountId;
 	}
-
 
 	/**
 	 * @param array $arr
@@ -330,7 +314,6 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return array

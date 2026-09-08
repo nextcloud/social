@@ -70,8 +70,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	}
 
 	private function generateStreamHome(Stream $stream): bool {
-		$recipients =
-			[
+		$recipients
+			= [
 				'to' => array_merge($stream->getToAll(), [$stream->getAttributedTo()]),
 				'cc' => array_merge($stream->getCcArray(), $stream->getBccArray())
 			];
@@ -140,7 +140,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param string $actorId
 	 *
@@ -158,7 +157,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		return $this->getStreamDestsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param string $actorId
 	 */
@@ -168,8 +166,6 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
-
 
 	/**
 	 * @param string $actorId

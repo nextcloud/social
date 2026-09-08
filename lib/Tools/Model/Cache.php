@@ -21,14 +21,11 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class Cache implements JsonSerializable {
 	use TArrayTools;
 
-
 	/** @var CacheItem[] */
 	private $items = [];
 
-
 	public function __construct() {
 	}
-
 
 	/**
 	 * @return bool
@@ -70,7 +67,6 @@ class Cache implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $url
 	 *
@@ -87,7 +83,6 @@ class Cache implements JsonSerializable {
 		throw new CacheItemNotFoundException();
 	}
 
-
 	/**
 	 * @param string $url
 	 *
@@ -102,7 +97,6 @@ class Cache implements JsonSerializable {
 			return false;
 		}
 	}
-
 
 	/**
 	 * @param string $url
@@ -155,7 +149,6 @@ class Cache implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @param array $data
 	 */
@@ -172,7 +165,6 @@ class Cache implements JsonSerializable {
 			$this->addItem($item);
 		}
 	}
-
 
 	/**
 	 * @return array

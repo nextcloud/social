@@ -68,7 +68,6 @@ class StreamQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -86,7 +85,6 @@ class StreamQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -106,7 +104,6 @@ class StreamQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -124,7 +121,6 @@ class StreamQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -144,7 +140,6 @@ class StreamQueue implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -162,7 +157,6 @@ class StreamQueue implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param array $data
@@ -186,7 +180,6 @@ class StreamQueue implements JsonSerializable {
 			}
 		}
 	}
-
 
 	/**
 	 * @return array

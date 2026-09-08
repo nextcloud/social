@@ -27,7 +27,6 @@ class Status implements \JsonSerializable {
 	public function __construct() {
 	}
 
-
 	/**
 	 * @param string $contentType
 	 *
@@ -45,7 +44,6 @@ class Status implements \JsonSerializable {
 	public function getContentType(): string {
 		return $this->contentType;
 	}
-
 
 	/**
 	 * @param bool $sensitive
@@ -65,7 +63,6 @@ class Status implements \JsonSerializable {
 		return $this->sensitive;
 	}
 
-
 	/**
 	 * @param string $visibility
 	 *
@@ -83,7 +80,6 @@ class Status implements \JsonSerializable {
 	public function getVisibility(): string {
 		return $this->visibility;
 	}
-
 
 	/**
 	 * @param string $spoilerText
@@ -125,7 +121,6 @@ class Status implements \JsonSerializable {
 		return $this->inReplyToId;
 	}
 
-
 	/**
 	 * @param string $status
 	 *
@@ -143,7 +138,6 @@ class Status implements \JsonSerializable {
 	public function getStatus(): string {
 		return $this->status;
 	}
-
 
 	public function import(array $data): self {
 		$this->setContentType($this->get('content_type', $data));

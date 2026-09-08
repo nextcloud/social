@@ -47,7 +47,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $this->defaultSelectAlias;
 	}
 
-
 	/**
 	 * Limit the request to the Id
 	 *
@@ -61,11 +60,9 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $this;
 	}
 
-
 	public function limitToNid(int $id): void {
 		$this->limitToDBFieldInt('nid', $id);
 	}
-
 
 	/**
 	 * @param array $ids
@@ -77,7 +74,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		return $this;
 	}
-
 
 	/**
 	 * Limit the request to the Id (string)
@@ -92,7 +88,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $this;
 	}
 
-
 	/**
 	 * Limit the request to the UserId
 	 *
@@ -105,7 +100,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		return $this;
 	}
-
 
 	/**
 	 * Limit the request to the creation
@@ -124,7 +118,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $this;
 	}
 
-
 	/**
 	 * @param string $field
 	 * @param string $value
@@ -136,7 +129,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		$this->andWhere($expr);
 	}
-
 
 	/**
 	 * @param string $field
@@ -177,7 +169,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		}
 	}
 
-
 	/**
 	 * @param string $field
 	 * @param array $values
@@ -191,7 +182,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$this->andWhere($expr);
 	}
 
-
 	/**
 	 * @param string $field
 	 * @param string $value
@@ -204,7 +194,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
 		$this->andWhere($expr);
 	}
-
 
 	/**
 	 * @param string $field
@@ -249,7 +238,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $junc;
 	}
 
-
 	/**
 	 * @param string $field
 	 * @param int $value
@@ -259,7 +247,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$expr = $this->exprLimitToDBFieldInt($field, $value, $alias, true);
 		$this->andWhere($expr);
 	}
-
 
 	/**
 	 * @param string $field
@@ -289,34 +276,31 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $expr->$comp($field, $this->createNamedParameter($value, IQueryBuilder::PARAM_INT));
 	}
 
-
 	/**
 	 * @param string $field
 	 */
 	public function limitToDBFieldEmpty(string $field) {
 		$expr = $this->expr();
-		$pf =
-			($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
+		$pf
+			= ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
 															  . '.' : '';
 		$field = $pf . $field;
 
 		$this->andWhere($expr->eq($field, $this->createNamedParameter('')));
 	}
 
-
 	/**
 	 * @param string $field
 	 */
 	public function filterDBFieldEmpty(string $field) {
 		$expr = $this->expr();
-		$pf =
-			($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
+		$pf
+			= ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
 															  . '.' : '';
 		$field = $pf . $field;
 
 		$this->andWhere($expr->neq($field, $this->createNamedParameter('')));
 	}
-
 
 	/**
 	 * @param string $field
@@ -325,8 +309,8 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 */
 	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false) {
 		$expr = $this->expr();
-		$pf =
-			($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
+		$pf
+			= ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias()
 															  . '.' : '';
 		$field = $pf . $field;
 
@@ -340,7 +324,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		$this->andWhere($expr->orX(...$conditions));
 	}
-
 
 	/**
 	 * @param int $timestamp
@@ -367,7 +350,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		);
 	}
 
-
 	/**
 	 * @param string $field
 	 * @param string $value
@@ -381,7 +363,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		$this->andWhere($expr->iLike($field, $this->createNamedParameter($value)));
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -408,7 +389,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 
 		return $expr->iLike($alias . '.' . $field, $concat);
 	}
-
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -462,7 +442,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	//		);
 	//	}
 
-
 	/**
 	 * @param callable $method
 	 *
@@ -508,7 +487,6 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	public function limitInArray(string $field, array $value, string $alias = ''): void {
 		$this->andWhere($this->exprLimitInArray($field, $value, $alias));
 	}
-
 
 	/**
 	 * @param string $field

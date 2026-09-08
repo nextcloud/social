@@ -26,7 +26,6 @@ class QueueProcess extends Base {
 	private ConfigService $configService;
 	private MiscService $miscService;
 
-
 	/**
 	 * NoteCreate constructor.
 	 *
@@ -50,7 +49,6 @@ class QueueProcess extends Base {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -59,7 +57,6 @@ class QueueProcess extends Base {
 		$this->setName('social:queue:process')
 			->setDescription('Process the request queue');
 	}
-
 
 	/**
 	 * @param InputInterface $input
@@ -74,7 +71,6 @@ class QueueProcess extends Base {
 
 		return 0;
 	}
-
 
 	/**
 	 * @param OutputInterface $output
@@ -105,7 +101,6 @@ class QueueProcess extends Base {
 
 		$output->writeLn('done');
 	}
-
 
 	private function processStreamQueue(OutputInterface $output) {
 		$total = 0;

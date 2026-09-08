@@ -117,14 +117,12 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 	}
 
-
 	public function updateDetails(Stream $stream): void {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 		$qb->executeStatement();
 	}
-
 
 	public function updateCache(Stream $stream, Cache $cache): void {
 		$qb = $this->getStreamUpdateSql();
@@ -173,7 +171,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $new;
 	}
 
-
 	public function updateAttributedTo(string $itemId, string $to): void {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attributed_to', $qb->createNamedParameter($to));
@@ -183,7 +180,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @param string $type
@@ -199,7 +195,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $id
@@ -236,7 +231,6 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 	}
 
-
 	/**
 	 * @param string $id
 	 * @param bool $asViewer
@@ -255,7 +249,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $idPrim
@@ -299,7 +292,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param string $id
 	 *
@@ -317,7 +309,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $objectId
@@ -341,7 +332,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamFromRequest($qb);
 	}
 
-
 	/**
 	 * @param string $id
 	 *
@@ -357,7 +347,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getInt('count', $data, 0);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -379,7 +368,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getInt('count', $data, 0);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -471,7 +459,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * Should return:
 	 *  * Private message.
@@ -497,7 +484,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * Should returns:
@@ -534,7 +520,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param ProbeOptions $options
 	 *
@@ -558,7 +543,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param ProbeOptions $options
@@ -584,7 +568,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param ProbeOptions $options
 	 *
@@ -608,7 +591,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param ProbeOptions $options
 	 *
@@ -631,7 +613,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * Should return:
@@ -662,7 +643,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * Should return:
@@ -696,7 +676,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * Should return:
 	 *  * public message from actorId.
@@ -725,7 +704,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * Should return:
@@ -782,7 +760,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * Should returns:
 	 *  * All local public/federated posts
@@ -812,7 +789,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		return $this->getStreamsFromRequest($qb);
 	}
-
 
 	/**
 	 * Should returns:
@@ -846,7 +822,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * Should return:
 	 *  - All public post related to a tag (not yet)
@@ -879,7 +854,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param int $since
 	 *
@@ -904,7 +878,6 @@ class StreamRequest extends StreamRequestBuilder {
 		return $this->getStreamsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param string $id
 	 * @param string $type
@@ -920,7 +893,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param string $actorId
 	 */
@@ -930,7 +902,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -943,7 +914,6 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * Insert a new Stream in the database.
@@ -1038,10 +1008,8 @@ class StreamRequest extends StreamRequestBuilder {
 		return $qb;
 	}
 
-
 	public function getRelatedToActor(string $actorId) {
 	}
-
 
 	/**
 	 * @param string $id

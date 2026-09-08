@@ -49,7 +49,6 @@ trait TNCDataResponse {
 		return new DataResponse($data, $status);
 	}
 
-
 	/**
 	 * @param array $result
 	 * @param array $more

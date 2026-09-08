@@ -25,7 +25,6 @@ class QueueStatus extends Base {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * NoteCreate constructor.
 	 *
@@ -43,7 +42,6 @@ class QueueStatus extends Base {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -55,7 +53,6 @@ class QueueStatus extends Base {
 			)
 			->setDescription('Return status on the request queue');
 	}
-
 
 	/**
 	 * @param InputInterface $input

@@ -21,7 +21,6 @@ class Move extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 */
@@ -31,7 +30,6 @@ class Move extends ACore implements JsonSerializable {
 		$this->setObjectId($this->validate(ACore::AS_ID, 'object', $data, ''));
 		$this->setTarget($this->validate(ACore::AS_ID, 'target', $data, ''));
 	}
-
 
 	/**
 	 * @return array

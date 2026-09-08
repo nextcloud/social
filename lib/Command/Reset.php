@@ -30,7 +30,6 @@ class Reset extends Base {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * CacheUpdate constructor.
 	 *
@@ -51,7 +50,6 @@ class Reset extends Base {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -61,7 +59,6 @@ class Reset extends Base {
 			->addOption('uninstall', '', InputOption::VALUE_NONE, 'full removing of the app')
 			->setDescription('Reset ALL data related to the Social App');
 	}
-
 
 	/**
 	 * @param InputInterface $input
@@ -91,7 +88,6 @@ class Reset extends Base {
 			return 0;
 		}
 
-
 		if ($input->getOption('uninstall')) {
 			try {
 				$output->writeln('');
@@ -104,7 +100,6 @@ class Reset extends Base {
 
 			return 0;
 		}
-
 
 		$output->writeln('');
 		$output->write('flushing data... ');
@@ -140,7 +135,6 @@ class Reset extends Base {
 
 		return 0;
 	}
-
 
 	/**
 	 * @param OutputInterface $output

@@ -35,7 +35,6 @@ class ExtendedBase extends Base {
 		$this->output->writeln('');
 	}
 
-
 	/**
 	 * @param Stream[] $streams
 	 */
@@ -90,7 +89,6 @@ class ExtendedBase extends Base {
 			);
 		}
 	}
-
 
 	/**
 	 * @param Stream $stream

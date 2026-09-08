@@ -32,7 +32,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		return $this;
 	}
 
-
 	/**
 	 * Limit the request to the ActivityId
 	 *
@@ -41,7 +40,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToActivityId(string $activityId) {
 		$this->limitToDBField('activity_id', $activityId, false);
 	}
-
 
 	/**
 	 * Limit the request to the Id (string)
@@ -59,7 +57,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('in_reply_to', $id, false);
 	}
 
-
 	/**
 	 * Limit the request to the sub-type
 	 *
@@ -68,7 +65,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToSubType(string $subType) {
 		$this->limitToDBField('subtype', $subType);
 	}
-
 
 	/**
 	 * Limit the request to clientId
@@ -79,14 +75,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('app_client_id', $clientId);
 	}
 
-
 	/**
 	 * @param string $type
 	 */
 	public function filterType(string $type) {
 		$this->filterDBField('type', $type);
 	}
-
 
 	/**
 	 * Limit the request to the Preferred Username
@@ -97,7 +91,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('preferred_username', $username, false);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 */
@@ -105,14 +98,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBFieldInt('public', 1);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 */
 	public function limitToIdPrim(string $id) {
 		$this->limitToDBField('id_prim', $id);
 	}
-
 
 	/**
 	 * Limit the request to the token
@@ -124,7 +115,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('token', $token, true, $alias);
 	}
 
-
 	/**
 	 * Limit the results to a given number
 	 *
@@ -134,7 +124,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->setMaxResults($limit);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 *
@@ -143,7 +132,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToHashtag(string $hashtag) {
 		$this->limitToDBField('hashtag', $hashtag, false);
 	}
-
 
 	/**
 	 * Limit the request to the ActorId
@@ -155,7 +143,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('actor_id', $actorId, false, $alias);
 	}
 
-
 	/**
 	 * Limit the request to the ActorId
 	 *
@@ -165,7 +152,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToActorIdPrim(string $actorId, string $alias = '') {
 		$this->limitToDBField('actor_id_prim', $actorId, false, $alias);
 	}
-
 
 	/**
 	 * @param string $streamId
@@ -186,7 +172,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('follow_id', $followId, false);
 	}
 
-
 	/**
 	 * Limit the request to the FollowId
 	 *
@@ -197,7 +182,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('accepted', ($accepted) ? '1' : '0', true, $alias);
 	}
 
-
 	/**
 	 * Limit the request to the ServiceId
 	 *
@@ -206,7 +190,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToObjectId(string $objectId) {
 		$this->limitToDBField('object_id', $objectId, false);
 	}
-
 
 	/**
 	 * Limit the request to the ActorId
@@ -218,7 +201,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('object_id_prim', $actorId, false, $alias);
 	}
 
-
 	/**
 	 * Limit the request to the account
 	 *
@@ -227,7 +209,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToAccount(string $account) {
 		$this->limitToDBField('account', $account, false);
 	}
-
 
 	/**
 	 * Limit the request to the creation
@@ -243,7 +224,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBFieldDateTime('caching', $date, true);
 	}
 
-
 	/**
 	 * Limit the request to the url
 	 *
@@ -252,7 +232,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToUrl(string $url) {
 		$this->limitToDBField('url', $url);
 	}
-
 
 	/**
 	 * Limit the request to the url
@@ -270,7 +249,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('attributed_to', $actorId, false);
 	}
 
-
 	/**
 	 * Limit the request to the status
 	 *
@@ -279,7 +257,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToStatus(int $status) {
 		$this->limitToDBFieldInt('status', $status);
 	}
-
 
 	/**
 	 * Limit the request to the instance
@@ -290,7 +267,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBField('address', $address);
 	}
 
-
 	/**
 	 * Limit the request to the instance
 	 *
@@ -300,7 +276,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->limitToDBFieldInt('local', ($local) ? 1 : 0);
 	}
 
-
 	/**
 	 * Limit the request to the parent_id
 	 *
@@ -309,7 +284,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToParentId(string $parentId) {
 		$this->limitToDBField('parent_id', $parentId);
 	}
-
 
 	/**
 	 * @param ProbeOptions $options
@@ -336,7 +310,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->orderBy($pf . '.nid', ($options->isInverted()) ? 'asc' : 'desc');
 	}
 
-
 	/**
 	 * @param int $since
 	 * @param int $limit
@@ -361,7 +334,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$this->orderBy($pf . '.published_time', 'desc');
 	}
 
-
 	/**
 	 * @param string $recipient
 	 */
@@ -370,7 +342,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		$this->andWhere($expr->neq('actor_id', $this->createNamedParameter($this->prim($recipient))));
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -381,7 +352,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	public function limitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd') {
 		$this->andWhere($this->exprLimitToDest($actorId, $type, $subType, $alias));
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -409,7 +379,6 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 		return $andX;
 	}
-
 
 	/**
 	 * @param string $aliasDest

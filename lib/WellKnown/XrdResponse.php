@@ -38,7 +38,6 @@ final class XrdResponse implements IResponse {
 		return $this;
 	}
 
-
 	public function setHttpCode(int $httpCode): self {
 		$this->httpCode = $httpCode;
 
@@ -61,7 +60,6 @@ final class XrdResponse implements IResponse {
 
 		return $this;
 	}
-
 
 	public function toHttpResponse(): Response {
 		$data = [];
