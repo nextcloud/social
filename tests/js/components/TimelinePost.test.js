@@ -236,6 +236,55 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('reachable without a mouse', () => {
+		it('is an article named after its author', () => {
+			const { wrapper } = mountPost()
+			const article = wrapper.find('article.post-content')
+
+			// a post with no landmark cannot be moved between by structure
+			expect(article.exists()).toBe(true)
+			expect(article.attributes('aria-label')).toContain('alice')
+		})
+
+		it('opens the post from a real button, not an anchor without an href', () => {
+			const { wrapper } = mountPost()
+			const timestamp = wrapper.find('.post-timestamp')
+
+			expect(timestamp.element.tagName).toBe('BUTTON')
+			expect(timestamp.attributes('aria-label')).toBeTruthy()
+		})
+
+		it('keeps the like button in place as the state changes', async () => {
+			const { wrapper } = mountPost()
+			const like = () => wrapper.findAll('button').find(
+				(button) => /Like/.test(button.attributes('aria-label') ?? ''),
+			)
+
+			const before = like().element
+			expect(like().attributes('aria-pressed')).toBe('false')
+			expect(like().attributes('aria-label')).toBe('Like')
+
+			await wrapper.setProps({ item: makeItem({ favourited: true }) })
+
+			// the same element, relabelled. Two buttons swapped by v-if would
+			// unmount the one just pressed and drop the reader's focus with it
+			expect(like().element).toBe(before)
+			expect(like().attributes('aria-pressed')).toBe('true')
+			expect(like().attributes('aria-label')).toBe('Undo Like')
+		})
+
+		it('says whether a post is boosted, not only how the icon is filled', async () => {
+			const { wrapper } = mountPost()
+			const boost = () => wrapper.findAll('button').find(
+				(button) => /[Bb]oost/.test(button.attributes('aria-label') ?? ''),
+			)
+
+			expect(boost().attributes('aria-pressed')).toBe('false')
+			await wrapper.setProps({ item: makeItem({ reblogged: true }) })
+			expect(boost().attributes('aria-pressed')).toBe('true')
+		})
+	})
+
 	describe('where the post came from', () => {
 		it('marks a remote post with its instance, in that instance\'s colour', () => {
 			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })

@@ -20,10 +20,12 @@ describe('VisibilityIcon', () => {
 		expect(icons[0].classes()).toContain(iconClass)
 	})
 
-	it('renders no icon for an unknown visibility', () => {
+	it('says it does not recognise an unknown visibility', () => {
 		const wrapper = mount(VisibilityIcon, { props: { visibility: 'secret' } })
-		expect(wrapper.find('.material-design-icon').exists()).toBe(false)
-		expect(wrapper.text()).toBe('')
+
+		// showing nothing reads as "public", which for an unknown audience may
+		// be exactly the wrong thing to imply
+		expect(wrapper.find('.help-circle-outline-icon').exists()).toBe(true)
 	})
 
 	it('switches the icon when the visibility changes', async () => {

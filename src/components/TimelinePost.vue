@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="post-content" :data-social-status="item.id">
+	<article class="post-content" :data-social-status="item.id" :aria-label="postLabel">
 		<div class="post-header">
 			<div class="post-author-wrapper" :title="item.account.acct">
 				<router-link v-if="item.account"
@@ -24,12 +24,14 @@
 					</span>
 				</router-link>
 			</div>
-			<a :data-timestamp="timestamp"
+			<button :data-timestamp="timestamp"
+				type="button"
 				class="post-timestamp live-relative-timestamp"
 				:title="formattedDate"
+				:aria-label="t('social', 'Open this post, written {time}', { time: formattedDate })"
 				@click="getSinglePostTimeline">
 				{{ relativeTimestamp }}
-			</a>
+			</button>
 			<span v-if="item.pinned" class="post-pinned" :title="t('social', 'Pinned post')">
 				<Pin :size="14" />
 				{{ t('social', 'Pinned') }}
@@ -92,6 +94,7 @@
 				<NcButton v-if="item.visibility === 'public' || item.visibility === 'unlisted'"
 					:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 					:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+					:aria-pressed="isBoosted ? 'true' : 'false'"
 					type="tertiary"
 					:class="{ 'post-action--spun': celebrate === 'boost' }"
 					@click="boost">
@@ -104,23 +107,18 @@
 			<div class="post-action-group post-action-group--like"
 				:class="{ 'post-action-group--refused': refused === 'like' }">
 				<span v-if="celebrate === 'like'" class="post-action__burst" aria-hidden="true" />
-				<NcButton v-if="!isLiked"
-					:title="t('social', 'Like')"
-					:aria-label="t('social', 'Like')"
+				<!-- one button whose label changes, not two swapped by v-if:
+				     unmounting the button someone just pressed drops their focus
+				     to the body and loses their place in the timeline -->
+				<NcButton :title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+					:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+					:aria-pressed="isLiked ? 'true' : 'false'"
 					type="tertiary"
+					:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
 					@click="like">
 					<template #icon>
-						<HeartOutline :size="20" />
-					</template>
-				</NcButton>
-				<NcButton v-if="isLiked"
-					:title="t('social', 'Undo Like')"
-					:aria-label="t('social', 'Undo Like')"
-					type="tertiary"
-					:class="{ 'post-action--popped': celebrate === 'like' }"
-					@click="like">
-					<template #icon>
-						<Heart :size="20" :fill-color="'var(--color-element-error)'" />
+						<Heart v-if="isLiked" :size="20" :fill-color="'var(--color-element-error)'" />
+						<HeartOutline v-else :size="20" />
 					</template>
 				</NcButton>
 				<span v-if="item.favourites_count > 0" class="post-action-count">{{ item.favourites_count }}</span>
@@ -171,7 +169,7 @@
 					rows="3" />
 			</NcDialog>
 		</div>
-	</div>
+	</article>
 </template>
 
 <script>
@@ -263,6 +261,10 @@ export default {
 		}
 	},
 	computed: {
+		/** Who wrote it, so moving between posts by landmark says something. */
+		postLabel() {
+			return t('social', 'Post by {account}', { account: this.item.account?.acct ?? '' })
+		},
 		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */
 		origin() {
 			return originOf(this.item.account?.acct ?? '')
@@ -733,9 +735,10 @@ function nodeToPlainText(node) {
 			resize: vertical;
 			box-sizing: border-box;
 
-			&:focus {
-				outline: none;
+			&:focus-visible {
 				border-color: var(--color-primary-element);
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 1px;
 			}
 		}
 

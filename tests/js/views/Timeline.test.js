@@ -98,10 +98,23 @@ describe('Timeline', () => {
 		expect(store.state.timeline.timeline).toEqual([])
 	})
 
+	it.each([
+		[{ name: 'timeline', params: {} }, 'Home timeline', false],
+		[{ name: 'timeline', params: { type: 'direct' } }, 'Direct messages', false],
+		[{ name: 'timeline', params: { type: 'notifications' } }, 'Notifications', true],
+	])('names the timeline %o for a reader who cannot see which one it is', (route, heading, visible) => {
+		const wrapper = mountTimeline(route)
+		const title = wrapper.find('h1')
+
+		// every view has a heading now; only the two that always showed one stay visible
+		expect(title.text()).toBe(heading)
+		expect(title.classes('hidden-visually')).toBe(!visible)
+	})
+
 	it('loads a hashtag timeline with the tag as parameter and shows the tag as heading', () => {
 		const wrapper = mountTimeline({ name: 'tags', params: { tag: 'nextcloud' } })
 		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', { type: 'tags', params: { tag: 'nextcloud' } })
-		expect(wrapper.find('h2').text()).toBe('#nextcloud')
+		expect(wrapper.find('h1').text()).toBe('#nextcloud')
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('tags')
 		expect(wrapper.findComponent(ComposerStub).exists()).toBe(true)
 	})
@@ -119,7 +132,7 @@ describe('Timeline', () => {
 	it('hides the composer on the notifications timeline and titles it', () => {
 		const wrapper = mountTimeline({ params: { type: 'notifications' } })
 		expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
-		expect(wrapper.find('h2').text()).toBe('Notifications')
+		expect(wrapper.find('h1').text()).toBe('Notifications')
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('notifications')
 	})
 

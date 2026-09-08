@@ -144,4 +144,30 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 
 		expect(advertised.filter((event) => !listened.includes(event))).toEqual([])
 	})
+
+	it('does not put a click handler on something nobody can focus', () => {
+		// a div that reacts to a click is invisible to the keyboard and to a
+		// screen reader; the fix is a <button>, or a role plus tabindex plus a
+		// key handler if it truly cannot be one
+		const offenders = []
+		for (const { name, content } of files) {
+			for (const [tag] of content.matchAll(/<(?:div|span|li|img|p)\b[^>]*@click[^>]*>/g)) {
+				const excused = /\brole=|\btabindex=|@keydown|@keyup|aria-hidden="true"/.test(tag)
+				if (!excused) {
+					offenders.push(`${name}: ${tag.replace(/\s+/g, ' ').slice(0, 70)}`)
+				}
+			}
+		}
+
+		expect(offenders).toEqual([])
+	})
+
+	it('suppresses no focus outline without putting one back', () => {
+		for (const { name, content } of files) {
+			// :focus-visible with an outline of its own is the replacement; a
+			// bare `outline: none` leaves a keyboard user with no idea where
+			// they are
+			expect(/outline:\s*none/.test(content), `${name}: removes a focus outline`).toBe(false)
+		}
+	})
 })
