@@ -14,6 +14,7 @@ use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
+use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\WellKnown\WebfingerHandler;
@@ -22,6 +23,7 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Profile\BeforeTemplateRenderedEvent;
+use OCP\User\Events\UserDeletedEvent;
 use PHPUnit\Framework\TestCase;
 
 class ApplicationTest extends TestCase {
@@ -46,7 +48,7 @@ class ApplicationTest extends TestCase {
 		$context->expects($this->once())->method('registerNotifierService')->with(Notifier::class);
 
 		$listeners = [];
-		$context->expects($this->exactly(2))->method('registerEventListener')
+		$context->expects($this->exactly(3))->method('registerEventListener')
 			->willReturnCallback(function (string $event, string $listener) use (&$listeners): void {
 				$listeners[$event] = $listener;
 			});
@@ -61,6 +63,8 @@ class ApplicationTest extends TestCase {
 		$this->assertSame([
 			BeforeTemplateRenderedEvent::class => ProfileSectionListener::class,
 			UserUpdatedEvent::class => UserAccountListener::class,
+			// without this one a deleted user keeps a live Fediverse account
+			UserDeletedEvent::class => UserDeletedListener::class,
 		], $listeners);
 		$this->assertSame([SocialWidget::class, SocialTimelineWidget::class], $widgets);
 	}

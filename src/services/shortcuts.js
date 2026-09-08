@@ -31,6 +31,19 @@ export const SHORTCUTS = [
 const EDITABLE = ['input', 'textarea', 'select']
 
 /**
+ * Elements that already do something with Enter and the space bar: pressing
+ * either on one of these is how a keyboard user clicks it.
+ */
+const ACTIVATABLE_TAGS = ['button', 'a', 'summary', 'details', 'option', 'label']
+const ACTIVATABLE_ROLES = [
+	'button', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
+	'checkbox', 'radio', 'switch', 'tab', 'option', 'treeitem',
+]
+
+/** Keys an element may own, as opposed to keys that are only ever ours. */
+const ACTIVATION_KEYS = ['Enter', ' ', 'Spacebar']
+
+/**
  * Whether a key press is the viewer typing rather than commanding.
  *
  * @param {KeyboardEvent} event the press
@@ -51,11 +64,41 @@ export function isTyping(event) {
 }
 
 /**
+ * Whether the focused element would act on this key itself.
+ *
+ * Enter on a focused button or link is not a shortcut, it is a click — the
+ * only way to press one without a mouse. Taking it away leaves a keyboard
+ * user unable to use the app at all, so an element that owns the key keeps it.
+ *
+ * @param {KeyboardEvent} event the press
+ * @return {boolean} true when the key belongs to the element, not to us
+ */
+export function belongsToElement(event) {
+	if (!ACTIVATION_KEYS.includes(event.key)) {
+		return false
+	}
+
+	const target = event.target
+	if (!target || typeof target.tagName !== 'string') {
+		return false
+	}
+
+	if (ACTIVATABLE_TAGS.includes(target.tagName.toLowerCase())) {
+		return true
+	}
+
+	const role = typeof target.getAttribute === 'function' ? target.getAttribute('role') : null
+
+	// anything given a widget role is expected to answer to Enter as well
+	return role !== null && ACTIVATABLE_ROLES.includes(role)
+}
+
+/**
  * @param {KeyboardEvent} event the press
  * @return {string} the event to publish, or '' when the key means nothing here
  */
 export function eventFor(event) {
-	if (isTyping(event)) {
+	if (isTyping(event) || belongsToElement(event)) {
 		return ''
 	}
 

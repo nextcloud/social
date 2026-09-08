@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SHORTCUTS, eventFor, isTyping, listenForShortcuts } from '../../../src/services/shortcuts.js'
+import { SHORTCUTS, belongsToElement, eventFor, isTyping, listenForShortcuts } from '../../../src/services/shortcuts.js'
 import eventBus from '../../../src/services/eventBus.js'
 
 const press = (key, target = document.body, extra = {}) => ({
@@ -41,6 +41,43 @@ describe('isTyping', () => {
 	})
 })
 
+describe('belongsToElement', () => {
+	const withRole = (role) => {
+		const element = document.createElement('div')
+		element.setAttribute('role', role)
+
+		return element
+	}
+
+	it('leaves Enter to anything that is clicked with it', () => {
+		// pressing Enter on a focused button or link IS the click; taking it
+		// away is what leaves a keyboard user unable to use the app at all
+		for (const tag of ['button', 'a', 'summary', 'details', 'option', 'label']) {
+			expect(belongsToElement(press('Enter', document.createElement(tag))), tag).toBe(true)
+		}
+	})
+
+	it('leaves the space bar to them as well', () => {
+		expect(belongsToElement(press(' ', document.createElement('button')))).toBe(true)
+	})
+
+	it('leaves Enter to anything given a widget role', () => {
+		for (const role of ['button', 'link', 'menuitem', 'checkbox', 'tab', 'switch']) {
+			expect(belongsToElement(press('Enter', withRole(role))), role).toBe(true)
+		}
+	})
+
+	it('keeps the keys that no element answers to', () => {
+		expect(belongsToElement(press('j', document.createElement('button')))).toBe(false)
+		expect(belongsToElement(press('o', document.createElement('a')))).toBe(false)
+	})
+
+	it('keeps Enter when nothing in particular is focused', () => {
+		expect(belongsToElement(press('Enter'))).toBe(false)
+		expect(belongsToElement(press('Enter', withRole('article')))).toBe(false)
+	})
+})
+
 describe('eventFor', () => {
 	it('maps the keys other clients use', () => {
 		expect(eventFor(press('j'))).toBe('shortcut:next')
@@ -58,6 +95,15 @@ describe('eventFor', () => {
 		expect(eventFor(press('Escape'))).toBe('')
 	})
 
+	it('does not take Enter away from a focused button or link', () => {
+		expect(eventFor(press('Enter', document.createElement('button')))).toBe('')
+		expect(eventFor(press('Enter', document.createElement('a')))).toBe('')
+	})
+
+	it('still opens the post in focus when Enter is nobody else\'s', () => {
+		expect(eventFor(press('Enter'))).toBe('shortcut:open')
+	})
+
 	it('ignores everything while typing', () => {
 		expect(eventFor(press('j', document.createElement('input')))).toBe('')
 	})
@@ -66,6 +112,16 @@ describe('eventFor', () => {
 		for (const shortcut of SHORTCUTS) {
 			expect(shortcut.label.length).toBeGreaterThan(0)
 			expect(shortcut.keys.length).toBeGreaterThan(0)
+		}
+	})
+})
+
+describe('the help sheet', () => {
+	it('offers nothing that no key produces', () => {
+		for (const shortcut of SHORTCUTS) {
+			for (const key of shortcut.keys) {
+				expect(eventFor(press(key)), key).toBe(shortcut.event)
+			}
 		}
 	})
 })

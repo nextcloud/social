@@ -170,10 +170,11 @@ Each Nextcloud user that has been given a Social account gets a Person actor:
 1. A user action (post, edit, delete, follow, unfollow, like, boost) has a service build the activity
 2. `SignatureService::signObject()` adds a Linked Data Signature — for Create, Update, Delete, Like, Announce and their Undos. Follow and Accept are **not** LD-signed; they travel with the HTTP signature only
 3. `ActivityService::request()` expands the activity's instance paths into concrete target inboxes
-4. `RequestQueueService::generateRequestQueue()` writes one `social_req_queue` row per target
-5. At most one row is delivered inline: `RequestQueueService::getPriorityRequest()` hands back the first row only when its priority is `TOP`, or `HIGH`/`MEDIUM` under narrow conditions, and otherwise throws `NoHighPriorityRequestException` so nothing is sent synchronously. If rows remain on standby, `CurlService::asyncWithToken()` fires a request at the app's own `/async/request/{token}` route to drain them
-6. `Cron\Queue` (12-minute interval) retries whatever is still on standby, with the backoff above
-7. Every delivery is an HTTP POST signed by `SignatureService::signRequest()`
+4. Targets on this instance are dropped: everyone here already has the item, because recipients are written into `social_stream_dest` when it is saved, which is what puts it in a local timeline. Posting to our own inbox would only hand us back what we wrote, and it is a request the server has to be able to make to its own public address — behind a reverse proxy, split-horizon DNS or an SSRF guard it often cannot, and the delivery then fails its way to being abandoned while remote instances queue up behind it
+5. `RequestQueueService::generateRequestQueue()` writes one `social_req_queue` row per remaining target
+6. At most one row is delivered inline: `RequestQueueService::getPriorityRequest()` hands back the first row only when its priority is `TOP`, or `HIGH`/`MEDIUM` under narrow conditions, and otherwise throws `NoHighPriorityRequestException` so nothing is sent synchronously. If rows remain on standby, `CurlService::asyncWithToken()` fires a request at the app's own `/async/request/{token}` route to drain them
+7. `Cron\Queue` (12-minute interval) retries whatever is still on standby, with the backoff above
+8. Every delivery is an HTTP POST signed by `SignatureService::signRequest()`
 
 **Activities the app emits:** Create, Update, Delete, Follow, Accept, Like, Announce, Undo.
 
