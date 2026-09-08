@@ -27,7 +27,7 @@ const pristine = {
 const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
 	NcAppContent: { template: '<main class="app-content-stub"><slot /></main>' },
-	Navigation: { emits: ['search', 'reset-cache', 'open-composer'], template: '<nav class="navigation-stub" />' },
+	Navigation: { emits: ['search', 'open-composer'], template: '<nav class="navigation-stub" />' },
 	RouterView: { template: '<div class="router-view-stub" />' },
 }
 
@@ -142,16 +142,6 @@ describe('App', () => {
 		route.value = { name: 'timeline', params: { type: 'federated' }, fullPath: '/timeline/federated' }
 		await nextTick()
 		expect(store.state.timeline.searchQuery).toBe('')
-	})
-
-	it('refreshes the server cache and then the timeline', async () => {
-		const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
-		const wrapper = mountApp()
-		wrapper.findComponent(stubs.Navigation).vm.$emit('reset-cache')
-		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/cache/refresh')
-		expect(dispatch).not.toHaveBeenCalledWith('refreshTimeline')
-		await flushPromises()
-		expect(dispatch).toHaveBeenCalledWith('refreshTimeline')
 	})
 
 	describe('push notifications', () => {

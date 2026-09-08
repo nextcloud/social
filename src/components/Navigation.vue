@@ -63,19 +63,6 @@
 							<IconCancel :size="20" />
 						</template>
 					</NcAppNavigationItem>
-					<NcAppNavigationItem :name="t('social', 'Reset local cache')"
-						@click="$emit('reset-cache')">
-						<template #icon>
-							<IconDelete :size="20" />
-						</template>
-					</NcAppNavigationItem>
-					<NcAppNavigationItem :name="t('social', 'Help &amp; documentation')"
-						:href="'https://github.com/SchBenedikt/social/'"
-						target="_blank">
-						<template #icon>
-							<IconHelpCircle :size="20" />
-						</template>
-					</NcAppNavigationItem>
 				</NcAppNavigationSettings>
 			</div>
 		</template>
@@ -132,8 +119,6 @@ import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import IconEarth from 'vue-material-design-icons/Earth.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
-import IconHelpCircle from 'vue-material-design-icons/HelpCircle.vue'
-import IconDelete from 'vue-material-design-icons/Delete.vue'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
@@ -163,8 +148,6 @@ export default {
 		IconEarth,
 		IconHeart,
 		IconPlus,
-		IconHelpCircle,
-		IconDelete,
 		IconCancel,
 		IconAlertCircle,
 	},

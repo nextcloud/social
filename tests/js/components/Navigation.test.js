@@ -72,8 +72,6 @@ describe('Navigation', () => {
 			'Liked posts',
 			'Profile',
 			'Blocked and muted accounts',
-			'Reset local cache',
-			'Help & documentation',
 		])
 	})
 
@@ -142,12 +140,15 @@ describe('Navigation', () => {
 		expect(modal.find('.composer-stub').exists()).toBe(true)
 	})
 
-	it('emits reset-cache from the settings entry and links to the documentation', async () => {
+	it('offers nothing in the settings section but the accounts it can act on', () => {
 		const wrapper = mountNavigation()
 		expect(wrapper.find('.nav-settings').attributes('data-name')).toBe('Settings')
-		await item(wrapper, 'Reset local cache').trigger('click')
-		expect(wrapper.emitted('reset-cache')).toHaveLength(1)
-		expect(item(wrapper, 'Help & documentation').attributes('data-href')).toBe('https://github.com/SchBenedikt/social/')
+
+		// the cache reset posted to a route that never existed, and the help
+		// link pointed at a personal fork; both are gone
+		expect(item(wrapper, 'Reset local cache')).toBeUndefined()
+		expect(item(wrapper, 'Help & documentation')).toBeUndefined()
+		expect(wrapper.emitted('reset-cache')).toBeUndefined()
 	})
 
 	describe('errors', () => {

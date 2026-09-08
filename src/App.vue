@@ -6,8 +6,7 @@
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public"
 			@search="search"
-			@open-composer="openComposer"
-			@reset-cache="resetCache" />
+			@open-composer="openComposer" />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
@@ -120,11 +119,6 @@ export default {
 			if (this.$route.name !== 'timeline') {
 				this.$router.push({ name: 'timeline' })
 			}
-		},
-		resetCache() {
-			axios.post(generateUrl('apps/social/api/v1/cache/refresh')).then(() => {
-				this.$store.dispatch('refreshTimeline')
-			})
 		},
 		setCloudAddress() {
 			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
