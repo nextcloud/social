@@ -456,14 +456,14 @@ export default {
 		},
 		keyup(event) {
 			if (event.ctrlKey) {
-				this.createPost(event)
+				this.createPost()
 			}
 		},
 		updatePostFromTribute(event) {
 			console.debug('[Composer] update from tribute', event)
 			this.updateStatusContent()
 		},
-		async createPost(event) {
+		async createPost() {
 			const element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
 				const em = document.createTextNode(emoji.getAttribute('alt'))

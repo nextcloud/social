@@ -244,15 +244,6 @@ export default {
 		padding: 0;
 	}
 
-	.list-enter-active,
-	.list-leave-active {
-		transition: opacity .15s ease;
-	}
-
-	.list-enter, .list-leave-to {
-		opacity: 0;
-	}
-
 	.icon-loading {
 		height: 44px;
 		margin: 20px auto;

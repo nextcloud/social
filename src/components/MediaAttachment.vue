@@ -41,6 +41,7 @@ export default {
 	components: {
 		NcLoadingIcon,
 	},
+	emits: ['click'],
 	props: {
 		/** @type {import('vue').PropType<import('../types/Mastodon').MediaAttachment>} */
 		attachment: {

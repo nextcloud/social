@@ -151,6 +151,7 @@ export default {
 		IconCancel,
 		IconAlertCircle,
 	},
+	emits: ['search'],
 	mixins: [currentuserMixin],
 	data() {
 		return {

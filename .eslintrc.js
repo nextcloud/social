@@ -4,7 +4,9 @@
  */
 module.exports = {
 	extends: [
-		'@nextcloud',
+		// this app is Vue 3; the bare '@nextcloud' config lints against the Vue 2
+		// ruleset, which rejects valid Vue 3 syntax and misses the Vue 2 leftovers
+		'@nextcloud/eslint-config/vue3',
 	],
 	globals: {
 		appName: true,

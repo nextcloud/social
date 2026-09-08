@@ -55,10 +55,16 @@ const NcActionButtonStub = {
 	template: '<button class="post-menu__item" @click="$emit(\'click\')"><slot /></button>',
 }
 
+// the real NcDialog reports its own dismissal through update:open, which is
+// what v-model:open binds to — the stub has to do the same or a one-way binding
+// looks like it works
 const NcDialogStub = {
 	name: 'NcDialog',
 	props: ['open', 'buttons', 'name'],
-	template: '<div v-if="open" class="report-dialog"><slot /></div>',
+	emits: ['update:open'],
+	template: '<div v-if="open" class="report-dialog">'
+		+ '<button class="report-dialog__close" @click="$emit(\'update:open\', false)" />'
+		+ '<slot /></div>',
 }
 
 const mountPost = ({
@@ -291,6 +297,17 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost()
 			expect(menuItem(wrapper, 'Edit')).toBeDefined()
 			expect(menuItem(wrapper, 'Delete')).toBeDefined()
+		})
+
+		it('lets the report dialog close itself, which needs a two-way binding', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			await menuItem(wrapper, 'Report').trigger('click')
+			expect(wrapper.find('.report-dialog').exists()).toBe(true)
+
+			// :open.sync did nothing on Vue 3: the flag never came back
+			await wrapper.find('.report-dialog__close').trigger('click')
+
+			expect(wrapper.find('.report-dialog').exists()).toBe(false)
 		})
 
 		it('are withheld for somebody else\'s post, which offers Report instead', () => {

@@ -27,7 +27,7 @@ const pristine = {
 const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
 	NcAppContent: { template: '<main class="app-content-stub"><slot /></main>' },
-	Navigation: { emits: ['search', 'open-composer'], template: '<nav class="navigation-stub" />' },
+	Navigation: { emits: ['search'], template: '<nav class="navigation-stub" />' },
 	RouterView: { template: '<div class="router-view-stub" />' },
 }
 
