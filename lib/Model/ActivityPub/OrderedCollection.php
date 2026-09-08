@@ -18,6 +18,9 @@ class OrderedCollection extends ACore implements JsonSerializable {
 	private string $first = '';
 	private string $last = '';
 
+	/** @var array[] the items themselves, for collections small enough to inline */
+	private array $orderedItems = [];
+
 	public function __construct($parent = null) {
 		parent::__construct($parent);
 
@@ -54,6 +57,22 @@ class OrderedCollection extends ACore implements JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * @return array[]
+	 */
+	public function getOrderedItems(): array {
+		return $this->orderedItems;
+	}
+
+	/**
+	 * @param array[] $orderedItems
+	 */
+	public function setOrderedItems(array $orderedItems): self {
+		$this->orderedItems = $orderedItems;
+
+		return $this;
+	}
+
 	public function import(array $data): self {
 		parent::import($data);
 		$this->setFirst($this->validate(ACore::AS_USERNAME, 'first', $data, ''))
@@ -70,7 +89,8 @@ class OrderedCollection extends ACore implements JsonSerializable {
 				[
 					'totalItems' => $this->getTotalItems(),
 					'first' => $this->getFirst(),
-					'last' => $this->getLast()
+					'last' => $this->getLast(),
+					'orderedItems' => $this->getOrderedItems()
 				]
 			)
 		);

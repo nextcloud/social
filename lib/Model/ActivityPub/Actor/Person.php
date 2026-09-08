@@ -853,6 +853,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$data['manuallyApprovesFollowers'] = $this->isLocked();
 
+		if ($this->getFeatured() !== '') {
+			$data['featured'] = $this->getFeatured();
+		}
+
 		if ($this->getAlsoKnownAs() !== []) {
 			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
 		}

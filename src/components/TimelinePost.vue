@@ -24,6 +24,10 @@
 				@click="getSinglePostTimeline">
 				{{ relativeTimestamp }}
 			</a>
+			<span v-if="item.pinned" class="post-pinned" :title="t('social', 'Pinned post')">
+				<Pin :size="14" />
+				{{ t('social', 'Pinned') }}
+			</span>
 			<VisibilityIcon v-if="visibility"
 				:title="visibility.text"
 				class="post-visibility"
@@ -111,6 +115,14 @@
 					@click="remove()">
 					{{ t('social', 'Delete') }}
 				</NcActionButton>
+				<NcActionButton v-if="canPin"
+					@click="togglePin">
+					<template #icon>
+						<Pin v-if="!item.pinned" :size="20" />
+						<PinOff v-else :size="20" />
+					</template>
+					{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
+				</NcActionButton>
 				<NcActionButton v-if="item.account.acct !== currentAccount?.acct"
 					@click="showReportDialog = true">
 					<template #icon>
@@ -147,6 +159,8 @@ import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import Flag from 'vue-material-design-icons/Flag.vue'
+import Pin from 'vue-material-design-icons/Pin.vue'
+import PinOff from 'vue-material-design-icons/PinOff.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '@nextcloud/dialogs'
@@ -172,6 +186,8 @@ export default {
 		NcDialog,
 		Flag,
 		NcButton,
+		Pin,
+		PinOff,
 		Repeat,
 		Reply,
 		Heart,
@@ -203,6 +219,10 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {boolean} own local posts can be pinned to the profile */
+		canPin() {
+			return this.item.account.acct === this.currentAccount?.acct && this.item.local !== false
+		},
 		reportButtons() {
 			return [
 				{
@@ -373,6 +393,9 @@ export default {
 		remove() {
 			this.$store.dispatch('postDelete', this.item)
 		},
+		togglePin() {
+			this.$store.dispatch('postPin', { status: this.item, pinned: !this.item.pinned })
+		},
 		like() {
 			const params = {
 				status: this.item,
@@ -475,6 +498,16 @@ function nodeToPlainText(node) {
 		.post-visibility {
 			color: var(--color-text-lighter);
 			flex-shrink: 0;
+		}
+
+		.post-pinned {
+			display: inline-flex;
+			align-items: center;
+			gap: 2px;
+			flex-shrink: 0;
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--color-text-lighter);
 		}
 
 		.post-timestamp {

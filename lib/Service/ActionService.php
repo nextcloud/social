@@ -55,6 +55,7 @@ class ActionService {
 		BoostService $boostService,
 		LikeService $likeService,
 		StreamActionService $streamActionService,
+		private PinService $pinService,
 	) {
 		$this->streamService = $streamService;
 		$this->boostService = $boostService;
@@ -106,10 +107,12 @@ class ActionService {
 				$this->bookmark($actor, $post->getId(), false);
 				break;
 
+			case self::PIN:
+				return $this->pinService->pin($actor, $nid);
+			case self::UNPIN:
+				return $this->pinService->unpin($actor, $nid);
 			case self::MUTE:
 			case self::UNMUTE:
-			case self::PIN:
-			case self::UNPIN:
 				// A silent no-op here makes the client display a state that was
 				// never stored. Refuse until the feature exists.
 				throw new InvalidActionException('the ' . $action . ' action is not supported yet');

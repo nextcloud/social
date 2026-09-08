@@ -114,6 +114,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 			->setUserId($this->get('user_id', $data, ''))
 			->setFollowers($actor->getId() . '/followers')
 			->setFollowing($actor->getId() . '/following')
+			->setFeatured($actor->getId() . '/collections/featured')
 			->setSharedInbox($root . 'inbox')
 			->setLocal(true)
 			->setAvatarVersion($this->getInt('avatar_version', $data, -1))

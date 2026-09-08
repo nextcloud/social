@@ -544,6 +544,41 @@ describe('timeline store actions', () => {
 		})
 	})
 
+	describe.each([
+		['pin', true, 'Failed to pin the post'],
+		['unpin', false, 'Failed to unpin the post'],
+	])('postPin (%s)', (endpoint, pinned, errorMessage) => {
+		it(`flips the flag optimistically, POSTs to /statuses/:id/${endpoint} and stores the server copy`, async () => {
+			const status = makeStatus('1', { pinned: !pinned })
+			store.commit('addToTimeline', [status])
+			const serverCopy = makeStatus('1', { pinned, content: '<p>from server</p>' })
+			let duringRequest
+			axios.post.mockImplementation(async () => {
+				duringRequest = { ...tl().statuses['1'] }
+				return { data: serverCopy }
+			})
+
+			const response = await store.dispatch('postPin', { status, pinned })
+
+			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses/1/${endpoint}`)
+			expect(duringRequest).toMatchObject({ pinned })
+			expect(tl().statuses['1']).toEqual(serverCopy)
+			expect(response.data).toEqual(serverCopy)
+			expect(showError).not.toHaveBeenCalled()
+		})
+
+		it('rolls the flag back and reports when the server refuses', async () => {
+			const status = makeStatus('1', { pinned: !pinned })
+			store.commit('addToTimeline', [status])
+			axios.post.mockRejectedValue(new Error('too many pins'))
+
+			await expect(store.dispatch('postPin', { status, pinned })).resolves.toBeUndefined()
+
+			expect(tl().statuses['1']).toMatchObject({ pinned: !pinned })
+			expect(showError).toHaveBeenCalledWith(errorMessage)
+		})
+	})
+
 	describe('postUnlike on the Liked timeline', () => {
 		const liked = () => makeStatus('1', { favourited: true, favourites_count: 3 })
 

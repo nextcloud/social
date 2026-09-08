@@ -39,6 +39,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\PinService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
@@ -91,6 +92,8 @@ class ApiControllerTest extends TestCase {
 	private $postService;
 	/** @var PollService&MockObject */
 	private $pollService;
+	/** @var PinService&MockObject */
+	private $pinService;
 	/** @var ReportService&MockObject */
 	private $reportService;
 	/** @var SearchService&MockObject */
@@ -138,6 +141,7 @@ class ApiControllerTest extends TestCase {
 		$this->actionService = $this->createMock(ActionService::class);
 		$this->postService = $this->createMock(PostService::class);
 		$this->pollService = $this->createMock(PollService::class);
+		$this->pinService = $this->createMock(PinService::class);
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->searchService = $this->createMock(SearchService::class);
 		$this->configService = $this->createMock(ConfigService::class);
@@ -174,6 +178,7 @@ class ApiControllerTest extends TestCase {
 			$this->actionService,
 			$this->postService,
 			$this->pollService,
+			$this->pinService,
 			$this->reportService,
 			$this->searchService,
 			$this->configService,
@@ -1161,6 +1166,31 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(40, $probe->getMaxId());
 		$this->assertSame(10, $probe->getMinId());
 		$this->assertSame(20, $probe->getSince());
+	}
+
+	public function testAccountStatusesFlagsThePinnedPostsOfThePage(): void {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->streamService->method('getTimeline')->willReturn(['p']);
+		$this->pinService->expects($this->once())->method('markPinned')
+			->with(['p'], 'https://remote.example/users/bob');
+
+		$this->assertSame(['p'], $this->controller()->accountStatuses('bob@remote.example')->getData());
+	}
+
+	public function testAccountStatusesWithPinnedReturnsThePinsWithoutASync(): void {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->streamService->expects($this->never())->method('syncRemoteTimeline');
+		$this->streamService->expects($this->never())->method('getTimeline');
+		$this->pinService->expects($this->once())->method('getPinnedPosts')
+			->with('https://remote.example/users/bob')->willReturn(['pinned']);
+
+		$response = $this->controller()->accountStatuses('bob@remote.example', 20, 0, 0, 0, true);
+
+		$this->assertSame(['pinned'], $response->getData());
 	}
 
 	public function testAccountStatusesOfUnknownAccountIsAnError(): void {

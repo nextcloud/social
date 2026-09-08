@@ -102,6 +102,32 @@ class ActionsRequest extends ActionsRequestBuilder {
 	}
 
 	/**
+	 * Every action of one type by one actor, newest first.
+	 *
+	 * @return ACore[]
+	 */
+	public function getActionsByActor(string $actorId, string $type): array {
+		$qb = $this->getActionsSelectSql();
+		$qb->limitToActorIdPrim($qb->prim($actorId));
+		$qb->limitToType($type);
+		$qb->orderBy('a.creation', 'desc');
+
+		return $this->getActionsFromRequest($qb);
+	}
+
+	/**
+	 * Removes one action, addressed the way it is looked up.
+	 */
+	public function deleteAction(string $actorId, string $objectId, string $type): void {
+		$qb = $this->getActionsDeleteSql();
+		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
+		$qb->limitToDBField('object_id_prim', $qb->prim($objectId));
+		$this->limitToType($qb, $type);
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * @param string $objectId
 	 *
 	 * @return Like[]
