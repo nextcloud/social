@@ -167,6 +167,27 @@ export default {
 			}
 		},
 	},
+	watch: {
+		// reading the notifications is what marks them read; the badge should
+		// not survive the reader looking straight at what it is counting
+		timeline: {
+			immediate: true,
+			handler(entries) {
+				if (this.type !== 'notifications' || entries.length === 0) {
+					return
+				}
+
+				// a Notification entity carries the row id as `id`, a string;
+				// statuses carry the same number again as `nid`
+				const newest = entries.reduce(
+					(highest, entry) => Math.max(highest, Number(entry.id ?? entry.nid) || 0), 0,
+				)
+				if (newest > 0) {
+					this.$store.dispatch('markNotificationsRead', newest)
+				}
+			},
+		},
+	},
 	mounted() {
 		this.infiniteHandler()
 		// with notify_push the server tells us about new entries; polling

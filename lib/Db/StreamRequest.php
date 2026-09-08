@@ -14,6 +14,7 @@ use Exception;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -689,6 +690,39 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @throws DateTimeException
 	 * @deprecated
 	 */
+	/**
+	 * How many notifications the viewer has that they have not seen yet.
+	 *
+	 * Counted rather than fetched: the badge needs a number, and a viewer who
+	 * has been away for a week should not cost a page of hydrated streams to
+	 * find that out. The cap keeps the answer cheap — past it the badge says
+	 * "lots", which is all anyone reads from a two-digit number anyway.
+	 */
+	public function countNotificationsSince(Person $actor, int $sinceNid, int $cap = 99): int {
+		$qb = $this->getStreamSelectSql();
+		$qb->setViewer($actor);
+
+		$qb->limitToType(SocialAppNotification::TYPE);
+		$qb->selectDestFollowing('sd', '');
+		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
+		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
+
+		if ($sinceNid > 0) {
+			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter($sinceNid, IQueryBuilder::PARAM_INT)));
+		}
+
+		$qb->setMaxResults($cap + 1);
+
+		$cursor = $qb->executeQuery();
+		$count = 0;
+		while ($cursor->fetch() !== false) {
+			$count++;
+		}
+		$cursor->closeCursor();
+
+		return $count;
+	}
+
 	public function getTimelineNotifications_dep(int $since = 0, int $limit = 5): array {
 		$qb = $this->getStreamSelectSql();
 

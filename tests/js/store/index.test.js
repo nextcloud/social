@@ -13,12 +13,13 @@ describe('root store', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('registers the timeline, account, settings and errors modules without namespaces', () => {
+	it('registers the timeline, account, settings, errors and notifications modules without namespaces', () => {
 		expect(store.hasModule('timeline')).toBe(true)
 		expect(store.hasModule('account')).toBe(true)
 		expect(store.hasModule('settings')).toBe(true)
 		expect(store.hasModule('errors')).toBe(true)
-		expect(Object.keys(store.state).sort()).toEqual(['account', 'errors', 'settings', 'timeline'])
+		expect(store.hasModule('notifications')).toBe(true)
+		expect(Object.keys(store.state).sort()).toEqual(['account', 'errors', 'notifications', 'settings', 'timeline'])
 
 		expect(store.getters.getTimeline).toEqual([])
 		expect(typeof store.getters.getAccount).toBe('function')
