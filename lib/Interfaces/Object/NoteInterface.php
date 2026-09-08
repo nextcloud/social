@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\PushService;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -91,6 +92,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		try {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
+			if ($note->getVisibility() === '') {
+				$note->setVisibility($this->estimateVisibility($note));
+			}
 			$this->streamRequest->save($note);
 			$this->updateDetails($note);
 			$this->generateNotification($note);
@@ -142,6 +146,32 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->streamRequest->updateDetails($orig);
 		} catch (StreamNotFoundException $e) {
 		}
+	}
+
+	/**
+	 * A remote note carries no Mastodon-style visibility field; estimate it
+	 * from its addressing the way Mastodon serialises it: as:Public in `to`
+	 * is public, as:Public in `cc` is unlisted, the author's followers
+	 * collection makes it followers-only, anything else is a direct message.
+	 */
+	private function estimateVisibility(Note $note): string {
+		if (in_array(ACore::CONTEXT_PUBLIC, $note->getToAll(), true)) {
+			return Stream::TYPE_PUBLIC;
+		}
+		if (in_array(ACore::CONTEXT_PUBLIC, $note->getCcArray(), true)) {
+			return Stream::TYPE_UNLISTED;
+		}
+
+		try {
+			$author = $this->cacheActorsRequest->getFromId($note->getAttributedTo());
+			if ($author->getFollowers() !== ''
+				&& in_array($author->getFollowers(), array_merge($note->getToAll(), $note->getCcArray()), true)) {
+				return Stream::TYPE_FOLLOWERS;
+			}
+		} catch (CacheActorDoesNotExistException $e) {
+		}
+
+		return Stream::TYPE_DIRECT;
 	}
 
 	private function generateNotification(Note $note): void {
