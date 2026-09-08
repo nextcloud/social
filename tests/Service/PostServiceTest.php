@@ -358,6 +358,19 @@ class PostServiceTest extends TestCase {
 	}
 
 
+	public function testCreatePostEscapesHtmlAndTurnsNewlinesIntoBreaks(): void {
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post("line one\n<b>line two</b>"));
+
+		$this->assertSame(
+			"line one<br />\n&lt;b&gt;line two&lt;/b&gt;",
+			$note->getContent(),
+			'user text is escaped first, then newlines become <br />'
+		);
+	}
+
+
 	// editPost()
 
 	private function storedNote(string $attributedTo = self::ACTOR_ID): Note {
@@ -406,6 +419,21 @@ class PostServiceTest extends TestCase {
 		$this->assertSame(self::ACTOR_ID, $paths[0]->getUri());
 		$this->assertSame(InstancePath::TYPE_FOLLOWERS, $paths[0]->getType());
 		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
+	}
+
+	public function testEditPostEscapesHtmlAndTurnsNewlinesIntoBreaks(): void {
+		$stored = $this->storedNote();
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), "line one\n<script>x()</script>");
+
+		$this->assertSame(
+			"line one<br />\n&lt;script&gt;x()&lt;/script&gt;",
+			$stored->getContent(),
+			'edited text goes through the same escaping as new posts'
+		);
 	}
 
 	public function testEditPostLeavesSpoilerAndSensitivityAloneWhenNotProvided(): void {

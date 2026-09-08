@@ -381,7 +381,7 @@ class ApiController extends Controller {
 			// Use the viewer that was already initialized
 			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 			$post = new Post($actor);
-			$post->setContent(nl2br($status->getStatus()));
+			$post->setContent($status->getStatus());
 			$post->setType($status->getVisibility());
 
 			if (!empty($status->getMediaIds())) {
@@ -452,7 +452,7 @@ class ApiController extends Controller {
 			$item = $this->postService->editPost(
 				$nid,
 				$actor,
-				nl2br($status->getStatus()),
+				$status->getStatus(),
 				$status->getSpoilerText() !== '' ? $status->getSpoilerText() : null,
 				$status->isSensitive()
 			);
