@@ -57,8 +57,23 @@ class RequestQueueService {
 	 * @return string
 	 */
 	public function generateRequestQueue(array $instancePaths, ACore $item, string $author): string {
-		$activity = json_encode($item, JSON_UNESCAPED_SLASHES);
+		return $this->generateRequestQueueFromSource(
+			$instancePaths, json_encode($item, JSON_UNESCAPED_SLASHES), $author
+		);
+	}
 
+	/**
+	 * Queues a document that is already serialised, byte for byte.
+	 *
+	 * Forwarding has to send on what arrived: the sender's linked-data
+	 * signature covers the document as it stands, and re-encoding our own
+	 * model of it would both drop the signature and change what it signed.
+	 *
+	 * @param InstancePath[] $instancePaths
+	 *
+	 * @return string the token shared by every queued request
+	 */
+	public function generateRequestQueueFromSource(array $instancePaths, string $activity, string $author): string {
 		$token = '';
 		$requests = [];
 		foreach ($instancePaths as $instancePath) {
