@@ -50,9 +50,11 @@
 </template>
 
 <script>
-import Composer from './../components/Composer/Composer.vue'
+import { defineAsyncComponent } from 'vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import TimelineList from './../components/TimelineList.vue'
+
+const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
 export default {
 	name: 'Timeline',

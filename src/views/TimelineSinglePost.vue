@@ -19,7 +19,7 @@
 </template>
 
 <script>
-import Composer from '../components/Composer/Composer.vue'
+import { defineAsyncComponent } from 'vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
 import currentUserMixin from '../mixins/currentUserMixin.js'
@@ -27,6 +27,8 @@ import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
+
+const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
 export default {
 	name: 'TimelineSinglePost',

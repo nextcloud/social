@@ -10,6 +10,7 @@ const TimelineSinglePost = () => import('./views/TimelineSinglePost.vue')
 const Profile = () => import(/* webpackChunkName: "profile" */'./views/Profile.vue')
 const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/ProfileTimeline.vue')
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
+const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 
 /**
  *
@@ -77,6 +78,13 @@ export default createRouter({
 					},
 				},
 			],
+		},
+		{
+			path: '/follow_requests',
+			components: {
+				default: FollowRequests,
+			},
+			name: 'follow-requests',
 		},
 		{
 			path: '/@:account/:id',

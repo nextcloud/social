@@ -68,6 +68,7 @@ describe('Navigation', () => {
 			'Direct messages',
 			'Local',
 			'Global',
+			'Follow requests',
 			'Liked posts',
 			'Profile',
 			'Reset local cache',
@@ -82,6 +83,7 @@ describe('Navigation', () => {
 		['Local', { name: 'timeline', params: { type: 'timeline' } }],
 		['Global', { name: 'timeline', params: { type: 'federated' } }],
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
+		['Follow requests', { name: 'follow-requests' }],
 		['Profile', { name: 'profile', params: { account: 'alice' } }],
 	])('navigates to the %s timeline on click', async (name, to) => {
 		const wrapper = mountNavigation()

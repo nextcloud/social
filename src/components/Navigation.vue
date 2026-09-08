@@ -116,11 +116,12 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcButton from '@nextcloud/vue/components/NcButton'
 
-import Composer from './Composer/Composer.vue'
+import { defineAsyncComponent } from 'vue'
 
 import IconHome from 'vue-material-design-icons/Home.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
+import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
 import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import IconEarth from 'vue-material-design-icons/Earth.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
@@ -130,6 +131,10 @@ import IconDelete from 'vue-material-design-icons/Delete.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
 import currentuserMixin from '../mixins/currentUserMixin.js'
+
+// the composer pulls the emoji picker and the attachment stack with it:
+// its own chunk keeps all of that out of the entry bundle
+const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
 
 export default {
 	name: 'Navigation',
@@ -206,6 +211,12 @@ export default {
 						icon: IconEarth,
 						title: t('social', 'Global'),
 						to: { name: 'timeline', params: { type: 'federated' } },
+					},
+					{
+						key: 'social-follow-requests',
+						icon: IconAccountClock,
+						title: t('social', 'Follow requests'),
+						to: { name: 'follow-requests' },
 					},
 					{
 						key: 'social-liked',

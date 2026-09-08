@@ -72,8 +72,6 @@
 
 /*! @license DOMPurify 3.4.15 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.15/LICENSE */
 
-/*! https://mths.be/he v1.2.0 by @mathias | MIT license */
-
 /**
 * @vue/reactivity v3.5.38
 * (c) 2018-present Yuxi (Evan) You and Vue contributors
