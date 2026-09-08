@@ -18,6 +18,8 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Tools\Traits\TAsync;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -52,10 +54,8 @@ class QueueController extends Controller {
 	 */
 	public const MAX_DURATION = 90;
 
-	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
-	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function asyncForRequest(string $token): Response {
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 

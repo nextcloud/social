@@ -22,12 +22,12 @@ Two mechanisms exist, and which one applies depends on the controller:
 1. **OAuth Bearer token** — only `ApiController` reads it. Its constructor parses the `Authorization` header, accepts a `bearer` auth type, and resolves the token through `ClientService::getFromToken()`. If no bearer token is present it falls back to the logged-in Nextcloud session user.
 2. **Nextcloud session** — `LocalController`, `ConfigController`, `NavigationController`, `OAuthController` (authorize/authorizing) and `OStatusController` use the session `userId` only. They do **not** honour bearer tokens, so the Custom Local API is effectively usable only from the app's own frontend (or with a Nextcloud session cookie / app password + `OCS-APIRequest`).
 
-Access control is declared with **PHPDoc annotations, not PHP attributes** — the controllers contain no `#[PublicPage]`, `#[NoCSRFRequired]` or `#[NoAdminRequired]` attributes at all, only `@PublicPage`, `@NoCSRFRequired`, `@NoAdminRequired` docblocks. No endpoint uses `@BruteForceProtection`. The "Auth" column in the tables below records these annotations:
+Access control is declared with **PHP attributes** (`#[PublicPage]`, `#[NoCSRFRequired]`, `#[NoAdminRequired]`, and `#[BruteForceProtection]` on the OAuth token/revoke endpoints); the legacy PHPDoc annotations are gone. The "Auth" column in the tables below records these attributes:
 
-- `public` — `@PublicPage`: reachable without a Nextcloud login (an endpoint may still fail later if it needs a viewer).
-- `user` — `@NoAdminRequired`: any logged-in user.
-- `admin` — no annotation at all: Nextcloud requires an admin session.
-- `no-csrf` — `@NoCSRFRequired`: no CSRF token needed, which matters for non-browser clients.
+- `public` — `#[PublicPage]`: reachable without a Nextcloud login (an endpoint may still fail later if it needs a viewer).
+- `user` — `#[NoAdminRequired]`: any logged-in user.
+- `admin` — no attribute at all: Nextcloud requires an admin session.
+- `no-csrf` — `#[NoCSRFRequired]`: no CSRF token needed, which matters for non-browser clients.
 
 Note that many `ApiController` endpoints are annotated `@PublicPage` but call `initViewer(true)` internally, which throws when there is neither a session nor a valid bearer token; those return HTTP 401 with `{"error": "the access_token was revoked"}`.
 

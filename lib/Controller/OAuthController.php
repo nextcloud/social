@@ -21,6 +21,10 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\BruteForceProtection;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -64,10 +68,8 @@ class OAuthController extends Controller {
 
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function nodeinfo2(): Response {
 		try {
 			$local = $this->instanceService->getLocal();
@@ -101,14 +103,14 @@ class OAuthController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 * @AnonRateThrottle(limit=15, period=300)
 	 *
 	 * @param array|string $redirect_uris
 	 *
 	 * @throws ClientException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function apps(
 		string $client_name = '',
 		$redirect_uris = '',
@@ -140,10 +142,8 @@ class OAuthController extends Controller {
 		);
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	public function authorize(
 		string $client_id,
 		string $redirect_uri,
@@ -183,9 +183,7 @@ class OAuthController extends Controller {
 		]);
 	}
 
-	/**
-	 * @NoAdminRequired
-	 */
+	#[NoAdminRequired]
 	public function authorizing(
 		string $client_id,
 		string $redirect_uri,
@@ -232,12 +230,10 @@ class OAuthController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
-	 * @BruteForceProtection(action=socialOauthToken)
-	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	#[PublicPage]
+	#[BruteForceProtection(action: 'socialOauthToken')]
 	public function token(
 		string $client_id,
 		string $client_secret,
@@ -311,11 +307,11 @@ class OAuthController extends Controller {
 	 * endpoint is not an oracle; wrong client credentials are throttled like the
 	 * token endpoint.
 	 *
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
-	 * @BruteForceProtection(action=socialOauthToken)
 	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	#[PublicPage]
+	#[BruteForceProtection(action: 'socialOauthToken')]
 	public function revoke(string $client_id, string $client_secret, string $token): DataResponse {
 		try {
 			$client = $this->clientService->getFromClientId($client_id);

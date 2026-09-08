@@ -24,6 +24,8 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -99,12 +101,12 @@ class SocialPubController extends Controller {
 	 * Return webpage content for human navigation.
 	 * Should return information about a Social account, based on username.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 *
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function actor(string $username): Response {
 		return $this->renderPage($username);
 	}
@@ -113,11 +115,11 @@ class SocialPubController extends Controller {
 	 * Return webpage content for human navigation.
 	 * Should return followers of a Social account, based on username.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function followers(string $username): Response {
 		return $this->renderPage($username);
 	}
@@ -126,11 +128,11 @@ class SocialPubController extends Controller {
 	 * Return webpage content for human navigation.
 	 * Should return following of a Social account, based on username.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function following(string $username): Response {
 		return $this->renderPage($username);
 	}
@@ -138,11 +140,11 @@ class SocialPubController extends Controller {
 	/**
 	 * Display the navigation page of the Social app.
 	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function displayPost(string $username, string $token): Response {
 		try {
 			$viewer = $this->accountService->getCurrentViewer();

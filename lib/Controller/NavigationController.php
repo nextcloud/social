@@ -24,6 +24,9 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -90,12 +93,12 @@ class NavigationController extends Controller {
 	/**
 	 * Display the navigation page of the Social app.
 	 *
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
 	 *
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	public function navigate(string $path = ''): TemplateResponse {
 		$this->logger->info('[NavigationController] navigate() called', [
 			'path' => $path,
@@ -230,12 +233,12 @@ class NavigationController extends Controller {
 	/**
 	 * Display the navigation page of the Social app.
 	 *
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
 	 *
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();
 	}
@@ -243,8 +246,6 @@ class NavigationController extends Controller {
 	/**
 	 * Display the navigation page of the Social app.
 	 *
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
 	 *
 	 * @param string $path
 	 *
@@ -252,18 +253,20 @@ class NavigationController extends Controller {
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
 	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	public function account(string $path = ''): TemplateResponse {
 		return $this->navigate();
 	}
 
 	/**
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *
 	 * @return Response
 	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function documentGet(string $id): Response {
 		$this->logger->debug('[NavigationController] documentGet called', ['id' => $id]);
 		try {
@@ -286,13 +289,13 @@ class NavigationController extends Controller {
 
 	/**
 	 *
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *
 	 * @return Response
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function documentGetPublic(string $id): Response {
 		$this->logger->debug('[NavigationController] documentGetPublic called', ['id' => $id]);
 		try {
@@ -314,13 +317,13 @@ class NavigationController extends Controller {
 	}
 
 	/**
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *
 	 * @return Response
 	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function resizedGet(string $id): Response {
 		try {
 			$mime = '';
@@ -333,13 +336,13 @@ class NavigationController extends Controller {
 	}
 
 	/**
-	 * @PublicPage
-	 * @NoCSRFRequired
 	 *
 	 * @param string $id
 	 *
 	 * @return Response
 	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
 	public function resizedGetPublic(string $id): Response {
 		try {
 			$mime = '';

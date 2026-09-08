@@ -21,6 +21,9 @@ use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IInitialStateService;
@@ -52,10 +55,8 @@ class OStatusController extends Controller {
 		$this->userSession = $userSession;
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
 	public function subscribe(string $uri): Response {
 		try {
 			try {
@@ -84,11 +85,9 @@ class OStatusController extends Controller {
 		}
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
-	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	#[PublicPage]
 	public function followRemote(string $local): Response {
 		try {
 			$following = $this->accountService->getActor($local);
@@ -106,11 +105,11 @@ class OStatusController extends Controller {
 	}
 
 	/**
-	 * @NoCSRFRequired
-	 * @NoAdminRequired
-	 * @PublicPage
 	 * @AnonRateThrottle(limit=10, period=300)
 	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	#[PublicPage]
 	public function getLink(string $local, string $account): Response {
 		try {
 			$following = $this->accountService->getActor($local);
