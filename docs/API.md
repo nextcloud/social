@@ -247,9 +247,9 @@ JSON-LD responses are emitted through `activityPubSuccess()`, i.e. `Content-Type
 |--------|-------|------|--------------------|-------------|
 | GET | `/users/{username}` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Actor object (with W3C security context). Unknown actor → error envelope with HTTP 404. Without an AP `Accept` header it delegates to `SocialPubController::actor()`, which renders the public Vue page (`PublicTemplateResponse`, HTTP 404 if the actor is uncached). |
 | GET | `/@{username}/` | public, no-csrf | same as above | Alias that calls `actor()`. |
-| POST | `/@{username}/inbox` | public, no-csrf | JSON | Per-user inbox. Verifies the HTTP signature, checks the Fediverse allow/blocklist, requires the local actor to exist, imports the activity, then async-processes the stream cache queue. Returns `{"result": [], "status": 1}`; a gone signature also returns success. |
+| POST | `/@{username}/inbox` | public, no-csrf | JSON | Per-user inbox. Rate-limited per claimed origin host + source address (`inbox_throttle` app setting, default 300/min, 0 disables → HTTP 429 before any signature work), then verifies the HTTP signature, checks the Fediverse allow/blocklist, requires the local actor to exist, imports the activity, then async-processes the stream cache queue. Returns `{"result": [], "status": 1}`; a gone signature also returns success. |
 | GET | `/@{username}/inbox` | public, no-csrf | JSON-LD | Empty `OrderedCollection` (`totalItems: 0`) for the actor's inbox; bare `[]` with HTTP 404 if the actor is unknown. |
-| POST | `/inbox` | public, no-csrf | JSON | Shared inbox, same processing without the per-actor check. |
+| POST | `/inbox` | public, no-csrf | JSON | Shared inbox, same processing (including the rate limit) without the per-actor check. |
 | GET | `/@{username}/outbox` | public, no-csrf | always JSON-LD | Outbox collection. The HTML fallback is commented out in the source, so browsers get JSON-LD too. |
 | POST | `/@{username}/outbox` | public, no-csrf | always JSON-LD | Same route handler as the GET (`ActivityPub#outbox`); posting an activity is **not** implemented — the method only returns the outbox collection. |
 | GET | `/@{username}/followers` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Followers collection, or the public Vue page. |

@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -28,6 +29,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
+use OCA\Social\Service\InboxLimiter;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
@@ -80,6 +82,8 @@ class ActivityPubControllerTest extends TestCase {
 	private $configService;
 	/** @var IInitialStateService&MockObject */
 	private $initialStateService;
+	/** @var InboxLimiter&MockObject */
+	private $inboxLimiter;
 	private AsyncFreeActivityPubController $controller;
 
 	protected function setUp(): void {
@@ -90,6 +94,7 @@ class ActivityPubControllerTest extends TestCase {
 		$this->signatureService = $this->createMock(SignatureService::class);
 		$this->streamQueueService = $this->createMock(StreamQueueService::class);
 		$this->importService = $this->createMock(ImportService::class);
+		$this->inboxLimiter = $this->createMock(InboxLimiter::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->streamService = $this->createMock(StreamService::class);
@@ -109,6 +114,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->signatureService,
 			$this->streamQueueService,
 			$this->importService,
+			$this->inboxLimiter,
 			$this->accountService,
 			$this->followService,
 			$this->streamService,
@@ -233,6 +239,28 @@ class ActivityPubControllerTest extends TestCase {
 		$this->importService->method('importFromJson')->willReturn($activity);
 
 		return $activity;
+	}
+
+	public function testAThrottledSharedInboxDeliveryIs429AndSkipsSignatureWork(): void {
+		$this->inboxLimiter->method('assertAllowed')
+			->willThrowException(new TooManyRequestsException());
+		$this->signatureService->expects($this->never())->method('checkRequest');
+		$this->importService->expects($this->never())->method('importFromJson');
+
+		$response = $this->controller->sharedInbox();
+
+		$this->assertSame(Http::STATUS_TOO_MANY_REQUESTS, $response->getStatus());
+	}
+
+	public function testAThrottledUserInboxDeliveryIs429(): void {
+		$this->inboxLimiter->method('assertAllowed')
+			->willThrowException(new TooManyRequestsException());
+		$this->importService->expects($this->never())->method('importFromJson');
+
+		$this->assertSame(
+			Http::STATUS_TOO_MANY_REQUESTS,
+			$this->controller->inbox('alice')->getStatus()
+		);
 	}
 
 	public function testSharedInboxRejectsRequestsWithInvalidSignature(): void {

@@ -40,6 +40,9 @@ class ConfigService {
 
 	public const SOCIAL_SELF_SIGNED = 'allow_self_signed';
 
+	/** incoming inbox requests allowed per origin host per minute; 0 disables */
+	public const SOCIAL_INBOX_THROTTLE = 'inbox_throttle';
+
 	public const BACKGROUND_CRON = 1;
 	public const BACKGROUND_ASYNC = 2;
 	public const BACKGROUND_SERVICE = 3;
@@ -53,7 +56,8 @@ class ConfigService {
 		self::SOCIAL_MAX_SIZE => 10,
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
 		self::SOCIAL_ACCESS_LIST => '[]',
-		self::SOCIAL_SELF_SIGNED => '0'
+		self::SOCIAL_SELF_SIGNED => '0',
+		self::SOCIAL_INBOX_THROTTLE => '300'
 	];
 
 	public array $accessTypeList = [

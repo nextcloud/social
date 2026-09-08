@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\RealTokenException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Service\AccountService;
@@ -25,6 +26,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
+use OCA\Social\Service\InboxLimiter;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
@@ -51,6 +53,7 @@ class ActivityPubController extends Controller {
 	private SignatureService $signatureService;
 	private StreamQueueService $streamQueueService;
 	private ImportService $importService;
+	private InboxLimiter $inboxLimiter;
 	private AccountService $accountService;
 	private FollowService $followService;
 	private StreamService $streamService;
@@ -66,6 +69,7 @@ class ActivityPubController extends Controller {
 		SignatureService $signatureService,
 		StreamQueueService $streamQueueService,
 		ImportService $importService,
+		InboxLimiter $inboxLimiter,
 		AccountService $accountService,
 		FollowService $followService,
 		StreamService $streamService,
@@ -81,6 +85,7 @@ class ActivityPubController extends Controller {
 		$this->signatureService = $signatureService;
 		$this->streamQueueService = $streamQueueService;
 		$this->importService = $importService;
+		$this->inboxLimiter = $inboxLimiter;
 		$this->accountService = $accountService;
 		$this->followService = $followService;
 		$this->streamService = $streamService;
@@ -172,6 +177,7 @@ class ActivityPubController extends Controller {
 	 */
 	public function sharedInbox(): Response {
 		try {
+			$this->inboxLimiter->assertAllowed($this->request);
 			$body = file_get_contents('php://input');
 
 			$requestTime = 0;
@@ -194,6 +200,8 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (SignatureIsGoneException $e) {
 			return $this->success();
+		} catch (TooManyRequestsException $e) {
+			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -213,6 +221,7 @@ class ActivityPubController extends Controller {
 	 */
 	public function inbox(string $username): Response {
 		try {
+			$this->inboxLimiter->assertAllowed($this->request);
 			$body = file_get_contents('php://input');
 
 			$requestTime = 0;
@@ -237,6 +246,8 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (SignatureIsGoneException $e) {
 			return $this->success();
+		} catch (TooManyRequestsException $e) {
+			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
