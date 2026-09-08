@@ -67,6 +67,11 @@ This is a partial implementation of ActivityPub and of the Mastodon client API. 
 		<command>OCA\Social\Command\QueueProcess</command>
 	</commands>
 
+	<settings>
+		<admin>OCA\Social\Settings\AdminSettings</admin>
+		<admin-section>OCA\Social\Settings\AdminSection</admin-section>
+	</settings>
+
 	<navigations>
 		<navigation>
 			<name>Social</name>
@@ -74,11 +79,6 @@ This is a partial implementation of ActivityPub and of the Mastodon client API. 
 			<order>6</order>
 		</navigation>
 	</navigations>
-
-	<settings>
-		<admin>OCA\Social\Settings\AdminSettings</admin>
-		<admin-section>OCA\Social\Settings\AdminSection</admin-section>
-	</settings>
 
 	<contactsmenu>
 		<provider>OCA\Social\Providers\ContactsMenuProvider</provider>
