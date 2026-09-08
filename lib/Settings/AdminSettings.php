@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Settings;
 
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -17,14 +18,16 @@ use OCP\Settings\ISettings;
 use OCP\Util;
 
 /**
- * Moderation panel: open (and recently resolved) reports plus the Fediverse
- * access list the occ social:fediverse command manages.
+ * Moderation panel: open (and recently resolved) reports, the state of outbound
+ * federation, and the Fediverse access list the occ social:fediverse command
+ * manages.
  */
 class AdminSettings implements ISettings {
 	public function __construct(
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
 		private ConfigService $configService,
+		private FederationHealthService $federationHealthService,
 	) {
 	}
 
@@ -36,6 +39,7 @@ class AdminSettings implements ISettings {
 			'accessType' => $this->fediverseService->getAccessType(),
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
+			'federation' => $this->federationHealthService->summary(),
 		]);
 	}
 

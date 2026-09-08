@@ -82,6 +82,52 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	}
 
 	/**
+	 * How many requests sit in the queue in each state.
+	 *
+	 * @return array<int, int> status => count
+	 * @throws Exception
+	 */
+	public function countByStatus(): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('status')
+			->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_REQUEST_QUEUE)
+			->groupBy('status');
+
+		$counts = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$counts[(int)$data['status']] = (int)$data['total'];
+		}
+		$cursor->closeCursor();
+
+		return $counts;
+	}
+
+	/**
+	 * The requests that have already failed at least `$minTries` times, worst
+	 * first — the ones on their way to being abandoned.
+	 *
+	 * @return list<RequestQueue>
+	 * @throws Exception
+	 */
+	public function getFailing(int $minTries = 1, int $limit = 500): array {
+		$qb = $this->getRequestQueueSelectSql();
+		$qb->andWhere($qb->expr()->gte('tries', $qb->createNamedParameter($minTries, IQueryBuilder::PARAM_INT)));
+		$qb->orderBy('tries', 'desc');
+		$qb->setMaxResults($limit);
+
+		$requests = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$requests[] = $this->parseRequestQueueSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $requests;
+	}
+
+	/**
 	 * Return Queue from database based on the token
 	 *
 	 * @return list<RequestQueue>

@@ -257,7 +257,8 @@ processable right now, and a `.` per processed item.
 
 ### `social:queue:status`
 
-Dump the request-queue rows belonging to one request token.
+Report the state of the outbound delivery queue, or dump the rows belonging to
+one request token.
 
 ```
 php occ social:queue:status [-t|--token TOKEN]
@@ -265,12 +266,16 @@ php occ social:queue:status [-t|--token TOKEN]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-t`, `--token` | optional | Token of the request |
+| `-t`, `--token` | optional | Token of the request; without it, the whole queue is summarised |
 
-The option is declared optional but the command throws
-`As of today, --token is mandatory` when it is missing
-(`lib/Command/QueueStatus.php:70`). There is no way to list the whole queue with
-this command. Each matching row is printed as one line of JSON.
+With a token, each matching row is printed as one line of JSON.
+
+Without one, the command prints how many deliveries are waiting and how many are
+being sent, how many have already failed at least once and how many are close to
+being abandoned (a delivery is dropped after 15 attempts), followed by the worst
+instances — how many deliveries are stacked up for each, the highest attempt
+count so far and when it was last tried. The same figures appear in the
+Federation health section of the administration settings.
 
 ---
 

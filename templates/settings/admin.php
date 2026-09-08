@@ -15,6 +15,7 @@ $reports = $_['reports'];
 $accessType = $_['accessType'];
 $accessList = $_['accessList'];
 $retentionDays = $_['retentionDays'];
+$federation = $_['federation'];
 ?>
 
 <div id="social-moderation" class="section">
@@ -97,6 +98,64 @@ $retentionDays = $_['retentionDays'];
 			value="<?php p((string)$retentionDays); ?>">
 		<button type="button" id="social-retention-save"><?php p($l->t('Save')); ?></button>
 	</p>
+</div>
+
+<div id="social-federation" class="section">
+	<h2><?php p($l->t('Federation health')); ?></h2>
+	<p class="settings-hint">
+		<?php p($l->t('Posts, follows and likes leave this server through a queue. A delivery that keeps failing is retried on a widening delay and then given up on, so an instance that has quietly stopped hearing from this one looks no different from one nobody has written to. This is where it shows.')); ?>
+	</p>
+
+	<p class="social-federation-counts">
+		<?php p($l->n('%n delivery waiting to be sent.', '%n deliveries waiting to be sent.', $federation['waiting'])); ?>
+		<?php if ($federation['running'] > 0): ?>
+			<?php p($l->n('%n is being sent right now.', '%n are being sent right now.', $federation['running'])); ?>
+		<?php endif; ?>
+	</p>
+
+	<?php if ($federation['failing'] === 0): ?>
+		<p><em><?php p($l->t('Nothing is failing to deliver.')); ?></em></p>
+	<?php else: ?>
+		<p>
+			<?php p($l->n(
+				'%n delivery has failed at least once.',
+				'%n deliveries have failed at least once.',
+				$federation['failing']
+			)); ?>
+			<?php if ($federation['truncated']): ?>
+				<?php p($l->t('(only the first few hundred were counted)')); ?>
+			<?php endif; ?>
+			<?php if ($federation['atRisk'] > 0): ?>
+				<strong><?php p($l->n(
+					'%n of them is close to being given up on.',
+					'%n of them are close to being given up on.',
+					$federation['atRisk']
+				)); ?></strong>
+			<?php endif; ?>
+			<?php p($l->t('A delivery is abandoned after %s attempts.', [(string)$federation['maxTries']])); ?>
+		</p>
+
+		<table class="grid social-federation">
+			<thead>
+				<tr>
+					<th><?php p($l->t('Instance')); ?></th>
+					<th><?php p($l->t('Waiting deliveries')); ?></th>
+					<th><?php p($l->t('Most attempts so far')); ?></th>
+					<th><?php p($l->t('Last attempt')); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach ($federation['instances'] as $instance): ?>
+				<tr>
+					<td><?php p($instance['host']); ?></td>
+					<td><?php p((string)$instance['requests']); ?></td>
+					<td><?php p($instance['tries'] . ' / ' . $federation['maxTries']); ?></td>
+					<td><?php p($instance['last'] > 0 ? gmdate('Y-m-d H:i', $instance['last']) : $l->t('never')); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+	<?php endif; ?>
 </div>
 
 <div id="social-access" class="section">
