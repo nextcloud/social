@@ -17,6 +17,7 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\InsufficientScopeException;
+use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -40,6 +41,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
@@ -80,6 +82,7 @@ class ApiController extends Controller {
 	private StreamService $streamService;
 	private ActionService $actionService;
 	private PostService $postService;
+	private PollService $pollService;
 	private ReportService $reportService;
 	private ConfigService $configService;
 	private CurlService $curlService;
@@ -104,6 +107,7 @@ class ApiController extends Controller {
 		StreamService $streamService,
 		ActionService $actionService,
 		PostService $postService,
+		PollService $pollService,
 		ReportService $reportService,
 		ConfigService $configService,
 		CurlService $curlService,
@@ -124,6 +128,7 @@ class ApiController extends Controller {
 		$this->streamService = $streamService;
 		$this->actionService = $actionService;
 		$this->postService = $postService;
+		$this->pollService = $pollService;
 		$this->reportService = $reportService;
 		$this->configService = $configService;
 		$this->curlService = $curlService;
@@ -261,6 +266,54 @@ class ApiController extends Controller {
 			);
 		} catch (FollowNotFoundException $e) {
 			return new DataResponse(['error' => 'no pending follow request'], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function pollGet(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$poll = $this->pollService->getPoll($nid, $this->viewer);
+
+			return new DataResponse($this->pollService->exportPoll($poll), Http::STATUS_OK);
+		} catch (StreamNotFoundException $e) {
+			return new DataResponse(['error' => 'poll not found'], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+	/**
+	 * Votes on a federated poll: the choices go to the poll's author as
+	 * ActivityPub vote notes, the authoritative counts come back later as an
+	 * Update from the origin server.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function pollVote(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = $this->convertInput(file_get_contents('php://input'));
+			$choices = $input['choices'] ?? [];
+			if (!is_array($choices)) {
+				$choices = [$choices];
+			}
+
+			$poll = $this->pollService->vote($this->viewer, $nid, $choices);
+
+			return new DataResponse($this->pollService->exportPoll($poll), Http::STATUS_OK);
+		} catch (StreamNotFoundException $e) {
+			return new DataResponse(['error' => 'poll not found'], Http::STATUS_NOT_FOUND);
+		} catch (InvalidActionException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}
@@ -1363,7 +1416,7 @@ class ApiController extends Controller {
 
 		$accepted = match ($name) {
 			'statusNew', 'statusUpdate', 'mediaNew', 'mediaNewV2', 'mediaUpdate', 'statusAction',
-			'updateCredentials', 'reportNew' => ['write'],
+			'updateCredentials', 'reportNew', 'pollVote' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
 			'appsCredentials' => [],

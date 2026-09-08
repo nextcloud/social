@@ -53,6 +53,8 @@ return [
 		['name' => 'Api#followRequestAuthorize', 'url' => '/api/v1/follow_requests/{id}/authorize', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#followRequestReject', 'url' => '/api/v1/follow_requests/{id}/reject', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#reportNew', 'url' => '/api/v1/reports', 'verb' => 'POST'],
+		['name' => 'Api#pollGet', 'url' => '/api/v1/polls/{nid}', 'verb' => 'GET'],
+		['name' => 'Api#pollVote', 'url' => '/api/v1/polls/{nid}/votes', 'verb' => 'POST'],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],

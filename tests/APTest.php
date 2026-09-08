@@ -55,6 +55,7 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -95,6 +96,7 @@ class APTest extends TestCase {
 			'Image' => ['Image', Image::class],
 			'Like' => ['Like', Like::class],
 			'Note' => ['Note', Note::class],
+			'Question' => ['Question', Question::class],
 			'OrderedCollection' => ['OrderedCollection', OrderedCollection::class],
 			'SocialAppNotification' => ['SocialAppNotification', SocialAppNotification::class],
 			'Stream' => ['Stream', Stream::class],
@@ -123,7 +125,7 @@ class APTest extends TestCase {
 
 	public function unknownTypeProvider(): array {
 		return [
-			'unsupported AS2 type' => ['Question'],
+			'unsupported AS2 type' => ['Article'],
 			'empty' => [''],
 			'wrong case' => ['note'],
 		];
@@ -163,6 +165,7 @@ class APTest extends TestCase {
 			'Like' => ['Like', LikeInterface::class],
 			'Move' => ['Move', MoveInterface::class],
 			'Note' => ['Note', NoteInterface::class],
+			'Question' => ['Question', NoteInterface::class],
 			'SocialAppNotification' => ['SocialAppNotification', SocialAppNotificationInterface::class],
 			'Person' => ['Person', PersonInterface::class],
 			'Reject' => ['Reject', RejectInterface::class],
@@ -183,7 +186,7 @@ class APTest extends TestCase {
 	public function testGetInterfaceFromTypeRejectsUnknownTypes(): void {
 		$this->expectException(ItemUnknownException::class);
 
-		$this->ap->getInterfaceFromType('Question');
+		$this->ap->getInterfaceFromType('Article');
 	}
 
 	public function testGetInterfaceForItemDispatchesOnTheItemType(): void {
@@ -270,7 +273,7 @@ class APTest extends TestCase {
 			'type' => 'Create',
 			'object' => [
 				'id' => 'https://mastodon.social/users/alice/statuses/1',
-				'type' => 'Question',
+				'type' => 'Article',
 			],
 		]);
 

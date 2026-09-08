@@ -99,6 +99,15 @@ The response is the status itself in local format.
 
 All four return a bare JSON array of statuses (no envelope, no `Link` header).
 
+### Polls
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v1/polls/{nid}` | public, no-csrf (viewer required) | — | The Mastodon `Poll` entity of the status `{nid}`: options with vote counts, `expires_at`/`expired`, `multiple`, `voters_count`, and the viewer's `voted`/`own_votes`. 404 when the status is not a poll. |
+| POST | `/api/v1/polls/{nid}/votes` | public, no-csrf (viewer required, `write` scope) | `choices` (array of option indices) | Votes on a *federated* poll: each choice is delivered to the poll's author as an ActivityPub vote note; the chosen indices are remembered locally so the poll renders as voted, and the authoritative counts arrive later as an `Update{Question}` from the origin. 422 on invalid/duplicate votes, expired polls or local polls (creating polls is not supported). |
+
+Incoming federated polls (`Question` objects) are stored like notes, appear in every timeline, and carry the `poll` entity in their status export; a remote `Update{Question}` refreshes the counts.
+
 ### Reports
 
 | Method | Route | Auth | Parameters | Description |
