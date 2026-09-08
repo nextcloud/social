@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9f06d67071a4633e4ed454f06f3e05c5",
+    "content-hash": "40279b351fbd42d3393828599f310a64",
     "packages": [
         {
             "name": "friendica/json-ld",
@@ -52,29 +52,30 @@
         },
         {
             "name": "gumlet/php-image-resize",
-            "version": "2.0.4",
+            "version": "3.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/gumlet/php-image-resize.git",
-                "reference": "54165d97ebc3d4fc188761166b78e6702f605f59"
+                "reference": "66de740e38f129de24d978b640998b91b12f4de0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/54165d97ebc3d4fc188761166b78e6702f605f59",
-                "reference": "54165d97ebc3d4fc188761166b78e6702f605f59",
+                "url": "https://api.github.com/repos/gumlet/php-image-resize/zipball/66de740e38f129de24d978b640998b91b12f4de0",
+                "reference": "66de740e38f129de24d978b640998b91b12f4de0",
                 "shasum": ""
             },
             "require": {
                 "ext-fileinfo": "*",
                 "ext-gd": "*",
-                "php": ">=5.6.0"
+                "php": ">=8.1.0"
             },
             "require-dev": {
-                "apigen/apigen": "^4.1",
                 "ext-exif": "*",
                 "ext-gd": "*",
+                "friendsofphp/php-cs-fixer": "^3.64",
                 "php-coveralls/php-coveralls": "^2.1",
-                "phpunit/phpunit": "^8.5"
+                "phpstan/phpstan": "^2.0",
+                "phpunit/phpunit": "^10.0"
             },
             "suggest": {
                 "ext-exif": "Auto-rotate jpeg files"
@@ -105,9 +106,9 @@
             ],
             "support": {
                 "issues": "https://github.com/gumlet/php-image-resize/issues",
-                "source": "https://github.com/gumlet/php-image-resize/tree/2.0.4"
+                "source": "https://github.com/gumlet/php-image-resize/tree/3.0.0"
             },
-            "time": "2023-10-11T14:16:03+00:00"
+            "time": "2026-07-22T12:01:01+00:00"
         },
         {
             "name": "kornrunner/blurhash",

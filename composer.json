@@ -34,7 +34,7 @@
 	},
 	"require": {
 		"php": ">=8.1",
-		"gumlet/php-image-resize": "2.0.*",
+		"gumlet/php-image-resize": "3.0.*",
 		"friendica/json-ld": "^1.0",
 		"kornrunner/blurhash": "^1.2"
 	},
