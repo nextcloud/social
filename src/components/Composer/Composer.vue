@@ -792,6 +792,7 @@ function nodeToPlainText(node) {
 		color: var(--color-primary-text) !important;
 	}
 }
+
 .poll-editor {
 	margin: 8px 0;
 	padding: 8px;
