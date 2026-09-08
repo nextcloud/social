@@ -193,8 +193,9 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * Minimal Mastodon-style profile update: only `locked` (manually approve
-	 * followers) is supported for now. Returns the updated account entity.
+	 * Minimal Mastodon-style profile update: `locked` (manually approve
+	 * followers) and `fields_attributes` (profile metadata) are supported.
+	 * Returns the updated account entity.
 	 *
 	 */
 	#[NoCSRFRequired]
@@ -203,11 +204,23 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
+			$changed = false;
 			$input = $this->convertInput(file_get_contents('php://input'));
 			if (array_key_exists('locked', $input)) {
 				$locked = in_array($input['locked'], [true, 1, '1', 'true'], true);
 				$this->accountService->setLocked($this->currentSession(), $locked);
+				$changed = true;
+			}
 
+			if (array_key_exists('fields_attributes', $input) && is_array($input['fields_attributes'])) {
+				// clients send either a list or an object keyed by index
+				$this->accountService->setFields(
+					$this->currentSession(), array_values($input['fields_attributes'])
+				);
+				$changed = true;
+			}
+
+			if ($changed) {
 				// refresh the viewer so the returned entity carries the change
 				$this->viewer = $this->cacheActorService->getFromLocalAccount(
 					$this->viewer->getPreferredUsername()

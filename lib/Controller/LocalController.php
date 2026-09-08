@@ -737,6 +737,29 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * Replace the current user's profile metadata fields (the name/value
+	 * table under the bio, at most four entries).
+	 *
+	 * @param array $fields [['name' => string, 'value' => string], …]
+	 */
+	#[NoAdminRequired]
+	public function accountFields(array $fields = []): DataResponse {
+		try {
+			if ($this->userId === null) {
+				throw new AccountDoesNotExistException('User not logged in');
+			}
+			$this->accountService->setFields($this->userId, $fields);
+
+			$local = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
+
+			return $this->success(['account' => $actor]);
+		} catch (Exception $e) {
+			return $this->fail($e);
+		}
+	}
+
 	#[NoAdminRequired]
 	public function currentFollowers(): DataResponse {
 		try {

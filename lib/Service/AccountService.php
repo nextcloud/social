@@ -276,6 +276,25 @@ class AccountService {
 	}
 
 	/**
+	 * Stores the profile metadata fields (at most four name/value pairs) and
+	 * refreshes the actor cache so they reach the actor document as
+	 * PropertyValue attachments and the account entity as `fields`.
+	 *
+	 * @param array[] $fields [['name' => string, 'value' => string], …]
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setFields(string $userId, array $fields): void {
+		$actor = $this->getActorFromUserId($userId);
+		$actor->setFields($fields);
+		$this->actorsRequest->updateFields($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+	/**
 	 * @param string $username
 	 *
 	 * @throws SocialAppConfigException

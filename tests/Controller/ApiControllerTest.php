@@ -941,6 +941,35 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame($viewer, $response->getData());
 	}
 
+	public function testUpdateCredentialsStoresProfileFields(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn([
+			'fields_attributes' => [
+				['name' => 'Website', 'value' => 'https://example.org'],
+				['name' => 'Pronouns', 'value' => 'they/them'],
+			],
+		]);
+		$this->accountService->expects($this->once())->method('setFields')
+			->with('alice', [
+				['name' => 'Website', 'value' => 'https://example.org'],
+				['name' => 'Pronouns', 'value' => 'they/them'],
+			]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsAcceptsFieldsKeyedByIndex(): void {
+		// form-encoded clients send fields_attributes as an object keyed by index
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn([
+			'fields_attributes' => ['0' => ['name' => 'Website', 'value' => 'https://example.org']],
+		]);
+		$this->accountService->expects($this->once())->method('setFields')
+			->with('alice', [['name' => 'Website', 'value' => 'https://example.org']]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
 	public function testUpdateCredentialsRequiresAViewer(): void {
 		$this->accountService->expects($this->never())->method('setLocked');
 

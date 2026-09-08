@@ -295,6 +295,139 @@ describe('ProfileInfo', () => {
 		})
 	})
 
+	describe('profile metadata fields', () => {
+		const fieldRows = (wrapper) => wrapper.findAll('.user-profile__field').map((row) => ({
+			name: row.find('dt').text(),
+			text: row.find('dd').text(),
+			href: row.find('a').exists() ? row.find('a').attributes('href') : undefined,
+		}))
+
+		it('shows no field table for an account without fields', () => {
+			expect(mountProfile('bob@remote.example').find('.user-profile__fields').exists()).toBe(false)
+		})
+
+		it('renders the text of a remote field and links it when it points at a URL', () => {
+			store.commit('addAccount', {
+				actorId: bob.url,
+				data: {
+					fields: [
+						{ name: 'Website', value: '<a href="https://example.org/bob" rel="me">example.org/bob</a>', verified_at: null },
+						{ name: 'Pronouns', value: 'they/them', verified_at: null },
+					],
+				},
+			})
+
+			expect(fieldRows(mountProfile('bob@remote.example'))).toEqual([
+				{ name: 'Website', text: 'example.org/bob', href: 'https://example.org/bob' },
+				{ name: 'Pronouns', text: 'they/them', href: undefined },
+			])
+		})
+
+		it('never turns a javascript: value from a remote server into a link', () => {
+			store.commit('addAccount', {
+				actorId: bob.url,
+				data: { fields: [{ name: 'Evil', value: '<a href="javascript:alert(1)">click me</a>', verified_at: null }] },
+			})
+
+			expect(fieldRows(mountProfile('bob@remote.example'))).toEqual([
+				{ name: 'Evil', text: 'click me', href: undefined },
+			])
+		})
+
+		it('only offers the field editor on the own profile', () => {
+			expect(buttonByText(mountProfile('alice'), 'Edit profile fields')).toBeDefined()
+			expect(buttonByText(mountProfile('bob@remote.example'), 'Edit profile fields')).toBeUndefined()
+		})
+
+		it('prefills the editor with the own raw field values and saves the trimmed set', async () => {
+			store.commit('addAccount', {
+				actorId: alice.url,
+				data: {
+					fields: [{ name: 'Website', value: '<a href="https://example.org">example.org</a>', verified_at: null }],
+					source: { fields: [{ name: 'Website', value: 'https://example.org' }] },
+				},
+			})
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
+			const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const wrapper = mountProfile('alice')
+
+			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			const modal = wrapper.find('.modal-stub')
+			const inputs = modal.findAll('input')
+			expect(inputs).toHaveLength(2)
+			expect(inputs[0].element.value).toBe('Website')
+			expect(inputs[1].element.value).toBe('https://example.org')
+
+			await buttonByText(modal, 'Add field').trigger('click')
+			const rows = wrapper.find('.modal-stub').findAll('.user-profile__fields-row')
+			await rows[1].findAll('input')[0].setValue('  Pronouns  ')
+			await rows[1].findAll('input')[1].setValue('  they/them  ')
+			await buttonByText(wrapper.find('.modal-stub'), 'Save').trigger('click')
+			await flushPromises()
+
+			expect(put).toHaveBeenCalledTimes(1)
+			expect(put.mock.calls[0][0]).toBe('/index.php/apps/social/api/v1/account/fields')
+			expect(put.mock.calls[0][1]).toEqual({
+				fields: [
+					{ name: 'Website', value: 'https://example.org' },
+					{ name: 'Pronouns', value: 'they/them' },
+				],
+			})
+			expect(wrapper.find('.modal-stub').exists()).toBe(false)
+			expect(showSuccess).toHaveBeenCalledWith('Profile fields saved')
+			expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'alice@cloud.example.org')
+		})
+
+		it('drops half-filled rows and can clear every field', async () => {
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
+			vi.spyOn(store, 'dispatch').mockResolvedValue(alice)
+			const wrapper = mountProfile('alice')
+
+			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			const modal = wrapper.find('.modal-stub')
+			await modal.findAll('input')[0].setValue('a label without a value')
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(put.mock.calls[0][1]).toEqual({ fields: [] })
+		})
+
+		it('offers at most four rows', async () => {
+			store.commit('addAccount', {
+				actorId: alice.url,
+				data: {
+					source: {
+						fields: [
+							{ name: 'One', value: '1' },
+							{ name: 'Two', value: '2' },
+							{ name: 'Three', value: '3' },
+							{ name: 'Four', value: '4' },
+						],
+					},
+				},
+			})
+			const wrapper = mountProfile('alice')
+
+			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			const modal = wrapper.find('.modal-stub')
+			expect(modal.findAll('.user-profile__fields-row')).toHaveLength(4)
+			expect(buttonByText(modal, 'Add field')).toBeUndefined()
+		})
+
+		it('keeps the editor open and reports a failed save', async () => {
+			vi.spyOn(axios, 'put').mockRejectedValue(new Error('500'))
+			const wrapper = mountProfile('alice')
+
+			await buttonByText(wrapper, 'Edit profile fields').trigger('click')
+			await buttonByText(wrapper.find('.modal-stub'), 'Save').trigger('click')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('Failed to save profile fields')
+			expect(wrapper.find('.modal-stub').exists()).toBe(true)
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Save').attributes('disabled')).toBeUndefined()
+		})
+	})
+
 	describe('banner upload on the own profile', () => {
 		let post
 		let dispatch

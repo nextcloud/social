@@ -50,7 +50,7 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
 | GET | `/api/v1/accounts/verify_credentials` | public, no-csrf | — | The viewer's `Person` actor serialised in local format. 401 `{"error": ...}` when unauthenticated. |
-| PATCH | `/api/v1/accounts/update_credentials` | public, no-csrf (viewer required, `write` scope) | JSON/form body; only `locked` is supported | Sets whether new followers need manual approval (`manuallyApprovesFollowers`). Other Mastodon profile fields are ignored. Returns the refreshed account entity. |
+| PATCH | `/api/v1/accounts/update_credentials` | public, no-csrf (viewer required, `write` scope) | JSON/form body; `locked` and `fields_attributes` are supported | Sets whether new followers need manual approval (`manuallyApprovesFollowers`) and/or the profile metadata fields (at most four name/value pairs, both halves required; a list or an object keyed by index). Other Mastodon profile fields are ignored. Returns the refreshed account entity. |
 | GET | `/api/v1/follow_requests` | public, no-csrf (viewer required) | — | Accounts with a pending follow request towards the viewer, serialised in local format. |
 | POST | `/api/v1/follow_requests/{id}/authorize` | public, no-csrf (viewer required, `follow` or `write` scope) | — | Accepts the pending follow request from account `{id}` (numeric id or full actor id; accepts slashes): federates the `Accept` and marks the follow accepted. Returns the updated relationship entity; 404 when no request is pending. |
 | POST | `/api/v1/follow_requests/{id}/reject` | public, no-csrf (viewer required, `follow` or `write` scope) | — | Rejects the pending follow request from account `{id}`: federates a `Reject` and deletes the follow row. Returns the updated relationship entity; 404 when no request is pending. |
@@ -189,6 +189,7 @@ All eight take `since` (int, 0) and `limit` (int, 5) and return `{"result": [sta
 | GET | `/api/v1/current/info` | user | — | `{"result": {"account": <Person>}, "status": 1}`; refreshes the local actor cache first. |
 | GET | `/api/v1/current/followers` | user | — | `{"result": [actors], "status": 1}`. |
 | GET | `/api/v1/current/following` | user | — | `{"result": [actors], "status": 1}`. |
+| PUT | `/api/v1/account/fields` | user | `fields` (list of `{name, value}`) | Replaces the profile metadata fields (at most four name/value pairs; entries with an empty half are dropped, names capped at 255 and values at 500 characters). Federated as `PropertyValue` attachments on the actor. `{"result": {"account": <Person>}, "status": 1}`. |
 | PUT | `/api/v1/current/follow` | user | `account` (required) | Follows an account; `{"result": [], "status": 1}`. |
 | DELETE | `/api/v1/current/follow` | user | `account` (required) | Unfollows an account; `{"result": [], "status": 1}`. |
 
