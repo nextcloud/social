@@ -14,9 +14,6 @@ permissions:
 
 on: [pull_request]
 
-permissions:
-  contents: read
-
 jobs:
   reuse-compliance-check:
     runs-on: ubuntu-latest
