@@ -4,15 +4,25 @@
 -->
 <template>
 	<div class="social__timeline">
+		<transition name="pill">
+			<button v-if="arrived > 0"
+				class="new-posts-pill"
+				:aria-label="n('social', 'Show %n new post', 'Show %n new posts', arrived)"
+				@click="showArrived">
+				<ArrowUp :size="18" />
+				{{ n('social', '%n new post', '%n new posts', arrived) }}
+			</button>
+		</transition>
 		<transition-group name="list" tag="ul">
 			<TimelineEntry v-for="entry in timeline"
 				:key="entry.id"
 				:item="entry"
 				:type="type" />
 		</transition-group>
+		<TimelineSkeleton v-if="loading && timeline.length === 0" />
 		<div ref="sentinel" class="list-sentinel">
-			<div v-if="loading" class="icon-loading" />
-			<div v-else-if="!allLoaded" class="list-end" />
+			<div v-if="loading && timeline.length > 0" class="icon-loading" />
+			<div v-else-if="!loading && !allLoaded" class="list-end" />
 			<EmptyContent v-if="allLoaded && timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
 		</div>
 	</div>
@@ -22,7 +32,10 @@
 import { showError } from '@nextcloud/dialogs'
 import { listen } from '@nextcloud/notify_push'
 
+import { translate, translatePlural } from '@nextcloud/l10n'
+import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
 import TimelineEntry from './TimelineEntry.vue'
+import TimelineSkeleton from './TimelineSkeleton.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
@@ -30,7 +43,9 @@ import logger from '../services/logger.js'
 export default {
 	name: 'TimelineList',
 	components: {
+		ArrowUp,
 		TimelineEntry,
+		TimelineSkeleton,
 		EmptyContent,
 	},
 	mixins: [CurrentUserMixin],
@@ -53,6 +68,8 @@ export default {
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
+			/** posts that arrived while the reader was further down the page */
+			arrived: 0,
 			loading: false,
 			allLoaded: false,
 			observer: null,
@@ -206,6 +223,15 @@ export default {
 				this.loading = false
 			}
 		},
+		showArrived() {
+			this.arrived = 0
+			window.scrollTo({
+				top: 0,
+				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+			})
+		},
+		t: translate,
+		n: translatePlural,
 		async fetchNewStatuses() {
 			if (this.showParents) {
 				return
@@ -222,6 +248,11 @@ export default {
 				})
 
 				if (response.length > 0) {
+					// only worth announcing when the top of the list is out of
+					// sight; up there the posts simply appear
+					if (window.scrollY > 240) {
+						this.arrived += response.length
+					}
 					this.fetchNewStatuses()
 				}
 			} catch (error) {
@@ -255,6 +286,47 @@ export default {
 
 	.list-sentinel {
 		min-height: 1px;
+	}
+}
+
+.new-posts-pill {
+	position: sticky;
+	top: 8px;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 auto 8px;
+	padding: 6px 16px;
+	border: none;
+	border-radius: var(--border-radius-pill, 16px);
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	font-weight: bold;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+
+	&:hover,
+	&:focus-visible {
+		background: var(--color-primary-element-hover);
+	}
+}
+
+.pill-enter-active,
+.pill-leave-active {
+	transition: opacity .2s ease, transform .2s ease;
+}
+
+.pill-enter-from,
+.pill-leave-to {
+	opacity: 0;
+	transform: translateY(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pill-enter-active,
+	.pill-leave-active {
+		transition: none;
 	}
 }
 </style>

@@ -72,9 +72,12 @@ const mountPost = ({
 	route = { name: 'timeline', params: { type: 'home' } },
 	currentAccount = alice,
 	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
+	// the like/boost store actions answer with the updated status, and with
+	// nothing at all when they had to roll the change back
+	dispatch = vi.fn().mockResolvedValue(makeItem()),
 } = {}) => {
 	const $store = {
-		dispatch: vi.fn().mockResolvedValue(undefined),
+		dispatch,
 		commit: vi.fn(),
 		getters: { currentAccount, getServerData: serverData },
 	}
@@ -289,6 +292,32 @@ describe('TimelinePost', () => {
 
 			expect($store.dispatch).toHaveBeenCalledTimes(1)
 			expect($store.dispatch).toHaveBeenCalledWith('postUnlike', expect.objectContaining({ status: item }))
+		})
+
+		it('confirms the like with the heart, and only when liking', async () => {
+			const { wrapper } = mountPost()
+			await actionButton(wrapper, 'Like').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.post-action__burst').exists()).toBe(true)
+
+			// undoing is not something to celebrate
+			const undoing = mountPost({ item: makeItem({ favourited: true }) })
+			await actionButton(undoing.wrapper, 'Undo Like').trigger('click')
+			await flushPromises()
+
+			expect(undoing.wrapper.find('.post-action__burst').exists()).toBe(false)
+		})
+
+		it('says so when the server refuses, instead of flipping back in silence', async () => {
+			// the store reports its own error and resolves undefined
+			const { wrapper } = mountPost({ dispatch: vi.fn().mockResolvedValue(undefined) })
+
+			await actionButton(wrapper, 'Like').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.post-action-group--like').classes()).toContain('post-action-group--refused')
+			expect(wrapper.find('.post-action__burst').exists()).toBe(false)
 		})
 	})
 

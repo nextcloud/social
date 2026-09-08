@@ -21,9 +21,12 @@
 			@click.stop
 			@loadedmetadata="previewLoaded = true" />
 		<template v-else>
-			<canvas v-if="!previewLoaded" ref="canvas" class="attachment__blurhash" />
+			<canvas ref="canvas"
+				class="attachment__blurhash"
+				:class="{ 'attachment__blurhash--hidden': previewLoaded }" />
 			<img v-if="attachment !== null"
-				class="attachment__preview"
+				class="attachment__preview attachment__preview--fading"
+				:class="{ 'attachment__preview--shown': previewLoaded }"
 				:src="attachment.preview_url"
 				:alt="attachment.description || ''"
 				@load="previewLoaded = true">
@@ -101,6 +104,11 @@ export default {
 		width: 100%;
 		object-fit: cover;
 		z-index: 1;
+		transition: opacity .4s ease;
+
+		&--hidden {
+			opacity: 0;
+		}
 	}
 
 	&__preview {
@@ -110,6 +118,18 @@ export default {
 		width: 100%;
 		object-fit: cover;
 		z-index: 2;
+
+		/* the image resolves out of its own blur rather than replacing it */
+		&--fading {
+			opacity: 0;
+			transform: scale(1.02);
+			transition: opacity .4s ease, transform .4s ease;
+		}
+
+		&--shown {
+			opacity: 1;
+			transform: scale(1);
+		}
 	}
 
 	.loading-icon {
@@ -117,6 +137,17 @@ export default {
 		top: calc(50% - 20px);
 		left: calc(50% - 20px);
 		z-index: 3;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.attachment__blurhash,
+	.attachment__preview--fading {
+		transition: none;
+	}
+
+	.attachment__preview--fading {
+		transform: none;
 	}
 }
 </style>

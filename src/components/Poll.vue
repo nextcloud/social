@@ -12,7 +12,8 @@
 					<Check v-if="poll.own_votes && poll.own_votes.includes(index)" :size="16" />
 				</span>
 				<span class="poll__result-bar">
-					<span class="poll__result-fill" :style="{ width: percentage(option) + '%' }" />
+					<span class="poll__result-fill"
+						:style="{ width: revealed ? percentage(option) + '%' : 0, transitionDelay: index * 80 + 'ms' }" />
 				</span>
 			</div>
 		</template>
@@ -69,7 +70,23 @@ export default {
 		return {
 			selected: this.poll.multiple ? [] : null,
 			voting: false,
+			// the bars grow from nothing; they need one frame at zero width
+			// before the real width is applied, or there is nothing to animate
+			revealed: false,
 		}
+	},
+	watch: {
+		showResults: {
+			handler(shown) {
+				if (shown) {
+					this.revealed = false
+					window.requestAnimationFrame(() => {
+						this.revealed = true
+					})
+				}
+			},
+			immediate: true,
+		},
 	},
 	computed: {
 		/** @return {boolean} */
@@ -149,12 +166,19 @@ export default {
 			display: block;
 			height: 100%;
 			background-color: var(--color-primary-element);
+			transition: width .55s cubic-bezier(.22, 1, .36, 1);
 		}
 	}
 
 	&__footer {
 		margin-top: 6px;
 		color: var(--color-text-maxcontrast);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.poll__result-fill {
+		transition: none;
 	}
 }
 </style>
