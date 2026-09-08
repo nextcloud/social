@@ -23,7 +23,7 @@
  * @property {string} html -
  * @property {number} width - Ex: 0
  * @property {number} height - Ex: 0
- * @property {number} [image] -
+ * @property {string?} [image] - Ex: "https://example.org/img/hero.png"
  * @property {string} embed_url -
  */
 
@@ -137,7 +137,7 @@
  * @property {StatusMention[]} mentions - Ex: []
  * @property {StatusTag[]} tags - Ex: []
  * @property {CustomEmoji[]} emojis - Ex: []
- * @property {Card} card -
+ * @property {Card?} card - the link preview, null when the post links nowhere
  * @property {Poll} [poll] - Ex: null
  */
 

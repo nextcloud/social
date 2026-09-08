@@ -59,6 +59,7 @@
 		<div v-else class="post-message" v-html="sanitizedAccountNote" />
 		<Poll v-if="localPoll" :poll="localPoll" @update:poll="localPoll = $event" />
 		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
+		<PostCard v-if="showCard" :card="item.card" />
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<div class="post-action-group">
 				<NcButton :title="t('social', 'Reply')"
@@ -153,6 +154,7 @@ import 'linkify-plugin-mention'
 import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
+import PostCard from './PostCard.vue'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
@@ -181,6 +183,7 @@ export default {
 	name: 'TimelinePost',
 	components: {
 		PostAttachment,
+		PostCard,
 		NcActions,
 		NcActionButton,
 		NcDialog,
@@ -219,6 +222,10 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {boolean} a link preview replaces nothing, so media wins */
+		showCard() {
+			return !this.hasAttachments && Boolean(this.item.card?.title)
+		},
 		/** @return {boolean} own local posts can be pinned to the profile */
 		canPin() {
 			return this.item.account.acct === this.currentAccount?.acct && this.item.local !== false

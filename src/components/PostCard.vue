@@ -1,0 +1,115 @@
+<!--
+  - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<template>
+	<a v-if="card && card.title"
+		class="post-card"
+		:href="card.url"
+		target="_blank"
+		rel="nofollow noopener noreferrer">
+		<img v-if="image"
+			class="post-card__image"
+			:src="image"
+			:alt="''"
+			loading="lazy"
+			@error="image = ''">
+		<div class="post-card__text">
+			<span class="post-card__provider">{{ provider }}</span>
+			<strong class="post-card__title">{{ card.title }}</strong>
+			<span v-if="card.description" class="post-card__description">{{ card.description }}</span>
+		</div>
+	</a>
+</template>
+
+<script>
+export default {
+	name: 'PostCard',
+	props: {
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Card>} */
+		card: {
+			type: Object,
+			default: null,
+		},
+	},
+	data() {
+		return {
+			// the image comes from the linked site, so it may simply be gone
+			image: this.card?.image ?? '',
+		}
+	},
+	computed: {
+		provider() {
+			if (this.card.provider_name) {
+				return this.card.provider_name
+			}
+			try {
+				return new URL(this.card.url).host
+			} catch (e) {
+				return this.card.url
+			}
+		},
+	},
+	watch: {
+		card(value) {
+			this.image = value?.image ?? ''
+		},
+	},
+}
+</script>
+
+<style scoped lang="scss">
+.post-card {
+	display: flex;
+	margin-top: 8px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large, 8px);
+	overflow: hidden;
+	color: var(--color-main-text);
+	text-decoration: none;
+	background: var(--color-background-hover);
+
+	&:hover,
+	&:focus {
+		border-color: var(--color-primary-element);
+		text-decoration: none;
+	}
+
+	&__image {
+		width: 30%;
+		max-width: 200px;
+		object-fit: cover;
+		flex-shrink: 0;
+		background: var(--color-background-dark);
+	}
+
+	&__text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 10px 12px;
+		min-width: 0;
+	}
+
+	&__provider {
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: .04em;
+		color: var(--color-text-lighter);
+	}
+
+	&__title {
+		font-size: 14px;
+		overflow-wrap: anywhere;
+	}
+
+	&__description {
+		font-size: 13px;
+		color: var(--color-text-lighter);
+		overflow: hidden;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+	}
+}
+</style>

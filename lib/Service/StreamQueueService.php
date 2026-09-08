@@ -61,9 +61,13 @@ class StreamQueueService {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamRequest $streamRequest, StreamQueueRequest $streamQueueRequest,
-		CacheActorService $cacheActorService, ImportService $importService,
-		CurlService $curlService, MiscService $miscService,
+		StreamRequest $streamRequest,
+		StreamQueueRequest $streamQueueRequest,
+		CacheActorService $cacheActorService,
+		ImportService $importService,
+		CurlService $curlService,
+		MiscService $miscService,
+		private LinkPreviewService $linkPreviewService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamQueueRequest = $streamQueueRequest;
@@ -126,14 +130,36 @@ class StreamQueueService {
 		}
 
 		switch ($queue->getType()) {
-			case 'Cache':
+			case StreamQueue::TYPE_CACHE:
 				$this->manageStreamQueueCache($queue);
+				break;
+
+			case StreamQueue::TYPE_LINK_PREVIEW:
+				$this->manageStreamQueueLinkPreview($queue);
 				break;
 
 			default:
 				$this->deleteCache($queue);
 				break;
 		}
+	}
+
+	/**
+	 * Reads the page a post links to, once. A post without a link, or a page
+	 * that cannot be read, ends the queue item for good: retrying would hit
+	 * the same wall on every run.
+	 */
+	private function manageStreamQueueLinkPreview(StreamQueue $queue): void {
+		try {
+			$stream = $this->streamRequest->getStreamById($queue->getStreamId());
+		} catch (StreamNotFoundException $e) {
+			$this->deleteCache($queue);
+
+			return;
+		}
+
+		$this->linkPreviewService->generate($stream);
+		$this->deleteCache($queue);
 	}
 
 	/**

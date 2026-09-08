@@ -26,9 +26,12 @@ use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
@@ -46,6 +49,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 	private $pollService;
 	/** @var PushService&MockObject */
 	private $pushService;
+	private StreamQueueService|MockObject $streamQueueService;
+	private LinkPreviewService|MockObject $linkPreviewService;
 	private NoteInterface $handler;
 
 	private Person $alice;
@@ -60,7 +65,16 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->pushService = $this->createMock(PushService::class);
 
 		$this->pollService = $this->createMock(PollService::class);
-		$this->handler = new NoteInterface($this->streamRequest, $this->cacheActorsRequest, $this->pollService, $this->pushService);
+		$this->streamQueueService = $this->createMock(StreamQueueService::class);
+		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
+		$this->handler = new NoteInterface(
+			$this->streamRequest,
+			$this->cacheActorsRequest,
+			$this->pollService,
+			$this->pushService,
+			$this->streamQueueService,
+			$this->linkPreviewService
+		);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
 		$this->bob = $this->person(self::REMOTE_URL . '/users/bob');
@@ -351,12 +365,37 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
 
-	public function testDeleteRemovesTheNote(): void {
+	public function testDeleteRemovesTheNoteAndItsLinkPreview(): void {
 		$note = $this->incomingNote();
 
 		$this->streamRequest->expects($this->once())->method('deleteById')->with(self::NOTE, Note::TYPE);
+		$this->linkPreviewService->expects($this->once())->method('deleteCard')->with(self::NOTE);
 
 		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+	}
+
+	public function testAStoredNoteThatLinksSomewhereIsHandedToTheQueue(): void {
+		$note = $this->incomingNote();
+		$note->setContent('<p>see <a href="https://example.org/a">this</a></p>');
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->linkPreviewService->method('extractUrl')->willReturn('https://example.org/a');
+
+		// reading the page here would hold up the inbox
+		$this->linkPreviewService->expects($this->never())->method('generate');
+		$this->streamQueueService->expects($this->once())->method('generateStreamQueue')
+			->with($note->getRequestToken(), StreamQueue::TYPE_LINK_PREVIEW, self::NOTE);
+
+		$this->handler->save($note);
+	}
+
+	public function testANoteWithoutALinkIsNotQueued(): void {
+		$note = $this->incomingNote();
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->linkPreviewService->method('extractUrl')->willReturn('');
+
+		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');
+
+		$this->handler->save($note);
 	}
 
 	public function testDeleteNotComingFromTheNotesServerIsRefused(): void {

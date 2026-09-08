@@ -56,6 +56,7 @@ class StreamService {
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
 		CurlService $curlService,
+		private LinkPreviewService $linkPreviewService,
 		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
@@ -425,7 +426,23 @@ class StreamService {
 	 * @return Note[]
 	 */
 	public function getTimeline(ProbeOptions $options): array {
-		return $this->streamRequest->getTimeline($options);
+		$posts = $this->streamRequest->getTimeline($options);
+		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
+			// one query for the whole page, and only for pages a client reads
+			$this->linkPreviewService->attachCards($posts);
+		}
+
+		return $posts;
+	}
+
+	/**
+	 * The link preview of a single post, for the paths that serve one status
+	 * rather than a page.
+	 */
+	public function attachCard(Stream $post): Stream {
+		$this->linkPreviewService->attachCard($post);
+
+		return $post;
 	}
 
 	/**

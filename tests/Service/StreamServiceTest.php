@@ -25,6 +25,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\IURLGenerator;
@@ -43,6 +44,7 @@ class StreamServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private ConfigService|MockObject $configService;
 	private CurlService|MockObject $curlService;
+	private LinkPreviewService|MockObject $linkPreviewService;
 	private StreamService $service;
 
 	protected function setUp(): void {
@@ -51,6 +53,7 @@ class StreamServiceTest extends TestCase {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->curlService = $this->createMock(CurlService::class);
+		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 
 		$this->configService->method('generateId')->willReturn(self::GENERATED_ID);
 		$this->configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
@@ -62,6 +65,7 @@ class StreamServiceTest extends TestCase {
 			$this->cacheActorService,
 			$this->configService,
 			$this->curlService,
+			$this->linkPreviewService,
 			new NullLogger()
 		);
 	}
@@ -430,6 +434,7 @@ class StreamServiceTest extends TestCase {
 			$this->cacheActorService,
 			$configService,
 			$this->curlService,
+			$this->linkPreviewService,
 			new NullLogger()
 		);
 

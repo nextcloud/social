@@ -21,6 +21,7 @@ use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\ImportService;
+use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
@@ -40,6 +41,7 @@ class StreamQueueServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private CurlService|MockObject $curlService;
 	private MiscService|MockObject $miscService;
+	private LinkPreviewService|MockObject $linkPreviewService;
 	private AP|MockObject $ap;
 	private StreamQueueService $service;
 
@@ -49,6 +51,7 @@ class StreamQueueServiceTest extends TestCase {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->curlService = $this->createMock(CurlService::class);
 		$this->miscService = $this->createMock(MiscService::class);
+		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->ap = $this->createMock(AP::class);
 		AP::$activityPub = $this->ap;
 
@@ -59,6 +62,7 @@ class StreamQueueServiceTest extends TestCase {
 			$this->createMock(ImportService::class),
 			$this->curlService,
 			$this->miscService,
+			$this->linkPreviewService,
 		);
 	}
 
@@ -121,6 +125,28 @@ class StreamQueueServiceTest extends TestCase {
 		$this->streamQueueRequest->expects($this->once())->method('setAsRunning');
 		$this->streamQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
 		$this->streamRequest->expects($this->never())->method('getStreamById');
+
+		$this->service->manageStreamQueue($queue);
+	}
+
+	public function testALinkPreviewEntryReadsThePageOnceAndIsDropped(): void {
+		$queue = $this->queue(StreamQueue::TYPE_LINK_PREVIEW);
+		$note = new Note();
+		$note->setId(self::STREAM_ID);
+		$this->streamRequest->method('getStreamById')->with(self::STREAM_ID)->willReturn($note);
+		$this->linkPreviewService->expects($this->once())->method('generate')->with($this->identicalTo($note));
+		// reading the page again on the next run would hit the same wall
+		$this->streamQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
+		$this->streamQueueRequest->expects($this->never())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+	}
+
+	public function testALinkPreviewEntryForAMissingStreamIsDropped(): void {
+		$queue = $this->queue(StreamQueue::TYPE_LINK_PREVIEW);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->linkPreviewService->expects($this->never())->method('generate');
+		$this->streamQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
 
 		$this->service->manageStreamQueue($queue);
 	}

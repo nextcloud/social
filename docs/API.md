@@ -117,6 +117,18 @@ All four return a bare JSON array of statuses (no envelope, no `Link` header).
 
 Incoming federated polls (`Question` objects) are stored like notes, appear in every timeline, and carry the `poll` entity in their status export; a remote `Update{Question}` refreshes the counts.
 
+### Link previews
+
+Statuses carry Mastodon's `card` entity: `url`, `title`, `description`, `type` (always `link`), `provider_name`, `image`, and the fields this app cannot fill (`author_name`, `html`, `width`/`height`, `embed_url`, `blurhash`) as empty values so that clients reading them blindly keep working. It is `null` for a post that links nowhere.
+
+There is no endpoint for cards — they are derived data, never federated, and every instance reads the linked page itself:
+
+- The first plain link of a post is what gets previewed; mentions and hashtags are skipped, and only `http(s)` links count.
+- The page is read by a background job (a `LinkPreview` item in the stream queue, drained by cron or `occ social:queue:process`), so posting and inbox delivery never wait for a stranger's web server. A post therefore gains its card shortly *after* it appears.
+- The fetch goes through `CurlService`, which means: `http(s)` only on the request and on every redirect, no local addresses, a download size cap, a 5 s timeout, and **the instance access list** — with an allow-list configured, previews only come from listed hosts.
+- The card is read from `OpenGraph`, then Twitter-card tags, then the plain `<title>` and `<meta name="description">`. Title and description are length-capped and stored as text, never as markup; a preview image must itself be an `http(s)` URL.
+- Cards live in `social_stream_card`, keyed by the post, and are deleted with it (including by the retention job).
+
 ### Reports
 
 | Method | Route | Auth | Parameters | Description |
