@@ -109,6 +109,59 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		});
 	}
 
+	// visibility of incoming notes
+
+	public function visibilityProvider(): array {
+		$public = 'https://www.w3.org/ns/activitystreams#Public';
+		$followers = self::REMOTE_URL . '/users/bob/followers';
+
+		return [
+			'as:Public in to is public' => [[$public], [], 'public'],
+			'as:Public in cc is unlisted' => [[$followers], [$public], 'unlisted'],
+			'followers collection only is followers' => [[$followers], [], 'followers'],
+			'individual recipients only is direct' => [[self::LOCAL_URL . '/users/alice'], [], 'direct'],
+		];
+	}
+
+	/**
+	 * @dataProvider visibilityProvider
+	 */
+	public function testIncomingNoteVisibilityIsEstimatedFromItsAddressing(array $to, array $cc, string $expected): void {
+		$this->nothingStored();
+		$this->knownActors($this->bob);
+		$note = $this->incomingNote();
+		foreach ($to as $recipient) {
+			$note->addToArray($recipient);
+		}
+		$note->setCcArray($cc);
+
+		$this->handler->save($note);
+
+		$this->assertSame($expected, $note->getVisibility());
+	}
+
+	public function testAnUnknownAuthorDegradesFollowersOnlyToDirect(): void {
+		$this->nothingStored();
+		$this->knownActors(); // bob's actor is not cached
+		$note = $this->incomingNote();
+		$note->addToArray(self::REMOTE_URL . '/users/bob/followers');
+
+		$this->handler->save($note);
+
+		$this->assertSame('direct', $note->getVisibility());
+	}
+
+	public function testAnAlreadySetVisibilityIsNotOverridden(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+		$note->setVisibility('unlisted');
+		$note->addToArray('https://www.w3.org/ns/activitystreams#Public');
+
+		$this->handler->save($note);
+
+		$this->assertSame('unlisted', $note->getVisibility());
+	}
+
 	public function testCreateStoresTheNoteTaggedWithItsActivity(): void {
 		$this->nothingStored();
 		$note = $this->incomingNote();
