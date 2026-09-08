@@ -15,6 +15,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { SHORTCUTS } from '../../src/services/shortcuts.js'
 
 // vitest runs from the project root; import.meta.url is not a file url here
 const SRC = resolve(process.cwd(), 'src')
@@ -131,5 +132,16 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 		}
 
 		expect(offenders).toEqual([])
+	})
+
+	it('has somebody listening for every shortcut it advertises', () => {
+		// a key in the help sheet that nothing answers is a promise to a user
+		// who has no way of discovering it was never kept
+		const advertised = SHORTCUTS.map(({ event }) => event)
+		const listened = files
+			.flatMap(({ content }) => [...content.matchAll(/eventBus\.on\(\s*'(shortcut:[a-z]+)'/g)])
+			.map(([, event]) => event)
+
+		expect(advertised.filter((event) => !listened.includes(event))).toEqual([])
 	})
 })

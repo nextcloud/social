@@ -605,6 +605,33 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('the compose shortcut', () => {
+		it('puts the caret in the composer when the shortcut fires', async () => {
+			const { wrapper } = mountComposer()
+			const input = wrapper.find('.message').element
+			input.focus = vi.fn()
+			input.scrollIntoView = vi.fn()
+
+			eventBus.emit('shortcut:compose')
+			await wrapper.vm.$nextTick()
+
+			expect(input.focus).toHaveBeenCalled()
+			// the composer sits above a timeline that may be scrolled away
+			expect(input.scrollIntoView).toHaveBeenCalled()
+		})
+
+		it('stops answering once it is gone', async () => {
+			const { wrapper } = mountComposer()
+			const input = wrapper.find('.message').element
+			input.focus = vi.fn()
+			wrapper.unmount()
+
+			eventBus.emit('shortcut:compose')
+
+			expect(input.focus).not.toHaveBeenCalled()
+		})
+	})
+
 	describe('lifecycle', () => {
 		it('listens for replies only while mounted', () => {
 			const { wrapper } = mountComposer()
