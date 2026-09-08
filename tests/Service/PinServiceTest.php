@@ -75,6 +75,9 @@ class PinServiceTest extends TestCase {
 				$this->assertSame(PinService::TYPE, $pin->getType());
 				$this->assertSame(self::AUTHOR, $pin->getActorId());
 				$this->assertSame(self::POST_ID, $pin->getObjectId());
+				// the row id is the primary key of the actions table: it has to
+				// name the actor, or two pins of one post would collide
+				$this->assertSame(self::POST_ID . '#pin/' . md5(self::AUTHOR), $pin->getId());
 
 				return true;
 			}));

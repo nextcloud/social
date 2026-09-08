@@ -14,16 +14,16 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Migration\CacheFeaturedCollections;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\PinService;
-use OCP\Migration\SimpleOutput;
+use OCP\Migration\IOutput;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\NullLogger;
 
 /**
  * Pins against the real actions table: they round-trip, are scoped to one
@@ -42,6 +42,7 @@ class PinnedPostsTest extends TestCase {
 	private ActionsRequest $actionsRequest;
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -49,7 +50,15 @@ class PinnedPostsTest extends TestCase {
 		$this->actionsRequest = Server::get(ActionsRequest::class);
 		$this->streamRequest = Server::get(StreamRequest::class);
 		$this->streamDestRequest = Server::get(StreamDestRequest::class);
+		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
 		$this->cleanup();
+
+		// reading a post back joins its author in the actor cache
+		$author = new Person();
+		$author->setId(self::AUTHOR)
+			->setPreferredUsername('pintest-alice');
+		$author->setAccount('pintest-alice@cloud.example.org');
+		$this->cacheActorsRequest->save($author);
 	}
 
 	protected function tearDown(): void {
@@ -63,6 +72,7 @@ class PinnedPostsTest extends TestCase {
 		foreach (self::NOTES as $n) {
 			$this->streamRequest->deleteById($this->noteId($n), Note::TYPE);
 		}
+		$this->cacheActorsRequest->deleteCacheById(self::AUTHOR);
 	}
 
 	private function noteId(int $n): string {
@@ -72,7 +82,7 @@ class PinnedPostsTest extends TestCase {
 	private function pin(string $actorId, string $objectId): void {
 		$pin = new Like();
 		$pin->setType(PinService::TYPE);
-		$pin->setId($objectId . '#pin');
+		$pin->setId($objectId . '#pin/' . md5($actorId));
 		$pin->setActorId($actorId);
 		$pin->setObjectId($objectId);
 		$this->actionsRequest->save($pin);
@@ -185,22 +195,31 @@ class PinnedPostsTest extends TestCase {
 	}
 
 	public function testTheRepairStepPublishesTheFeaturedCollectionOfLocalActors(): void {
-		$actorsRequest = Server::get(ActorsRequest::class);
+		Server::get(CacheFeaturedCollections::class)->run($this->createMock(IOutput::class));
+
+		// an actor row whose Nextcloud user is gone cannot be cached at all —
+		// the step warns and moves on — so only the cached ones are asserted
 		$cacheActorsRequest = Server::get(CacheActorsRequest::class);
-		$locals = $actorsRequest->getAll();
-		if ($locals === []) {
-			$this->markTestSkipped('no local actor on this instance');
+		$checked = 0;
+		foreach (Server::get(ActorsRequest::class)->getAll() as $local) {
+			try {
+				$cached = $cacheActorsRequest->getFromLocalAccount($local->getPreferredUsername());
+			} catch (CacheActorDoesNotExistException $e) {
+				continue;
+			}
+			// the cached actor is what remote servers are served, and it has to
+			// tell them where the pinned posts live
+			$this->assertSame(
+				$cached->getId() . '/collections/featured',
+				$cached->getFeatured(),
+				'remote servers learn where to fetch the pinned posts'
+			);
+			$checked++;
 		}
 
-		Server::get(CacheFeaturedCollections::class)
-			->run(new SimpleOutput(new NullLogger(), 'social'));
-
-		$cached = $cacheActorsRequest->getFromId($locals[0]->getId());
-		$this->assertSame(
-			$locals[0]->getId() . '/collections/featured',
-			$cached->getFeatured(),
-			'remote servers learn where to fetch the pinned posts'
-		);
+		if ($checked === 0) {
+			$this->markTestSkipped('no cacheable local actor on this instance');
+		}
 	}
 
 	public function testMarkPinnedFlagsThePinnedPostOfAPage(): void {

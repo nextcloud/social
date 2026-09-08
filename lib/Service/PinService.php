@@ -60,7 +60,9 @@ class PinService {
 
 		$pin = new Like();
 		$pin->setType(self::TYPE);
-		$pin->setId($post->getId() . '#pin');
+		// the actions table is keyed by the row id, so the id has to name the
+		// actor as well: two actors pinning the same post must not collide
+		$pin->setId($post->getId() . '#pin/' . md5($actor->getId()));
 		$pin->setActorId($actor->getId());
 		$pin->setObjectId($post->getId());
 		$this->actionsRequest->save($pin);
