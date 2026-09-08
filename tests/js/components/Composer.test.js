@@ -427,6 +427,75 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('describing an attachment', () => {
+		const describe = async (wrapper, text) => {
+			const field = wrapper.find('.preview-item__description')
+			await field.setValue(text)
+
+			return field
+		}
+
+		it('offers a description field for every attachment', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			// the field the composer never had: this client could render other
+			// servers' alt text but had no way to write any of its own
+			expect(wrapper.find('.preview-item__description').exists()).toBe(true)
+			expect(wrapper.find('.preview-item__label').attributes('for'))
+				.toBe(wrapper.find('.preview-item__description').attributes('id'))
+		})
+
+		it('says when an attachment has none, without refusing to post', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			await setContent(wrapper, 'look at this')
+
+			// a nudge, not a gate: nobody should be unable to post because of it
+			expect(wrapper.find('.composer-alt-warning').text()).toContain('no description')
+			expect(submitButton(wrapper).attributes('disabled')).toBeUndefined()
+		})
+
+		it('stops warning once one is written', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			await describe(wrapper, 'a cat asleep on a keyboard')
+
+			expect(wrapper.find('.composer-alt-warning').exists()).toBe(false)
+		})
+
+		it('sends the description with the post', async () => {
+			const { wrapper, $store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			await describe(wrapper, '  a cat asleep on a keyboard  ')
+			await setContent(wrapper, 'look at this')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect($store.dispatch).toHaveBeenCalledWith('describeMedia', {
+				id: media.id,
+				description: 'a cat asleep on a keyboard',
+			})
+		})
+
+		it('sends nothing for an attachment left undescribed', async () => {
+			const { wrapper, $store } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			await setContent(wrapper, 'look at this')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect($store.dispatch).not.toHaveBeenCalledWith('describeMedia', expect.anything())
+		})
+	})
+
 	describe('posting', () => {
 		it('sends the plain text of the message with the attachments and visibility', async () => {
 			const { wrapper, $store } = mountComposer({ defaultVisibility: 'public' })

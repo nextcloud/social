@@ -425,6 +425,27 @@ describe('timeline store actions', () => {
 		})
 	})
 
+	describe('describeMedia', () => {
+		it('tells the server what an attachment shows', async () => {
+			axios.put.mockResolvedValue({ data: {} })
+
+			await store.dispatch('describeMedia', { id: '7', description: 'a cat' })
+
+			expect(axios.put).toHaveBeenCalledWith(
+				expect.stringContaining('/api/v1/media/7'),
+				{ description: 'a cat' },
+			)
+		})
+
+		it('reports a failure without taking the post down with it', async () => {
+			axios.put.mockRejectedValue(new Error('nope'))
+
+			await expect(store.dispatch('describeMedia', { id: '7', description: 'a cat' }))
+				.resolves.toBeUndefined()
+			expect(showError).toHaveBeenCalled()
+		})
+	})
+
 	describe('post', () => {
 		it('POSTs the status payload to /statuses', async () => {
 			axios.post.mockResolvedValue({ data: { id: '1' } })

@@ -15,7 +15,23 @@
 					<span>{{ t('social', 'Delete') }}</span>
 				</NcButton>
 			</div>
+
+			<!-- a picture nobody described is a picture some readers never see -->
+			<span v-if="!described" class="preview-item__missing" aria-hidden="true">
+				{{ t('social', 'No description') }}
+			</span>
 		</div>
+
+		<label class="preview-item__label" :for="fieldId">
+			{{ t('social', 'Describe this for people who cannot see it') }}
+		</label>
+		<textarea :id="fieldId"
+			class="preview-item__description"
+			rows="2"
+			maxlength="1500"
+			:value="preview.description || ''"
+			:placeholder="t('social', 'A cat asleep on a keyboard')"
+			@input="$emit('describe', { key: randomKey, description: $event.target.value })" />
 	</div>
 </template>
 
@@ -32,7 +48,7 @@ export default {
 		NcButton,
 		MediaAttachment,
 	},
-	emits: ['delete'],
+	emits: ['delete', 'describe'],
 	props: {
 		/** @type {import('vue').PropType<import('./Composer.vue').LocalAttachment>} */
 		preview: {
@@ -42,6 +58,15 @@ export default {
 		randomKey: {
 			type: String,
 			required: true,
+		},
+	},
+	computed: {
+		described() {
+			return (this.preview.description || '').trim() !== ''
+		},
+		/** Unique per attachment, so the label points at its own field. */
+		fieldId() {
+			return 'composer-alt-' + this.randomKey
 		},
 	},
 	methods: {
@@ -55,6 +80,44 @@ export default {
 	flex: 1 1 0;
 	min-width: 40%;
 	margin: 5px;
+}
+
+.preview-item__missing {
+	position: absolute;
+	inset-inline-start: 8px;
+	inset-block-end: 8px;
+	padding: 2px 8px;
+	border-radius: var(--border-radius-pill);
+	background: var(--color-warning);
+	color: var(--color-warning-text, var(--color-main-text));
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.preview-item__label {
+	display: block;
+	margin: 6px 2px 2px;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.preview-item__description {
+	width: 100%;
+	min-height: 44px;
+	resize: vertical;
+	box-sizing: border-box;
+	border-radius: var(--border-radius);
+	border: 1px solid var(--color-border-dark);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-size: 13px;
+	padding: 6px 8px;
+
+	&:focus-visible {
+		border-color: var(--color-primary-element);
+		outline: 2px solid var(--color-primary-element);
+		outline-offset: 1px;
+	}
 }
 
 .preview-item {

@@ -67,7 +67,8 @@
 			<PreviewGrid :uploading="false"
 				:upload-progress="0.4"
 				:miniatures="attachments"
-				@deleted="deletePreview" />
+				@deleted="deletePreview"
+				@describe="describeAttachment" />
 
 			<div v-if="showPoll" class="poll-editor">
 				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
@@ -162,6 +163,9 @@
 					</NcEmojiPicker>
 				</div>
 
+				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
+					{{ undescribedWarning }}
+				</span>
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
 				<span v-if="statusContent.length > 0"
@@ -340,6 +344,20 @@ export default {
 		}
 	},
 	computed: {
+		/** Attachments that can carry a description and have not been given one. */
+		undescribed() {
+			return Object.values(this.attachments).filter(
+				(attachment) => attachment.data !== null && (attachment.description || '').trim() === '',
+			).length
+		},
+		undescribedWarning() {
+			return translatePlural(
+				'social',
+				'%n attachment has no description',
+				'%n attachments have no description',
+				this.undescribed,
+			)
+		},
 		charactersLeftLabel() {
 			return this.statusIsTooLong
 				? translatePlural('social', '%n character too many', '%n characters too many', -this.charsLeft)
@@ -575,6 +593,7 @@ export default {
 
 			try {
 				this.loading = true
+				await this.saveDescriptions()
 				await this.$store.dispatch('post', statusData)
 			} finally {
 				this.loading = false
@@ -617,6 +636,40 @@ export default {
 			const newAttachments = { ...this.attachments }
 			delete newAttachments[key]
 			this.attachments = newAttachments
+		},
+		/**
+		 * Remembers what an attachment shows. Kept locally while the post is
+		 * being written and sent when it goes, rather than on every keystroke.
+		 *
+		 * @param {object} update what changed
+		 * @param {string} update.key which attachment
+		 * @param {string} update.description what it shows
+		 */
+		/**
+		 * Sends whatever descriptions were written, once, as the post goes.
+		 *
+		 * Saving per keystroke would be a request per letter; saving here means
+		 * the description travels with the post that carries the picture.
+		 */
+		async saveDescriptions() {
+			const described = Object.values(this.attachments).filter(
+				(attachment) => attachment.data?.id && (attachment.description || '').trim() !== '',
+			)
+
+			await Promise.all(described.map((attachment) => this.$store.dispatch('describeMedia', {
+				id: attachment.data.id,
+				description: attachment.description.trim(),
+			})))
+		},
+		describeAttachment({ key, description }) {
+			if (this.attachments[key] === undefined) {
+				return
+			}
+
+			this.attachments = {
+				...this.attachments,
+				[key]: { ...this.attachments[key], description },
+			}
 		},
 	},
 }
@@ -904,6 +957,16 @@ function nodeToPlainText(node) {
 	}
 }
 /* the allowance as a ring that fills, rather than a limit you discover */
+.composer-alt-warning {
+	align-self: center;
+	padding: 2px 8px;
+	border-radius: var(--border-radius-pill);
+	background: var(--color-warning);
+	color: var(--color-warning-text, var(--color-main-text));
+	font-size: 12px;
+	font-weight: 600;
+}
+
 .char-ring {
 	position: relative;
 	width: 24px;
