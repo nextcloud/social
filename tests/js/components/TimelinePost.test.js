@@ -55,6 +55,12 @@ const NcActionButtonStub = {
 	template: '<button class="post-menu__item" @click="$emit(\'click\')"><slot /></button>',
 }
 
+const NcDialogStub = {
+	name: 'NcDialog',
+	props: ['open', 'buttons', 'name'],
+	template: '<div v-if="open" class="report-dialog"><slot /></div>',
+}
+
 const mountPost = ({
 	item = makeItem(),
 	route = { name: 'timeline', params: { type: 'home' } },
@@ -74,6 +80,7 @@ const mountPost = ({
 			stubs: {
 				NcActions: NcActionsStub,
 				NcActionButton: NcActionButtonStub,
+				NcDialog: NcDialogStub,
 				PostAttachment: true,
 				RouterLink: RouterLinkStub,
 			},
@@ -254,14 +261,17 @@ describe('TimelinePost', () => {
 			expect(menuItem(wrapper, 'Delete')).toBeDefined()
 		})
 
-		it('are withheld for somebody else\'s post', () => {
+		it('are withheld for somebody else\'s post, which offers Report instead', () => {
 			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
-			expect(wrapper.findAll('.post-menu__item')).toHaveLength(0)
+			expect(menuItem(wrapper, 'Edit')).toBeUndefined()
+			expect(menuItem(wrapper, 'Delete')).toBeUndefined()
+			expect(menuItem(wrapper, 'Report')).toBeDefined()
 		})
 
 		it('are withheld while the current account is unknown', () => {
 			const { wrapper } = mountPost({ currentAccount: null })
-			expect(wrapper.findAll('.post-menu__item')).toHaveLength(0)
+			expect(menuItem(wrapper, 'Edit')).toBeUndefined()
+			expect(menuItem(wrapper, 'Delete')).toBeUndefined()
 		})
 
 		it('deletes the post', async () => {

@@ -25,9 +25,11 @@
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { generateFilePath } from '@nextcloud/router'
 import ProfileInfo from './../components/ProfileInfo.vue'
-import Composer from './../components/Composer/Composer.vue'
+import { defineAsyncComponent } from 'vue'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
+
+const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
 export default {
 	name: 'Profile',

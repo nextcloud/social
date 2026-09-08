@@ -110,7 +110,25 @@
 					@click="remove()">
 					{{ t('social', 'Delete') }}
 				</NcActionButton>
+				<NcActionButton v-if="item.account.acct !== currentAccount?.acct"
+					@click="showReportDialog = true">
+					<template #icon>
+						<Flag :size="20" />
+					</template>
+					{{ t('social', 'Report') }}
+				</NcActionButton>
 			</NcActions>
+			<NcDialog :open.sync="showReportDialog"
+				:name="t('social', 'Report {account}', { account: item.account.acct })"
+				:buttons="reportButtons">
+				<p class="report-hint">
+					{{ t('social', 'The report goes to the moderators of this instance. It is never sent to the reported account or their server.') }}
+				</p>
+				<textarea v-model="reportComment"
+					class="report-comment"
+					:placeholder="t('social', 'Why are you reporting this post? (optional)')"
+					rows="3" />
+			</NcDialog>
 		</div>
 	</div>
 </template>
@@ -126,6 +144,11 @@ import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import Flag from 'vue-material-design-icons/Flag.vue'
+import axios from '@nextcloud/axios'
+import { generateUrl } from '@nextcloud/router'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import Repeat from 'vue-material-design-icons/Repeat.vue'
 import Reply from 'vue-material-design-icons/Reply.vue'
 import Heart from 'vue-material-design-icons/Heart.vue'
@@ -143,6 +166,8 @@ export default {
 		PostAttachment,
 		NcActions,
 		NcActionButton,
+		NcDialog,
+		Flag,
 		NcButton,
 		Repeat,
 		Reply,
@@ -167,9 +192,26 @@ export default {
 		return {
 			isEditing: false,
 			editContent: '',
+			showReportDialog: false,
+			reportComment: '',
 		}
 	},
 	computed: {
+		reportButtons() {
+			return [
+				{
+					label: t('social', 'Cancel'),
+					callback: () => {
+						this.showReportDialog = false
+					},
+				},
+				{
+					label: t('social', 'Report'),
+					type: 'error',
+					callback: () => this.sendReport(),
+				},
+			]
+		},
 		/**
 		 * The author's bio, reduced to markup that is safe to inject.
 		 *
@@ -269,6 +311,21 @@ export default {
 		reply() {
 			this.$store.commit('setComposerDisplayStatus', true)
 			eventBus.emit('composer-reply', this.item)
+		},
+		async sendReport() {
+			try {
+				await axios.post(generateUrl('apps/social/api/v1/reports'), {
+					account_id: this.item.account.id,
+					status_ids: [this.item.id],
+					comment: this.reportComment,
+				})
+				showSuccess(t('social', 'Post reported to the moderators'))
+				this.showReportDialog = false
+				this.reportComment = ''
+			} catch (error) {
+				logger.error('Failed to report the post', { error })
+				showError(t('social', 'Failed to report the post'))
+			}
 		},
 		boost() {
 			const params = {
