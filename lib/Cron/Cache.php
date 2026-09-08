@@ -15,6 +15,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\StreamPruneService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
@@ -26,6 +27,7 @@ class Cache extends TimedJob {
 	private DocumentService $documentService;
 	private HashtagService $hashtagService;
 	private StreamService $streamService;
+	private StreamPruneService $streamPruneService;
 	private CacheActorsRequest $cacheActorsRequest;
 	private LoggerInterface $logger;
 
@@ -36,6 +38,7 @@ class Cache extends TimedJob {
 		DocumentService $documentService,
 		HashtagService $hashtagService,
 		StreamService $streamService,
+		StreamPruneService $streamPruneService,
 		CacheActorsRequest $cacheActorsRequest,
 		LoggerInterface $logger,
 	) {
@@ -46,6 +49,7 @@ class Cache extends TimedJob {
 		$this->documentService = $documentService;
 		$this->hashtagService = $hashtagService;
 		$this->streamService = $streamService;
+		$this->streamPruneService = $streamPruneService;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->logger = $logger;
 	}
@@ -83,6 +87,13 @@ class Cache extends TimedJob {
 
 		try {
 			$this->hashtagService->manageHashtags();
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
+		}
+
+		try {
+			// bounded per run so retention never dominates a cron slot
+			$this->streamPruneService->prune(null, false, 5000);
 		} catch (\Throwable $e) {
 			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}

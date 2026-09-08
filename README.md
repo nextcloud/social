@@ -17,6 +17,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 🖼️ **Profiles** — avatar, uploadable banner/header image and a profile description (`note`). Editable structured profile fields are *not* supported (see below).
 - 🌐 **Federation** — signed HTTP delivery of `Create`, `Update`, `Delete`, `Like`, `Announce`, `Follow`, `Accept` and `Undo` activities, an outbound request queue and a stream queue for resolving incoming objects, both drained by background jobs and by `occ social:queue:process`.
 - 🔎 **Discovery & search** — WebFinger lookups, remote actor resolution and caching, and search over known accounts and hashtags.
+- 🧹 **Retention** — remote statuses older than `retention_days` (default: disabled) that no local user interacted with are pruned together with their cached attachments, from cron or `occ social:stream:prune`; local content is never touched. Configurable in the Social section of the administration settings.
 - 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](docs/OCC-Commands.md) for the details and its limits.
 - 🔑 **Mastodon-compatible API** — a subset of the Mastodon client API plus OAuth 2 authorization, so some third-party clients can talk to the app. See [docs/API.md](docs/API.md) for exactly which routes exist.
 

@@ -43,6 +43,9 @@ class ConfigService {
 	/** incoming inbox requests allowed per origin host per minute; 0 disables */
 	public const SOCIAL_INBOX_THROTTLE = 'inbox_throttle';
 
+	/** days to keep remote statuses nobody local cares about; 0 disables */
+	public const SOCIAL_RETENTION_DAYS = 'retention_days';
+
 	public const BACKGROUND_CRON = 1;
 	public const BACKGROUND_ASYNC = 2;
 	public const BACKGROUND_SERVICE = 3;
@@ -57,7 +60,8 @@ class ConfigService {
 		self::SOCIAL_ACCESS_TYPE => 'all_but',
 		self::SOCIAL_ACCESS_LIST => '[]',
 		self::SOCIAL_SELF_SIGNED => '0',
-		self::SOCIAL_INBOX_THROTTLE => '300'
+		self::SOCIAL_INBOX_THROTTLE => '300',
+		self::SOCIAL_RETENTION_DAYS => '0'
 	];
 
 	public array $accessTypeList = [

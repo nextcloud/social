@@ -222,6 +222,24 @@ class CacheDocumentService {
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
 	 */
+	/**
+	 * Removes a cached copy from appdata; a missing or empty filename (or the
+	 * 'avatar' placeholder) is a no-op — retention must never abort on a file
+	 * that is already gone.
+	 */
+	public function removeFromCache(string $filename): void {
+		if ($filename === '' || $filename === 'avatar') {
+			return;
+		}
+
+		try {
+			$this->appData->getFolder($this->generatePath($filename))
+				->getFile($filename)
+				->delete();
+		} catch (Exception $e) {
+		}
+	}
+
 	public function getContentFromCache(string $filename): ISimpleFile {
 		if ($filename === '') {
 			throw new CacheDocumentDoesNotExistException();

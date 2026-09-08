@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ReportNotFoundException;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Controller;
@@ -29,6 +30,7 @@ class ModerationController extends Controller {
 		IRequest $request,
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
+		private ConfigService $configService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -56,6 +58,16 @@ class ModerationController extends Controller {
 		$this->fediverseService->removeAddress(strtolower(trim($address)));
 
 		return new DataResponse(['list' => $this->fediverseService->getListedAddresses()]);
+	}
+
+	public function retention(int $days): DataResponse {
+		if ($days < 0 || $days > 3650) {
+			return new DataResponse(['error' => 'invalid retention period'], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		$this->configService->setAppValue(ConfigService::SOCIAL_RETENTION_DAYS, (string)$days);
+
+		return new DataResponse(['retentionDays' => $days]);
 	}
 
 	public function fediverseAccess(string $type): DataResponse {

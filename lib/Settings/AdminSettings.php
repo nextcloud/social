@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Settings;
 
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -23,6 +24,7 @@ class AdminSettings implements ISettings {
 	public function __construct(
 		private ReportService $reportService,
 		private FediverseService $fediverseService,
+		private ConfigService $configService,
 	) {
 	}
 
@@ -33,6 +35,7 @@ class AdminSettings implements ISettings {
 			'reports' => $this->reportService->getReports(true),
 			'accessType' => $this->fediverseService->getAccessType(),
 			'accessList' => $this->fediverseService->getListedAddresses(),
+			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),
 		]);
 	}
 

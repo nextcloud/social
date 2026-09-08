@@ -63,6 +63,7 @@ This is a partial implementation of ActivityPub and of the Mastodon client API. 
 		<command>OCA\Social\Command\NoteBoost</command>
 		<command>OCA\Social\Command\Reset</command>
 		<command>OCA\Social\Command\StreamDetails</command>
+		<command>OCA\Social\Command\StreamPrune</command>
 		<command>OCA\Social\Command\Timeline</command>
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>

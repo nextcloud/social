@@ -212,6 +212,7 @@ Backing routes of the Social section in the administration settings. All of them
 | POST | `/moderation/fediverse/add` | admin, csrf | `address` (required) | Adds an instance to the Fediverse access list (the list `occ social:fediverse` manages). Invalid addresses are a 422. Returns `{"list": [...]}`. |
 | POST | `/moderation/fediverse/remove` | admin, csrf | `address` (required) | Removes an instance from the access list. Returns `{"list": [...]}`. |
 | POST | `/moderation/fediverse/access` | admin, csrf | `type` (required) | Switches the access mode: `all_but` (blocklist) or `none_but` (allowlist). Anything else is a 422. Returns `{"accessType": "..."}`. |
+| POST | `/moderation/retention` | admin, csrf | `days` (required, 0–3650) | Sets the `retention_days` app setting: remote statuses older than this that no local user cares about are pruned (0 disables). Returns `{"retentionDays": n}`. |
 
 ---
 

@@ -86,9 +86,23 @@
 			.catch(() => OC.Notification.showTemporary(t('social', 'Could not change the access mode')))
 	}
 
+	function onSaveRetention() {
+		const days = parseInt(document.getElementById('social-retention-days').value, 10)
+		if (isNaN(days) || days < 0) {
+			return
+		}
+		post('/retention', { days })
+			.catch(() => OC.Notification.showTemporary(t('social', 'Could not change the retention period')))
+	}
+
 	document.addEventListener('DOMContentLoaded', () => {
 		document.querySelectorAll('.social-report-toggle')
 			.forEach((button) => button.addEventListener('click', onToggleReport))
+
+		const retentionSave = document.getElementById('social-retention-save')
+		if (retentionSave) {
+			retentionSave.addEventListener('click', onSaveRetention)
+		}
 
 		const accessType = document.getElementById('social-access-type')
 		if (accessType) {

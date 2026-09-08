@@ -114,6 +114,7 @@ The business logic lives in `lib/Service/`.
 - **PostService** — Creates posts (text, attachments, reply-to, mentions, hashtags) and edits existing local posts, delegating federation to `ActivityService`
 - **FollowService** — Follow/unfollow flows, follower/following collections, and relationship lookups
 - **LikeService** — Creates and undoes Like activities
+- **StreamPruneService** — Retention: deletes remote statuses older than `retention_days` (default 0 = disabled) that no local user interacted with, whose author nobody follows, that no local status replies to or boosts, and that are not DMs — together with their dest/action/tag rows and cached attachments. Runs bounded in the Cache cron and unbounded via `occ social:stream:prune`
 - **BoostService** — Creates and undoes Announce (boost/reblog) activities
 - **ActionService** — Dispatcher for the Mastodon-style status actions. favourite/unfavourite create and delete a Like, reblog/unreblog an Announce, and bookmark/unbookmark toggle the viewer's local `bookmarked` flag (never federated, served by `/api/v1/bookmarks`). `translate` returns the status unchanged, and the unimplemented `mute`, `unmute`, `pin` and `unpin` are refused with `InvalidActionException` instead of silently doing nothing
 - **HashtagService** — Recomputes hashtag trends over 1h/12h/1d/3d/10d windows and searches hashtags
@@ -284,14 +285,14 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
 | Contacts Menu | `ContactsMenuProvider` | `appinfo/info.xml` | "Follow %s on Social" entry linking to the actor page |
-| Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, syncs remote timelines |
+| Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, prunes remote statuses past retention (bounded to 5000 per run), syncs remote timelines |
 | Background Jobs | `Cron\Queue` | `appinfo/info.xml` | 12-minute interval: drains the outbound request queue and the inbound stream queue |
 | Repair step | `Migration\RenameDocumentLocalCopy` | `appinfo/info.xml` | Post-migration repair of cached document paths |
 | Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once |
 | Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once |
 | Repair step | `Migration\BackfillRemoteVisibility` | `appinfo/info.xml` | Backfills the empty visibility of remote statuses stored before estimation landed (public/unlisted set-based, followers/direct per author), idempotent |
 
-Fourteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` holds a fifteenth file, `ExtendedBase.php`, which is the abstract base the others extend and is not itself a command. See `docs/OCC-Commands.md`.
+Fifteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, which is the abstract base the others extend and is not itself a command. See `docs/OCC-Commands.md`.
 
 ---
 
