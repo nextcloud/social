@@ -4,6 +4,7 @@
  */
 
 import { createRouter, createWebHistory } from 'vue-router'
+import { generateUrl } from '@nextcloud/router'
 
 const Timeline = () => import('./views/Timeline.vue')
 const TimelineSinglePost = () => import('./views/TimelineSinglePost.vue')
@@ -13,20 +14,25 @@ const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 
 /**
+ * The path the app is actually served from, which is what the history base has
+ * to be: vue-router can only strip a base that prefixes the current path, and
+ * writes `base + path` into the address bar when it cannot.
  *
+ * `generateUrl()` is the only thing that knows which of the two shapes this
+ * instance uses — `/apps/social/` where mod_rewrite is working, and
+ * `/index.php/apps/social/` where it is not. Building the base by hand from
+ * the web root assumes the first and breaks the second: the address bar ends
+ * up at `/nextcloud/apps/social/nextcloud/index.php/apps/social/`, and a
+ * reload of that 404s.
+ *
+ * @return {string} the base path, without a trailing slash
  */
 function getBase() {
-	if (window.OC && window.OC.webroot) {
-		return window.OC.webroot + '/apps/social/'
-	}
-	const path = window.location.pathname
-	const match = path.match(/^(.+?)\/apps\/social\//)
-	return match ? match[1] + '/apps/social/' : '/apps/social/'
+	return generateUrl('/apps/social').replace(/\/+$/, '')
 }
 
 export default createRouter({
 	history: createWebHistory(getBase()),
-	base: getBase(),
 	linkActiveClass: 'active',
 	routes: [
 		{

@@ -16,8 +16,8 @@ vi.mock('../../src/views/ProfileTimeline.vue', () => ({ default: { name: 'Profil
 vi.mock('../../src/views/ProfileFollowers.vue', () => ({ default: { name: 'ProfileFollowers', render: () => null } }))
 
 describe('router', () => {
-	it('is served under the app web root and uses the "active" link class', () => {
-		expect(router.options.history.base).toBe('/apps/social')
+	it('is served under the app path and uses the "active" link class', () => {
+		expect(router.options.history.base).toBe('/index.php/apps/social')
 		expect(router.options.linkActiveClass).toBe('active')
 	})
 
@@ -110,34 +110,43 @@ describe('router', () => {
 
 describe('router base detection', () => {
 	afterEach(() => {
-		window.OC.webroot = ''
+		globalThis._oc_webroot = ''
+		window.OC.config.modRewriteWorking = false
 		window.history.replaceState({}, '', '/')
 	})
 
-	it('prefers the server-provided web root', async () => {
-		window.OC.webroot = '/nextcloud'
+	const freshBase = async () => {
 		vi.resetModules()
-
 		const { default: freshRouter } = await import('../../src/router.js')
 
-		expect(freshRouter.options.history.base).toBe('/nextcloud/apps/social')
+		return freshRouter.options.history.base
+	}
+
+	it('carries index.php when the instance has no pretty urls', async () => {
+		// the base has to match the path the app is really served from, or
+		// vue-router writes base + path and the reload of that 404s
+		globalThis._oc_webroot = '/nextcloud'
+
+		expect(await freshBase()).toBe('/nextcloud/index.php/apps/social')
 	})
 
-	it('falls back to the part of the current path before /apps/social/', async () => {
-		window.history.replaceState({}, '', '/cloud/apps/social/timeline/home')
-		vi.resetModules()
+	it('leaves index.php out where mod_rewrite is working', async () => {
+		globalThis._oc_webroot = '/nextcloud'
+		window.OC.config.modRewriteWorking = true
 
-		const { default: freshRouter } = await import('../../src/router.js')
-
-		expect(freshRouter.options.history.base).toBe('/cloud/apps/social')
+		expect(await freshBase()).toBe('/nextcloud/apps/social')
 	})
 
-	it('uses /apps/social when nothing else is known', async () => {
-		window.history.replaceState({}, '', '/somewhere/else')
-		vi.resetModules()
+	it('works at the root of a domain', async () => {
+		window.OC.config.modRewriteWorking = true
 
-		const { default: freshRouter } = await import('../../src/router.js')
+		expect(await freshBase()).toBe('/apps/social')
+	})
 
-		expect(freshRouter.options.history.base).toBe('/apps/social')
+	it('does not depend on the path the app was opened at', async () => {
+		globalThis._oc_webroot = '/nextcloud'
+		window.history.replaceState({}, '', '/nextcloud/index.php/apps/social/@alice')
+
+		expect(await freshBase()).toBe('/nextcloud/index.php/apps/social')
 	})
 })
