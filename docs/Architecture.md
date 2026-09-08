@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.4  
+**App version:** 0.11.5  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -287,6 +287,9 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 | Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, syncs remote timelines |
 | Background Jobs | `Cron\Queue` | `appinfo/info.xml` | 12-minute interval: drains the outbound request queue and the inbound stream queue |
 | Repair step | `Migration\RenameDocumentLocalCopy` | `appinfo/info.xml` | Post-migration repair of cached document paths |
+| Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once |
+| Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once |
+| Repair step | `Migration\BackfillRemoteVisibility` | `appinfo/info.xml` | Backfills the empty visibility of remote statuses stored before estimation landed (public/unlisted set-based, followers/direct per author), idempotent |
 
 Fourteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` holds a fifteenth file, `ExtendedBase.php`, which is the abstract base the others extend and is not itself a command. See `docs/OCC-Commands.md`.
 
