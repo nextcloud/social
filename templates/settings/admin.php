@@ -14,6 +14,7 @@ declare(strict_types=1);
 $reports = $_['reports'];
 $accessType = $_['accessType'];
 $accessList = $_['accessList'];
+$retentionDays = $_['retentionDays'];
 ?>
 
 <div id="social-moderation" class="section">
@@ -83,6 +84,19 @@ $accessList = $_['accessList'];
 			</tbody>
 		</table>
 	<?php endif; ?>
+</div>
+
+<div id="social-retention" class="section">
+	<h2><?php p($l->t('Retention')); ?></h2>
+	<p class="settings-hint">
+		<?php p($l->t('Remote statuses older than this many days are deleted, unless a local user interacted with them, follows their author, or replied below them. Local content is never touched. 0 disables retention.')); ?>
+	</p>
+	<p>
+		<label for="social-retention-days"><?php p($l->t('Keep remote statuses for (days)')); ?></label>
+		<input type="number" id="social-retention-days" min="0" max="3650"
+			value="<?php p((string)$retentionDays); ?>">
+		<button type="button" id="social-retention-save"><?php p($l->t('Save')); ?></button>
+	</p>
 </div>
 
 <div id="social-access" class="section">

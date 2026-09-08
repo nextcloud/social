@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Controller;
 use OCA\Social\Controller\ModerationController;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\Report;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\ReportService;
 use OCP\AppFramework\Http;
@@ -22,15 +23,18 @@ use PHPUnit\Framework\TestCase;
 class ModerationControllerTest extends TestCase {
 	private ReportService|MockObject $reportService;
 	private FediverseService|MockObject $fediverseService;
+	private ConfigService|MockObject $configService;
 	private ModerationController $controller;
 
 	protected function setUp(): void {
 		$this->reportService = $this->createMock(ReportService::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
+		$this->configService = $this->createMock(ConfigService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
-			$this->fediverseService
+			$this->fediverseService,
+			$this->configService
 		);
 	}
 
@@ -113,6 +117,23 @@ class ModerationControllerTest extends TestCase {
 		$response = $this->controller->fediverseRemove('evil.example');
 
 		$this->assertSame(['list' => []], $response->getData());
+	}
+
+	public function testRetentionStoresTheConfiguredPeriod(): void {
+		$this->configService->expects($this->once())
+			->method('setAppValue')->with(ConfigService::SOCIAL_RETENTION_DAYS, '90');
+
+		$response = $this->controller->retention(90);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['retentionDays' => 90], $response->getData());
+	}
+
+	public function testRetentionRefusesAnInvalidPeriod(): void {
+		$this->configService->expects($this->never())->method('setAppValue');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $this->controller->retention(-1)->getStatus());
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $this->controller->retention(99999)->getStatus());
 	}
 
 	public function testFediverseAccessRejectsAnUnknownType(): void {

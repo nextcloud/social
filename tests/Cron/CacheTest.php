@@ -16,6 +16,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\StreamPruneService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
@@ -37,6 +38,7 @@ class CacheTest extends TestCase {
 	private $hashtagService;
 	/** @var StreamService&MockObject */
 	private $streamService;
+	private $streamPruneService;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
 	/** @var IJobList&MockObject */
@@ -53,6 +55,7 @@ class CacheTest extends TestCase {
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->streamPruneService = $this->createMock(StreamPruneService::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->jobList = $this->createMock(IJobList::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
@@ -64,6 +67,7 @@ class CacheTest extends TestCase {
 			$this->documentService,
 			$this->hashtagService,
 			$this->streamService,
+			$this->streamPruneService,
 			$this->cacheActorsRequest,
 			$this->logger
 		);

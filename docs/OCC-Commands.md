@@ -217,6 +217,28 @@ the class is `OCA\Social\Command\StreamDetails`.
 
 ---
 
+### `social:stream:prune`
+
+Deletes remote statuses older than the retention period, together with their
+recipient/action/tag rows and cached attachments.
+
+```bash
+php occ social:stream:prune [-d|--days DAYS] [--dry-run]
+```
+
+- Without `--days`, the `retention_days` app setting decides the period; `0`
+  (the default) disables retention and the command exits without touching
+  anything.
+- `--dry-run` only counts what would be deleted.
+- A status is kept when a local user liked, boosted, replied to or bookmarked
+  it, when a local user follows its author, when a local status replies to it
+  or boosts it, or when it is a direct message. Local content is never touched.
+- The same pruning runs from the `Cron\Cache` background job (bounded to 5000
+  statuses per run) whenever `retention_days` is greater than 0; the admin can
+  change the period in the Social section of the administration settings.
+
+---
+
 ## Queue Management
 
 ### `social:queue:process`
