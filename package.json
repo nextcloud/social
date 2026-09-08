@@ -85,7 +85,7 @@
     "css-loader": "^7.1.4",
     "cypress-visual-regression": "^2.1.1",
     "cypress-wait-until": "^1.7.2",
-    "dockerode": "^5.0.0",
+    "dockerode": "^5.0.1",
     "elliptic": "file:patches/elliptic-6.6.2.tgz",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-n": "^16.0.0",
