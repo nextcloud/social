@@ -29,6 +29,7 @@ class Post implements JsonSerializable {
 	private string $content = '';
 	private string $type = '';
 	private array $hashtags = [];
+	private ?array $poll = null;
 
 	/** @var string[] */
 	private array $attachments = [];
@@ -179,6 +180,23 @@ class Post implements JsonSerializable {
 	/**
 	 * @return MediaAttachment[]
 	 */
+	/**
+	 * @param ?array $poll ['options' => string[], 'expires_in' => int, 'multiple' => bool]
+	 */
+	public function setPoll(?array $poll): self {
+		$this->poll = $poll;
+
+		return $this;
+	}
+
+	public function getPoll(): ?array {
+		return $this->poll;
+	}
+
+	public function hasPoll(): bool {
+		return $this->poll !== null && ($this->poll['options'] ?? []) !== [];
+	}
+
 	public function getMedias(): array {
 		return $this->medias;
 	}

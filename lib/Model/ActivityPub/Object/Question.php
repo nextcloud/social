@@ -67,6 +67,46 @@ class Question extends Note implements JsonSerializable {
 		return $this->votersCount;
 	}
 
+	/**
+	 * Initialise a locally created poll: options start at zero votes.
+	 *
+	 * @param string[] $optionTitles
+	 */
+	public function setPollData(array $optionTitles, bool $multiple, int $expiresInSeconds): self {
+		$this->options = array_map(
+			static fn (string $title): array => ['title' => $title, 'votes_count' => 0],
+			array_values($optionTitles)
+		);
+		$this->multiple = $multiple;
+		$this->endTime = gmdate('Y-m-d\TH:i:s\Z', time() + $expiresInSeconds);
+		$this->votersCount = 0;
+
+		return $this;
+	}
+
+	/**
+	 * Counts an incoming vote (a first-time voter bumps votersCount too).
+	 */
+	public function countVote(int $option, bool $newVoter): void {
+		if (!array_key_exists($option, $this->options)) {
+			return;
+		}
+		$this->options[$option]['votes_count']++;
+		if ($newVoter) {
+			$this->votersCount++;
+		}
+	}
+
+	public function findOption(string $title): ?int {
+		foreach ($this->options as $index => $option) {
+			if ($option['title'] === $title) {
+				return $index;
+			}
+		}
+
+		return null;
+	}
+
 	public function import(array $data): void {
 		parent::import($data);
 
@@ -104,6 +144,33 @@ class Question extends Note implements JsonSerializable {
 		$this->endTime = $this->get('endTime', $data, '');
 		$this->closed = $this->get('closed', $data, '');
 		$this->votersCount = $this->getInt('votersCount', $data, 0);
+	}
+
+	/**
+	 * The wire shape Mastodon understands: options in oneOf/anyOf with their
+	 * counts in replies.totalItems, plus endTime and votersCount.
+	 */
+	public function jsonSerialize(): array {
+		$result = parent::jsonSerialize();
+		if ($this->options === []) {
+			return $result;
+		}
+
+		$key = $this->multiple ? 'anyOf' : 'oneOf';
+		$result[$key] = array_map(static fn (array $option): array => [
+			'type' => 'Note',
+			'name' => $option['title'],
+			'replies' => ['type' => 'Collection', 'totalItems' => $option['votes_count']],
+		], $this->options);
+		if ($this->endTime !== '') {
+			$result['endTime'] = $this->endTime;
+		}
+		if ($this->closed !== '') {
+			$result['closed'] = $this->closed;
+		}
+		$result['votersCount'] = $this->votersCount;
+
+		return $result;
 	}
 
 	/**

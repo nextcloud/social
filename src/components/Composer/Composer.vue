@@ -58,6 +58,54 @@
 				:miniatures="attachments"
 				@deleted="deletePreview" />
 
+			<div v-if="showPoll" class="poll-editor">
+				<div v-for="(option, index) in pollOptions" :key="index" class="poll-editor__option">
+					<input v-model="pollOptions[index]"
+						type="text"
+						:placeholder="t('social', 'Poll option {number}', { number: index + 1 })"
+						maxlength="100">
+					<NcButton v-if="pollOptions.length > 2"
+						type="tertiary"
+						:aria-label="t('social', 'Remove option')"
+						@click.prevent="pollOptions.splice(index, 1)">
+						<template #icon>
+							<Close :size="18" />
+						</template>
+					</NcButton>
+				</div>
+				<div class="poll-editor__settings">
+					<NcButton v-if="pollOptions.length < 4"
+						type="tertiary"
+						@click.prevent="pollOptions.push('')">
+						{{ t('social', 'Add option') }}
+					</NcButton>
+					<label>
+						<input v-model="pollMultiple" type="checkbox">
+						{{ t('social', 'Multiple choice') }}
+					</label>
+					<select v-model.number="pollExpiresIn" :aria-label="t('social', 'Poll duration')">
+						<option :value="1800">
+							{{ t('social', '30 minutes') }}
+						</option>
+						<option :value="3600">
+							{{ t('social', '1 hour') }}
+						</option>
+						<option :value="21600">
+							{{ t('social', '6 hours') }}
+						</option>
+						<option :value="86400">
+							{{ t('social', '1 day') }}
+						</option>
+						<option :value="259200">
+							{{ t('social', '3 days') }}
+						</option>
+						<option :value="604800">
+							{{ t('social', '7 days') }}
+						</option>
+					</select>
+				</div>
+			</div>
+
 			<div class="options">
 				<NcButton :title="t('social', 'Add attachment')"
 					type="tertiary"
@@ -65,6 +113,15 @@
 					@click.prevent="clickImportInput">
 					<template #icon>
 						<Paperclip :size="22" decorative title="" />
+					</template>
+				</NcButton>
+
+				<NcButton :title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
+					type="tertiary"
+					:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
+					@click.prevent="togglePoll">
+					<template #icon>
+						<PollIcon :size="22" decorative title="" />
 					</template>
 				</NcButton>
 
@@ -102,6 +159,7 @@ import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
+import PollIcon from 'vue-material-design-icons/Poll.vue'
 import he from 'he'
 import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
@@ -125,6 +183,7 @@ export default {
 		Paperclip,
 		EmoticonOutline,
 		Close,
+		PollIcon,
 		PreviewGrid,
 		VisibilitySelect,
 		SubmitStatusButton,
@@ -150,6 +209,10 @@ export default {
 			visibility: this.defaultVisibility || localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
 			attachments: {},
+			showPoll: false,
+			pollOptions: ['', ''],
+			pollMultiple: false,
+			pollExpiresIn: 86400,
 			search: '',
 			replyTo: null,
 			tributeOptions: {
@@ -420,6 +483,15 @@ export default {
 				visibility: this.visibility,
 			}
 
+			const pollOptions = this.pollOptions.map((option) => option.trim()).filter((option) => option !== '')
+			if (this.showPoll && pollOptions.length >= 2) {
+				statusData.poll = {
+					options: pollOptions,
+					expires_in: this.pollExpiresIn,
+					multiple: this.pollMultiple,
+				}
+			}
+
 			console.debug('[Composer] Posting status', statusData)
 
 			try {
@@ -431,7 +503,17 @@ export default {
 				this.$refs.composerInput.innerText = ''
 				this.updateStatusContent()
 				this.attachments = {}
+				this.showPoll = false
+				this.pollOptions = ['', '']
+				this.pollMultiple = false
 				this.$store.dispatch('refreshTimeline')
+			}
+		},
+		togglePoll() {
+			this.showPoll = !this.showPoll
+			if (!this.showPoll) {
+				this.pollOptions = ['', '']
+				this.pollMultiple = false
 			}
 		},
 		closeReply() {
@@ -708,6 +790,29 @@ function nodeToPlainText(node) {
 	li.highlight .account,
 	li:hover .account {
 		color: var(--color-primary-text) !important;
+	}
+}
+.poll-editor {
+	margin: 8px 0;
+	padding: 8px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius);
+
+	&__option {
+		display: flex;
+		gap: 4px;
+		margin-bottom: 4px;
+
+		input[type='text'] {
+			flex-grow: 1;
+		}
+	}
+
+	&__settings {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
 	}
 }
 </style>

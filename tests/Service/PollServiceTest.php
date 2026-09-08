@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -21,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -43,6 +46,8 @@ class PollServiceTest extends TestCase {
 	private ActivityService|MockObject $activityService;
 	private StreamActionService|MockObject $streamActionService;
 	private StreamActionsRequest|MockObject $streamActionsRequest;
+	private ActionsRequest|MockObject $actionsRequest;
+	private AccountService|MockObject $accountService;
 	private PollService $service;
 
 	protected function setUp(): void {
@@ -57,8 +62,14 @@ class PollServiceTest extends TestCase {
 		$this->streamActionsRequest->method('getAction')
 			->willThrowException(new StreamActionDoesNotExistException());
 
+		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->actionsRequest->method('getAction')
+			->willThrowException(new ActionDoesNotExistException());
+		$this->accountService = $this->createMock(AccountService::class);
 		$this->service = new PollService(
 			$this->streamRequest,
+			$this->actionsRequest,
+			$this->accountService,
 			$this->cacheActorService,
 			$this->activityService,
 			$this->createMock(SignatureService::class),
@@ -217,6 +228,95 @@ class PollServiceTest extends TestCase {
 		$this->expectException(InvalidActionException::class);
 
 		$this->service->vote($this->viewer(), 42, [1]);
+	}
+
+	// handleIncomingVote()
+
+	private function localPoll(): Question {
+		$question = new Question();
+		$question->setId(self::POLL_ID);
+		$question->setAttributedTo(self::AUTHOR);
+		$question->setLocal(true);
+		$question->setPollData(['Cats', 'Dogs'], false, 3600);
+		$this->streamRequest->method('getStreamById')->with(self::POLL_ID)->willReturn($question);
+
+		return $question;
+	}
+
+	private function voteNote(string $option = 'Dogs'): Note {
+		$note = new Note();
+		$note->setId('https://remote.example/users/bob/vote/1');
+		$note->setName($option);
+		$note->setInReplyTo(self::POLL_ID);
+		$note->setAttributedTo('https://remote.example/users/bob');
+
+		return $note;
+	}
+
+	public function testAnIncomingVoteIsCountedStoredAndFederated(): void {
+		$poll = $this->localPoll();
+		$author = new Person();
+		$author->setId(self::AUTHOR);
+		$this->accountService->method('getFromId')->with(self::AUTHOR)->willReturn($author);
+
+		$saved = [];
+		$this->actionsRequest->method('save')->willReturnCallback(function ($vote) use (&$saved): void {
+			$saved[] = $vote;
+		});
+		$this->activityService->expects($this->once())
+			->method('updateActivity')
+			->with($this->identicalTo($author), $this->identicalTo($poll));
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($poll));
+
+		$this->assertTrue($this->service->handleIncomingVote($this->voteNote()));
+
+		$this->assertSame(1, $poll->getOptions()[1]['votes_count']);
+		$this->assertSame(1, $poll->getVotersCount());
+		$this->assertCount(1, $saved);
+		$this->assertSame('Vote', $saved[0]->getType());
+		$this->assertStringContainsString('"totalItems":1', $poll->getSource(), 'counts snapshot into the source');
+	}
+
+	public function testADuplicateVoteIsConsumedButNotCounted(): void {
+		$poll = $this->localPoll();
+		// every dedupe lookup finds an existing vote row
+		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		$this->service = new PollService(
+			$this->streamRequest, $this->actionsRequest, $this->accountService,
+			$this->cacheActorService, $this->activityService,
+			$this->createMock(SignatureService::class),
+			$this->streamActionService, $this->streamActionsRequest, new NullLogger()
+		);
+		$this->actionsRequest->method('getAction')->willReturn(new Note());
+		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->assertTrue($this->service->handleIncomingVote($this->voteNote()));
+		$this->assertSame(0, $poll->getVotersCount());
+	}
+
+	public function testAVoteForAnUnknownOptionIsConsumedSilently(): void {
+		$poll = $this->localPoll();
+		$this->streamRequest->expects($this->never())->method('update');
+
+		$this->assertTrue($this->service->handleIncomingVote($this->voteNote('Fish')));
+		$this->assertSame(0, $poll->getOptions()[0]['votes_count']);
+	}
+
+	public function testAnOrdinaryReplyIsNotAVote(): void {
+		$note = $this->voteNote();
+		$note->setName('');
+
+		$this->assertFalse($this->service->handleIncomingVote($note));
+	}
+
+	public function testAReplyToARemotePollIsNotConsumed(): void {
+		$question = new Question();
+		$question->setId(self::POLL_ID);
+		$question->setLocal(false);
+		$question->setPollData(['Cats', 'Dogs'], false, 3600);
+		$this->streamRequest->method('getStreamById')->willReturn($question);
+
+		$this->assertFalse($this->service->handleIncomingVote($this->voteNote()));
 	}
 
 	public function testANonPollStatusIsNotFound(): void {

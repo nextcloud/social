@@ -19,6 +19,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
@@ -31,6 +32,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use Psr\Log\LoggerInterface;
 
 class PostService {
+	public const POLL_MAX_OPTIONS = 4;
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
@@ -69,6 +71,23 @@ class PostService {
 		$this->fixRecipientAndHashtags($post);
 
 		$note = new Note();
+		if ($post->hasPoll()) {
+			$poll = $post->getPoll();
+			$options = array_slice(array_values(array_filter(
+				array_map('strval', $poll['options'] ?? []),
+				static fn (string $option): bool => trim($option) !== ''
+			)), 0, self::POLL_MAX_OPTIONS);
+			if (count($options) < 2) {
+				throw new \InvalidArgumentException('a poll needs at least two options');
+			}
+
+			$note = new Question();
+			$note->setPollData(
+				$options,
+				(bool)($poll['multiple'] ?? false),
+				min(max((int)($poll['expires_in'] ?? 86400), 300), 7 * 86400)
+			);
+		}
 		$actor = $post->getActor();
 		$this->streamService->assignItem($note, $actor, $post->getType());
 
@@ -81,6 +100,12 @@ class PostService {
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
 		//		$this->streamService->addAttachments($note, $post->getDocuments());
+
+		if ($note instanceof Question) {
+			// the stored source is what survives the database and federates on
+			// Update: snapshot the fully assembled poll
+			$note->setSource(json_encode($note, JSON_UNESCAPED_SLASHES));
+		}
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
