@@ -702,6 +702,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			case Follow::TYPE:
 				$type = 'follow';
 				break;
+			case Follow::TYPE_REQUEST:
+				$type = 'follow_request';
+				break;
 			default:
 				$type = '';
 		}

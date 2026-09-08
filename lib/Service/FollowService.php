@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -23,6 +24,7 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -51,6 +53,7 @@ class FollowService {
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
+	private FollowInterface $followInterface;
 	private LoggerInterface $logger;
 	private ?Person $viewer = null;
 
@@ -71,6 +74,7 @@ class FollowService {
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
+		FollowInterface $followInterface,
 		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
@@ -79,7 +83,51 @@ class FollowService {
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
+		$this->followInterface = $followInterface;
 		$this->logger = $logger;
+	}
+
+
+	/**
+	 * The accounts whose follows towards the viewer wait for approval.
+	 *
+	 * @return Person[]
+	 */
+	public function getPendingRequests(): array {
+		$pending = [];
+		foreach ($this->followsRequest->getPendingByObjectId($this->viewer->getId()) as $follow) {
+			try {
+				$pending[] = $this->cacheActorService->getFromId($follow->getActorId());
+			} catch (Exception $e) {
+			}
+		}
+
+		return $pending;
+	}
+
+	/**
+	 * Approves a pending follow request: federates the Accept and marks the row.
+	 *
+	 * @throws FollowNotFoundException when there is no pending follow from that account
+	 */
+	public function authorizeFollowRequest(Person $follower): void {
+		$follow = $this->followsRequest->getByPersons($follower->getId(), $this->viewer->getId());
+		if ($follow->isAccepted()) {
+			return; // already following: authorize is idempotent
+		}
+
+		$this->followInterface->confirmFollowRequest($follow);
+	}
+
+	/**
+	 * Rejects a pending follow request: federates the Reject and drops the row.
+	 *
+	 * @throws FollowNotFoundException when there is no pending follow from that account
+	 */
+	public function rejectFollowRequest(Person $follower): void {
+		$follow = $this->followsRequest->getByPersons($follower->getId(), $this->viewer->getId());
+
+		$this->followInterface->rejectFollowRequest($follow);
 	}
 
 

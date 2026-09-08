@@ -264,6 +264,25 @@ class AccountService {
 
 
 	/**
+	 * Stores whether new follows towards this user's actor need manual approval,
+	 * and refreshes the actor cache so the flag reaches the actor document and
+	 * account entity. Remote servers pick the change up when they next refresh
+	 * the actor.
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setLocked(string $userId, bool $locked): void {
+		$actor = $this->getActorFromUserId($userId);
+		$actor->setLocked($locked);
+		$this->actorsRequest->updateLocked($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+
+	/**
 	 * @param string $username
 	 *
 	 * @throws SocialAppConfigException
@@ -350,6 +369,7 @@ class AccountService {
 		$count = [
 			'followers' => $this->followsRequest->countFollowers($actor->getId()),
 			'following' => $this->followsRequest->countFollowing($actor->getId()),
+			'follow_requests' => $this->followsRequest->countPendingRequests($actor->getId()),
 			'post' => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
 		$actor->setDetailArray('count', $count);

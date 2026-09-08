@@ -279,6 +279,7 @@ class StreamTest extends TestCase {
 			'announce' => ['Announce', 'reblog'],
 			'mention' => ['Mention', 'mention'],
 			'follow' => ['Follow', 'follow'],
+			'follow request' => ['FollowRequest', 'follow_request'],
 			'other' => ['Create', ''],
 		];
 	}

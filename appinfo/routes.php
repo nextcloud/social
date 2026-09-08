@@ -48,6 +48,10 @@ return [
 
 		['name' => 'Api#appsCredentials', 'url' => '/api/v1/apps/verify_credentials', 'verb' => 'GET'],
 		['name' => 'Api#verifyCredentials', 'url' => '/api/v1/accounts/verify_credentials', 'verb' => 'GET'],
+		['name' => 'Api#updateCredentials', 'url' => '/api/v1/accounts/update_credentials', 'verb' => 'PATCH'],
+		['name' => 'Api#followRequests', 'url' => '/api/v1/follow_requests', 'verb' => 'GET'],
+		['name' => 'Api#followRequestAuthorize', 'url' => '/api/v1/follow_requests/{id}/authorize', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
+		['name' => 'Api#followRequestReject', 'url' => '/api/v1/follow_requests/{id}/reject', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],

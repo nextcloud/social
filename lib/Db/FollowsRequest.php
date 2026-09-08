@@ -178,6 +178,25 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return int
 	 */
+	public function countPendingRequests(string $actorId): int {
+		$qb = $this->countFollowsSelectSql();
+		$qb->limitToObjectIdPrim($qb->prim($actorId));
+		$qb->limitToType(Follow::TYPE);
+		$qb->limitToAccepted(false);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return int
+	 */
 	public function countFollowing(string $actorId): int {
 		$qb = $this->countFollowsSelectSql();
 		$qb->limitToActorIdPrim($qb->prim($actorId));
@@ -235,6 +254,23 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->orderBy('f.creation', 'desc');
 
 		// TODO: pagination
+
+		return $this->getFollowsFromRequest($qb);
+	}
+
+
+	/**
+	 * The follows towards this actor that still wait for approval.
+	 *
+	 * @return Follow[]
+	 */
+	public function getPendingByObjectId(string $actorId): array {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToObjectId($qb, $actorId);
+		$this->limitToAccepted($qb, false);
+		$this->leftJoinCacheActors($qb, 'actor_id');
+		$this->leftJoinDetails($qb, 'id', 'ca');
+		$qb->orderBy('f.creation', 'desc');
 
 		return $this->getFollowsFromRequest($qb);
 	}
