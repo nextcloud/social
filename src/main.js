@@ -7,7 +7,6 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import store from './store/index.js'
 import router from './router.js'
-import twemoji from 'twemoji'
 
 // CSP config for webpack dynamic chunk loading
 // eslint-disable-next-line
@@ -26,7 +25,6 @@ app.config.globalProperties.t = t
 app.config.globalProperties.n = n
 app.config.globalProperties.OC = window.OC
 app.config.globalProperties.OCA = window.OCA
-app.config.globalProperties.$twemoji = twemoji
 
 app.use(store)
 app.use(router)

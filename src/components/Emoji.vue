@@ -11,7 +11,7 @@
 
 <script>
 import { generateFilePath } from '@nextcloud/router'
-import twemoji from 'twemoji'
+import { toCodePoint } from '../utils/emojiCodePoint.js'
 
 // avoid using a string literal like '\u200D' here because minifiers expand it inline
 const U200D = String.fromCharCode(0x200D)
@@ -30,7 +30,7 @@ export default {
 		 * @return {string}
 		 */
 		icon() {
-			return twemoji.convert.toCodePoint(this.emoji.indexOf(U200D) < 0
+			return toCodePoint(this.emoji.indexOf(U200D) < 0
 				? this.emoji.replace(UFE0Fg, '')
 				: this.emoji,
 			)

@@ -188,6 +188,81 @@ describe('TimelineList', () => {
 		})
 	})
 
+	describe('polling', () => {
+		const setVisibility = (state) => {
+			Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
+			document.dispatchEvent(new Event('visibilitychange'))
+		}
+
+		afterEach(() => {
+			setVisibility('visible')
+		})
+
+		it('keeps polling while the tab is watched', async () => {
+			const { dispatch } = mountList()
+			await flushPromises()
+			dispatch.mockClear()
+
+			vi.advanceTimersByTime(31000)
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalled()
+		})
+
+		it('does not ask while the tab is hidden', async () => {
+			const { wrapper, dispatch } = mountList()
+			await flushPromises()
+			dispatch.mockClear()
+
+			setVisibility('hidden')
+			vi.advanceTimersByTime(31000)
+			await flushPromises()
+
+			// traffic nobody is waiting for is most of the traffic there is
+			expect(dispatch).not.toHaveBeenCalled()
+			expect(wrapper.vm.hiddenSince).toBeGreaterThan(0)
+		})
+
+		it('catches up on the way back, when it was away longer than a tick', async () => {
+			const { wrapper, dispatch } = mountList()
+			await flushPromises()
+			setVisibility('hidden')
+			vi.advanceTimersByTime(31000)
+			await flushPromises()
+			dispatch.mockClear()
+			wrapper.vm.hiddenSince = Date.now() - 60000
+
+			setVisibility('visible')
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalled()
+			expect(wrapper.vm.hiddenSince).toBe(0)
+		})
+
+		it('does not catch up after a glance away', async () => {
+			const { wrapper, dispatch } = mountList()
+			await flushPromises()
+			setVisibility('hidden')
+			vi.advanceTimersByTime(31000)
+			await flushPromises()
+			dispatch.mockClear()
+			wrapper.vm.hiddenSince = Date.now()
+
+			setVisibility('visible')
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+		})
+
+		it('stops listening for the tab once it is gone', async () => {
+			const { wrapper } = mountList()
+			await flushPromises()
+			wrapper.unmount()
+
+			expect(() => setVisibility('hidden')).not.toThrow()
+		})
+	})
+
 	describe('reading with the keyboard', () => {
 		afterEach(() => {
 			eventBus.all.clear()

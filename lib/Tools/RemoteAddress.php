@@ -86,9 +86,34 @@ final class RemoteAddress {
 	}
 
 	/**
+	 * Answers already given, for the life of this process.
+	 *
+	 * A delivery run resolves the same few dozen hosts over and over: one post
+	 * to two hundred inboxes is two hundred DNS round-trips for a handful of
+	 * distinct names, each one blocking the request behind it. Remembering the
+	 * answers for the length of the run removes almost all of them.
+	 *
+	 * Deliberately per-process rather than a shared cache: a cron pass is
+	 * where the repetition is, and a short-lived memo cannot serve a stale
+	 * address to a later request.
+	 *
+	 * @var array<string, list<string>>
+	 */
+	private static array $resolved = [];
+
+	/** Forgets the memo, for tests and long-running workers. */
+	public static function forgetResolved(): void {
+		self::$resolved = [];
+	}
+
+	/**
 	 * @return list<string> every A and AAAA address the host resolves to
 	 */
 	private static function resolve(string $host): array {
+		if (array_key_exists($host, self::$resolved)) {
+			return self::$resolved[$host];
+		}
+
 		$ips = [];
 
 		$v4 = gethostbynamel($host);
@@ -108,6 +133,8 @@ final class RemoteAddress {
 		// A name that resolves to nothing is treated as local, i.e. refused: an
 		// unresolvable target is not a legitimate Fediverse peer, and failing closed
 		// is the safe direction.
-		return $ips === [] ? ['127.0.0.1'] : $ips;
+		self::$resolved[$host] = ($ips === []) ? ['127.0.0.1'] : $ips;
+
+		return self::$resolved[$host];
 	}
 }

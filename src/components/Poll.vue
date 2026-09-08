@@ -44,10 +44,10 @@
 </template>
 
 <script>
+import { fromNow } from '../utils/relativeTime.js'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
-import moment from '@nextcloud/moment'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import Check from 'vue-material-design-icons/Check.vue'
 import logger from '../services/logger.js'
@@ -102,7 +102,7 @@ export default {
 		},
 		/** @return {string} */
 		expiry() {
-			return moment(this.poll.expires_at).fromNow()
+			return fromNow(this.poll.expires_at)
 		},
 	},
 	methods: {

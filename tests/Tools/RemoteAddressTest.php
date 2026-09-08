@@ -85,4 +85,35 @@ class RemoteAddressTest extends TestCase {
 			'localhost resolves to loopback' => ['localhost'],
 		];
 	}
+
+	// --- the memo
+
+	public function testAHostIsResolvedOncePerProcess(): void {
+		RemoteAddress::forgetResolved();
+
+		// a name that cannot resolve is refused; asking again must give the
+		// same answer without going back to the resolver
+		$first = RemoteAddress::isLocalHost('nothing.invalid');
+		$second = RemoteAddress::isLocalHost('nothing.invalid');
+
+		$this->assertTrue($first);
+		$this->assertSame($first, $second);
+	}
+
+	public function testTheMemoIsPerHost(): void {
+		RemoteAddress::forgetResolved();
+
+		// a literal address never reaches the resolver at all, so the memo
+		// cannot confuse the two
+		$this->assertTrue(RemoteAddress::isLocalHost('127.0.0.1'));
+		$this->assertTrue(RemoteAddress::isLocalHost('nothing.invalid'));
+		$this->assertFalse(RemoteAddress::isLocalHost('203.0.113.10'));
+	}
+
+	public function testForgettingTheMemoIsSafeWhenEmpty(): void {
+		RemoteAddress::forgetResolved();
+		RemoteAddress::forgetResolved();
+
+		$this->assertTrue(RemoteAddress::isLocalHost('nothing.invalid'));
+	}
 }
