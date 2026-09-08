@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Search;
 
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\Search\UnifiedSearchResult;
 use OCA\Social\Service\AccountService;
@@ -46,6 +48,7 @@ class UnifiedSearchProviderTest extends TestCase {
 			$this->l10n,
 			$this->urlGenerator,
 			$this->createMock(StreamService::class),
+			$this->createMock(StreamRequest::class),
 			$this->createMock(FollowService::class),
 			$this->createMock(CacheActorService::class),
 			$this->createMock(AccountService::class),
@@ -53,6 +56,51 @@ class UnifiedSearchProviderTest extends TestCase {
 			$this->createMock(ConfigService::class),
 			new NullLogger()
 		);
+	}
+
+	public function testStatusesJoinTheResultsWithExcerptAndLink(): void {
+		$alice = new Person();
+		$alice->setId('https://cloud.example/@alice');
+		$alice->setPreferredUsername('alice');
+		$alice->setAccount('alice@cloud.example');
+
+		$local = new Note();
+		$local->setId('https://cloud.example/@alice/1');
+		$local->setNid(7);
+		$local->setContent('<p>The   quick brown fox jumps over the lazy dog, ' . str_repeat('again and ', 20) . 'again</p>');
+		$local->setLocal(true);
+		$local->setActor($alice);
+
+		$remote = new Note();
+		$remote->setId('https://remote.example/notes/9');
+		$remote->setContent('<p>remote hit</p>');
+		$remote->setLocal(false);
+
+		$this->searchService->method('searchStreamContent')->with('fox')->willReturn([$local, $remote]);
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->with('social.ActivityPub.displayPost', ['username' => 'alice', 'token' => '7'])
+			->willReturn('https://cloud.example/apps/social/@alice/7');
+
+		$entries = $this->provider->search($this->user(), $this->query('fox'))->jsonSerialize()['entries'];
+
+		$this->assertCount(2, $entries);
+		$first = $entries[0]->jsonSerialize();
+		$this->assertStringStartsWith('The quick brown fox', $first['title'], 'whitespace collapsed, tags stripped');
+		$this->assertLessThanOrEqual(120, mb_strlen($first['title']));
+		$this->assertStringEndsWith('…', $first['title']);
+		$this->assertSame('@alice@cloud.example', $first['subline']);
+		$this->assertSame('https://cloud.example/apps/social/@alice/7', $first['resourceUrl']);
+
+		$second = $entries[1]->jsonSerialize();
+		$this->assertSame('https://remote.example/notes/9', $second['resourceUrl'], 'remote statuses link to their origin');
+	}
+
+	/** @return IUser&MockObject */
+	private function user(): IUser {
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('alice');
+
+		return $user;
 	}
 
 	/** @return ISearchQuery&MockObject */
@@ -92,7 +140,7 @@ class UnifiedSearchProviderTest extends TestCase {
 		$this->searchService->expects($this->once())->method('searchAccounts')->with('alice')->willReturn([]);
 		$this->searchService->expects($this->once())->method('searchHashtags')->with('alice')->willReturn([]);
 
-		$result = $this->provider->search($this->createMock(IUser::class), $this->query('  alice '));
+		$result = $this->provider->search($this->user(), $this->query('  alice '));
 
 		$this->assertSame('Social', $result->jsonSerialize()['name']);
 		$this->assertSame([], $result->jsonSerialize()['entries']);
@@ -106,7 +154,7 @@ class UnifiedSearchProviderTest extends TestCase {
 			fn (string $route, array $args): string => $route . '?username=' . $args['username']
 		);
 
-		$entries = $this->provider->search($this->createMock(IUser::class), $this->query('x'))->jsonSerialize()['entries'];
+		$entries = $this->provider->search($this->user(), $this->query('x'))->jsonSerialize()['entries'];
 
 		$this->assertCount(2, $entries);
 		$this->assertContainsOnlyInstancesOf(UnifiedSearchResult::class, $entries);
@@ -130,7 +178,7 @@ class UnifiedSearchProviderTest extends TestCase {
 			->with('social.Navigation.timeline', ['path' => 'tags/nextcloud'])
 			->willReturn('https://cloud.example/apps/social/timeline/tags/nextcloud');
 
-		$entries = $this->provider->search($this->createMock(IUser::class), $this->query('nextcloud'))->jsonSerialize()['entries'];
+		$entries = $this->provider->search($this->user(), $this->query('nextcloud'))->jsonSerialize()['entries'];
 
 		$this->assertCount(1, $entries);
 		$this->assertSame("42 posts related to 'nextcloud'", $entries[0]->getTitle());
@@ -144,8 +192,8 @@ class UnifiedSearchProviderTest extends TestCase {
 		$this->searchService->method('searchAccounts')->willReturn([]);
 		$this->searchService->method('searchHashtags')->willReturn([]);
 
-		$first = $this->provider->search($this->createMock(IUser::class), $this->query('x', 5))->jsonSerialize();
-		$next = $this->provider->search($this->createMock(IUser::class), $this->query('x', 5, 10))->jsonSerialize();
+		$first = $this->provider->search($this->user(), $this->query('x', 5))->jsonSerialize();
+		$next = $this->provider->search($this->user(), $this->query('x', 5, 10))->jsonSerialize();
 
 		$this->assertTrue($first['isPaginated']);
 		$this->assertSame(5, $first['cursor']);

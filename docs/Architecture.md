@@ -280,7 +280,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 |-------------|-------|---------------|-------------|
 | Dashboard | `SocialWidget` | `Application::register()` | Recent Social notifications; loads `social-dashboard` |
 | Dashboard | `SocialTimelineWidget` | `Application::register()` | Home timeline as an API widget, 300-second reload interval |
-| Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts and hashtags. Post-content search is present in `SearchService` but commented out at the call site |
+| Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin |
 | Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |

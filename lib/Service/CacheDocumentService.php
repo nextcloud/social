@@ -112,9 +112,11 @@ class CacheDocumentService {
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
 
-		$this->resizeImage($document, $content);
-		$resized = $this->generateFileFromContent($content);
-		$document->setResizedCopy($resized);
+		if (str_starts_with((string)$mime, 'image/')) {
+			$this->resizeImage($document, $content);
+			$resized = $this->generateFileFromContent($content);
+			$document->setResizedCopy($resized);
+		}
 	}
 
 	public function saveFromTempToCache(Document $document, string $tmpPath) {
@@ -131,9 +133,11 @@ class CacheDocumentService {
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
 
-		$this->resizeImage($document, $content);
-		$resized = $this->generateFileFromContent($content);
-		$document->setResizedCopy($resized);
+		if (str_starts_with($mime, 'image/')) {
+			$this->resizeImage($document, $content);
+			$resized = $this->generateFileFromContent($content);
+			$document->setResizedCopy($resized);
+		}
 	}
 
 	/**
@@ -180,7 +184,19 @@ class CacheDocumentService {
 		$allowedMimeType = [
 			'image/jpeg',
 			'image/gif',
-			'image/png'
+			'image/png',
+			'image/webp',
+			'video/mp4',
+			'video/webm',
+			'video/quicktime',
+			'audio/mpeg',
+			'audio/mp4',
+			'audio/ogg',
+			'audio/opus',
+			'audio/wav',
+			'audio/x-wav',
+			'audio/flac',
+			'audio/aac',
 		];
 
 		if (in_array($mime, $allowedMimeType)) {
@@ -198,6 +214,7 @@ class CacheDocumentService {
 			$image = ImageResize::createFromString($content);
 			$image->quality_jpg = 80;
 			$image->quality_png = 7;
+			$image->quality_webp = 80;
 
 			$image->resizeToBestFit(self::RESIZED_WIDTH, self::RESIZED_HEIGHT);
 			$newContent = $image->getImageAsString();
@@ -211,8 +228,10 @@ class CacheDocumentService {
 		$document->setLocalCopySize($image->getSourceWidth(), $image->getSourceHeight());
 		$document->setResizedCopySize($image->getDestWidth(), $image->getDestHeight());
 
-		$hash = $this->blurService->generateBlurHash(imagecreatefromstring($content));
-		$document->setBlurHash($hash);
+		$gd = @imagecreatefromstring($content);
+		if ($gd !== false) {
+			$document->setBlurHash($this->blurService->generateBlurHash($gd));
+		}
 	}
 
 	/**

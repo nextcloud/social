@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Search;
 
 use Exception;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
@@ -41,6 +42,7 @@ class UnifiedSearchProvider implements IProvider {
 	private IL10N $l10n;
 	private IURLGenerator $urlGenerator;
 	private StreamService $streamService;
+	private StreamRequest $streamRequest;
 	private FollowService $followService;
 	private CacheActorService $cacheActorService;
 	private AccountService $accountService;
@@ -67,6 +69,7 @@ class UnifiedSearchProvider implements IProvider {
 		IL10N $l10n,
 		IURLGenerator $urlGenerator,
 		StreamService $streamService,
+		StreamRequest $streamRequest,
 		FollowService $followService,
 		CacheActorService $cacheActorService,
 		AccountService $accountService,
@@ -77,6 +80,7 @@ class UnifiedSearchProvider implements IProvider {
 		$this->l10n = $l10n;
 		$this->urlGenerator = $urlGenerator;
 		$this->streamService = $streamService;
+		$this->streamRequest = $streamRequest;
 		$this->followService = $followService;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
@@ -117,16 +121,15 @@ class UnifiedSearchProvider implements IProvider {
 	 * @throws AccountDoesNotExistException
 	 */
 	public function search(IUser $user, ISearchQuery $query): SearchResult {
-		$this->initViewer();
+		$this->initViewer($user);
 		$search = trim($query->getTerm());
 
 		$result = array_merge(
 			$this->convertAccounts($this->searchService->searchUri($search)),
 			$this->convertAccounts($this->searchService->searchAccounts($search)),
-			$this->convertHashtags($this->searchService->searchHashtags($search))
+			$this->convertHashtags($this->searchService->searchHashtags($search)),
+			$this->convertStreams($this->searchService->searchStreamContent($search))
 		);
-
-		//	$this->searchService->searchStreamContent($search)
 
 		return SearchResult::paginated(
 			$this->l10n->t('Social'), $result, ($query->getCursor() ?? 0) + $query->getLimit()
@@ -140,21 +143,14 @@ class UnifiedSearchProvider implements IProvider {
 	 *
 	 * @throws AccountDoesNotExistException
 	 */
-	private function initViewer(bool $exception = false) {
-		if (!isset($this->userId)) {
-			if ($exception) {
-				throw new AccountDoesNotExistException('userId not defined');
-			}
-
-			return;
-		}
-
+	private function initViewer(IUser $user, bool $exception = false) {
 		try {
-			$this->viewer = $this->accountService->getActorFromUserId($this->userId, true);
+			$this->viewer = $this->accountService->getActorFromUserId($user->getUID(), true);
 
 			$this->streamService->setViewer($this->viewer);
 			$this->followService->setViewer($this->viewer);
 			$this->cacheActorService->setViewer($this->viewer);
+			$this->streamRequest->setViewer($this->viewer);
 		} catch (Exception $e) {
 			if ($exception) {
 				throw new AccountDoesNotExistException(
@@ -180,6 +176,45 @@ class UnifiedSearchProvider implements IProvider {
 				'@' . $account->getAccount(),
 				$this->urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $account->getAccount()]),
 				$icon
+			);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param \OCA\Social\Model\ActivityPub\Stream[] $streams
+	 *
+	 * @return UnifiedSearchResult[]
+	 */
+	private function convertStreams(array $streams): array {
+		$result = [];
+		foreach ($streams as $stream) {
+			$excerpt = html_entity_decode(strip_tags($stream->getContent()), ENT_QUOTES | ENT_HTML5);
+			$excerpt = trim((string)preg_replace('/\s+/', ' ', $excerpt));
+			if (mb_strlen($excerpt) > 120) {
+				$excerpt = mb_substr($excerpt, 0, 119) . '…';
+			}
+
+			$author = '';
+			$link = $stream->getId();
+			if ($stream->hasActor()) {
+				$actor = $stream->getActor();
+				$author = '@' . $actor->getAccount();
+				if ($stream->isLocal()) {
+					$link = $this->urlGenerator->linkToRouteAbsolute(
+						'social.ActivityPub.displayPost',
+						['username' => $actor->getPreferredUsername(), 'token' => (string)$stream->getNid()]
+					);
+				}
+			}
+
+			$result[] = new UnifiedSearchResult(
+				'',
+				$excerpt,
+				$author,
+				$link,
+				''
 			);
 		}
 

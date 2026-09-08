@@ -57,6 +57,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private string $avatar = '';
 	private string $header = '';
 	private bool $locked = false;
+	private array $emojis = [];
 	private bool $bot = false;
 	private bool $discoverable = false;
 	private string $privacy = 'public';
@@ -428,6 +429,19 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * @return bool
 	 */
+	/**
+	 * @return array[] Mastodon CustomEmoji entries used in the display name/bio
+	 */
+	public function getEmojis(): array {
+		return $this->emojis;
+	}
+
+	public function setEmojis(array $emojis): self {
+		$this->emojis = $emojis;
+
+		return $this;
+	}
+
 	public function isLocked(): bool {
 		return $this->locked;
 	}
@@ -616,6 +630,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
+		$this->setEmojis($this->extractEmojisFromTag($data));
 		$this->setDescription($this->validate(ACore::AS_CONTENT, 'summary', $data, ''))
 			->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
 			->setPublicKey($this->get('publicKey.publicKeyPem', $data))
@@ -703,6 +718,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			}
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
 			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
+			$this->setEmojis($this->extractEmojisFromTag($source));
 		}
 
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
@@ -843,7 +859,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 					'fields' => [],
 					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
 				],
-				'emojis' => [],
+				'emojis' => $this->getEmojis(),
 				'fields' => []
 			];
 

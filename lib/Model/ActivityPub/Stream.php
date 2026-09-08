@@ -56,6 +56,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $inReplyTo = '';
 	private array $attachments = [];
 	private array $mentions = [];
+	private array $emojis = [];
 	private bool $sensitive = false;
 	private string $conversation = '';
 	private ?Cache $cache = null;
@@ -217,6 +218,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setAttachments(array $attachments): self {
 		$this->attachments = $attachments;
+
+		return $this;
+	}
+
+	/**
+	 * @return array[] Mastodon CustomEmoji entries used in this status
+	 */
+	public function getEmojis(): array {
+		return $this->emojis;
+	}
+
+	public function setEmojis(array $emojis): self {
+		$this->emojis = $emojis;
 
 		return $this;
 	}
@@ -392,6 +406,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 
+		$this->setEmojis($this->extractEmojisFromTag($data));
+
 		$this->setInReplyTo($this->validate(self::AS_ID, 'inReplyTo', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributedTo', $data, ''));
 		$this->setSensitive($this->getBool('sensitive', $data, false));
@@ -487,6 +503,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		if ($source !== '') {
 			$sourceData = json_decode($source, true);
 			if (is_array($sourceData)) {
+				$this->setEmojis($this->extractEmojisFromTag($sourceData));
 				$details = $this->getDetailsAll();
 				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
 					$remoteLikes = (int)$sourceData['likes']['totalItems'];
@@ -636,6 +653,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'in_reply_to_id' => null,
 			'in_reply_to_account_id' => null,
 			'mentions' => $this->getMentions(),
+			'emojis' => $this->getEmojis(),
 			'replies_count' => $this->getDetailInt('replies'),
 			'reblogs_count' => $this->getDetailInt('boosts'),
 			'favourites_count' => $this->getDetailInt('likes'),

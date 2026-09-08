@@ -15,7 +15,7 @@
 			<div class="user-details">
 				<router-link v-if="!serverData.public" :to="{ name: 'profile', params: { account: item.acct }}">
 					<span class="post-author">
-						{{ item.display_name }}
+						<DisplayName :text="item.display_name" :emojis="item.emojis" />
 					</span>
 					<span class="user-description">
 						{{ item.acct }}
@@ -44,12 +44,14 @@
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import currentUser from '../mixins/currentUserMixin.js'
+import DisplayName from './DisplayName.js'
 import FollowButton from './FollowButton.vue'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 
 export default {
 	name: 'UserEntry',
 	components: {
+		DisplayName,
 		FollowButton,
 		NcAvatar,
 	},

@@ -307,6 +307,46 @@ class StreamTest extends TestCase {
 		$this->assertSame('alice', $notification['account']['username']);
 	}
 
+	public function testImportReadsCustomEmojiFromTheTagList(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://remote.example/notes/1',
+			'type' => 'Note',
+			'content' => 'hello :blobcat: world :blobcat: :broken:',
+			'tag' => [
+				['type' => 'Mention', 'href' => 'https://x.example/@a', 'name' => '@a'],
+				['type' => 'Emoji', 'name' => ':blobcat:', 'icon' => ['type' => 'Image', 'url' => 'https://remote.example/emoji/blobcat.png']],
+				['type' => 'Emoji', 'name' => ':broken:'],
+				['type' => 'Emoji', 'name' => ':evil:', 'icon' => ['url' => 'javascript:alert(1)']],
+			],
+		]);
+
+		$this->assertSame([[
+			'shortcode' => 'blobcat',
+			'url' => 'https://remote.example/emoji/blobcat.png',
+			'static_url' => 'https://remote.example/emoji/blobcat.png',
+			'visible_in_picker' => false,
+		]], $stream->getEmojis(), 'icon-less and non-https emoji are dropped');
+	}
+
+	public function testCustomEmojiSurviveTheDatabaseRoundTripViaTheStoredSource(): void {
+		$wire = [
+			'id' => 'https://remote.example/notes/1',
+			'type' => 'Note',
+			'tag' => [
+				['type' => 'Emoji', 'name' => ':party:', 'icon' => ['url' => 'https://remote.example/emoji/party.gif']],
+			],
+		];
+		$stream = new Stream();
+		$stream->importFromDatabase([
+			'id' => 'https://remote.example/notes/1',
+			'source' => json_encode($wire),
+		]);
+
+		$this->assertSame('party', $stream->getEmojis()[0]['shortcode']);
+		$this->assertSame($stream->getEmojis(), $stream->exportAsLocal()['emojis']);
+	}
+
 	public function testJsonSerializeExposesTheAttachments(): void {
 		$media = (new MediaAttachment())->setId('4');
 		$stream = new Note();

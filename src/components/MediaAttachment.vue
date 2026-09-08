@@ -4,13 +4,31 @@
 -->
 <template>
 	<div class="attachment" @click="$emit('click')">
-		<canvas v-if="!previewLoaded" ref="canvas" class="attachment__blurhash" />
-		<img v-if="attachment !== null"
+		<video v-if="attachment !== null && attachment.type === 'video'"
 			class="attachment__preview"
-			:src="attachment.preview_url"
-			:alt="attachment.description || ''"
-			@load="previewLoaded = true">
-		<NcLoadingIcon v-if="attachment === null || !previewLoaded" :size="40" />
+			:src="attachment.url"
+			:aria-label="attachment.description || ''"
+			controls
+			preload="metadata"
+			@click.stop
+			@loadedmetadata="previewLoaded = true" />
+		<audio v-else-if="attachment !== null && attachment.type === 'audio'"
+			class="attachment__audio"
+			:src="attachment.url"
+			:aria-label="attachment.description || ''"
+			controls
+			preload="metadata"
+			@click.stop
+			@loadedmetadata="previewLoaded = true" />
+		<template v-else>
+			<canvas v-if="!previewLoaded" ref="canvas" class="attachment__blurhash" />
+			<img v-if="attachment !== null"
+				class="attachment__preview"
+				:src="attachment.preview_url"
+				:alt="attachment.description || ''"
+				@load="previewLoaded = true">
+		</template>
+		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !isAv)" :size="40" />
 	</div>
 </template>
 
@@ -35,6 +53,12 @@ export default {
 			previewLoaded: false,
 		}
 	},
+	computed: {
+		/** @return {boolean} */
+		isAv() {
+			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
+		},
+	},
 	watch: {
 		attachment() {
 			this.drawBlurhash()
@@ -45,7 +69,7 @@ export default {
 	},
 	methods: {
 		drawBlurhash() {
-			if (this.attachment?.meta.small.width === undefined) {
+			if (this.isAv || this.attachment?.meta?.small?.width === undefined) {
 				return
 			}
 
