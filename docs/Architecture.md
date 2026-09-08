@@ -230,6 +230,27 @@ All three return the previous handler's response untouched when `FediverseServic
 
 ---
 
+### Reading a timeline
+
+A timeline is read in two queries rather than one.
+
+The first decides *which* posts belong in the page: it carries all the joins
+and filters (recipients, follows, hidden actors, duplicate suppression) but
+projects a single column, `s.nid`. The second fetches the rows for exactly
+those ids, joining only what is needed to render them.
+
+The reason is `SELECT DISTINCT`. Joining the recipients and follows tables can
+return a stream more than once, so the query has always been `DISTINCT` — over
+eighty columns, several of them TEXT. A database cannot deduplicate that
+without building and sorting the entire matching set first, which is why a
+timeline used to cost the same whether twenty rows were asked for or a hundred.
+Deduplicating one integer is cheap; the wide read is then a primary-key lookup
+of twenty rows.
+
+Measured with `occ social:benchmark` on 20 000 notes: the home timeline went
+from 219 ms to 89 ms and the public timeline from 121 ms to 29 ms, returning
+the same rows in the same order.
+
 ## Frontend Architecture
 
 The user interface is a **Vue 3** front end using Vue Router, Vuex, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.

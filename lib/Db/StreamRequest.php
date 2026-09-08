@@ -475,19 +475,42 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineHome(ProbeOptions $options): array {
+		// which posts, decided over one column, then what they say
+		$page = $this->getStreamNidsSelectSql();
+		$this->homeTimelineFilters($page, $options);
+		$nids = $this->getNidsFromRequest($page);
+
+		if ($nids === []) {
+			return [];
+		}
+
 		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->andWhere(
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+		);
+		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 
-		$qb->filterType(SocialAppNotification::TYPE);
-		$qb->paginate($options);
-
-		$qb->limitToViewer('sd', 'f', false);
-		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
-
+		// the author, for the row; the follows table stays out of this query
+		// because the page has already decided what belongs in it
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction('sa');
 		$qb->leftJoinObjectStatus();
-		$qb->filterDuplicate();
 
 		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * Everything that decides whether a post belongs in the viewer's home
+	 * timeline. Applied to the query that picks the page; the query that reads
+	 * the rows afterwards needs none of it, because the page already said which.
+	 */
+	private function homeTimelineFilters(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		$qb->filterType(SocialAppNotification::TYPE);
+		$qb->paginate($options);
+		$qb->limitToViewer('sd', 'f', false);
+		// a filter, not a join: it constrains on the follow's type
+		$this->timelineHomeLinkCacheActor($qb, 'ca', 'f');
+		$qb->filterDuplicate();
 	}
 
 	/**
@@ -804,22 +827,30 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelinePublic(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql($options->getFormat());
-		$qb->paginate($options);
+		$page = $this->getStreamNidsSelectSql();
+		$page->paginate($options);
 
 		if ($options->isLocal()) {
-			$qb->limitToLocal(true);
+			$page->limitToLocal(true);
 		}
-		$qb->limitToStatusTypes();
+		$page->limitToStatusTypes();
+		$page->selectDestFollowing('sd', '');
+		$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$page->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
+		$page->filterHiddenActors();
 
+		$nids = $this->getNidsFromRequest($page);
+		if ($nids === []) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->andWhere(
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+		);
+		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction();
-
-		$qb->selectDestFollowing('sd', '');
-		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
-		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
-
-		$qb->filterHiddenActors();
 
 		return $this->getStreamsFromRequest($qb);
 	}
