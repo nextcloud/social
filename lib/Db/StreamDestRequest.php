@@ -148,10 +148,11 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 */
 	public function getRelatedToActor(Person $actor): array {
 		$qb = $this->getStreamDestSelectSql();
-		$orX = $qb->expr()->orX();
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getId())));
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowers())));
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowing())));
+		$orX = $qb->expr()->orX(
+			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getId())),
+			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowers())),
+			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowing()))
+		);
 		$qb->where($orX);
 
 		return $this->getStreamDestsFromRequest($qb);

@@ -4,36 +4,43 @@
 -->
 # Authors
 
+## Current Maintainer
+
+- Benedikt Schächner <benedikt.schaechner@web.de> (https://benedikt.xn--schchner-2za.de)
+
+## Previous Contributors
+
+We would like to thank all the previous developers and contributors who helped build this project:
+
 - Andy Scherzinger <info@andy-scherzinger.de>
-- blizzz <blizzz@arthur-schiwon.de>
+- Ayesh Karunaratne <ayesh@aye.sh>
 - Carl Schwan <carl@carlschwan.eu>
-- Christoph Wurst <ChristophWurst@users.noreply.github.com>
+- Christoph Wurst
 - Curtis Parfitt-Ford <curtis@mashedkeyboard.me>
 - Cyrille Bollu <cyrille@bollu.be>
+- Côme Chilliet
 - Emerson Kfuri <emersonkfuri@gmail.com>
-- emmanuel <154705254+codesmith-emmy@users.noreply.github.com>
-- Jan C. Borchardt <hey@jancborchardt.net>
+- Jan-Christoph Borchardt <hey@jancborchardt.net>
 - Joas Schilling <coding@schilljs.com>
 - John Molakvoæ <skjnldsv@protonmail.com>
 - Jonas Sulzer <jonas@violoncello.ch>
 - Jos Poortvliet <jospoortvliet@gmail.com>
 - Julien Veyssier <eneiluj@posteo.net>
 - Julius Härtl <jus@bitgrid.net>
-- Jérémie Tarot (@silopolis) <silopolis@gmail.com>
+- Jérémie Tarot <silopolis@gmail.com>
 - Louis Chemineau <louis@chmn.me>
 - Max <max@nextcloud.com>
 - Maxence Lange <maxence@artificial-owl.com>
 - Morris Jobke <hey@morrisjobke.de>
 - Mostafa Ahangarha <ahangarha@riseup.net>
 - Nikolai Merinov <nikolai.merinov@member.fsf.org>
-- rakekniven <mark.ziegler@rakekniven.de>
 - Rik Meijer <rik@pulledbits.org>
 - Robin Appelman <robin@icewind.nl>
 - Roeland Jago Douma <roeland@famdouma.nl>
 - Ruben Barkow <github@r.z11.de>
-- stefan123t <stefan.thieme@gmx.ch>
-- szaimen <szaimen@e.mail.de>
 - Tobias Speicher <rootcommander@gmail.com>
-- Valdnet <47037905+Valdnet@users.noreply.github.com>
+- Valdnet
 - Vincent Petry <vincent@nextcloud.com>
-- violoncello.ch <22591354+violoncelloCH@users.noreply.github.com>
+- blizzz <blizzz@arthur-schiwon.de>
+
+Special thanks to the Nextcloud community, automated bots, and all contributors who helped with translations, testing, and bug reports.

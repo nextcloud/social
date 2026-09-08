@@ -35,8 +35,9 @@ class ActorsRequest extends ActorsRequestBuilder {
 			->setValue(
 				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
 			)
+			->setValue('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0))
 			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-			->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
+			->setValue('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())))
 			->setValue(
 				'creation',
 				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
@@ -47,16 +48,30 @@ class ActorsRequest extends ActorsRequestBuilder {
 
 	public function update(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
-		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()));
+		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
+			->set('summary', $qb->createNamedParameter($actor->getSummary()))
+			->set('name', $qb->createNamedParameter($actor->getName()));
 		$this->limitToIdString($qb, $actor->getId());
 
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Stores a changed locked flag (manuallyApprovesFollowers).
+	 */
+	public function updateLocked(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0));
+		$this->limitToIdString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+
 	public function refreshKeys(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-			->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+			->set('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())));
 
 		try {
 			$qb->set(
@@ -101,7 +116,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsSelectSql();
 		$qb->limitToIdString($id);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -146,7 +161,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		);
 		$qb->limitToPreferredUsername($handle);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 	/**
@@ -156,7 +171,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsDeleteSql();
 		$qb->limitToPreferredUsername($handle);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 

@@ -10,73 +10,94 @@ declare(strict_types=1);
 namespace OCA\Social\Cron;
 
 use Exception;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\HashtagService;
-use OCP\AppFramework\QueryException;
+use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
+use Psr\Log\LoggerInterface;
 
-/**
- * Class Cache
- *
- * @package OCA\Social\Cron
- */
 class Cache extends TimedJob {
 	private AccountService $accountService;
 	private CacheActorService $cacheActorService;
 	private DocumentService $documentService;
 	private HashtagService $hashtagService;
+	private StreamService $streamService;
+	private CacheActorsRequest $cacheActorsRequest;
+	private LoggerInterface $logger;
 
-	public function __construct(ITimeFactory $time, AccountService $accountService, CacheActorService $cacheActorService, DocumentService $documentService, HashtagService $hashtagService) {
+	public function __construct(
+		ITimeFactory $time,
+		AccountService $accountService,
+		CacheActorService $cacheActorService,
+		DocumentService $documentService,
+		HashtagService $hashtagService,
+		StreamService $streamService,
+		CacheActorsRequest $cacheActorsRequest,
+		LoggerInterface $logger,
+	) {
 		parent::__construct($time);
-		$this->setInterval(12 * 60); // 12 minutes
+		$this->setInterval(12 * 60);
 		$this->accountService = $accountService;
 		$this->cacheActorService = $cacheActorService;
 		$this->documentService = $documentService;
 		$this->hashtagService = $hashtagService;
+		$this->streamService = $streamService;
+		$this->cacheActorsRequest = $cacheActorsRequest;
+		$this->logger = $logger;
 	}
 
-	/**
-	 * @param mixed $argument
-	 *
-	 * @throws QueryException
-	 */
 	protected function run($argument) {
 		try {
-			//			$this->accountService->blindKeyRotation();
-		} catch (Exception $e) {
-		}
-
-		try {
 			$this->accountService->manageDeletedActors();
-		} catch (Exception $e) {
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}
 
 		try {
 			$this->accountService->manageCacheLocalActors();
-		} catch (Exception $e) {
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}
 
 		try {
 			$this->cacheActorService->manageCacheRemoteActors();
-		} catch (Exception $e) {
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}
 
 		try {
 			$this->cacheActorService->manageDetailsRemoteActors();
-		} catch (Exception $e) {
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}
 
 		try {
 			$this->documentService->manageCacheDocuments();
-		} catch (Exception $e) {
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}
 
 		try {
 			$this->hashtagService->manageHashtags();
-		} catch (Exception $e) {
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
+		}
+
+		// Sync timelines of cached remote actors
+		try {
+			$remoteActors = $this->cacheActorsRequest->getRemoteActorsToUpdate(false);
+			foreach ($remoteActors as $actor) {
+				try {
+					$this->streamService->syncRemoteTimeline($actor);
+				} catch (Exception $e) {
+				}
+			}
+		} catch (\Throwable $e) {
+			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
 		}
 	}
 }

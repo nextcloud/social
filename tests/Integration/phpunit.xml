@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<!--
+  - No failOnWarning here, unlike the unit suite: these tests run real server code
+  - across the whole CI matrix (stable28..master, PHP 8.1..8.5), and the server
+  - legitimately emits deprecation warnings on version combinations the app does
+  - not control.
+  -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+	bootstrap="bootstrap.php"
+	colors="true"
+	cacheResult="false">
+	<testsuites>
+		<testsuite name="integration">
+			<directory suffix="Test.php">.</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

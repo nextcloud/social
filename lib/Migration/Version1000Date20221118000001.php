@@ -698,7 +698,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['nid']);
 		$table->addUniqueIndex(['id_prim']);
-		$table->addUniqueIndex(['nid']);
 		$table->addUniqueIndex(
 			[
 				'id_prim',

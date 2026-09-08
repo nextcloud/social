@@ -126,7 +126,7 @@ class InstancesRequestBuilder extends CoreRequestBuilder {
 		$instance->importFromDatabase($data);
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_');
+			$actor = $qb->parseLeftJoinCacheActors($data, 'ca_');
 			$actor->setExportFormat($qb->getFormat());
 			try {
 				$icon = $qb->parseLeftJoinCacheDocuments($data);

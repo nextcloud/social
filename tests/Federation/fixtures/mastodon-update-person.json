@@ -1,0 +1,24 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1"],
+  "id": "https://mastodon.social/users/alice#updates/1725800000",
+  "type": "Update",
+  "actor": "https://mastodon.social/users/alice",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "object": {
+    "id": "https://mastodon.social/users/alice",
+    "type": "Person",
+    "preferredUsername": "alice",
+    "name": "Alice (renamed)",
+    "summary": "<p>new bio</p>",
+    "inbox": "https://mastodon.social/users/alice/inbox",
+    "outbox": "https://mastodon.social/users/alice/outbox",
+    "followers": "https://mastodon.social/users/alice/followers",
+    "following": "https://mastodon.social/users/alice/following",
+    "url": "https://mastodon.social/@alice",
+    "publicKey": {
+      "id": "https://mastodon.social/users/alice#main-key",
+      "owner": "https://mastodon.social/users/alice",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0\n-----END PUBLIC KEY-----\n"
+    }
+  }
+}

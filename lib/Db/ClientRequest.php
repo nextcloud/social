@@ -37,7 +37,7 @@ class ClientRequest extends ClientRequestBuilder {
 				'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
 			)
 			->setValue('app_client_id', $qb->createNamedParameter($client->getAppClientId()))
-			->setValue('app_client_secret', $qb->createNamedParameter($client->getAppClientSecret()))
+			->setValue('app_client_secret', $qb->createNamedParameter($this->secretHasher->hash($client->getAppClientSecret())))
 			->setValue('app_scopes', $qb->createNamedParameter(json_encode($client->getAppScopes())));
 
 		try {
@@ -58,10 +58,21 @@ class ClientRequest extends ClientRequestBuilder {
 	 */
 	public function authClient(SocialClient $client): void {
 		$qb = $this->getClientUpdateSql();
-		$qb->set('auth_code', $qb->createNamedParameter($client->getAuthCode()));
+		$qb->set('auth_code', $qb->createNamedParameter($this->secretHasher->hash($client->getAuthCode())));
 		$qb->set('auth_scopes', $qb->createNamedParameter(json_encode($client->getAuthScopes())));
 		$qb->set('auth_account', $qb->createNamedParameter($client->getAuthAccount()));
 		$qb->set('auth_user_id', $qb->createNamedParameter($client->getAuthUserId()));
+		// The row holds one token and one auth_user_id. Leaving the token in place
+		// while the user changes would let a token issued to the previous user act as
+		// the new one, so a fresh authorization invalidates it.
+		$qb->set('token', $qb->createNamedParameter(''));
+
+		// the authorization moment: the code is only exchangeable for
+		// ClientService::TIME_CODE_TTL from here
+		try {
+			$qb->set('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+		} catch (Exception $e) {
+		}
 
 		$qb->limitToId($client->getId());
 
@@ -74,12 +85,25 @@ class ClientRequest extends ClientRequestBuilder {
 	 */
 	public function updateToken(SocialClient $client): void {
 		$qb = $this->getClientUpdateSql();
-		$qb->set('token', $qb->createNamedParameter($client->getToken()));
+		$qb->set('token', $qb->createNamedParameter($this->secretHasher->hash($client->getToken())));
 		$qb->set('auth_code', $qb->createNamedParameter(''));
 
 		$qb->limitToId($client->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Clears the access token (and any pending code) of a client row.
+	 */
+	public function revokeToken(SocialClient $client): void {
+		$qb = $this->getClientUpdateSql();
+		$qb->set('token', $qb->createNamedParameter(''));
+		$qb->set('auth_code', $qb->createNamedParameter(''));
+
+		$qb->limitToId($client->getId());
+
+		$qb->executeStatement();
 	}
 
 
@@ -95,7 +119,7 @@ class ClientRequest extends ClientRequestBuilder {
 
 		$qb->limitToId($client->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -120,10 +144,18 @@ class ClientRequest extends ClientRequestBuilder {
 	 * @throws ClientNotFoundException
 	 */
 	public function getFromToken(string $token): SocialClient {
-		$qb = $this->getClientSelectSql();
-		$qb->limitToToken($token);
+		// tokens are stored hashed; rows from before hashing hold the bare value
+		foreach ($this->secretHasher->forLookup($token) as $stored) {
+			try {
+				$qb = $this->getClientSelectSql();
+				$qb->limitToToken($stored);
 
-		return $this->getClientFromRequest($qb);
+				return $this->getClientFromRequest($qb);
+			} catch (ClientNotFoundException $e) {
+			}
+		}
+
+		throw new ClientNotFoundException();
 	}
 
 
@@ -137,6 +169,6 @@ class ClientRequest extends ClientRequestBuilder {
 		$date->setTimestamp(time() - ClientService::TIME_TOKEN_TTL);
 		$qb->limitToDBFieldDateTime('last_update', $date, true);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

@@ -66,7 +66,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private bool $sensitive = false;
 	private string $language = 'en';
 	private int $avatarVersion = -1;
+	private int $headerVersion = -1;
 	private string $viewerLink = '';
+
+	/** @var string[] */
+	private array $alsoKnownAs = [];
 
 	/**
 	 * Person constructor.
@@ -572,6 +576,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getHeaderVersion(): int {
+		return $this->headerVersion;
+	}
+
+	/**
+	 * @param int $headerVersion
+	 *
+	 * @return Person
+	 */
+	public function setHeaderVersion(int $headerVersion): self {
+		$this->headerVersion = $headerVersion;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getViewerLink(): string {
@@ -590,6 +613,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The actor ids this actor also answers to — a `Move` is only valid when
+	 * its target lists the moving actor here.
+	 *
+	 * @return string[]
+	 */
+	public function getAlsoKnownAs(): array {
+		return $this->alsoKnownAs;
+	}
+
+	/**
+	 * @param string[] $alsoKnownAs
+	 */
+	public function setAlsoKnownAs(array $alsoKnownAs): self {
+		$this->alsoKnownAs = array_values(array_filter($alsoKnownAs, 'is_string'));
+
+		return $this;
+	}
+
+	/**
 	 * @param array $data
 	 *
 	 * @throws ItemUnknownException
@@ -599,7 +641,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
+		$this->setDescription($this->validate(ACore::AS_CONTENT, 'summary', $data, ''))
+			->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
 			->setPublicKey($this->get('publicKey.publicKeyPem', $data))
 			->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
 			->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
@@ -608,7 +651,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
 			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
 			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
-			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
+			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
+			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []));
+		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
 
 		/** @var Image $icon */
 		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
@@ -617,6 +662,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		if ($icon->getType() === Image::TYPE) {
 			$this->setIcon($icon);
+		}
+
+		$image = $this->get('image.url', $data, '');
+		if ($image !== '') {
+			$this->setHeader($image);
 		}
 	}
 
@@ -667,6 +717,19 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
+
+		$this->setLocked($this->getInt('locked', $data, 0) === 1);
+
+		$source = json_decode($this->getSource(), true);
+		if (is_array($source)) {
+			$image = $this->get('image.url', $source, '');
+			if ($image !== '') {
+				$this->setHeader($image);
+			}
+			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
+		}
+
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
 			->setUserId($this->get('user_id', $data, ''))
 			->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
@@ -693,7 +756,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			if ($deletedValue === '' || $deletedValue === '0000-00-00 00:00:00') {
 				return;
 			}
-			$dTime = new DateTime();
+			$dTime = new DateTime($deletedValue);
 			$deleted = $dTime->getTimestamp();
 			if ($deleted > 0) {
 				$this->setDeleted($deleted);
@@ -707,6 +770,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsActivityPub(): array {
+		if ($this->getPublicKey() !== '') {
+			$this->setDisplayW3ContextSecurity(true);
+		}
+
 		$data = [
 			'aliases' => [
 				$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
@@ -727,12 +794,26 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			]
 		];
 
+		$data['manuallyApprovesFollowers'] = $this->isLocked();
+
+		if ($this->getAlsoKnownAs() !== []) {
+			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
+		}
+
 		if ($this->hasIcon()) {
 			$icon = $this->getIcon();
 			$data['icon'] = [
 				'type' => $icon->getType(),
 				'mediaType' => $icon->getMediaType(),
 				'url' => $icon->getUrl()
+			];
+		}
+
+		if ($this->header !== '') {
+			$data['image'] = [
+				'type' => 'Image',
+				'mediaType' => 'image/jpeg',
+				'url' => $this->header
 			];
 		}
 
@@ -758,6 +839,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$avatar = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
 		}
 
+		$headerUrl = $this->getHeader();
 		$details = $this->getDetailsAll();
 		$result =
 			[
@@ -769,13 +851,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'bot' => $this->isBot(),
 				'discoverable' => $this->isDiscoverable(),
 				'group' => false,
-				'created_at' => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
+				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
 				'note' => $this->getDescription(),
 				'url' => $this->getId(),
 				'avatar' => $avatar ?? $this->getAvatar(),
 				'avatar_static' => $avatar ?? $this->getAvatar(),
-				'header' => $avatar ?? $this->getHeader(),
-				'header_static' => $avatar ?? $this->getHeader(),
+				'header' => $headerUrl,
+				'header_static' => $headerUrl,
 				'followers_count' => $this->getInt('count.followers', $details),
 				'following_count' => $this->getInt('count.following', $details),
 				'statuses_count' => $this->getInt('count.post', $details),
@@ -786,7 +868,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 					'language' => $this->getLanguage(),
 					'note' => $this->getDescription(),
 					'fields' => [],
-					'follow_requests_count' => 0
+					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
 				],
 				'emojis' => [],
 				'fields' => []

@@ -1,0 +1,47 @@
+<!--
+  - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+# Integration tests (run against a real Nextcloud + database)
+
+Unlike the unit suite (`tests/`), which stubs OCP and needs no server, these
+tests resolve real services from the container and hit the actual database, so
+they exercise the migrations, the query SQL, the unique constraints and the
+storage boundaries (key encryption, credential hashing) that mocks cannot reach.
+On their first run they caught two shipped bugs the green unit suite missed —
+an OAuth secret column too short for its hashed value on MySQL, and an UPDATE
+built without a SET clause — which is exactly the class of regression they exist
+to stop.
+
+- `Db/TimelineSeedTest` — seeds actors, follows and notes through the production
+  Request classes and asserts what each timeline returns: home via the follow
+  join, direct-message isolation, favourites/bookmarks via the action join,
+  hashtags, account visibility and id-based pagination.
+- `Db/ActorsKeyStorageTest` — private keys land encrypted, read back decrypted,
+  legacy plaintext rows stay readable, the EncryptPrivateKeys repair converts
+  them idempotently.
+- `Db/ClientCredentialStorageTest` — OAuth secrets/codes/tokens land hashed,
+  plaintext tokens resolve through the hashed lookup, re-authorization
+  invalidates the old token, revocation works, HashClientSecrets converts
+  legacy rows.
+- `Db/StreamActionsFlagsTest` — the per-viewer flags are written field-wise and
+  idempotently.
+- `Db/RequestQueueLifecycleTest` — standby → running → deleted on success,
+  failures counted and retried, abandoned after MAX_TRIES, stale RUNNING rows
+  reaped back to standby.
+- `Db/ActorRelationRequestTest` / `Db/StreamFilterTest` — block/mute storage and
+  the hidden-actor anti-join on every timeline.
+
+## Running
+
+**CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
+the supported server versions) via `composer run test:integration`; the workflows
+pick the script up automatically now that it is defined.
+
+**Locally**, point the bootstrap at an installed server (the app directory may be
+a symlink into it):
+
+    NEXTCLOUD_ROOT=/var/www/nextcloud vendor/bin/phpunit -c tests/Integration/phpunit.xml
+
+All rows the tests create carry unique test-only ids and are removed in
+tearDown, so the suite is safe to run against an instance that holds other data.

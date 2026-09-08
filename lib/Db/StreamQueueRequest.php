@@ -32,7 +32,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 			->setValue('type', $qb->createNamedParameter($queue->getType()))
 			->setValue('status', $qb->createNamedParameter($queue->getStatus()))
 			->setValue('tries', $qb->createNamedParameter($queue->getTries()));
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -47,7 +47,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$qb->orderBy('id', 'asc');
 
 		$requests = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$requests[] = $this->parseStreamQueueSelectSql($data);
 		}
@@ -69,7 +69,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$qb->limitToToken($token);
 
 		$queue = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$queue[] = $this->parseStreamQueueSelectSql($data);
 		}
@@ -94,7 +94,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
 
-		$count = $qb->execute();
+		$count = $qb->executeStatement();
 
 		if ($count === 0) {
 			throw new QueueStatusException();
@@ -115,7 +115,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
 
-		$count = $qb->execute();
+		$count = $qb->executeStatement();
 
 		if ($count === 0) {
 			throw new QueueStatusException();
@@ -140,7 +140,7 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
 
-		$count = $qb->execute();
+		$count = $qb->executeStatement();
 
 		if ($count === 0) {
 			throw new QueueStatusException();
@@ -157,6 +157,6 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 		$qb = $this->getStreamQueueDeleteSql();
 		$this->limitToId($qb, $queue->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

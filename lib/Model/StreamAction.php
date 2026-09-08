@@ -25,6 +25,7 @@ class StreamAction implements JsonSerializable {
 	public const LIKED = 'liked';
 	public const BOOSTED = 'boosted';
 	public const REPLIED = 'replied';
+	public const BOOKMARKED = 'bookmarked';
 
 	private int $id = 0;
 	private string $actorId = '';
@@ -34,7 +35,8 @@ class StreamAction implements JsonSerializable {
 	private array $accepted = [
 		self::LIKED,
 		self::BOOSTED,
-		self::REPLIED
+		self::REPLIED,
+		self::BOOKMARKED
 	];
 
 	/**
@@ -138,7 +140,8 @@ class StreamAction implements JsonSerializable {
 		$this->values = [
 			self::LIKED => $this->getBool('liked', $data),
 			self::BOOSTED => $this->getBool('boosted', $data),
-			self::REPLIED => $this->getBool('replied', $data)
+			self::REPLIED => $this->getBool('replied', $data),
+			self::BOOKMARKED => $this->getBool('bookmarked', $data)
 		];
 	}
 

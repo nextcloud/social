@@ -1,24 +1,24 @@
 /**
- * SPDX-FileCopyrightText: 2019 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import Vue from 'vue'
+import { createApp } from 'vue'
 import store from './store/index.js'
 import OStatus from './views/OStatus.vue'
 
 // eslint-disable-next-line
-__webpack_nonce__ = btoa(OC.requestToken)
+const requestToken = window.OC?.requestToken
+if (requestToken) {
+	__webpack_nonce__ = btoa(requestToken)
+}
 // eslint-disable-next-line
-__webpack_public_path__ = OC.linkTo('social', 'js/')
+__webpack_public_path__ = window.OC?.linkTo('social', 'js/') ?? '/apps/social/js/'
 
-Vue.prototype.t = t
-Vue.prototype.n = n
-Vue.prototype.OC = OC
-Vue.prototype.OCA = OCA
-
-/* eslint-disable-next-line no-new */
-new Vue({
-	render: h => h(OStatus),
-	store,
-}).$mount('#content')
+const app = createApp(OStatus)
+app.config.globalProperties.t = t
+app.config.globalProperties.n = n
+app.config.globalProperties.OC = window.OC
+app.config.globalProperties.OCA = window.OCA
+app.use(store)
+app.mount('#content')

@@ -53,7 +53,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $activityId = '';
 	private string $content = '';
 	private string $visibility = '';
-	private string $spoilerText = '';
 	private string $language = 'en';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
@@ -135,10 +134,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 
 	/**
+	 * The content warning. On ActivityPub this is the object's `summary`
+	 * (which is also the database column), so the two accessors share one field —
+	 * a remote CW survives the AP import and a local one survives the save.
+	 *
 	 * @return string
 	 */
 	public function getSpoilerText(): string {
-		return $this->spoilerText;
+		return $this->getSummary();
 	}
 
 	/**
@@ -147,7 +150,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @return Stream
 	 */
 	public function setSpoilerText(string $text): self {
-		$this->spoilerText = $text;
+		$this->setSummary($text);
 
 		return $this;
 	}
@@ -418,6 +421,20 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		} catch (ItemAlreadyExistsException $e) {
 		}
 		$this->convertPublished();
+
+		if (isset($data['likes']['totalItems'])) {
+			$remoteLikes = (int)$data['likes']['totalItems'];
+			$this->setDetailInt('likes', $remoteLikes);
+			$this->setDetailInt('remote_likes', $remoteLikes);
+		}
+		if (isset($data['shares']['totalItems'])) {
+			$remoteShares = (int)$data['shares']['totalItems'];
+			$this->setDetailInt('boosts', $remoteShares);
+			$this->setDetailInt('remote_boosts', $remoteShares);
+		}
+		if (isset($data['replies']['totalItems'])) {
+			$this->setDetailInt('replies', (int)$data['replies']['totalItems']);
+		}
 	}
 
 
@@ -485,6 +502,32 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
 		$this->setDetailsAll($this->getArray('details', $data, []));
+
+		$source = $this->get('source', $data, '');
+		if ($source !== '') {
+			$sourceData = json_decode($source, true);
+			if (is_array($sourceData)) {
+				$details = $this->getDetailsAll();
+				if (!array_key_exists('remote_likes', $details) && isset($sourceData['likes']['totalItems'])) {
+					$remoteLikes = (int)$sourceData['likes']['totalItems'];
+					$this->setDetailInt('remote_likes', $remoteLikes);
+					if (!array_key_exists('likes', $details) || $details['likes'] === 0) {
+						$this->setDetailInt('likes', $remoteLikes);
+					}
+				}
+				if (!array_key_exists('remote_boosts', $details) && isset($sourceData['shares']['totalItems'])) {
+					$remoteBoosts = (int)$sourceData['shares']['totalItems'];
+					$this->setDetailInt('remote_boosts', $remoteBoosts);
+					if (!array_key_exists('boosts', $details) || $details['boosts'] === 0) {
+						$this->setDetailInt('boosts', $remoteBoosts);
+					}
+				}
+				if (isset($sourceData['replies']['totalItems'])) {
+					$this->setDetailInt('replies', (int)$sourceData['replies']['totalItems']);
+				}
+			}
+		}
+
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
 		$this->setAttachments($this->getArray('attachments', $data, []));
 		$this->setMentions($this->getDetails('mentions'));
@@ -589,6 +632,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$actions = ($this->hasAction()) ? $this->getAction()->getValues() : [];
 		$favorited = false;
 		$reblogged = false;
+		$bookmarked = false;
 		foreach ($actions as $action => $value) {
 			if ($value) {
 				switch ($action) {
@@ -597,6 +641,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 						break;
 					case StreamAction::LIKED:
 						$favorited = true;
+						break;
+					case StreamAction::BOOKMARKED:
+						$bookmarked = true;
 						break;
 				}
 			}
@@ -617,12 +664,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'favourited' => $favorited,
 			'reblogged' => $reblogged,
 			'muted' => false,
-			'bookmarked' => false,
+			'bookmarked' => $bookmarked,
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
-			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'noindex' => false
 		];
 
@@ -655,6 +702,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			case Follow::TYPE:
 				$type = 'follow';
 				break;
+			case Follow::TYPE_REQUEST:
+				$type = 'follow_request';
+				break;
 			default:
 				$type = '';
 		}
@@ -662,7 +712,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$result = [
 			'id' => (string)$this->getNid(),
 			'type' => $type,
-			'created_at' => date('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
 			'status' => $this->getObject(),
 		];
 

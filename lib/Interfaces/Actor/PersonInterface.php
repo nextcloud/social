@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Actor;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -42,6 +43,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	private CacheActorsRequest $cacheActorsRequest;
 	private CacheDocumentsRequest $cacheDocumentsRequest;
 	private FollowsRequest $followsRequest;
+	private ActorRelationRequest $actorRelationRequest;
 	private RequestQueueRequest $requestQueueRequest;
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
@@ -53,6 +55,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		CacheActorsRequest $cacheActorsRequest,
 		CacheDocumentsRequest $cacheDocumentsRequest,
 		FollowsRequest $followsRequest,
+		ActorRelationRequest $actorRelationRequest,
 		RequestQueueRequest $requestQueueRequest,
 		StreamRequest $streamRequest,
 		StreamDestRequest $streamDestRequest,
@@ -63,6 +66,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
 		$this->followsRequest = $followsRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
 		$this->requestQueueRequest = $requestQueueRequest;
 		$this->streamRequest = $streamRequest;
 		$this->streamDestRequest = $streamDestRequest;
@@ -130,6 +134,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->cacheDocumentsRequest->deleteByParent($item->getId());
 		$this->requestQueueRequest->deleteByAuthor($item->getId());
 		$this->followsRequest->deleteRelatedId($item->getId());
+		$this->actorRelationRequest->deleteRelatedId($item->getId());
 
 		$this->deleteStreamFromActor($item);
 	}

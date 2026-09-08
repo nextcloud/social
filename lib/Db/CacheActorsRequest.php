@@ -21,6 +21,8 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 
 class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public const CACHE_TTL = 60 * 24 * 10; // 10d
+	/** Remote actors synced per cron pass. */
+	public const SYNC_BATCH = 50;
 	public const DETAILS_TTL = 60 * 18; // 18h
 
 
@@ -225,6 +227,9 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$this->limitToLocal($qb, false);
 		if (!$force) {
 			$this->limitToCreation($qb, self::CACHE_TTL);
+			// One cron pass syncs a bounded batch; on a large instance the full set
+			// would be thousands of outbound requests in a single job.
+			$qb->setMaxResults(self::SYNC_BATCH);
 		}
 
 		return $this->getCacheActorsFromRequest($qb);
@@ -256,7 +261,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb = $this->getCacheActorsDeleteSql();
 		$qb->limitToIdPrim($qb->prim($id));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -268,7 +273,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->selectDistinct('shared_inbox')
 			->from(self::TABLE_CACHE_ACTORS);
 		$inbox = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$inbox[] = $data['shared_inbox'];
 		}

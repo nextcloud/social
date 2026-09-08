@@ -32,7 +32,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$qb->setValue('hashtag', $qb->createNamedParameter($hashtag))
 			->setValue('trend', $qb->createNamedParameter(json_encode($trend)));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -47,7 +47,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$qb->set('trend', $qb->createNamedParameter(json_encode($trend)));
 		$this->limitToHashtag($qb, $hashtag);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -58,7 +58,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$qb = $this->getHashtagsSelectSql();
 
 		$hashtags = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$hashtags[] = $this->parseHashtagsSelectSql($data);
 		}
@@ -79,7 +79,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 		$this->limitToHashtag($qb, $hashtag);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -103,7 +103,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$this->limitResults($qb, 25);
 
 		$hashtags = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$hashtags[] = $this->parseHashtagsSelectSql($data);
 		}

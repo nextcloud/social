@@ -15,7 +15,6 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Tools\Traits\TAsync;
-use OCP\AppFramework\QueryException;
 
 //use OCP\Push\Exceptions\PushInstallException;
 //use OCP\Push\IPushManager;

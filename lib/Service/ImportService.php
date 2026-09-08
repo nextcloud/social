@@ -9,10 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\ActivityPubFormatException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -74,11 +75,16 @@ class ImportService {
 		$interface = AP::$activityPub->getInterfaceForItem($activity);
 		try {
 			$interface->processIncomingRequest($activity);
-		} catch (Exception $e) {
+		} catch (InvalidResourceException|ItemNotFoundException|RedundancyLimitException $e) {
+			// The activity is understood but there is nothing to do with it (an
+			// unresolvable resource, a missing target, a too-deep object). Tolerated,
+			// like the ItemUnknownException the inbox already ignores.
 			$this->miscService->log(
-				'Cannot parse ' . $activity->getType() . ': ' . get_class($e) . ' '
-				. $e->getMessage()
+				'Ignoring ' . $activity->getType() . ': ' . get_class($e) . ' ' . $e->getMessage()
 			);
 		}
+		// Anything else — a database error, an unexpected failure while storing the
+		// activity — propagates, so the inbox answers 5xx and the sender retries
+		// rather than the activity being lost behind a 200.
 	}
 }

@@ -175,14 +175,15 @@ class MediaAttachment implements JsonSerializable {
 	 * @return array
 	 */
 	public function asDocument(): array {
-		$original = $this->getMeta()->getOriginal();
+		$original = $this->getMeta()?->getOriginal();
 
 		return
 			[
 				'type' => Document::TYPE,
 				'mediaType' => '',
 				'url' => $this->getUrl(),
-				'name' => null,
+				// the wire carries the alt text as `name`
+				'name' => ($this->getDescription() === '') ? null : $this->getDescription(),
 				'blurhash' => $this->getBlurHash(),
 				'width' => ($original === null) ? 0 : $original->getWidth() ?? 0,
 				'height' => ($original === null) ? 0 : $original->getHeight() ?? 0

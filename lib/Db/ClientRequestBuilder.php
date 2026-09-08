@@ -12,8 +12,14 @@ namespace OCA\Social\Db;
 use Exception;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Security\SecretHasher;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\RowNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IDBConnection;
+use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class ClientRequestBuilder
@@ -22,6 +28,21 @@ use OCA\Social\Tools\Traits\TArrayTools;
  */
 class ClientRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
+
+	protected SecretHasher $secretHasher;
+
+	public function __construct(
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		ConfigService $configService,
+		MiscService $miscService,
+		SecretHasher $secretHasher,
+	) {
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
+
+		$this->secretHasher = $secretHasher;
+	}
 
 
 	/**

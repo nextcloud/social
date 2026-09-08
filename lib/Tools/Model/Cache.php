@@ -146,7 +146,7 @@ class Cache implements JsonSerializable {
 			}
 		}
 
-		if (!$updated && !$create) {
+		if (!$updated && $create) {
 			$new[] = $cacheItem;
 		}
 

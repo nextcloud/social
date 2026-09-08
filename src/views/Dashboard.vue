@@ -5,13 +5,15 @@
 <template>
 	<NcDashboardWidget :items="items"
 		:show-more-url="showMoreUrl"
-		:show-more-text="title"
+		:show-more-label="title"
 		:loading="state === 'loading'">
 		<template #empty-content>
 			<NcEmptyContent v-if="emptyContentMessage"
-				:icon="emptyContentIcon">
-				<template #desc>
-					{{ emptyContentMessage }}
+				:name="emptyContentMessage">
+				<template #icon>
+					<div :class="emptyContentIcon" />
+				</template>
+				<template #description>
 					<div v-if="state === 'error'" class="connect-button">
 						<a class="button" :href="appUrl">
 							{{ t('social', 'Go to Social app') }}
@@ -27,8 +29,8 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
-import NcDashboardWidget from '@nextcloud/vue/dist/Components/NcDashboardWidget.js'
-import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { notificationSummary } from '../services/notifications.js'
 
 export default {
@@ -71,12 +73,6 @@ export default {
 					subText: this.getSubline(n),
 				}
 			})
-		},
-		/** @return {number} */
-		lastTimestamp() {
-			return this.notifications.length
-				? this.notifications[0].publishedTime
-				: 0
 		},
 		/** @return {string} */
 		emptyContentMessage() {
@@ -129,19 +125,17 @@ export default {
 		},
 		/** @param {import('../types/Mastodon.js').Notification[]} newNotifications */
 		processNotifications(newNotifications) {
-			if (this.lastTimestamp !== 0) {
-				// just add those which are more recent than our most recent one
-				let i = 0
-				while (i < newNotifications.length && this.lastTimestamp < newNotifications[i].publishedTime) {
-					i++
-				}
-				if (i > 0) {
-					const toAdd = this.filter(newNotifications.slice(0, i))
-					this.notifications = toAdd.concat(this.notifications)
-				}
-			} else {
-				// first time, we don't check the date
+			if (this.notifications.length === 0) {
+				// first time, we take everything the server sent
 				this.notifications = this.filter(newNotifications)
+				return
+			}
+			// the API returns notifications newest first; prepend only the ones
+			// we have not seen yet, identified by their id
+			const knownIds = new Set(this.notifications.map((n) => n.id))
+			const toAdd = this.filter(newNotifications.filter((n) => !knownIds.has(n.id)))
+			if (toAdd.length > 0) {
+				this.notifications = toAdd.concat(this.notifications)
 			}
 		},
 		/** @param {import('../types/Mastodon.js').Notification[]} notifications */
@@ -193,7 +187,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
-::v-deep .connect-button {
+:deep(.connect-button) {
 	margin-top: 10px;
 }
 </style>

@@ -11,6 +11,8 @@ namespace OCA\Social\Interfaces\Object;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -26,8 +28,10 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ActivityService;
@@ -47,21 +51,72 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
  */
 class FollowInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private FollowsRequest $followsRequest;
+	private ActorRelationRequest $actorRelationRequest;
+	private ActorsRequest $actorsRequest;
 	private CacheActorService $cacheActorService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
 	private MiscService $miscService;
 
 	public function __construct(
-		FollowsRequest $followsRequest, CacheActorService $cacheActorService,
+		FollowsRequest $followsRequest, ActorRelationRequest $actorRelationRequest,
+		ActorsRequest $actorsRequest,
+		CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
 		MiscService $miscService,
 	) {
 		$this->followsRequest = $followsRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
+		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
+	}
+
+	/**
+	 * Whether a follow towards this (local) actor needs manual approval. The
+	 * flag lives on the actor row, the source of truth for local accounts.
+	 */
+	private function isLockedLocalActor(Person $actor): bool {
+		if (!$actor->isLocal()) {
+			return false;
+		}
+
+		try {
+			return $this->actorsRequest->getFromUsername($actor->getPreferredUsername())->isLocked();
+		} catch (Exception $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Refuse a follow request: federate a Reject and make sure no follow row stays.
+	 */
+	public function rejectFollowRequest(Follow $follow): void {
+		try {
+			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
+
+			/** @var Reject $reject */
+			$reject = AP::$activityPub->getItemFromType(Reject::TYPE);
+			$reject->generateUniqueId('#reject/follows');
+			$reject->setActorId($follow->getObjectId());
+			$reject->setObject($follow);
+
+			$reject->addInstancePath(
+				new InstancePath(
+					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
+			);
+
+			$this->activityService->request($reject);
+			$this->followsRequest->deleteByPersons($follow);
+		} catch (Exception $e) {
+			$this->miscService->log(
+				'exception while rejectFollowRequest: ' . get_class($e) . ' - ' . $e->getMessage(),
+				2
+			);
+		}
 	}
 
 	public function confirmFollowRequest(Follow $follow): void {
@@ -97,7 +152,15 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 
 	/**
-	 * This method is called when saving the Follow object
+	 * Process an incoming Follow activity (remote user wants to follow a local user).
+	 *
+	 * Flow:
+	 *  1. Verify the Follow actor's origin matches the request origin.
+	 *  2. Check if we already have this follow in DB.
+	 *  3a. If new: save it, accept it, send Accept activity back.
+	 *  3b. If existing but not yet accepted: (re-)send Accept.
+	 *      IMPORTANT: The embedded Follow's id differs from our local db id
+	 *      (remote uses their own id), so match by actor+object pair.
 	 *
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
@@ -117,10 +180,30 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		$follow = $item;
 		$follow->checkOrigin($follow->getActorId());
 
+		// A follow from an actor the target has blocked is refused outright, so the
+		// block cannot be re-established as a follow relationship.
+		try {
+			$target = $this->cacheActorService->getFromId($follow->getObjectId());
+			if ($target->isLocal()
+				&& $this->actorRelationRequest->exists(
+					$target->getId(), $follow->getActorId(), ActorRelation::TYPE_BLOCK
+				)) {
+				$this->rejectFollowRequest($follow);
+
+				return;
+			}
+		} catch (Exception $e) {
+		}
+
 		try {
 			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
-			if ($knownFollow->getId() === $follow->getId() && !$knownFollow->isAccepted()) {
-				$this->confirmFollowRequest($follow);
+			if (!$knownFollow->isAccepted()) {
+				$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+				if (!$this->isLockedLocalActor($actor)) {
+					// a re-sent Follow of an unlocked account: (re-)send the Accept.
+					// For a locked account the pending row simply stays pending.
+					$this->confirmFollowRequest($follow);
+				}
 			}
 		} catch (FollowNotFoundException $e) {
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
@@ -128,14 +211,31 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			if ($actor->isLocal()) {
 				$follow->setFollowId($actor->getFollowers());
 				$this->followsRequest->save($follow);
-				$this->confirmFollowRequest($follow);
+				if ($this->isLockedLocalActor($actor)) {
+					// wait for the owner: no Accept, a follow_request notification instead
+					$this->generateNotification($follow, true);
+				} else {
+					$this->confirmFollowRequest($follow);
+				}
 			}
 		}
 	}
 
 	/**
-	 * @param ACore $activity
-	 * @param ACore $item
+	 * Handle activities wrapping a Follow (Accept, Reject, Undo).
+	 *
+	 * This is called when an Accept/Reject/Undo activity targeting a Follow arrives.
+	 *
+	 * For Accept(ourFollow): remote accepted our follow → mark accepted in DB.
+	 *   origin check: the Accept comes from the followed actor's server, and
+	 *   $item->getObjectId() is the followed actor → host must match origin.
+	 *
+	 * For Reject(ourFollow): remote rejected our follow → delete from DB.
+	 *
+	 * For Undo(theirFollow): remote unfollowed us → delete from DB.
+	 *
+	 * @param ACore $activity The wrapping activity (Accept/Reject/Undo)
+	 * @param ACore $item The Follow object inside the activity
 	 *
 	 * @throws InvalidOriginException
 	 */
@@ -161,7 +261,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	/**
 	 * @throws SocialAppConfigException|ItemAlreadyExistsException|ItemUnknownException
 	 */
-	private function generateNotification(Follow $follow): void {
+	private function generateNotification(Follow $follow, bool $pending = false): void {
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
@@ -178,9 +278,9 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		$notification->setDetailItem('actor', $follower);
 		$notification->setAttributedTo($follow->getActorId())
 			->setId($follow->getId() . '/notification')
-			->setSubType(Follow::TYPE)
+			->setSubType($pending ? Follow::TYPE_REQUEST : Follow::TYPE)
 			->setActorId($follower->getId())
-			->setSummary('{account} is following you')
+			->setSummary($pending ? '{account} wants to follow you' : '{account} is following you')
 			->setTo($follow->getObjectId())
 			->setLocal(true);
 

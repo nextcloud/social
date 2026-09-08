@@ -97,6 +97,7 @@ class WebfingerHandler implements IHandler {
 	 */
 	public function handleWebfinger(IRequestContext $context, ?IResponse $previousResponse): ?IResponse {
 		$subject = $this->getSubjectFromRequest($context->getHttpRequest());
+		$subjectAcct = $subject;
 		if (str_starts_with($subject, 'acct:')) {
 			$subject = substr($subject, 5);
 		}
@@ -106,7 +107,7 @@ class WebfingerHandler implements IHandler {
 				$previousResponse->addLink(
 					Application::APP_REL,
 					'application/json',
-					$this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'),
+					$this->configService->getSocialUrl(),
 					[],
 					[
 						'app' => Application::APP_ID,
@@ -139,21 +140,20 @@ class WebfingerHandler implements IHandler {
 		}
 
 		// ActivityPub profile
-		$href = $this->configService->getSocialUrl() . '@' . $actor->getPreferredUsername();
-		$href = rtrim($href, '/');
-		$response = new JrdResponse($subject);
+		$href = $this->urlGenerator->getAbsoluteURL(
+			$this->urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $actor->getPreferredUsername()])
+		);
+		$response = new JrdResponse($subjectAcct);
 		$response->addAlias($href);
 		$response->addLink('self', 'application/activity+json', $href);
 
 		// Nextcloud profile page
-		$profilePageUrl = $this->urlGenerator->linkToRouteAbsolute('core.ProfilePage.index', [
-			'targetUserId' => $actor->getPreferredUsername()
-		]);
+		$profilePageUrl = $this->configService->getCloudUrl() . '/u/' . $actor->getPreferredUsername();
 		$response->addAlias($profilePageUrl);
 		$response->addLink('http://webfinger.net/rel/profile-page', 'text/html', $profilePageUrl);
 
 		// Ostatus subscribe url
-		$subscribe = $this->urlGenerator->linkToRouteAbsolute('social.OStatus.subscribe') . '?uri={uri}';
+		$subscribe = $this->configService->getSocialUrl() . 'ostatus/follow/?uri={uri}';
 		$response->addLink(
 			'http://ostatus.org/schema/1.0/subscribe',
 			'',
@@ -180,7 +180,7 @@ class WebfingerHandler implements IHandler {
 		$response->addLink(
 			'http://nodeinfo.diaspora.software/ns/schema/2.0',
 			null,
-			$this->urlGenerator->linkToRouteAbsolute('social.OAuth.nodeinfo2')
+			$this->configService->getSocialUrl() . '.well-known/nodeinfo/2.0'
 		);
 
 		return $response;

@@ -1,0 +1,24 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.social/users/alice/statuses/113000000000000042",
+  "type": "Note",
+  "summary": null,
+  "published": "2026-09-05T09:00:00Z",
+  "attributedTo": "https://mastodon.social/users/alice",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://mastodon.social/users/alice/followers"],
+  "sensitive": false,
+  "content": "<p>media test</p>",
+  "attachment": [
+    {
+      "type": "Document",
+      "mediaType": "image/jpeg",
+      "url": "https://files.mastodon.social/media_attachments/original/cat.jpeg",
+      "name": "a cat sleeping on a laptop",
+      "blurhash": "UBL_:rOpGG",
+      "width": 1600,
+      "height": 1067
+    }
+  ],
+  "tag": []
+}

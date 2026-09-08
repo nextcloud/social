@@ -20,6 +20,8 @@ use OCA\Social\Tools\IQueryRow;
  */
 class Follow extends ACore implements JsonSerializable, IQueryRow {
 	public const TYPE = 'Follow';
+	/** notification subtype for a follow awaiting the owner's approval */
+	public const TYPE_REQUEST = 'FollowRequest';
 
 	private string $followId = '';
 	private string $followIdPrim = '';

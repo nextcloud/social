@@ -9,12 +9,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tools\Traits;
 
-use Exception;
 use JsonSerializable;
 use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
 use OCA\Social\Tools\Exceptions\ItemNotFoundException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\UnknownTypeException;
+use Throwable;
 
 /**
  * Trait TArrayTools
@@ -104,7 +104,7 @@ trait TArrayTools {
 			return $default;
 		}
 
-		return intval($arr[$k]);
+		return floatval($arr[$k]);
 	}
 
 	protected function getBool(string $k, array $arr, bool $default = false): bool {
@@ -115,7 +115,12 @@ trait TArrayTools {
 					return $default;
 				}
 
-				return $this->getBool($subs[1], $arr[$subs[0]], $default);
+				$r = $arr[$subs[0]];
+				if (!is_array($r)) {
+					return $default;
+				}
+
+				return $this->getBool($subs[1], $r, $default);
 			} else {
 				return $default;
 			}
@@ -235,7 +240,7 @@ trait TArrayTools {
 				$o->$method($item);
 
 				$r[] = $o;
-			} catch (Exception $e) {
+			} catch (Throwable $e) {
 			}
 		}
 

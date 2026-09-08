@@ -1,6 +1,6 @@
 <!--
-  - SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
-  - SPDX-License-Identifier: AGPL-3.0-or-later
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
 	<div class="social__timeline">
@@ -10,23 +10,15 @@
 				:item="entry"
 				:type="type" />
 		</transition-group>
-		<InfiniteLoading ref="infiniteLoading" :direction="reverseOrder ? 'top' : 'bottom'" @infinite="infiniteHandler">
-			<div slot="spinner">
-				<div class="icon-loading" />
-			</div>
-			<div slot="no-more">
-				<div class="list-end" />
-			</div>
-			<div slot="no-results">
-				<EmptyContent v-if="timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
-			</div>
-		</InfiniteLoading>
+		<div ref="sentinel" class="list-sentinel">
+			<div v-if="loading" class="icon-loading" />
+			<div v-else-if="!allLoaded" class="list-end" />
+			<EmptyContent v-if="allLoaded && timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
+		</div>
 	</div>
 </template>
 
 <script>
-import InfiniteLoading from 'vue-infinite-loading'
-
 import { showError } from '@nextcloud/dialogs'
 
 import TimelineEntry from './TimelineEntry.vue'
@@ -38,7 +30,6 @@ export default {
 	name: 'TimelineList',
 	components: {
 		TimelineEntry,
-		InfiniteLoading,
 		EmptyContent,
 	},
 	mixins: [CurrentUserMixin],
@@ -61,6 +52,9 @@ export default {
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
+			loading: false,
+			allLoaded: false,
+			observer: null,
 			emptyContent: {
 				default: {
 					image: 'img/undraw/posts.svg',
@@ -106,30 +100,33 @@ export default {
 		}
 	},
 	computed: {
+		searchQuery() {
+			return this.$store.getters.getSearchQuery
+		},
 		emptyContentData() {
+			if (this.searchQuery && this.timeline.length === 0) {
+				return {
+					title: t('social', 'No posts match your search'),
+					description: t('social', 'Try a different search term'),
+				}
+			}
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
 			}
 
 			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
 				const content = this.emptyContent[this.$route.name]
-				// Change text on profile page when accessed by another user or a public (non-authenticated) user
 				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
 					content.title = this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet')
 				}
 				return this.$route.name === 'timeline' ? this.emptyContent.default : content
 			}
 
-			// Fallback
-			logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
+			logger.debug('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
 			return this.emptyContent.default
 		},
 
-		/**
-		 * @return {import('../types/Mastodon').Status[]}
-		 */
 		timeline() {
-			/** @type {import('../types/Mastodon').Status[]} */
 			let timeline = []
 
 			if (this.showParents) {
@@ -146,46 +143,78 @@ export default {
 		},
 	},
 	mounted() {
+		this.infiniteHandler()
 		this.intervalId = setInterval(() => this.fetchNewStatuses(), 30 * 1000)
+		this.setupIntersectionObserver()
 	},
-	destroyed() {
+	unmounted() {
 		clearInterval(this.intervalId)
+		if (this.observer) {
+			this.observer.disconnect()
+		}
 	},
 	methods: {
-		async infiniteHandler($state) {
-			const params = {
-				account: this.currentUser.uid,
-			}
+		setupIntersectionObserver() {
+			this.observer = new IntersectionObserver((entries) => {
+				if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
+					this.infiniteHandler()
+				}
+			}, { rootMargin: '200px' })
+			this.$nextTick(() => {
+				if (this.$refs.sentinel) {
+					this.observer.observe(this.$refs.sentinel)
+				}
+			})
+		},
+		async infiniteHandler() {
+			if (this.loading) return
+			this.loading = true
+
+			const params = {}
 
 			if (this.timeline.length !== 0) {
-				if (this.reverseOrder) {
-					params.min_id = Number.parseInt(this.timeline[0].id)
-				} else {
-					params.max_id = Number.parseInt(this.timeline[this.timeline.length - 1].id)
+				// The timeline getter sorts by created_at while min_id/max_id
+				// filter on the numeric id, and a federated post can have a
+				// high id with an old date — so page on the ids themselves,
+				// or the cursor never advances and the same page loops forever.
+				const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+				if (ids.length !== 0) {
+					if (this.reverseOrder) {
+						params.min_id = Math.max(...ids)
+					} else {
+						params.max_id = Math.min(...ids)
+					}
 				}
 			}
 
 			try {
-				/** @type {import('../types/Mastodon').Context} */
 				const response = await this.$store.dispatch('fetchTimeline', params)
-
-				response.length > 0 ? $state.loaded() : $state.complete()
+				if (response.length > 0) {
+					this.loading = false
+				} else {
+					this.allLoaded = true
+					this.loading = false
+				}
 			} catch (error) {
 				showError('Failed to load more timeline entries')
 				logger.error('Failed to load more timeline entries', { error })
-				$state.complete()
+				this.allLoaded = true
+				this.loading = false
 			}
 		},
 		async fetchNewStatuses() {
-			// No need to load new parents as they will not change.
 			if (this.showParents) {
 				return
 			}
 
+			// Newest by id, not this.timeline[0] (sorted by created_at): a
+			// federated post with a high id but an old date would otherwise
+			// keep min_id stuck and this method would refetch forever.
+			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+
 			try {
 				const response = await this.$store.dispatch('fetchTimeline', {
-					account: this.currentUser.uid,
-					min_id: this.timeline[0]?.id,
+					min_id: ids.length === 0 ? undefined : Math.max(...ids),
 				})
 
 				if (response.length > 0) {
@@ -200,18 +229,37 @@ export default {
 }
 </script>
 
-<style scoped>
-.list-enter-active, .list-leave-active {
-	transition: all .5s;
-}
+<style scoped lang="scss">
+.social__timeline {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: 0 calc(var(--default-grid-baseline) * 2);
 
-.list-enter {
-	opacity: 0;
-	transform: translateY(-30px);
-}
+	ul {
+		margin: 0;
+		padding: 0;
+	}
 
-.list-leave-to {
-	opacity: 0;
-	transform: translateX(-100px);
+	.list-enter-active,
+	.list-leave-active {
+		transition: opacity .15s ease;
+	}
+
+	.list-enter, .list-leave-to {
+		opacity: 0;
+	}
+
+	.icon-loading {
+		height: 44px;
+		margin: 20px auto;
+	}
+
+	.list-end {
+		height: 1px;
+	}
+
+	.list-sentinel {
+		min-height: 1px;
+	}
 }
 </style>

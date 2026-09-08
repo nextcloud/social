@@ -201,13 +201,34 @@ class DocumentService {
 	 * @return ISimpleFile
 	 * @throws NotFoundException
 	 */
-	public function getFromUuid(string $uuid): ISimpleFile {
-		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $uuid)
+	/**
+	 * The copy behind `/media/{uuid}`, with the visibility its database row records.
+	 *
+	 * Serving by filename alone would hand out every cached copy — attachments of
+	 * direct and followers-only posts included — to anyone holding a uuid, so the
+	 * row is authoritative: no row, no file; a non-public row only for a viewer the
+	 * caller has authenticated.
+	 *
+	 * @return array{0: ISimpleFile, 1: Document}
+	 * @throws NotFoundException
+	 */
+	public function getFromUuid(string $uuid, bool $publicOnly = true): array {
+		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $uuid)
 			!== 1) {
 			throw new NotFoundException('invalid document');
 		}
 
-		return $this->cacheService->getFromUuid($uuid);
+		try {
+			$document = $this->cacheDocumentsRequest->getByLocalCopy($uuid);
+		} catch (CacheDocumentDoesNotExistException $e) {
+			throw new NotFoundException('unknown document');
+		}
+
+		if ($publicOnly && !$document->isPublic()) {
+			throw new NotFoundException('unknown document');
+		}
+
+		return [$this->cacheService->getFromUuid($uuid), $document];
 	}
 
 	/**
@@ -218,6 +239,13 @@ class DocumentService {
 	 */
 	public function getMediaFromArray(array $getMediaIds, string $account = ''): array {
 		return $this->cacheDocumentsRequest->getFromArray($getMediaIds, $account);
+	}
+
+	/**
+	 * Stores a changed alt text.
+	 */
+	public function updateDescription(Document $document): void {
+		$this->cacheDocumentsRequest->updateDescription($document);
 	}
 
 
@@ -231,7 +259,7 @@ class DocumentService {
 
 		$count = 0;
 		foreach ($update as $item) {
-			if ($item->getLocalCopy() === 'avatar') {
+			if ($item->getLocalCopy() === 'avatar' || $item->getLocalCopy() === 'header') {
 				continue;
 			}
 
@@ -286,5 +314,45 @@ class DocumentService {
 		}
 
 		return $icon->getId();
+	}
+
+
+	/**
+	 * Cache a banner/header image for a local actor.
+	 *
+	 * @param Person $actor
+	 * @param string $tmpPath
+	 * @param string $mimeType
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
+	 * @throws ItemAlreadyExistsException
+	 * @throws CacheContentMimeTypeException
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function cacheLocalHeaderByUsername(Person $actor, string $tmpPath, string $mimeType = 'image/jpeg'): string {
+		/** @var Image $image */
+		$image = AP::$activityPub->getItemFromType(Image::TYPE);
+		$image->generateUniqueId('/documents/header');
+		$image->setUrl($this->urlGenerator->linkToRouteAbsolute(
+			'social.Local.globalActorHeader', ['id' => $actor->getId()]
+		));
+		$image->setMediaType($mimeType);
+		$image->setMimeType($mimeType);
+		$image->setPublic(true);
+
+		$this->cacheService->saveFromTempToCache($image, $tmpPath);
+
+		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
+
+		$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+		$interface->save($image);
+
+		$actor->setHeader($image->getUrl());
+
+		return $image->getId();
 	}
 }

@@ -15,6 +15,7 @@ export default {
 	computed: {
 		/** @return {string} the complete account name */
 		profileAccount() {
+			if (!this.uid) return ''
 			return (this.uid.indexOf('@') === -1) ? this.uid + '@' + this.hostname : this.uid
 		},
 
@@ -35,11 +36,15 @@ export default {
 
 		/** @return {boolean} */
 		isLocal() {
-			return !this.accountInfo.acct.includes('@')
+			return this.accountInfo && !this.accountInfo.acct.includes('@')
 		},
 		/** @return {import('../types/Mastodon.js').Relationship} */
 		relationship() {
-			return this.$store.getters.getRelationshipWith(this.accountInfo.id)
+			const rel = this.accountInfo && this.$store.getters.getRelationshipWith(this.accountInfo.id)
+			if (rel) {
+				console.debug('[accountMixins] relationship computed', { id: this.accountInfo?.id, following: rel.following, requested: rel.requested })
+			}
+			return rel
 		},
 	},
 }

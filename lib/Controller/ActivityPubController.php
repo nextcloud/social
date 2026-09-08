@@ -18,6 +18,7 @@ use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -34,6 +35,8 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IInitialStateService;
 use OCP\IRequest;
 use Psr\Log\LoggerInterface;
 
@@ -52,6 +55,7 @@ class ActivityPubController extends Controller {
 	private FollowService $followService;
 	private StreamService $streamService;
 	private ConfigService $configService;
+	private IInitialStateService $initialStateService;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -66,6 +70,7 @@ class ActivityPubController extends Controller {
 		FollowService $followService,
 		StreamService $streamService,
 		ConfigService $configService,
+		IInitialStateService $initialStateService,
 		LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -80,7 +85,19 @@ class ActivityPubController extends Controller {
 		$this->followService = $followService;
 		$this->streamService = $streamService;
 		$this->configService = $configService;
+		$this->initialStateService = $initialStateService;
 		$this->logger = $logger;
+
+		$this->registerResponder('activity+json', function ($response) {
+			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
+			$resp->addHeader('Content-Type', 'application/activity+json; charset=utf-8');
+			return $resp;
+		});
+		$this->registerResponder('ld+json; profile="https://www.w3.org/ns/activitystreams"', function ($response) {
+			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
+			$resp->addHeader('Content-Type', 'ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8');
+			return $resp;
+		});
 	}
 
 
@@ -110,10 +127,9 @@ class ActivityPubController extends Controller {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 			$actor->setDisplayW3ContextSecurity(true);
 
-			return $this->directSuccess($actor);
+			return $this->activityPubSuccess($actor);
 		} catch (Exception $e) {
-			http_response_code(404);
-			exit();
+			return $this->fail($e, [], 404);
 		}
 	}
 
@@ -139,7 +155,18 @@ class ActivityPubController extends Controller {
 
 
 	/**
-	 * Shared inbox. does nothing.
+	 * Shared inbox — receives incoming ActivityPub activities from remote servers.
+	 *
+	 * This is the primary entry point for federation (sharedInbox receives for all
+	 * local actors). Flow:
+	 *  1. Read raw JSON body
+	 *  2. Verify HTTP Signature: ensures the request came from the claimed origin
+	 *  3. Check Fediverse authorization (blocklist/allowlist)
+	 *  4. Parse JSON into an ActivityPub model object
+	 *  5. Verify LinkedDataSignature (if present), else trust HTTP signature origin
+	 *  6. Process the incoming activity (varies by type: Follow→auto-accept,
+	 *     Create→cache post, Accept→mark follow as accepted)
+	 *  7. Send HTTP 200, then async-process the stream cache queue
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -149,7 +176,6 @@ class ActivityPubController extends Controller {
 	public function sharedInbox(): Response {
 		try {
 			$body = file_get_contents('php://input');
-			$this->logger->debug('[<<] sharedInbox: ' . $body);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
@@ -168,8 +194,7 @@ class ActivityPubController extends Controller {
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
 
-			// or it will feed the logs.
-			exit();
+			return $this->success();
 		} catch (SignatureIsGoneException $e) {
 			return $this->success();
 		} catch (Exception $e) {
@@ -179,8 +204,9 @@ class ActivityPubController extends Controller {
 
 
 	/**
-	 * Method is called when a remote ActivityPub server wants to POST in the INBOX of a USER
-	 * Checking that the user exists, and that the header is properly signed.
+	 * User-specific inbox — receives incoming ActivityPub activities for a specific user.
+	 *
+	 * Same logic as sharedInbox but also verifies the local actor exists.
 	 *
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -192,7 +218,6 @@ class ActivityPubController extends Controller {
 	public function inbox(string $username): Response {
 		try {
 			$body = file_get_contents('php://input');
-			$this->logger->debug('[<<] inbox', ['body' => $body]);
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
@@ -213,8 +238,7 @@ class ActivityPubController extends Controller {
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
 
-			// or it will feed the logs.
-			exit();
+			return $this->success();
 		} catch (SignatureIsGoneException $e) {
 			return $this->success();
 		} catch (Exception $e) {
@@ -236,10 +260,13 @@ class ActivityPubController extends Controller {
 	 */
 	public function getInbox(string $username): Response {
 		try {
-			$body = file_get_contents('php://input');
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
-			return $this->success();
+			$collection = new OrderedCollection();
+			$collection->setId($actor->getInbox());
+			$collection->setTotalItems(0);
+
+			return $this->activityPubSuccess($collection);
 		} catch (Exception $e) {
 			return new DataResponse([], Http::STATUS_NOT_FOUND);
 		}
@@ -264,7 +291,7 @@ class ActivityPubController extends Controller {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
-			return $this->directSuccess($this->streamService->getOutboxCollection($actor));
+			return $this->activityPubSuccess($this->streamService->getOutboxCollection($actor));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -291,7 +318,7 @@ class ActivityPubController extends Controller {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
-			return $this->directSuccess($this->followService->getFollowersCollection($actor));
+			return $this->activityPubSuccess($this->followService->getFollowersCollection($actor));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -318,7 +345,7 @@ class ActivityPubController extends Controller {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
-			return $this->directSuccess($this->followService->getFollowingCollection($actor));
+			return $this->activityPubSuccess($this->followService->getFollowingCollection($actor));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -345,26 +372,45 @@ class ActivityPubController extends Controller {
 		} catch (RealTokenException $e) {
 		}
 
-		if (!$this->checkSourceActivityStreams()) {
-			return $this->socialPubController->displayPost($username, (int)$token);
-		}
+		if ($this->checkSourceActivityStreams()) {
+			try {
+				$viewer = $this->accountService->getCurrentViewer();
+				$this->streamService->setViewer($viewer);
+			} catch (AccountDoesNotExistException $e) {
+			}
 
-		try {
-			$viewer = $this->accountService->getCurrentViewer();
-			$this->streamService->setViewer($viewer);
-		} catch (AccountDoesNotExistException $e) {
+			$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
+			try {
+				$stream = $this->streamService->getStreamById($postId, true);
+			} catch (StreamNotFoundException $e) {
+				return $this->fail($e, ['stream' => $postId], Http::STATUS_NOT_FOUND);
+			}
+
+			$stream->setCompleteDetails(false);
+
+			return $this->activityPubSuccess($stream);
 		}
 
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 		try {
-			$stream = $this->streamService->getStreamById($postId, true);
+			$post = $this->streamService->getStreamById($postId, true);
 		} catch (StreamNotFoundException $e) {
-			return $this->fail($e, ['stream' => $postId], Http::STATUS_NOT_FOUND);
+			$post = null;
 		}
 
-		$stream->setCompleteDetails(false);
+		$serverData = [
+			'public' => true,
+			'firstrun' => false,
+			'setup' => false,
+		];
 
-		return $this->directSuccess($stream);
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+
+		if ($post !== null) {
+			$this->initialStateService->provideInitialState(Application::APP_ID, 'item', $post);
+		}
+
+		return new TemplateResponse(Application::APP_ID, 'main', []);
 	}
 
 

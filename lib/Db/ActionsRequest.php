@@ -97,7 +97,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb->limitToObjectIdPrim($qb->prim($objectId));
 		$qb->limitToType($type);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -127,7 +127,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$this->limitToIdString($qb, $item->getId());
 		$this->limitToType($qb, $item->getType());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 

@@ -123,18 +123,17 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$qb->linkToCacheActors($alias, 's.attributed_to_prim');
 
 		$expr = $qb->expr();
-		$orX = $expr->orX();
 
-		$follow = $expr->andX();
-		$follow->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow')));
-		// might be overkill to check object_id and also seems to filter boosted message
-		//		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
-		$orX->add($follow);
+		$follow = $expr->andX(
+			$expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow'))
+		);
 
-		$loopback = $expr->andX();
-		$loopback->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Loopback')));
-		$loopback->add($expr->eq($alias . '.id_prim', $qb->getDefaultSelectAlias() . '.attributed_to_prim'));
-		$orX->add($loopback);
+		$loopback = $expr->andX(
+			$expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Loopback')),
+			$expr->eq($alias . '.id_prim', $qb->getDefaultSelectAlias() . '.attributed_to_prim')
+		);
+
+		$orX = $expr->orX($follow, $loopback);
 
 		$qb->andWhere($orX);
 	}
@@ -196,7 +195,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data, 'cacheactor_', $qb->getFormat());
+			$actor = $qb->parseLeftJoinCacheActors($data, 'ca_', $qb->getFormat());
 			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);
@@ -204,7 +203,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$object = $qb->parseLeftJoinStream($data, 'objectstream_', ACore::FORMAT_LOCAL);
+			$object = $qb->parseLeftJoinStream($data, 'os_', ACore::FORMAT_LOCAL);
 			$item->setObject($object);
 		} catch (InvalidResourceException $e) {
 		}

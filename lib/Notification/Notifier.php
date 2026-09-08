@@ -97,6 +97,21 @@ class Notifier implements INotifier {
 				);
 				break;
 
+			case 'report_new':
+				$account = (string)($params['account'] ?? '');
+				$notification->setParsedSubject(
+					($params['local'] ?? true) === true
+						? $l10n->t('New report about %s', [$account])
+						: $l10n->t('New report about %s from another instance', [$account])
+				);
+				$notification->setParsedMessage(
+					$l10n->t('Review it in the Social section of the administration settings.')
+				);
+				$notification->setLink(
+					$this->url->linkToRouteAbsolute('settings.AdminSettings.index', ['section' => 'social'])
+				);
+				break;
+
 			default:
 				throw new InvalidArgumentException();
 		}

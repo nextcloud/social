@@ -12,7 +12,6 @@ namespace OCA\Social\Listeners;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\Profile\BeforeTemplateRenderedEvent;
-use OCP\Util;
 
 /**
  * @template-implements IEventListener<\OCP\EventDispatcher\Event>
@@ -22,6 +21,6 @@ class ProfileSectionListener implements IEventListener {
 		if (!($event instanceof BeforeTemplateRenderedEvent)) {
 			return;
 		}
-		Util::addScript('social', 'social-profilePage');
+		\OCP\Util::addScript('social', 'social-profilePage');
 	}
 }

@@ -625,7 +625,7 @@ class Request implements JsonSerializable {
 	 * @return string
 	 */
 	public function getDataBody(): string {
-		return json_encode($this->getData());
+		return json_encode($this->getData(), JSON_UNESCAPED_SLASHES);
 	}
 
 	/**

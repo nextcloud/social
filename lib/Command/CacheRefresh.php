@@ -41,15 +41,25 @@ class CacheRefresh extends Base {
 		parent::configure();
 		$this->setName('social:cache:refresh')
 			->setDescription('Update the cache')
-			->addOption('force', 'f', InputOption::VALUE_NONE, 'enforce update of cached account');
+			->addOption('force', 'f', InputOption::VALUE_NONE, 'enforce update of cached account')
+			->addOption(
+				'rotate-keys', '', InputOption::VALUE_NONE,
+				'renew the key pair of actors older than ' . AccountService::KEY_PAIR_LIFESPAN
+				. ' days (blind rotation: remote servers pick the new key up on their next fetch)'
+			);
 	}
 
 	/**
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		//		$result = $this->accountService->blindKeyRotation();
-		//		$output->writeLn($result . ' key pairs refreshed');
+		// Deliberately opt-in and not part of the cron: rotation invalidates the
+		// key remote servers have cached, and they only recover by re-fetching
+		// the actor (most do so on the next failed signature check).
+		if ($input->getOption('rotate-keys')) {
+			$result = $this->accountService->blindKeyRotation();
+			$output->writeLn($result . ' key pairs refreshed');
+		}
 
 		$result = $this->accountService->manageDeletedActors();
 		$output->writeLn($result . ' local accounts deleted');

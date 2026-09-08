@@ -29,18 +29,22 @@ trait TNCDataResponse {
 		Exception $e, array $more = [], int $status = Http::STATUS_INTERNAL_SERVER_ERROR,
 		bool $log = true,
 	): DataResponse {
+		if ($log) {
+			// the details go to the log; several callers are @PublicPage, and the
+			// exception class and message describe the server's internals
+			\OCP\Server::get(LoggerInterface::class)->warning(
+				$status . ' - ' . get_class($e) . ' ' . $e->getMessage(),
+				['exception' => $e, 'more' => $more]
+			);
+		}
+
 		$data = array_merge(
 			$more,
 			[
 				'status' => -1,
-				'exception' => get_class($e),
-				'message' => $e->getMessage()
+				'error' => 'request failed',
 			]
 		);
-
-		if ($log) {
-			\OCP\Server::get(LoggerInterface::class)->warning($status . ' - ' . json_encode($data));
-		}
 
 		return new DataResponse($data, $status);
 	}
@@ -65,5 +69,17 @@ trait TNCDataResponse {
 	}
 	protected function directSuccess(JsonSerializable $result): DataResponse {
 		return new DataResponse($result, Http::STATUS_OK);
+	}
+
+	/**
+	 * Return JSON-LD response with ActivityPub content type.
+	 */
+	protected function activityPubSuccess(JsonSerializable $result): DataResponse {
+		$response = new DataResponse($result, Http::STATUS_OK);
+		$response->addHeader(
+			'Content-Type',
+			'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+		);
+		return $response;
 	}
 }
