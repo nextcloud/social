@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
@@ -51,6 +52,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 	private $pushService;
 	private StreamQueueService|MockObject $streamQueueService;
 	private LinkPreviewService|MockObject $linkPreviewService;
+	private ForwardService|MockObject $forwardService;
 	private NoteInterface $handler;
 
 	private Person $alice;
@@ -67,13 +69,15 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->pollService = $this->createMock(PollService::class);
 		$this->streamQueueService = $this->createMock(StreamQueueService::class);
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
+		$this->forwardService = $this->createMock(ForwardService::class);
 		$this->handler = new NoteInterface(
 			$this->streamRequest,
 			$this->cacheActorsRequest,
 			$this->pollService,
 			$this->pushService,
 			$this->streamQueueService,
-			$this->linkPreviewService
+			$this->linkPreviewService,
+			$this->forwardService
 		);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
@@ -216,6 +220,29 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 
 		$this->streamRequest->expects($this->never())->method('save');
 		$this->pushService->expects($this->never())->method('onNewStream');
+
+		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+	}
+
+	public function testCreateOfANewNoteIsOfferedForForwarding(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+		$create = $this->wrap(Create::TYPE, $note);
+
+		// the service decides whether it qualifies; the handler only offers it
+		$this->forwardService->expects($this->once())
+			->method('forwardReply')
+			->with($this->identicalTo($create), $this->identicalTo($note));
+
+		$this->handler->activity($create, $note);
+	}
+
+	public function testANoteWeAlreadyHadIsNotForwardedAgain(): void {
+		$note = $this->incomingNote();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
+
+		// a sender retrying must not fan the same reply out to everyone twice
+		$this->forwardService->expects($this->never())->method('forwardReply');
 
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}

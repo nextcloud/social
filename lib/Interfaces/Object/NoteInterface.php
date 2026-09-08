@@ -29,6 +29,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PushService;
@@ -50,6 +51,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		PushService $pushService,
 		private StreamQueueService $streamQueueService,
 		private LinkPreviewService $linkPreviewService,
+		private ForwardService $forwardService,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -77,7 +79,15 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getAttributedTo());
 			$item->setActivityId($activity->getId());
+
+			// asked before the save, because afterwards every delivery of this
+			// activity looks alike and a re-delivery would be forwarded again
+			$known = $this->isKnown($item->getId());
 			$this->save($item);
+
+			if (!$known) {
+				$this->forwardService->forwardReply($activity, $item);
+			}
 		}
 
 		if ($activity->getType() === Delete::TYPE) {
@@ -90,6 +100,16 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$activity->checkOrigin($item->getAttributedTo());
 			$item->setActivityId($activity->getId());
 			$this->streamRequest->update($item);
+		}
+	}
+
+	private function isKnown(string $id): bool {
+		try {
+			$this->streamRequest->getStreamById($id);
+
+			return true;
+		} catch (StreamNotFoundException $e) {
+			return false;
 		}
 	}
 
