@@ -2,44 +2,22 @@
 
 declare(strict_types=1);
 
-
 /**
- * Some tools for myself.
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Tools\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\IExtendedQueryBuilder;
-use OCA\Social\Tools\IQueryRow;
 use DateInterval;
 use DateTime;
 use Doctrine\DBAL\Query\QueryBuilder as DBALQueryBuilder;
 use Exception;
 use OC\DB\QueryBuilder\QueryBuilder;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\IExtendedQueryBuilder;
+use OCA\Social\Tools\IQueryRow;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -49,9 +27,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Tools\Db
  */
 class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder {
-	/** @var string */
-	private $defaultSelectAlias = '';
-
+	public string $defaultSelectAlias = '';
 
 	/**
 	 * @param string $alias
@@ -168,14 +144,14 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param bool $cs - case sensitive
 	 * @param string $alias
 	 */
-	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = ''
+	public function filterDBField(string $field, string $value, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
 		$this->andWhere($expr);
 	}
 
 	public function exprLimitToDBField(
-		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = ''
+		string $field, string $value, bool $eq = true, bool $cs = true, string $alias = '',
 	): string {
 		$expr = $this->expr();
 
@@ -209,7 +185,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param string $alias
 	 */
 	public function limitToDBFieldArray(
-		string $field, array $values, bool $cs = true, string $alias = ''
+		string $field, array $values, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBFieldArray($field, $values, true, $cs, $alias);
 		$this->andWhere($expr);
@@ -223,7 +199,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @param string $alias
 	 */
 	public function filterDBFieldArray(
-		string $field, string $value, bool $cs = true, string $alias = ''
+		string $field, string $value, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBField($field, $value, false, $cs, $alias);
 		$this->andWhere($expr);
@@ -240,7 +216,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return ICompositeExpression
 	 */
 	public function exprLimitToDBFieldArray(
-		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = ''
+		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = '',
 	): ICompositeExpression {
 		$expr = $this->expr();
 
@@ -251,24 +227,23 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$field = $pf . $field;
 
 		$func = $this->func();
-		if ($eq === false) {
-			$comp = 'neq';
-			$junc = $expr->andX();
-		} else {
-			$comp = 'eq';
-			$junc = $expr->orX();
-		}
+		$conditions = [];
 
 		foreach ($values as $value) {
+			$comp = $eq ? 'eq' : 'neq';
 			if ($cs) {
-				$junc->add($expr->$comp($field, $this->createNamedParameter($value)));
+				$conditions[] = $expr->$comp($field, $this->createNamedParameter($value));
 			} else {
-				$junc->add(
-					$expr->$comp(
-						$func->lower($field), $func->lower($this->createNamedParameter($value))
-					)
+				$conditions[] = $expr->$comp(
+					$func->lower($field), $func->lower($this->createNamedParameter($value))
 				);
 			}
+		}
+
+		if ($eq === false) {
+			$junc = $expr->andX(...$conditions);
+		} else {
+			$junc = $expr->orX(...$conditions);
 		}
 
 		return $junc;
@@ -296,7 +271,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$this->andWhere($expr);
 	}
 
-	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = '', bool $eq = true
+	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = '', bool $eq = true,
 	): string {
 		$expr = $this->expr();
 
@@ -355,16 +330,15 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 															  . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add(
+		$conditions = [
 			$expr->lte($field, $this->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
-		);
+		];
 
 		if ($orNull === true) {
-			$orX->add($expr->isNull($field));
+			$conditions[] = $expr->isNull($field);
 		}
 
-		$this->andWhere($orX);
+		$this->andWhere($expr->orX(...$conditions));
 	}
 
 
@@ -386,12 +360,11 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$pf = ($this->getType() === DBALQueryBuilder::SELECT) ? $this->getDefaultSelectAlias() . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add(
-			$expr->gte($field, $this->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+		$this->andWhere(
+			$expr->orX(
+				$expr->gte($field, $this->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+			)
 		);
-
-		$this->andWhere($orX);
 	}
 
 
@@ -419,7 +392,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return string
 	 */
 	public function exprFieldWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = ''
+		IQueryBuilder $qb, string $field, string $fieldRight, string $alias = '',
 	) {
 		$func = $qb->func();
 		$expr = $qb->expr();
@@ -447,7 +420,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @return string
 	 */
 	public function exprValueWithinJsonFormat(
-		IQueryBuilder $qb, string $field, string $value, bool $eq = true, bool $cs = true
+		IQueryBuilder $qb, string $field, string $value, bool $eq = true, bool $cs = true,
 	): string {
 		$dbConn = $this->getConnection();
 		$expr = $qb->expr();
@@ -467,27 +440,27 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		return $expr->$comp($field, $qb->createNamedParameter('%"' . $value . '"%'));
 	}
 
-//
-//	/**
-//	 * @param IQueryBuilder $qb
-//	 * @param string $field
-//	 * @param string $value
-//	 *
-//	 * @return string
-//	 */
-//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
-//		$dbConn = $this->getConnection();
-//		$expr = $qb->expr();
-//		$func = $qb->func();
-//
-//
-//		return $expr->notLike(
-//			$func->lower($field),
-//			$qb->createNamedParameter(
-//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
-//			)
-//		);
-//	}
+	//
+	//	/**
+	//	 * @param IQueryBuilder $qb
+	//	 * @param string $field
+	//	 * @param string $value
+	//	 *
+	//	 * @return string
+	//	 */
+	//	public function exprValueNotWithinJsonFormat(IQueryBuilder $qb, string $field, string $value): string {
+	//		$dbConn = $this->getConnection();
+	//		$expr = $qb->expr();
+	//		$func = $qb->func();
+	//
+	//
+	//		return $expr->notLike(
+	//			$func->lower($field),
+	//			$qb->createNamedParameter(
+	//				'%"' . $func->lower($dbConn->escapeLikeParameter($value)) . '"%'
+	//			)
+	//		);
+	//	}
 
 
 	/**
@@ -497,7 +470,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 * @throws RowNotFoundException
 	 */
 	public function getRow(callable $method): IQueryRow {
-		$cursor = $this->execute();
+		$cursor = $this->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -515,7 +488,7 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 	 */
 	public function getRows(callable $method): array {
 		$rows = [];
-		$cursor = $this->execute();
+		$cursor = $this->executeQuery();
 		while ($data = $cursor->fetch()) {
 			try {
 				$rows[] = $method($data, $this);
@@ -525,5 +498,32 @@ class ExtendedQueryBuilder extends QueryBuilder implements IExtendedQueryBuilder
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * @param string $field
+	 * @param array $value
+	 * @param string $alias
+	 */
+	public function limitInArray(string $field, array $value, string $alias = ''): void {
+		$this->andWhere($this->exprLimitInArray($field, $value, $alias));
+	}
+
+
+	/**
+	 * @param string $field
+	 * @param array $values
+	 * @param string $alias
+	 *
+	 * @return string
+	 */
+	public function exprLimitInArray(string $field, array $values, string $alias = ''): string {
+		if ($this->getType() === DBALQueryBuilder::SELECT) {
+			$field = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.' . $field;
+		}
+
+		$expr = $this->expr();
+
+		return $expr->in($field, $this->createNamedParameter($values, IQueryBuilder::PARAM_STR_ARRAY));
 	}
 }

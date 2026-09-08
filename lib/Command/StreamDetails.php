@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Command;
 
@@ -64,7 +42,7 @@ class StreamDetails extends ExtendedBase {
 	 * @param MiscService $miscService
 	 */
 	public function __construct(
-		StreamService $streamService, DetailsService $detailsService, MiscService $miscService
+		StreamService $streamService, DetailsService $detailsService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -80,9 +58,9 @@ class StreamDetails extends ExtendedBase {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:details')
-			 ->addArgument('streamId', InputArgument::REQUIRED, 'Id of the Stream item')
-			 ->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
-			 ->setDescription('Get details about a Stream item');
+			->addArgument('streamId', InputArgument::REQUIRED, 'Id of the Stream item')
+			->addOption('json', '', InputOption::VALUE_NONE, 'return JSON format')
+			->setDescription('Get details about a Stream item');
 	}
 
 

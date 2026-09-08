@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Model\ActivityPub\Actor;
 
@@ -43,6 +21,8 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Traits\TDetails;
+use OCP\IURLGenerator;
+use OCP\Server;
 
 /**
  * Class Actor
@@ -86,7 +66,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private bool $sensitive = false;
 	private string $language = 'en';
 	private int $avatarVersion = -1;
+	private int $headerVersion = -1;
 	private string $viewerLink = '';
+
+	/** @var string[] */
+	private array $alsoKnownAs = [];
 
 	/**
 	 * Person constructor.
@@ -186,7 +170,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function getAvatar(): string {
 		if ($this->hasIcon()) {
 			return $this->getIcon()
-						->getId();
+				->getUrl();
 		}
 
 		return $this->avatar;
@@ -420,6 +404,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return string
 	 */
 	public function getName(): string {
+		if ($this->name === '') {
+			return $this->preferredUsername;
+		}
+
 		return $this->name;
 	}
 
@@ -588,6 +576,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 
 	/**
+	 * @return int
+	 */
+	public function getHeaderVersion(): int {
+		return $this->headerVersion;
+	}
+
+	/**
+	 * @param int $headerVersion
+	 *
+	 * @return Person
+	 */
+	public function setHeaderVersion(int $headerVersion): self {
+		$this->headerVersion = $headerVersion;
+
+		return $this;
+	}
+
+
+	/**
 	 * @return string
 	 */
 	public function getViewerLink(): string {
@@ -606,6 +613,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The actor ids this actor also answers to — a `Move` is only valid when
+	 * its target lists the moving actor here.
+	 *
+	 * @return string[]
+	 */
+	public function getAlsoKnownAs(): array {
+		return $this->alsoKnownAs;
+	}
+
+	/**
+	 * @param string[] $alsoKnownAs
+	 */
+	public function setAlsoKnownAs(array $alsoKnownAs): self {
+		$this->alsoKnownAs = array_values(array_filter($alsoKnownAs, 'is_string'));
+
+		return $this;
+	}
+
+	/**
 	 * @param array $data
 	 *
 	 * @throws ItemUnknownException
@@ -615,16 +641,19 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
-		$this->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
-			 ->setPublicKey($this->get('publicKey.publicKeyPem', $data))
-			 ->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
-			 ->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
-			 ->setAccount($this->validate(ACore::AS_ACCOUNT, 'account', $data, ''))
-			 ->setInbox($this->validate(ACore::AS_URL, 'inbox', $data, ''))
-			 ->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
-			 ->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
-			 ->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
-			 ->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''));
+		$this->setDescription($this->validate(ACore::AS_CONTENT, 'summary', $data, ''))
+			->setPreferredUsername($this->validate(ACore::AS_USERNAME, 'preferredUsername', $data, ''))
+			->setPublicKey($this->get('publicKey.publicKeyPem', $data))
+			->setSharedInbox($this->validate(ACore::AS_URL, 'endpoints.sharedInbox', $data))
+			->setName($this->validate(ACore::AS_USERNAME, 'name', $data, ''))
+			->setAccount($this->validate(ACore::AS_ACCOUNT, 'account', $data, ''))
+			->setInbox($this->validate(ACore::AS_URL, 'inbox', $data, ''))
+			->setOutbox($this->validate(ACore::AS_URL, 'outbox', $data, ''))
+			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
+			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
+			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
+			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []));
+		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
 
 		/** @var Image $icon */
 		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
@@ -634,27 +663,87 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		if ($icon->getType() === Image::TYPE) {
 			$this->setIcon($icon);
 		}
+
+		$image = $this->get('image.url', $data, '');
+		if ($image !== '') {
+			$this->setHeader($image);
+		}
 	}
 
+	/**
+	 * @param array $data
+	 *
+	 * @return $this
+	 */
+	public function importFromLocal(array $data): self {
+		parent::importFromLocal($data);
+
+		$this->setId($this->get('url', $data));
+		$this->setPreferredUsername($this->get('username', $data));
+		$this->setAccount($this->get('acct', $data));
+		$this->setDisplayName($this->get('display_name', $data));
+		$this->setLocked($this->getBool('locked', $data));
+		$this->setBot($this->getBool('bot', $data));
+		$this->setDiscoverable($this->getBool('discoverable', $data));
+		$this->setDescription($this->get('note', $data));
+		$this->setUrl($this->get('url', $data));
+
+		$this->setAvatar($this->get('avatar', $data));
+		$this->setHeader($this->get('header', $data));
+
+		$this->setPrivacy($this->get('source.privacy', $data));
+		$this->setSensitive($this->getBool('source.sensitive', $data));
+		$this->setLanguage($this->get('source.language', $data));
+
+		try {
+			$dTime = new DateTime($this->get('created_at', $data, 'yesterday'));
+			$this->setCreation($dTime->getTimestamp());
+		} catch (Exception $e) {
+		}
+
+		$count = [
+			'followers' => $this->getInt('followers_count', $data),
+			'following' => $this->getInt('following_count', $data),
+			'post' => $this->getInt('statuses_count', $data),
+			'last_post_creation' => $this->get('last_status_at', $data)
+		];
+		$this->setDetailArray('count', $count);
+
+		return $this;
+	}
 
 	/**
 	 * @param array $data
 	 */
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
+
+		$this->setLocked($this->getInt('locked', $data, 0) === 1);
+
+		$source = json_decode($this->getSource(), true);
+		if (is_array($source)) {
+			$image = $this->get('image.url', $source, '');
+			if ($image !== '') {
+				$this->setHeader($image);
+			}
+			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
+		}
+
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
-			 ->setUserId($this->get('user_id', $data, ''))
-			 ->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
-			 ->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
-			 ->setPublicKey($this->get('public_key', $data, ''))
-			 ->setPrivateKey($this->get('private_key', $data, ''))
-			 ->setInbox($this->validate(self::AS_URL, 'inbox', $data, ''))
-			 ->setOutbox($this->validate(self::AS_URL, 'outbox', $data, ''))
-			 ->setFollowers($this->validate(self::AS_URL, 'followers', $data, ''))
-			 ->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
-			 ->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
-			 ->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
-			 ->setDetailsAll($this->getArray('details', $data, []));
+			->setUserId($this->get('user_id', $data, ''))
+			->setName($this->validate(self::AS_USERNAME, 'name', $data, ''))
+			->setDescription($this->validate(self::AS_CONTENT, 'summary', $data))
+			->setAccount($this->validate(self::AS_ACCOUNT, 'account', $data, ''))
+			->setPublicKey($this->get('public_key', $data, ''))
+			->setPrivateKey($this->get('private_key', $data, ''))
+			->setInbox($this->validate(self::AS_URL, 'inbox', $data, ''))
+			->setOutbox($this->validate(self::AS_URL, 'outbox', $data, ''))
+			->setFollowers($this->validate(self::AS_URL, 'followers', $data, ''))
+			->setFollowing($this->validate(self::AS_URL, 'following', $data, ''))
+			->setSharedInbox($this->validate(self::AS_URL, 'shared_inbox', $data, ''))
+			->setFeatured($this->validate(self::AS_URL, 'featured', $data, ''))
+			->setDetailsAll($this->getArray('details', $data, []));
 
 		try {
 			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));
@@ -667,7 +756,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			if ($deletedValue === '' || $deletedValue === '0000-00-00 00:00:00') {
 				return;
 			}
-			$dTime = new DateTime();
+			$dTime = new DateTime($deletedValue);
 			$deleted = $dTime->getTimestamp();
 			if ($deleted > 0) {
 				$this->setDeleted($deleted);
@@ -681,27 +770,56 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsActivityPub(): array {
+		if ($this->getPublicKey() !== '') {
+			$this->setDisplayW3ContextSecurity(true);
+		}
+
+		$data = [
+			'aliases' => [
+				$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
+				$this->getUrlSocial() . 'users/' . $this->getPreferredUsername()
+			],
+			'preferredUsername' => $this->getPreferredUsername(),
+			'name' => $this->getName(),
+			'inbox' => $this->getInbox(),
+			'outbox' => $this->getOutbox(),
+			'account' => $this->getAccount(),
+			'following' => $this->getFollowing(),
+			'followers' => $this->getFollowers(),
+			'endpoints' => ['sharedInbox' => $this->getSharedInbox()],
+			'publicKey' => [
+				'id' => $this->getId() . '#main-key',
+				'owner' => $this->getId(),
+				'publicKeyPem' => $this->getPublicKey()
+			]
+		];
+
+		$data['manuallyApprovesFollowers'] = $this->isLocked();
+
+		if ($this->getAlsoKnownAs() !== []) {
+			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
+		}
+
+		if ($this->hasIcon()) {
+			$icon = $this->getIcon();
+			$data['icon'] = [
+				'type' => $icon->getType(),
+				'mediaType' => $icon->getMediaType(),
+				'url' => $icon->getUrl()
+			];
+		}
+
+		if ($this->header !== '') {
+			$data['image'] = [
+				'type' => 'Image',
+				'mediaType' => 'image/jpeg',
+				'url' => $this->header
+			];
+		}
+
 		$result = array_merge(
 			parent::exportAsActivityPub(),
-			[
-				'aliases' => [
-					$this->getUrlSocial() . '@' . $this->getPreferredUsername(),
-					$this->getUrlSocial() . 'users/' . $this->getPreferredUsername()
-				],
-				'preferredUsername' => $this->getPreferredUsername(),
-				'name' => $this->getName(),
-				'inbox' => $this->getInbox(),
-				'outbox' => $this->getOutbox(),
-				'account' => $this->getAccount(),
-				'following' => $this->getFollowing(),
-				'followers' => $this->getFollowers(),
-				'endpoints' => ['sharedInbox' => $this->getSharedInbox()],
-				'publicKey' => [
-					'id' => $this->getId() . '#main-key',
-					'owner' => $this->getId(),
-					'publicKeyPem' => $this->getPublicKey()
-				]
-			]
+			$data
 		);
 
 		if ($this->isCompleteDetails()) {
@@ -717,37 +835,43 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * @return array
 	 */
 	public function exportAsLocal(): array {
+		if ($this->hasIcon()) {
+			$avatar = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
+		}
+
+		$headerUrl = $this->getHeader();
 		$details = $this->getDetailsAll();
 		$result =
 			[
-				"username" => $this->getPreferredUsername(),
-				"acct" => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),
-				"display_name" => $this->getDisplayName(),
-				"locked" => $this->isLocked(),
-				"bot" => $this->isBot(),
-				"discoverable" => $this->isDiscoverable(),
-				"group" => false,
-				"created_at" => date('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
-				"note" => $this->getDescription(),
-				"url" => $this->getId(),
-				"avatar" => $this->getAvatar(),
-				"avatar_static" => $this->getAvatar(),
-				"header" => $this->getHeader(),
-				"header_static" => $this->getHeader(),
-				"followers_count" => $this->getInt('count.followers', $details),
-				"following_count" => $this->getInt('count.following', $details),
-				"statuses_count" => $this->getInt('count.post', $details),
-				"last_status_at" => $this->get('last_post_creation', $details),
-				"source" => [
-					"privacy" => $this->getPrivacy(),
-					"sensitive" => $this->isSensitive(),
-					"language" => $this->getLanguage(),
-					"note" => $this->getDescription(),
-					"fields" => [],
-					"follow_requests_count" => 0
+				'id' => (string)$this->getNid(),
+				'username' => $this->getPreferredUsername(),
+				'acct' => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),
+				'display_name' => $this->getName(),
+				'locked' => $this->isLocked(),
+				'bot' => $this->isBot(),
+				'discoverable' => $this->isDiscoverable(),
+				'group' => false,
+				'created_at' => gmdate('Y-m-d\TH:i:s', $this->getCreation()) . '.000Z',
+				'note' => $this->getDescription(),
+				'url' => $this->getId(),
+				'avatar' => $avatar ?? $this->getAvatar(),
+				'avatar_static' => $avatar ?? $this->getAvatar(),
+				'header' => $headerUrl,
+				'header_static' => $headerUrl,
+				'followers_count' => $this->getInt('count.followers', $details),
+				'following_count' => $this->getInt('count.following', $details),
+				'statuses_count' => $this->getInt('count.post', $details),
+				'last_status_at' => $this->get('last_post_creation', $details),
+				'source' => [
+					'privacy' => $this->getPrivacy(),
+					'sensitive' => $this->isSensitive(),
+					'language' => $this->getLanguage(),
+					'note' => $this->getDescription(),
+					'fields' => [],
+					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
 				],
-				"emojis" => [],
-				"fields" => []
+				'emojis' => [],
+				'fields' => []
 			];
 
 		return array_merge(parent::exportAsLocal(), $result);

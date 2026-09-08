@@ -1,7 +1,11 @@
+<!--
+  - SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div>
 		<h2>Social</h2>
-		<transition-group name="list" tag="div">
+		<transition-group name="list" tag="ul">
 			<TimelineEntry v-for="entry in timeline"
 				:key="entry.id"
 				:item="entry" />
@@ -35,23 +39,29 @@ export default {
 	computed: {
 		getCount() {
 			const account = this.accountInfo
-			return (field) => account.details.count ? account.details.count[field] : ''
+			return (field) => account?.details?.count ? account.details.count[field] : ''
 		},
 	},
 	// Start fetching account information before mounting the component
 	beforeMount() {
 		const uid = this.userId
 
-		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/info`)).then((response) => {
-			this.accountInfo = response.data.result.account
-			logger.log(this.accountInfo)
+		if (!uid) {
+			return
+		}
+
+		axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${encodeURIComponent(uid)}`)).then(({ data }) => {
+			this.accountInfo = data
+			logger.debug('Loaded profile account info', { accountInfo: this.accountInfo })
+		}).catch((error) => {
+			logger.error('Failed to load profile account info', { error, uid })
 		})
 
-		const since = Math.floor(Date.now() / 1000) + 1
-
-		axios.get(generateUrl(`apps/social/api/v1/account/${uid}/stream?limit=25&since=${since}`)).then(({ data }) => {
-			logger.log(this.timeline)
-			this.timeline = data.result
+		axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(uid)}/statuses`)).then(({ data }) => {
+			this.timeline = data
+			logger.debug('Loaded profile timeline', { timeline: this.timeline })
+		}).catch((error) => {
+			logger.error('Failed to load profile timeline', { error, uid })
 		})
 	},
 }

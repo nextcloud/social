@@ -2,37 +2,15 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class HashtagsRequest
@@ -52,9 +30,9 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	public function save(string $hashtag, array $trend) {
 		$qb = $this->getHashtagsInsertSql();
 		$qb->setValue('hashtag', $qb->createNamedParameter($hashtag))
-		   ->setValue('trend', $qb->createNamedParameter(json_encode($trend)));
+			->setValue('trend', $qb->createNamedParameter(json_encode($trend)));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -69,7 +47,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$qb->set('trend', $qb->createNamedParameter(json_encode($trend)));
 		$this->limitToHashtag($qb, $hashtag);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -80,7 +58,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$qb = $this->getHashtagsSelectSql();
 
 		$hashtags = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$hashtags[] = $this->parseHashtagsSelectSql($data);
 		}
@@ -101,7 +79,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 		$this->limitToHashtag($qb, $hashtag);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -125,7 +103,7 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$this->limitResults($qb, 25);
 
 		$hashtags = [];
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$hashtags[] = $this->parseHashtagsSelectSql($data);
 		}

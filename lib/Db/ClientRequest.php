@@ -2,41 +2,19 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -54,13 +32,13 @@ class ClientRequest extends ClientRequestBuilder {
 	public function saveApp(SocialClient $client): void {
 		$qb = $this->getClientInsertSql();
 		$qb->setValue('app_name', $qb->createNamedParameter($client->getAppName()))
-		   ->setValue('app_website', $qb->createNamedParameter($client->getAppWebsite()))
-		   ->setValue(
-		   	'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
-		   )
-		   ->setValue('app_client_id', $qb->createNamedParameter($client->getAppClientId()))
-		   ->setValue('app_client_secret', $qb->createNamedParameter($client->getAppClientSecret()))
-		   ->setValue('app_scopes', $qb->createNamedParameter(json_encode($client->getAppScopes())));
+			->setValue('app_website', $qb->createNamedParameter($client->getAppWebsite()))
+			->setValue(
+				'app_redirect_uris', $qb->createNamedParameter(json_encode($client->getAppRedirectUris()))
+			)
+			->setValue('app_client_id', $qb->createNamedParameter($client->getAppClientId()))
+			->setValue('app_client_secret', $qb->createNamedParameter($this->secretHasher->hash($client->getAppClientSecret())))
+			->setValue('app_scopes', $qb->createNamedParameter(json_encode($client->getAppScopes())));
 
 		try {
 			$dt = new DateTime('now');
@@ -80,10 +58,21 @@ class ClientRequest extends ClientRequestBuilder {
 	 */
 	public function authClient(SocialClient $client): void {
 		$qb = $this->getClientUpdateSql();
-		$qb->set('auth_code', $qb->createNamedParameter($client->getAuthCode()));
+		$qb->set('auth_code', $qb->createNamedParameter($this->secretHasher->hash($client->getAuthCode())));
 		$qb->set('auth_scopes', $qb->createNamedParameter(json_encode($client->getAuthScopes())));
 		$qb->set('auth_account', $qb->createNamedParameter($client->getAuthAccount()));
 		$qb->set('auth_user_id', $qb->createNamedParameter($client->getAuthUserId()));
+		// The row holds one token and one auth_user_id. Leaving the token in place
+		// while the user changes would let a token issued to the previous user act as
+		// the new one, so a fresh authorization invalidates it.
+		$qb->set('token', $qb->createNamedParameter(''));
+
+		// the authorization moment: the code is only exchangeable for
+		// ClientService::TIME_CODE_TTL from here
+		try {
+			$qb->set('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+		} catch (Exception $e) {
+		}
 
 		$qb->limitToId($client->getId());
 
@@ -96,12 +85,25 @@ class ClientRequest extends ClientRequestBuilder {
 	 */
 	public function updateToken(SocialClient $client): void {
 		$qb = $this->getClientUpdateSql();
-		$qb->set('token', $qb->createNamedParameter($client->getToken()));
+		$qb->set('token', $qb->createNamedParameter($this->secretHasher->hash($client->getToken())));
 		$qb->set('auth_code', $qb->createNamedParameter(''));
 
 		$qb->limitToId($client->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Clears the access token (and any pending code) of a client row.
+	 */
+	public function revokeToken(SocialClient $client): void {
+		$qb = $this->getClientUpdateSql();
+		$qb->set('token', $qb->createNamedParameter(''));
+		$qb->set('auth_code', $qb->createNamedParameter(''));
+
+		$qb->limitToId($client->getId());
+
+		$qb->executeStatement();
 	}
 
 
@@ -117,7 +119,7 @@ class ClientRequest extends ClientRequestBuilder {
 
 		$qb->limitToId($client->getId());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -142,10 +144,18 @@ class ClientRequest extends ClientRequestBuilder {
 	 * @throws ClientNotFoundException
 	 */
 	public function getFromToken(string $token): SocialClient {
-		$qb = $this->getClientSelectSql();
-		$qb->limitToToken($token);
+		// tokens are stored hashed; rows from before hashing hold the bare value
+		foreach ($this->secretHasher->forLookup($token) as $stored) {
+			try {
+				$qb = $this->getClientSelectSql();
+				$qb->limitToToken($stored);
 
-		return $this->getClientFromRequest($qb);
+				return $this->getClientFromRequest($qb);
+			} catch (ClientNotFoundException $e) {
+			}
+		}
+
+		throw new ClientNotFoundException();
 	}
 
 
@@ -159,6 +169,6 @@ class ClientRequest extends ClientRequestBuilder {
 		$date->setTimestamp(time() - ClientService::TIME_TOKEN_TTL);
 		$qb->limitToDBFieldDateTime('last_update', $date, true);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

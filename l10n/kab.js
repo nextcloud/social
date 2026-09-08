@@ -4,12 +4,17 @@ OC.L10N.register(
     "Help" : "Tallalt",
     "Home" : "Asnubeg",
     "Notifications" : "Ilɣa",
+    "Profile" : "Amaɣnu",
+    "Close reply" : "Mdel tiririt",
+    "Add attachment" : "Rnu amedday",
     "Delete" : "Kkes",
-    "Edit" : "Ẓreg",
-    "Close" : "Mdel",
     "Website" : "Asmel web",
     "Reply" : "Err",
     "Deny" : "Agwi",
-    "Continue" : "Continuer"
+    "Hello" : "Azul",
+    "Close" : "Mdel",
+    "Continue" : "Kemmel",
+    "Public" : "Azayaz",
+    "Direct message" : "Izen usrid"
 },
 "nplurals=2; plural=(n != 1);");

@@ -2,41 +2,13 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
@@ -53,6 +25,12 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -93,7 +71,7 @@ class DocumentService {
 	public function __construct(
 		IUrlGenerator $urlGenerator, CacheDocumentsRequest $cacheDocumentsRequest,
 		ActorsRequest $actorRequest, StreamRequest $streamRequest,
-		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService
+		CacheDocumentService $cacheService, ConfigService $configService, MiscService $miscService,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
@@ -164,9 +142,9 @@ class DocumentService {
 			$document->setError(self::ERROR_SIZE);
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (RequestContentException $e) {
-			$this->cacheDocumentsRequest->deleteById($id);
+			$this->cacheDocumentsRequest->deleteById($document->getId());
 		} catch (UnauthorizedFediverseException $e) {
-			$this->cacheDocumentsRequest->deleteById($id);
+			$this->cacheDocumentsRequest->deleteById($document->getId());
 		} catch (RequestNetworkException $e) {
 			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (RequestServerException $e) {
@@ -208,12 +186,68 @@ class DocumentService {
 	 * @throws MalformedArrayException
 	 * @throws SocialAppConfigException
 	 */
-	public function getFromCache(string $id, string &$mimeType = '', bool $public = false): ISimpleFile {
+	public function getFromCache(
+		string $id, string &$mimeType = '', bool $public = false,
+	): ISimpleFile {
 		$document = $this->cacheRemoteDocument($id, $public);
 		$mimeType = $document->getMimeType();
 
 		return $this->cacheService->getContentFromCache($document->getLocalCopy());
 	}
+
+	/**
+	 * @param string $uuid
+	 *
+	 * @return ISimpleFile
+	 * @throws NotFoundException
+	 */
+	/**
+	 * The copy behind `/media/{uuid}`, with the visibility its database row records.
+	 *
+	 * Serving by filename alone would hand out every cached copy — attachments of
+	 * direct and followers-only posts included — to anyone holding a uuid, so the
+	 * row is authoritative: no row, no file; a non-public row only for a viewer the
+	 * caller has authenticated.
+	 *
+	 * @return array{0: ISimpleFile, 1: Document}
+	 * @throws NotFoundException
+	 */
+	public function getFromUuid(string $uuid, bool $publicOnly = true): array {
+		if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $uuid)
+			!== 1) {
+			throw new NotFoundException('invalid document');
+		}
+
+		try {
+			$document = $this->cacheDocumentsRequest->getByLocalCopy($uuid);
+		} catch (CacheDocumentDoesNotExistException $e) {
+			throw new NotFoundException('unknown document');
+		}
+
+		if ($publicOnly && !$document->isPublic()) {
+			throw new NotFoundException('unknown document');
+		}
+
+		return [$this->cacheService->getFromUuid($uuid), $document];
+	}
+
+	/**
+	 * @param array $getMediaIds
+	 * @param string $account
+	 *
+	 * @return Document[]
+	 */
+	public function getMediaFromArray(array $getMediaIds, string $account = ''): array {
+		return $this->cacheDocumentsRequest->getFromArray($getMediaIds, $account);
+	}
+
+	/**
+	 * Stores a changed alt text.
+	 */
+	public function updateDescription(Document $document): void {
+		$this->cacheDocumentsRequest->updateDescription($document);
+	}
+
 
 
 	/**
@@ -225,7 +259,7 @@ class DocumentService {
 
 		$count = 0;
 		foreach ($update as $item) {
-			if ($item->getLocalCopy() === 'avatar') {
+			if ($item->getLocalCopy() === 'avatar' || $item->getLocalCopy() === 'header') {
 				continue;
 			}
 
@@ -280,5 +314,45 @@ class DocumentService {
 		}
 
 		return $icon->getId();
+	}
+
+
+	/**
+	 * Cache a banner/header image for a local actor.
+	 *
+	 * @param Person $actor
+	 * @param string $tmpPath
+	 * @param string $mimeType
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemUnknownException
+	 * @throws ItemAlreadyExistsException
+	 * @throws CacheContentMimeTypeException
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
+	public function cacheLocalHeaderByUsername(Person $actor, string $tmpPath, string $mimeType = 'image/jpeg'): string {
+		/** @var Image $image */
+		$image = AP::$activityPub->getItemFromType(Image::TYPE);
+		$image->generateUniqueId('/documents/header');
+		$image->setUrl($this->urlGenerator->linkToRouteAbsolute(
+			'social.Local.globalActorHeader', ['id' => $actor->getId()]
+		));
+		$image->setMediaType($mimeType);
+		$image->setMimeType($mimeType);
+		$image->setPublic(true);
+
+		$this->cacheService->saveFromTempToCache($image, $tmpPath);
+
+		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
+
+		$interface = AP::$activityPub->getInterfaceFromType(Image::TYPE);
+		$interface->save($image);
+
+		$actor->setHeader($image->getUrl());
+
+		return $image->getId();
 	}
 }

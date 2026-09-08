@@ -1,8 +1,7 @@
 <!--
-SPDX-FileCopyrightText: 2022 Carl Schwan <carl@carlschwan.eu>
-SPDX-License-Identifier: AGPL-3.0-or-later
+  - SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-
 <template>
 	<div class="upload-form">
 		<div v-if="false" class="upload-progress">
@@ -19,10 +18,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 			</div>
 		</div>
 		<div class="preview-grid">
-			<PreviewGridItem v-for="(item, index) in miniatures"
-				:key="index"
+			<PreviewGridItem v-for="(item, randomKey) in miniatures"
+				:key="randomKey"
 				:preview="item"
-				:index="index"
+				:random-key="randomKey"
 				@delete="deletePreview" />
 		</div>
 	</div>
@@ -31,6 +30,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 <script>
 import PreviewGridItem from './PreviewGridItem.vue'
 import FileUpload from 'vue-material-design-icons/FileUpload.vue'
+import { translate } from '@nextcloud/l10n'
 
 export default {
 	name: 'PreviewGrid',
@@ -47,15 +47,18 @@ export default {
 			type: Boolean,
 			required: true,
 		},
+		/** @type {import('vue').PropType<Object<string, import('./Composer.vue').LocalAttachment>>} */
 		miniatures: {
-			type: Array,
+			type: Object,
 			required: true,
 		},
 	},
 	methods: {
-		deletePreview(index) {
-			this.$emit('deleted', index)
+		deletePreview(randomKey) {
+			this.$emit('deleted', randomKey)
 		},
+
+		t: translate,
 	},
 }
 </script>

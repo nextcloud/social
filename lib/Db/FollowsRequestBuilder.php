@@ -2,40 +2,18 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class FollowsRequestBuilder
@@ -84,7 +62,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$qb->select(
 			'f.id', 'f.type', 'f.actor_id', 'f.object_id', 'f.follow_id', 'f.accepted', 'f.creation'
 		)
-		   ->from(self::TABLE_FOLLOWS, 'f');
+			->from(self::TABLE_FOLLOWS, 'f');
 
 		$this->defaultSelectAlias = 'f';
 		$qb->setDefaultSelectAlias('f');
@@ -101,7 +79,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 	protected function countFollowsSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_FOLLOWS, 'f');
+			->from(self::TABLE_FOLLOWS, 'f');
 
 		$qb->setDefaultSelectAlias('f');
 		$this->defaultSelectAlias = 'f';
@@ -164,7 +142,7 @@ class FollowsRequestBuilder extends CoreRequestBuilder {
 		$follow->importFromDatabase($data);
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'ca_');
 			$actor->setCompleteDetails(true);
 			$this->assignDetails($actor, $data);
 

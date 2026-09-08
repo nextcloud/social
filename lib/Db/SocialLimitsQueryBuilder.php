@@ -2,42 +2,23 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\DateTimeException;
 use DateInterval;
 use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCP\DB\QueryBuilder\ICompositeExpression;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class SocialLimitsQueryBuilder
@@ -45,15 +26,8 @@ use OCP\DB\QueryBuilder\ICompositeExpression;
  * @package OCA\Social\Db
  */
 class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
-	/**
-	 * Limit the request to the Type
-	 *
-	 * @param string $type
-	 *
-	 * @return SocialQueryBuilder
-	 */
-	public function limitToType(string $type): self {
-		$this->limitToDBField('type', $type, true);
+	public function limitToType(string $type, string $alias = ''): self {
+		$this->limitToDBField('type', $type, true, $alias);
 
 		return $this;
 	}
@@ -194,6 +168,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
+	 * @param string $streamId
+	 * @param string $alias
+	 *
+	 * @return void
+	 */
+	public function limitToStreamIdPrim(string $streamId, string $alias = '') {
+		$this->limitToDBField('stream_id_prim', $streamId, false, $alias);
+	}
+
+	/**
 	 * Limit the request to the FollowId
 	 *
 	 * @param string $followId
@@ -328,10 +312,10 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 
 	/**
-	 * @param TimelineOptions $options
+	 * @param ProbeOptions $options
 	 *
 	 */
-	public function paginate(TimelineOptions $options) {
+	public function paginate(ProbeOptions $options) {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 
@@ -361,6 +345,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * @deprecated - use paginate()
 	 */
 	public function limitPaginate(int $since = 0, int $limit = 5) {
+		$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
 		try {
 			if ($since > 0) {
 				$dTime = new DateTime();
@@ -406,20 +391,21 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 *
 	 * @return ICompositeExpression
 	 */
-	public function exprLimitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd'
+	public function exprLimitToDest(string $actorId, string $type, string $subType = '', string $alias = 'sd',
 	): ICompositeExpression {
 		$expr = $this->expr();
-		$andX = $expr->andX();
 
-		$andX->add($expr->eq($alias . '.stream_id', $this->getDefaultSelectAlias() . '.id_prim'));
+		$conditions = [$expr->eq($alias . '.stream_id', $this->getDefaultSelectAlias() . '.id_prim')];
 		if ($actorId) {
-			$andX->add($this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias));
+			$conditions[] = $this->exprLimitToDBField('actor_id', $this->prim($actorId), true, true, $alias);
 		}
-		$andX->add($this->exprLimitToDBField('type', $type, true, true, $alias));
+		$conditions[] = $this->exprLimitToDBField('type', $type, true, true, $alias);
 
 		if ($subType !== '') {
-			$andX->add($this->exprLimitToDBField('subtype', $subType, true, true, $alias));
+			$conditions[] = $this->exprLimitToDBField('subtype', $subType, true, true, $alias);
 		}
+
+		$andX = $expr->andX(...$conditions);
 
 		return $andX;
 	}
@@ -433,7 +419,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 */
 	public function limitToViewer(
 		string $aliasDest = 'sd', string $aliasFollowing = 'f', bool $allowPublic = false,
-		bool $allowDirect = false
+		bool $allowDirect = false, string $hiddenLevel = self::HIDDEN_TIMELINE,
 	) {
 		if (!$this->hasViewer()) {
 			$this->selectDestFollowing($aliasDest);
@@ -443,24 +429,93 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 			return;
 		}
 
-		$this->selectDestFollowing($aliasDest, $aliasFollowing);
+		$this->selectDestFollowing($aliasDest, '');
+		$this->leftJoinFollowing($aliasFollowing);
 		$expr = $this->expr();
-		$orX = $expr->orX();
 		$actor = $this->getViewer();
 
-		$following = $this->exprInnerJoinStreamDestFollowing(
-			$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
-		);
-		$orX->add($following);
+		$conditions = [
+			$this->exprInnerJoinStreamDestFollowing(
+				$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
+			)
+		];
 
 		if ($allowPublic) {
-			$orX->add($this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest));
+			$conditions[] = $this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest);
 		}
 
 		if ($allowDirect) {
-			$orX->add($this->exprLimitToDest($actor->getId(), 'dm', '', $aliasDest));
+			$conditions[] = $this->exprLimitToDest($actor->getId(), 'dm', '', $aliasDest);
 		}
 
+		$orX = $expr->orX(...$conditions);
+
 		$this->andWhere($orX);
+
+		$this->filterHiddenActors($hiddenLevel);
+	}
+
+	/**
+	 * Hide streams involving actors the viewer has blocked or muted (and actors who
+	 * blocked the viewer). One LEFT JOIN anti-join against social_actor_relation,
+	 * on the row's author and — for boosts — the boosted post's author. Levels:
+	 * see the HIDDEN_* constants. No viewer, no filtering.
+	 */
+	public function filterHiddenActors(string $level = self::HIDDEN_TIMELINE): void {
+		if (!$this->hasViewer()) {
+			return;
+		}
+
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+		$viewerPrim = $this->prim($this->getViewer()->getId());
+
+		// a boost row's attributed_to is the booster; the boosted author sits on the
+		// announced object's row
+		$this->leftJoin(
+			$pf, CoreRequestBuilder::TABLE_STREAM, 'hd_o',
+			$expr->andX(
+				$expr->eq('hd_o.id_prim', $pf . '.object_id_prim'),
+				$expr->eq($pf . '.type', $this->createNamedParameter(Announce::TYPE))
+			)
+		);
+
+		if ($level === self::HIDDEN_NOTIFICATIONS) {
+			// a mute hides notifications only when it was created with notifications=true
+			$onTypes = $expr->orX(
+				$expr->in(
+					'hd_r.type',
+					$this->createNamedParameter(
+						[ActorRelation::TYPE_BLOCK, ActorRelation::TYPE_BLOCKED_BY],
+						IQueryBuilder::PARAM_STR_ARRAY
+					)
+				),
+				$expr->andX(
+					$expr->eq('hd_r.type', $this->createNamedParameter(ActorRelation::TYPE_MUTE)),
+					$expr->eq('hd_r.notifications', $this->createNamedParameter(1))
+				)
+			);
+		} else {
+			$types = [ActorRelation::TYPE_BLOCK, ActorRelation::TYPE_BLOCKED_BY];
+			if ($level === self::HIDDEN_TIMELINE) {
+				$types[] = ActorRelation::TYPE_MUTE;
+			}
+			$onTypes = $expr->in(
+				'hd_r.type', $this->createNamedParameter($types, IQueryBuilder::PARAM_STR_ARRAY)
+			);
+		}
+
+		$this->leftJoin(
+			$pf, CoreRequestBuilder::TABLE_ACTOR_RELATION, 'hd_r',
+			$expr->andX(
+				$expr->eq('hd_r.actor_id_prim', $this->createNamedParameter($viewerPrim)),
+				$onTypes,
+				$expr->orX(
+					$expr->eq('hd_r.object_id_prim', $pf . '.attributed_to_prim'),
+					$expr->eq('hd_r.object_id_prim', 'hd_o.attributed_to_prim')
+				)
+			)
+		);
+		$this->andWhere($expr->isNull('hd_r.id'));
 	}
 }

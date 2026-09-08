@@ -3,41 +3,12 @@
 declare(strict_types=1);
 
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Tools\Model\NCRequest;
-use OCA\Social\Tools\Model\Request;
-use OCA\Social\Tools\Traits\TArrayTools;
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use Gumlet\ImageResize;
 use Gumlet\ImageResizeException;
@@ -47,6 +18,15 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Model\NCRequest;
+use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TStringTools;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
@@ -56,22 +36,24 @@ class CacheDocumentService {
 	use TArrayTools;
 	use TStringTools;
 
-	public const RESIZED_WIDTH = 280;
-	public const RESIZED_HEIGHT = 180;
+	public const RESIZED_WIDTH = 800;
+	public const RESIZED_HEIGHT = 800;
 
 	private IAppData $appData;
 	private CurlService $curlService;
 	private ConfigService $configService;
-	private MiscService $miscService;
+	private BlurService $blurService;
 
 	public function __construct(
-		IAppData $appData, CurlService $curlService, ConfigService $configService,
-		MiscService $miscService
+		IAppData $appData,
+		CurlService $curlService,
+		BlurService $blurService,
+		ConfigService $configService,
 	) {
 		$this->appData = $appData;
 		$this->curlService = $curlService;
+		$this->blurService = $blurService;
 		$this->configService = $configService;
-		$this->miscService = $miscService;
 	}
 
 
@@ -132,7 +114,8 @@ class CacheDocumentService {
 
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
-		$this->resizeImage($content);
+
+		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
 	}
@@ -150,7 +133,8 @@ class CacheDocumentService {
 
 		$filename = $this->generateFileFromContent($content);
 		$document->setLocalCopy($filename);
-		$this->resizeImage($content);
+
+		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
 	}
@@ -165,8 +149,7 @@ class CacheDocumentService {
 	 */
 	private function generateFileFromContent(string $content): string {
 		$filename = $this->uuid();
-		// creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
-		$path = chunk_split(substr($filename, 0, 8), 2, '/');
+		$path = $this->generatePath($filename);
 
 		try {
 			$folder = $this->appData->getFolder($path);
@@ -177,7 +160,19 @@ class CacheDocumentService {
 		$cache = $folder->newFile($filename);
 		$cache->putContent($content);
 
-		return $path . $filename;
+		return $filename;
+	}
+
+
+	/**
+	 * creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
+	 *
+	 * @param string $filename
+	 *
+	 * @return string
+	 */
+	private function generatePath(string $filename): string {
+		return chunk_split(substr($filename, 0, 8), 2, '/');
 	}
 
 
@@ -205,55 +200,64 @@ class CacheDocumentService {
 	/**
 	 * @param string $content
 	 */
-	private function resizeImage(string &$content) {
+	private function resizeImage(Document $document, string &$content): void {
 		try {
 			$image = ImageResize::createFromString($content);
-			$image->quality_jpg = 100;
-			$image->quality_png = 9;
+			$image->quality_jpg = 80;
+			$image->quality_png = 7;
 
 			$image->resizeToBestFit(self::RESIZED_WIDTH, self::RESIZED_HEIGHT);
 			$newContent = $image->getImageAsString();
-			if (!$newContent) {
+
+			if ($newContent) {
 				$content = $newContent;
 			}
 		} catch (ImageResizeException $e) {
 		}
+
+		$document->setLocalCopySize($image->getSourceWidth(), $image->getSourceHeight());
+		$document->setResizedCopySize($image->getDestWidth(), $image->getDestHeight());
+
+		$hash = $this->blurService->generateBlurHash(imagecreatefromstring($content));
+		$document->setBlurHash($hash);
 	}
 
 
 	/**
-	 * @param string $path
+	 * @param string $filename
 	 *
 	 * @return ISimpleFile
 	 * @throws CacheContentException
 	 * @throws CacheDocumentDoesNotExistException
 	 */
-	public function getContentFromCache(string $path): ISimpleFile {
-		if ($path === '') {
+	public function getContentFromCache(string $filename): ISimpleFile {
+		if ($filename === '') {
 			throw new CacheDocumentDoesNotExistException();
 		}
 
 		// right now, we do not handle cache for local avatar, we need to change this
 		// so the current avatar is cached, or a new avatar is uploaded
-		if ($path === 'avatar') {
+		if ($filename === 'avatar') {
 			throw new CacheContentException();
 		}
 
-
-		$pos = strrpos($path, '/');
-		$dir = substr($path, 0, $pos);
-		$filename = substr($path, $pos + 1);
-
 		try {
-			$file = $this->appData->getFolder($dir)
-								  ->getFile($filename);
-
-			return $file;
+			return $this->appData->getFolder($this->generatePath($filename))
+				->getFile($filename);
 		} catch (Exception $e) {
 			throw new CacheContentException();
 		}
 	}
 
+
+	public function getFromUuid(string $uuid): ISimpleFile {
+		try {
+			return $this->appData->getFolder($this->generatePath($uuid))
+				->getFile($uuid);
+		} catch (NotFoundException $e) {
+			throw new NotFoundException('document not found');
+		}
+	}
 
 	/**
 	 * @param string $url
@@ -273,6 +277,7 @@ class CacheDocumentService {
 		$request = new NCRequest($url['path'], Request::TYPE_GET, true);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
 		return $this->curlService->doRequest($request);
 	}

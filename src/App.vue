@@ -1,18 +1,13 @@
+<!--
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
-		<NcAppNavigation v-if="!serverData.public">
-			<template #list>
-				<NcAppNavigationItem v-for="item in menu.items"
-					:key="item.key"
-					:to="item.to"
-					:title="item.title"
-					:exact="true">
-					<template #icon>
-						<component :is="item.icon" />
-					</template>
-				</NcAppNavigationItem>
-			</template>
-		</NcAppNavigation>
+		<Navigation v-if="!serverData.public"
+			@search="search"
+			@open-composer="openComposer"
+			@reset-cache="resetCache" />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
@@ -27,8 +22,7 @@
 					</a>
 				</p>
 			</div>
-			<Search v-if="searchTerm !== ''" :term="searchTerm" />
-			<router-view v-if="searchTerm === ''" :key="$route.fullPath" />
+			<router-view :key="$route.fullPath" />
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else app-name="social">
@@ -43,8 +37,12 @@
 					<input v-model="cloudAddress"
 						:placeholder="serverData.cliUrl"
 						type="url"
+						class="setup-input"
 						required>
-					<input :value="t('social', 'Finish setup')" type="submit" class="primary">
+					<NcButton type="primary"
+						native-type="submit">
+						{{ t('social', 'Finish setup') }}
+					</NcButton>
 				</p>
 				<template v-if="!serverData.checks.success">
 					<h3 v-if="!serverData.checks.checks.wellknown">
@@ -68,21 +66,13 @@
 </template>
 
 <script>
-import NcContent from '@nextcloud/vue/dist/Components/NcContent.js'
-import NcAppContent from '@nextcloud/vue/dist/Components/NcAppContent.js'
-import NcAppNavigation from '@nextcloud/vue/dist/Components/NcAppNavigation.js'
-import NcAppNavigationItem from '@nextcloud/vue/dist/Components/NcAppNavigationItem.js'
+import NcContent from '@nextcloud/vue/components/NcContent'
+import NcAppContent from '@nextcloud/vue/components/NcAppContent'
+import NcButton from '@nextcloud/vue/components/NcButton'
 
-import Home from 'vue-material-design-icons/Home.vue'
-import CommentAccount from 'vue-material-design-icons/CommentAccount.vue'
-import Bell from 'vue-material-design-icons/Bell.vue'
-import Account from 'vue-material-design-icons/Account.vue'
-import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
-import Heart from 'vue-material-design-icons/Heart.vue'
-import Earth from 'vue-material-design-icons/Earth.vue'
+import Navigation from './components/Navigation.vue'
 
 import axios from '@nextcloud/axios'
-import Search from './components/Search.vue'
 import currentuserMixin from './mixins/currentUserMixin.js'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
@@ -92,9 +82,8 @@ export default {
 	components: {
 		NcContent,
 		NcAppContent,
-		NcAppNavigation,
-		NcAppNavigationItem,
-		Search,
+		NcButton,
+		Navigation,
 	},
 	mixins: [currentuserMixin],
 	data() {
@@ -102,95 +91,19 @@ export default {
 			infoHidden: false,
 			state: [],
 			cloudAddress: '',
-			searchTerm: '',
 		}
 	},
 	computed: {
-		timeline() {
-			return this.$store.getters.getTimeline
-		},
-		menu() {
-			const defaultCategories = [
-				{
-					id: 'social-timeline',
-					icon: Home,
-					title: t('social', 'Home'),
-					to: {
-						name: 'timeline',
-					},
-				},
-				{
-					id: 'social-direct-messages',
-					icon: CommentAccount,
-					title: t('social', 'Direct messages'),
-					to: {
-						name: 'timeline',
-						params: { type: 'direct' },
-					},
-				},
-				{
-					id: 'social-notifications',
-					icon: Bell,
-					title: t('social', 'Notifications'),
-					to: {
-						name: 'timeline',
-						params: { type: 'notifications' },
-					},
-				},
-				{
-					id: 'social-account',
-					icon: Account,
-					title: t('social', 'Profile'),
-					to: {
-						name: 'profile',
-						params: { account: this.currentUser.uid },
-					},
-				},
-				{
-					id: 'social-liked',
-					icon: Heart,
-					title: t('social', 'Liked'),
-					to: {
-						name: 'timeline',
-						params: { type: 'liked' },
-					},
-				},
-				{
-					id: 'social-local',
-					icon: AccountMultiple,
-					title: t('social', 'Local timeline'),
-					to: {
-						name: 'timeline',
-						params: { type: 'timeline' },
-					},
-				},
-				{
-					id: 'social-global',
-					icon: Earth,
-					title: t('social', 'Global timeline'),
-					to: {
-						name: 'timeline',
-						params: { type: 'federated' },
-					},
-				},
-			]
-			return {
-				items: defaultCategories,
-				loading: false,
-			}
-		},
 	},
 	watch: {
-		$route(to, from) {
-			this.searchTerm = ''
+		$route() {
+			this.$store.commit('setSearchQuery', '')
 		},
 	},
 	beforeMount() {
-		// importing server data into the store
 		this.$store.commit('setServerData', loadState('social', 'serverData'))
 
 		if (!this.serverData.public) {
-			this.search = new OCA.Search(this.search, this.resetSearch)
 			this.$store.dispatch('fetchCurrentAccountInfo', this.cloudId)
 		}
 
@@ -202,21 +115,27 @@ export default {
 		hideInfo() {
 			this.infoHidden = true
 		},
+		openComposer() {
+			this.$store.commit('setComposerDisplayStatus', true)
+			if (this.$route.name !== 'timeline') {
+				this.$router.push({ name: 'timeline' })
+			}
+		},
+		resetCache() {
+			axios.post(generateUrl('apps/social/api/v1/cache/refresh')).then(() => {
+				this.$store.dispatch('refreshTimeline')
+			})
+		},
 		setCloudAddress() {
 			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
-				this.$store.commit('setServerDataEntry', 'setup', false)
-				this.$store.commit('setServerDataEntry', 'cloudAddress', this.cloudAddress)
+				this.$store.commit('setServerDataEntry', { key: 'setup', value: false })
+				this.$store.commit('setServerDataEntry', { key: 'cloudAddress', value: this.cloudAddress })
 			})
 		},
 		search(term) {
-			term = encodeURIComponent(term)
-			this.searchTerm = term
-		},
-		resetSearch() {
-			this.searchTerm = ''
+			this.$store.commit('setSearchQuery', term)
 		},
 		fromPushApp(data) {
-			// FIXME: might be better to use Timeline.type() ?
 			let timeline = 'home'
 			if (this.$route.name === 'tags') {
 				timeline = 'tags'
@@ -235,31 +154,151 @@ export default {
 }
 </script>
 
-<style scoped>
-	#app-content-vue .social__wrapper {
-		padding: 15px;
-		max-width: 800px;
-		margin: auto;
+<style scoped lang="scss">
+#app-content-vue .social__wrapper {
+	padding: calc(var(--default-grid-baseline) * 4);
+	max-width: 800px;
+	margin: auto;
+}
+
+.setup {
+	margin: 0 auto !important;
+	padding: calc(var(--default-grid-baseline) * 4);
+	max-width: 800px;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+
+	h2 {
+		font-size: 24px;
+		font-weight: 700;
+		margin-bottom: 8px;
 	}
 
-	.setup {
-		margin: 0 auto !important;
-		padding: 15px;
-		max-width: 800px;
+	p {
+		color: var(--color-text-lighter);
+		line-height: 1.6;
+	}
+}
+
+.setup-input {
+	width: 300px;
+	max-width: 100%;
+	margin-right: 10px;
+	border-radius: var(--border-radius-element);
+}
+
+#social-spacer a:hover,
+#social-spacer a:focus {
+	border: none !important;
+}
+
+a.external_link {
+	text-decoration: underline;
+}
+
+:deep(.app-navigation-entry) {
+	.app-navigation-entry__title {
+		font-size: 14px;
+	}
+}
+
+:deep(.app-navigation-entry__subname) {
+	font-size: 12px;
+	color: var(--color-text-lighter);
+	margin-top: -2px;
+}
+
+:deep(.app-navigation-entry-icon) {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.avatardiv {
+		margin: 0;
+	}
+}
+
+.icon-social {
+	background-image: url('../img/social-dark.svg');
+	filter: var(--background-invert-if-dark);
+}
+</style>
+<style lang="scss">
+img.emoji {
+	margin: 3px;
+	width: 16px;
+	vertical-align: text-bottom;
+}
+
+.social__timeline {
+	.social__wrapper {
+		padding: 0;
+		max-width: 600px;
+		margin: 0 auto;
 	}
 
-	.setup input[type=url] {
-		width: 300px;
-		max-width: 100%;
+	.timeline-entry {
+		list-style: none;
+	}
+}
+
+.list-enter-active, .list-leave-active {
+	transition: opacity .15s ease;
+}
+
+.list-enter, .list-leave-to {
+	opacity: 0;
+}
+
+.social__welcome {
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	margin: calc(var(--default-grid-baseline) * 4) auto;
+	padding: calc(var(--default-grid-baseline) * 5);
+	max-width: 600px;
+
+	h2 {
+		font-size: 22px;
+		font-weight: 700;
+		margin-bottom: 12px;
 	}
 
-	#social-spacer a:hover,
-	#social-spacer a:focus {
-		border: none !important;
+	p {
+		color: var(--color-text-lighter);
+		line-height: 1.7;
 	}
+}
 
-	a.external_link {
-		text-decoration: underline;
+.new-post {
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	margin: calc(var(--default-grid-baseline) * 3) auto;
+	padding: calc(var(--default-grid-baseline) * 3);
+	max-width: 600px;
+	position: sticky;
+	top: 0;
+	z-index: 100;
+}
+
+.app-navigation {
+	.app-navigation-entry {
+		.app-navigation-entry__title {
+			font-size: 14px;
+		}
+
+		.app-navigation-entry__subname {
+			font-size: 12px;
+			color: var(--color-text-lighter);
+		}
 	}
+}
+
+.navigation__subname {
+	font-size: 12px;
+	color: var(--color-text-lighter);
+}
 
 </style>

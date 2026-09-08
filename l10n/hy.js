@@ -5,7 +5,6 @@ OC.L10N.register(
     "Home" : "Սկիզբ",
     "Notifications" : "Ծանուցում",
     "Delete" : "հեռացնել",
-    "Edit" : "մշակել",
     "Close" : "Փակել",
     "Continue" : "Շարունակել"
 },

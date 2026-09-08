@@ -2,46 +2,25 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
-use OCA\Social\Tools\Exceptions\RowNotFoundException;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
+use OCA\Social\Tools\Exceptions\RowNotFoundException;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class StreamRequestBuilder
@@ -89,15 +68,14 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->setFormat($format);
 
-		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->selectDistinct('s.id')
-		   ->addSelect(
-		   	's.nid', 's.type', 's.subtype', 's.to', 's.to_array', 's.cc', 's.bcc', 's.content',
-		   	's.summary', 's.attachments', 's.published', 's.published_time', 's.cache',
-		   	's.object_id', 's.attributed_to', 's.in_reply_to', 's.source', 's.local',
-		   	's.instances', 's.creation', 's.filter_duplicate', 's.details', 's.hashtags'
-		   )
-		   ->from(self::TABLE_STREAM, 's');
+			->from(self::TABLE_STREAM, 's');
+		foreach (self::$tables[self::TABLE_STREAM] as $field) {
+			if ($field === 'id') {
+				continue;
+			}
+			$qb->addSelect('s.' . $field);
+		}
 
 		$qb->setDefaultSelectAlias('s');
 
@@ -113,7 +91,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	protected function countNotesSelectSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-		   ->from(self::TABLE_STREAM, 's');
+			->from(self::TABLE_STREAM, 's');
 
 		$qb->setDefaultSelectAlias('s');
 
@@ -140,22 +118,22 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * @param string $aliasFollow
 	 */
 	protected function timelineHomeLinkCacheActor(
-		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f'
+		SocialQueryBuilder $qb, string $alias = 'ca', string $aliasFollow = 'f',
 	) {
-		$qb->linkToCacheActors($alias);
+		$qb->linkToCacheActors($alias, 's.attributed_to_prim');
 
 		$expr = $qb->expr();
-		$orX = $expr->orX();
 
-		$follow = $expr->andX();
-		$follow->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow')));
-		$follow->add($expr->eq($alias . '.id_prim', $aliasFollow . '.object_id_prim'));
-		$orX->add($follow);
+		$follow = $expr->andX(
+			$expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Follow'))
+		);
 
-		$loopback = $expr->andX();
-		$loopback->add($expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Loopback')));
-		$loopback->add($expr->eq($alias . '.id_prim', $qb->getDefaultSelectAlias() . '.attributed_to_prim'));
-		$orX->add($loopback);
+		$loopback = $expr->andX(
+			$expr->eq($aliasFollow . '.type', $qb->createNamedParameter('Loopback')),
+			$expr->eq($alias . '.id_prim', $qb->getDefaultSelectAlias() . '.attributed_to_prim')
+		);
+
+		$orX = $expr->orX($follow, $loopback);
 
 		$qb->andWhere($orX);
 	}
@@ -217,14 +195,22 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		}
 
 		try {
-			$actor = $qb->parseLeftJoinCacheActors($data);
+			$actor = $qb->parseLeftJoinCacheActors($data, 'ca_', $qb->getFormat());
 			$actor->setExportFormat($qb->getFormat());
 			$item->setCompleteDetails(true);
 			$item->setActor($actor);
 		} catch (InvalidResourceException $e) {
 		}
 
+		try {
+			$object = $qb->parseLeftJoinStream($data, 'os_', ACore::FORMAT_LOCAL);
+			$item->setObject($object);
+		} catch (InvalidResourceException $e) {
+		}
+
 		$action = $this->parseStreamActionsLeftJoin($data);
+		$item->setAction($action);
+
 		if ($item->hasCache()) {
 			$cache = $item->getCache();
 			try {
@@ -237,7 +223,7 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			}
 		}
 
-		$item->setAction($action);
+
 		if ($item->getType() === Announce::TYPE) {
 			$item->setAttributedTo($this->get('following_actor_id', $data, ''));
 		}

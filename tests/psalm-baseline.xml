@@ -1,89 +1,69 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="5.4.0@62db5d4f6a7ae0a20f7cc5a4952d730272fc0863">
+<files psalm-version="5.26.1@d747f6500b38ac4f7dfc5edbcae6e4b637d7add0">
   <file src="lib/Model/ActivityPub/ACore.php">
-    <InvalidArgument occurrences="1">
-      <code>['a', 'p', 'span', 'br']</code>
-    </InvalidArgument>
-    <InvalidClass occurrences="1">
-      <code>Acore</code>
+    <InvalidClass>
+      <code><![CDATA[Acore]]></code>
     </InvalidClass>
-    <InvalidNullableReturnType occurrences="1">
-      <code>ACore</code>
-      <code>ACore</code>
+    <InvalidNullableReturnType>
+      <code><![CDATA[ACore]]></code>
+      <code><![CDATA[ACore]]></code>
     </InvalidNullableReturnType>
-    <InvalidPropertyAssignmentValue occurrences="1">
-      <code>$parent</code>
+    <InvalidPropertyAssignmentValue>
+      <code><![CDATA[$parent]]></code>
     </InvalidPropertyAssignmentValue>
-    <NullableReturnStatement occurrences="1">
-      <code>$this-&gt;parent</code>
+    <NullableReturnStatement>
+      <code><![CDATA[$this->parent]]></code>
     </NullableReturnStatement>
-    <TypeDoesNotContainNull occurrences="1">
-      <code>$v === null</code>
+    <TypeDoesNotContainNull>
+      <code><![CDATA[$v === null]]></code>
     </TypeDoesNotContainNull>
-    <TypeDoesNotContainType occurrences="2">
-      <code>$v === 0</code>
-      <code>$v === 0</code>
+    <TypeDoesNotContainType>
+      <code><![CDATA[$v === 0]]></code>
+      <code><![CDATA[$v === 0]]></code>
     </TypeDoesNotContainType>
   </file>
-  <file src="lib/Model/ActivityPub/Object/Announce.php">
-    <RedundantCondition occurrences="1">
-      <code>$object = $cache-&gt;getItem($this-&gt;getObjectId())</code>
-    </RedundantCondition>
-  </file>
   <file src="lib/Db/CoreRequestBuilder.php">
-    <UndefinedMethod occurrences="3">
-      <code>dropTable</code>
-      <code>hasTable</code>
-      <code>hasTable</code>
+    <UndefinedMethod>
+      <code><![CDATA[dropTable]]></code>
+      <code><![CDATA[hasTable]]></code>
+      <code><![CDATA[hasTable]]></code>
     </UndefinedMethod>
-    <InvalidArgument occurrences="2"/>
+    <InvalidArgument>
+      <code><![CDATA[Server::get(Connection::class)]]></code>
+      <code><![CDATA[Server::get(Connection::class)]]></code>
+    </InvalidArgument>
   </file>
   <file src="lib/Service/CheckService.php">
-    <RedundantCast occurrences="1">
-      <code>(bool)($this-&gt;cache-&gt;get(self::CACHE_PREFIX . 'wellknown') === 'true')</code>
+    <RedundantCast>
+      <code><![CDATA[(bool)($this->cache->get(self::CACHE_PREFIX . 'wellknown') === 'true')]]></code>
     </RedundantCast>
-    <UndefinedClass occurrences="1">
-      <code>ClientException</code>
+    <UndefinedClass>
+      <code><![CDATA[ClientException]]></code>
     </UndefinedClass>
   </file>
   <file src="lib/Service/CurlService.php">
-    <InvalidOperand occurrences="1">
-      <code>$this-&gt;configService-&gt;getAppValue(ConfigService::SOCIAL_MAX_SIZE)</code>
+    <InvalidOperand>
+      <code><![CDATA[$this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE)]]></code>
     </InvalidOperand>
-    <RedundantCondition occurrences="1">
-      <code>is_array($result)</code>
-    </RedundantCondition>
-    <TypeDoesNotContainType occurrences="1">
-      <code>$this-&gt;maxDownloadSizeReached === true</code>
+    <TypeDoesNotContainType>
+      <code><![CDATA[$this->maxDownloadSizeReached === true]]></code>
     </TypeDoesNotContainType>
-    <InvalidArgument occurrences="8"/>
   </file>
   <file src="lib/Service/PostService.php">
-    <UndefinedMethod occurrences="2">
-      <code>setAttributedTo</code>
-      <code>setContent</code>
-    </UndefinedMethod>
-    <TypeDoesNotContainType occurrences="1">
-      <code>is_array($_FILES['attachments']['error'])</code>
+    <TypeDoesNotContainType>
+      <code><![CDATA[is_array($_FILES['attachments']['error'])]]></code>
     </TypeDoesNotContainType>
   </file>
   <file src="lib/Service/SearchService.php">
-    <InvalidOperand occurrences="3">
-      <code>!$type</code>
-      <code>!$type</code>
-      <code>!$type</code>
+    <InvalidOperand>
+      <code><![CDATA[!$type]]></code>
+      <code><![CDATA[!$type]]></code>
+      <code><![CDATA[!$type]]></code>
     </InvalidOperand>
   </file>
   <file src="lib/Service/SignatureService.php">
-    <RedundantCondition occurrences="1">
-      <code>$varr[0] !== null</code>
+    <RedundantCondition>
+      <code><![CDATA[$varr[0] !== null]]></code>
     </RedundantCondition>
-  </file>
-  <file src="lib/Service/TestService.php">
-    <TypeDoesNotContainNull occurrences="3">
-      <code>$host === null</code>
-      <code>$username === null</code>
-      <code>$username === null</code>
-    </TypeDoesNotContainNull>
   </file>
 </files>

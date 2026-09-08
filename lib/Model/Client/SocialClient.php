@@ -2,40 +2,18 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Model\Client;
 
-use OCA\Social\Tools\IQueryRow;
-use OCA\Social\Tools\Traits\TArrayTools;
 use DateTime;
 use Exception;
 use JsonSerializable;
+use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class ClientApp
@@ -45,37 +23,23 @@ use JsonSerializable;
 class SocialClient implements IQueryRow, JsonSerializable {
 	use TArrayTools;
 
-
 	private int $id = 0;
-
 	private string $appName = '';
-
 	private string $appWebsite = '';
-
 	private array $appRedirectUris = [];
-
 	private string $appClientId = '';
-
 	private string $appClientSecret = '';
-
 	private array $appScopes = [];
-
 	private array $authScopes = [];
-
 	private string $authAccount = '';
-
 	private string $authUserId = '';
-
 	private string $authCode = '';
-
 	private int $lastUpdate = -1;
-
 	private string $token = '';
-
 	private int $creation = -1;
 
-//	/** @var array */
-//	private $tokenScopes = [];
+	//	/** @var array */
+	//	private $tokenScopes = [];
 
 
 	/**
@@ -293,24 +257,24 @@ class SocialClient implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-//
-//	/**
-//	 * @return string
-//	 */
-//	public function getAuthRedirectUri(): string {
-//		return $this->authRedirectUri;
-//	}
-//
-//	/**
-//	 * @param string $authRedirectUri
-//	 *
-//	 * @return SocialClient
-//	 */
-//	public function setAuthRedirectUri(string $authRedirectUri): self {
-//		$this->authRedirectUri = $authRedirectUri;
-//
-//		return $this;
-//	}
+	//
+	//	/**
+	//	 * @return string
+	//	 */
+	//	public function getAuthRedirectUri(): string {
+	//		return $this->authRedirectUri;
+	//	}
+	//
+	//	/**
+	//	 * @param string $authRedirectUri
+	//	 *
+	//	 * @return SocialClient
+	//	 */
+	//	public function setAuthRedirectUri(string $authRedirectUri): self {
+	//		$this->authRedirectUri = $authRedirectUri;
+	//
+	//		return $this;
+	//	}
 
 
 	/**
@@ -351,23 +315,23 @@ class SocialClient implements IQueryRow, JsonSerializable {
 	}
 
 
-//	/**
-//	 * @return array
-//	 */
-//	public function getTokenScopes(): array {
-//		return $this->tokenScopes;
-//	}
-//
-//	/**
-//	 * @param array $scopes
-//	 *
-//	 * @return SocialClient
-//	 */
-//	public function setTokenScopes(array $scopes): self {
-//		$this->tokenScopes = $scopes;
-//
-//		return $this;
-//	}
+	//	/**
+	//	 * @return array
+	//	 */
+	//	public function getTokenScopes(): array {
+	//		return $this->tokenScopes;
+	//	}
+	//
+	//	/**
+	//	 * @param array $scopes
+	//	 *
+	//	 * @return SocialClient
+	//	 */
+	//	public function setTokenScopes(array $scopes): self {
+	//		$this->tokenScopes = $scopes;
+	//
+	//		return $this;
+	//	}
 
 
 	/**

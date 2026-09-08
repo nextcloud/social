@@ -1,31 +1,14 @@
 <!--
-  - @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
-  - @copyright Copyright (c) 2022 Carl Schwan <carl@carlschwan.eu>
-  -
-  - @author Julius Härtl <jus@bitgrid.net>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program. If not, see <http://www.gnu.org/licenses/>.
-  -
-  -->
-
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div class="new-post" data-id="">
 		<input id="file-upload"
 			ref="fileUploadInput"
 			type="file"
+			accept="image/*"
+			multiple="true"
 			tabindex="-1"
 			aria-hidden="true"
 			class="hidden-visually"
@@ -47,8 +30,8 @@
 		<div v-if="replyTo" class="reply-to">
 			<p class="reply-info">
 				<span>{{ t('social', 'In reply to') }}</span>
-				<ActorAvatar :actor="replyTo.actor_info" :size="16" />
-				<strong>{{ replyTo.actor_info.account }}</strong>
+				<ActorAvatar :actor="replyTo.account" :size="16" />
+				<strong>{{ replyTo.account.acct }}</strong>
 				<NcButton type="tertiary"
 					class="close-button"
 					:aria-label="t('social', 'Close reply')"
@@ -58,35 +41,30 @@
 					</template>
 				</NcButton>
 			</p>
-			<div class="reply-to-preview">
-				{{ replyTo.content }}
-			</div>
+			<MessageContent :item="replyTo" />
 		</div>
-		<form class="new-post-form" @submit.prevent="createPost">
-			<VueTribute :options="tributeOptions">
-				<!-- eslint-disable-next-line vue/valid-v-model -->
-				<div ref="composerInput"
-					v-contenteditable:post.dangerousHTML="canType && !loading"
-					class="message"
-					placeholder="What would you like to share?"
-					:class="{'icon-loading': loading}"
-					@keyup.prevent.enter="keyup"
-					@tribute-replaced="updatePostFromTribute" />
-			</VueTribute>
+		<form class="new-post-form" @submit.prevent>
+			<div ref="composerInput"
+				:contenteditable="!loading"
+				class="message"
+				:placeholder="t('social', 'What would you like to share?')"
+				:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
+				@keyup.prevent.enter="keyup"
+				@input="updateStatusContent"
+				@tribute-replaced="updatePostFromTribute" />
 
 			<PreviewGrid :uploading="false"
 				:upload-progress="0.4"
-				:miniatures="previewUrls"
+				:miniatures="attachments"
 				@deleted="deletePreview" />
 
 			<div class="options">
-				<NcButton v-tooltip="t('social', 'Add attachment')"
+				<NcButton :title="t('social', 'Add attachment')"
 					type="tertiary"
-					:disabled="previewUrls.length >= 1"
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
 					<template #icon>
-						<FileUpload :size="22" decorative title="" />
+						<Paperclip :size="22" decorative title="" />
 					</template>
 				</NcButton>
 
@@ -94,9 +72,9 @@
 					<NcEmojiPicker ref="emojiPicker"
 						:search="search"
 						:close-on-select="false"
-						:container="container"
+						container="#content-vue"
 						@select="insert">
-						<NcButton v-tooltip="t('social', 'Add emoji')"
+						<NcButton :title="t('social', 'Add emoji')"
 							type="tertiary"
 							:aria-haspopup="true"
 							:aria-label="t('social', 'Add emoji')">
@@ -107,27 +85,9 @@
 					</NcEmojiPicker>
 				</div>
 
-				<div v-click-outside="hidePopoverMenu" class="popovermenu-parent">
-					<NcButton v-tooltip="t('social', 'Visibility')"
-						type="tertiary"
-						:class="currentVisibilityIconClass"
-						@click.prevent="togglePopoverMenu" />
-					<div :class="{open: menuOpened}" class="popovermenu">
-						<NcPopoverMenu :menu="visibilityPopover" />
-					</div>
-				</div>
-
+				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
-				<NcButton :value="currentVisibilityPostLabel"
-					:disabled="!canPost"
-					native-type="submit"
-					type="primary"
-					@click.prevent="createPost">
-					<template #icon>
-						<Send title="" :size="22" decorative />
-					</template>
-					{{ postTo }}
-				</NcButton>
+				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
 			</div>
 		</form>
 	</div>
@@ -136,14 +96,12 @@
 <script>
 
 import EmoticonOutline from 'vue-material-design-icons/EmoticonOutline.vue'
-import Send from 'vue-material-design-icons/Send.vue'
 import Close from 'vue-material-design-icons/Close.vue'
-import FileUpload from 'vue-material-design-icons/FileUpload.vue'
-import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
-import NcPopoverMenu from '@nextcloud/vue/dist/Components/NcPopoverMenu.js'
-import NcEmojiPicker from '@nextcloud/vue/dist/Components/NcEmojiPicker.js'
-import VueTribute from 'vue-tribute'
+import Paperclip from 'vue-material-design-icons/Paperclip.vue'
+import debounce from 'debounce'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
 import he from 'he'
 import CurrentUserMixin from '../../mixins/currentUserMixin.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
@@ -151,36 +109,47 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
+import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
+import SubmitStatusButton from './SubmitStatusButton.vue'
+import MessageContent from '../MessageContent.js'
+import Tribute from 'tributejs'
+import eventBus from '../../services/eventBus.js'
 
 export default {
 	name: 'Composer',
 	components: {
-		NcPopoverMenu,
 		NcAvatar,
 		NcEmojiPicker,
 		NcButton,
 		ActorAvatar,
-		FileUpload,
-		VueTribute,
+		Paperclip,
 		EmoticonOutline,
-		Send,
 		Close,
 		PreviewGrid,
+		VisibilitySelect,
+		SubmitStatusButton,
+		MessageContent,
 	},
 	directives: {
 		FocusOnCreate,
 	},
 	mixins: [CurrentUserMixin],
-	props: {},
+	props: {
+		initialMention: {
+			type: Object,
+			default: null,
+		},
+		defaultVisibility: {
+			type: String,
+			default: undefined,
+		},
+	},
 	data() {
 		return {
-			type: localStorage.getItem('social.lastPostType') || 'followers',
+			statusContent: '',
+			visibility: this.defaultVisibility || localStorage.getItem('social.lastPostType') || 'followers',
 			loading: false,
-			post: '',
-			miniatures: [], // miniatures of images stored in postAttachments
-			postAttachments: [], // The toot's attachments
-			previewUrls: [],
-			canType: true,
+			attachments: {},
 			search: '',
 			replyTo: null,
 			tributeOptions: {
@@ -199,27 +168,29 @@ export default {
 						},
 						selectTemplate(item) {
 							return '<span class="mention" contenteditable="false">'
-								+ '<a href="' + item.original.url + '" target="_blank"><img src="' + item.original.avatar + '" />@' + item.original.value + '</a></span>'
+									+ `<a href="${item.original.url}" target="_blank">`
+										+ `<img src="${item.original.avatar}"/>`
+										+ `@${item.original.value}`
+									+ '</a>'
+								+ '</span>&nbsp;'
 						},
-						values: (text, cb) => {
-							const users = []
-
+						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
-								cb(users)
+								populate([])
 							}
-							this.remoteSearchAccounts(text).then((result) => {
-								for (const i in result.data.result.accounts) {
-									const user = result.data.result.accounts[i]
-									users.push({
-										key: user.preferredUsername,
-										value: user.account,
-										url: user.url,
-										avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`),
-									})
-								}
-								cb(users)
-							})
-						},
+
+							const response = await this.remoteSearchAccounts(text)
+
+							const users = response.data.result.accounts.map((user) => ({
+								key: user.preferredUsername,
+								value: user.account,
+								url: user.url,
+								avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`),
+							}))
+
+							console.debug('[Composer] Found users for', text, response.data.result, users)
+							populate(users)
+						}, 200),
 					},
 					{
 						trigger: '#',
@@ -228,7 +199,6 @@ export default {
 						},
 						selectTemplate(item) {
 							let tag = ''
-							// item is undefined if selectTemplate is called from a noMatchTemplate menu
 							if (typeof item === 'undefined') {
 								tag = this.currentMentionTextSnapshot
 							} else {
@@ -237,29 +207,20 @@ export default {
 							return '<span class="hashtag" contenteditable="false">'
 								+ '<a href="' + generateUrl('/timeline/tags/' + tag) + '" target="_blank">#' + tag + '</a></span>'
 						},
-						values: (text, cb) => {
-							const tags = []
-
+						values: debounce(async (text, populate) => {
 							if (text.length < 1) {
-								cb(tags)
+								populate([])
 							}
-							this.remoteSearchHashtags(text).then((result) => {
-								if (result.data.result.exact) {
-									tags.push({
-										key: result.data.result.exact,
-										value: result.data.result.exact,
-									})
-								}
-								for (const i in result.data.result.tags) {
-									const tag = result.data.result.tags[i]
-									tags.push({
-										key: tag.hashtag,
-										value: tag.hashtag,
-									})
-								}
-								cb(tags)
-							})
-						},
+
+							const response = await this.remoteSearchHashtags(text)
+							const tags = [
+								...(response.data.result.exact && !Array.isArray(response.data.result.exact) ? [{ key: response.data.result.exact, value: response.data.result.exact }] : []),
+								...response.data.result.tags.map(({ hashtag }) => ({ key: hashtag, value: hashtag })),
+							]
+
+							console.debug('[Composer] Found tags for', text, response.data.result, tags)
+							populate(tags)
+						}, 200),
 					},
 				],
 				noMatchTemplate() {
@@ -272,301 +233,273 @@ export default {
 					}
 				},
 			},
-			menuOpened: false,
-
 		}
 	},
 	computed: {
-		postTo() {
-			switch (this.type) {
-			case 'public':
-			case 'unlisted':
-				return t('social', 'Post')
-			case 'followers':
-				return t('social', 'Post to followers')
-			case 'direct':
-				return t('social', 'Post to mentioned users')
-			}
-			return ''
-		},
-		currentVisibilityIconClass() {
-			return this.visibilityIconClass(this.type)
-		},
-		visibilityIconClass() {
-			return (type) => {
-				if (typeof type === 'undefined') {
-					type = this.type
-				}
-				switch (type) {
-				case 'public':
-					return 'icon-link'
-				case 'followers':
-					return 'icon-contacts-dark'
-				case 'direct':
-					return 'icon-external'
-				case 'unlisted':
-					return 'icon-password'
-				}
-			}
-		},
-		currentVisibilityPostLabel() {
-			return this.visibilityPostLabel(this.type)
-		},
-		visibilityPostLabel() {
-			return (type) => {
-				if (typeof type === 'undefined') {
-					type = this.type
-				}
-				switch (type) {
-				case 'public':
-					return t('social', 'Post publicly')
-				case 'followers':
-					return t('social', 'Post to followers')
-				case 'direct':
-					return t('social', 'Post to recipients')
-				case 'unlisted':
-					return t('social', 'Post unlisted')
-				}
-			}
-		},
-		activeState() {
-			return (type) => {
-				if (type === this.type) {
-					return true
-				} else {
-					return false
-				}
-			}
-		},
-		visibilityPopover() {
-			return [
-				{
-					action: () => {
-						this.switchType('public')
-					},
-					icon: this.visibilityIconClass('public'),
-					active: this.activeState('public'),
-					text: t('social', 'Public'),
-					longtext: t('social', 'Post to public timelines'),
-				},
-				{
-					action: () => {
-						this.switchType('unlisted')
-					},
-					icon: this.visibilityIconClass('unlisted'),
-					active: this.activeState('unlisted'),
-					text: t('social', 'Unlisted'),
-					longtext: t('social', 'Do not post to public timelines'),
-				},
-				{
-					action: () => {
-						this.switchType('followers')
-					},
-					icon: this.visibilityIconClass('followers'),
-					active: this.activeState('followers'),
-					text: t('social', 'Followers'),
-					longtext: t('social', 'Post to followers only'),
-				},
-				{
-					action: () => {
-						this.switchType('direct')
-					},
-					icon: this.visibilityIconClass('direct'),
-					active: this.activeState('direct'),
-					text: t('social', 'Direct'),
-					longtext: t('social', 'Post to mentioned users only'),
-				},
-			]
-		},
-		container() {
-			return '#content-vue'
-		},
-		containerElement() {
-			return document.querySelector(this.container)
-		},
 		canPost() {
-			if (this.previewUrls.length > 0) {
+			if (Object.values(this.attachments).some(({ data }) => data === null)) {
+				return false
+			}
+
+			if (this.statusIsTooLong) {
+				return false
+			}
+
+			if (this.statusIsEmpty) {
+				return false
+			}
+
+			if (this.visibility === 'direct' && !this.hasMentions) {
+				return false
+			}
+
+			if (Object.keys(this.attachments).length > 0) {
 				return true
 			}
-			return this.post.length !== 0 && this.post !== '<br>'
+
+			return true
+		},
+		statusIsEmpty() {
+			return this.statusContent.length === 0 || this.statusContent === '<br>'
+		},
+
+		statusIsTooLong() {
+			return this.statusContent.length > 500
+		},
+
+		hasMentions() {
+			const text = he.decode(this.statusContent.replace(/<[^>]+>/g, ' '))
+			return /(?:^|\s)@[a-zA-Z0-9_.-]+/i.test(text)
 		},
 	},
 	mounted() {
-		this.$root.$on('composer-reply', (data) => {
+		// tributejs is a plain DOM library, not a component: it attaches to the
+		// contenteditable and appends its menu to the body, which the unscoped
+		// .tribute-container rule at the end of this file styles.
+		this.tribute = new Tribute(this.tributeOptions)
+		// Kept, because $refs is cleared before unmounted() runs and detach() rejects
+		// anything that is not a node.
+		this.tributeTarget = this.$refs.composerInput
+		this.tribute.attach(this.tributeTarget)
+
+		// Keep the handler so unmounted() removes only this one and not the
+		// listeners other components registered for the same event.
+		this.onComposerReply = (data) => {
 			this.replyTo = data
-			this.type = 'direct'
-		})
+			this.prefillMessageWithMention(data.account)
+			this.visibility = data.visibility
+		}
+		eventBus.on('composer-reply', this.onComposerReply)
+
+		if (this.initialMention !== null) {
+			this.prefillMessageWithMention(this.initialMention)
+		}
+	},
+	unmounted() {
+		if (this.tribute && this.tributeTarget) {
+			this.tribute.detach(this.tributeTarget)
+		}
+		eventBus.off('composer-reply', this.onComposerReply)
 	},
 	methods: {
+		prefillMessageWithMention(account) {
+			if (!this.statusIsEmpty || this.$refs.composerInput === undefined) {
+				return
+			}
+
+			let handle = account.acct
+
+			if (!handle.includes('@')) {
+				handle += `@${this.hostname}`
+			}
+
+			const mention = document.createElement('span')
+			mention.className = 'mention'
+			mention.contentEditable = 'false'
+
+			const link = document.createElement('a')
+			link.href = account.url
+			link.target = '_blank'
+
+			const avatar = document.createElement('img')
+			avatar.src = account.avatar
+			link.append(avatar, document.createTextNode(`@${handle}`))
+			mention.append(link)
+
+			this.$refs.composerInput.replaceChildren(mention, document.createTextNode('\u00a0'))
+			this.updateStatusContent()
+		},
+		updateStatusContent() {
+			this.statusContent = this.$refs.composerInput.innerHTML
+		},
 		clickImportInput() {
 			this.$refs.fileUploadInput.click()
 		},
-		handleFileChange(event) {
-			event.target.files.forEach((file) => {
-				this.previewUrls.push({
-					description: '',
-					url: URL.createObjectURL(file),
-					result: file,
-				})
-			})
-		},
-		removeAttachment(idx) {
-			this.previewUrls.splice(idx, 1)
+		async handleFileChange(event) {
+			const target = event.target
+			for (const file of Array.from(target.files)) {
+				const url = URL.createObjectURL(file)
+				this.attachments = {
+					...this.attachments,
+					[url]: {
+						file,
+						data: null,
+					},
+				}
+				const mediaData = await this.$store.dispatch('createMedia', file)
+				this.attachments = {
+					...this.attachments,
+					[url]: {
+						...this.attachments[url],
+						data: mediaData,
+					},
+				}
+			}
 		},
 		insert(emoji) {
+			console.debug('[Composer] insert emoji', emoji)
 			if (typeof emoji === 'object') {
 				const category = Object.keys(emoji)[0]
 				const emojis = emoji[category]
 				const firstEmoji = Object.keys(emojis)[0]
 				emoji = emojis[firstEmoji]
 			}
-			this.post += this.$twemoji.parse(emoji) + ' '
-			this.$refs.composerInput.innerHTML += this.$twemoji.parse(emoji) + ' '
+
+			const lastChild = this.$refs.composerInput.lastChild
+			const div = document.createElement('div')
+			div.textContent = emoji + ' '
+
+			if (lastChild === null) {
+				this.$refs.composerInput.innerHTML = div.innerHTML
+			} else {
+				switch (lastChild.tagName) {
+				case 'BR':
+					lastChild.before(div.firstChild)
+					break
+				case 'DIV':
+					switch (lastChild.lastChild.tagName) {
+					case 'BR':
+						lastChild.lastChild.before(div.firstChild)
+						break
+					default:
+						lastChild.append(div.firstChild)
+					}
+					break
+				default:
+					lastChild.after(div.firstChild)
+				}
+			}
+			this.updateStatusContent()
 		},
-		togglePopoverMenu() {
-			this.menuOpened = !this.menuOpened
+		keyup(event) {
+			if (event.ctrlKey) {
+				this.createPost(event)
+			}
 		},
-		hidePopoverMenu() {
-			this.menuOpened = false
+		updatePostFromTribute(event) {
+			console.debug('[Composer] update from tribute', event)
+			this.updateStatusContent()
 		},
-		switchType(type) {
-			this.type = type
-			this.menuOpened = false
-			localStorage.setItem('social.lastPostType', type)
-		},
-		getPostData() {
+		async createPost(event) {
 			const element = this.$refs.composerInput.cloneNode(true)
 			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
 				const em = document.createTextNode(emoji.getAttribute('alt'))
 				emoji.replaceWith(em)
 			})
 
-			const contentHtml = element.innerHTML
+			let status = nodeToPlainText(element).trim()
+			status = he.decode(status)
 
-			// Extract mentions from content and create an array out of them
-			const to = []
-			const mentionRegex = /<span class="mention"[^>]+><a[^>]+><img[^>]+>@([\w-_.]+@[\w-.]+)/g
-			let match = null
-			do {
-				match = mentionRegex.exec(contentHtml)
-				if (match) {
-					to.push(match[1])
-				}
-			} while (match)
-
-			// Add author of original post in case of reply
-			if (this.replyTo !== null) {
-				to.push(this.replyTo.actor_info.account)
+			const statusData = {
+				content_type: '',
+				media_ids: Object.values(this.attachments).map(preview => preview.data.id),
+				sensitive: false,
+				spoiler_text: '',
+				status,
+				in_reply_to_id: this.replyTo?.id,
+				visibility: this.visibility,
 			}
 
-			// Extract hashtags from content and create an array ot of them
-			const hashtagRegex = />#([^<]+)</g
-			const hashtags = []
-			match = null
-			do {
-				match = hashtagRegex.exec(contentHtml)
-				if (match) {
-					hashtags.push(match[1])
-				}
-			} while (match)
+			console.debug('[Composer] Posting status', statusData)
 
-			// Remove all html tags but </div> (wich we turn in newlines) and decode the remaining html entities
-			let content = contentHtml.replace(/<(?!\/div)[^>]+>/gi, '').replace(/<\/div>/gi, '\n').trim()
-			content = he.decode(content)
-
-			const formData = new FormData()
-			formData.append('content', content)
-			to.forEach(to => formData.append('to[]', to))
-			hashtags.forEach(hashtag => formData.append('hashtags[]', hashtag))
-			formData.append('type', this.type)
-			this.previewUrls.forEach(preview => formData.append('attachments[]', preview.result))
-			this.previewUrls.forEach(preview => formData.append('attachmentDescriptions[]', preview.description))
-
-			if (this.replyTo) {
-				formData.append('replyTo', this.replyTo.id)
-			}
-
-			return formData
-		},
-		keyup(event) {
-			if (event.shiftKey || event.ctrlKey) {
-				this.createPost(event)
-			}
-		},
-		updatePostFromTribute(event) {
-			// Trick to let vue-contenteditable know that tribute replaced a mention or hashtag
-			this.$refs.composerInput.oninput(event)
-		},
-		async createPost(event) {
-
-			const postData = this.getPostData()
-
-			// Trick to validate last mention when the user directly clicks on the "post" button without validating it.
-			const regex = /@([-\w]+)$/
-			const lastMention = postData.get('content').match(regex)
-			if (lastMention) {
-
-				// Ask the server for matching accounts, and wait for the results
-				const result = await this.remoteSearchAccounts(lastMention[1])
-
-				// Validate the last mention only when it matches a single account
-				if (result.data.result.accounts.length === 1) {
-					postData.set('content', postData.get('content').replace(regex, '@' + result.data.result.accounts[0].account))
-					postData.set('to', postData.get('to').push(result.data.result.accounts[0].account))
-				}
-			}
-
-			// Abort if the post is a direct message and no valid mentions were found
-			// if (this.type === 'direct' && postData.get('to').length === 0) {
-			// OC.Notification.showTemporary(t('social', 'Error while trying to post your message: Could not find any valid recipients.'), { type: 'error' })
-			// return
-			// }
-
-			// Post message
-			this.loading = true
-			this.$store.dispatch('post', postData).then((response) => {
+			try {
+				this.loading = true
+				await this.$store.dispatch('post', statusData)
+			} finally {
 				this.loading = false
 				this.replyTo = null
-				this.post = ''
-				this.$refs.composerInput.innerText = this.post
-				this.previewUrls = []
+				this.$refs.composerInput.innerText = ''
+				this.updateStatusContent()
+				this.attachments = {}
 				this.$store.dispatch('refreshTimeline')
-			})
-
+			}
 		},
 		closeReply() {
 			this.replyTo = null
-			// View may want to hide the composer
 			this.$store.commit('setComposerDisplayStatus', false)
 		},
 		remoteSearchAccounts(text) {
-			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search?search=' + text))
+			return axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), { params: { search: text } })
 		},
 		remoteSearchHashtags(text) {
-			return axios.get(generateUrl('apps/social/api/v1/global/tags/search?search=' + text))
+			return axios.get(generateUrl('apps/social/api/v1/global/tags/search'), { params: { search: text } })
 		},
-		deletePreview(index) {
-			this.previewUrls.splice(index, 1)
+		deletePreview(key) {
+			const newAttachments = { ...this.attachments }
+			delete newAttachments[key]
+			this.attachments = newAttachments
 		},
 	},
 }
 
+/**
+ *
+ * @param node
+ */
+function nodeToPlainText(node) {
+	let text = ''
+	for (const child of Array.from(node.childNodes)) {
+		if (child.nodeType === Node.TEXT_NODE) {
+			text += child.textContent || ''
+			continue
+		}
+
+		if (child.nodeType !== Node.ELEMENT_NODE) {
+			continue
+		}
+
+		const element = child
+		if (element.tagName === 'BR') {
+			text += '\n'
+			continue
+		}
+
+		text += nodeToPlainText(element)
+		if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)) {
+			text += '\n'
+		}
+	}
+
+	return text
+}
 </script>
 
 <style scoped lang="scss">
 .new-post {
-	padding: 10px;
-	background-color: var(--color-main-background);
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	padding: 18px;
+	margin: calc(var(--default-grid-baseline) * 3) auto;
+	max-width: 600px;
 	position: sticky;
-	z-index: 100;
-	margin-bottom: 10px;
 	top: 0;
+	z-index: 100;
 
 	&-form {
-		flex-grow: 1;
-		position: relative;
-		top: -10px;
-		margin-left: 39px;
+		margin-top: 12px;
+		margin-left: 0;
+
 		&__emoji-picker {
 			z-index: 1;
 		}
@@ -574,202 +507,207 @@ export default {
 }
 
 .new-post-author {
-	padding: 5px;
 	display: flex;
-	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--color-border);
+	margin-bottom: 10px;
 
 	.post-author {
-		padding: 6px;
+		display: flex;
+		flex-direction: column;
 
 		.post-author-name {
-			font-weight: bold;
+			font-weight: 700;
+			font-size: 14px;
+			line-height: 1.3;
 		}
 
 		.post-author-id {
-			opacity: .7;
+			font-size: 12px;
+			color: var(--color-text-lighter);
 		}
 	}
 }
 
 .reply-to {
-	background-image: url(../../../img/reply.svg);
-	background-position: 8px 12px;
-	background-repeat: no-repeat;
-	margin-left: 39px;
-	margin-bottom: 20px;
-	overflow: hidden;
-	background-color: var(--color-background-hover);
-	border-radius: var(--border-radius-large);
-	padding: 5px;
-	padding-left: 30px;
+	background: var(--color-background-hover);
+	border-radius: 8px;
+	padding: 12px 12px 12px 36px;
+	margin-bottom: 12px;
+	position: relative;
+
+	&::before {
+		content: '';
+		position: absolute;
+		left: 12px;
+		top: 12px;
+		width: 16px;
+		height: 16px;
+		background-image: url(../../../img/reply.svg);
+		background-size: contain;
+		background-repeat: no-repeat;
+	}
+
+	.avatardiv {
+		margin: 0 4px;
+		vertical-align: middle;
+	}
 
 	.reply-info {
 		display: flex;
 		align-items: center;
+		gap: 4px;
+		font-size: 13px;
+		color: var(--color-text-lighter);
+		margin-bottom: 4px;
 	}
+
 	.close-button {
 		margin-left: auto;
-		opacity: .7;
-		min-width: 30px;
-		min-height: 30px;
-		height: 30px;
-		width: 30px !important;
+		min-width: 28px;
+		min-height: 28px;
+		height: 28px;
+		width: 28px !important;
 	}
 }
 
 .message {
 	width: 100%;
-	padding-right: 44px;
-	min-height: 70px;
-	min-width: 2px;
-	display: block;
+	min-height: 80px;
+	padding: 12px 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	font-size: 14px;
+	line-height: 1.6;
+	color: var(--color-main-text);
+	outline: none;
+
+	&:focus {
+		border-color: var(--color-primary-element);
+	}
+
+	&.too-long {
+		color: var(--color-error);
+		border-color: var(--color-error);
+	}
 
 	:deep(.mention) {
 		color: var(--color-primary-element);
 		background-color: var(--color-background-dark);
-		border-radius: 5px;
-		padding-top: 1px;
-		padding-left: 2px;
-		padding-bottom: 1px;
-		padding-right: 5px;
+		border-radius: 4px;
+		padding: 1px 6px 1px 2px;
+		display: inline-flex;
+		align-items: center;
 
 		img {
 			width: 16px;
+			height: 16px;
 			border-radius: 50%;
-			overflow: hidden;
 			margin-right: 3px;
-			vertical-align: middle;
-			margin-top: -1px;
 		}
 	}
 }
 
 [contenteditable=true]:empty:before {
 	content: attr(placeholder);
-	display: block; /* For Firefox */
-	opacity: .5;
-}
-
-input[type=submit].inline {
-	width: 44px;
-	height: 44px;
-	margin: 0;
-	padding: 13px;
-	background-color: transparent;
-	border: none;
-	opacity: 0.3;
-	position: absolute;
-	bottom: 0;
-	right: 0;
+	display: block;
+	color: var(--color-text-lighter);
 }
 
 .options {
 	display: flex;
-	align-items: flex-end;
-	width: 100%;
-	margin-top: 0.5rem;
+	align-items: center;
+	gap: 8px;
+	margin-top: 10px;
 }
 
 .emptySpace {
-	flex-grow:1;
-}
-
-.popovermenu-parent {
-	position: relative;
-}
-.popovermenu {
-	top: 55px;
-}
-
-.attachment-picker-wrapper {
-	position: absolute;
-	right: 0;
-	top: 2;
+	flex-grow: 1;
 }
 
 .hashtag {
-	text-decoration: underline;
+	color: var(--color-primary-element);
+	text-decoration: none;
 }
 </style>
 <style lang="scss">
-/* Tribute-specific styles TODO: properly scope component css */
 .tribute-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		height: auto;
-		max-height: 300px;
-		max-width: 500px;
-		min-width: 200px;
-		overflow: auto;
-		display: block;
-		z-index: 999999;
-		border-radius: 4px;
-		box-shadow: 0 1px 3px var(--color-box-shadow);
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: auto;
+	max-height: 300px;
+	max-width: 500px;
+	min-width: 200px;
+	overflow: auto;
+	display: block;
+	z-index: 999999;
+	border-radius: 8px;
+	border: 1px solid var(--color-border);
 
-		ul {
-			margin: 0;
-			margin-top: 2px;
-			padding: 0;
-			list-style: none;
-			background: var(--color-main-background);
-			border-radius: 4px;
-			background-clip: padding-box;
-			overflow: hidden;
+	ul {
+		margin: 0;
+		margin-top: 2px;
+		padding: 4px;
+		list-style: none;
+		background: var(--color-main-background);
+		border-radius: 8px;
+		background-clip: padding-box;
+		overflow: hidden;
 
-			li {
-				color: var(--color-text);
-				padding: 5px 10px;
-				cursor: pointer;
-				font-size: 14px;
-				display: flex;
+		li {
+			color: var(--color-text);
+			padding: 6px 10px;
+			cursor: pointer;
+			font-size: 14px;
+			display: flex;
+			border-radius: 6px;
+			margin: 2px 0;
 
-				span {
-					display: block;
-				}
+			span {
+				display: block;
+				font-weight: bold;
+			}
 
-				&.highlight,
-				&:hover {
-					background: var(--color-primary);
-					color: var(--color-primary-text);
-				}
+			&.highlight,
+			&:hover {
+				background: var(--color-primary);
+				color: var(--color-primary-text);
+			}
 
-				img {
-					width: 32px;
-					height: 32px;
-					border-radius: 50%;
-					overflow: hidden;
-					margin-right: 10px;
-					margin-left: -3px;
-					margin-top: 3px;
-				}
+			img {
+				width: 32px;
+				height: 32px;
+				border-radius: 50%;
+				overflow: hidden;
+				margin-right: 10px;
+				margin-left: -3px;
+				margin-top: 3px;
+			}
 
-				span {
-					font-weight: bold;
-				}
-
-				&.no-match {
-					cursor: default;
-				}
+			&.no-match {
+				cursor: default;
 			}
 		}
+	}
 
-		.menu-highlighted {
-			font-weight: bold;
-		}
+	.menu-highlighted {
+		font-weight: bold;
+	}
 
-		.account,
-		li.highlight .account,
-		li:hover .account {
-			font-weight: normal;
-			color: var(--color-text-light);
-			opacity: 0.5;
-		}
+	.account,
+	li.highlight .account,
+	li:hover .account {
+		font-weight: normal;
+		color: var(--color-text-light);
+	}
 
-		li.highlight .account,
-		li:hover .account {
-			color: var(--color-primary-text) !important;
-			opacity: .6;
-		}
+	li.highlight .account,
+	li:hover .account {
+		color: var(--color-primary-text) !important;
+	}
 }
 </style>

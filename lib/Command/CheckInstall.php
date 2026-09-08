@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Command;
 
@@ -66,7 +44,7 @@ class CheckInstall extends Base {
 		IUserManager $userManager, StreamRequest $streamRequest, StreamDestRequest $streamDestRequest,
 		StreamTagsRequest $streamTagsRequest, CacheActorService $cacheActorService,
 		CheckService $checkService, ConfigService $configService, PushService $pushService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -84,13 +62,13 @@ class CheckInstall extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')
-			 ->addOption('index', '', InputOption::VALUE_NONE, 'regenerate your index')
+			->addOption('index', '', InputOption::VALUE_NONE, 'regenerate your index')
 //			 ->addOption(
 //				 'push', '', InputOption::VALUE_REQUIRED,
 //				 'a local account used to test integration to Nextcloud Push',
 //				 ''
 //			 )
-			 ->setDescription('Check the integrity of the installation');
+			->setDescription('Check the integrity of the installation');
 	}
 
 
@@ -102,9 +80,9 @@ class CheckInstall extends Base {
 			return 0;
 		}
 
-//		if ($this->checkPushApp($input, $output)) {
-//			return;
-//		}
+		//		if ($this->checkPushApp($input, $output)) {
+		//			return;
+		//		}
 
 		$result = $this->checkService->checkInstallationStatus();
 
@@ -137,9 +115,9 @@ class CheckInstall extends Base {
 		}
 
 		// push was not implemented on 18
-//		$wrapper = $this->pushService->testOnAccount($userId);
+		//		$wrapper = $this->pushService->testOnAccount($userId);
 
-//		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
+		//		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
 
 		return true;
 	}

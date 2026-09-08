@@ -2,30 +2,9 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
@@ -49,7 +28,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Accounts\IAccountManager;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -62,9 +40,17 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Service
  */
 class AccountService {
-	public const KEY_PAIR_LIFESPAN = 7;
-	public const TIME_RETENTION = 3600; // seconds before fully delete account
-	use TArrayTools;
+	/** How long a soft-deleted actor is kept before `manageDeletedActors()` purges it. */
+	public const TIME_RETENTION = 3600;
+
+	/**
+	 * Age, in days, past which `blindKeyRotation()` would renew an actor's key pair.
+	 * The rotation is not currently scheduled; the constant exists so the method does
+	 * not fatal on an undefined constant if it is ever called.
+	 */
+	public const KEY_PAIR_LIFESPAN = 60;
+
+	private ?string $userId = null;
 
 	private IUserManager $userManager;
 	private IUserSession $userSession;
@@ -74,9 +60,8 @@ class AccountService {
 	private StreamRequest $streamRequest;
 	private ActorService $actorService;
 	private ActivityService $activityService;
-	private AccountService $accountService;
-	private SignatureService $signatureService;
 	private DocumentService $documentService;
+	private SignatureService $signatureService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
 
@@ -92,7 +77,7 @@ class AccountService {
 		DocumentService $documentService,
 		SignatureService $signatureService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->userManager = $userManager;
 		$this->userSession = $userSession;
@@ -143,13 +128,13 @@ class AccountService {
 	public function getCurrentViewer(): Person {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
-			throw new AccountDoesNotExistException();
+			throw new AccountDoesNotExistException('No user is currently logged in');
 		}
 
 		try {
 			return $this->getActorFromUserId($user->getUID());
 		} catch (Exception $e) {
-			throw new AccountDoesNotExistException();
+			throw new AccountDoesNotExistException('Account not found for current user: ' . $e->getMessage());
 		}
 	}
 
@@ -175,7 +160,7 @@ class AccountService {
 				$this->createActor($userId, $userId);
 				$actor = $this->actorsRequest->getFromUserId($userId);
 			} else {
-				throw new ActorDoesNotExistException();
+				throw new ActorDoesNotExistException('Actor not found for user: ' . $userId);
 			}
 		}
 
@@ -227,7 +212,6 @@ class AccountService {
 		$actor = new Person();
 		$actor->setUserId($userId);
 		$actor->setPreferredUsername($username);
-
 		$this->signatureService->generateKeys($actor);
 		$this->actorsRequest->create($actor);
 
@@ -280,6 +264,25 @@ class AccountService {
 
 
 	/**
+	 * Stores whether new follows towards this user's actor need manual approval,
+	 * and refreshes the actor cache so the flag reaches the actor document and
+	 * account entity. Remote servers pick the change up when they next refresh
+	 * the actor.
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws UrlCloudException
+	 * @throws ItemAlreadyExistsException
+	 */
+	public function setLocked(string $userId, bool $locked): void {
+		$actor = $this->getActorFromUserId($userId);
+		$actor->setLocked($locked);
+		$this->actorsRequest->updateLocked($actor);
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+	}
+
+
+	/**
 	 * @param string $username
 	 *
 	 * @throws SocialAppConfigException
@@ -299,8 +302,10 @@ class AccountService {
 			try {
 				$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 				$actor->setIconId($iconId);
-			} catch (ItemUnknownException $e) {
+			} catch (ItemUnknownException|ItemAlreadyExistsException $e) {
 			}
+
+			$this->loadLocalActorHeader($actor);
 
 			$this->addLocalActorDetailCount($actor);
 			$this->actorService->cacheLocalActor($actor);
@@ -310,6 +315,34 @@ class AccountService {
 
 
 	/**
+	 * Load the cached header document URL for a local actor.
+	 *
+	 * @param Person $actor
+	 */
+	private function loadLocalActorHeader(Person $actor): void {
+		try {
+			$headerUrl = $this->actorService->getCachedHeader($actor);
+			if ($headerUrl !== '') {
+				$actor->setHeader($headerUrl);
+			}
+		} catch (Exception $e) {
+		}
+	}
+
+
+	/**
+	 * @param string $username
+	 * @param string $description
+	 *
+	 * @return Person
+	 *
+	 * @throws ActorDoesNotExistException
+	 * @throws SocialAppConfigException
+	 * @throws NoUserException
+	 * @throws ItemAlreadyExistsException
+	 * @throws UrlCloudException
+	 */
+	/**
 	 * @param Person $actor
 	 */
 	public function cacheLocalActorDetailCount(Person $actor) {
@@ -318,7 +351,7 @@ class AccountService {
 		}
 
 		$this->addLocalActorDetailCount($actor);
-		$this->actorService->cacheLocalActor($actor);
+		$this->actorService->cacheLocalActorDetails($actor);
 	}
 
 
@@ -336,6 +369,7 @@ class AccountService {
 		$count = [
 			'followers' => $this->followsRequest->countFollowers($actor->getId()),
 			'following' => $this->followsRequest->countFollowing($actor->getId()),
+			'follow_requests' => $this->followsRequest->countPendingRequests($actor->getId()),
 			'post' => $this->streamRequest->countNotesFromActorId($actor->getId())
 		];
 		$actor->setDetailArray('count', $count);
@@ -348,7 +382,7 @@ class AccountService {
 	 *
 	 * @throws NoUserException
 	 */
-	private function updateCacheLocalActorName(Person &$actor) {
+	private function updateCacheLocalActorName(Person $actor) {
 		$user = $this->userManager->get($actor->getUserId());
 		if ($user === null) {
 			throw new NoUserException();
@@ -357,7 +391,7 @@ class AccountService {
 		try {
 			$account = $this->accountManager->getAccount($user);
 			$displayNameProperty = $account->getProperty(IAccountManager::PROPERTY_DISPLAYNAME);
-			if ($displayNameProperty->getScope() === IAccountManager::VISIBILITY_PUBLIC) {
+			if ($displayNameProperty->getScope() === IAccountManager::SCOPE_PUBLISHED) {
 				$actor->setName($displayNameProperty->getValue());
 			}
 		} catch (Exception $e) {

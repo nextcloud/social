@@ -2,34 +2,14 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
+use CurlHandle;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\HostMetaException;
@@ -50,6 +30,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use Psr\Log\LoggerInterface;
@@ -78,7 +59,7 @@ class CurlService {
 	public function __construct(
 		ConfigService $configService,
 		FediverseService $fediverseService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->configService = $configService;
 		$this->fediverseService = $fediverseService;
@@ -105,9 +86,9 @@ class CurlService {
 		$account = $this->withoutBeginAt($account);
 
 		// we consider an account is like an email
-		if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
-			throw new InvalidResourceException('account format is not valid');
-		}
+		// if (!filter_var($account, FILTER_VALIDATE_EMAIL)) {
+		// 	throw new InvalidResourceException('account format is not valid');
+		// }
 
 		$exploded = explode('@', $account);
 
@@ -126,13 +107,14 @@ class CurlService {
 		$request = new NCRequest($path);
 		$request->addParam('resource', 'acct:' . $account);
 		$request->setHost($host);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 		$request->setProtocols($protocols);
 		$result = $this->retrieveJson($request);
 
 		$this->logger->notice('webfingerAccount, request result', ['request' => $request]);
 
 		$subject = $this->get('subject', $result, '');
-		list($type, $temp) = explode(':', $subject, 2);
+		[$type, $temp] = explode(':', $subject, 2);
 		if ($type === 'acct') {
 			$account = $temp;
 		}
@@ -152,6 +134,7 @@ class CurlService {
 		$request = new NCRequest('/.well-known/host-meta');
 		$request->setHost($host);
 		$request->setProtocols($protocols);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
 		$this->logger->debug('hostMeta', ['host' => $host, 'protocols' => $protocols]);
 
@@ -238,13 +221,22 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveObject(string $id): array {
+	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new NCRequest($url['path'], Request::TYPE_GET);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
+		if (isset($url['query']) && $url['query'] !== '') {
+			parse_str($url['query'], $queryParams);
+			foreach ($queryParams as $k => $v) {
+				$request->addParam($k, $v);
+			}
+		}
+		if ($acceptActivityJson) {
+			$request->addHeader('Accept', 'application/activity+json');
+		}
 
 		$result = $this->retrieveJson($request);
 		$result['_host'] = $request->getHost();
@@ -346,7 +338,9 @@ class CurlService {
 	public function doRequestOrig(Request $request): string {
 		$this->maxDownloadSizeReached = false;
 
-		$ignoreProtocolOnErrors = [7];
+		// allow falling back to the next protocol (e.g. http) when certain
+		// curl errors occur, like SSL hostname mismatch (60)
+		$ignoreProtocolOnErrors = [7, 60];
 		$result = '';
 		foreach ($request->getProtocols() as $protocol) {
 			$request->setUsedProtocol($protocol);
@@ -354,8 +348,8 @@ class CurlService {
 
 			$result = curl_exec($curl);
 			$this->logger->debug(
-				'[>>] ' . json_encode($request)
-				. '   result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']: ' . json_encode($result)
+				'[>>] ' . $request->getUsedProtocol() . '://' . $request->getHost()
+				. ' result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']'
 			);
 
 			if (in_array(curl_errno($curl), $ignoreProtocolOnErrors)) {
@@ -384,9 +378,9 @@ class CurlService {
 	/**
 	 * @param Request $request
 	 *
-	 * @return resource
+	 * @return CurlHandle
 	 */
-	private function initRequest(Request $request) {
+	private function initRequest(Request $request): CurlHandle {
 		$curl = $this->generateCurlRequest($request);
 		$this->initRequestHeaders($curl, $request);
 
@@ -395,14 +389,24 @@ class CurlService {
 		curl_setopt($curl, CURLOPT_TIMEOUT, $request->getTimeout());
 
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($curl, CURLOPT_BINARYTRANSFER, $request->isBinary());
 
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $request->isVerifyPeer());
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $request->isFollowLocation());
 
+		// Only ever speak HTTP(S), on the initial request and on any redirect. This is
+		// what keeps a remote-supplied url (an actor's inbox, an icon, a @context)
+		// from turning into a file://, gopher:// or dict:// fetch.
+		curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+		curl_setopt($curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+
+		if (!$request->isLocalAddressAllowed() && RemoteAddress::isLocalHost($request->getHost())) {
+			throw new RequestServerException('host resolves to a local address: ' . $request->getHost());
+		}
+
 		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
 		curl_setopt($curl, CURLOPT_NOPROGRESS, false);
-		curl_setopt($curl, CURLOPT_PROGRESSFUNCTION,
+		curl_setopt(
+			$curl, CURLOPT_PROGRESSFUNCTION,
 			/**
 			 * @param $downloadSize
 			 * @param int $downloaded
@@ -428,8 +432,10 @@ class CurlService {
 
 	/**
 	 * @param Request $request
+	 *
+	 * @return CurlHandle
 	 */
-	private function generateCurlRequest(Request $request) {
+	private function generateCurlRequest(Request $request): CurlHandle {
 		$url = $request->getUsedProtocol() . '://' . $request->getHost() . $request->getParsedUrl();
 		if ($request->getType() !== Request::TYPE_GET) {
 			$curl = curl_init($url);
@@ -465,10 +471,10 @@ class CurlService {
 	}
 
 	/**
-	 * @param resource $curl
+	 * @param CurlHandle $curl
 	 * @param Request $request
 	 */
-	private function initRequestHeaders($curl, Request $request) {
+	private function initRequestHeaders(CurlHandle $curl, Request $request): void {
 		$headers = [];
 		foreach ($request->getHeaders() as $name => $value) {
 			$headers[] = $name . ': ' . $value;
@@ -479,14 +485,14 @@ class CurlService {
 
 
 	/**
-	 * @param resource $curl
+	 * @param CurlHandle $curl
 	 * @param Request $request
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestServerException
 	 * @throws RequestNetworkException
 	 */
-	private function parseRequestResult($curl, Request $request): void {
+	private function parseRequestResult(CurlHandle $curl, Request $request): void {
 		$this->parseRequestResultCurl($curl, $request);
 
 		$code = curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -497,12 +503,12 @@ class CurlService {
 
 
 	/**
-	 * @param resource $curl
+	 * @param CurlHandle $curl
 	 * @param Request $request
 	 *
 	 * @throws RequestNetworkException
 	 */
-	private function parseRequestResultCurl($curl, Request $request) {
+	private function parseRequestResultCurl(CurlHandle $curl, Request $request): void {
 		$errno = curl_errno($curl);
 		if ($errno > 0) {
 			throw new RequestNetworkException(

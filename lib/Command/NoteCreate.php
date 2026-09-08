@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Command;
 
@@ -76,7 +54,7 @@ class NoteCreate extends Base {
 	 */
 	public function __construct(
 		ActivityService $activityService, AccountService $accountService, PostService $postService,
-		CurlService $curlService, ConfigService $configService, MiscService $miscService
+		CurlService $curlService, ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -95,23 +73,23 @@ class NoteCreate extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:note:create')
-			 ->addOption(
-			 	'replyTo', 'r', InputOption::VALUE_OPTIONAL, 'in reply to an existing thread'
-			 )
-			 ->addOption(
-			 	'to', 't', InputOption::VALUE_OPTIONAL, 'mentioning people'
-			 )
-			 ->addOption(
-			 	'type', 'y', InputOption::VALUE_OPTIONAL,
-			 	'type: public (default), followers, unlisted, direct'
-			 )
-			 ->addOption(
-			 	'hashtag', 'g', InputOption::VALUE_OPTIONAL,
-			 	'hashtag, without the leading #'
-			 )
-			 ->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
-			 ->addArgument('content', InputArgument::REQUIRED, 'content of the post')
-			 ->setDescription('Create a new note');
+			->addOption(
+				'replyTo', 'r', InputOption::VALUE_OPTIONAL, 'in reply to an existing thread'
+			)
+			->addOption(
+				'to', 't', InputOption::VALUE_OPTIONAL, 'mentioning people'
+			)
+			->addOption(
+				'type', 'y', InputOption::VALUE_OPTIONAL,
+				'type: public (default), followers, unlisted, direct'
+			)
+			->addOption(
+				'hashtag', 'g', InputOption::VALUE_OPTIONAL,
+				'hashtag, without the leading #'
+			)
+			->addArgument('user_id', InputArgument::REQUIRED, 'userId of the author')
+			->addArgument('content', InputArgument::REQUIRED, 'content of the post')
+			->setDescription('Create a new note');
 	}
 
 
@@ -122,7 +100,7 @@ class NoteCreate extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		$userId = $input->getArgument('userid');
+		$userId = $input->getArgument('user_id');
 		$content = $input->getArgument('content');
 		$to = $input->getOption('to');
 		$hashtag = $input->getOption('hashtag');

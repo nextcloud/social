@@ -2,42 +2,24 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TAsync;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\RequestQueueService;
+use OCA\Social\Tools\Traits\TAsync;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 
 /**
@@ -54,9 +36,9 @@ class QueueController extends Controller {
 
 	public function __construct(
 		IRequest $request, RequestQueueService $requestQueueService, ActivityService $activityService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->requestQueueService = $requestQueueService;
 		$this->activityService = $activityService;
@@ -65,25 +47,43 @@ class QueueController extends Controller {
 
 
 	/**
+	 * The whole worker's time budget. Whatever is left over stays STANDBY and is
+	 * delivered by the cron, so a post with many recipient inboxes (or a slow
+	 * remote) cannot pin a PHP worker indefinitely.
+	 */
+	public const MAX_DURATION = 90;
+
+	/**
 	 * @PublicPage
 	 * @NoCSRFRequired
 	 */
-	public function asyncForRequest(string $token) {
+	public function asyncForRequest(string $token): Response {
 		$requests = $this->requestQueueService->getRequestFromToken($token, RequestQueue::STATUS_STANDBY);
 
-		if (!empty($requests)) {
-			$this->async();
+		if (empty($requests)) {
+			return new DataResponse([], Http::STATUS_OK);
+		}
 
-			$this->activityService->manageInit();
-			foreach ($requests as $request) {
-				$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
-				try {
-					$this->activityService->manageRequest($request);
-				} catch (SocialAppConfigException $e) {
-				}
+		// From here the request is detached: async() has flushed an empty body and
+		// closed the connection, and this worker only delivers queued activities.
+		$this->async();
+
+		$deadline = time() + self::MAX_DURATION;
+		$this->activityService->manageInit();
+		foreach ($requests as $request) {
+			if (time() >= $deadline) {
+				break;
+			}
+			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
+			try {
+				$this->activityService->manageRequest($request);
+			} catch (SocialAppConfigException $e) {
 			}
 		}
-		// or it will feed the logs.
+
+		// exit(), not a Response: the connection is gone and headers are sent, so
+		// letting the framework render a response would only feed warnings into the
+		// log. Registered shutdown handlers still run.
 		exit();
 	}
 }

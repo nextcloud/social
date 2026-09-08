@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
@@ -59,6 +37,7 @@ use Psr\Log\LoggerInterface;
 class CoreRequestBuilder {
 	public const TABLE_ACTIONS = 'social_action';
 	public const TABLE_ACTORS = 'social_actor';
+	public const TABLE_ACTOR_RELATION = 'social_actor_relation';
 	public const TABLE_CACHE_ACTORS = 'social_cache_actor';
 	public const TABLE_CACHE_DOCUMENTS = 'social_cache_doc';
 	public const TABLE_CLIENT = 'social_client';
@@ -66,6 +45,7 @@ class CoreRequestBuilder {
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_NOTIFICATION = 'social_notif';
+	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
@@ -105,7 +85,6 @@ class CoreRequestBuilder {
 			'following',
 			'followers',
 			'inbox',
-			'shared_index',
 			'outbox',
 			'featured',
 			'url',
@@ -116,18 +95,24 @@ class CoreRequestBuilder {
 			'public_key',
 			'source',
 			'details',
+			'details_update',
 			'creation'
 		],
 		self::TABLE_CACHE_DOCUMENTS => [
+			'nid',
 			'id_prim',
 			'id',
 			'type',
+			'account',
 			'parent_id',
 			'media_type',
 			'mime_type',
 			'url',
 			'local_copy',
 			'resized_copy',
+			'meta',
+			'blurhash',
+			'description',
 			'public',
 			'error',
 			'creation',
@@ -198,6 +183,7 @@ class CoreRequestBuilder {
 			'nid',
 			'id',
 			'id_prim',
+			'visibility',
 			'type',
 			'subtype',
 			'to',
@@ -234,6 +220,7 @@ class CoreRequestBuilder {
 			'liked',
 			'boosted',
 			'replied',
+			'bookmarked',
 			'values'
 		],
 		self::TABLE_STREAM_DEST => [
@@ -255,6 +242,17 @@ class CoreRequestBuilder {
 			'stream_id',
 			'hashtag'
 		],
+		self::TABLE_REPORTS => [
+			'id',
+			'actor_id',
+			'account_id',
+			'status_ids',
+			'comment',
+			'category',
+			'local',
+			'resolved',
+			'creation'
+		],
 	];
 
 	protected LoggerInterface $logger;
@@ -270,7 +268,7 @@ class CoreRequestBuilder {
 		LoggerInterface $logger,
 		IURLGenerator $urlGenerator,
 		ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->dbConnection = $connection;
 		$this->logger = $logger;
@@ -694,8 +692,8 @@ class CoreRequestBuilder {
 		$qb->orderBy($pf . '.published_time', 'desc');
 	}
 
-//
-//
+	//
+	//
 
 	/**
 	 * @param IQueryBuilder $qb
@@ -705,14 +703,14 @@ class CoreRequestBuilder {
 	 * @param string $alias
 	 */
 	protected function limitToDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBField($qb, $field, $value, true, $cs, $alias);
 		$qb->andWhere($expr);
 	}
 
 	protected function filterDBField(
-		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = ''
+		IQueryBuilder &$qb, string $field, string $value, bool $cs = true, string $alias = '',
 	) {
 		$expr = $this->exprLimitToDBField($qb, $field, $value, false, $cs, $alias);
 		$qb->andWhere($expr);
@@ -720,7 +718,7 @@ class CoreRequestBuilder {
 
 	protected function exprLimitToDBField(
 		IQueryBuilder &$qb, string $field, string $value, bool $eq = true, bool $cs = true,
-		string $alias = ''
+		string $alias = '',
 	): string {
 		$expr = $qb->expr();
 
@@ -747,14 +745,14 @@ class CoreRequestBuilder {
 	}
 
 	protected function limitToDBFieldInt(
-		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
+		IQueryBuilder &$qb, string $field, int $value, string $alias = '',
 	): void {
 		$expr = $this->exprLimitToDBFieldInt($qb, $field, $value, $alias);
 		$qb->andWhere($expr);
 	}
 
 	protected function exprLimitToDBFieldInt(
-		IQueryBuilder &$qb, string $field, int $value, string $alias = ''
+		IQueryBuilder &$qb, string $field, int $value, string $alias = '',
 	): string {
 		$expr = $qb->expr();
 
@@ -789,17 +787,21 @@ class CoreRequestBuilder {
 	 * @param bool $orNull
 	 */
 	protected function limitToDBFieldDateTime(
-		IQueryBuilder &$qb, string $field, DateTime $date, bool $orNull = false
+		IQueryBuilder &$qb, string $field, DateTime $date, bool $orNull = false,
 	) {
 		$expr = $qb->expr();
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add($expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
-
 		if ($orNull === true) {
-			$orX->add($expr->isNull($field));
+			$orX = $expr->orX(
+				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)),
+				$expr->isNull($field)
+			);
+		} else {
+			$orX = $expr->orX(
+				$expr->lte($field, $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
+			);
 		}
 		$qb->andWhere($orX);
 	}
@@ -825,8 +827,9 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
-		$orX->add($expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)));
+		$orX = $expr->orX(
+			$expr->gte($field, $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE))
+		);
 
 		$qb->andWhere($orX);
 	}
@@ -837,10 +840,12 @@ class CoreRequestBuilder {
 		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
 		$field = $pf . $field;
 
-		$orX = $expr->orX();
+		$conditions = [];
 		foreach ($values as $value) {
-			$orX->add($expr->eq($field, $qb->createNamedParameter($value)));
+			$conditions[] = $expr->eq($field, $qb->createNamedParameter($value));
 		}
+
+		$orX = $expr->orX(...$conditions);
 
 		$qb->andWhere($orX);
 	}
@@ -863,47 +868,14 @@ class CoreRequestBuilder {
 
 	/**
 	 * @param IQueryBuilder $qb
-	 * @param string $alias
-	 *
-	 * @deprecated
-	 */
-	protected function selectCacheActors(IQueryBuilder &$qb, string $alias = 'ca') {
-		if ($qb->getType() !== QueryBuilder::SELECT) {
-			return;
-		}
-
-		$pf = (($alias === '') ? $this->defaultSelectAlias : $alias);
-		$qb->from(self::TABLE_CACHE_ACTORS, $pf);
-		$qb->selectAlias($pf . '.id', 'cacheactor_id')
-		   ->selectAlias($pf . '.type', 'cacheactor_type')
-		   ->selectAlias($pf . '.account', 'cacheactor_account')
-		   ->selectAlias($pf . '.following', 'cacheactor_following')
-		   ->selectAlias($pf . '.followers', 'cacheactor_followers')
-		   ->selectAlias($pf . '.inbox', 'cacheactor_inbox')
-		   ->selectAlias($pf . '.shared_inbox', 'cacheactor_shared_inbox')
-		   ->selectAlias($pf . '.outbox', 'cacheactor_outbox')
-		   ->selectAlias($pf . '.featured', 'cacheactor_featured')
-		   ->selectAlias($pf . '.url', 'cacheactor_url')
-		   ->selectAlias($pf . '.preferred_username', 'cacheactor_preferred_username')
-		   ->selectAlias($pf . '.name', 'cacheactor_name')
-		   ->selectAlias($pf . '.summary', 'cacheactor_summary')
-		   ->selectAlias($pf . '.public_key', 'cacheactor_public_key')
-		   ->selectAlias($pf . '.source', 'cacheactor_source')
-		   ->selectAlias($pf . '.creation', 'cacheactor_creation')
-		   ->selectAlias($pf . '.local', 'cacheactor_local');
-	}
-
-
-	/**
-	 * @param IQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param Person $author
 	 * @param string $alias
 	 *
-	 * @deprecated ?
+	 * @deprecated - use SocialCrossQueryBuilder:leftJoinCacheActor
 	 */
 	protected function leftJoinCacheActors(
-		IQueryBuilder &$qb, string $fieldActorId, Person $author = null, string $alias = ''
+		IQueryBuilder &$qb, string $fieldActorId, ?Person $author = null, string $alias = '',
 	) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
@@ -914,38 +886,40 @@ class CoreRequestBuilder {
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
-		$qb->selectAlias('ca.id', 'cacheactor_id')
-		   ->selectAlias('ca.type', 'cacheactor_type')
-		   ->selectAlias('ca.account', 'cacheactor_account')
-		   ->selectAlias('ca.following', 'cacheactor_following')
-		   ->selectAlias('ca.followers', 'cacheactor_followers')
-		   ->selectAlias('ca.inbox', 'cacheactor_inbox')
-		   ->selectAlias('ca.shared_inbox', 'cacheactor_shared_inbox')
-		   ->selectAlias('ca.outbox', 'cacheactor_outbox')
-		   ->selectAlias('ca.featured', 'cacheactor_featured')
-		   ->selectAlias('ca.url', 'cacheactor_url')
-		   ->selectAlias('ca.preferred_username', 'cacheactor_preferred_username')
-		   ->selectAlias('ca.name', 'cacheactor_name')
-		   ->selectAlias('ca.summary', 'cacheactor_summary')
-		   ->selectAlias('ca.public_key', 'cacheactor_public_key')
-		   ->selectAlias('ca.source', 'cacheactor_source')
-		   ->selectAlias('ca.creation', 'cacheactor_creation')
-		   ->selectAlias('ca.local', 'cacheactor_local');
+		$qb->selectAlias('ca.id', 'ca_id')
+			->selectAlias('ca.type', 'ca_type')
+			->selectAlias('ca.account', 'ca_account')
+			->selectAlias('ca.following', 'ca_following')
+			->selectAlias('ca.followers', 'ca_followers')
+			->selectAlias('ca.inbox', 'ca_inbox')
+			->selectAlias('ca.shared_inbox', 'ca_shared_inbox')
+			->selectAlias('ca.outbox', 'ca_outbox')
+			->selectAlias('ca.featured', 'ca_featured')
+			->selectAlias('ca.url', 'ca_url')
+			->selectAlias('ca.preferred_username', 'ca_preferred_username')
+			->selectAlias('ca.name', 'ca_name')
+			->selectAlias('ca.summary', 'ca_summary')
+			->selectAlias('ca.public_key', 'ca_public_key')
+			->selectAlias('ca.source', 'ca_source')
+			->selectAlias('ca.creation', 'ca_creation')
+			->selectAlias('ca.local', 'ca_local');
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id')));
 		if ($author !== null) {
-			$andX = $expr->andX();
-			$andX->add(
-				$this->exprLimitToDBField($qb, 'attributed_to', $author->getId(), true, false, 's')
-			);
-			$andX->add(
+			$andX = $expr->andX(
+				$this->exprLimitToDBField($qb, 'attributed_to', $author->getId(), true, false, 's'),
 				$expr->eq(
 					$func->lower($this->defaultSelectAlias . '.attributed_to'),
 					$func->lower('ca.id')
 				)
 			);
-			$orX->add($andX);
+			$orX = $expr->orX(
+				$expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id')),
+				$andX
+			);
+		} else {
+			$orX = $expr->orX(
+				$expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id'))
+			);
 		}
 
 		$qb->leftJoin(
@@ -959,7 +933,7 @@ class CoreRequestBuilder {
 	 * @param string $fieldActorId
 	 * @param string $alias
 	 */
-	protected function leftJoinAccounts(IQueryBuilder &$qb, string $fieldActorId, string $alias = ''
+	protected function leftJoinAccounts(IQueryBuilder &$qb, string $fieldActorId, string $alias = '',
 	) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
@@ -971,11 +945,11 @@ class CoreRequestBuilder {
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
 		$qb->selectAlias('lja.id', 'accounts_id')
-		   ->selectAlias('lja.user_id', 'accounts_user_id')
-		   ->selectAlias('lja.preferred_username', 'accounts_preferred_username')
-		   ->selectAlias('lja.name', 'accounts_name')
-		   ->selectAlias('lja.summary', 'accounts_summary')
-		   ->selectAlias('lja.public_key', 'accounts_public_key');
+			->selectAlias('lja.user_id', 'accounts_user_id')
+			->selectAlias('lja.preferred_username', 'accounts_preferred_username')
+			->selectAlias('lja.name', 'accounts_name')
+			->selectAlias('lja.summary', 'accounts_summary')
+			->selectAlias('lja.public_key', 'accounts_public_key');
 
 		$on = $expr->eq(
 			$func->lower($pf . '.' . $fieldActorId),
@@ -1027,21 +1001,24 @@ class CoreRequestBuilder {
 		$expr = $qb->expr();
 
 		$qb->selectAlias('sa.id', 'streamaction_id')
-		   ->selectAlias('sa.actor_id', 'streamaction_actor_id')
-		   ->selectAlias('sa.stream_id', 'streamaction_stream_id')
-		   ->selectAlias('sa.values', 'streamaction_values');
+			->selectAlias('sa.actor_id', 'streamaction_actor_id')
+			->selectAlias('sa.stream_id', 'streamaction_stream_id')
+			->selectAlias('sa.liked', 'streamaction_liked')
+			->selectAlias('sa.boosted', 'streamaction_boosted')
+			->selectAlias('sa.replied', 'streamaction_replied')
+			->selectAlias('sa.bookmarked', 'streamaction_bookmarked');
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.id_prim'));
-		$orX->add($expr->eq('sa.stream_id_prim', $pf . '.object_id_prim'));
+		$orX = $expr->orX(
+			$expr->eq('sa.stream_id_prim', $pf . '.id_prim'),
+			$expr->eq('sa.stream_id_prim', $pf . '.object_id_prim')
+		);
 
-		$on = $expr->andX();
-		$on->add(
+		$on = $expr->andX(
 			$expr->eq(
 				'sa.actor_id_prim', $qb->createNamedParameter($qb->prim($this->viewer->getId()))
-			)
+			),
+			$orX
 		);
-		$on->add($orX);
 
 		$qb->leftJoin(
 			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
@@ -1090,14 +1067,13 @@ class CoreRequestBuilder {
 		$pf = $this->defaultSelectAlias;
 
 		$qb->selectAlias('a.id', 'action_id')
-		   ->selectAlias('a.actor_id', 'action_actor_id')
-		   ->selectAlias('a.object_id', 'action_object_id')
-		   ->selectAlias('a.type', 'action_type');
+			->selectAlias('a.actor_id', 'action_actor_id')
+			->selectAlias('a.object_id', 'action_object_id')
+			->selectAlias('a.type', 'action_type');
 
-		$andX = $expr->andX();
-		$andX->add($expr->eq($func->lower($pf . '.id'), $func->lower('a.object_id')));
-		$andX->add($expr->eq('a.type', $qb->createNamedParameter($type)));
-		$andX->add(
+		$andX = $expr->andX(
+			$expr->eq($func->lower($pf . '.id'), $func->lower('a.object_id')),
+			$expr->eq('a.type', $qb->createNamedParameter($type)),
 			$expr->eq(
 				$func->lower('a.actor_id'),
 				$qb->createNamedParameter(strtolower($this->viewer->getId()))
@@ -1121,10 +1097,10 @@ class CoreRequestBuilder {
 			}
 		}
 
-//		$action = new Action();
-//		$action->importFromDatabase($new);
+		//		$action = new Action();
+		//		$action->importFromDatabase($new);
 
-//		return $action;
+		//		return $action;
 	}
 
 
@@ -1137,7 +1113,7 @@ class CoreRequestBuilder {
 	 */
 	protected function leftJoinFollowAsViewer(
 		IQueryBuilder &$qb, string $fieldActorId, bool $asFollower = true,
-		string $prefix = 'follow', string $pf = ''
+		string $prefix = 'follow', string $pf = '',
 	) {
 		if ($qb->getType() !== QueryBuilder::SELECT) {
 			return;
@@ -1153,44 +1129,38 @@ class CoreRequestBuilder {
 			$pf = $this->defaultSelectAlias;
 		}
 
-		$andX = $expr->andX();
-		$andX->add($this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f'));
+		// Build all conditions first for andX()
+		$conditions = [];
+		$conditions[] = $this->exprLimitToDBFieldInt($qb, 'accepted', 1, $prefix . '_f');
+		
 		if ($asFollower === true) {
-			$andX->add(
-				$expr->eq(
-					$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
 			);
-			$andX->add(
-				$expr->eq(
-					$func->lower($prefix . '_f.actor_id'),
-					$func->lower($qb->createNamedParameter($this->viewer->getId()))
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($prefix . '_f.actor_id'),
+				$func->lower($qb->createNamedParameter($this->viewer->getId()))
 			);
 		} else {
-			$andX->add(
-				$expr->eq(
-					$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.actor_id')
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.actor_id')
 			);
-			$andX->add(
-				$expr->eq(
-					$func->lower($prefix . '_f.object_id'),
-					$func->lower($qb->createNamedParameter($this->viewer->getId()))
-				)
+			$conditions[] = $expr->eq(
+				$func->lower($prefix . '_f.object_id'),
+				$func->lower($qb->createNamedParameter($this->viewer->getId()))
 			);
 		}
 
 		$qb->selectAlias($prefix . '_f.id', $prefix . '_id')
-		   ->selectAlias($prefix . '_f.type', $prefix . '_type')
-		   ->selectAlias($prefix . '_f.actor_id', $prefix . '_actor_id')
-		   ->selectAlias($prefix . '_f.object_id', $prefix . '_object_id')
-		   ->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
-		   ->selectAlias($prefix . '_f.creation', $prefix . '_creation')
-		   ->leftJoin(
-		   	$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
-		   	$andX
-		   );
+			->selectAlias($prefix . '_f.type', $prefix . '_type')
+			->selectAlias($prefix . '_f.actor_id', $prefix . '_actor_id')
+			->selectAlias($prefix . '_f.object_id', $prefix . '_object_id')
+			->selectAlias($prefix . '_f.follow_id', $prefix . '_follow_id')
+			->selectAlias($prefix . '_f.creation', $prefix . '_creation')
+			->leftJoin(
+				$this->defaultSelectAlias, CoreRequestBuilder::TABLE_FOLLOWS, $prefix . '_f',
+				$expr->andX(...$conditions)
+			);
 	}
 
 
@@ -1269,7 +1239,7 @@ class CoreRequestBuilder {
 			if ($schema->hasTable($table)) {
 				$qb = $this->getQueryBuilder();
 				$qb->delete($table);
-				$qb->execute();
+				$qb->executeStatement();
 			}
 		}
 	}
@@ -1298,7 +1268,7 @@ class CoreRequestBuilder {
 		$qb->delete('migrations');
 		$qb->where($this->exprLimitToDBField($qb, 'app', 'social', true, true));
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 	/**
@@ -1308,11 +1278,11 @@ class CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete('jobs');
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Cache', true, true));
-		$qb->execute();
+		$qb->executeStatement();
 
 		$qb = $this->getQueryBuilder();
 		$qb->delete('jobs');
 		$qb->where($this->exprLimitToDBField($qb, 'class', 'OCA\Social\Cron\Queue', true, true));
-		$qb->execute();
+		$qb->executeStatement();
 	}
 }

@@ -1,0 +1,301 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Service;
+
+use OCA\Social\AP;
+use OCA\Social\Db\StreamQueueRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\QueueStatusException;
+use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\CurlService;
+use OCA\Social\Service\ImportService;
+use OCA\Social\Service\MiscService;
+use OCA\Social\Service\SignatureService;
+use OCA\Social\Service\StreamQueueService;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Model\Cache;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+
+class StreamQueueServiceTest extends TestCase {
+	private const STREAM_ID = 'https://cloud.example.com/apps/social/@alice/1';
+	private const REPLY_URL = 'https://remote.example/notes/99';
+	private const BOB = 'https://remote.example/users/bob';
+
+	private StreamRequest|MockObject $streamRequest;
+	private StreamQueueRequest|MockObject $streamQueueRequest;
+	private CacheActorService|MockObject $cacheActorService;
+	private CurlService|MockObject $curlService;
+	private MiscService|MockObject $miscService;
+	private AP|MockObject $ap;
+	private StreamQueueService $service;
+
+	protected function setUp(): void {
+		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->streamQueueRequest = $this->createMock(StreamQueueRequest::class);
+		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->curlService = $this->createMock(CurlService::class);
+		$this->miscService = $this->createMock(MiscService::class);
+		$this->ap = $this->createMock(AP::class);
+		AP::$activityPub = $this->ap;
+
+		$this->service = new StreamQueueService(
+			$this->streamRequest,
+			$this->streamQueueRequest,
+			$this->cacheActorService,
+			$this->createMock(ImportService::class),
+			$this->curlService,
+			$this->miscService,
+		);
+	}
+
+	protected function tearDown(): void {
+		AP::$activityPub = null;
+	}
+
+	private function queue(string $type = StreamQueue::TYPE_CACHE): StreamQueue {
+		return new StreamQueue('tok', $type, self::STREAM_ID);
+	}
+
+	/** A local note whose cache is waiting for one remote reply. */
+	private function streamWithCache(): Note {
+		$note = new Note();
+		$note->setId(self::STREAM_ID);
+		$note->addCacheItem(self::REPLY_URL);
+
+		return $note;
+	}
+
+	public function testGenerateStreamQueueCreatesAStandbyEntry(): void {
+		$this->streamQueueRequest->expects($this->once())
+			->method('create')
+			->with($this->callback(function (StreamQueue $queue) {
+				$this->assertSame('tok', $queue->getToken());
+				$this->assertSame(StreamQueue::TYPE_CACHE, $queue->getType());
+				$this->assertSame(self::STREAM_ID, $queue->getStreamId());
+				$this->assertSame(StreamQueue::STATUS_STANDBY, $queue->getStatus());
+
+				return true;
+			}));
+
+		$this->service->generateStreamQueue('tok', StreamQueue::TYPE_CACHE, self::STREAM_ID);
+	}
+
+	public function testGetRequestStandbyAppliesTheRetryBackoff(): void {
+		$now = time();
+		$fresh = $this->queue()->setTries(0)->setLast($now - 1);
+		$recent = $this->queue()->setTries(3)->setLast($now - 10); // delay 27s
+		$old = $this->queue()->setTries(3)->setLast($now - 60);
+		$this->streamQueueRequest->method('getStandby')->willReturn([$fresh, $recent, $old]);
+
+		$total = 0;
+		$ready = $this->service->getRequestStandby($total);
+
+		$this->assertSame(3, $total);
+		$this->assertSame([$fresh, $old], $ready);
+	}
+
+	public function testManageStreamQueueStopsWhenTheEntryIsAlreadyRunning(): void {
+		$this->streamQueueRequest->method('setAsRunning')->willThrowException(new QueueStatusException());
+		$this->streamRequest->expects($this->never())->method('getStreamById');
+		$this->streamQueueRequest->expects($this->never())->method('delete');
+
+		$this->service->manageStreamQueue($this->queue());
+	}
+
+	public function testUnknownQueueTypesAreDropped(): void {
+		$queue = $this->queue('Signature');
+		$this->streamQueueRequest->expects($this->once())->method('setAsRunning');
+		$this->streamQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
+		$this->streamRequest->expects($this->never())->method('getStreamById');
+
+		$this->service->manageStreamQueue($queue);
+	}
+
+	public function testCacheEntryForAMissingStreamIsDropped(): void {
+		$queue = $this->queue();
+		$this->streamRequest->method('getStreamById')->with(self::STREAM_ID)->willThrowException(new StreamNotFoundException());
+		$this->streamQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
+
+		$this->service->manageStreamQueue($queue);
+	}
+
+	public function testCacheEntryForAStreamWithoutCacheIsDropped(): void {
+		$queue = $this->queue();
+		$note = new Note();
+		$note->setId(self::STREAM_ID);
+		$this->streamRequest->method('getStreamById')->willReturn($note);
+		$this->streamQueueRequest->expects($this->once())->method('delete')->with($this->identicalTo($queue));
+		$this->streamQueueRequest->expects($this->never())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+	}
+
+	public function testAlreadyKnownReplyIsCachedFromTheDatabase(): void {
+		$queue = $this->queue();
+		$stream = $this->streamWithCache();
+		$reply = new Note();
+		$reply->setId(self::REPLY_URL);
+		$reply->setContent('a reply');
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(fn (string $id) => $id === self::STREAM_ID ? $stream : $reply);
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$updatedCache = null;
+		$this->streamRequest->expects($this->once())
+			->method('updateCache')
+			->willReturnCallback(function (Note $s, Cache $cache) use (&$updatedCache) {
+				$updatedCache = $cache;
+			});
+		$noteInterface = $this->createMock(NoteInterface::class);
+		$noteInterface->expects($this->once())->method('event')->with($this->identicalTo($stream), 'updateCache');
+		$this->ap->method('getInterfaceForItem')->with($this->identicalTo($stream))->willReturn($noteInterface);
+		$this->streamQueueRequest->expects($this->once())->method('setAsSuccess')->with($this->identicalTo($queue));
+		$this->streamQueueRequest->expects($this->never())->method('setAsFailure');
+
+		$this->service->manageStreamQueue($queue);
+
+		$item = $updatedCache->getItem(self::REPLY_URL);
+		$this->assertSame(StreamQueue::STATUS_SUCCESS, $item->getStatus());
+		$this->assertSame(json_encode($reply, JSON_UNESCAPED_SLASHES), $item->getContent());
+	}
+
+	public function testUnknownReplyIsFetchedValidatedAndSaved(): void {
+		$queue = $this->queue();
+		$stream = $this->streamWithCache();
+		$fetched = new Note();
+		$fetched->setId(self::REPLY_URL);
+		$fetched->setAttributedTo(self::BOB);
+		$saved = false;
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($stream, $fetched, &$saved) {
+				if ($id === self::STREAM_ID) {
+					return $stream;
+				}
+				if (!$saved) {
+					throw new StreamNotFoundException();
+				}
+
+				return $fetched;
+			});
+		$this->curlService->expects($this->once())
+			->method('retrieveObject')
+			->with(self::REPLY_URL)
+			->willReturn(['id' => self::REPLY_URL, 'type' => 'Note']);
+		$this->ap->method('getItemFromData')->with(['id' => self::REPLY_URL, 'type' => 'Note'])->willReturn($fetched);
+		$this->cacheActorService->expects($this->once())->method('getFromId')->with(self::BOB)->willReturn(new Person());
+		$noteInterface = $this->createMock(NoteInterface::class);
+		$noteInterface->expects($this->once())
+			->method('save')
+			->with($this->identicalTo($fetched))
+			->willReturnCallback(function () use (&$saved) {
+				$saved = true;
+			});
+		$this->ap->method('getInterfaceForItem')->willReturn($noteInterface);
+		$this->streamQueueRequest->expects($this->once())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+
+		$this->assertSame('remote.example', $fetched->getOrigin());
+		$this->assertSame(SignatureService::ORIGIN_REQUEST, $fetched->getOriginSource());
+	}
+
+	public function testReplyWithMismatchingIdIsRemovedFromTheCache(): void {
+		$queue = $this->queue();
+		$stream = $this->streamWithCache();
+		$fetched = new Note();
+		$fetched->setId('https://remote.example/notes/other');
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($stream) {
+				if ($id === self::STREAM_ID) {
+					return $stream;
+				}
+				throw new StreamNotFoundException();
+			});
+		$this->curlService->method('retrieveObject')->willReturn(['id' => 'x']);
+		$this->ap->method('getItemFromData')->willReturn($fetched);
+		$this->ap->method('getInterfaceForItem')->willReturn($this->createMock(NoteInterface::class));
+		$this->miscService->expects($this->once())
+			->method('log')
+			->with($this->stringContains('InvalidOriginException'), 1);
+		$updatedCache = null;
+		$this->streamRequest->method('updateCache')
+			->willReturnCallback(function (Note $s, Cache $cache) use (&$updatedCache) {
+				$updatedCache = $cache;
+			});
+		// nothing left to cache: the queue entry is complete
+		$this->streamQueueRequest->expects($this->once())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+
+		$this->assertFalse($updatedCache->hasItem(self::REPLY_URL));
+	}
+
+	public function testGoneReplyIsRemovedFromTheCache(): void {
+		$queue = $this->queue();
+		$stream = $this->streamWithCache();
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($stream) {
+				if ($id === self::STREAM_ID) {
+					return $stream;
+				}
+				throw new StreamNotFoundException();
+			});
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestContentException('gone', 410));
+		$this->ap->method('getInterfaceForItem')->willReturn($this->createMock(NoteInterface::class));
+		$this->miscService->expects($this->once())->method('log')->with($this->stringContains('RequestContentException'), 1);
+		$this->streamQueueRequest->expects($this->once())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+
+		$this->assertFalse($stream->getCache()->hasItem(self::REPLY_URL));
+	}
+
+	public function testNetworkErrorKeepsTheItemAndMarksTheEntryFailed(): void {
+		$queue = $this->queue();
+		$stream = $this->streamWithCache();
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id) use ($stream) {
+				if ($id === self::STREAM_ID) {
+					return $stream;
+				}
+				throw new StreamNotFoundException();
+			});
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestNetworkException('timeout'));
+		$this->ap->method('getInterfaceForItem')->willReturn($this->createMock(NoteInterface::class));
+		$this->streamRequest->expects($this->once())->method('updateCache');
+		$this->streamQueueRequest->expects($this->once())->method('setAsFailure')->with($this->identicalTo($queue));
+		$this->streamQueueRequest->expects($this->never())->method('setAsSuccess');
+
+		$this->service->manageStreamQueue($queue);
+
+		$item = $stream->getCache()->getItem(self::REPLY_URL);
+		$this->assertSame(1, $item->getError());
+		$this->assertNotSame(StreamQueue::STATUS_SUCCESS, $item->getStatus());
+	}
+
+	public function testCacheStreamByTokenProcessesEveryEntry(): void {
+		$first = $this->queue('Unknown');
+		$second = $this->queue('Unknown');
+		$this->streamQueueRequest->method('getFromToken')->with('tok')->willReturn([$first, $second]);
+		$this->streamQueueRequest->expects($this->exactly(2))->method('setAsRunning');
+		$this->streamQueueRequest->expects($this->exactly(2))
+			->method('delete')
+			->withConsecutive([$this->identicalTo($first)], [$this->identicalTo($second)]);
+
+		$this->service->cacheStreamByToken('tok');
+	}
+}

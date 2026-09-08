@@ -2,39 +2,14 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Jonas Sulzer <jonas@violoncello.ch>
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Controller;
 
-use OCA\Social\Tools\Traits\TNCDataResponse;
-use OCA\Social\Tools\Traits\TArrayTools;
 use Exception;
-use OCP\AppFramework\Http;
 use OC\User\NoUserException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
@@ -45,17 +20,21 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
+use OCP\IGroupManager;
 use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
-use OCP\IGroupManager;
 use OCP\Server;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class NavigationController
@@ -76,6 +55,7 @@ class NavigationController extends Controller {
 	private IL10N $l10n;
 	private CheckService $checkService;
 	private IInitialStateService $initialStateService;
+	private LoggerInterface $logger;
 
 	public function __construct(
 		IL10N $l10n,
@@ -88,9 +68,10 @@ class NavigationController extends Controller {
 		DocumentService $documentService,
 		ConfigService $configService,
 		CheckService $checkService,
-		MiscService $miscService
+		MiscService $miscService,
+		LoggerInterface $logger,
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userId = $userId;
 		$this->l10n = $l10n;
@@ -103,6 +84,7 @@ class NavigationController extends Controller {
 		$this->documentService = $documentService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
+		$this->logger = $logger;
 	}
 
 
@@ -116,40 +98,65 @@ class NavigationController extends Controller {
 	 * @throws SocialAppConfigException
 	 */
 	public function navigate(string $path = ''): TemplateResponse {
+		$this->logger->info('[NavigationController] navigate() called', [
+			'path' => $path,
+			'userId' => $this->userId,
+		]);
+
 		$serverData = [
 			'public' => false,
 			'firstrun' => false,
 			'setup' => false,
-			'isAdmin' => Server::get(IGroupManager::class)
-									 ->isAdmin($this->userId),
+			'isAdmin' => $this->userId !== null && Server::get(IGroupManager::class)
+				->isAdmin($this->userId),
 			'cliUrl' => $this->getCliUrl()
 		];
 
+		$this->logger->debug('[NavigationController] Initial serverData', ['serverData' => $serverData]);
+
 		try {
 			$serverData['cloudAddress'] = $this->configService->getCloudUrl();
+			$this->logger->info('[NavigationController] Cloud address configured', [
+				'cloudAddress' => $serverData['cloudAddress']
+			]);
 		} catch (SocialAppConfigException $e) {
+			$this->logger->warning('[NavigationController] Cloud address not configured, attempting setup', [
+				'exception' => $e->getMessage()
+			]);
 			$this->checkService->checkInstallationStatus(true);
 			$cloudAddress = $this->setupCloudAddress();
 			if ($cloudAddress !== '') {
 				$serverData['cloudAddress'] = $cloudAddress;
+				$this->logger->info('[NavigationController] Cloud address auto-configured', [
+					'cloudAddress' => $cloudAddress
+				]);
 			} else {
 				$serverData['setup'] = true;
+				$this->logger->warning('[NavigationController] Setup required - cloud address not configured');
 
 				if ($serverData['isAdmin']) {
 					$cloudAddress = $this->request->getParam('cloudAddress');
 					if ($cloudAddress !== null) {
 						$this->configService->setCloudUrl($cloudAddress);
+						$this->logger->info('[NavigationController] Cloud address set from request', [
+							'cloudAddress' => $cloudAddress
+						]);
 					} else {
-						$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
-						return new TemplateResponse(Application::APP_NAME, 'main');
+						$this->logger->info('[NavigationController] Returning setup page (admin user)');
+						$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+						return new TemplateResponse(Application::APP_ID, 'main');
 					}
+				} else {
+					$this->logger->info('[NavigationController] Returning setup page (non-admin user)');
 				}
 			}
 		}
 
 		try {
-			$this->configService->getSocialUrl();
+			$socialUrl = $this->configService->getSocialUrl();
+			$this->logger->debug('[NavigationController] Social URL retrieved', ['socialUrl' => $socialUrl]);
 		} catch (SocialAppConfigException $e) {
+			$this->logger->info('[NavigationController] Setting social URL', ['exception' => $e->getMessage()]);
 			$this->configService->setSocialUrl();
 		}
 
@@ -159,21 +166,36 @@ class NavigationController extends Controller {
 		try {
 			$this->accountService->createActor($this->userId, $this->userId);
 			$serverData['firstrun'] = true;
+			$this->logger->info('[NavigationController] Created new actor for user', [
+				'userId' => $this->userId
+			]);
 		} catch (AccountAlreadyExistsException $e) {
-			// we do nothing
+			$this->logger->debug('[NavigationController] Actor already exists for user', [
+				'userId' => $this->userId
+			]);
 		} catch (NoUserException $e) {
-			// well, should not happens
+			$this->logger->error('[NavigationController] User does not exist', [
+				'userId' => $this->userId,
+				'exception' => $e->getMessage()
+			]);
 		} catch (SocialAppConfigException $e) {
-			// neither.
+			$this->logger->error('[NavigationController] Config error while creating actor', [
+				'userId' => $this->userId,
+				'exception' => $e->getMessage()
+			]);
 		}
 
 		if ($serverData['isAdmin']) {
 			$checks = $this->checkService->checkDefault();
 			$serverData['checks'] = $checks;
+			$this->logger->debug('[NavigationController] Admin checks completed', ['checks' => $checks]);
 		}
 
-		$this->initialStateService->provideInitialState(Application::APP_NAME, 'serverData', $serverData);
-		return new TemplateResponse(Application::APP_NAME, 'main');
+		$this->logger->info('[NavigationController] Providing initial state and rendering template', [
+			'serverData' => $serverData
+		]);
+		$this->initialStateService->provideInitialState(Application::APP_ID, 'serverData', $serverData);
+		return new TemplateResponse(Application::APP_ID, 'main');
 	}
 
 	private function setupCloudAddress(): string {
@@ -246,12 +268,21 @@ class NavigationController extends Controller {
 	 * @return Response
 	 */
 	public function documentGet(string $id): Response {
+		$this->logger->debug('[NavigationController] documentGet called', ['id' => $id]);
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCache($id, $mime);
+			$this->logger->info('[NavigationController] Document retrieved from cache', [
+				'id' => $id,
+				'mime' => $mime
+			]);
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
+			$this->logger->error('[NavigationController] Failed to get document', [
+				'id' => $id,
+				'exception' => $e->getMessage()
+			]);
 			return $this->fail($e);
 		}
 	}
@@ -266,12 +297,21 @@ class NavigationController extends Controller {
 	 * @return Response
 	 */
 	public function documentGetPublic(string $id): Response {
+		$this->logger->debug('[NavigationController] documentGetPublic called', ['id' => $id]);
 		try {
 			$mime = '';
 			$file = $this->documentService->getFromCache($id, $mime, true);
+			$this->logger->info('[NavigationController] Public document retrieved from cache', [
+				'id' => $id,
+				'mime' => $mime
+			]);
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
+			$this->logger->error('[NavigationController] Failed to get public document', [
+				'id' => $id,
+				'exception' => $e->getMessage()
+			]);
 			return $this->fail($e);
 		}
 	}

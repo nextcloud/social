@@ -1,3 +1,7 @@
+<!--
+  - SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<img class="emoji"
 		draggable="false"
@@ -16,10 +20,10 @@ const UFE0Fg = /\uFE0F/g
 export default {
 	name: 'Emoji',
 	props: {
-		emoji: { type: String, default: '' },
-	},
-	data() {
-		return {}
+		emoji: {
+			type: String,
+			 default: '',
+		},
 	},
 	computed: {
 		/**
@@ -28,7 +32,7 @@ export default {
 		icon() {
 			return twemoji.convert.toCodePoint(this.emoji.indexOf(U200D) < 0
 				? this.emoji.replace(UFE0Fg, '')
-				: this.emoji
+				: this.emoji,
 			)
 		},
 

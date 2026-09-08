@@ -2,36 +2,15 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Interfaces\Actor;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -64,6 +43,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 	private CacheActorsRequest $cacheActorsRequest;
 	private CacheDocumentsRequest $cacheDocumentsRequest;
 	private FollowsRequest $followsRequest;
+	private ActorRelationRequest $actorRelationRequest;
 	private RequestQueueRequest $requestQueueRequest;
 	private StreamRequest $streamRequest;
 	private StreamDestRequest $streamDestRequest;
@@ -75,16 +55,18 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		CacheActorsRequest $cacheActorsRequest,
 		CacheDocumentsRequest $cacheDocumentsRequest,
 		FollowsRequest $followsRequest,
+		ActorRelationRequest $actorRelationRequest,
 		RequestQueueRequest $requestQueueRequest,
 		StreamRequest $streamRequest,
 		StreamDestRequest $streamDestRequest,
 		ActorService $actorService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
 		$this->followsRequest = $followsRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
 		$this->requestQueueRequest = $requestQueueRequest;
 		$this->streamRequest = $streamRequest;
 		$this->streamDestRequest = $streamDestRequest;
@@ -152,6 +134,7 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->cacheDocumentsRequest->deleteByParent($item->getId());
 		$this->requestQueueRequest->deleteByAuthor($item->getId());
 		$this->followsRequest->deleteRelatedId($item->getId());
+		$this->actorRelationRequest->deleteRelatedId($item->getId());
 
 		$this->deleteStreamFromActor($item);
 	}

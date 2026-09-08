@@ -1,36 +1,13 @@
 <?php
 
-declare(strict_types=1);
-
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TArrayTools;
+use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
@@ -39,6 +16,7 @@ use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class ActorService
@@ -73,7 +51,7 @@ class ActorService {
 		CacheActorsRequest $cacheActorsRequest, CacheDocumentsRequest $cacheDocumentsRequest,
 		CurlService $curlService,
 		ConfigService $configService,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
@@ -106,6 +84,16 @@ class ActorService {
 	 *
 	 * @throws ItemAlreadyExistsException
 	 */
+	public function cacheLocalActorDetails(Person $actor) {
+		$this->cacheActorsRequest->updateDetails($actor);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 *
+	 * @throws ItemAlreadyExistsException
+	 */
 	public function save(Person $actor) {
 		$this->cacheDocumentIfNeeded($actor);
 		$this->cacheActorsRequest->save($actor);
@@ -122,6 +110,26 @@ class ActorService {
 		$this->cacheDocumentIfNeeded($actor);
 
 		return $this->cacheActorsRequest->update($actor);
+	}
+
+
+	/**
+	 * Get the cached header URL for a local actor.
+	 *
+	 * @param Person $actor
+	 *
+	 * @return string
+	 */
+	public function getCachedHeader(Person $actor): string {
+		try {
+			$cached = $this->cacheActorsRequest->getFromLocalAccount(
+				$actor->getPreferredUsername()
+			);
+
+			return $cached->getHeader();
+		} catch (Exception $e) {
+			return '';
+		}
 	}
 
 

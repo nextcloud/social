@@ -2,40 +2,18 @@
 
 declare(strict_types=1);
 
-
 /**
- * Some tools for myself.
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Tools\Traits;
 
 use Exception;
 use JsonSerializable;
-use OC;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
+use Psr\Log\LoggerInterface;
 
 /**
  * Trait TNCDataResponse
@@ -49,21 +27,24 @@ trait TNCDataResponse {
 	 */
 	protected function fail(
 		Exception $e, array $more = [], int $status = Http::STATUS_INTERNAL_SERVER_ERROR,
-		bool $log = true
+		bool $log = true,
 	): DataResponse {
+		if ($log) {
+			// the details go to the log; several callers are @PublicPage, and the
+			// exception class and message describe the server's internals
+			\OCP\Server::get(LoggerInterface::class)->warning(
+				$status . ' - ' . get_class($e) . ' ' . $e->getMessage(),
+				['exception' => $e, 'more' => $more]
+			);
+		}
+
 		$data = array_merge(
 			$more,
 			[
 				'status' => -1,
-				'exception' => get_class($e),
-				'message' => $e->getMessage()
+				'error' => 'request failed',
 			]
 		);
-
-		if ($log) {
-			OC::$server->getLogger()
-					   ->log(2, $status . ' - ' . json_encode($data));
-		}
 
 		return new DataResponse($data, $status);
 	}
@@ -88,5 +69,17 @@ trait TNCDataResponse {
 	}
 	protected function directSuccess(JsonSerializable $result): DataResponse {
 		return new DataResponse($result, Http::STATUS_OK);
+	}
+
+	/**
+	 * Return JSON-LD response with ActivityPub content type.
+	 */
+	protected function activityPubSuccess(JsonSerializable $result): DataResponse {
+		$response = new DataResponse($result, Http::STATUS_OK);
+		$response->addHeader(
+			'Content-Type',
+			'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+		);
+		return $response;
 	}
 }

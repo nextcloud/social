@@ -2,30 +2,9 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
@@ -34,6 +13,7 @@ use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -44,6 +24,8 @@ use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -63,7 +45,7 @@ use Psr\Log\LoggerInterface;
 class CacheActorService {
 	use TArrayTools;
 
-	private \OCP\IURLGenerator $urlGenerator;
+	private IURLGenerator $urlGenerator;
 	private ActorsRequest $actorsRequest;
 	private CacheActorsRequest $cacheActorsRequest;
 	private CurlService $curlService;
@@ -81,7 +63,7 @@ class CacheActorService {
 		CurlService $curlService,
 		FediverseService $fediverseService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->urlGenerator = $urlGenerator;
 		$this->actorsRequest = $actorsRequest;
@@ -176,12 +158,13 @@ class CacheActorService {
 	 * @return Person
 	 * @throws CacheActorDoesNotExistException
 	 * @throws SocialAppConfigException
+	 * @throws ActorDoesNotExistException
 	 */
 	public function getFromLocalAccount(string $account): Person {
 		$instance = '';
 		$account = ltrim($account, '@');
 		if (strrpos($account, '@')) {
-			list($account, $instance) = explode('@', $account, 2);
+			[$account, $instance] = explode('@', $account, 2);
 		}
 
 		if ($instance !== ''
@@ -288,8 +271,8 @@ class CacheActorService {
 	 * @return int
 	 * @throws Exception
 	 */
-	public function manageCacheRemoteActors(): int {
-		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate();
+	public function manageCacheRemoteActors(bool $force = false): int {
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate($force);
 
 		foreach ($update as $item) {
 			try {
@@ -299,6 +282,68 @@ class CacheActorService {
 		}
 
 		return sizeof($update);
+	}
+
+
+	/**
+	 * @return int
+	 * @throws Exception
+	 */
+	public function manageDetailsRemoteActors(bool $force = false): int {
+		$update = $this->cacheActorsRequest->getRemoteActorsToUpdateDetails($force);
+
+		// WARNING: risk of race condition if something else update details on remote actor.
+		// Any details update on remote cache-actor must be managed from here.
+		foreach ($update as $item) {
+			try {
+				$this->addRemoteActorDetailCount($item);
+				$this->cacheActorsRequest->updateDetails($item);
+			} catch (Exception $e) {
+			}
+		}
+
+		return sizeof($update);
+	}
+
+
+	public function addRemoteActorDetailCount(Person $actor): void {
+		try {
+			$followers = $this->getCollectionFromId($actor->getFollowers());
+			$following = $this->getCollectionFromId($actor->getFollowing());
+			$outbox = $this->getCollectionFromId($actor->getOutbox());
+		} catch (InvalidResourceException $e) {
+			return;
+		}
+
+		$count = [
+			'followers' => $followers->getTotalItems(),
+			'following' => $following->getTotalItems(),
+			'post' => $outbox->getTotalItems()
+		];
+		$actor->setDetailArray('count', $count);
+	}
+
+
+	/**
+	 * @param string $id
+	 *
+	 * @return OrderedCollection
+	 * @throws InvalidResourceException
+	 */
+	private function getCollectionFromId(string $id): OrderedCollection {
+		try {
+			$object = $this->curlService->retrieveObject($id);
+			/** @var OrderedCollection $collection */
+			$collection = AP::$activityPub->getItemFromData($object);
+		} catch (Exception $e) {
+			throw new InvalidResourceException();
+		}
+
+		if ($collection->getType() !== OrderedCollection::TYPE) {
+			throw new InvalidResourceException();
+		}
+
+		return $collection;
 	}
 
 
@@ -326,5 +371,20 @@ class CacheActorService {
 			$interface->delete($actor);
 		} catch (ItemUnknownException $e) {
 		}
+	}
+
+
+	/**
+	 * @param ProbeOptions $options
+	 *
+	 * @return Person[]
+	 */
+	public function probeActors(ProbeOptions $options): array {
+		return $this->cacheActorsRequest->probeActors($options);
+	}
+
+
+	public function getFromNids(array $ids): array {
+		return $this->cacheActorsRequest->getFromNids($ids);
 	}
 }

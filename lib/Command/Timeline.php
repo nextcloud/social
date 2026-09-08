@@ -2,39 +2,17 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Command;
 
 use Exception;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCA\Social\Model\Client\Options\TimelineOptions;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -73,7 +51,7 @@ class Timeline extends ExtendedBase {
 		StreamRequest $streamRequest,
 		AccountService $accountService,
 		CacheActorService $cacheActorService,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		parent::__construct();
 
@@ -91,16 +69,16 @@ class Timeline extends ExtendedBase {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:timeline')
-			 ->addArgument('userId', InputArgument::REQUIRED, 'viewer')
-			 ->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
-			 ->addOption('local', '', InputOption::VALUE_NONE, 'public')
-			 ->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
-			 ->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
-			 ->addOption('since', '', InputOption::VALUE_REQUIRED, 'since', 0)
-			 ->addOption('limit', '', InputOption::VALUE_REQUIRED, 'limit', 5)
-			 ->addOption('account', '', InputOption::VALUE_REQUIRED, 'account', '')
-			 ->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
-			 ->setDescription('Get stream by timeline and viewer');
+			->addArgument('userId', InputArgument::REQUIRED, 'viewer')
+			->addArgument('timeline', InputArgument::REQUIRED, 'timeline')
+			->addOption('local', '', InputOption::VALUE_NONE, 'public')
+			->addOption('min_id', '', InputOption::VALUE_REQUIRED, 'min_id', 0)
+			->addOption('max_id', '', InputOption::VALUE_REQUIRED, 'max_id', 0)
+			->addOption('since', '', InputOption::VALUE_REQUIRED, 'since', 0)
+			->addOption('limit', '', InputOption::VALUE_REQUIRED, 'limit', 5)
+			->addOption('account', '', InputOption::VALUE_REQUIRED, 'account', '')
+			->addOption('crop', '', InputOption::VALUE_REQUIRED, 'crop', 0)
+			->setDescription('Get stream by timeline and viewer');
 	}
 
 
@@ -130,17 +108,24 @@ class Timeline extends ExtendedBase {
 
 		$this->streamRequest->setViewer($actor);
 
-		$options = new TimelineOptions();
+		$options = new ProbeOptions();
 		$options->setFormat(Stream::FORMAT_LOCAL);
 		$options->setLimit(intval($input->getOption('limit')))
-				->setMinId(intval($input->getOption('min_id')))
-				->setMaxId(intval($input->getOption('max_id')))
-				->setSince(intval($input->getOption('since')));
+			->setMinId(intval($input->getOption('min_id')))
+			->setMaxId(intval($input->getOption('max_id')))
+			->setSince(intval($input->getOption('since')));
 
 		if ($input->getOption('local')) {
 			$options->setLocal(true);
 		}
-		$options->setTimeline($input->getArgument('timeline'));
+
+		$timeline = $input->getArgument('timeline');
+		if (str_starts_with($timeline, '#')) {
+			$options->setProbe(ProbeOptions::HASHTAG)
+				->setArgument(substr($timeline, 1));
+		} else {
+			$options->setProbe($timeline);
+		}
 
 		if ($input->getOption('account') !== '') {
 			$local = $this->cacheActorService->getFromLocalAccount($input->getOption('account'));

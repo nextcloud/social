@@ -3,28 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2022, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Model\Client;
@@ -38,6 +18,8 @@ class Status implements \JsonSerializable {
 	private bool $sensitive = false;
 	private string $visibility = '';
 	private string $spoilerText = '';
+	private array $mediaIds = [];
+	private int $inReplyToId = 0;
 	private string $status = '';
 
 	//"media_ids": [],
@@ -121,6 +103,28 @@ class Status implements \JsonSerializable {
 		return $this->spoilerText;
 	}
 
+	public function setMediaIds(array $mediaIds): self {
+		$this->mediaIds = array_map(function (string $id): int {
+			return (int)$id;
+		}, $mediaIds);
+
+		return $this;
+	}
+
+	public function getMediaIds(): array {
+		return $this->mediaIds;
+	}
+
+	public function setInReplyToId(int $inReplyToId): self {
+		$this->inReplyToId = $inReplyToId;
+
+		return $this;
+	}
+
+	public function getInReplyToId(): int {
+		return $this->inReplyToId;
+	}
+
 
 	/**
 	 * @param string $status
@@ -146,6 +150,8 @@ class Status implements \JsonSerializable {
 		$this->setSensitive($this->getBool('sensitive', $data));
 		$this->setVisibility($this->get('visibility', $data));
 		$this->setSpoilerText($this->get('spoiler_text', $data));
+		$this->setMediaIds($this->getArray('media_ids', $data));
+		$this->setInReplyToId($this->getInt('in_reply_to_id', $data));
 		$this->setStatus($this->get('status', $data));
 
 		return $this;
@@ -155,6 +161,7 @@ class Status implements \JsonSerializable {
 		return [
 			'contentType' => $this->getContentType(),
 			'sensitive' => $this->isSensitive(),
+			'mediaIds' => $this->getMediaIds(),
 			'visibility' => $this->getVisibility(),
 			'spoilerText' => $this->getSpoilerText(),
 			'status' => $this->getStatus()

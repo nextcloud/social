@@ -2,15 +2,14 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Pomoć",
-    "Finish setup" : "Završite postavke",
     "Home" : "Početna stranica",
     "Notifications" : "Notifikacija",
-    "Post" : "Objava",
-    "Public" : "Javno",
+    "Finish setup" : "Završite postavke",
     "Delete" : "Obriši",
-    "Edit" : "Izmjeni",
-    "Close" : "Zatvori",
+    "Post" : "Objava",
     "Website" : "Web-prezentacija",
-    "Continue" : "Nastavi"
+    "Close" : "Zatvori",
+    "Continue" : "Nastavi",
+    "Public" : "Javno"
 },
 "nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);");

@@ -2,18 +2,17 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Hjelp",
-    "Open documentation" : "Opne dokumentasjon",
-    "Finish setup" : "Fullfør oppsettet",
     "Home" : "Heim",
     "Notifications" : "Meldingar",
+    "Open documentation" : "Opne dokumentasjon",
+    "Finish setup" : "Fullfør oppsettet",
     "Add attachment" : "Legg til vedlegg",
-    "Post" : "Publiser",
     "Uploading..." : "Lastar opp …",
     "Delete" : "Slett",
-    "Edit" : "Rediger",
-    "Close" : "Lukk",
+    "Post" : "Publiser",
     "Reply" : "Svare",
     "Hello" : "Hallo",
+    "Close" : "Lukk",
     "Continue" : "Gå vidare"
 },
 "nplurals=2; plural=(n != 1);");

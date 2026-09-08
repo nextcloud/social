@@ -1,30 +1,28 @@
 <?xml version="1.0"?>
+<!--
+  - SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	  xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>social</id>
 	<name>Social</name>
-	<summary>🎉 Nextcloud becomes part of the federated social networks!</summary>
-	<description><![CDATA[
+	<summary>Nextcloud becomes part of the federated social networks</summary>
+	<description><![CDATA[Nextcloud Social connects your Nextcloud account to the Fediverse through the ActivityPub standard.
 
-	** Disclaimer: this is an ALPHA version **
+What it does:
+- 🧭 Timelines: home, local, global (federated), direct messages, liked posts, notifications, hashtags
+- ✍️ Posts: write posts and replies with a visibility setting, mentions, hashtags and image attachments
+- ✏️ Edit and delete your own posts; edits are federated as ActivityPub Update activities
+- 👍 🔁 💬 Like, boost and reply
+- 👥 Follow and unfollow local and remote accounts; incoming follows are accepted automatically unless the account is locked
+- 🔎 Find accounts and hashtags via WebFinger and search
+- 🌐 Federation: signed delivery of ActivityPub activities, with a delivery queue processed by cron
 
-**🎉 Nextcloud becomes part of the federated social networks!**
-
-**🙋 Find your friends:** No matter if they use Nextcloud, 🐘 Mastodon, 🇫 Friendica, and soon ✱ Diaspora, 👹 MediaGoblin and more – you can follow them!
-
-**📜 Profile info:** No need to fill out more profiles – your info from Nextcloud will be used and extended.
-
-**👐 Own your posts:** Everything you post stays on your Nextcloud!
-
-**🕸 Open standards:** We use the established ActivityPub standard!
-	]]></description>
-	<version>0.6.0-beta1</version>
+This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. It does not offer polls, lists, or video and audio attachments.]]></description>
+	<version>0.11.4</version>
 	<licence>agpl</licence>
-	<author mail="maxence@artificial-owl.com" homepage="https://artificial-owl.com/">Maxence Lange</author>
-	<author mail="jus@bitgrid.net">Julius Härtl</author>
-	<author mail="jonas@violoncello.ch" homepage="https://violoncello.ch">Jonas Sulzer</author>
-	<author mail="hey@jancborchardt.net" homepage="https://jancborchardt.net">Jan-Christoph Borchardt</author>
-	<author mail="cyrpub@bollu.be">Cyrille Bollu</author>
+	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
 	<category>social</category>
 	<website>https://github.com/nextcloud/social</website>
@@ -32,16 +30,25 @@
 	<repository type="git">https://github.com/nextcloud/social.git</repository>
 	<screenshot>https://raw.githubusercontent.com/nextcloud/social/master/img/screenshot.png</screenshot>
 	<dependencies>
+		<php min-version="8.1" max-version="8.5" />
 		<database>pgsql</database>
 		<database>sqlite</database>
 		<database>mysql</database>
-		<nextcloud min-version="25" max-version="26"/>
+		<nextcloud min-version="28" max-version="35" />
 	</dependencies>
 
 	<background-jobs>
 		<job>OCA\Social\Cron\Cache</job>
 		<job>OCA\Social\Cron\Queue</job>
 	</background-jobs>
+
+	<repair-steps>
+		<post-migration>
+			<step>OCA\Social\Migration\RenameDocumentLocalCopy</step>
+			<step>OCA\Social\Migration\EncryptPrivateKeys</step>
+			<step>OCA\Social\Migration\HashClientSecrets</step>
+		</post-migration>
+	</repair-steps>
 
 	<commands>
 		<command>OCA\Social\Command\AccountCreate</command>
@@ -59,6 +66,11 @@
 		<command>OCA\Social\Command\QueueStatus</command>
 		<command>OCA\Social\Command\QueueProcess</command>
 	</commands>
+
+	<settings>
+		<admin>OCA\Social\Settings\AdminSettings</admin>
+		<admin-section>OCA\Social\Settings\AdminSection</admin-section>
+	</settings>
 
 	<navigations>
 		<navigation>

@@ -2,12 +2,15 @@
 #
 # https://github.com/nextcloud/.github
 # https://docs.github.com/en/actions/learn-github-actions/sharing-workflows-with-your-organization
+#
+# SPDX-FileCopyrightText: 2021-2024 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
 
-name: Pull request checks
+name: Block fixup and squash commits
 
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened, synchronize]
 
 permissions:
   contents: read
@@ -24,10 +27,10 @@ jobs:
       pull-requests: write
     name: Block fixup and squash commits
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-low
 
     steps:
       - name: Run check
-        uses: xt0rted/block-autosquash-commits-action@79880c36b4811fe549cfffe20233df88876024e7 # v2
+        uses: skjnldsv/block-fixup-merge-action@c138ea99e45e186567b64cf065ce90f7158c236a # v2
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}

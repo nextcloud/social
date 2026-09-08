@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.social/users/alice/statuses/113000000000000009/activity",
+  "type": "Announce",
+  "actor": "https://mastodon.social/users/alice",
+  "published": "2026-09-02T08:30:00Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://remote.example/users/carol", "https://mastodon.social/users/alice/followers"],
+  "object": "https://remote.example/users/carol/statuses/42"
+}

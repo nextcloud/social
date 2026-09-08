@@ -2,42 +2,19 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TAsync;
 use OC;
-//use OC\Push\Model\Helper\PushCallback;
 use OCA\Social\Exceptions\SocialAppConfigException;
+//use OC\Push\Model\Helper\PushCallback;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCP\AppFramework\QueryException;
+use OCA\Social\Tools\Traits\TAsync;
 
 //use OCP\Push\Exceptions\PushInstallException;
 //use OCP\Push\IPushManager;
@@ -61,20 +38,20 @@ class PushService {
 	 * PushService constructor.
 	 */
 	public function __construct(
-		DetailsService $detailsService, StreamService $streamService, MiscService $miscService
+		DetailsService $detailsService, StreamService $streamService, MiscService $miscService,
 	) {
 		$this->detailsService = $detailsService;
 		$this->streamService = $streamService;
 		$this->miscService = $miscService;
 
 		// FIX ME: nc18/push
-//		if ($this->miscService->getNcVersion() >= 19) {
-//			try {
-//				$this->pushManager = OC::$server->query(IPushManager::class);
-//			} catch (QueryException $e) {
-//				$miscService->log('QueryException while loading IPushManager - ' . $e->getMessage());
-//			}
-//		}
+		//		if ($this->miscService->getNcVersion() >= 19) {
+		//			try {
+		//				$this->pushManager = OC::$server->query(IPushManager::class);
+		//			} catch (QueryException $e) {
+		//				$miscService->log('QueryException while loading IPushManager - ' . $e->getMessage());
+		//			}
+		//		}
 	}
 
 
@@ -83,62 +60,62 @@ class PushService {
 	 */
 	public function onNewStream(string $streamId) {
 		return;
-//		if ($this->miscService->getNcVersion() < 19) {
-//			return;
-//		}
-//
-//		if (!$this->pushManager->isAvailable()) {
-//			return;
-//		}
-//
-//		try {
-//			$stream = $this->streamService->getStreamById($streamId);
-//		} catch (StreamNotFoundException $e) {
-//			return;
-//		}
-//
-//		try {
-//			$pushHelper = $this->pushManager->getPushHelper();
-//			$details = $this->detailsService->generateDetailsFromStream($stream);
-//		} catch (PushInstallException $e) {
-//			return;
-//		} catch (SocialAppConfigException $e) {
-//			return;
-//		}
-//
-//		$home = array_map(
-//			function(Person $item): string {
-//				return $item->getUserId();
-//			}, $details->getHomeViewers()
-//		);
-//
-//		$callback = new PushCallback('social', 'timeline.home');
-//		$callback->setPayloadSerializable($stream);
-//		$callback->addUsers($home);
-//		$pushHelper->toCallback($callback);
-//
-//		$direct = array_map(
-//			function(Person $item): string {
-//				return $item->getUserId();
-//			}, $details->getDirectViewers()
-//		);
-//
-//		$callback = new PushCallback('social', 'timeline.direct');
-//		$callback->addUsers($direct);
-//		$callback->setPayloadSerializable($stream);
-//		$pushHelper->toCallback($callback);
+		//		if ($this->miscService->getNcVersion() < 19) {
+		//			return;
+		//		}
+		//
+		//		if (!$this->pushManager->isAvailable()) {
+		//			return;
+		//		}
+		//
+		//		try {
+		//			$stream = $this->streamService->getStreamById($streamId);
+		//		} catch (StreamNotFoundException $e) {
+		//			return;
+		//		}
+		//
+		//		try {
+		//			$pushHelper = $this->pushManager->getPushHelper();
+		//			$details = $this->detailsService->generateDetailsFromStream($stream);
+		//		} catch (PushInstallException $e) {
+		//			return;
+		//		} catch (SocialAppConfigException $e) {
+		//			return;
+		//		}
+		//
+		//		$home = array_map(
+		//			function(Person $item): string {
+		//				return $item->getUserId();
+		//			}, $details->getHomeViewers()
+		//		);
+		//
+		//		$callback = new PushCallback('social', 'timeline.home');
+		//		$callback->setPayloadSerializable($stream);
+		//		$callback->addUsers($home);
+		//		$pushHelper->toCallback($callback);
+		//
+		//		$direct = array_map(
+		//			function(Person $item): string {
+		//				return $item->getUserId();
+		//			}, $details->getDirectViewers()
+		//		);
+		//
+		//		$callback = new PushCallback('social', 'timeline.direct');
+		//		$callback->addUsers($direct);
+		//		$callback->setPayloadSerializable($stream);
+		//		$pushHelper->toCallback($callback);
 	}
 
-//
-//	/**
-//	 * @param $userId
-//	 *
-//	 * @return IPushWrapper
-//	 * @throws PushInstallException
-//	 */
-//	public function testOnAccount(string $userId): IPushWrapper {
-////		$pushHelper = $this->pushManager->getPushHelper();
-////
-////		return $pushHelper->test($userId);
-//	}
+	//
+	//	/**
+	//	 * @param $userId
+	//	 *
+	//	 * @return IPushWrapper
+	//	 * @throws PushInstallException
+	//	 */
+	//	public function testOnAccount(string $userId): IPushWrapper {
+	////		$pushHelper = $this->pushManager->getPushHelper();
+	////
+	////		return $pushHelper->test($userId);
+	//	}
 }

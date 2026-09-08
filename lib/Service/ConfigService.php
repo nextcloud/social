@@ -2,41 +2,19 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Service;
 
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
-use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -93,7 +71,7 @@ class ConfigService {
 
 	public function __construct(
 		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
-		MiscService $miscService
+		MiscService $miscService,
 	) {
 		$this->userId = $userId;
 		$this->config = $config;
@@ -126,13 +104,22 @@ class ConfigService {
 	 *
 	 * @return string
 	 */
+	/**
+	 * Whether a user's block is also sent to the blocked account's server as a
+	 * Block activity (Mastodon behaviour, the default). Disable to keep blocks
+	 * strictly local:  occ config:app:set social federate_blocks --value 0
+	 */
+	public function isBlockFederationEnabled(): bool {
+		return $this->config->getAppValue(Application::APP_ID, 'federate_blocks', '1') !== '0';
+	}
+
 	public function getAppValue($key) {
 		$defaultValue = null;
 		if (array_key_exists($key, $this->defaults)) {
 			$defaultValue = $this->defaults[$key];
 		}
 
-		return $this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
+		return $this->config->getAppValue(Application::APP_ID, $key, $defaultValue);
 	}
 
 	/**
@@ -148,7 +135,7 @@ class ConfigService {
 			$defaultValue = $this->defaults[$key];
 		}
 
-		return (int)$this->config->getAppValue(Application::APP_NAME, $key, $defaultValue);
+		return (int)$this->config->getAppValue(Application::APP_ID, $key, $defaultValue);
 	}
 
 	/**
@@ -160,7 +147,7 @@ class ConfigService {
 	 * @return void
 	 */
 	public function setAppValue($key, $value) {
-		$this->config->setAppValue(Application::APP_NAME, $key, $value);
+		$this->config->setAppValue(Application::APP_ID, $key, $value);
 	}
 
 	/**
@@ -171,7 +158,7 @@ class ConfigService {
 	 * @return string
 	 */
 	public function deleteAppValue($key) {
-		return $this->config->deleteAppValue(Application::APP_NAME, $key);
+		return $this->config->deleteAppValue(Application::APP_ID, $key);
 	}
 
 	/**
@@ -190,7 +177,7 @@ class ConfigService {
 
 		$defaultValue = '';
 		if ($app === '') {
-			$app = Application::APP_NAME;
+			$app = Application::APP_ID;
 			if (array_key_exists($key, $this->defaults)) {
 				$defaultValue = $this->defaults[$key];
 			}
@@ -209,7 +196,7 @@ class ConfigService {
 	 * @throws PreConditionNotMetException
 	 */
 	public function setUserValue($key, $value) {
-		return $this->config->setUserValue($this->userId, Application::APP_NAME, $key, $value);
+		return $this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
 	}
 
 	/**
@@ -221,7 +208,7 @@ class ConfigService {
 	 * @return string
 	 */
 	public function getValueForUser($userId, $key) {
-		return $this->config->getUserValue($userId, Application::APP_NAME, $key);
+		return $this->config->getUserValue($userId, Application::APP_ID, $key);
 	}
 
 	/**
@@ -235,7 +222,7 @@ class ConfigService {
 	 * @throws PreConditionNotMetException
 	 */
 	public function setValueForUser($userId, $key, $value) {
-		return $this->config->setUserValue($userId, Application::APP_NAME, $key, $value);
+		return $this->config->setUserValue($userId, Application::APP_ID, $key, $value);
 	}
 
 
@@ -268,7 +255,7 @@ class ConfigService {
 	 *
 	 */
 	public function unsetAppConfig() {
-		$this->config->deleteAppValues(Application::APP_NAME);
+		$this->config->deleteAppValues(Application::APP_ID);
 	}
 
 
@@ -281,6 +268,17 @@ class ConfigService {
 	 */
 	public function getSystemValue(string $key) {
 		return $this->config->getSystemValue($key, '');
+	}
+
+
+	/**
+	 * Whether outbound requests may reach the instance's own network.
+	 *
+	 * The standard Nextcloud setting, off by default; the single switch every
+	 * outbound path consults before contacting a local address.
+	 */
+	public function isLocalNetworkAllowed(): bool {
+		return $this->config->getSystemValueBool('allow_local_remote_servers', false);
 	}
 
 
@@ -380,8 +378,8 @@ class ConfigService {
 	 */
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
-			$url = $this->getCloudUrl(true) . $this->urlGenerator->linkToRoute(
-				'social.Navigation.navigate'
+			$url = $this->urlGenerator->getAbsoluteURL(
+				$this->urlGenerator->linkToRoute('social.Navigation.navigate')
 			);
 		}
 
@@ -415,19 +413,25 @@ class ConfigService {
 	public function configureRequest(NCRequest $request): void {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
 
-		if ($request->getType() === Request::TYPE_GET) {
-			$request->addHeader(
-				'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-			);
+		// do not add json headers if required
+		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
+			if ($request->getType() === Request::TYPE_GET) {
+				$request->addHeader(
+					'Accept', 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+				);
+			}
+
+			if ($request->getType() === Request::TYPE_POST) {
+				$request->addHeader(
+					'Content-Type', 'application/activity+json'
+				);
+			}
 		}
 
-		if ($request->getType() === Request::TYPE_POST) {
-			$request->addHeader(
-				'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
-			);
-		}
-
-		$request->setLocalAddressAllowed(true);
+		// Federation reaches arbitrary public hosts, but must not be pointed at the
+		// instance's own network. Local targets are permitted only where the admin has
+		// opted in through the standard Nextcloud setting (default off).
+		$request->setLocalAddressAllowed($this->isLocalNetworkAllowed());
 		$request->setFollowLocation(true);
 	}
 }

@@ -3,28 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Controller;
@@ -69,9 +49,9 @@ class OAuthController extends Controller {
 		ClientService $clientService,
 		ConfigService $configService,
 		LoggerInterface $logger,
-		IInitialState $initialState
+		IInitialState $initialState,
 	) {
-		parent::__construct(Application::APP_NAME, $request);
+		parent::__construct(Application::APP_ID, $request);
 
 		$this->userSession = $userSession;
 		$this->urlGenerator = $urlGenerator;
@@ -82,8 +62,6 @@ class OAuthController extends Controller {
 		$this->logger = $logger;
 		$this->initialState = $initialState;
 
-		$body = file_get_contents('php://input');
-		$logger->debug('[OAuthController] input: ' . $body);
 	}
 
 
@@ -107,17 +85,17 @@ class OAuthController extends Controller {
 		}
 
 		$nodeInfo = [
-			"version" => "2.0",
-			"software" => [
-				"name" => $name,
-				"version" => $version
+			'version' => '2.0',
+			'software' => [
+				'name' => $name,
+				'version' => $version
 			],
-			"protocols" => [
-				"activitypub"
+			'protocols' => [
+				'activitypub'
 			],
-			"rootUrl" => rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/'),
-			"usage" => $usage,
-			"openRegistrations" => $openReg
+			'rootUrl' => rtrim($this->urlGenerator->linkToRouteAbsolute('social.Navigation.navigate'), '/'),
+			'usage' => $usage,
+			'openRegistrations' => $openReg
 		];
 
 		return new DataResponse($nodeInfo, Http::STATUS_OK);
@@ -127,6 +105,7 @@ class OAuthController extends Controller {
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
+	 * @AnonRateThrottle(limit=15, period=300)
 	 *
 	 * @param array|string $redirect_uris
 	 *
@@ -136,7 +115,7 @@ class OAuthController extends Controller {
 		string $client_name = '',
 		$redirect_uris = '',
 		string $website = '',
-		string $scopes = 'read'
+		string $scopes = 'read',
 	): DataResponse {
 		// TODO: manage array from request
 		if (!is_array($redirect_uris)) {
@@ -172,7 +151,7 @@ class OAuthController extends Controller {
 		string $client_id,
 		string $redirect_uri,
 		string $response_type,
-		string $scope = 'read'
+		string $scope = 'read',
 	): Response {
 		$user = $this->userSession->getUser();
 
@@ -185,9 +164,18 @@ class OAuthController extends Controller {
 
 		// check client exists in db
 		$client = $this->clientService->getFromClientId($client_id);
+		// A code must only ever travel to a URI the client registered; checked before
+		// the consent page exists, so there is nothing to confirm on a forged link.
+		$this->clientService->confirmData(
+			$client,
+			[
+				'app_scopes' => $scope,
+				'redirect_uri' => $redirect_uri
+			]
+		);
 		$this->initialState->provideInitialState('appName', $client->getAppName());
 
-		return new TemplateResponse(Application::APP_NAME, 'oauth2', [
+		return new TemplateResponse(Application::APP_ID, 'oauth2', [
 			'request' =>
 				[
 					'clientId' => $client_id,
@@ -206,7 +194,7 @@ class OAuthController extends Controller {
 		string $client_id,
 		string $redirect_uri,
 		string $response_type,
-		string $scope = 'read'
+		string $scope = 'read',
 	): DataResponse {
 		try {
 			$user = $this->userSession->getUser();
@@ -221,7 +209,7 @@ class OAuthController extends Controller {
 				$client,
 				[
 					'app_scopes' => $scope,
-					'redirect_uri', $redirect_uri
+					'redirect_uri' => $redirect_uri
 				]
 			);
 
@@ -253,6 +241,7 @@ class OAuthController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
+	 * @BruteForceProtection(action=socialOauthToken)
 	 */
 	public function token(
 		string $client_id,
@@ -260,7 +249,7 @@ class OAuthController extends Controller {
 		string $redirect_uri,
 		string $grant_type,
 		string $scope = 'read',
-		string $code = ''
+		string $code = '',
 	): DataResponse {
 		try {
 			$client = $this->clientService->getFromClientId($client_id);
@@ -281,7 +270,11 @@ class OAuthController extends Controller {
 				$this->clientService->confirmData($client, ['code' => $code]);
 				$this->clientService->generateToken($client);
 			} elseif ($grant_type === 'client_credentials') {
-				// TODO: manage client_credentials
+				// Falling through would return the token column of the client row —
+				// whatever token the last user's authorization-code grant put there.
+				return new DataResponse(
+					['error' => 'unsupported_grant_type'], Http::STATUS_BAD_REQUEST
+				);
 			} else {
 				return new DataResponse(
 					['error' => 'invalid value for grant_type'], Http::STATUS_BAD_REQUEST
@@ -296,16 +289,56 @@ class OAuthController extends Controller {
 
 			return new DataResponse(
 				[
-					"access_token" => $client->getToken(),
-					"token_type" => 'Bearer',
-					"scope" => $scope,
-					"created_at" => $client->getCreation()
+					'access_token' => $client->getToken(),
+					'token_type' => 'Bearer',
+					'scope' => $scope,
+					'created_at' => $client->getCreation()
 				], Http::STATUS_OK
 			);
 		} catch (ClientNotFoundException $e) {
-			return new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			// A wrong client id / secret / code is a credential guess; throttle it so
+			// the public token endpoint cannot be brute-forced.
+			$response = new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			$response->throttle(['action' => 'socialOauthToken']);
+
+			return $response;
 		} catch (Exception $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			$response = new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			$response->throttle(['action' => 'socialOauthToken']);
+
+			return $response;
 		}
+	}
+
+
+	/**
+	 * Token revocation (RFC 7009). Only the client the token was issued to may
+	 * revoke it. Always answers 200 for a token that (no longer) exists, so the
+	 * endpoint is not an oracle; wrong client credentials are throttled like the
+	 * token endpoint.
+	 *
+	 * @NoCSRFRequired
+	 * @NoAdminRequired
+	 * @PublicPage
+	 * @BruteForceProtection(action=socialOauthToken)
+	 */
+	public function revoke(string $client_id, string $client_secret, string $token): DataResponse {
+		try {
+			$client = $this->clientService->getFromClientId($client_id);
+			$this->clientService->confirmData($client, ['client_secret' => $client_secret]);
+		} catch (Exception $e) {
+			$response = new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			$response->throttle(['action' => 'socialOauthToken']);
+
+			return $response;
+		}
+
+		try {
+			$this->clientService->revokeToken($client, $token);
+		} catch (Exception $e) {
+			// RFC 7009: an unknown or already-revoked token is a success
+		}
+
+		return new DataResponse([], Http::STATUS_OK);
 	}
 }

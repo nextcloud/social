@@ -2,37 +2,16 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Traits\TArrayTools;
+use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -41,32 +20,41 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Exceptions\RetrieveAccountFormatException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Interfaces\Object\FollowInterface;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActorRelation;
+use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\Relationship;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
-use OCA\Social\Exceptions\RetrieveAccountFormatException;
-use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Exceptions\UnauthorizedFediverseException;
-use OCA\Social\Exceptions\UrlCloudException;
-use OCA\Social\Model\ActivityPub\Activity\Undo;
-use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Follow;
-use OCA\Social\Model\ActivityPub\OrderedCollection;
-use OCA\Social\Model\InstancePath;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class FollowService {
 	use TArrayTools;
 
 
+	private IURLGenerator $urlGenerator;
 	private FollowsRequest $followsRequest;
+	private ActorRelationRequest $actorRelationRequest;
 	private ActivityService $activityService;
 	private CacheActorService $cacheActorService;
 	private ConfigService $configService;
+	private FollowInterface $followInterface;
 	private LoggerInterface $logger;
-
 	private ?Person $viewer = null;
 
 
@@ -80,17 +68,66 @@ class FollowService {
 	 * @param LoggerInterface $logger
 	 */
 	public function __construct(
+		IURLGenerator $urlGenerator,
 		FollowsRequest $followsRequest,
+		ActorRelationRequest $actorRelationRequest,
 		ActivityService $activityService,
 		CacheActorService $cacheActorService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		FollowInterface $followInterface,
+		LoggerInterface $logger,
 	) {
+		$this->urlGenerator = $urlGenerator;
 		$this->followsRequest = $followsRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
 		$this->activityService = $activityService;
 		$this->cacheActorService = $cacheActorService;
 		$this->configService = $configService;
+		$this->followInterface = $followInterface;
 		$this->logger = $logger;
+	}
+
+
+	/**
+	 * The accounts whose follows towards the viewer wait for approval.
+	 *
+	 * @return Person[]
+	 */
+	public function getPendingRequests(): array {
+		$pending = [];
+		foreach ($this->followsRequest->getPendingByObjectId($this->viewer->getId()) as $follow) {
+			try {
+				$pending[] = $this->cacheActorService->getFromId($follow->getActorId());
+			} catch (Exception $e) {
+			}
+		}
+
+		return $pending;
+	}
+
+	/**
+	 * Approves a pending follow request: federates the Accept and marks the row.
+	 *
+	 * @throws FollowNotFoundException when there is no pending follow from that account
+	 */
+	public function authorizeFollowRequest(Person $follower): void {
+		$follow = $this->followsRequest->getByPersons($follower->getId(), $this->viewer->getId());
+		if ($follow->isAccepted()) {
+			return; // already following: authorize is idempotent
+		}
+
+		$this->followInterface->confirmFollowRequest($follow);
+	}
+
+	/**
+	 * Rejects a pending follow request: federates the Reject and drops the row.
+	 *
+	 * @throws FollowNotFoundException when there is no pending follow from that account
+	 */
+	public function rejectFollowRequest(Person $follower): void {
+		$follow = $this->followsRequest->getByPersons($follower->getId(), $this->viewer->getId());
+
+		$this->followInterface->rejectFollowRequest($follow);
 	}
 
 
@@ -125,8 +162,19 @@ class FollowService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function followAccount(Person $actor, string $account) {
+		$this->logger->debug('FollowService::followAccount called', [
+			'actor' => $actor->getId(),
+			'account' => $account,
+		]);
+
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
+		$this->logger->debug('FollowService::followAccount - remote actor resolved', [
+			'remoteId' => $remoteActor->getId(),
+			'remoteNid' => $remoteActor->getNid(),
+		]);
+
 		if ($remoteActor->getId() === $actor->getId()) {
+			$this->logger->warning('FollowService::followAccount - same account');
 			throw new FollowSameAccountException("Don't follow yourself, be your own lead");
 		}
 
@@ -137,22 +185,33 @@ class FollowService {
 		$follow->setObjectId($remoteActor->getId());
 		$follow->setFollowId($remoteActor->getFollowers());
 
-		if ($remoteActor->isLocal()) {
-			// TODO: check user's setting about locked account/auto-accept followers
-			$follow->setAccepted(true);
-		}
-
 		try {
 			$this->followsRequest->getByPersons($actor->getId(), $remoteActor->getId());
+			$this->logger->info('FollowService::followAccount - already following', [
+				'actor' => $actor->getId(),
+				'target' => $remoteActor->getId(),
+			]);
 		} catch (FollowNotFoundException $e) {
 			$this->followsRequest->save($follow);
+			$this->logger->info('FollowService::followAccount - saved new follow', [
+				'followId' => $follow->getId(),
+				'actor' => $actor->getId(),
+				'object' => $remoteActor->getId(),
+			]);
 
 			$follow->addInstancePath(
 				new InstancePath(
 					$remoteActor->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
 				)
 			);
-			$this->activityService->request($follow);
+			try {
+				$this->activityService->request($follow);
+				$this->logger->info('FollowService::followAccount - activity queued');
+			} catch (Throwable $e) {
+				$this->logger->error('FollowService::followAccount - failed to queue activity', [
+					'error' => $e->getMessage(),
+				]);
+			}
 		}
 	}
 
@@ -249,8 +308,14 @@ class FollowService {
 	public function getFollowersCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
 		$collection->setId($actor->getFollowers());
-		$collection->setTotalItems(20);
-		$collection->setFirst('...');
+		$collection->setTotalItems($this->getInt('followers', $actor->getDetails('count')));
+
+		$first = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.followers',
+			['username' => $actor->getPreferredUsername()]
+		)
+				 . '?page=1';
+		$collection->setFirst($first);
 
 		return $collection;
 	}
@@ -275,9 +340,15 @@ class FollowService {
 	 */
 	public function getFollowingCollection(Person $actor): OrderedCollection {
 		$collection = new OrderedCollection();
-//		$collection->setId($actor->getFollowers());
-//		$collection->setTotalItems(20);
-//		$collection->setFirst('...');
+		$collection->setId($actor->getFollowing());
+		$collection->setTotalItems($this->getInt('following', $actor->getDetails('count')));
+
+		$first = $this->urlGenerator->linkToRouteAbsolute(
+			'social.ActivityPub.following',
+			['username' => $actor->getPreferredUsername()]
+		)
+				 . '?page=1';
+		$collection->setFirst($first);
 
 		return $collection;
 	}
@@ -290,5 +361,108 @@ class FollowService {
 	 */
 	public function getFollowersFromFollowId(string $recipient): array {
 		return $this->followsRequest->getFollowersByFollowId($recipient);
+	}
+
+	/**
+	 * @return Relationship[]
+	 */
+	public function getRelationships(array $ids): array {
+		$actorNids = $relationships = [];
+
+		// try to resolve actors by their id (could be nid or url)
+		$nids = [];
+		foreach ($ids as $id) {
+			if (is_numeric($id) && (int)$id > 0) {
+				$nids[] = (int)$id;
+			}
+		}
+
+		// retrieve actorIds from list of Nid
+		foreach ($this->cacheActorService->getFromNids($nids) as $actor) {
+			$actorNids[$actor->getNid()] = $actor->getId();
+		}
+
+		// if any ids weren't found by nid, try by url
+		foreach ($ids as $id) {
+			if (is_numeric($id) && (int)$id > 0 && isset($actorNids[(int)$id])) {
+				continue;
+			}
+			try {
+				$actor = $this->cacheActorService->getFromId((string)$id);
+				$actorNids[$actor->getNid()] = $actor->getId();
+			} catch (CacheActorDoesNotExistException $e) {
+				$this->logger->debug('getRelationships - actor not found by id', ['id' => $id]);
+			}
+		}
+
+		foreach ($actorNids as $actorNid => $actorId) {
+			if ($actorNid === $this->viewer->getNid()) {
+				continue; // ignore current session
+			}
+
+			$relationships[] = $this->generateRelationship($actorNid, $this->viewer->getId(), $actorId);
+		}
+
+		return $relationships;
+	}
+
+	/**
+	 * @param int $nid
+	 * @param string $viewerId
+	 * @param string $actorId
+	 *
+	 * @return Relationship
+	 */
+	/**
+	 * The viewer's relationship with one resolved actor. Unlike getRelationships()
+	 * this takes the Person directly, so it always returns an entry (the block/mute
+	 * endpoints need the updated relationship back even right after the change).
+	 */
+	public function getRelationshipWith(Person $target): Relationship {
+		return $this->generateRelationship($target->getNid(), $this->viewer->getId(), $target->getId());
+	}
+
+	private function generateRelationship(int $nid, string $viewerId, string $actorId): Relationship {
+		$relationship = new Relationship($nid);
+
+		try {
+			$follow = $this->followsRequest->getByPersons($viewerId, $actorId);
+			if ($follow->isAccepted()) {
+				$relationship->setFollowing(true);
+			} else {
+				$relationship->setRequested(true);
+			}
+		} catch (FollowNotFoundException $e) {
+			$this->logger->debug('generateRelationship - not following', [
+				'viewerId' => $viewerId,
+				'actorId' => $actorId,
+				'nid' => $nid,
+			]);
+		}
+
+		try {
+			$follow = $this->followsRequest->getByPersons($actorId, $viewerId);
+			if ($follow->isAccepted()) {
+				$relationship->setFollowedBy(true);
+			}
+		} catch (FollowNotFoundException $e) {
+		}
+
+		foreach ($this->actorRelationRequest->getBetween($viewerId, $actorId) as $relation) {
+			switch ($relation->getType()) {
+				case ActorRelation::TYPE_BLOCK:
+					$relationship->setBlocking(true);
+					break;
+				case ActorRelation::TYPE_BLOCKED_BY:
+					$relationship->setBlockedBy(true);
+					break;
+				case ActorRelation::TYPE_MUTE:
+					$relationship->setMuting(true);
+					$relationship->setMutingNotifications($relation->isNotifications());
+					break;
+			}
+		}
+
+		return $relationship;
 	}
 }

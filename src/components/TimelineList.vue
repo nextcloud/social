@@ -1,66 +1,60 @@
 <!--
-  - @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
-  -
-  - @author Julius Härtl <jus@bitgrid.net>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program. If not, see <http://www.gnu.org/licenses/>.
-  -
-  -->
-
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div class="social__timeline">
-		<transition-group name="list" tag="div">
-			<TimelineEntry v-for="entry in timeline" :key="entry.id" :item="entry" />
+		<transition-group name="list" tag="ul">
+			<TimelineEntry v-for="entry in timeline"
+				:key="entry.id"
+				:item="entry"
+				:type="type" />
 		</transition-group>
-		<InfiniteLoading ref="infiniteLoading" @infinite="infiniteHandler">
-			<div slot="spinner">
-				<div class="icon-loading" />
-			</div>
-			<div slot="no-more">
-				<div class="list-end" />
-			</div>
-			<div slot="no-results">
-				<EmptyContent v-if="timeline.length === 0" :item="emptyContentData" />
-			</div>
-		</InfiniteLoading>
+		<div ref="sentinel" class="list-sentinel">
+			<div v-if="loading" class="icon-loading" />
+			<div v-else-if="!allLoaded" class="list-end" />
+			<EmptyContent v-if="allLoaded && timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
+		</div>
 	</div>
 </template>
 
 <script>
-import InfiniteLoading from 'vue-infinite-loading'
+import { showError } from '@nextcloud/dialogs'
+
 import TimelineEntry from './TimelineEntry.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import EmptyContent from './EmptyContent.vue'
-import Logger from '../logger.js'
+import logger from '../services/logger.js'
 
 export default {
 	name: 'TimelineList',
 	components: {
 		TimelineEntry,
-		InfiniteLoading,
 		EmptyContent,
 	},
 	mixins: [CurrentUserMixin],
 	props: {
-		type: { type: String, default: () => 'home' },
+		type: {
+			type: String,
+			default: () => 'home',
+		},
+		showParents: {
+			type: Boolean,
+			default: false,
+		},
+		reverseOrder: {
+			type: Boolean,
+			default: false,
+		},
 	},
 	data() {
 		return {
 			infoHidden: false,
 			state: [],
+			intervalId: -1,
+			loading: false,
+			allLoaded: false,
+			observer: null,
 			emptyContent: {
 				default: {
 					image: 'img/undraw/posts.svg',
@@ -87,7 +81,7 @@ export default {
 					title: t('social', 'No global posts found'),
 					description: t('social', 'Posts from federated instances will show up here'),
 				},
-				liked: {
+				favourites: {
 					image: 'img/undraw/likes.svg',
 					title: t('social', 'No liked posts found'),
 				},
@@ -100,71 +94,172 @@ export default {
 					title: t('social', 'No posts found for this tag'),
 				},
 				'single-post': {
-					title: t('social', 'No replies found'),
+					title: this.showParents ? '' : t('social', 'No replies found'),
 				},
 			},
 		}
 	},
 	computed: {
+		searchQuery() {
+			return this.$store.getters.getSearchQuery
+		},
 		emptyContentData() {
+			if (this.searchQuery && this.timeline.length === 0) {
+				return {
+					title: t('social', 'No posts match your search'),
+					description: t('social', 'Try a different search term'),
+				}
+			}
 			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
 				return this.emptyContent[this.$route.params.type]
 			}
 
 			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
 				const content = this.emptyContent[this.$route.name]
-				// Change text on profile page when accessed by another user or a public (non-authenticated) user
 				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
 					content.title = this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet')
 				}
 				return this.$route.name === 'timeline' ? this.emptyContent.default : content
 			}
 
-			// Fallback
-			Logger.log('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
+			logger.debug('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
 			return this.emptyContent.default
 		},
+
 		timeline() {
-			return this.$store.getters.getTimeline
+			let timeline = []
+
+			if (this.showParents) {
+				timeline = this.$store.getters.getParentsTimeline
+			} else {
+				timeline = this.$store.getters.getTimeline
+			}
+
+			if (this.reverseOrder) {
+				return timeline.reverse()
+			} else {
+				return timeline
+			}
 		},
 	},
-	beforeMount() {
-
+	mounted() {
+		this.infiniteHandler()
+		this.intervalId = setInterval(() => this.fetchNewStatuses(), 30 * 1000)
+		this.setupIntersectionObserver()
+	},
+	unmounted() {
+		clearInterval(this.intervalId)
+		if (this.observer) {
+			this.observer.disconnect()
+		}
 	},
 	methods: {
-		infiniteHandler($state) {
-			this.$store.dispatch('fetchTimeline', {
-				account: this.currentUser.uid,
-			}).then((response) => {
-				if (response.status === -1) {
-					OC.Notification.showTemporary('Failed to load more timeline entries')
-					console.error('Failed to load more timeline entries', response)
-					$state.complete()
-					return
+		setupIntersectionObserver() {
+			this.observer = new IntersectionObserver((entries) => {
+				if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
+					this.infiniteHandler()
 				}
-				response.result.length > 0 ? $state.loaded() : $state.complete()
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to load more timeline entries')
-				console.error('Failed to load more timeline entries', error)
-				$state.complete()
+			}, { rootMargin: '200px' })
+			this.$nextTick(() => {
+				if (this.$refs.sentinel) {
+					this.observer.observe(this.$refs.sentinel)
+				}
 			})
+		},
+		async infiniteHandler() {
+			if (this.loading) return
+			this.loading = true
+
+			const params = {}
+
+			if (this.timeline.length !== 0) {
+				// The timeline getter sorts by created_at while min_id/max_id
+				// filter on the numeric id, and a federated post can have a
+				// high id with an old date — so page on the ids themselves,
+				// or the cursor never advances and the same page loops forever.
+				const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+				if (ids.length !== 0) {
+					if (this.reverseOrder) {
+						params.min_id = Math.max(...ids)
+					} else {
+						params.max_id = Math.min(...ids)
+					}
+				}
+			}
+
+			try {
+				const response = await this.$store.dispatch('fetchTimeline', params)
+				if (response.length > 0) {
+					this.loading = false
+				} else {
+					this.allLoaded = true
+					this.loading = false
+				}
+			} catch (error) {
+				showError('Failed to load more timeline entries')
+				logger.error('Failed to load more timeline entries', { error })
+				this.allLoaded = true
+				this.loading = false
+			}
+		},
+		async fetchNewStatuses() {
+			if (this.showParents) {
+				return
+			}
+
+			// Newest by id, not this.timeline[0] (sorted by created_at): a
+			// federated post with a high id but an old date would otherwise
+			// keep min_id stuck and this method would refetch forever.
+			const ids = this.timeline.map((entry) => Number.parseInt(entry.id)).filter((id) => !Number.isNaN(id))
+
+			try {
+				const response = await this.$store.dispatch('fetchTimeline', {
+					min_id: ids.length === 0 ? undefined : Math.max(...ids),
+				})
+
+				if (response.length > 0) {
+					this.fetchNewStatuses()
+				}
+			} catch (error) {
+				showError('Failed to load newer timeline entries')
+				logger.error('Failed to load newer timeline entries', { error })
+			}
 		},
 	},
 }
 </script>
 
-<style scoped>
-.list-enter-active, .list-leave-active {
-	transition: all .5s;
-}
+<style scoped lang="scss">
+.social__timeline {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: 0 calc(var(--default-grid-baseline) * 2);
 
-.list-enter {
-	opacity: 0;
-	transform: translateY(-30px);
-}
+	ul {
+		margin: 0;
+		padding: 0;
+	}
 
-.list-leave-to {
-	opacity: 0;
-	transform: translateX(-100px);
+	.list-enter-active,
+	.list-leave-active {
+		transition: opacity .15s ease;
+	}
+
+	.list-enter, .list-leave-to {
+		opacity: 0;
+	}
+
+	.icon-loading {
+		height: 44px;
+		margin: 20px auto;
+	}
+
+	.list-end {
+		height: 1px;
+	}
+
+	.list-sentinel {
+		min-height: 1px;
+	}
 }
 </style>

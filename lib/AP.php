@@ -2,57 +2,35 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RedundancyLimitException;
-use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Interfaces\Activity\AcceptInterface;
 use OCA\Social\Interfaces\Activity\AddInterface;
 use OCA\Social\Interfaces\Activity\BlockInterface;
 use OCA\Social\Interfaces\Activity\CreateInterface;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
+use OCA\Social\Interfaces\Activity\MoveInterface;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
-use OCA\Social\Interfaces\Actor\PersonInterface;
-use OCA\Social\Interfaces\Actor\ServiceInterface;
+use OCA\Social\Interfaces\Actor\ApplicationInterface;
 use OCA\Social\Interfaces\Actor\GroupInterface;
 use OCA\Social\Interfaces\Actor\OrganizationInterface;
-use OCA\Social\Interfaces\Actor\ApplicationInterface;
+use OCA\Social\Interfaces\Actor\PersonInterface;
+use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
@@ -63,34 +41,32 @@ use OCA\Social\Model\ActivityPub\Activity\Add;
 use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Remove;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Activity\Update;
-use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Actor\Service;
+use OCA\Social\Model\ActivityPub\Actor\Application;
 use OCA\Social\Model\ActivityPub\Actor\Group;
 use OCA\Social\Model\ActivityPub\Actor\Organization;
-use OCA\Social\Model\ActivityPub\Actor\Application;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
-use OCP\AppFramework\QueryException;
+use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\Server;
 use Psr\Log\LoggerInterface;
 
-/**
- * Class AP
- *
- * @package OCA\Social
- */
 class AP {
 	use TArrayTools;
 
@@ -103,11 +79,13 @@ class AP {
 	public CreateInterface $createInterface;
 	public DeleteInterface $deleteInterface;
 	public DocumentInterface $documentInterface;
+	public FlagInterface $flagInterface;
 	public FollowInterface $followInterface;
 	public ImageInterface $imageInterface;
 	public LikeInterface $likeInterface;
-	public PersonInterface $personInterface;
+	public MoveInterface $moveInterface;
 	public NoteInterface $noteInterface;
+	public PersonInterface $personInterface;
 	public GroupInterface $groupInterface;
 	public OrganizationInterface $organizationInterface;
 	public ApplicationInterface $applicationInterface;
@@ -128,9 +106,11 @@ class AP {
 		CreateInterface $createInterface,
 		DeleteInterface $deleteInterface,
 		DocumentInterface $documentInterface,
+		FlagInterface $flagInterface,
 		FollowInterface $followInterface,
 		ImageInterface $imageInterface,
 		LikeInterface $likeInterface,
+		MoveInterface $moveInterface,
 		NoteInterface $noteInterface,
 		SocialAppNotificationInterface $notificationInterface,
 		PersonInterface $personInterface,
@@ -142,7 +122,7 @@ class AP {
 		RemoveInterface $removeInterface,
 		UndoInterface $undoInterface,
 		UpdateInterface $updateInterface,
-		ConfigService $configService
+		ConfigService $configService,
 	) {
 		$this->acceptInterface = $acceptInterface;
 		$this->addInterface = $addInterface;
@@ -151,9 +131,11 @@ class AP {
 		$this->createInterface = $createInterface;
 		$this->deleteInterface = $deleteInterface;
 		$this->documentInterface = $documentInterface;
+		$this->flagInterface = $flagInterface;
 		$this->followInterface = $followInterface;
 		$this->imageInterface = $imageInterface;
 		$this->likeInterface = $likeInterface;
+		$this->moveInterface = $moveInterface;
 		$this->noteInterface = $noteInterface;
 		$this->notificationInterface = $notificationInterface;
 		$this->personInterface = $personInterface;
@@ -171,19 +153,14 @@ class AP {
 	public static function init() {
 		try {
 			AP::$activityPub = Server::get(AP::class);
-		} catch (QueryException $e) {
+		} catch (\Exception $e) {
 			Server::get(LoggerInterface::class)
-					   ->error($e->getMessage(), ['exception' => $e]);
+				->error($e->getMessage(), ['exception' => $e]);
 		}
 	}
 
 
-	/**
-	 * @throws RedundancyLimitException
-	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
-	 */
-	public function getItemFromData(array $data, ACore $parent = null, int $level = 0): ACore {
+	public function getItemFromData(array $data, ?ACore $parent = null, int $level = 0): ACore {
 		if (++$level > self::REDUNDANCY_LIMIT) {
 			throw new RedundancyLimitException((string)$level);
 		}
@@ -199,18 +176,12 @@ class AP {
 		return $item;
 	}
 
-
-	/**
-	 * @throws RedundancyLimitException
-	 * @throws SocialAppConfigException
-	 */
 	public function getObjectFromData(array $data, ACore &$item, int $level) {
 		try {
 			$objectData = $this->getArray('object', $data, []);
 			if (empty($objectData)) {
 				$objectId = $this->get('object', $data, '');
 				if ($objectId !== '') {
-					// TODO: validate AS_URL
 					$item->setObjectId($objectId);
 				}
 			} else {
@@ -221,16 +192,10 @@ class AP {
 		}
 	}
 
-
-	/**
-	 * @throws RedundancyLimitException
-	 * @throws SocialAppConfigException
-	 */
 	public function getActorFromData(array $data, ACore &$item, int $level) {
 		try {
 			$actorData = $this->getArray('actor_info', $data, []);
 			if (!empty($actorData)) {
-				/** @var Person $actor */
 				$actor = $this->getItemFromData($actorData, $item, $level);
 				$item->setActor($actor);
 			}
@@ -238,11 +203,6 @@ class AP {
 		}
 	}
 
-
-	/**
-	 * @throws SocialAppConfigException
-	 * @throws ItemUnknownException
-	 */
 	public function getSimpleItemFromData(array $data): Acore {
 		$item = $this->getItemFromType($this->get('type', $data, ''));
 		$item->import($data);
@@ -251,13 +211,6 @@ class AP {
 		return $item;
 	}
 
-	/**
-	 * @param string $type
-	 *
-	 * @return ACore
-	 * @throws ItemUnknownException
-	 * @throws SocialAppConfigException
-	 */
 	public function getItemFromType(string $type): ACore {
 		switch ($type) {
 			case Accept::TYPE:
@@ -277,6 +230,10 @@ class AP {
 				$item = new Block();
 				break;
 
+			case Move::TYPE:
+				$item = new Move();
+				break;
+
 			case Create::TYPE:
 				$item = new Create();
 				break;
@@ -287,6 +244,10 @@ class AP {
 
 			case Document::TYPE:
 				$item = new Document();
+				break;
+
+			case Flag::TYPE:
+				$item = new Flag();
 				break;
 
 			case Follow::TYPE:
@@ -303,6 +264,10 @@ class AP {
 
 			case Note::TYPE:
 				$item = new Note();
+				break;
+
+			case OrderedCollection::TYPE:
+				$item = new OrderedCollection();
 				break;
 
 			case SocialAppNotification::TYPE:
@@ -362,24 +327,10 @@ class AP {
 		return $item;
 	}
 
-
-	/**
-	 * @param ACore $activity
-	 *
-	 * @return IActivityPubInterface
-	 * @throws ItemUnknownException
-	 */
 	public function getInterfaceForItem(Acore $activity): IActivityPubInterface {
 		return $this->getInterfaceFromType($activity->getType());
 	}
 
-
-	/**
-	 * @param string $type
-	 *
-	 * @return IActivityPubInterface
-	 * @throws ItemUnknownException
-	 */
 	public function getInterfaceFromType(string $type): IActivityPubInterface {
 		switch ($type) {
 			case Accept::TYPE:
@@ -403,6 +354,9 @@ class AP {
 			case Document::TYPE:
 				return $this->documentInterface;
 
+			case Flag::TYPE:
+				return $this->flagInterface;
+
 			case Follow::TYPE:
 				return $this->followInterface;
 
@@ -411,6 +365,9 @@ class AP {
 
 			case Like::TYPE:
 				return $this->likeInterface;
+
+			case Move::TYPE:
+				return $this->moveInterface;
 
 			case Note::TYPE:
 				return $this->noteInterface;

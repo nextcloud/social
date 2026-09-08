@@ -2,37 +2,15 @@
 
 declare(strict_types=1);
 
-
 /**
- * Some tools for myself.
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Tools\Model;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use JsonSerializable;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
  * Class Request
@@ -246,7 +224,7 @@ class Request implements JsonSerializable {
 			return $this;
 		}
 
-		list($host, $port) = explode(':', $instance, 2);
+		[$host, $port] = explode(':', $instance, 2);
 		$this->setHost($host);
 		if ($port !== '') {
 			$this->setPort((int)$port);
@@ -285,13 +263,13 @@ class Request implements JsonSerializable {
 		$protocol = parse_url($url, PHP_URL_SCHEME);
 		if ($protocol === null) {
 			if (strpos($url, '/') > -1) {
-				list($address, $baseUrl) = explode('/', $url, 2);
+				[$address, $baseUrl] = explode('/', $url, 2);
 				$this->setBaseUrl('/' . $baseUrl);
 			} else {
 				$address = $url;
 			}
 			if (strpos($address, ':') > -1) {
-				list($address, $port) = explode(':', $address, 2);
+				[$address, $port] = explode(':', $address, 2);
 				$this->setPort((int)$port);
 			}
 			$this->setHost($address);
@@ -647,7 +625,7 @@ class Request implements JsonSerializable {
 	 * @return string
 	 */
 	public function getDataBody(): string {
-		return json_encode($this->getData());
+		return json_encode($this->getData(), JSON_UNESCAPED_SLASHES);
 	}
 
 	/**

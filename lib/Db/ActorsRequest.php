@@ -2,30 +2,9 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Db;
@@ -48,36 +27,51 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsInsertSql();
 
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
-		   ->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
-		   ->setValue('name', $qb->createNamedParameter($actor->getName()))
-		   ->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
-		   ->setValue('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
-		   ->setValue(
-		   	'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
-		   )
-		   ->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->setValue('private_key', $qb->createNamedParameter($actor->getPrivateKey()))
-		   ->setValue(
-		   	'creation',
-		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+			->setValue('id_prim', $qb->createNamedParameter($qb->prim($actor->getId())))
+			->setValue('user_id', $qb->createNamedParameter($actor->getUserId()))
+			->setValue('name', $qb->createNamedParameter($actor->getName()))
+			->setValue('summary', $qb->createNamedParameter($actor->getSummary()))
+			->setValue('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
+			->setValue(
+				'preferred_username', $qb->createNamedParameter($actor->getPreferredUsername())
+			)
+			->setValue('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0))
+			->setValue('public_key', $qb->createNamedParameter($actor->getPublicKey()))
+			->setValue('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())))
+			->setValue(
+				'creation',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
 
 		$qb->executeStatement();
 	}
 
 	public function update(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
-		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()));
+		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
+			->set('summary', $qb->createNamedParameter($actor->getSummary()))
+			->set('name', $qb->createNamedParameter($actor->getName()));
 		$this->limitToIdString($qb, $actor->getId());
 
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Stores a changed locked flag (manuallyApprovesFollowers).
+	 */
+	public function updateLocked(Person $actor): void {
+		$qb = $this->getActorsUpdateSql();
+		$qb->set('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0));
+		$this->limitToIdString($qb, $actor->getId());
+
+		$qb->executeStatement();
+	}
+
+
 	public function refreshKeys(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('public_key', $qb->createNamedParameter($actor->getPublicKey()))
-		   ->set('private_key', $qb->createNamedParameter($actor->getPrivateKey()));
+			->set('private_key', $qb->createNamedParameter($this->keyCipher->seal($actor->getPrivateKey())));
 
 		try {
 			$qb->set(
@@ -122,7 +116,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsSelectSql();
 		$qb->limitToIdString($id);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -167,7 +161,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		);
 		$qb->limitToPreferredUsername($handle);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 	/**
@@ -177,7 +171,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb = $this->getActorsDeleteSql();
 		$qb->limitToPreferredUsername($handle);
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 

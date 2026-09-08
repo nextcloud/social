@@ -2,30 +2,9 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2020, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Search;
@@ -94,7 +73,7 @@ class UnifiedSearchProvider implements IProvider {
 		AccountService $accountService,
 		SearchService $searchService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->l10n = $l10n;
 		$this->urlGenerator = $urlGenerator;
@@ -152,7 +131,7 @@ class UnifiedSearchProvider implements IProvider {
 			$this->convertHashtags($this->searchService->searchHashtags($search))
 		);
 
-//	$this->searchService->searchStreamContent($search)
+		//	$this->searchService->searchStreamContent($search)
 
 		return SearchResult::paginated(
 			$this->l10n->t('Social'), $result, ($query->getCursor() ?? 0) + $query->getLimit()
@@ -201,7 +180,7 @@ class UnifiedSearchProvider implements IProvider {
 		$result = [];
 		foreach ($accounts as $account) {
 			$icon = ($account->hasIcon()) ? $account->getIcon()
-													->getUrl() : '';
+				->getUrl() : '';
 			$result[] = new UnifiedSearchResult(
 				$icon,
 				$account->getPreferredUsername(),

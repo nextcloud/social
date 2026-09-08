@@ -2,49 +2,34 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Interfaces\Internal;
 
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\ActorRelation;
 use OCA\Social\Service\MiscService;
 
 class SocialAppNotificationInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private StreamRequest $streamRequest;
+	private ActorRelationRequest $actorRelationRequest;
 	private MiscService $miscService;
 
-	public function __construct(StreamRequest $streamRequest, MiscService $miscService) {
+	public function __construct(
+		StreamRequest $streamRequest, ActorRelationRequest $actorRelationRequest,
+		MiscService $miscService,
+	) {
 		$this->streamRequest = $streamRequest;
+		$this->actorRelationRequest = $actorRelationRequest;
 		$this->miscService = $miscService;
 	}
 
@@ -55,13 +40,41 @@ class SocialAppNotificationInterface extends AbstractActivityPubInterface implem
 			return;
 		}
 
-		$notification->setPublished(date("c"));
+		if ($this->isSuppressed($notification)) {
+			return;
+		}
+
+		$notification->setPublished(date('c'));
 		$notification->convertPublished();
 
 		$this->miscService->log(
 			'Generating notification: ' . json_encode($notification, JSON_UNESCAPED_SLASHES), 1
 		);
 		$this->streamRequest->save($notification);
+	}
+
+	/**
+	 * No notification is generated from an actor the recipient has blocked, who has
+	 * blocked the recipient, or whom the recipient muted with notifications hidden.
+	 * (The notification timeline filters on read as well; this keeps suppressed
+	 * entries out of the table entirely.)
+	 */
+	private function isSuppressed(SocialAppNotification $notification): bool {
+		$to = $notification->getTo();
+		$from = $notification->getAttributedTo();
+		if ($to === '' || $from === '') {
+			return false;
+		}
+
+		foreach ($this->actorRelationRequest->getBetween($to, $from) as $relation) {
+			if ($relation->getType() === ActorRelation::TYPE_BLOCK
+				|| $relation->getType() === ActorRelation::TYPE_BLOCKED_BY
+				|| ($relation->getType() === ActorRelation::TYPE_MUTE && $relation->isNotifications())) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function update(ACore $item): void {

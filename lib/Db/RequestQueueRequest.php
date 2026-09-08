@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
@@ -43,6 +21,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class RequestQueueRequest extends RequestQueueRequestBuilder {
+	/** How many standby requests a single cron pass hydrates. */
+	public const STANDBY_BATCH = 200;
+
 	/**
 	 * Create a new Queue in the database.
 	 *
@@ -64,17 +45,17 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function create(RequestQueue $queue): void {
 		$qb = $this->getRequestQueueInsertSql();
 		$qb->setValue('token', $qb->createNamedParameter($queue->getToken()))
-		   ->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
-		   ->setValue('author_prim', $qb->createNamedParameter($qb->prim($queue->getAuthor())))
-		   ->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
-		   ->setValue(
-		   	'instance', $qb->createNamedParameter(
-		   		json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
-		   	)
-		   )
-		   ->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
-		   ->setValue('status', $qb->createNamedParameter($queue->getStatus()))
-		   ->setValue('tries', $qb->createNamedParameter($queue->getTries()));
+			->setValue('author', $qb->createNamedParameter($queue->getAuthor()))
+			->setValue('author_prim', $qb->createNamedParameter($qb->prim($queue->getAuthor())))
+			->setValue('activity', $qb->createNamedParameter($queue->getActivity()))
+			->setValue(
+				'instance', $qb->createNamedParameter(
+					json_encode($queue->getInstance(), JSON_UNESCAPED_SLASHES)
+				)
+			)
+			->setValue('priority', $qb->createNamedParameter($queue->getPriority()))
+			->setValue('status', $qb->createNamedParameter($queue->getStatus()))
+			->setValue('tries', $qb->createNamedParameter($queue->getTries()));
 		$qb->executeStatement();
 	}
 
@@ -89,6 +70,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb = $this->getRequestQueueSelectSql();
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
 		$qb->orderBy('id', 'asc');
+		$qb->setMaxResults(self::STANDBY_BATCH);
 
 		$requests = [];
 		$cursor = $qb->executeQuery();
@@ -134,10 +116,10 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	public function setAsRunning(RequestQueue &$queue): void {
 		$qb = $this->getRequestQueueUpdateSql();
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_RUNNING))
-		   ->set(
-		   	'last',
-		   	$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-		   );
+			->set(
+				'last',
+				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
+			);
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
 
@@ -179,7 +161,7 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$expr = $qb->expr();
 
 		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY))
-		   ->set('tries', $func->add('tries', $expr->literal(1)));
+			->set('tries', $func->add('tries', $expr->literal(1)));
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
 
@@ -189,7 +171,27 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 			throw new QueueStatusException();
 		}
 
-		$queue->setStatus(RequestQueue::STATUS_SUCCESS);
+		$queue->setStatus(RequestQueue::STATUS_STANDBY);
+	}
+
+
+	/**
+	 * Return every request stuck `running` since before $before to standby.
+	 *
+	 * @return int the number of requests re-queued
+	 * @throws Exception
+	 */
+	public function resetStaleRunning(int $before): int {
+		$qb = $this->getRequestQueueUpdateSql();
+		$qb->set('status', $qb->createNamedParameter(RequestQueue::STATUS_STANDBY));
+		$this->limitToStatus($qb, RequestQueue::STATUS_RUNNING);
+		$qb->andWhere(
+			$qb->expr()->lt('last', $qb->createNamedParameter(
+				new DateTime('@' . $before), IQueryBuilder::PARAM_DATE
+			))
+		);
+
+		return $qb->executeStatement();
 	}
 
 
@@ -207,13 +209,13 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$qb->executeStatement();
 	}
 
-//	public function moveAccount(string $actorId, string $newId, string $instance): void {
-//		$qb = $this->getRequestQueueUpdateSql();
-//		$qb->set('author', $qb->createNamedParameter($newId))
-//		   ->set('author_prim', $qb->createNamedParameter($qb->prim($newId)))
-//		   ->set('instance', $qb->createNamedParameter($instance));
-//		$qb->limitToDBField('author_prim', $qb->prim($actorId));
-//
-//		$qb->execute();
-//	}
+	//	public function moveAccount(string $actorId, string $newId, string $instance): void {
+	//		$qb = $this->getRequestQueueUpdateSql();
+	//		$qb->set('author', $qb->createNamedParameter($newId))
+	//		   ->set('author_prim', $qb->createNamedParameter($qb->prim($newId)))
+	//		   ->set('instance', $qb->createNamedParameter($instance));
+	//		$qb->limitToDBField('author_prim', $qb->prim($actorId));
+	//
+	//		$qb->executeStatement();
+	//	}
 }

@@ -1,0 +1,24 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", "https://pleroma.example/schemas/litepub-0.1.jsonld"],
+  "id": "https://pleroma.example/activities/9a3c1f6e-0001",
+  "type": "Create",
+  "actor": "https://pleroma.example/users/dana",
+  "published": "2026-09-03T20:15:00.000000Z",
+  "to": ["https://pleroma.example/users/dana/followers"],
+  "cc": [],
+  "directMessage": false,
+  "object": {
+    "id": "https://pleroma.example/objects/aa8c60f2-0001",
+    "type": "Note",
+    "summary": "",
+    "published": "2026-09-03T20:15:00.000000Z",
+    "attributedTo": "https://pleroma.example/users/dana",
+    "actor": "https://pleroma.example/users/dana",
+    "to": ["https://pleroma.example/users/dana/followers"],
+    "cc": [],
+    "content": "followers-only post from pleroma",
+    "source": "followers-only post from pleroma",
+    "attachment": [],
+    "tag": []
+  }
+}

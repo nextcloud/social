@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
@@ -58,7 +36,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	public function __construct(
 		IDBConnection $connection, LoggerInterface $logger, IURLGenerator $urlGenerator,
 		CacheActorService $cacheActorService,
-		ConfigService $configService, MiscService $miscService
+		ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
@@ -170,10 +148,11 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 */
 	public function getRelatedToActor(Person $actor): array {
 		$qb = $this->getStreamDestSelectSql();
-		$orX = $qb->expr()->orX();
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getId())));
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowers())));
-		$orX->add($qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowing())));
+		$orX = $qb->expr()->orX(
+			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getId())),
+			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowers())),
+			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowing()))
+		);
 		$qb->where($orX);
 
 		return $this->getStreamDestsFromRequest($qb);

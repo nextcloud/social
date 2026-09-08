@@ -1,18 +1,17 @@
 { "translations": {
     "Help" : "ช่วยเหลือ",
-    "Open documentation" : "เปิดเอกสารประกอบ",
-    "Finish setup" : "ติดตั้งให้เสร็จ",
     "Home" : "หน้าหลัก",
     "Notifications" : "การแจ้งเตือน",
-    "Post" : "โพสต์",
-    "Public" : "สาธารณะ",
+    "Open documentation" : "เปิดเอกสารประกอบ",
+    "Finish setup" : "ติดตั้งให้เสร็จ",
     "Uploading..." : "กำลังอัปโหลด...",
     "Delete" : "ลบ",
-    "Edit" : "แก้ไข",
-    "Close" : "ปิด",
+    "Post" : "โพสต์",
     "Website" : "เว็บไซต์",
     "Reply" : "ตอบกลับ",
     "Hello" : "สวัสดี",
-    "Continue" : "ดำเนินการต่อ"
+    "Close" : "ปิด",
+    "Continue" : "ดำเนินการต่อ",
+    "Public" : "สาธารณะ"
 },"pluralForm" :"nplurals=1; plural=0;"
 }

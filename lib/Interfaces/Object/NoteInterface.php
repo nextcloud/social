@@ -2,54 +2,48 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Interfaces\Object;
 
+use OCA\Social\AP;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\PushService;
+use OCA\Social\Tools\Traits\TArrayTools;
 
 class NoteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	use TArrayTools;
+
 	private StreamRequest $streamRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 	private PushService $pushService;
 
-	public function __construct(StreamRequest $streamRequest, PushService $pushService) {
+	public function __construct(
+		StreamRequest $streamRequest,
+		CacheActorsRequest $cacheActorsRequest,
+		PushService $pushService,
+	) {
 		$this->streamRequest = $streamRequest;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->pushService = $pushService;
 	}
 
@@ -81,21 +75,108 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$activity->checkOrigin($item->getId());
 			$this->delete($item);
 		}
+
+		if ($activity->getType() === Update::TYPE) {
+			$activity->checkOrigin($item->getId());
+			$activity->checkOrigin($item->getAttributedTo());
+			$item->setActivityId($activity->getId());
+			$this->streamRequest->update($item);
+		}
 	}
 
 	public function save(ACore $item): void {
 		/** @var Note $note */
 		$note = $item;
+		$this->checkAuthorship($note);
 		try {
 			$this->streamRequest->getStreamById($note->getId());
 		} catch (StreamNotFoundException $e) {
 			$this->streamRequest->save($note);
+			$this->updateDetails($note);
+			$this->generateNotification($note);
 			$this->pushService->onNewStream($note->getId());
+		}
+	}
+
+	/**
+	 * A note lives on its author's instance, so `attributedTo` must share the host of
+	 * the note's own id. This is the invariant every path into storage relies on: the
+	 * Create path also matches both against the request origin, but the fetch-and-store
+	 * paths (an announced object being cached, an outbox being synced) have no request
+	 * to compare against — without this check, a document served by one instance could
+	 * claim an author on another and be stored as that author's post.
+	 *
+	 * @throws InvalidOriginException
+	 */
+	private function checkAuthorship(Note $note): void {
+		$noteHost = parse_url($note->getId(), PHP_URL_HOST);
+		$authorHost = parse_url($note->getAttributedTo(), PHP_URL_HOST);
+
+		if (!is_string($noteHost) || $noteHost === ''
+			|| !is_string($authorHost)
+			|| strtolower($noteHost) !== strtolower($authorHost)) {
+			throw new InvalidOriginException(
+				'NoteInterface::checkAuthorship - id: ' . $note->getId()
+				. ' - attributedTo: ' . $note->getAttributedTo()
+			);
 		}
 	}
 
 	public function delete(ACore $item): void {
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
+	}
+
+
+	public function updateDetails(Note $stream): void {
+		if ($stream->getInReplyTo() === '') {
+			return;
+		}
+
+		try {
+			$orig = $this->streamRequest->getStreamById($stream->getInReplyTo());
+			$remoteReplies = $orig->getDetailInt('remote_replies');
+			$localReplies = $this->streamRequest->countRepliesTo($stream->getInReplyTo());
+			$orig->setDetailInt('replies', $remoteReplies + $localReplies);
+
+			$this->streamRequest->updateDetails($orig);
+		} catch (StreamNotFoundException $e) {
+		}
+	}
+
+	private function generateNotification(Note $note): void {
+		$mentions = $note->getTags('Mention');
+		if (empty($mentions)) {
+			return;
+		}
+
+		/** @var SocialAppNotificationInterface $notificationInterface */
+		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$post = $this->streamRequest->getStreamById($note->getId(), false, ACore::FORMAT_LOCAL);
+
+		foreach ($mentions as $mention) {
+			try {
+				$recipient = $this->cacheActorsRequest->getFromId($this->get('href', $mention));
+				if (!$recipient->isLocal()) { // only interested on local
+					throw new CacheActorDoesNotExistException();
+				}
+			} catch (CacheActorDoesNotExistException $e) {
+				continue;
+			}
+
+			/** @var SocialAppNotification $notification */
+			$notification = AP::$activityPub->getItemFromType(SocialAppNotification::TYPE);
+			$notification->setDetailItem('post', $post);
+			$notification->addDetail('account', $post->getActor()->getAccount());
+			$notification->setAttributedTo($recipient->getId())
+				->setSubType(Mention::TYPE)
+				->setId($post->getId() . '/notification+mention')
+				->setSummary('{account} mentioned you in a post')
+				->setObjectId($post->getId())
+				->setTo($recipient->getId())
+				->setLocal(true);
+
+			$notificationInterface->save($notification);
+		}
 	}
 }

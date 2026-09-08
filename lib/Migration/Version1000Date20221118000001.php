@@ -3,28 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2022, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Migration;
@@ -139,7 +119,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		);
 
 		$table->setPrimaryKey(['id_prim']);
-		$table->addUniqueIndex(['actor_id_prim', 'object_id_prim', 'type'], 'aot');
+		$table->addUniqueIndex(['actor_id_prim', 'object_id_prim', 'type'], 'apopt');
 	}
 
 
@@ -538,6 +518,14 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'visibility', Types::STRING,
+			[
+				'notnull' => false,
+				'length' => 31,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
 			'to', Types::TEXT,
 			[
 				'notnull' => false,
@@ -710,7 +698,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['nid']);
 		$table->addUniqueIndex(['id_prim']);
-		$table->addUniqueIndex(['nid']);
 		$table->addUniqueIndex(
 			[
 				'id_prim',
@@ -738,6 +725,15 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->createTable('social_cache_actor');
+		$table->addColumn(
+			'nid', Types::BIGINT,
+			[
+				'autoincrement' => true,
+				'notnull' => true,
+				'length' => 14,
+				'unsigned' => true,
+			]
+		);
 		$table->addColumn(
 			'id', Types::TEXT,
 			[
@@ -879,8 +875,14 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 				'notnull' => false,
 			]
 		);
+		$table->addColumn(
+			'details_update', Types::DATETIME,
+			[
+				'notnull' => false,
+			]
+		);
 
-		$table->setPrimaryKey(['id_prim']);
+		$table->setPrimaryKey(['nid']);
 		$table->addUniqueIndex(['id_prim']);
 	}
 
@@ -896,6 +898,15 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		}
 
 		$table = $schema->createTable('social_cache_doc');
+		$table->addColumn(
+			'nid', Types::BIGINT,
+			[
+				'autoincrement' => true,
+				'notnull' => true,
+				'length' => 14,
+				'unsigned' => true,
+			]
+		);
 		$table->addColumn(
 			'id', Types::TEXT,
 			[
@@ -970,6 +981,28 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 		$table->addColumn(
+			'meta', Types::TEXT,
+			[
+				'notnull' => true,
+				'default' => '[]'
+			]
+		);
+		$table->addColumn(
+			'blurhash', Types::STRING,
+			[
+				'notnull' => true,
+				'length' => 63,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
+			'description', Types::TEXT,
+			[
+				'notnull' => true,
+				'default' => ''
+			]
+		);
+		$table->addColumn(
 			'public', Types::BOOLEAN,
 			[
 				'notnull' => false,
@@ -996,7 +1029,7 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 			]
 		);
 
-		$table->setPrimaryKey(['id_prim']);
+		$table->setPrimaryKey(['nid']);
 	}
 
 	/**

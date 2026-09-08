@@ -5,9 +5,8 @@ OC.L10N.register(
     "Home" : "Baş sahypa",
     "Notifications" : "Duýduryşlar",
     "Delete" : "Pozmak",
-    "Edit" : "Redaktirläň",
-    "Close" : "Ýap",
     "Website" : "Website",
-    "Deny" : "inkär et"
+    "Deny" : "inkär et",
+    "Close" : "Ýap"
 },
 "nplurals=2; plural=(n != 1);");

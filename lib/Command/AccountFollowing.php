@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Command;
 
@@ -52,7 +30,7 @@ class AccountFollowing extends Base {
 
 	public function __construct(
 		AccountService $accountService, CacheActorService $cacheActorService,
-		FollowService $followService, ConfigService $configService, MiscService $miscService
+		FollowService $followService, ConfigService $configService, MiscService $miscService,
 	) {
 		parent::__construct();
 
@@ -66,11 +44,11 @@ class AccountFollowing extends Base {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:account:following')
-			 ->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud userid')
-			 ->addArgument('account', InputArgument::REQUIRED, 'Account to follow')
-			 ->addOption('local', '', InputOption::VALUE_NONE, 'account is local')
-			 ->addOption('unfollow', '', InputOption::VALUE_NONE, 'unfollow')
-			 ->setDescription('Following a new account');
+			->addArgument('userId', InputArgument::REQUIRED, 'Nextcloud userid')
+			->addArgument('account', InputArgument::REQUIRED, 'Account to follow')
+			->addOption('local', '', InputOption::VALUE_NONE, 'account is local')
+			->addOption('unfollow', '', InputOption::VALUE_NONE, 'unfollow')
+			->setDescription('Following a new account');
 	}
 
 	/**
@@ -80,16 +58,42 @@ class AccountFollowing extends Base {
 		$userId = $input->getArgument('userId');
 		$account = $input->getArgument('account');
 
-		$actor = $this->accountService->getActor($userId);
-		if ($input->getOption('local')) {
-			$local = $this->cacheActorService->getFromLocalAccount($account);
-			$account = $local->getAccount();
+		$output->writeln('<info>Following account...</info>');
+		$output->writeln('  User: ' . $userId);
+		$output->writeln('  Account: ' . $account);
+
+		try {
+			$actor = $this->accountService->getActor($userId);
+			$output->writeln('  Local actor: ' . $actor->getId() . ' (nid=' . $actor->getNid() . ')');
+		} catch (\Exception $e) {
+			$output->writeln('<error>Failed to get local actor: ' . $e->getMessage() . '</error>');
+			return 1;
 		}
 
-		if ($input->getOption('unfollow')) {
-			$this->followService->unfollowAccount($actor, $account);
-		} else {
-			$this->followService->followAccount($actor, $account);
+		if ($input->getOption('local')) {
+			try {
+				$local = $this->cacheActorService->getFromLocalAccount($account);
+				$account = $local->getAccount();
+				$output->writeln('  Local account resolved to: ' . $account);
+			} catch (\Exception $e) {
+				$output->writeln('<error>Failed to resolve local account: ' . $e->getMessage() . '</error>');
+				return 1;
+			}
+		}
+
+		try {
+			if ($input->getOption('unfollow')) {
+				$output->writeln('  Unfollowing...');
+				$this->followService->unfollowAccount($actor, $account);
+				$output->writeln('<info>Unfollow request sent.</info>');
+			} else {
+				$output->writeln('  Following...');
+				$this->followService->followAccount($actor, $account);
+				$output->writeln('<info>Follow request sent successfully.</info>');
+			}
+		} catch (\Exception $e) {
+			$output->writeln('<error>Failed: ' . get_class($e) . ': ' . $e->getMessage() . '</error>');
+			return 1;
 		}
 
 		return 0;

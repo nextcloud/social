@@ -1,24 +1,7 @@
 <?php
 /**
- * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
- *
- * @author Julius Härtl <jus@bitgrid.net>
- *
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
@@ -57,7 +40,7 @@ class UpdateService {
 	 */
 	public function __construct(
 		IUserManager $userManager, IGroupManager $groupManager, ITimeFactory $time,
-		INotificationManager $notificationManager
+		INotificationManager $notificationManager,
 	) {
 		$this->userManager = $userManager;
 		$this->groupManager = $groupManager;
@@ -72,7 +55,7 @@ class UpdateService {
 		foreach ($notifications as $notif) {
 			$help = $notif->createAction();
 			$help->setLabel('help')
-				 ->setLink('https://help.nextcloud.com/t/social-alpha3-how-to-upgrade/85535', 'WEB');
+				->setLink('https://help.nextcloud.com/t/social-alpha3-how-to-upgrade/85535', 'WEB');
 
 			$notif->addAction($help);
 			$this->notificationManager->notify($notif);
@@ -120,10 +103,10 @@ class UpdateService {
 		$now = $this->time->getDateTime();
 		$notification = $this->notificationManager->createNotification();
 		$notification->setApp('social')
-					 ->setDateTime($now)
-					 ->setUser($userId)
-					 ->setObject('update', 'update_' . $this->updateId)
-					 ->setSubject($subject, $data);
+			->setDateTime($now)
+			->setUser($userId)
+			->setObject('update', 'update_' . $this->updateId)
+			->setSubject($subject, $data);
 
 		return $notification;
 	}

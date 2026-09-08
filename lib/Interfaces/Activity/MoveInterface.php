@@ -3,34 +3,14 @@
 declare(strict_types=1);
 
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2022, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Interfaces\Activity;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
@@ -45,6 +25,7 @@ use OCA\Social\Service\CacheActorService;
 
 class MoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private ActionsRequest $actionsRequest;
+	private CacheActorsRequest $cacheActorsRequest;
 	private CacheDocumentsRequest $cacheDocumentsRequest;
 	private FollowsRequest $followsRequest;
 	private StreamRequest $streamRequest;
@@ -53,13 +34,15 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 
 	public function __construct(
 		ActionsRequest $actionsRequest,
+		CacheActorsRequest $cacheActorsRequest,
 		CacheDocumentsRequest $cacheDocumentsRequest,
 		FollowsRequest $followsRequest,
 		StreamRequest $streamRequest,
 		StreamDestRequest $streamDestRequest,
-		CacheActorService $cacheActorService
+		CacheActorService $cacheActorService,
 	) {
 		$this->actionsRequest = $actionsRequest;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheDocumentsRequest = $cacheDocumentsRequest;
 		$this->streamRequest = $streamRequest;
 		$this->streamDestRequest = $streamDestRequest;
@@ -77,12 +60,26 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		$item->checkOrigin($item->getActorId());
 
 		try {
-			$old = $this->cacheActorService->getFromAccount($item->getActorId(), false);
+			// cache only: an actor this instance has never seen has nothing to move
+			$old = $this->cacheActorsRequest->getFromId($item->getActorId());
 		} catch (CacheActorDoesNotExistException $e) {
 			return;
 		}
 
-		$new = $this->cacheActorService->getFromAccount($item->getTarget());
+		// Refresh the target so the alsoKnownAs list is the one its server
+		// publishes right now, not a stale cached copy.
+		$new = $this->cacheActorService->getFromId($item->getTarget(), true);
+
+		// The signature only proves the Move comes from the old account's
+		// server. Without the back-reference, anyone could re-point another
+		// actor's followers and posts at an account they control.
+		if (!in_array($old->getId(), $new->getAlsoKnownAs(), true)) {
+			throw new InvalidOriginException(
+				'MoveInterface - target ' . $new->getId()
+				. ' does not list ' . $old->getId() . ' in alsoKnownAs'
+			);
+		}
+
 		$this->moveAccount($old, $new);
 	}
 

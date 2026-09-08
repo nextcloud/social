@@ -1,20 +1,24 @@
+<!--
+  - SPDX-FileCopyrightText: 2019 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
-	<div v-if="item.actor_info" class="post-avatar">
-		<NcAvatar v-if="item.local"
+	<div v-if="item.account" class="post-avatar">
+		<NcAvatar v-if="isLocal"
 			class="messages__avatar__icon"
 			:show-user-status="false"
 			menu-position="left"
-			:user="userTest"
-			:display-name="item.actor_info.account"
+			:user="item.account.username"
+			:display-name="item.account.display_name"
 			:disable-tooltip="true" />
 		<NcAvatar v-else
-			:url="avatarUrl"
+			:url="item.account.avatar"
 			:disable-tooltip="true" />
 	</div>
 </template>
 
 <script>
-import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 
 export default {
 	name: 'TimelineAvatar',
@@ -22,25 +26,29 @@ export default {
 		NcAvatar,
 	},
 	props: {
+		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status>} */
 		item: {
 			type: Object,
 			default: () => {},
 		},
 	},
 	computed: {
+		/**
+		 * @return {string}
+		 */
 		userTest() {
-			return this.item.actor_info.preferredUsername
+			return this.item.account.display_name
 		},
-		avatarUrl() {
-			return OC.generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.item.attributedTo)
+		/** @return {boolean} */
+		isLocal() {
+			return !this.item.account.acct.includes('@')
 		},
 	},
 }
 </script>
 
-<style scoped>
+<style scoped lang='scss'>
 .post-avatar {
-	position: relative;
 	padding: 5px 10px 10px 5px;
 	height: 52px;
 	width: 52px;

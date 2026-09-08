@@ -1,0 +1,49 @@
+# This workflow is provided via the organization template repository
+#
+# https://github.com/nextcloud/.github
+# https://docs.github.com/en/actions/learn-github-actions/sharing-workflows-with-your-organization
+#
+# SPDX-FileCopyrightText: 2022-2024 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
+
+name: Static analysis
+
+permissions:
+  contents: read
+
+on: pull_request
+
+concurrency:
+  group: psalm-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    name: static-psalm-analysis
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Set up php8.3
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231 # v2.31.1
+        with:
+          php-version: 8.3
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: composer i
+
+      - name: Patch friendica/json-ld for PHP 8.4+ compatibility
+        run: |
+          sed -i 's/foreach (\$http_response_header as/foreach (\$http_response_header ?? [] as/g' vendor/friendica/json-ld/jsonld.php
+
+      - name: Run Psalm static analysis
+        run: |
+          php vendor/bin/psalm --threads=1 --update-baseline || true
+          echo "Psalm completed. If baseline changed, commit the updated tests/psalm-baseline.xml."

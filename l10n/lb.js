@@ -2,15 +2,14 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Hëllef",
-    "Open documentation" : "Dokumentatioun opmaachen",
-    "Finish setup" : "Installatioun ofschléissen",
     "Home" : "Doheem",
     "Notifications" : "Notifikatiounen",
+    "Open documentation" : "Dokumentatioun opmaachen",
+    "Finish setup" : "Installatioun ofschléissen",
     "Uploading..." : "Lueden erop...",
     "Delete" : "Läschen",
-    "Edit" : "Änneren",
-    "Close" : "Zoumaachen",
     "Reply" : "Äntwerten",
+    "Close" : "Zoumaachen",
     "Continue" : "Weider"
 },
 "nplurals=2; plural=(n != 1);");

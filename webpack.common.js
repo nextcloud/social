@@ -1,8 +1,17 @@
-// SPDX-FileCopyrigthText: 2022 Carl Schwan <carl@carlschwan.eu>
-// SPDX-License-Identifier: AGPL-3.0-or-later
+/**
+ * SPDX-FileCopyrightText: 2022 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
 
-const path = require('path');
+const path = require('path')
 const webpackConfig = require('@nextcloud/webpack-vue-config')
+const CopyPlugin = require('copy-webpack-plugin')
+
+webpackConfig.plugins.push(new CopyPlugin({
+	patterns: [
+		{ from: 'node_modules/twemoji/2/svg/', to: '../img/twemoji' },
+	],
+}))
 
 webpackConfig.entry = {
 	social: path.join(__dirname, 'src', 'main.js'),
@@ -10,6 +19,32 @@ webpackConfig.entry = {
 	profilePage: path.join(__dirname, 'src', 'profile.js'),
 	dashboard: path.join(__dirname, 'src', 'dashboard.js'),
 	oauth: path.join(__dirname, 'src', 'oauth.js'),
+}
+
+webpackConfig.optimization.concatenateModules = false
+webpackConfig.module.rules.unshift({
+	test: /\.mjs$/,
+	type: 'javascript/auto',
+	resolve: {
+		fullySpecified: false,
+	},
+})
+webpackConfig.module.rules.unshift({
+	test: /node_modules\/(?:axios|webdav|@vue\/devtools-shared)\/.*\.js$/,
+	resolve: {
+		fullySpecified: false,
+	},
+})
+webpackConfig.resolve.extensions = ['.*', '.ts', '.js', '.vue', '.json']
+webpackConfig.resolve.fallback = {
+	...webpackConfig.resolve.fallback,
+	buffer: require.resolve('buffer/'),
+}
+
+// Preserve .htaccess and the hand-written admin-settings script when cleaning
+// the output directory
+webpackConfig.output.clean = {
+	keep: /\.htaccess|social-adminSettings\.js/,
 }
 
 module.exports = webpackConfig

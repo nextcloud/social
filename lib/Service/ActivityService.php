@@ -2,30 +2,9 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
@@ -47,6 +26,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
 use OCA\Social\Model\InstancePath;
@@ -92,7 +72,7 @@ class ActivityService {
 		RequestQueueService $requestQueueService,
 		CurlService $curlService,
 		ConfigService $configService,
-		LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->followsRequest = $followsRequest;
@@ -113,21 +93,21 @@ class ActivityService {
 	 * @return string
 	 * @throws SocialAppConfigException
 	 */
-	public function createActivity(Person $actor, ACore $item, ACore &$activity = null): string {
+	public function createActivity(Person $actor, ACore $item, ?ACore &$activity = null): string {
 		$activity = new Create();
 		$item->setParent($activity);
 
-//		$this->activityStreamsService->initCore($activity);
+		//		$this->activityStreamsService->initCore($activity);
 
 		$activity->setObject($item);
 		$activity->setId($item->getId() . '/activity');
 		$activity->setInstancePaths($item->getInstancePaths());
 
-//		if ($item->getToArray() !== []) {
-//			$activity->setToArray($item->getToArray());
-//		} else {
-//			$activity->setTo($item->getTo());
-//		}
+		//		if ($item->getToArray() !== []) {
+		//			$activity->setToArray($item->getToArray());
+		//		} else {
+		//			$activity->setTo($item->getTo());
+		//		}
 
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
@@ -137,6 +117,28 @@ class ActivityService {
 		$this->saveActivity($activity);
 
 		return $this->request($activity);
+	}
+
+
+	/**
+	 * @param Person $actor
+	 * @param ACore $item
+	 *
+	 * @return string
+	 * @throws SocialAppConfigException
+	 */
+	public function updateActivity(Person $actor, ACore $item): string {
+		$update = new Update();
+		$item->setParent($update);
+
+		$update->setObject($item);
+		$update->setId($item->getId() . '/activity#update');
+		$update->setInstancePaths($item->getInstancePaths());
+
+		$update->setActor($actor);
+		$this->signatureService->signObject($actor, $update);
+
+		return $this->request($update);
 	}
 
 
@@ -233,7 +235,7 @@ class ActivityService {
 	 */
 	public function manageRequest(RequestQueue $queue) {
 		$host = $queue->getInstance()
-					  ->getAddress();
+			->getAddress();
 		if (in_array($host, $this->failInstances)) {
 			return;
 		}
@@ -241,7 +243,7 @@ class ActivityService {
 		try {
 			$this->requestQueueService->initRequest($queue);
 		} catch (QueueStatusException $e) {
-			$this->logger->error("Error while trying to init request", [
+			$this->logger->error('Error while trying to init request', [
 				'exception' => $e,
 			]);
 
@@ -254,15 +256,15 @@ class ActivityService {
 			$this->signatureService->signRequest($request, $queue);
 			$this->curlService->retrieveJson($request);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException | RequestResultNotJsonException $e) {
+		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (ActorDoesNotExistException | RequestContentException | RequestResultSizeException $e) {
+		} catch (ActorDoesNotExistException|RequestContentException|RequestResultSizeException $e) {
 			$this->logger->notice(
 				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
 				. $e->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestNetworkException | RequestServerException $e) {
+		} catch (RequestNetworkException|RequestServerException $e) {
 			$this->logger->notice(
 				'Temporary error while managing request: RequestServerException - ' . json_encode($request)
 				. ' - ' . get_class($e) . ': ' . $e->getMessage()
@@ -308,18 +310,17 @@ class ActivityService {
 	 * @return InstancePath[]
 	 */
 	private function generateInstancePathsFollowers(InstancePath $instancePath): array {
-		$follows = $this->followsRequest->getByFollowId($instancePath->getUri());
+		$follows = $this->followsRequest->getFollowersByActorId($instancePath->getUri());
 
 		$sharedInboxes = [];
 		$instancePaths = [];
 		foreach ($follows as $follow) {
 			if (!$follow->hasActor()) {
-				// TODO - check if cache can be empty at this point ?
 				continue;
 			}
 
 			$sharedInbox = $follow->getActor()
-								  ->getSharedInbox();
+				->getSharedInbox();
 			if (in_array($sharedInbox, $sharedInboxes)) {
 				continue;
 			}
@@ -382,7 +383,7 @@ class ActivityService {
 	private function getAuthorFromItem(Acore $activity): string {
 		if ($activity->hasActor()) {
 			return $activity->getActor()
-							->getId();
+				->getId();
 		}
 
 		return $activity->getActorId();

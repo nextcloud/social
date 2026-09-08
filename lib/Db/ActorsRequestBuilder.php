@@ -2,40 +2,40 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Db;
 
-use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Security\PrivateKeyCipher;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
+use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IDBConnection;
+use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 class ActorsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
+
+	protected PrivateKeyCipher $keyCipher;
+
+	public function __construct(
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		ConfigService $configService,
+		MiscService $miscService,
+		PrivateKeyCipher $keyCipher,
+	) {
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
+
+		$this->keyCipher = $keyCipher;
+	}
 
 
 	/**
@@ -75,9 +75,10 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		/** @noinspection PhpMethodParametersCountMismatchInspection */
 		$qb->select(
 			'a.id', 'a.id_prim', 'a.user_id', 'a.preferred_username', 'a.name', 'a.summary',
-			'a.public_key', 'a.avatar_version', 'a.private_key', 'a.creation', 'a.deleted'
+			'a.public_key', 'a.avatar_version', 'a.private_key', 'a.creation', 'a.deleted',
+			'a.locked'
 		)
-		   ->from(self::TABLE_ACTORS, 'a');
+			->from(self::TABLE_ACTORS, 'a');
 
 		$this->defaultSelectAlias = 'a';
 		$qb->setDefaultSelectAlias('a');
@@ -110,20 +111,22 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		$actor = new Person();
 		$actor->importFromDatabase($data);
+		$actor->setPrivateKey($this->keyCipher->open($actor->getPrivateKey()));
+		$actor->setId($root . '@' . $actor->getPreferredUsername());
 		$actor->setType('Person');
 		$actor->setInbox($actor->getId() . '/inbox')
-			  ->setOutbox($actor->getId() . '/outbox')
-			  ->setUserId($this->get('user_id', $data, ''))
-			  ->setFollowers($actor->getId() . '/followers')
-			  ->setFollowing($actor->getId() . '/following')
-			  ->setSharedInbox($root . 'inbox')
-			  ->setLocal(true)
-			  ->setAvatarVersion($this->getInt('avatar_version', $data, -1))
-			  ->setAccount(
-			  	$actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress()
-			  );
+			->setOutbox($actor->getId() . '/outbox')
+			->setUserId($this->get('user_id', $data, ''))
+			->setFollowers($actor->getId() . '/followers')
+			->setFollowing($actor->getId() . '/following')
+			->setSharedInbox($root . 'inbox')
+			->setLocal(true)
+			->setAvatarVersion($this->getInt('avatar_version', $data, -1))
+			->setAccount(
+				$actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress()
+			);
 		$actor->setUrlSocial($root)
-			  ->setUrl($actor->getId());
+			->setUrl($actor->getId());
 
 		return $actor;
 	}

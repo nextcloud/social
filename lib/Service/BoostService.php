@@ -2,35 +2,13 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\StreamRequest;
@@ -43,7 +21,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Traits\TStringTools;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class BoostService
@@ -53,37 +34,20 @@ use OCA\Social\Model\StreamAction;
 class BoostService {
 	use TStringTools;
 
-
 	private StreamRequest $streamRequest;
-
 	private StreamService $streamService;
-
 	private SignatureService $signatureService;
-
 	private ActivityService $activityService;
-
 	private StreamActionService $streamActionService;
-
 	private StreamQueueService $streamQueueService;
+	private CacheActorService $cacheActorService;
+	private LoggerInterface $logger;
 
-	private MiscService $miscService;
-
-
-	/**
-	 * BoostService constructor.
-	 *
-	 * @param StreamRequest $streamRequest
-	 * @param StreamService $streamService
-	 * @param SignatureService $signatureService
-	 * @param ActivityService $activityService
-	 * @param StreamActionService $streamActionService
-	 * @param StreamQueueService $streamQueueService
-	 * @param MiscService $miscService
-	 */
 	public function __construct(
 		StreamRequest $streamRequest, StreamService $streamService, SignatureService $signatureService,
 		ActivityService $activityService, StreamActionService $streamActionService,
-		StreamQueueService $streamQueueService, MiscService $miscService
+		StreamQueueService $streamQueueService, CacheActorService $cacheActorService,
+		LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
 		$this->streamService = $streamService;
@@ -91,7 +55,8 @@ class BoostService {
 		$this->activityService = $activityService;
 		$this->streamActionService = $streamActionService;
 		$this->streamQueueService = $streamQueueService;
-		$this->miscService = $miscService;
+		$this->cacheActorService = $cacheActorService;
+		$this->logger = $logger;
 	}
 
 
@@ -105,7 +70,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws Exception
 	 */
-	public function create(Person $actor, string $postId, &$token = ''): ACore {
+	public function create(Person $actor, string $postId, string &$token = ''): ACore {
 		/** @var Announce $announce */
 		$announce = AP::$activityPub->getItemFromType(Announce::TYPE);
 		$this->streamService->assignItem($announce, $actor, Stream::TYPE_ANNOUNCE);
@@ -120,16 +85,33 @@ class BoostService {
 			throw new StreamNotFoundException('Stream is not Public');
 		}
 
+		$announce->setTo(ACore::CONTEXT_PUBLIC);
 		$announce->addCc($actor->getFollowers());
+		//	$announce->addcc($note->getAttributedTo());
+
+		try {
+			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+			$announce->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('Could not resolve actor inbox for Boost federation', [
+				'attributedTo' => $note->getAttributedTo(),
+				'exception' => $e,
+			]);
+		}
+
 		$announce->setObjectId($note->getId());
 		$announce->setRequestToken($this->uuid());
 
 		$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
 		// TODO: check that announce does not exist already ?
-//		try {
-//			return $interface->getItem($announce);
-//		} catch (ItemNotFoundException $e) {
-//		}
+		//		try {
+		//			return $interface->getItem($announce);
+		//		} catch (ItemNotFoundException $e) {
+		//		}
 
 		$interface->save($announce);
 
@@ -168,7 +150,7 @@ class BoostService {
 	 * @throws SocialAppConfigException
 	 * @throws StreamNotFoundException
 	 */
-	public function delete(Person $actor, string $postId, &$token = ''): ACore {
+	public function delete(Person $actor, string $postId, string &$token = ''): ACore {
 		$undo = new Undo();
 		$this->streamService->assignItem($undo, $actor, Stream::TYPE_PUBLIC);
 		$undo->setActor($actor);
@@ -176,6 +158,20 @@ class BoostService {
 		$note = $this->streamService->getStreamById($postId, true);
 		if ($note->getType() !== Note::TYPE) {
 			throw new StreamNotFoundException('Stream is not a Note');
+		}
+
+		try {
+			$target = $this->cacheActorService->getFromId($note->getAttributedTo());
+			$undo->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW
+				)
+			);
+		} catch (Exception $e) {
+			$this->logger->warning('Could not resolve actor inbox for Boost Undo federation', [
+				'attributedTo' => $note->getAttributedTo(),
+				'exception' => $e,
+			]);
 		}
 
 		try {
@@ -187,7 +183,7 @@ class BoostService {
 
 			$interface = AP::$activityPub->getInterfaceFromType(Announce::TYPE);
 			$interface->delete($announce);
-//			$this->streamRequest->deleteStreamById($announce->getId(), Announce::TYPE);
+			$this->streamRequest->deleteById($announce->getId(), Announce::TYPE);
 			$this->signatureService->signObject($actor, $undo);
 
 			$token = $this->activityService->request($undo);

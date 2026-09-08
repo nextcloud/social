@@ -1,8 +1,8 @@
 { "translations": {
     "Help" : "مرسته",
     "Home" : "کور",
-    "Post" : "پوسټ",
     "Delete" : "ړنګول",
+    "Post" : "پوسټ",
     "Close" : "بندول",
     "Continue" : "وړاندې تګ"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"

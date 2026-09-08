@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
@@ -37,7 +15,9 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\QueryBuilder\ICompositeExpression;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Class SocialCrossQueryBuilder
@@ -60,6 +40,32 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		if ($aliasFollowing !== '') {
 			$this->from(CoreRequestBuilder::TABLE_FOLLOWS, $aliasFollowing);
 		}
+	}
+
+	/**
+	 * The viewer's accepted follows as a LEFT JOIN. A plain `FROM social_follow`
+	 * next to the stream table is a cartesian product: with an *empty* follow
+	 * table it collapses every row — so on a fresh instance even the public and
+	 * hashtag timelines came back empty until somebody followed someone. Bound
+	 * as a join, an OR-branch that does not use the follows (public, DM) is
+	 * unaffected by whether any exist.
+	 */
+	public function leftJoinFollowing(string $alias = 'f'): void {
+		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
+			return;
+		}
+
+		$expr = $this->expr();
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, $alias,
+			$expr->andX(
+				$expr->eq(
+					$alias . '.actor_id_prim',
+					$this->createNamedParameter($this->prim($this->getViewer()->getId()))
+				),
+				$expr->eq($alias . '.accepted', $this->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+			)
+		);
 	}
 
 
@@ -108,24 +114,62 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			$this->from(CoreRequestBuilder::TABLE_CACHE_ACTORS, $pf);
 		}
 
-		$this->selectAlias($pf . '.id', 'cacheactor_id')
-			 ->selectAlias($pf . '.type', 'cacheactor_type')
-			 ->selectAlias($pf . '.account', 'cacheactor_account')
-			 ->selectAlias($pf . '.following', 'cacheactor_following')
-			 ->selectAlias($pf . '.followers', 'cacheactor_followers')
-			 ->selectAlias($pf . '.inbox', 'cacheactor_inbox')
-			 ->selectAlias($pf . '.shared_inbox', 'cacheactor_shared_inbox')
-			 ->selectAlias($pf . '.outbox', 'cacheactor_outbox')
-			 ->selectAlias($pf . '.featured', 'cacheactor_featured')
-			 ->selectAlias($pf . '.url', 'cacheactor_url')
-			 ->selectAlias($pf . '.preferred_username', 'cacheactor_preferred_username')
-			 ->selectAlias($pf . '.name', 'cacheactor_name')
-			 ->selectAlias($pf . '.summary', 'cacheactor_summary')
-			 ->selectAlias($pf . '.public_key', 'cacheactor_public_key')
-			 ->selectAlias($pf . '.source', 'cacheactor_source')
-			 ->selectAlias($pf . '.details', 'cacheactor_details')
-			 ->selectAlias($pf . '.creation', 'cacheactor_creation')
-			 ->selectAlias($pf . '.local', 'cacheactor_local');
+		$this->selectAlias($pf . '.id', 'ca_id')
+			->selectAlias($pf . '.nid', 'ca_nid')
+			->selectAlias($pf . '.type', 'ca_type')
+			->selectAlias($pf . '.icon_id', 'ca_icon_id')
+			->selectAlias($pf . '.account', 'ca_account')
+			->selectAlias($pf . '.following', 'ca_following')
+			->selectAlias($pf . '.followers', 'ca_followers')
+			->selectAlias($pf . '.inbox', 'ca_inbox')
+			->selectAlias($pf . '.shared_inbox', 'ca_shared_inbox')
+			->selectAlias($pf . '.outbox', 'ca_outbox')
+			->selectAlias($pf . '.featured', 'ca_featured')
+			->selectAlias($pf . '.url', 'ca_url')
+			->selectAlias($pf . '.preferred_username', 'ca_preferred_username')
+			->selectAlias($pf . '.name', 'ca_name')
+			->selectAlias($pf . '.summary', 'ca_summary')
+			->selectAlias($pf . '.public_key', 'ca_public_key')
+			->selectAlias($pf . '.source', 'ca_source')
+			->selectAlias($pf . '.details', 'ca_details')
+			->selectAlias($pf . '.creation', 'ca_creation')
+			->selectAlias($pf . '.local', 'ca_local');
+
+		$this->leftJoinCacheDocuments('icon_id', $pf, 'ca_cachedocument_', 'cacd');
+	}
+
+
+	/**
+	 * @param array $data
+	 * @param string $prefix
+	 *
+	 * @return Stream
+	 * @throws InvalidResourceException
+	 */
+	public function parseLeftJoinStream(
+		array $data,
+		string $prefix = '',
+		int $exportFormat = 0,
+	): Stream {
+		$new = [];
+		foreach ($data as $k => $v) {
+			if (str_starts_with($k, $prefix)) {
+				$new[substr($k, strlen($prefix))] = $v;
+			}
+		}
+
+		if (($new['nid'] ?? '') === '') {
+			throw new InvalidResourceException();
+		}
+
+		$stream = new Stream();
+		$stream->importFromDatabase($new);
+		$stream->setExportFormat($exportFormat);
+
+		$actor = $this->parseLeftJoinCacheActors($data, $prefix . 'ca_', $exportFormat);
+		$stream->setActor($actor);
+
+		return $stream;
 	}
 
 
@@ -135,24 +179,39 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @return Person
 	 * @throws InvalidResourceException
 	 */
-	public function parseLeftJoinCacheActors(array $data): Person {
+	public function parseLeftJoinCacheActors(
+		array $data,
+		string $prefix = '',
+		int $exportFormat = 0,
+	): Person {
 		$new = [];
 
 		foreach ($data as $k => $v) {
-			if (substr($k, 0, 11) === 'cacheactor_') {
-				$new[substr($k, 11)] = $v;
+			if (str_starts_with($k, $prefix)) {
+				$new[substr($k, strlen($prefix))] = $v;
 			}
 		}
 
 		$actor = new Person();
 		$actor->importFromDatabase($new);
-		$actor->setAvatar(
-			$this->urlGenerator->linkToRouteAbsolute('social.Local.globalActorAvatar') . '?id='
-			. $actor->getId()
-		);
+		$actor->setExportFormat($exportFormat);
 
 		if (!AP::$activityPub->isActor($actor)) {
-			throw new InvalidResourceException();
+			throw new InvalidResourceException('actor not actor');
+		}
+
+		try {
+			$icon = $this->parseLeftJoinCacheDocuments($data, $prefix);
+			$actor->setIcon($icon);
+			// TODO: store avatar/header within table cache_actor
+			$uuid = ($icon->getResizedCopy() === '') ? $icon->getLocalCopy() : $icon->getResizedCopy();
+			$actor->setAvatar(
+				$this->urlGenerator->linkToRouteAbsolute(
+					'social.Api.mediaOpen',
+					['uuid' => $uuid]
+				)
+			);
+		} catch (InvalidResourceException $e) {
 		}
 
 		return $actor;
@@ -160,32 +219,37 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 
 	/**
-	 * @param string $fieldDocumentId
-	 * @param string $alias
+	 * @param string $linkField
+	 * @param string $linkAlias
 	 */
-	public function leftJoinCacheDocuments(string $fieldDocumentId, string $alias = '') {
+	public function leftJoinCacheDocuments(
+		string $linkField,
+		string $linkAlias = '',
+		string $prefix = 'cachedocument_',
+		string $alias = 'cd',
+	) {
 		if ($this->getType() !== QueryBuilder::SELECT) {
 			return;
 		}
 
 		$expr = $this->expr();
-		$func = $this->func();
+		$pf = (($linkAlias === '') ? $this->getDefaultSelectAlias() : $linkAlias);
 
-		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
-		$this->selectAlias('cd.id', 'cachedocument_id')
-			 ->selectAlias('cd.type', 'cachedocument_type')
-			 ->selectAlias('cd.mime_type', 'cachedocument_mime_type')
-			 ->selectAlias('cd.media_type', 'cachedocument_media_type')
-			 ->selectAlias('cd.url', 'cachedocument_url')
-			 ->selectAlias('cd.local_copy', 'cachedocument_local_copy')
-			 ->selectAlias('cd.caching', 'cachedocument_caching')
-			 ->selectAlias('cd.public', 'cachedocument_public')
-			 ->selectAlias('cd.error', 'cachedocument_error')
-			 ->selectAlias('cd.creation', 'cachedocument_creation')
-			 ->leftJoin(
-			 	$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'cd',
-			 	$expr->eq($func->lower($pf . '.' . $fieldDocumentId), $func->lower('cd.id'))
-			 );
+		$this->selectAlias($alias . '.id', $prefix . 'id')
+			->selectAlias($alias . '.type', $prefix . 'type')
+			->selectAlias($alias . '.mime_type', $prefix . 'mime_type')
+			->selectAlias($alias . '.media_type', $prefix . 'media_type')
+			->selectAlias($alias . '.url', $prefix . 'url')
+			->selectAlias($alias . '.local_copy', $prefix . 'local_copy')
+			->selectAlias($alias . '.resized_copy', $prefix . 'resized_copy')
+			->selectAlias($alias . '.caching', $prefix . 'caching')
+			->selectAlias($alias . '.public', $prefix . 'public')
+			->selectAlias($alias . '.error', $prefix . 'error')
+			->selectAlias($alias . '.creation', $prefix . 'creation')
+			->leftJoin(
+				$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, $alias,
+				$expr->eq($pf . '.' . $linkField, $alias . '.id_prim')
+			);
 	}
 
 
@@ -195,11 +259,13 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @return Document
 	 * @throws InvalidResourceException
 	 */
-	public function parseLeftJoinCacheDocuments(array $data): Document {
+	public function parseLeftJoinCacheDocuments(array $data, string $prefix = ''): Document {
 		$new = [];
+		$prefix .= 'cachedocument_';
+
 		foreach ($data as $k => $v) {
-			if (substr($k, 0, 14) === 'cachedocument_') {
-				$new[substr($k, 14)] = $v;
+			if (str_starts_with($k, $prefix)) {
+				$new[substr($k, strlen($prefix))] = $v;
 			}
 		}
 
@@ -217,6 +283,80 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	/**
 	 * @param string $alias
 	 */
+	public function leftJoinObjectStatus(
+		string $link = 'object_id_prim',
+		string $alias = '',
+		string $leftAlias = 'os',
+	) {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
+
+		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_STREAM] as $field) {
+			$this->selectAlias($leftAlias . '.' . $field, 'os_' . $field);
+		}
+
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_STREAM,
+			$leftAlias,
+			$this->expr()->eq($pf . $link, $leftAlias . '.id_prim')
+		);
+
+		$this->leftJoinCacheActor(
+			'attributed_to_prim',
+			$leftAlias,
+			'osca',
+			'os_'
+		);
+	}
+
+
+	/**
+	 * @param string $link
+	 * @param string $alias
+	 * @param string $leftAlias
+	 * @param string $prefix
+	 * @param Person|null $author
+	 */
+	protected function leftJoinCacheActor(
+		string $link = 'attributed_to_prim',
+		string $alias = '',
+		string $leftAlias = 'ca',
+		string $prefix = '',
+		?Person $author = null,
+	) {
+		if ($this->getType() !== QueryBuilder::SELECT) {
+			return;
+		}
+
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
+
+		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_CACHE_ACTORS] as $field) {
+			$this->selectAlias($leftAlias . '.' . $field, $prefix . 'ca_' . $field);
+		}
+
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_CACHE_ACTORS,
+			$leftAlias,
+			$this->expr()->eq($pf . '.' . $link, $leftAlias . '.id_prim')
+		);
+
+		$this->leftJoinCacheDocuments(
+			'icon_id',
+			$leftAlias,
+			$prefix . 'ca_cachedocument_',
+			$leftAlias . 'cacd'
+		);
+	}
+
+
+	/**
+	 * @param string $alias
+	 */
 	public function leftJoinFollowStatus(string $alias = 'fs') {
 		if ($this->getType() !== QueryBuilder::SELECT || !$this->hasViewer()) {
 			return;
@@ -228,10 +368,11 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		$idPrim = $this->prim($actor->getId());
 
-		$on = $expr->andX();
-		$on->add($this->exprLimitToDBFieldInt('accepted', 1, $alias));
-		$on->add($this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $alias));
-		$on->add($expr->eq($pf . 'attributed_to_prim', $alias . '.object_id_prim'));
+		$on = $expr->andX(
+			$this->exprLimitToDBFieldInt('accepted', 1, $alias),
+			$this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $alias),
+			$expr->eq($pf . 'attributed_to_prim', $alias . '.object_id_prim')
+		);
 
 		$this->leftJoin($this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, $alias, $on);
 	}
@@ -248,9 +389,12 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias);
 		$this->from(CoreRequestBuilder::TABLE_STREAM_ACTIONS, $pf);
 		$this->selectAlias('sa.id', 'streamaction_id')
-			 ->selectAlias('sa.actor_id', 'streamaction_actor_id')
-			 ->selectAlias('sa.stream_id', 'streamaction_stream_id')
-			 ->selectAlias('sa.values', 'streamaction_values');
+			->selectAlias('sa.actor_id', 'streamaction_actor_id')
+			->selectAlias('sa.stream_id', 'streamaction_stream_id')
+			->selectAlias('sa.liked', 'streamaction_liked')
+			->selectAlias('sa.boosted', 'streamaction_boosted')
+			->selectAlias('sa.replied', 'streamaction_replied')
+			->selectAlias('sa.bookmarked', 'streamaction_bookmarked');
 	}
 
 
@@ -266,20 +410,25 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$expr = $this->expr();
 
 		$this->selectAlias($alias . '.id', 'streamaction_id')
-			 ->selectAlias($alias . '.actor_id', 'streamaction_actor_id')
-			 ->selectAlias($alias . '.stream_id', 'streamaction_stream_id')
-			 ->selectAlias($alias . '.values', 'streamaction_values');
+			->selectAlias($alias . '.actor_id', 'streamaction_actor_id')
+			->selectAlias($alias . '.stream_id', 'streamaction_stream_id')
+			->selectAlias($alias . '.liked', 'streamaction_liked')
+			->selectAlias($alias . '.boosted', 'streamaction_boosted')
+			->selectAlias($alias . '.replied', 'streamaction_replied')
+			->selectAlias($alias . '.bookmarked', 'streamaction_bookmarked');
 
-		$orX = $expr->orX();
-		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.id_prim'));
-		$orX->add($expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim'));
-
-		$on = $expr->andX();
 		$viewer = $this->getViewer();
 		$idPrim = $this->prim($viewer->getId());
 
-		$on->add($expr->eq($alias . '.actor_id_prim', $this->createNamedParameter($idPrim)));
-		$on->add($orX);
+		$orX = $expr->orX(
+			$expr->eq($alias . '.stream_id_prim', $pf . '.id_prim'),
+			$expr->eq($alias . '.stream_id_prim', $pf . '.object_id_prim')
+		);
+
+		$on = $expr->andX(
+			$expr->eq($alias . '.actor_id_prim', $this->createNamedParameter($idPrim)),
+			$orX
+		);
 
 		$this->leftJoin(
 			$this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_STREAM_ACTIONS, $alias, $on
@@ -294,7 +443,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @param string $alias
 	 */
 	public function innerJoinStreamDest(
-		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
+		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = '',
 	) {
 		$this->andWhere($this->exprInnerJoinStreamDest($type, $field, $aliasDest, $alias));
 	}
@@ -309,13 +458,14 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 * @return ICompositeExpression
 	 */
 	public function exprInnerJoinStreamDest(
-		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = ''
+		string $type, string $field = 'id_prim', string $aliasDest = 'sd', string $alias = '',
 	): ICompositeExpression {
 		$expr = $this->expr();
-		$andX = $expr->andX();
 		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
-		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
-		$andX->add($expr->eq($aliasDest . '.type', $this->createNamedParameter($type)));
+		$andX = $expr->andX(
+			$expr->eq($aliasDest . '.stream_id', $pf . $field),
+			$expr->eq($aliasDest . '.type', $this->createNamedParameter($type))
+		);
 
 		return $andX;
 	}
@@ -331,7 +481,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 */
 	public function innerJoinStreamDestFollowing(
 		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
-		string $aliasFollowing = 'f', string $alias = ''
+		string $aliasFollowing = 'f', string $alias = '',
 	) {
 		$this->andWhere(
 			$this->exprInnerJoinStreamDestFollowing(
@@ -353,19 +503,20 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 */
 	public function exprInnerJoinStreamDestFollowing(
 		string $actorId, string $type, string $field = 'id_prim', string $aliasDest = 'sd',
-		string $aliasFollowing = 'f', string $alias = ''
+		string $aliasFollowing = 'f', string $alias = '',
 	): ICompositeExpression {
 		$expr = $this->expr();
-		$andX = $expr->andX();
 
 		$pf = (($alias === '') ? $this->getdefaultSelectAlias() : $alias) . '.';
 
 		$idPrim = $this->prim($actorId);
-		$andX->add($this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $aliasFollowing));
-		$andX->add($this->exprLimitToDBFieldInt('accepted', 1, $aliasFollowing));
-		$andX->add($expr->eq($aliasFollowing . '.follow_id_prim', $aliasDest . '.actor_id'));
-		$andX->add($expr->eq($aliasDest . '.stream_id', $pf . $field));
-		$andX->add($expr->eq($aliasDest . '.type', $this->createNamedParameter($type)));
+		$andX = $expr->andX(
+			$this->exprLimitToDBField('actor_id_prim', $idPrim, true, true, $aliasFollowing),
+			$this->exprLimitToDBFieldInt('accepted', 1, $aliasFollowing),
+			$expr->eq($aliasFollowing . '.follow_id_prim', $aliasDest . '.actor_id'),
+			$expr->eq($aliasDest . '.stream_id', $pf . $field),
+			$expr->eq($aliasDest . '.type', $this->createNamedParameter($type))
+		);
 
 		return $andX;
 	}

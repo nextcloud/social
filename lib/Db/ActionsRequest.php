@@ -2,32 +2,10 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Db;
 
@@ -53,12 +31,12 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function save(ACore $like): void {
 		$qb = $this->getActionsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
-		   ->setValue('id_prim', $qb->createNamedParameter($qb->prim($like->getId())))
-		   ->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
-		   ->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
-		   ->setValue('type', $qb->createNamedParameter($like->getType()))
-		   ->setValue('object_id', $qb->createNamedParameter($like->getObjectId()))
-		   ->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($like->getObjectId())));
+			->setValue('id_prim', $qb->createNamedParameter($qb->prim($like->getId())))
+			->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
+			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
+			->setValue('type', $qb->createNamedParameter($like->getType()))
+			->setValue('object_id', $qb->createNamedParameter($like->getObjectId()))
+			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($like->getObjectId())));
 
 		try {
 			$qb->setValue(
@@ -119,7 +97,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$qb->limitToObjectIdPrim($qb->prim($objectId));
 		$qb->limitToType($type);
 
-		$cursor = $qb->execute();
+		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
@@ -149,7 +127,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 		$this->limitToIdString($qb, $item->getId());
 		$this->limitToType($qb, $item->getType());
 
-		$qb->execute();
+		$qb->executeStatement();
 	}
 
 
@@ -164,7 +142,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function moveAccount(string $actorId, string $newId): void {
 		$qb = $this->getActionsUpdateSql();
 		$qb->set('actor_id', $qb->createNamedParameter($newId))
-		   ->set('actor_id_prim', $qb->createNamedParameter($qb->prim($newId)));
+			->set('actor_id_prim', $qb->createNamedParameter($qb->prim($newId)));
 
 		$qb->limitToDBField('actor_id_prim', $qb->prim($actorId));
 

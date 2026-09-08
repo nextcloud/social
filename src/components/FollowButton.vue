@@ -1,29 +1,11 @@
 <!--
-  - @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
-  -
-  - @author Julius Härtl <jus@bitgrid.net>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program. If not, see <http://www.gnu.org/licenses/>.
-  -
-  -->
-
+  - SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
-	<div v-if="!serverData.public && accountInfo && accountInfo.viewerLink!='viewer'">
-		<div v-if="isCurrentUserFollowing"
+	<div v-if="!serverData.public && relationship !== undefined">
+		<div v-if="relationship.following"
 			class="follow-button-container">
 			<NcButton :disabled="loading"
 				class="follow-button follow-button--following"
@@ -43,6 +25,12 @@
 				{{ t('social', 'Unfollow') }}
 			</NcButton>
 		</div>
+		<NcButton v-else-if="relationship.requested"
+			:disabled="true"
+			type="secondary"
+			class="follow-button">
+			{{ t('social', 'Requested') }}
+		</NcButton>
 		<NcButton v-else
 			:disabled="loading"
 			type="primary"
@@ -58,7 +46,7 @@ import accountMixins from '../mixins/accountMixins.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import Check from 'vue-material-design-icons/Check.vue'
 import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
 
 export default {
 	name: 'FollowButton',
@@ -72,10 +60,6 @@ export default {
 		currentUser,
 	],
 	props: {
-		account: {
-			type: String,
-			default: '',
-		},
 		uid: {
 			type: String,
 			default: '',
@@ -87,25 +71,30 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {boolean} */
 		isCurrentUserFollowing() {
-			return this.$store.getters.isFollowingUser(this.account)
+			return this.$store.getters.isFollowingUser(this.profileAccount)
+		},
+		/** @return {import('../types/Mastodon.js').Account} */
+		currentAccount() {
+			return this.$store.getters.currentAccount
 		},
 	},
 	methods: {
 		async follow() {
+			console.debug('[FollowButton] follow clicked', { profileAccount: this.profileAccount, relationship: this.relationship })
 			try {
 				this.loading = true
-				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account })
-			} catch {
+				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
 			} finally {
 				this.loading = false
 			}
 		},
 		async unfollow() {
+			console.debug('[FollowButton] unfollow clicked', { profileAccount: this.profileAccount, relationship: this.relationship })
 			try {
 				this.loading = true
-				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.account })
-			} catch {
+				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
 			} finally {
 				this.loading = false
 			}
@@ -116,14 +105,18 @@ export default {
 <style scoped lang="scss">
 	.follow-button {
 		width: 150px !important;
+		border-radius: 8px !important;
+		font-weight: 600 !important;
 	}
 
 	.follow-button-container {
 		.follow-button--following {
 			display: flex;
+			border-radius: 10px !important;
 		}
 		.follow-button--unfollow {
 			display: none;
+			border-radius: 10px !important;
 		}
 
 		&:hover {
@@ -135,6 +128,7 @@ export default {
 			}
 		}
 	}
+
 	.user-entry {
 		padding: 20px;
 		margin-bottom: 10px;
@@ -161,7 +155,7 @@ export default {
 	}
 
 	.user-description {
-		opacity: 0.7;
+		color: var(--color-text-lighter);
 	}
 
 	button {

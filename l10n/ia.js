@@ -2,16 +2,15 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Adjuta",
-    "Open documentation" : "Aperir documentation",
     "Home" : "Initio",
     "Notifications" : "Notificationes",
-    "Post" : "Publicar",
-    "Public" : "Public",
+    "Open documentation" : "Aperir documentation",
     "Uploading..." : "Incargante...",
     "Delete" : "Deler",
-    "Edit" : "Modificar",
-    "Close" : "Clauder",
+    "Post" : "Publicar",
     "Website" : "Sito web",
-    "Reply" : "Responder"
+    "Reply" : "Responder",
+    "Close" : "Clauder",
+    "Public" : "Public"
 },
 "nplurals=2; plural=(n != 1);");

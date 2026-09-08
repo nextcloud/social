@@ -2,12 +2,12 @@ OC.L10N.register(
     "social",
     {
     "Help" : "Aduya",
-    "Open documentation" : "Ubrir documentazión",
     "Home" : "Casa",
-    "Notifications" : "Notificazions",
+    "Notifications" : "Notificacions",
+    "Open documentation" : "Ubrir documentación",
     "Delete" : "Borrar",
-    "Close" : "Zarrar",
     "Deny" : "Denegar",
+    "Close" : "Zarrar",
     "Continue" : "Continar"
 },
 "nplurals=2; plural=(n != 1);");

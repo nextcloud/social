@@ -1,0 +1,336 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests;
+
+use OCA\Social\AP;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\RedundancyLimitException;
+use OCA\Social\Interfaces\Activity\AcceptInterface;
+use OCA\Social\Interfaces\Activity\AddInterface;
+use OCA\Social\Interfaces\Activity\BlockInterface;
+use OCA\Social\Interfaces\Activity\CreateInterface;
+use OCA\Social\Interfaces\Activity\DeleteInterface;
+use OCA\Social\Interfaces\Activity\MoveInterface;
+use OCA\Social\Interfaces\Activity\RejectInterface;
+use OCA\Social\Interfaces\Activity\RemoveInterface;
+use OCA\Social\Interfaces\Activity\UndoInterface;
+use OCA\Social\Interfaces\Activity\UpdateInterface;
+use OCA\Social\Interfaces\Actor\PersonInterface;
+use OCA\Social\Interfaces\Actor\ServiceInterface;
+use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
+use OCA\Social\Interfaces\Object\AnnounceInterface;
+use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FlagInterface;
+use OCA\Social\Interfaces\Object\FollowInterface;
+use OCA\Social\Interfaces\Object\ImageInterface;
+use OCA\Social\Interfaces\Object\LikeInterface;
+use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Model\ActivityPub\Activity\Accept;
+use OCA\Social\Model\ActivityPub\Activity\Add;
+use OCA\Social\Model\ActivityPub\Activity\Block;
+use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Move;
+use OCA\Social\Model\ActivityPub\Activity\Reject;
+use OCA\Social\Model\ActivityPub\Activity\Remove;
+use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Activity\Update;
+use OCA\Social\Model\ActivityPub\Actor\Application;
+use OCA\Social\Model\ActivityPub\Actor\Group;
+use OCA\Social\Model\ActivityPub\Actor\Organization;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Actor\Service;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Flag;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Tombstone;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCP\IURLGenerator;
+use PHPUnit\Framework\TestCase;
+
+require_once __DIR__ . '/Model/TActivityPubMocks.php';
+
+class APTest extends TestCase {
+	use TActivityPubMocks;
+
+	private AP $ap;
+
+	protected function setUp(): void {
+		$this->ap = $this->installActivityPub();
+		// Stream::import() always resolves the URL generator, even without attachments
+		\OC::$server->register(IURLGenerator::class, $this->createMock(IURLGenerator::class));
+	}
+
+	protected function tearDown(): void {
+		AP::$activityPub = null;
+		\OC::$server->reset();
+	}
+
+	public function knownTypeProvider(): array {
+		return [
+			'Accept' => ['Accept', Accept::class],
+			'Add' => ['Add', Add::class],
+			'Announce' => ['Announce', Announce::class],
+			'Block' => ['Block', Block::class],
+			'Move' => ['Move', Move::class],
+			'Create' => ['Create', Create::class],
+			'Delete' => ['Delete', Delete::class],
+			'Document' => ['Document', Document::class],
+			'Flag' => ['Flag', Flag::class],
+			'Follow' => ['Follow', Follow::class],
+			'Image' => ['Image', Image::class],
+			'Like' => ['Like', Like::class],
+			'Note' => ['Note', Note::class],
+			'OrderedCollection' => ['OrderedCollection', OrderedCollection::class],
+			'SocialAppNotification' => ['SocialAppNotification', SocialAppNotification::class],
+			'Stream' => ['Stream', Stream::class],
+			'Person' => ['Person', Person::class],
+			'Reject' => ['Reject', Reject::class],
+			'Remove' => ['Remove', Remove::class],
+			'Service' => ['Service', Service::class],
+			'Group' => ['Group', Group::class],
+			'Organization' => ['Organization', Organization::class],
+			'Application' => ['Application', Application::class],
+			'Tombstone' => ['Tombstone', Tombstone::class],
+			'Undo' => ['Undo', Undo::class],
+			'Update' => ['Update', Update::class],
+		];
+	}
+
+	/**
+	 * @dataProvider knownTypeProvider
+	 */
+	public function testGetItemFromTypeMapsEveryKnownType(string $type, string $class): void {
+		$item = $this->ap->getItemFromType($type);
+
+		$this->assertInstanceOf($class, $item);
+		$this->assertSame(self::cloudUrl(), $item->getUrlCloud());
+	}
+
+	public function unknownTypeProvider(): array {
+		return [
+			'unsupported AS2 type' => ['Question'],
+			'empty' => [''],
+			'wrong case' => ['note'],
+		];
+	}
+
+	/**
+	 * @dataProvider unknownTypeProvider
+	 */
+	public function testGetItemFromTypeRejectsUnknownTypes(string $type): void {
+		$this->expectException(ItemUnknownException::class);
+
+		$this->ap->getItemFromType($type);
+	}
+
+	public function testOnlyAnnouncesAreMarkedToFilterDuplicates(): void {
+		/** @var Announce $announce */
+		$announce = $this->ap->getItemFromType('Announce');
+		/** @var Note $note */
+		$note = $this->ap->getItemFromType('Note');
+
+		$this->assertTrue($announce->isFilterDuplicate());
+		$this->assertFalse($note->isFilterDuplicate());
+	}
+
+	public function interfaceProvider(): array {
+		return [
+			'Accept' => ['Accept', AcceptInterface::class],
+			'Add' => ['Add', AddInterface::class],
+			'Announce' => ['Announce', AnnounceInterface::class],
+			'Block' => ['Block', BlockInterface::class],
+			'Create' => ['Create', CreateInterface::class],
+			'Delete' => ['Delete', DeleteInterface::class],
+			'Document' => ['Document', DocumentInterface::class],
+			'Flag' => ['Flag', FlagInterface::class],
+			'Follow' => ['Follow', FollowInterface::class],
+			'Image' => ['Image', ImageInterface::class],
+			'Like' => ['Like', LikeInterface::class],
+			'Move' => ['Move', MoveInterface::class],
+			'Note' => ['Note', NoteInterface::class],
+			'SocialAppNotification' => ['SocialAppNotification', SocialAppNotificationInterface::class],
+			'Person' => ['Person', PersonInterface::class],
+			'Reject' => ['Reject', RejectInterface::class],
+			'Remove' => ['Remove', RemoveInterface::class],
+			'Service' => ['Service', ServiceInterface::class],
+			'Undo' => ['Undo', UndoInterface::class],
+			'Update' => ['Update', UpdateInterface::class],
+		];
+	}
+
+	/**
+	 * @dataProvider interfaceProvider
+	 */
+	public function testGetInterfaceFromTypeReturnsTheInjectedInterface(string $type, string $interfaceClass): void {
+		$this->assertSame($this->apInterface($interfaceClass), $this->ap->getInterfaceFromType($type));
+	}
+
+	public function testGetInterfaceFromTypeRejectsUnknownTypes(): void {
+		$this->expectException(ItemUnknownException::class);
+
+		$this->ap->getInterfaceFromType('Question');
+	}
+
+	public function testGetInterfaceForItemDispatchesOnTheItemType(): void {
+		$this->assertSame($this->apInterface(LikeInterface::class), $this->ap->getInterfaceForItem(new Like()));
+		$this->assertSame($this->apInterface(NoteInterface::class), $this->ap->getInterfaceForItem(new Note()));
+	}
+
+	public function actorProvider(): array {
+		return [
+			'Person' => [new Person(), true],
+			'Service' => [new Service(), true],
+			'Group' => [new Group(), true],
+			'Organization' => [new Organization(), true],
+			'Application' => [new Application(), true],
+			'Note' => [new Note(), false],
+			'Create' => [new Create(), false],
+			'Document' => [new Document(), false],
+		];
+	}
+
+	/**
+	 * @dataProvider actorProvider
+	 */
+	public function testIsActorRecognisesTheFiveActorTypes(object $item, bool $expected): void {
+		$this->assertSame($expected, $this->ap->isActor($item));
+	}
+
+	public function testGetSimpleItemFromDataImportsAndKeepsTheRawSource(): void {
+		$data = [
+			'id' => 'https://mastodon.social/users/alice#likes/1',
+			'type' => 'Like',
+			'actor' => 'https://mastodon.social/users/alice',
+			'object' => 'https://cloud.example.org/@bob/status/2',
+		];
+
+		$item = $this->ap->getSimpleItemFromData($data);
+
+		$this->assertInstanceOf(Like::class, $item);
+		$this->assertSame('https://mastodon.social/users/alice#likes/1', $item->getId());
+		$this->assertSame('https://mastodon.social/users/alice', $item->getActorId());
+		$this->assertSame('https://cloud.example.org/@bob/status/2', $item->getObjectId());
+		$this->assertSame(json_encode($data, JSON_UNESCAPED_SLASHES), $item->getSource());
+	}
+
+	public function testNestedObjectIsParsedRecursivelyAndLinkedToItsParent(): void {
+		$item = $this->ap->getItemFromData([
+			'id' => 'https://mastodon.social/users/alice/statuses/1/activity',
+			'type' => 'Create',
+			'actor' => 'https://mastodon.social/users/alice',
+			'object' => [
+				'id' => 'https://mastodon.social/users/alice/statuses/1',
+				'type' => 'Note',
+				'content' => '<p>hello</p>',
+				'attributedTo' => 'https://mastodon.social/users/alice',
+			],
+		]);
+
+		$this->assertInstanceOf(Create::class, $item);
+		$this->assertTrue($item->hasObject());
+		$note = $item->getObject();
+		$this->assertInstanceOf(Note::class, $note);
+		$this->assertSame('<p>hello</p>', $note->getContent());
+		$this->assertSame($item, $note->getParent());
+		$this->assertSame($item, $note->getRoot());
+		$this->assertSame('https://mastodon.social/users/alice/statuses/1', $item->getObjectId());
+		$this->assertTrue($item->isRoot());
+	}
+
+	public function testObjectGivenAsAnIdOnlySetsTheObjectId(): void {
+		$item = $this->ap->getItemFromData([
+			'id' => 'https://mastodon.social/users/alice#follows/1',
+			'type' => 'Follow',
+			'actor' => 'https://mastodon.social/users/alice',
+			'object' => 'https://cloud.example.org/@bob',
+		]);
+
+		$this->assertFalse($item->hasObject());
+		$this->assertSame('https://cloud.example.org/@bob', $item->getObjectId());
+	}
+
+	public function testNestedObjectOfUnknownTypeIsDropped(): void {
+		$item = $this->ap->getItemFromData([
+			'id' => 'https://mastodon.social/users/alice/statuses/1/activity',
+			'type' => 'Create',
+			'object' => [
+				'id' => 'https://mastodon.social/users/alice/statuses/1',
+				'type' => 'Question',
+			],
+		]);
+
+		$this->assertFalse($item->hasObject());
+		$this->assertSame('', $item->getObjectId());
+	}
+
+	public function testActorInfoIsParsedIntoTheActor(): void {
+		$item = $this->ap->getItemFromData([
+			'id' => 'https://mastodon.social/users/alice#likes/1',
+			'type' => 'Like',
+			'actor' => 'https://mastodon.social/users/alice',
+			'object' => 'https://cloud.example.org/@bob/status/2',
+			'actor_info' => [
+				'id' => 'https://mastodon.social/users/alice',
+				'type' => 'Person',
+				'preferredUsername' => 'alice',
+				'inbox' => 'https://mastodon.social/users/alice/inbox',
+			],
+		]);
+
+		$this->assertTrue($item->hasActor());
+		$actor = $item->getActor();
+		$this->assertInstanceOf(Person::class, $actor);
+		$this->assertSame('alice', $actor->getPreferredUsername());
+		$this->assertSame('https://mastodon.social/users/alice', $item->getActorId());
+		$this->assertSame($item, $actor->getParent());
+	}
+
+	public function testGivenParentIsAttached(): void {
+		$parent = new Create();
+
+		$item = $this->ap->getItemFromData(['type' => 'Like', 'id' => 'https://a.example/l/1'], $parent);
+
+		$this->assertSame($parent, $item->getParent());
+	}
+
+	private function nestedAccepts(int $depth): array {
+		$data = ['type' => 'Accept', 'id' => 'https://a.example/accept/0'];
+		for ($i = 1; $i <= $depth; $i++) {
+			$data = ['type' => 'Accept', 'id' => 'https://a.example/accept/' . $i, 'object' => $data];
+		}
+
+		return $data;
+	}
+
+	public function testNestingUpToTheRedundancyLimitIsAccepted(): void {
+		$item = $this->ap->getItemFromData($this->nestedAccepts(AP::REDUNDANCY_LIMIT - 1));
+
+		$depth = 1;
+		while ($item->hasObject()) {
+			$item = $item->getObject();
+			$depth++;
+		}
+		$this->assertSame(AP::REDUNDANCY_LIMIT, $depth);
+	}
+
+	public function testNestingBeyondTheRedundancyLimitIsRejected(): void {
+		$this->expectException(RedundancyLimitException::class);
+
+		$this->ap->getItemFromData($this->nestedAccepts(AP::REDUNDANCY_LIMIT));
+	}
+}

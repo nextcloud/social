@@ -2,40 +2,20 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Traits\TStringTools;
 use Exception;
 use OCA\Social\Db\ClientRequest;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Security\SecretHasher;
+use OCA\Social\Tools\Traits\TStringTools;
 
 /**
  * Class ClientService
@@ -44,17 +24,22 @@ use OCA\Social\Model\Client\SocialClient;
  */
 class ClientService {
 	public const TIME_TOKEN_REFRESH = 300; // 5m
-//	const TIME_TOKEN_TTL = 21600; // 6h
-//	const TIME_AUTH_TTL = 30672000; // 1y
+	//	const TIME_TOKEN_TTL = 21600; // 6h
+	//	const TIME_AUTH_TTL = 30672000; // 1y
 
-	// looks like there is no token refresh. token must have been updated in the last year.
+	// looks like there is no token refresh. token must have been used in the last year.
 	public const TIME_TOKEN_TTL = 30672000; // 1y
+
+	// an authorization code is single-use plumbing; it expires quickly
+	public const TIME_CODE_TTL = 600; // 10m
 
 
 	use TStringTools;
 
 
 	private ClientRequest $clientRequest;
+
+	private SecretHasher $secretHasher;
 
 	private MiscService $miscService;
 
@@ -63,10 +48,12 @@ class ClientService {
 	 * ClientService constructor.
 	 *
 	 * @param ClientRequest $clientRequest
+	 * @param SecretHasher $secretHasher
 	 * @param MiscService $miscService
 	 */
-	public function __construct(ClientRequest $clientRequest, MiscService $miscService) {
+	public function __construct(ClientRequest $clientRequest, SecretHasher $secretHasher, MiscService $miscService) {
 		$this->clientRequest = $clientRequest;
+		$this->secretHasher = $secretHasher;
 		$this->miscService = $miscService;
 	}
 
@@ -97,7 +84,7 @@ class ClientService {
 	 */
 	public function authClient(SocialClient $client) {
 		$client->setAuthCode($this->token(60));
-//		$clientAuth->setClientId($client->getId());
+		//		$clientAuth->setClientId($client->getId());
 
 		$this->clientRequest->authClient($client);
 	}
@@ -142,11 +129,31 @@ class ClientService {
 			throw new ClientNotFoundException();
 		}
 
-		if ($client->getLastUpdate() + self::TIME_TOKEN_REFRESH > time()) {
+		// Keep the row's last_update roughly current (at most one write per
+		// TIME_TOKEN_REFRESH), so a token in active use never reaches the TTL.
+		// The old inverted comparison only refreshed *recently written* rows, so
+		// any token idle for five minutes stopped refreshing and died a year
+		// after its first burst of use, no matter how actively it was used since.
+		if ($client->getLastUpdate() + self::TIME_TOKEN_REFRESH < time()) {
 			$this->clientRequest->updateTime($client);
 		}
 
 		return $client;
+	}
+
+	/**
+	 * Revokes the access token presented by a client (RFC 7009). Unknown tokens
+	 * are not an error — the outcome the caller asked for is true either way.
+	 *
+	 * @throws ClientException
+	 */
+	public function revokeToken(SocialClient $client, string $token): void {
+		$stored = $this->clientRequest->getFromToken($token);
+		if ($stored->getId() !== $client->getId()) {
+			throw new ClientException('token does not belong to this client');
+		}
+
+		$this->clientRequest->revokeToken($stored);
 	}
 
 
@@ -163,7 +170,7 @@ class ClientService {
 		}
 
 		if (array_key_exists('client_secret', $data)
-			&& $data['client_secret'] !== $client->getAppClientSecret()) {
+			&& !$this->secretHasher->matches($client->getAppClientSecret(), (string)$data['client_secret'])) {
 			throw new ClientException('wrong client_secret');
 		}
 
@@ -193,8 +200,16 @@ class ClientService {
 			}
 		}
 
-		if (array_key_exists('code', $data) && $data['code'] !== $client->getAuthCode()) {
-			throw new ClientException('unknown code');
+		if (array_key_exists('code', $data)) {
+			if (!$this->secretHasher->matches($client->getAuthCode(), (string)$data['code'])) {
+				throw new ClientException('unknown code');
+			}
+
+			// authClient() stamps last_update at the authorization moment
+			if ($client->getLastUpdate() > 0
+				&& $client->getLastUpdate() + self::TIME_CODE_TTL < time()) {
+				throw new ClientException('code expired');
+			}
 		}
 	}
 }

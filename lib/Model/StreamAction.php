@@ -2,38 +2,16 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-
 
 namespace OCA\Social\Model;
 
+use JsonSerializable;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
-use JsonSerializable;
 
 /**
  * Class StreamAction
@@ -44,16 +22,22 @@ class StreamAction implements JsonSerializable {
 	use TArrayTools;
 	use TStringTools;
 
-
 	public const LIKED = 'liked';
 	public const BOOSTED = 'boosted';
 	public const REPLIED = 'replied';
+	public const BOOKMARKED = 'bookmarked';
 
 	private int $id = 0;
 	private string $actorId = '';
 	private string $streamId = '';
 	private array $values = [];
-
+	private array $affected = [];
+	private array $accepted = [
+		self::LIKED,
+		self::BOOSTED,
+		self::REPLIED,
+		self::BOOKMARKED
+	];
 
 	/**
 	 * StreamAction constructor.
@@ -95,14 +79,23 @@ class StreamAction implements JsonSerializable {
 
 	public function updateValue(string $key, string $value): void {
 		$this->values[$key] = $value;
+		if (in_array($key, $this->accepted) && !in_array($key, $this->affected)) {
+			$this->affected[] = $key;
+		}
 	}
 
 	public function updateValueInt(string $key, int $value): void {
 		$this->values[$key] = $value;
+		if (in_array($key, $this->accepted) && !in_array($key, $this->affected)) {
+			$this->affected[] = $key;
+		}
 	}
 
 	public function updateValueBool(string $key, bool $value): void {
 		$this->values[$key] = $value;
+		if (in_array($key, $this->accepted) && !in_array($key, $this->affected)) {
+			$this->affected[] = $key;
+		}
 	}
 
 	public function hasValue(string $key): bool {
@@ -125,10 +118,8 @@ class StreamAction implements JsonSerializable {
 		return $this->values;
 	}
 
-	public function setValues(array $values): StreamAction {
-		$this->values = $values;
-
-		return $this;
+	public function getAffected(): array {
+		return $this->affected;
 	}
 
 	public function setDefaultValues(array $default): StreamAction {
@@ -146,7 +137,12 @@ class StreamAction implements JsonSerializable {
 		$this->setId($this->getInt('id', $data, 0));
 		$this->setActorId($this->get('actor_id', $data, ''));
 		$this->setStreamId($this->get('stream_id', $data, ''));
-		$this->setValues($this->getArray('values', $data, []));
+		$this->values = [
+			self::LIKED => $this->getBool('liked', $data),
+			self::BOOSTED => $this->getBool('boosted', $data),
+			self::REPLIED => $this->getBool('replied', $data),
+			self::BOOKMARKED => $this->getBool('bookmarked', $data)
+		];
 	}
 
 	public function jsonSerialize(): array {

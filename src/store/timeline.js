@@ -1,72 +1,86 @@
 /**
- * @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
- *
- * @file Timeline related store
- *
- * @author Julius Härtl <jus@bitgrid.net>
- * @author Jonas Sulzer <jonas@violoncello.ch>
- *
- * @license AGPL-3.0-or-later
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+
+import axios from '@nextcloud/axios'
+import { generateUrl } from '@nextcloud/router'
+import { showError } from '@nextcloud/dialogs'
 
 import logger from '../services/logger.js'
-import axios from '@nextcloud/axios'
-import Vue from 'vue'
-import { generateUrl } from '@nextcloud/router'
 
-/**
- * @property {object} timeline - The posts' collection
- * @property {number} since - Time (EPOCH) of the most recent post
- * @property {string} type - Timeline's type: 'home', 'single-post',...
- * @property {object} params - Timeline's parameters
- * @property {string} account -
- */
 const state = {
-	timeline: {},
-	since: Math.floor(Date.now() / 1000) + 1,
+	statuses: {},
+	timeline: [],
+	parentsTimeline: [],
 	type: 'home',
-	/**
-	 * @namespace params
-	 * @property {string} account ???
-	 * @property {string} id
-	 * @property {string} localId
-	 * @property {string} type ???
-	 */
 	params: {},
 	account: '',
-	/* Tells whether the composer should be displayed or not.
-	 * It's up to the view to honor this status or not.
-	 * @member {boolean}
-	 */
 	composerDisplayStatus: false,
+	searchQuery: '',
 }
+
+/**
+ *
+ * @param state
+ * @param status
+ */
+function addToStatuses(state, status) {
+	state.statuses = { ...state.statuses, [status.id]: status }
+	if (status.reblog !== undefined && status.reblog !== null) {
+		state.statuses = { ...state.statuses, [status.reblog.id]: status.reblog }
+	}
+}
+
 const mutations = {
+	addToStatuses(state, status) {
+		addToStatuses(state, status)
+	},
 	addToTimeline(state, data) {
-		for (const item in data) {
-			state.since = data[item].publishedTime
-			Vue.set(state.timeline, data[item].id, data[item])
+		if (Array.isArray(data)) {
+			data.forEach(status => addToStatuses(state, status))
+			data
+				.filter(status => state.timeline.indexOf(status.id) === -1)
+				.forEach(status => state.timeline.push(status.id))
+		} else {
+			data.descendants.forEach(status => addToStatuses(state, status))
+			data.ancestors.forEach(status => addToStatuses(state, status))
+
+			data.descendants
+				.filter(status => state.timeline.indexOf(status.id) === -1)
+				.forEach(status => state.timeline.push(status.id))
+			data.ancestors
+				.filter(status => state.parentsTimeline.indexOf(status.id) === -1)
+				.forEach(status => state.parentsTimeline.push(status.id))
 		}
 	},
-	removePost(state, post) {
-		Vue.delete(state.timeline, post.id)
+	removeStatus(state, status) {
+		const timelineIndex = state.timeline.indexOf(status.id)
+		if (timelineIndex !== -1) {
+			state.timeline.splice(timelineIndex, 1)
+		}
+		const parentsTimelineIndex = state.parentsTimeline.indexOf(status.id)
+		if (parentsTimelineIndex !== -1) {
+			state.parentsTimeline.splice(parentsTimelineIndex, 1)
+		}
+	},
+	removeStatusesByActor(state, accountId) {
+		const id = String(accountId)
+		const isByActor = (status) => String(status?.account?.id) === id
+			|| (status?.reblog && String(status.reblog.account?.id) === id)
+		const removed = new Set(Object.values(state.statuses).filter(isByActor).map(status => status.id))
+		if (removed.size === 0) {
+			return
+		}
+		state.timeline = state.timeline.filter(statusId => !removed.has(statusId))
+		state.parentsTimeline = state.parentsTimeline.filter(statusId => !removed.has(statusId))
+		const statuses = { ...state.statuses }
+		removed.forEach(statusId => delete statuses[statusId])
+		state.statuses = statuses
 	},
 	resetTimeline(state) {
-		state.timeline = {}
-		state.since = Math.floor(Date.now() / 1000) + 1
+		state.timeline = []
+		state.parentsTimeline = []
 	},
 	setTimelineType(state, type) {
 		state.type = type
@@ -80,58 +94,100 @@ const mutations = {
 	setAccount(state, account) {
 		state.account = account
 	},
-	likePost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
-			Vue.set(state.timeline[post.id].action.values, 'liked', true)
-		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'liked', true)
+	setSearchQuery(state, query) {
+		state.searchQuery = query
+	},
+	likeStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			state.statuses[status.id] = { ...state.statuses[status.id], favourited: true }
+			state.statuses[status.id].favourites_count++
 		}
 	},
-	unlikePost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
-			Vue.set(state.timeline[post.id].action.values, 'liked', false)
-		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'liked', false)
+	unlikeStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			state.statuses[status.id] = { ...state.statuses[status.id], favourited: false }
+			state.statuses[status.id].favourites_count--
 		}
 	},
-	boostPost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
-			Vue.set(state.timeline[post.id].action.values, 'boosted', true)
-		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', true)
+	boostStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			state.statuses[status.id] = { ...state.statuses[status.id], reblogged: true }
+			state.statuses[status.id].reblogs_count++
 		}
 	},
-	unboostPost(state, { post, parentAnnounce }) {
-		if (typeof state.timeline[post.id] !== 'undefined') {
-			Vue.set(state.timeline[post.id].action.values, 'boosted', false)
+	unboostStatus(state, { status }) {
+		if (state.statuses[status.id] !== undefined) {
+			state.statuses[status.id] = { ...state.statuses[status.id], reblogged: false }
+			state.statuses[status.id].reblogs_count--
 		}
-		if (typeof parentAnnounce.id !== 'undefined') {
-			Vue.set(state.timeline[parentAnnounce.id].cache[parentAnnounce.object].object.action.values, 'boosted', false)
+	},
+	updateStatus(state, updatedStatus) {
+		if (state.statuses[updatedStatus.id] !== undefined) {
+			state.statuses[updatedStatus.id] = updatedStatus
 		}
 	},
 }
+
 const getters = {
 	getComposerDisplayStatus(state) {
 		return state.composerDisplayStatus
 	},
 	getTimeline(state) {
-		return Object.values(state.timeline).sort(function(a, b) {
-			return b.publishedTime - a.publishedTime
-		})
+		let items = state.timeline
+			.map(statusId => state.statuses[statusId])
+			.filter(Boolean)
+			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+		if (state.searchQuery) {
+			const q = state.searchQuery.toLowerCase()
+			items = items.filter(item => {
+				const content = item.content ? item.content.toLowerCase() : ''
+				const displayName = item.account?.display_name?.toLowerCase() || ''
+				const acct = item.account?.acct?.toLowerCase() || ''
+				return content.includes(q) || displayName.includes(q) || acct.includes(q)
+			})
+		}
+
+		return items
+	},
+	getParentsTimeline(state) {
+		let items = state.parentsTimeline
+			.map(statusId => state.statuses[statusId])
+			.filter(Boolean)
+			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+		if (state.searchQuery) {
+			const q = state.searchQuery.toLowerCase()
+			items = items.filter(item => {
+				const content = item.content ? item.content.toLowerCase() : ''
+				const displayName = item.account?.display_name?.toLowerCase() || ''
+				const acct = item.account?.acct?.toLowerCase() || ''
+				return content.includes(q) || displayName.includes(q) || acct.includes(q)
+			})
+		}
+
+		return items
+	},
+	getSearchQuery(state) {
+		return state.searchQuery
+	},
+	getStatus(state) {
+		return (statusId) => state.statuses[statusId]
+	},
+	getSinglePost(state) {
+		return state.statuses[state.params.singlePost]
 	},
 	getPostFromTimeline(state) {
-		return (postId) => {
-			if (typeof state.timeline[postId] !== 'undefined') {
-				return state.timeline[postId]
+		return (statusId) => {
+			if (state.statuses[statusId] !== undefined) {
+				return state.statuses[statusId]
 			} else {
-				logger.warn('Could not find post in timeline', { postId })
+				logger.warn('Could not find status in timeline', { statusId })
 			}
 		}
 	},
 }
+
 const actions = {
 	changeTimelineType(context, { type, params }) {
 		context.commit('resetTimeline')
@@ -144,107 +200,160 @@ const actions = {
 		context.commit('setTimelineType', 'account')
 		context.commit('setAccount', account)
 	},
-	async post(context, post) {
+	async createMedia(context, file) {
 		try {
-			const { data } = await axios.post(generateUrl('apps/social/api/v1/post'), post, {
-				headers: {
-					'Content-Type': 'multipart/form-data',
+			const formData = new FormData()
+			formData.append('file', file)
+			const { data } = await axios.post(
+				generateUrl('apps/social/api/v1/media'),
+				formData,
+				{
+					headers: {
+						'Content-Type': 'multipart/form-data',
+					},
 				},
-			})
-			logger.info('Post created with token ' + data.result.token)
+			)
+			logger.info('Media created with id ' + data.id)
+			return data
 		} catch (error) {
-			OC.Notification.showTemporary('Failed to create a post')
-			logger.error('Failed to create a post', { error: error.response })
+			showError('Failed to create a media')
+			logger.error('Failed to create a media', { error })
 		}
 	},
-	postDelete(context, post) {
-		return axios.delete(generateUrl(`apps/social/api/v1/post?id=${post.id}`)).then((response) => {
-			context.commit('removePost', post)
+	async post(context, status) {
+		try {
+			const { data } = await axios.post(generateUrl('apps/social/api/v1/statuses'), status)
+			logger.info('Post created', data.id)
+		} catch (error) {
+			showError('Failed to create a status')
+			logger.error('Failed to create a status', { error })
+		}
+	},
+	async postEdit(context, { status, content, spoiler_text, sensitive }) {
+		try {
+			const response = await axios.put(
+				generateUrl(`apps/social/api/v1/statuses/${status.id}`),
+				{ status: content, spoiler_text, sensitive },
+			)
+			context.commit('updateStatus', response.data)
+			logger.info('Post edited', response.data.id)
+			return response
+		} catch (error) {
+			showError('Failed to edit the status')
+			logger.error('Failed to edit the status', { error })
+		}
+	},
+	async postDelete(context, status) {
+		try {
+			context.commit('removeStatus', status)
+			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${status.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
-		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to delete the post')
-			logger.error('Failed to delete the post', { error })
-		})
+		} catch (error) {
+			context.commit('addToTimeline', [status])
+			showError('Failed to delete the status')
+			logger.error('Failed to delete the status', { error })
+		}
 	},
-	postLike(context, { post, parentAnnounce }) {
-		return new Promise((resolve, reject) => {
-			axios.post(generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
-				context.commit('likePost', { post, parentAnnounce })
-				resolve(response)
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to like post')
-				logger.error('Failed to like post', { error: error.response })
-				reject(error)
-			})
-		})
+	async postLike(context, { status }) {
+		try {
+			context.commit('likeStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/favourite`))
+			logger.info('Post liked')
+			context.commit('addToStatuses', response.data)
+			return response
+		} catch (error) {
+			context.commit('unlikeStatus', { status })
+			showError('Failed to like status')
+			logger.error('Failed to like status', { error })
+		}
 	},
-	postUnlike(context, { post, parentAnnounce }) {
-		return axios.delete(generateUrl(`apps/social/api/v1/post/like?postId=${post.id}`)).then((response) => {
-			context.commit('unlikePost', { post, parentAnnounce })
-			// Remove post from list if we are in the 'liked' timeline
-			if (state.type === 'liked') {
-				context.commit('removePost', post)
+	async postUnlike(context, { status }) {
+		try {
+			if (context.state.type === 'favourites') {
+				context.commit('removeStatus', status)
 			}
-		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to unlike post')
-			logger.error('Failed to unlike post', { error })
-		})
+			context.commit('unlikeStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unfavourite`))
+			logger.info('Post unliked')
+			context.commit('addToStatuses', response.data)
+			return response
+		} catch (error) {
+			if (context.state.type === 'favourites') {
+				// addToTimeline restores the caller's pre-unlike copy of the
+				// status (favourited, original count) — a likeStatus on top of
+				// that would count the like twice.
+				context.commit('addToTimeline', [status])
+			} else {
+				context.commit('likeStatus', { status })
+			}
+			showError('Failed to unlike status')
+			logger.error('Failed to unlike status', { error })
+		}
 	},
-	postBoost(context, { post, parentAnnounce }) {
-		return new Promise((resolve, reject) => {
-			axios.post(generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-				context.commit('boostPost', { post, parentAnnounce })
-				logger.info('Post boosted with token ' + response.data.result.token)
-				resolve(response)
-			}).catch((error) => {
-				OC.Notification.showTemporary('Failed to create a boost post')
-				logger.error('Failed to create a boost post', { error: error.response })
-				reject(error)
-			})
-		})
+	async postBoost(context, { status }) {
+		try {
+			context.commit('boostStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/reblog`))
+			logger.info('Post boosted')
+			context.commit('addToStatuses', response.data)
+			return response
+		} catch (error) {
+			context.commit('unboostStatus', { status })
+			showError('Failed to create a boost status')
+			logger.error('Failed to create a boost status', { error })
+		}
 	},
-	postUnBoost(context, { post, parentAnnounce }) {
-		return axios.delete(generateUrl(`apps/social/api/v1/post/boost?postId=${post.id}`)).then((response) => {
-			context.commit('unboostPost', { post, parentAnnounce })
-			logger.info('Boost deleted with token ' + response.data.result.token)
-		}).catch((error) => {
-			OC.Notification.showTemporary('Failed to delete the boost')
+	async postUnBoost(context, { status }) {
+		try {
+			context.commit('unboostStatus', { status })
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unreblog`))
+			logger.info('Boost deleted')
+			context.commit('addToStatuses', response.data)
+			return response
+		} catch (error) {
+			context.commit('boostStatus', { status })
+			showError('Failed to delete the boost')
 			logger.error('Failed to delete the boost', { error })
-		})
+		}
 	},
 	refreshTimeline(context) {
-		return this.dispatch('fetchTimeline', { sinceTimestamp: Math.floor(Date.now() / 1000) + 1 })
+		return this.dispatch('fetchTimeline')
 	},
-	fetchTimeline(context, { sinceTimestamp }) {
-
-		if (typeof sinceTimestamp === 'undefined') {
-			sinceTimestamp = state.since - 1
+	async fetchTimeline(context, params = {}) {
+		if (params.limit === undefined) {
+			params.limit = 15
 		}
 
-		// Compute URl to get the data
 		let url = ''
-		if (state.type === 'account') {
-			url = generateUrl(`apps/social/api/v1/account/${state.account}/stream?limit=25&since=` + sinceTimestamp)
-		} else if (state.type === 'tags') {
-			url = generateUrl(`apps/social/api/v1/stream/tag/${state.params.tag}?limit=25&since=` + sinceTimestamp)
-		} else if (state.type === 'single-post') {
-			url = generateUrl(`apps/social/local/v1/post/replies?id=${state.params.id}&limit=5&since=` + sinceTimestamp)
-		} else {
-			url = generateUrl(`apps/social/api/v1/stream/${state.type}?limit=25&since=` + sinceTimestamp)
+		switch (state.type) {
+		case 'account':
+			url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
+			break
+		case 'tags':
+			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
+			break
+		case 'single-post':
+			url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
+			break
+		case 'timeline':
+			url = generateUrl('apps/social/api/v1/timelines/public')
+			params.local = true
+			break
+		case 'federated':
+			url = generateUrl('apps/social/api/v1/timelines/public')
+			break
+		case 'notifications':
+			url = generateUrl('apps/social/api/v1/notifications')
+			break
+		default:
+			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
 		}
 
-		// Get the data and add them to the timeline
-		return axios.get(url).then((response) => {
+		const response = await axios.get(url, { params })
 
-			if (response.status === -1) {
-				throw response.message
-			}
+		context.commit('addToTimeline', response.data)
 
-			// Add results to timeline
-			context.commit('addToTimeline', response.data.result)
-
-			return response.data
-		})
+		return response.data
 	},
 	addToTimeline(context, data) {
 		context.commit('addToTimeline', data)

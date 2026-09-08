@@ -2,43 +2,13 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
-use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
-use OCA\Social\Tools\Exceptions\RequestResultSizeException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
-use Exception;
-use OCA\Social\AP;
-use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -46,34 +16,33 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
-use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
-use OCP\Files\NotFoundException;
-use OCP\Files\NotPermittedException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use Psr\Log\LoggerInterface;
 
 class PostService {
 	private StreamService $streamService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
-	private CacheDocumentService $cacheDocumentService;
-	private ConfigService $configService;
-	private MiscService $miscService;
 	private LoggerInterface $logger;
 
 	public function __construct(
 		StreamService $streamService, AccountService $accountService, ActivityService $activityService,
-		CacheDocumentService $cacheDocumentService, ConfigService $configService, MiscService $miscService, LoggerInterface $logger
+		LoggerInterface $logger,
 	) {
 		$this->streamService = $streamService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
-		$this->cacheDocumentService = $cacheDocumentService;
-		$this->configService = $configService;
-		$this->miscService = $miscService;
 		$this->logger = $logger;
 	}
 
@@ -106,104 +75,57 @@ class PostService {
 
 		$note->setAttributedTo($actor->getId());
 		$note->setContent(htmlentities($post->getContent(), ENT_QUOTES));
-
-		$this->generateDocumentsFromAttachments($note, $post);
+		$note->setAttachments($post->getMedias());
+		$note->setVisibility($post->getType());
 
 		$this->streamService->replyTo($note, $post->getReplyTo());
 		$this->streamService->addRecipients($note, $post->getType(), $post->getTo());
 		$this->streamService->addHashtags($note, $post->getHashtags());
-		$this->streamService->addAttachments($note, $post->getDocuments());
+		//		$this->streamService->addAttachments($note, $post->getDocuments());
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
 		$this->accountService->cacheLocalActorDetailCount($actor);
 
-		$this->miscService->log('Activity: ' . json_encode($activity));
+		$this->logger->debug('Activity: ' . json_encode($activity));
 
 		return $activity;
 	}
 
-
 	/**
-	 * @param Note $note
-	 * @param Post $post
+	 * @throws \Exception
 	 */
-	private function generateDocumentsFromAttachments(Note $note, Post $post) {
-		$documents = [];
-		if (!isset($_FILES['attachments'])) {
-			return;
-		}
-		if (is_array($_FILES['attachments']['error'])) {
-			foreach ($_FILES['attachments']['error'] as $key => $error) {
-				if ($error == UPLOAD_ERR_OK) {
-					try {
-						$document = $this->generateDocumentFromAttachment($note, $key);
+	public function editPost(int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null): Stream {
+		$stream = $this->streamService->getStreamByNid($nid);
 
-						$service = AP::$activityPub->getInterfaceForItem($document);
-						$service->save($document);
-
-						$documents[] = $document;
-					} catch (Exception $e) {
-					}
-				}
-			}
-		} else {
-			try {
-				$tmp_name = $_FILES["attachments"]["tmp_name"];
-				$name = basename($_FILES["attachments"]["name"]);
-				$tmpFile = tmpfile();
-				$tmpPath = stream_get_meta_data($tmpFile)['uri'];
-				if (move_uploaded_file($tmp_name, $tmpPath)) {
-					$document = new Document();
-					$document->setUrlCloud($this->configService->getCloudUrl());
-					$document->generateUniqueId('/documents/local');
-					$document->setParentId($note->getId());
-					$document->setPublic(true);
-
-					$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
-				}
-
-				$service = AP::$activityPub->getInterfaceForItem($document);
-				$service->save($document);
-
-				$documents[] = $document;
-			} catch (Exception $e) {
-				$this->logger->error($e->getMessage(), [
-					'exception' => $e,
-				]);
-			}
-		}
-		$post->setDocuments($documents);
-	}
-
-
-	/**
-	 * @param Note $note
-	 * @param string $attachment
-	 *
-	 * @return Document
-	 * @throws CacheContentMimeTypeException
-	 * @throws NotFoundException
-	 * @throws NotPermittedException
-	 * @throws SocialAppConfigException
-	 * @throws UrlCloudException
-	 */
-	private function generateDocumentFromAttachment(Note $note, int $key): Document {
-		$tmp_name = $_FILES["attachments"]["tmp_name"][$key];
-		$name = basename($_FILES["attachments"]["name"][$key]);
-		$tmpFile = tmpfile();
-		$tmpPath = stream_get_meta_data($tmpFile)['uri'];
-		if (move_uploaded_file($tmp_name, $tmpPath)) {
-			$document = new Document();
-			$document->setUrlCloud($this->configService->getCloudUrl());
-			$document->generateUniqueId('/documents/local');
-			$document->setParentId($note->getId());
-			$document->setPublic(true);
-
-			$this->cacheDocumentService->saveFromTempToCache($document, $tmpPath);
+		if ($stream->getAttributedTo() !== $actor->getId()) {
+			throw new \Exception('Not authorized to edit this post');
 		}
 
+		$stream->setContent($content);
+		if ($spoilerText !== null) {
+			$stream->setSpoilerText($spoilerText);
+		}
+		if ($sensitive !== null) {
+			$stream->setSensitive($sensitive);
+		}
+		$stream->setPublished(date('c'));
 
-		return $document;
+		$this->streamService->updateStream($stream);
+
+		$updated = $this->streamService->getStreamByNid($nid);
+		$updated->addInstancePath(
+			new InstancePath(
+				$actor->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
+			)
+		);
+
+		try {
+			$this->activityService->updateActivity($actor, $updated);
+		} catch (\Exception $e) {
+			$this->logger->warning('Failed to federate post update', ['exception' => $e]);
+		}
+
+		return $updated;
 	}
 
 

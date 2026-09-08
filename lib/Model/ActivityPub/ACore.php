@@ -2,30 +2,9 @@
 
 declare(strict_types=1);
 
-
 /**
- * Nextcloud - Social Support
- *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
- *
- * @author Maxence Lange <maxence@artificial-owl.com>
- * @copyright 2018, Maxence Lange <maxence@artificial-owl.com>
- * @license GNU AGPL version 3 or any later version
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace OCA\Social\Model\ActivityPub;
@@ -37,11 +16,13 @@ use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
+use OCA\Social\Tools\HtmlSanitizer;
+use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCA\Social\Tools\Traits\TStringTools;
 
-class ACore extends Item implements JsonSerializable {
+class ACore extends Item implements JsonSerializable, IQueryRow {
 	use TArrayTools;
 	use TStringTools;
 	use TPathTools;
@@ -99,7 +80,7 @@ class ACore extends Item implements JsonSerializable {
 			return $this->requestToken;
 		} else {
 			return $this->getRoot()
-						->getRequestToken();
+				->getRequestToken();
 		}
 	}
 
@@ -170,7 +151,7 @@ class ACore extends Item implements JsonSerializable {
 	public function getObjectId(): string {
 		if ($this->hasObject()) {
 			return $this->getObject()
-						->getId();
+				->getId();
 		}
 
 		return parent::getObjectId();
@@ -298,7 +279,7 @@ class ACore extends Item implements JsonSerializable {
 	public function checkOrigin(string $id) {
 		$host = parse_url($id, PHP_URL_HOST);
 		$origin = $this->getRoot()
-					   ->getOrigin();
+			->getOrigin();
 
 		if ($id !== '' && $origin === $host && $host !== '') {
 			return;
@@ -355,7 +336,7 @@ class ACore extends Item implements JsonSerializable {
 		}
 
 		return $this->getParent()
-					->getRoot($chain);
+			->getRoot($chain);
 	}
 
 
@@ -385,7 +366,7 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function addEntry(string $k, string $v): ACore {
 		if ($v === '') {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -418,7 +399,7 @@ class ACore extends Item implements JsonSerializable {
 	 * @return ACore
 	 */
 	public function addEntryBool(string $k, bool $v): ACore {
-		if ($v === 0) {
+		if ($v === false) {
 			return $this;
 		}
 
@@ -435,7 +416,7 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function addEntryArray(string $k, array $v): ACore {
 		if ($v === []) {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -454,7 +435,7 @@ class ACore extends Item implements JsonSerializable {
 	 */
 	public function addEntryItem(string $k, ACore $v): ACore {
 		if ($v === null) {
-//			unset($this->entries[$k]);
+			//			unset($this->entries[$k]);
 
 			return $this;
 		}
@@ -540,16 +521,18 @@ class ACore extends Item implements JsonSerializable {
 				return $value;
 
 			case self::AS_STRING:
-				$value = strip_tags($value);
+				// Decode first: stripping tags and *then* decoding entities lets
+				// `&lt;script&gt;` come back to life as a real element
 				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
+				$value = strip_tags($value);
 
 				return $value;
 
 			case self::AS_CONTENT:
-				$value = strip_tags($value, ['a', 'p', 'span', 'br']);
-				$value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
-
-				return $value;
+				// Remote HTML is rendered into every local reader's timeline.
+				// strip_tags() cannot do this job: it keeps attributes on the
+				// tags it allows, so `onclick` and `javascript:` survive it.
+				return HtmlSanitizer::sanitize($value);
 
 			case self::AS_USERNAME:
 				$value = strip_tags($value);
@@ -638,10 +621,11 @@ class ACore extends Item implements JsonSerializable {
 	}
 
 	/**
+	 * based on json generated/exported as LOCAL
 	 * @param array $data
 	 */
-	public function importFromCache(array $data) {
-		$this->import($data);
+	public function importFromLocal(array $data) {
+		$this->setNid($this->getInt('id', $data));
 	}
 
 	/**
@@ -650,7 +634,9 @@ class ACore extends Item implements JsonSerializable {
 	 * @return $this
 	 */
 	public function setExportFormat(int $format): self {
-		$this->format = $format;
+		if ($format > 0) {
+			$this->format = $format;
+		}
 
 		return $this;
 	}
@@ -699,7 +685,6 @@ class ACore extends Item implements JsonSerializable {
 
 		$this->addEntry('id', $this->getId());
 		$this->addEntry('type', $this->getType());
-		$this->addEntry('subtype', $this->getSubType());
 		$this->addEntry('url', $this->getUrl());
 		$this->addEntry('to', $this->getTo());
 		$this->addEntryArray('to', $this->getToArray());
@@ -708,7 +693,7 @@ class ACore extends Item implements JsonSerializable {
 		if ($this->hasActor()) {
 			$this->addEntry(
 				'actor', $this->getActor()
-							  ->getId()
+					->getId()
 			);
 			if ($this->isCompleteDetails()) {
 				$this->addEntryItem('actor_info', $this->getActor());
@@ -758,6 +743,7 @@ class ACore extends Item implements JsonSerializable {
 		if ($this->getNid() > 0) {
 			$result['id'] = (string)$this->getNid();
 		}
+		$result['nid'] = $this->getNid();
 
 		return $result;
 	}

@@ -1,25 +1,7 @@
 <!--
-  - @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
-  -
-  - @author Julius Härtl <jus@bitgrid.net>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program. If not, see <http://www.gnu.org/licenses/>.
-  -
-  -->
-
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div class="social__wrapper">
 		<div v-if="allResults.length < 1 && hashtags.length < 1" id="emptycontent" :class="{'icon-loading': loading || remoteLoading}">
@@ -38,12 +20,6 @@
 				<li v-for="tag in hashtags" :key="tag.hashtag" class="tag">
 					<router-link :to="{ name: 'tags', params: {tag: tag.hashtag } }">
 						<span>#{{ tag.hashtag }}</span>
-						<Trend :data="trendData(tag.trend)"
-							:gradient="['#17adff', '#0082c9']"
-							:smooth="true"
-							:width="150"
-							:height="44"
-							stroke-width="2" />
 					</router-link>
 				</li>
 			</div>
@@ -55,14 +31,14 @@
 
 import UserEntry from './UserEntry.vue'
 import axios from '@nextcloud/axios'
-import Trend from 'vuetrend'
 import { generateUrl } from '@nextcloud/router'
+import { translate } from '@nextcloud/l10n'
+import { showError } from '@nextcloud/dialogs'
 
 export default {
 	name: 'Search',
 	components: {
 		UserEntry,
-		Trend,
 	},
 	props: {
 		term: {
@@ -99,16 +75,6 @@ export default {
 		this.search(this.term)
 	},
 	methods: {
-		trendData(trend) {
-			const data = [
-				Math.max(0, trend['10d'] - trend['3d']),
-				Math.max(0, trend['3d'] - trend['1d']),
-				Math.max(0, trend['1d'] - trend['12h']),
-				Math.max(0, trend['12h'] - trend['1h']),
-				Math.max(0, trend['1h']),
-			]
-			return data
-		},
 		search(val) {
 			if (this.loading) {
 				return
@@ -116,7 +82,6 @@ export default {
 			this.loading = true
 			this.searchQuery(val).then((response) => {
 				this.results = response.data.result
-				this.loading = false
 
 				if (this.results.accounts.exact !== null) {
 					this.$store.commit('addAccount', { actorId: this.results.accounts.exact.id, data: this.results.accounts.exact })
@@ -125,6 +90,11 @@ export default {
 					this.$store.commit('addAccount', { actorId: account.id, data: account })
 				})
 				this.hashtags = this.results.hashtags.result
+			}).catch((error) => {
+				showError(translate('social', 'Failed to perform the search'))
+				console.error('Social search failed', error)
+			}).finally(() => {
+				this.loading = false
 			})
 		},
 		accountSearch(term) {
@@ -138,6 +108,8 @@ export default {
 		remoteSearch(term) {
 			return axios.get(generateUrl('apps/social/api/v1/global/account/info?account=' + term))
 		},
+
+		t: translate,
 	},
 }
 </script>
@@ -151,6 +123,7 @@ export default {
 		margin-top: -3px;
 		margin-left: 47px;
 	}
+
 	.tag {
 		list-style-type: none;
 		margin: 0;

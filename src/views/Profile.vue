@@ -1,32 +1,16 @@
 <!--
-  - @copyright Copyright (c) 2018 Julius Härtl <jus@bitgrid.net>
-  -
-  - @author Julius Härtl <jus@bitgrid.net>
-  -
-  - @license GNU AGPL version 3 or any later version
-  -
-  - This program is free software: you can redistribute it and/or modify
-  - it under the terms of the GNU Affero General Public License as
-  - published by the Free Software Foundation, either version 3 of the
-  - License, or (at your option) any later version.
-  -
-  - This program is distributed in the hope that it will be useful,
-  - but WITHOUT ANY WARRANTY; without even the implied warranty of
-  - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  - GNU Affero General Public License for more details.
-  -
-  - You should have received a copy of the GNU Affero General Public License
-  - along with this program. If not, see <http://www.gnu.org/licenses/>.
-  -
-  -->
-
+  - SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
 <template>
 	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
-		<!-- TODO: we have no details, timeline and follower list for non-local accounts for now -->
-		<router-view v-if="accountLoaded && accountInfo && accountInfo.local" name="details" />
+
+		<Composer v-if="accountInfo && currentAccount && $route.name === 'profile'" :initial-mention="accountInfo.acct === currentAccount.acct ? null : accountInfo" default-visibility="direct" />
+
+		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<NcEmptyContent v-if="accountLoaded && !accountInfo"
-			:title="t('social', 'User not found')"
+			:name="t('social', 'User not found')"
 			:description="t('social', 'Sorry, we could not find the account of {userId}', { userId: uid })">
 			<template #icon>
 				<img :src="emptyContentImage"
@@ -38,17 +22,19 @@
 </template>
 
 <script>
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { generateFilePath } from '@nextcloud/router'
 import ProfileInfo from './../components/ProfileInfo.vue'
-import NcEmptyContent from '@nextcloud/vue/dist/Components/NcEmptyContent.js'
+import Composer from './../components/Composer/Composer.vue'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
-import { generateFilePath } from '@nextcloud/router'
 
 export default {
 	name: 'Profile',
 	components: {
 		NcEmptyContent,
 		ProfileInfo,
+		Composer,
 	},
 	mixins: [
 		accountMixins,
@@ -57,42 +43,69 @@ export default {
 	data() {
 		return {
 			state: [],
+			/** @type {string|null} */
 			uid: null,
 		}
 	},
 	computed: {
+		/** @return {import('../types/Mastodon').Status[]} */
 		timeline() {
 			return this.$store.getters.getTimeline
 		},
+		/** @return {string} */
 		emptyContentImage() {
 			return generateFilePath('social', 'img', 'undraw/profile.svg')
 		},
+		/** @return {import('../types/Mastodon.js').Account} */
+		currentAccount() {
+			return this.$store.getters.currentAccount
+		},
+	},
+	watch: {
+		'$route.params.account': 'fetchProfileData',
 	},
 	// Start fetching account information before mounting the component
-	beforeMount() {
-		this.uid = this.$route.params.account || this.serverData.account
+	async beforeMount() {
+		this.fetchProfileData()
+	},
+	methods: {
+		async fetchProfileData() {
+			this.uid = this.$route.params.account || this.serverData.account
 
-		// Are we authenticated?
-		let fetchMethod = ''
-		if (this.serverData.public) {
-			fetchMethod = 'fetchPublicAccountInfo'
-		} else {
-			fetchMethod = 'fetchAccountInfo'
-		}
+			if (!this.uid) return
 
-		// We need to update this.uid because we may have asked info for an account whose domain part was a host-meta,
-		// and the account returned by the backend always uses a non host-meta'ed domain for its ID
-		this.$store.dispatch(fetchMethod, this.profileAccount).then((response) => {
-			this.uid = response.account
-		})
+			let fetchMethod = ''
+			if (this.serverData.public) {
+				fetchMethod = 'fetchPublicAccountInfo'
+			} else {
+				fetchMethod = 'fetchAccountInfo'
+			}
+
+			const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
+			if (response) {
+				this.uid = response.acct
+				console.debug('[Social Profile] account info loaded', { id: response.id, nid: response.nid, acct: response.acct, url: response.url })
+				const infoId = this.accountInfo?.nid || this.accountInfo?.id
+				if (infoId && !this.serverData.public) {
+					console.debug('[Social Profile] fetching relationship', { infoId, nid: this.accountInfo?.nid })
+					await this.$store.dispatch('fetchAccountRelationshipInfo', [infoId])
+				} else {
+					console.debug('[Social Profile] skipping relationship fetch', { infoId, isPublic: this.serverData.public })
+				}
+			}
+		},
 	},
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+.social__wrapper {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: calc(var(--default-grid-baseline) * 4);
 
-	.social__wrapper.icon-loading {
+	&.icon-loading {
 		margin-top: 50vh;
 	}
-
+}
 </style>
