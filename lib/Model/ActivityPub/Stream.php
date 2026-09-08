@@ -64,6 +64,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private ?StreamAction $action = null;
 	private string $timeline = '';
 	private bool $filterDuplicate = false;
+	private bool $pinned = false;
 
 	/**
 	 * Stream constructor.
@@ -250,6 +251,21 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function isSensitive(): bool {
 		return $this->sensitive;
+	}
+
+	/**
+	 * Whether the author pinned this post to their profile. Only the author
+	 * can pin, so the flag is a property of the post rather than of the
+	 * viewer; it is attached by PinService where a pin state is known.
+	 */
+	public function isPinned(): bool {
+		return $this->pinned;
+	}
+
+	public function setPinned(bool $pinned): Stream {
+		$this->pinned = $pinned;
+
+		return $this;
 	}
 
 	/**
@@ -661,6 +677,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'reblogged' => $reblogged,
 			'muted' => false,
 			'bookmarked' => $bookmarked,
+			'pinned' => $this->isPinned(),
 			'uri' => $this->getId(),
 			'url' => $this->getId(),
 			'reblog' => null,

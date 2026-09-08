@@ -121,6 +121,11 @@ const mutations = {
 			state.statuses[status.id].reblogs_count--
 		}
 	},
+	pinStatus(state, { status, pinned }) {
+		if (state.statuses[status.id] !== undefined) {
+			state.statuses[status.id] = { ...state.statuses[status.id], pinned }
+		}
+	},
 	updateStatus(state, updatedStatus) {
 		if (state.statuses[updatedStatus.id] !== undefined) {
 			state.statuses[updatedStatus.id] = updatedStatus
@@ -314,6 +319,22 @@ const actions = {
 			context.commit('boostStatus', { status })
 			showError('Failed to delete the boost')
 			logger.error('Failed to delete the boost', { error })
+		}
+	},
+	async postPin(context, { status, pinned }) {
+		// the flag is flipped first so the menu answers at once, and rolled
+		// back if the server refuses (somebody else's post, or the pin limit)
+		context.commit('pinStatus', { status, pinned })
+		try {
+			const action = pinned ? 'pin' : 'unpin'
+			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/${action}`))
+			logger.info(pinned ? 'Post pinned' : 'Post unpinned')
+			context.commit('addToStatuses', response.data)
+			return response
+		} catch (error) {
+			context.commit('pinStatus', { status, pinned: !pinned })
+			showError(pinned ? 'Failed to pin the post' : 'Failed to unpin the post')
+			logger.error('Failed to change the pinned state', { error })
 		}
 	},
 	refreshTimeline(context) {

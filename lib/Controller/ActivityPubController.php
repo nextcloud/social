@@ -19,7 +19,9 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
@@ -27,6 +29,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\InboxLimiter;
+use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
@@ -75,6 +78,7 @@ class ActivityPubController extends Controller {
 		AccountService $accountService,
 		FollowService $followService,
 		StreamService $streamService,
+		private PinService $pinService,
 		ConfigService $configService,
 		IInitialStateService $initialStateService,
 		LoggerInterface $logger,
@@ -301,6 +305,43 @@ class ActivityPubController extends Controller {
 			return $this->activityPubSuccess($this->streamService->getOutboxCollection($actor));
 		} catch (Exception $e) {
 			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * The actor's featured collection: the posts pinned to their profile.
+	 * Remote servers read pinned posts from here — a pin is never federated
+	 * as an activity of its own.
+	 *
+	 *
+	 * @param string $username
+	 *
+	 * @return Response
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function featured(string $username): Response {
+		try {
+			$actor = $this->cacheActorService->getFromLocalAccount($username);
+			$posts = $this->pinService->getPinnedPosts($actor->getId());
+
+			$collection = new OrderedCollection();
+			$collection->setId($actor->getFeatured());
+			$collection->setTotalItems(count($posts));
+			$collection->setOrderedItems(
+				array_map(
+					static function (Stream $post): array {
+						$post->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
+
+						return $post->exportAsActivityPub();
+					},
+					$posts
+				)
+			);
+
+			return $this->activityPubSuccess($collection);
+		} catch (Exception $e) {
+			return $this->fail($e, [], 404);
 		}
 	}
 

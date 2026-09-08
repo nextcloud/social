@@ -274,6 +274,34 @@ describe('TimelinePost', () => {
 			expect(menuItem(wrapper, 'Delete')).toBeUndefined()
 		})
 
+		it('offers Pin to profile for an own post and pins it', async () => {
+			const { wrapper, item, $store } = mountPost()
+
+			expect(menuItem(wrapper, 'Pin to profile')).toBeDefined()
+			await menuItem(wrapper, 'Pin to profile').trigger('click')
+
+			expect($store.dispatch).toHaveBeenCalledWith('postPin', { status: item, pinned: true })
+		})
+
+		it('flips to Unpin from profile for a post that is already pinned', async () => {
+			const { wrapper, item, $store } = mountPost({ item: makeItem({ pinned: true }) })
+
+			expect(menuItem(wrapper, 'Pin to profile')).toBeUndefined()
+			await menuItem(wrapper, 'Unpin from profile').trigger('click')
+
+			expect($store.dispatch).toHaveBeenCalledWith('postPin', { status: item, pinned: false })
+		})
+
+		it('never offers pinning for somebody else\'s post or a remote one', () => {
+			expect(menuItem(mountPost({ item: makeItem({ account: bob }) }).wrapper, 'Pin to profile')).toBeUndefined()
+			expect(menuItem(mountPost({ item: makeItem({ local: false }) }).wrapper, 'Pin to profile')).toBeUndefined()
+		})
+
+		it('marks a pinned post in the header', () => {
+			expect(mountPost().wrapper.find('.post-pinned').exists()).toBe(false)
+			expect(mountPost({ item: makeItem({ pinned: true }) }).wrapper.find('.post-pinned').text()).toBe('Pinned')
+		})
+
 		it('deletes the post', async () => {
 			const { wrapper, item, $store } = mountPost()
 			await menuItem(wrapper, 'Delete').trigger('click')

@@ -41,6 +41,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\PinService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\RelationshipService;
@@ -110,6 +111,7 @@ class ApiController extends Controller {
 		ActionService $actionService,
 		PostService $postService,
 		PollService $pollService,
+		private PinService $pinService,
 		ReportService $reportService,
 		SearchService $searchService,
 		ConfigService $configService,
@@ -1064,11 +1066,20 @@ class ApiController extends Controller {
 		int $max_id = 0,
 		int $min_id = 0,
 		int $since_id = 0,
+		bool $pinned = false,
 	): DataResponse {
 		try {
 			$this->initViewer(false);
 
 			$local = $this->cacheActorService->getFromAccount($account);
+
+			if ($pinned) {
+				return new DataResponse(
+					$this->pinService->getPinnedPosts($local->getId(), $this->viewer),
+					Http::STATUS_OK
+				);
+			}
+
 			$this->streamService->syncRemoteTimeline($local);
 
 			$options = new ProbeOptions($this->request);
@@ -1081,6 +1092,7 @@ class ApiController extends Controller {
 				->setSince($since_id);
 
 			$posts = $this->streamService->getTimeline($options);
+			$this->pinService->markPinned($posts, $local->getId());
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Exception $e) {

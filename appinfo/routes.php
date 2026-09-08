@@ -33,6 +33,7 @@ return [
 		['name' => 'ActivityPub#outbox', 'url' => '/@{username}/outbox', 'verb' => 'POST'],
 		['name' => 'ActivityPub#followers', 'url' => '/@{username}/followers', 'verb' => 'GET'],
 		['name' => 'ActivityPub#following', 'url' => '/@{username}/following', 'verb' => 'GET'],
+		['name' => 'ActivityPub#featured', 'url' => '/@{username}/collections/featured', 'verb' => 'GET'],
 		['name' => 'ActivityPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
 
 		['name' => 'OStatus#subscribe', 'url' => '/ostatus/follow/', 'verb' => 'GET'],

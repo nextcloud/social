@@ -2,10 +2,11 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, reactive } from 'vue'
 import { createStore } from 'vuex'
+import axios from '@nextcloud/axios'
 import ProfileTimeline from '../../../src/views/ProfileTimeline.vue'
 import timeline from '../../../src/store/timeline.js'
 
@@ -16,13 +17,24 @@ const TimelineListStub = {
 	props: ['type'],
 	template: '<ul class="timeline-list-stub" />',
 }
+const TimelineEntryStub = {
+	name: 'TimelineEntry',
+	props: ['item', 'type'],
+	template: '<li class="pinned-entry-stub">{{ item.id }}</li>',
+}
 
 let store
 let dispatch
 
 const mountView = (route) => mount(ProfileTimeline, {
-	global: { plugins: [store], mocks: { $route: route }, stubs: { TimelineList: TimelineListStub } },
+	global: {
+		plugins: [store],
+		mocks: { $route: route },
+		stubs: { TimelineList: TimelineListStub, TimelineEntry: TimelineEntryStub },
+	},
 })
+
+const pinnedIds = (wrapper) => wrapper.findAll('.pinned-entry-stub').map((entry) => entry.text())
 
 describe('ProfileTimeline', () => {
 	beforeEach(() => {
@@ -30,6 +42,7 @@ describe('ProfileTimeline', () => {
 		store = createStore({ modules: { timeline } })
 		store.commit('addToTimeline', [{ id: 'old', created_at: '2026-01-01T00:00:00Z' }])
 		dispatch = vi.spyOn(store, 'dispatch')
+		vi.spyOn(axios, 'get').mockResolvedValue({ data: [] })
 	})
 
 	afterEach(() => {
@@ -58,5 +71,59 @@ describe('ProfileTimeline', () => {
 		await nextTick()
 		expect(dispatch).toHaveBeenLastCalledWith('changeTimelineTypeAccount', 'carol')
 		expect(store.state.timeline.account).toBe('carol')
+	})
+
+	describe('pinned posts', () => {
+		it('renders the pinned posts of the account above the timeline', async () => {
+			axios.get.mockResolvedValue({ data: [{ id: 'pin-2' }, { id: 'pin-1' }] })
+
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				'/index.php/apps/social/api/v1/accounts/bob@remote.example/statuses',
+				{ params: { pinned: true } },
+			)
+			expect(pinnedIds(wrapper)).toEqual(['pin-2', 'pin-1'])
+		})
+
+		it('shows no pinned section for an account without pins', async () => {
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(wrapper.find('.profile-pinned').exists()).toBe(false)
+		})
+
+		it('drops the pinned posts of the previous account when the route changes', async () => {
+			axios.get.mockResolvedValue({ data: [{ id: 'pin-1' }] })
+			const route = reactive({ name: 'profile', params: { account: 'bob@remote.example' } })
+			const wrapper = mountView(route)
+			await flushPromises()
+			expect(pinnedIds(wrapper)).toEqual(['pin-1'])
+
+			axios.get.mockResolvedValue({ data: [] })
+			route.params.account = 'carol'
+			await nextTick()
+			expect(pinnedIds(wrapper)).toEqual([], 'the old pins never linger on the new profile')
+			await flushPromises()
+			expect(pinnedIds(wrapper)).toEqual([])
+		})
+
+		it('leaves the timeline alone when the pinned posts cannot be loaded', async () => {
+			axios.get.mockRejectedValue(new Error('boom'))
+
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			expect(wrapper.find('.profile-pinned').exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
+		})
+
+		it('asks for no pins without an account in the route', async () => {
+			mountView({ name: 'profile', params: {} })
+			await flushPromises()
+
+			expect(axios.get).not.toHaveBeenCalled()
+		})
 	})
 })

@@ -63,7 +63,7 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | POST | `/api/v1/accounts/{id}/unblock` | public, no-csrf (viewer required) | — | Lifts a block (federates `Undo{Block}` under the same setting). Returns the updated relationship entity. |
 | POST | `/api/v1/accounts/{id}/mute` | public, no-csrf (viewer required) | `notifications` (true) | Mutes the account — purely local, never federated. With `notifications=true` (default) the account's notifications are hidden too. Returns the updated relationship entity. |
 | POST | `/api/v1/accounts/{id}/unmute` | public, no-csrf (viewer required) | — | Lifts a mute. Returns the updated relationship entity. |
-| GET | `/api/v1/accounts/{account}/statuses` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | Statuses of `{account}`; syncs the remote timeline first. `{account}` accepts slashes (`requirements: .+`). |
+| GET | `/api/v1/accounts/{account}/statuses` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0), `pinned` (false) | Statuses of `{account}`; syncs the remote timeline first. `{account}` accepts slashes (`requirements: .+`). With `pinned=true` it returns that account's pinned posts, newest pin first, and skips the remote sync and the paging parameters. |
 | GET | `/api/v1/accounts/{account}/followers` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since` (0) | Followers of `{account}`. For a remote domain the actor's `followers` collection is fetched over HTTP and up to `limit` actors are returned; otherwise the local cache is probed. Note the fourth parameter is `since`, not `since_id`. |
 | GET | `/api/v1/accounts/{account}/following` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since` (0) | Same as above for the `following` collection. |
 
@@ -91,7 +91,8 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | `reblog`, `unreblog` | Creates/deletes an Announce (`BoostService`). The Mastodon-ish names `boost` and `unboost` are **not** accepted. |
 | `bookmark`, `unbookmark` | Toggles the viewer's local bookmark flag (`social_stream_act.bookmarked`). Purely local, never federated; the bookmarked posts are served by `/api/v1/bookmarks`. |
 | `translate` | Returns the status unchanged (translation is a TODO). |
-| `mute`, `unmute`, `pin`, `unpin` | **Not implemented** — refused with `InvalidActionException` rather than silently accepted, so a client never displays a state that was not stored. |
+| `pin`, `unpin` | Pins/unpins one of **your own local posts** to your profile (`PinService`). At most 5 pins; pinning somebody else's post, a remote post, or exceeding the limit raises `InvalidActionException`. A pin is stored as a `Pin` row in `social_action` and published in the actor's `featured` collection — it is never federated as an activity of its own. |
+| `mute`, `unmute` | **Not implemented** — refused with `InvalidActionException` rather than silently accepted, so a client never displays a state that was not stored. |
 
 The response is the status itself in local format.
 
@@ -273,6 +274,7 @@ JSON-LD responses are emitted through `activityPubSuccess()`, i.e. `Content-Type
 | POST | `/@{username}/outbox` | public, no-csrf | always JSON-LD | Same route handler as the GET (`ActivityPub#outbox`); posting an activity is **not** implemented — the method only returns the outbox collection. |
 | GET | `/@{username}/followers` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Followers collection, or the public Vue page. |
 | GET | `/@{username}/following` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Following collection, or the public Vue page. |
+| GET | `/@{username}/collections/featured` | public, no-csrf | always JSON-LD | The actor's pinned posts as an `OrderedCollection` whose `orderedItems` carry the full posts (at most 5). This is where remote servers read pinned posts from; the actor document points at it with `featured`. Unknown actor → error envelope with HTTP 404. |
 | GET | `/@{username}/{token}` | public, no-csrf | JSON-LD for AP `Accept`, else HTML | Single post. `{token}` values `outbox`, `followers` and `following` (case-insensitive) are re-routed to those handlers first. For AP callers the `Stream` is returned as JSON-LD (HTTP 404 error envelope with a `stream` key when missing); for browsers the Vue page is rendered with the post pre-loaded into initial state. |
 
 ### Discovery documents (not app routes)

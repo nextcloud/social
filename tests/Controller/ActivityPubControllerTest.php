@@ -21,6 +21,7 @@ use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
@@ -30,6 +31,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\InboxLimiter;
+use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
@@ -78,6 +80,8 @@ class ActivityPubControllerTest extends TestCase {
 	private $followService;
 	/** @var StreamService&MockObject */
 	private $streamService;
+	/** @var PinService&MockObject */
+	private $pinService;
 	/** @var ConfigService&MockObject */
 	private $configService;
 	/** @var IInitialStateService&MockObject */
@@ -98,6 +102,7 @@ class ActivityPubControllerTest extends TestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->pinService = $this->createMock(PinService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->initialStateService = $this->createMock(IInitialStateService::class);
 
@@ -118,6 +123,7 @@ class ActivityPubControllerTest extends TestCase {
 			$this->accountService,
 			$this->followService,
 			$this->streamService,
+			$this->pinService,
 			$this->configService,
 			$this->initialStateService,
 			new NullLogger()
@@ -412,6 +418,53 @@ class ActivityPubControllerTest extends TestCase {
 		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
 
 		$this->assertFailure($this->controller->outbox('ghost'), CacheActorDoesNotExistException::class);
+	}
+
+	public function testFeaturedServesThePinnedPostsAsAnOrderedCollection(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setFeatured('https://cloud.example/@alice/collections/featured');
+		$this->localActor('alice', $actor);
+
+		$first = new Note();
+		$first->setId('https://cloud.example/@alice/notes/2');
+		$second = new Note();
+		$second->setId('https://cloud.example/@alice/notes/1');
+		$this->pinService->method('getPinnedPosts')->with('https://cloud.example/@alice')
+			->willReturn([$first, $second]);
+
+		$response = $this->controller->featured('alice');
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+
+		/** @var OrderedCollection $collection */
+		$collection = $response->getData();
+		$this->assertInstanceOf(OrderedCollection::class, $collection);
+		$this->assertSame('https://cloud.example/@alice/collections/featured', $collection->getId());
+		$this->assertSame(2, $collection->getTotalItems());
+		$this->assertSame(
+			['https://cloud.example/@alice/notes/2', 'https://cloud.example/@alice/notes/1'],
+			array_column($collection->getOrderedItems(), 'id'),
+			'the posts themselves are inlined, newest pin first'
+		);
+	}
+
+	public function testFeaturedAlwaysServesActivityPubEvenToBrowsers(): void {
+		// unlike followers/following there is no public page to fall back to
+		$this->acceptHeader('text/html');
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$this->localActor('alice', $actor);
+		$this->pinService->method('getPinnedPosts')->willReturn([]);
+
+		$this->assertSame(self::LD_JSON, $this->controller->featured('alice')->getHeaders()['Content-Type']);
+	}
+
+	public function testFeaturedOfUnknownUserIsANotFound(): void {
+		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
+
+		$this->assertFailure(
+			$this->controller->featured('ghost'), CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND
+		);
 	}
 
 	public function testFollowersReturnsCollectionForActivityStreamsClients(): void {

@@ -16,6 +16,7 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ActionService;
 use OCA\Social\Service\BoostService;
 use OCA\Social\Service\LikeService;
+use OCA\Social\Service\PinService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -28,6 +29,7 @@ class ActionServiceTest extends TestCase {
 	private BoostService|MockObject $boostService;
 	private LikeService|MockObject $likeService;
 	private StreamActionService|MockObject $streamActionService;
+	private PinService|MockObject $pinService;
 	private ActionService $service;
 	private Person $actor;
 	private Note $post;
@@ -37,11 +39,13 @@ class ActionServiceTest extends TestCase {
 		$this->boostService = $this->createMock(BoostService::class);
 		$this->likeService = $this->createMock(LikeService::class);
 		$this->streamActionService = $this->createMock(StreamActionService::class);
+		$this->pinService = $this->createMock(PinService::class);
 		$this->service = new ActionService(
 			$this->streamService,
 			$this->boostService,
 			$this->likeService,
 			$this->streamActionService,
+			$this->pinService,
 		);
 
 		$this->actor = new Person();
@@ -130,8 +134,6 @@ class ActionServiceTest extends TestCase {
 		return [
 			'mute' => ['mute'],
 			'unmute' => ['unmute'],
-			'pin' => ['pin'],
-			'unpin' => ['unpin'],
 		];
 	}
 
@@ -143,5 +145,18 @@ class ActionServiceTest extends TestCase {
 
 		$this->expectException(InvalidActionException::class);
 		$this->service->action($this->actor, 42, $action);
+	}
+
+	public function testPinAndUnpinAreHandedToThePinService(): void {
+		$pinned = clone $this->post;
+		$this->pinService->expects($this->once())->method('pin')
+			->with($this->actor, 42)->willReturn($pinned->setPinned(true));
+
+		$this->assertTrue($this->service->action($this->actor, 42, 'pin')->isPinned());
+
+		$this->pinService->expects($this->once())->method('unpin')
+			->with($this->actor, 42)->willReturn($this->post->setPinned(false));
+
+		$this->assertFalse($this->service->action($this->actor, 42, 'unpin')->isPinned());
 	}
 }
