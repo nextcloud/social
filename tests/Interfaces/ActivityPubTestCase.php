@@ -29,6 +29,7 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
@@ -74,6 +75,8 @@ abstract class ActivityPubTestCase extends TestCase {
 	protected $deleteInterface;
 	/** @var DocumentInterface&MockObject */
 	protected $documentInterface;
+	/** @var FlagInterface&MockObject */
+	protected $flagInterface;
 	/** @var FollowInterface&MockObject */
 	protected $followInterface;
 	/** @var ImageInterface&MockObject */
@@ -115,6 +118,7 @@ abstract class ActivityPubTestCase extends TestCase {
 		$this->createInterface = $this->createMock(CreateInterface::class);
 		$this->deleteInterface = $this->createMock(DeleteInterface::class);
 		$this->documentInterface = $this->createMock(DocumentInterface::class);
+		$this->flagInterface = $this->createMock(FlagInterface::class);
 		$this->followInterface = $this->createMock(FollowInterface::class);
 		$this->imageInterface = $this->createMock(ImageInterface::class);
 		$this->likeInterface = $this->createMock(LikeInterface::class);
@@ -144,6 +148,7 @@ abstract class ActivityPubTestCase extends TestCase {
 			$this->createInterface,
 			$this->deleteInterface,
 			$this->documentInterface,
+			$this->flagInterface,
 			$this->followInterface,
 			$this->imageInterface,
 			$this->likeInterface,

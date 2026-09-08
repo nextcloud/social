@@ -30,6 +30,7 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Interfaces\Object\AnnounceInterface;
 use OCA\Social\Interfaces\Object\DocumentInterface;
+use OCA\Social\Interfaces\Object\FlagInterface;
 use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Interfaces\Object\LikeInterface;
@@ -53,6 +54,7 @@ use OCA\Social\Model\ActivityPub\Actor\Service;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Flag;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
@@ -77,6 +79,7 @@ class AP {
 	public CreateInterface $createInterface;
 	public DeleteInterface $deleteInterface;
 	public DocumentInterface $documentInterface;
+	public FlagInterface $flagInterface;
 	public FollowInterface $followInterface;
 	public ImageInterface $imageInterface;
 	public LikeInterface $likeInterface;
@@ -103,6 +106,7 @@ class AP {
 		CreateInterface $createInterface,
 		DeleteInterface $deleteInterface,
 		DocumentInterface $documentInterface,
+		FlagInterface $flagInterface,
 		FollowInterface $followInterface,
 		ImageInterface $imageInterface,
 		LikeInterface $likeInterface,
@@ -127,6 +131,7 @@ class AP {
 		$this->createInterface = $createInterface;
 		$this->deleteInterface = $deleteInterface;
 		$this->documentInterface = $documentInterface;
+		$this->flagInterface = $flagInterface;
 		$this->followInterface = $followInterface;
 		$this->imageInterface = $imageInterface;
 		$this->likeInterface = $likeInterface;
@@ -241,6 +246,10 @@ class AP {
 				$item = new Document();
 				break;
 
+			case Flag::TYPE:
+				$item = new Flag();
+				break;
+
 			case Follow::TYPE:
 				$item = new Follow();
 				break;
@@ -344,6 +353,9 @@ class AP {
 
 			case Document::TYPE:
 				return $this->documentInterface;
+
+			case Flag::TYPE:
+				return $this->flagInterface;
 
 			case Follow::TYPE:
 				return $this->followInterface;

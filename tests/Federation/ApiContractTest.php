@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Relationship;
+use OCA\Social\Model\Report;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use PHPUnit\Framework\TestCase;
 
@@ -95,6 +96,21 @@ class ApiContractTest extends TestCase {
 		sort($actual);
 
 		$this->assertSame($expected, $actual);
+	}
+
+	public function testTheReportEntityKeysAreStable(): void {
+		$report = new Report();
+
+		$expected = [
+			'action_taken', 'action_taken_at', 'category', 'comment', 'created_at',
+			'forwarded', 'id', 'rule_ids', 'status_ids', 'target_account',
+		];
+		$actual = array_keys($report->jsonSerialize());
+		sort($expected);
+		sort($actual);
+
+		$this->assertSame($expected, $actual);
+		$this->assertIsString($report->jsonSerialize()['id'], 'report ids are strings on the wire');
 	}
 
 	public function testTheNotificationEntityKeysAreStable(): void {

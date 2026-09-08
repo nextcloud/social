@@ -1,6 +1,6 @@
 # Nextcloud Social API Reference
 
-> This document is written by hand but mechanically checked: `tests/DocumentationTest.php` asserts that the set of routes documented here matches `appinfo/routes.php` (78 route entries). Every route below appears in a table row with its URL exactly as written in `appinfo/routes.php`. Paths that are *not* routes of this app (the `.well-known` discovery documents handled by the Nextcloud WellKnown API) are deliberately written without code spans so that check stays exact.
+> This document is written by hand but mechanically checked: `tests/DocumentationTest.php` asserts that the set of routes documented here matches `appinfo/routes.php`. Every route below appears in a table row with its URL exactly as written in `appinfo/routes.php`. Paths that are *not* routes of this app (the `.well-known` discovery documents handled by the Nextcloud WellKnown API) are deliberately written without code spans so that check stays exact.
 
 ## Overview
 
@@ -99,6 +99,14 @@ The response is the status itself in local format.
 
 All four return a bare JSON array of statuses (no envelope, no `Link` header).
 
+### Reports
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| POST | `/api/v1/reports` | public, no-csrf (viewer required, `write` scope) | `account_id` (required), `status_ids` (array), `comment`, `category` (`spam`, `legal`, `violation` or `other`; anything else becomes `other`) | Files a moderation report about the account (numeric id or full actor id) for the instance admins, who are notified and review it in the Social section of the administration settings. Reporting yourself is a 422, a missing `account_id` too. Returns the Mastodon `Report` entity (`action_taken`, `category`, `comment`, `status_ids`, `target_account`, …); `forwarded` is always `false` — reports are never forwarded to the remote instance. |
+
+Incoming federated reports (`Flag` activities from other instances) are stored the same way and land in the same admin panel.
+
 ### Media
 
 | Method | Route | Auth | Parameters | Description |
@@ -192,6 +200,17 @@ Two more methods, `LocalController::accountFollowers()` and `accountFollowing()`
 | GET | `/local/` | public, no-csrf | — | `{"result": {"version": "<installed_version>", "setup": <bool>}, "status": 1}`. |
 | GET | `/test/{account}/` | public, no-csrf | `account` (path) | WebFinger self-test. Only active when the `social.tests` system value is set — otherwise it returns exactly the same payload as `/local/`. On failure it returns the error envelope with HTTP **200** and a `result` key holding the test data. |
 
+### Moderation (admin only)
+
+Backing routes of the Social section in the administration settings. All of them require an admin session **and** a CSRF token (they are deliberately not part of the bearer-token client API).
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| POST | `/moderation/reports/{id}/resolve` | admin, csrf | `resolved` (true) | Marks the report resolved (or reopens it with `resolved=false`). Returns the report entity; 404 for an unknown id. |
+| POST | `/moderation/fediverse/add` | admin, csrf | `address` (required) | Adds an instance to the Fediverse access list (the list `occ social:fediverse` manages). Invalid addresses are a 422. Returns `{"list": [...]}`. |
+| POST | `/moderation/fediverse/remove` | admin, csrf | `address` (required) | Removes an instance from the access list. Returns `{"list": [...]}`. |
+| POST | `/moderation/fediverse/access` | admin, csrf | `type` (required) | Switches the access mode: `all_but` (blocklist) or `none_but` (allowlist). Anything else is a 422. Returns `{"accessType": "..."}`. |
+
 ---
 
 ## OAuth
@@ -208,7 +227,7 @@ A partial, Mastodon-shaped OAuth 2 flow (`OAuthController`, `ClientService`).
 
 **Grant types:** only `authorization_code` works. `client_credentials` returns HTTP 400 `{"error": "unsupported_grant_type"}`; any other value returns HTTP 400 `{"error": "invalid value for grant_type"}`.
 
-**Scopes:** there is no fixed scope vocabulary — `SocialClient::getScopesFromString()` splits the string on spaces and `ClientService::confirmData()` checks that requested scopes are a subset of the ones stored at registration; the default everywhere is `read`. Bearer tokens are enforced per endpoint by `ApiController::checkTokenScope()`: creating and editing statuses, uploading media, status actions and `update_credentials` need `write`; block, mute and authorizing or rejecting follow requests need `follow` or `write`; `/api/v1/apps/verify_credentials` accepts any valid token; every other `/api/` route needs `read`. A scope is satisfied by itself or a granular variant (`write:statuses` satisfies `write`). Session-cookie requests are not scope-restricted, but are only accepted together with a valid CSRF token.
+**Scopes:** there is no fixed scope vocabulary — `SocialClient::getScopesFromString()` splits the string on spaces and `ClientService::confirmData()` checks that requested scopes are a subset of the ones stored at registration; the default everywhere is `read`. Bearer tokens are enforced per endpoint by `ApiController::checkTokenScope()`: creating and editing statuses, uploading media, status actions, `update_credentials` and filing reports need `write`; block, mute and authorizing or rejecting follow requests need `follow` or `write`; `/api/v1/apps/verify_credentials` accepts any valid token; every other `/api/` route needs `read`. A scope is satisfied by itself or a granular variant (`write:statuses` satisfies `write`). Session-cookie requests are not scope-restricted, but are only accepted together with a valid CSRF token.
 
 **Credential storage:** client secrets, authorization codes and access tokens are stored as `sha256:<hex>` digests (`SecretHasher`); rows from before hashing hold the bare value, are still accepted, and are rewritten once by the `HashClientSecrets` repair step.
 

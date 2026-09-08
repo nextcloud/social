@@ -41,9 +41,10 @@ webpackConfig.resolve.fallback = {
 	buffer: require.resolve('buffer/'),
 }
 
-// Preserve .htaccess when cleaning output directory
+// Preserve .htaccess and the hand-written admin-settings script when cleaning
+// the output directory
 webpackConfig.output.clean = {
-	keep: /\.htaccess/,
+	keep: /\.htaccess|social-adminSettings\.js/,
 }
 
 module.exports = webpackConfig

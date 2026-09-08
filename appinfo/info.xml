@@ -19,8 +19,8 @@ What it does:
 - 🔎 Find accounts and hashtags via WebFinger and search
 - 🌐 Federation: signed delivery of ActivityPub activities, with a delivery queue processed by cron
 
-This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking and muting are supported. Locked accounts with approvable follow requests are supported. It does not offer reporting, polls, lists, or video and audio attachments.]]></description>
-	<version>0.11.3</version>
+This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. It does not offer polls, lists, or video and audio attachments.]]></description>
+	<version>0.11.4</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
@@ -74,6 +74,11 @@ This is a partial implementation of ActivityPub and of the Mastodon client API. 
 			<order>6</order>
 		</navigation>
 	</navigations>
+
+	<settings>
+		<admin>OCA\Social\Settings\AdminSettings</admin>
+		<admin-section>OCA\Social\Settings\AdminSection</admin-section>
+	</settings>
 
 	<contactsmenu>
 		<provider>OCA\Social\Providers\ContactsMenuProvider</provider>

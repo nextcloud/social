@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.3  
+**App version:** 0.11.4  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -40,6 +40,7 @@ social/
 │   ├── Providers/              # Contacts menu integration
 │   ├── Search/                 # Unified search integration
 │   ├── Service/                # Business logic services
+│   ├── Settings/               # Admin settings (moderation panel: reports + Fediverse access list)
 │   ├── Tools/                  # Vendored helper layer (query builder base, HTML sanitizer, traits, exceptions)
 │   ├── Traits/                 # TDetails
 │   └── WellKnown/              # WebFinger / NodeInfo / host-meta handler and responses
@@ -90,7 +91,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_stream_tag` | Stream-to-hashtag mapping |
 | `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, and `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, and `Version1000Date20260908000002` adds the `locked` flag to `social_actor`.
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, and `Version1000Date20260908000003` adds `social_report` (moderation reports).
 
 Note that `CoreRequestBuilder::TABLE_NOTIFICATION` (`social_notif`) is declared but no migration creates that table and no repository queries it; it is a leftover constant. In-app notifications are stored in `social_stream` as `SocialAppNotification` items.
 
