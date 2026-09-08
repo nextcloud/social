@@ -262,7 +262,7 @@ const actions = {
 		} catch (error) {
 			console.error('[Social] fetchAccountRelationshipInfo failed', ids, error.response?.data || error.message || error)
 			logger.error('Failed to load relationship info', { error })
-			showError('Failed to load relationship info')
+			showError(t('social', 'Could not load the relationship with this account'))
 		}
 	},
 	async fetchPublicAccountInfo(context, uid) {
@@ -298,7 +298,7 @@ const actions = {
 			return response
 		} catch (error) {
 			console.error('[Social] Failed to follow user', accountToFollow, error.response?.data || error.message || error)
-			showError(`Failed to follow user ${accountToFollow}`)
+			showError(t('social', 'Could not follow {account}', { account: accountToFollow }))
 			logger.error(`Failed to follow user ${accountToFollow}`, { error })
 		}
 	},
@@ -318,7 +318,7 @@ const actions = {
 			return response
 		} catch (error) {
 			console.error('[Social] Failed to unfollow user', accountToUnfollow, error.response?.data || error.message || error)
-			showError(`Failed to unfollow user ${accountToUnfollow}`)
+			showError(t('social', 'Could not unfollow {account}', { account: accountToUnfollow }))
 			logger.error(`Failed to unfollow user ${accountToUnfollow}`, { error })
 			return error
 		}
@@ -392,7 +392,7 @@ const actions = {
 			}
 			return response.data
 		} catch (error) {
-			showError('Failed to fetch followers list')
+			showError(t('social', 'Could not load the list of followers'))
 			logger.error(`Failed to fetch followers list for user ${account}`, { error })
 		} finally {
 			context.commit('setFollowersLoading', { actorId: key, loading: false })
@@ -416,7 +416,7 @@ const actions = {
 			}
 			return response.data
 		} catch (error) {
-			showError('Failed to fetch following list')
+			showError(t('social', 'Could not load the list of followed accounts'))
 			logger.error(`Failed to fetch following list for user ${account}`, { error })
 		} finally {
 			context.commit('setFollowingsLoading', { actorId: key, loading: false })

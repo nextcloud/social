@@ -116,4 +116,20 @@ describe('the frontend is Vue 3, not Vue 2 with a Vue 3 runtime', () => {
 			).toBe(true)
 		}
 	})
+
+	it('shows no message to a user that a translator never saw', () => {
+		// showError('…') puts English in front of everyone; the string has to
+		// go through t()/translate() to be extracted and translated at all
+		const offenders = []
+		for (const { name, content } of files) {
+			for (const [, call, argument] of content.matchAll(/\b(showError|showSuccess|showWarning|showInfo)\(\s*([^\n]*)/g)) {
+				// a variable or a helper is fine — it is the literal that is not
+				if (/^['"`]/.test(argument.trim())) {
+					offenders.push(`${name}: ${call}(${argument.trim().slice(0, 48)}`)
+				}
+			}
+		}
+
+		expect(offenders).toEqual([])
+	})
 })

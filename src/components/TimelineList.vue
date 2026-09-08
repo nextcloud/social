@@ -233,7 +233,7 @@ export default {
 					this.loading = false
 				}
 			} catch (error) {
-				showError('Failed to load more timeline entries')
+				showError(translate('social', 'Could not load more posts'))
 				logger.error('Failed to load more timeline entries', { error })
 				this.allLoaded = true
 				this.loading = false
@@ -326,7 +326,7 @@ export default {
 					this.fetchNewStatuses()
 				}
 			} catch (error) {
-				showError('Failed to load newer timeline entries')
+				showError(translate('social', 'Could not load the newest posts'))
 				logger.error('Failed to load newer timeline entries', { error })
 			}
 		},

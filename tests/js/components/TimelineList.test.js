@@ -386,7 +386,7 @@ describe('TimelineList', () => {
 			const { wrapper, dispatch } = mountList({ responses: [new Error('network')] })
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Failed to load more timeline entries')
+			expect(showError).toHaveBeenCalledWith('Could not load more posts')
 			expect(wrapper.find('.icon-loading').exists()).toBe(false)
 			expect(wrapper.findComponent(EmptyContent).exists()).toBe(true)
 

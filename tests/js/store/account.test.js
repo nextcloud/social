@@ -321,7 +321,7 @@ describe('account store actions', () => {
 
 			await expect(store.dispatch('fetchAccountRelationshipInfo', ['11'])).resolves.toBeUndefined()
 
-			expect(showError).toHaveBeenCalledWith('Failed to load relationship info')
+			expect(showError).toHaveBeenCalledWith('Could not load the relationship with this account')
 			expect(store.state.account.accountsRelationships).toEqual({})
 		})
 	})
@@ -368,7 +368,7 @@ describe('account store actions', () => {
 
 			await expect(store.dispatch('followAccount', { accountToFollow: bob.acct })).resolves.toBeUndefined()
 
-			expect(showError).toHaveBeenCalledWith('Failed to follow user bob@remote.tld')
+			expect(showError).toHaveBeenCalledWith('Could not follow bob@remote.tld')
 			expect(logger.error).toHaveBeenCalledWith('Failed to follow user bob@remote.tld', { error: expect.any(Error) })
 			expect(store.getters.getRelationshipWith(bob.id)).toBeUndefined()
 		})
@@ -405,7 +405,7 @@ describe('account store actions', () => {
 
 			await expect(store.dispatch('unfollowAccount', { accountToUnfollow: bob.acct })).resolves.toBe(error)
 
-			expect(showError).toHaveBeenCalledWith('Failed to unfollow user bob@remote.tld')
+			expect(showError).toHaveBeenCalledWith('Could not unfollow bob@remote.tld')
 			expect(store.getters.getRelationshipWith(bob.id)).toMatchObject({ following: true })
 		})
 	})
@@ -563,7 +563,7 @@ describe('account store actions', () => {
 
 			await expect(store.dispatch('fetchAccountFollowers', { account: ALICE })).resolves.toBeUndefined()
 
-			expect(showError).toHaveBeenCalledWith('Failed to fetch followers list')
+			expect(showError).toHaveBeenCalledWith('Could not load the list of followers')
 			expect(store.state.account.accountsFollowersLoading[alice.url]).toBe(false)
 			expect(store.getters.getAccountFollowers(ALICE)).toEqual([])
 		})
@@ -605,7 +605,7 @@ describe('account store actions', () => {
 			axios.get.mockRejectedValue(new Error('boom'))
 			await store.dispatch('fetchAccountFollowing', { account: ALICE })
 
-			expect(showError).toHaveBeenCalledWith('Failed to fetch following list')
+			expect(showError).toHaveBeenCalledWith('Could not load the list of followed accounts')
 			expect(store.state.account.accountsFollowingsLoading[alice.url]).toBe(false)
 		})
 	})
