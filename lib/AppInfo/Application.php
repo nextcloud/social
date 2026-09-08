@@ -13,6 +13,7 @@ use OCA\Social\Dashboard\SocialTimelineWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
+use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Notification\Notifier;
 use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\WellKnown\WebfingerHandler;
@@ -22,6 +23,7 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Profile\BeforeTemplateRenderedEvent;
+use OCP\User\Events\UserDeletedEvent;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -41,6 +43,7 @@ class Application extends App implements IBootstrap {
 		$context->registerWellKnownHandler(WebfingerHandler::class);
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, ProfileSectionListener::class);
 		$context->registerEventListener(UserUpdatedEvent::class, UserAccountListener::class);
+		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
 		$context->registerDashboardWidget(SocialWidget::class);
 		$context->registerDashboardWidget(SocialTimelineWidget::class);
 		$context->registerNotifierService(Notifier::class);
