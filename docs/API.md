@@ -57,6 +57,8 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | GET | `/api/v1/blocks` | public, no-csrf (viewer required) | `limit` (40, capped at 50) | Accounts the viewer has blocked. |
 | GET | `/api/v1/mutes` | public, no-csrf (viewer required) | `limit` (40, capped at 50) | Accounts the viewer has muted. |
 | GET | `/api/v1/accounts/relationships` | public, no-csrf | `id` (array, required) | Relationship entries from `FollowService::getRelationships()`. Sent as `id[]=…` on the wire. |
+| POST | `/api/v1/accounts/{id}/follow` | public, no-csrf (viewer required, `follow` or `write` scope) | — | Follows the account (`{id}` is the numeric id or a full actor id; accepts slashes). A locked target leaves the relationship in `requested` until they decide. Returns the updated relationship entity. |
+| POST | `/api/v1/accounts/{id}/unfollow` | public, no-csrf (viewer required, `follow` or `write` scope) | — | Unfollows (federates `Undo{Follow}`). Returns the updated relationship entity. |
 | POST | `/api/v1/accounts/{id}/block` | public, no-csrf (viewer required) | — | Blocks the account (`{id}` is the numeric id or a full actor id; accepts slashes). Severs the follow relationship in both directions and, unless `federate_blocks` is `0`, sends a `Block` activity to the account's server. Returns the updated relationship entity. |
 | POST | `/api/v1/accounts/{id}/unblock` | public, no-csrf (viewer required) | — | Lifts a block (federates `Undo{Block}` under the same setting). Returns the updated relationship entity. |
 | POST | `/api/v1/accounts/{id}/mute` | public, no-csrf (viewer required) | `notifications` (true) | Mutes the account — purely local, never federated. With `notifications=true` (default) the account's notifications are hidden too. Returns the updated relationship entity. |
@@ -64,6 +66,12 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 | GET | `/api/v1/accounts/{account}/statuses` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since_id` (0) | Statuses of `{account}`; syncs the remote timeline first. `{account}` accepts slashes (`requirements: .+`). |
 | GET | `/api/v1/accounts/{account}/followers` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since` (0) | Followers of `{account}`. For a remote domain the actor's `followers` collection is fetched over HTTP and up to `limit` actors are returned; otherwise the local cache is probed. Note the fourth parameter is `since`, not `since_id`. |
 | GET | `/api/v1/accounts/{account}/following` | public, no-csrf | `limit` (20), `max_id` (0), `min_id` (0), `since` (0) | Same as above for the `following` collection. |
+
+### Search (Mastodon v2)
+
+| Method | Route | Auth | Parameters | Description |
+|--------|-------|------|------------|-------------|
+| GET | `/api/v2/search` | public, no-csrf (viewer required) | `q` (required), `type` (`accounts`/`statuses`/`hashtags`, empty = all), `limit` (20, capped at 40) | Mastodon's search entity: `accounts` (URI + name search over cached actors), `statuses` (the viewer-bounded full-text search), `hashtags` (Tag entities with an empty `history`). `resolve` and pagination offsets are accepted but ignored. |
 
 ### Statuses
 
@@ -239,7 +247,7 @@ A partial, Mastodon-shaped OAuth 2 flow (`OAuthController`, `ClientService`).
 
 **Grant types:** only `authorization_code` works. `client_credentials` returns HTTP 400 `{"error": "unsupported_grant_type"}`; any other value returns HTTP 400 `{"error": "invalid value for grant_type"}`.
 
-**Scopes:** there is no fixed scope vocabulary — `SocialClient::getScopesFromString()` splits the string on spaces and `ClientService::confirmData()` checks that requested scopes are a subset of the ones stored at registration; the default everywhere is `read`. Bearer tokens are enforced per endpoint by `ApiController::checkTokenScope()`: creating and editing statuses, uploading media, status actions, `update_credentials` and filing reports need `write`; block, mute and authorizing or rejecting follow requests need `follow` or `write`; `/api/v1/apps/verify_credentials` accepts any valid token; every other `/api/` route needs `read`. A scope is satisfied by itself or a granular variant (`write:statuses` satisfies `write`). Session-cookie requests are not scope-restricted, but are only accepted together with a valid CSRF token.
+**Scopes:** there is no fixed scope vocabulary — `SocialClient::getScopesFromString()` splits the string on spaces and `ClientService::confirmData()` checks that requested scopes are a subset of the ones stored at registration; the default everywhere is `read`. Bearer tokens are enforced per endpoint by `ApiController::checkTokenScope()`: creating and editing statuses, uploading media, status actions, `update_credentials` and filing reports need `write`; follow/unfollow, block, mute and authorizing or rejecting follow requests need `follow` or `write`; `/api/v1/apps/verify_credentials` accepts any valid token; every other `/api/` route needs `read`. A scope is satisfied by itself or a granular variant (`write:statuses` satisfies `write`). Session-cookie requests are not scope-restricted, but are only accepted together with a valid CSRF token.
 
 **Credential storage:** client secrets, authorization codes and access tokens are stored as `sha256:<hex>` digests (`SecretHasher`); rows from before hashing hold the bare value, are still accepted, and are rewritten once by the `HashClientSecrets` repair step.
 

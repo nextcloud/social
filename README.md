@@ -20,7 +20,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 🔎 **Discovery & search** — WebFinger lookups, remote actor resolution and caching, search over known accounts and hashtags, and **full-text search of visible posts** through Nextcloud's unified search (own posts, public content and messages addressed to you; a plain database substring match, no external search engine needed).
 - 🧹 **Retention** — remote statuses older than `retention_days` (default: disabled) that no local user interacted with are pruned together with their cached attachments, from cron or `occ social:stream:prune`; local content is never touched. Configurable in the Social section of the administration settings.
 - 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](docs/OCC-Commands.md) for the details and its limits.
-- 🔑 **Mastodon-compatible API** — a subset of the Mastodon client API plus OAuth 2 authorization, so some third-party clients can talk to the app. See [docs/API.md](docs/API.md) for exactly which routes exist.
+- 🔑 **Mastodon-compatible API** — the Mastodon client API's core surface plus OAuth 2 authorization: third-party clients can log in, read every timeline, post (with media and polls), follow/unfollow, favourite/boost/bookmark, search (`/api/v2/search`), manage follow requests and report. No streaming endpoint or push subscriptions — clients poll. See [docs/API.md](docs/API.md) for exactly which routes exist.
 
 ### 🚧 Not implemented yet
 
