@@ -12,7 +12,6 @@ namespace OCA\Social\Service;
 use DateTime;
 use Exception;
 use JsonLdException;
-use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -38,13 +37,9 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
-use OCP\Files\AppData\IAppDataFactory;
-use OCP\Files\NotFoundException;
-use OCP\Files\NotPermittedException;
-use OCP\Files\SimpleFS\ISimpleFile;
-use OCP\Files\SimpleFS\ISimpleFolder;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IRequest;
-use OCP\Server;
 use Psr\Log\LoggerInterface;
 use stdClass;
 
@@ -60,10 +55,19 @@ class SignatureService {
 
 	public const DATE_DELAY = 300;
 
+	/**
+	 * How far an LD signature's `created` may lie from now. Forwarded
+	 * activities arrive with the original signature, so the window is generous —
+	 * it exists to bound the replay cache, which is what actually blocks
+	 * re-posting a captured activity.
+	 */
+	public const LD_WINDOW = 86400; // 24h
+
 	private CacheActorService $cacheActorService;
 	private ActorsRequest $actorsRequest;
 	private CurlService $curlService;
 	private ConfigService $configService;
+	private ICache $seenSignatures;
 	private LoggerInterface $logger;
 
 	public function __construct(
@@ -71,12 +75,14 @@ class SignatureService {
 		CacheActorService $cacheActorService,
 		CurlService $curlService,
 		ConfigService $configService,
+		ICacheFactory $cacheFactory,
 		LoggerInterface $logger,
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
+		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
 		$this->logger = $logger;
 	}
 
@@ -84,19 +90,29 @@ class SignatureService {
 	/**
 	 * @param Person $actor
 	 */
+	/**
+	 * @throws SignatureException
+	 */
 	public function generateKeys(Person &$actor) {
 		$res = openssl_pkey_new(
 			[
-				'digest_alg' => 'rsa',
 				'private_key_bits' => 2048,
 				'private_key_type' => OPENSSL_KEYTYPE_RSA,
 			]
 		);
 
-		openssl_pkey_export($res, $privateKey);
-		$publicKey = openssl_pkey_get_details($res)['key'];
+		// Unchecked, a failure here would persist an actor with an empty key
+		// pair — every delivery from it fails signature checks, undiagnosably.
+		if ($res === false || !openssl_pkey_export($res, $privateKey)) {
+			throw new SignatureException('cannot generate a key pair: ' . openssl_error_string());
+		}
 
-		$actor->setPublicKey($publicKey);
+		$details = openssl_pkey_get_details($res);
+		if ($details === false || ($details['key'] ?? '') === '') {
+			throw new SignatureException('cannot export the public key: ' . openssl_error_string());
+		}
+
+		$actor->setPublicKey($details['key']);
 		$actor->setPrivateKey($privateKey);
 	}
 
@@ -106,6 +122,7 @@ class SignatureService {
 	 * @param RequestQueue $queue
 	 *
 	 * @throws ActorDoesNotExistException
+	 * @throws SignatureException
 	 * @throws SocialAppConfigException
 	 */
 	public function signRequest(NCRequest $request, RequestQueue $queue): void {
@@ -124,7 +141,14 @@ class SignatureService {
 		];
 
 		$signing = $this->generateHeaders($headersElements, $allElements, $request);
-		openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256);
+		// the warning a bad key raises is handled right here, as an exception
+		if (!@openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256)) {
+			// an empty or undecryptable private key must fail loudly, not send
+			// base64('') as the signature
+			throw new SignatureException(
+				'cannot sign request for ' . $localActor->getId() . ': ' . openssl_error_string()
+			);
+		}
 
 		$signed = base64_encode($signed);
 		$signature = $this->generateSignature($headersElements, $localActor->getId(), $signed);
@@ -214,8 +238,19 @@ class SignatureService {
 			);
 		}
 
+		if ($request->getHeader('date') === '') {
+			// an absent Date would silently parse as "now" and never age out
+			throw new SignatureException('missing date header');
+		}
+
 		if ($time < (time() - self::DATE_DELAY)) {
 			throw new SignatureException('object is too old');
+		}
+
+		if ($time > (time() + self::DATE_DELAY)) {
+			// without an upper bound, a request stamped into the far future
+			// stays replayable until that date is finally "too old"
+			throw new SignatureException('object is from the future');
 		}
 
 		if (strlen($data) !== (int)$request->getHeader('content-length')) {
@@ -231,14 +266,20 @@ class SignatureService {
 
 		try {
 			return $this->checkRequestSignature($request, $data);
-		} catch (SignatureException $e) {
 		} catch (RequestContentException $e) {
 			if ($e->getCode() === Http::STATUS_GONE) {
 				throw new SignatureIsGoneException();
 			}
-		}
 
-		return '';
+			// The signing key could not be retrieved. Failing here, rather than
+			// returning an empty origin for a later check to reject, keeps this method
+			// the single place that decides whether a request is authenticated.
+			throw new SignatureException(
+				'signing key could not be retrieved: ' . get_class($e) . ' ' . $e->getMessage(),
+				0,
+				$e
+			);
+		}
 	}
 
 
@@ -283,6 +324,25 @@ class SignatureService {
 					'datetime exception: ' . $e->getMessage() . ' - ' . $signature->getCreated()
 				);
 			}
+
+			// An LD signature stays valid forever on its own, so any instance
+			// that ever saw the activity could re-POST it indefinitely. Bound it
+			// in time and remember what was already accepted inside that window.
+			if ($signature->getCreated() === '' || abs(time() - $time) > self::LD_WINDOW) {
+				$this->logger->notice('LD signature outside its validity window', [
+					'actorId' => $actorId, 'created' => $signature->getCreated(),
+				]);
+
+				return false;
+			}
+
+			$seenKey = hash('sha256', $signature->getSignatureValue());
+			if ($this->seenSignatures->get($seenKey) !== null) {
+				$this->logger->notice('LD signature replayed', ['actorId' => $actorId]);
+
+				return false;
+			}
+			$this->seenSignatures->set($seenKey, 1, self::LD_WINDOW * 2);
 
 			$object->setOrigin(
 				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time
@@ -347,6 +407,17 @@ class SignatureService {
 		$origin = $this->getKeyOrigin($keyId);
 
 		$headers = $sign['headers'];
+
+		// The digest is checked against the body earlier, but that binds nothing unless
+		// the digest itself is signed; and without host and date in the signed set, a
+		// captured request can be replayed against another instance or with a swapped
+		// body. Everything sending to the Fediverse signs at least these four.
+		$signedHeaders = explode(' ', strtolower($headers));
+		foreach (['(request-target)', 'host', 'date', 'digest'] as $mandatory) {
+			if (!in_array($mandatory, $signedHeaders, true)) {
+				throw new SignatureException('header is not signed: ' . $mandatory);
+			}
+		}
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
@@ -395,7 +466,7 @@ class SignatureService {
 	private function generateEstimatedSignature(string $headers, IRequest $request): string {
 		$keys = explode(' ', $headers);
 
-		if (!empty(array_diff(['(request-target)', 'date', 'digest', 'host'], $keys))) {
+		if (!empty(array_diff(['(request-target)', 'date'], $keys))) {
 			throw new SignatureException('missing elements in \'headers\'');
 		}
 
@@ -441,7 +512,7 @@ class SignatureService {
 
 			[$k, $v] = explode('=', $entry, 2);
 			preg_match('/"([^"]+)"/', $v, $varr);
-			if ($varr[0] !== null) {
+			if (isset($varr[0])) {
 				$v = trim($varr[0], '"');
 			}
 			$sign[$k] = $v;
@@ -513,112 +584,37 @@ class SignatureService {
 	}
 
 
+	/** Shipped copies of the only JSON-LD contexts signature normalisation may use. */
+	public const LOCAL_CONTEXTS = [
+		'https://www.w3.org/ns/activitystreams' => 'www.w3.org.ns.activitystreams.json',
+		'https://w3id.org/security/v1' => 'w3id.org.security.v1.json',
+		'https://w3id.org/identity/v1' => 'w3id.org.identity.v1.json',
+	];
+
 	/**
-	 * @param string $url
+	 * Serves the JSON-LD contexts used during signature normalisation, exclusively
+	 * from the copies shipped with the app.
 	 *
-	 * @return stdClass
-	 * @throws NotPermittedException
+	 * A document's `@context` is remote input. Resolving it over the network would
+	 * hand every signing instance a URL this server then opens — with
+	 * `file_get_contents()`, that means any PHP stream wrapper — and a substituted
+	 * context would change the bytes a signature is computed over. An unknown context
+	 * therefore fails normalisation, which callers treat as an unverifiable
+	 * signature rather than an error.
+	 *
 	 * @throws JsonLdException
-	 * @throws NotFoundException
 	 */
 	public static function documentLoader($url): stdClass {
-		$recursion = 0;
-		$x = debug_backtrace();
-		if ($x) {
-			foreach ($x as $n) {
-				if ($n['function'] === __FUNCTION__) {
-					$recursion++;
-				}
-			}
+		$filename = self::LOCAL_CONTEXTS[$url] ?? '';
+		if ($filename === '') {
+			throw new JsonLdException('remote @context is not resolved: ' . $url, 'jsonld.LoadDocumentError');
 		}
 
-		if ($recursion > 5) {
-			exit();
+		$context = file_get_contents(__DIR__ . '/../../context/' . $filename);
+		if (is_bool($context)) {
+			throw new JsonLdException('shipped context cannot be read: ' . $filename, 'jsonld.LoadDocumentError');
 		}
 
-		$folder = self::getContextCacheFolder();
-		$filename = parse_url($url, PHP_URL_HOST) . parse_url($url, PHP_URL_PATH);
-		$filename = str_replace('/', '.', $filename) . '.json';
-
-		try {
-			$cache = $folder->getFile($filename);
-			self::updateContextCacheDocument($cache, $url);
-
-			$data = json_decode($cache->getContent());
-		} catch (NotFoundException $e) {
-			$data = self::generateContextCacheDocument($folder, $filename, $url);
-		}
-
-		return $data;
-	}
-
-
-	/**
-	 * @return ISimpleFolder
-	 * @throws NotPermittedException
-	 */
-	private static function getContextCacheFolder(): ISimpleFolder {
-		$path = 'context';
-
-		$appData = Server::get(IAppDataFactory::class)->get(Application::APP_ID);
-		try {
-			$folder = $appData->getFolder($path);
-		} catch (NotFoundException $e) {
-			$folder = $appData->newFolder($path);
-		}
-
-		return $folder;
-	}
-
-
-	/**
-	 * @param ISimpleFolder $folder
-	 * @param string $filename
-	 *
-	 * @param string $url
-	 *
-	 * @return stdClass
-	 * @throws JsonLdException
-	 * @throws NotPermittedException
-	 * @throws NotFoundException
-	 */
-	private static function generateContextCacheDocument(
-		ISimpleFolder $folder, string $filename, string $url,
-	): stdClass {
-		try {
-			$data = jsonld_default_document_loader($url);
-			$content = json_encode($data);
-		} catch (JsonLdException $e) {
-			$context = file_get_contents(__DIR__ . '/../../context/' . $filename);
-			if (is_bool($context)) {
-				throw $e;
-			}
-
-			$content = $context;
-			$data = json_decode($context);
-		}
-
-		$cache = $folder->newFile($filename);
-		$cache->putContent($content);
-
-		return $data;
-	}
-
-
-	/**
-	 * @param ISimpleFile $cache
-	 * @param string $url
-	 *
-	 * @throws NotPermittedException
-	 * @throws NotFoundException
-	 */
-	private static function updateContextCacheDocument(ISimpleFile $cache, string $url) {
-		if ($cache->getMTime() < (time() - 98765)) {
-			try {
-				$data = jsonld_default_document_loader($url);
-				$cache->putContent(json_encode($data));
-			} catch (JsonLdException $e) {
-			}
-		}
+		return json_decode($context);
 	}
 }

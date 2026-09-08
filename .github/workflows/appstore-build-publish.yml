@@ -8,12 +8,17 @@
 
 name: Build and publish app release
 
+permissions:
+  contents: read
+
 on:
   release:
     types: [published]
 
 jobs:
   build_and_publish:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
 
     # Only allowed to be run on nextcloud-releases repositories

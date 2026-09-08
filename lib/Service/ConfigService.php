@@ -104,6 +104,15 @@ class ConfigService {
 	 *
 	 * @return string
 	 */
+	/**
+	 * Whether a user's block is also sent to the blocked account's server as a
+	 * Block activity (Mastodon behaviour, the default). Disable to keep blocks
+	 * strictly local:  occ config:app:set social federate_blocks --value 0
+	 */
+	public function isBlockFederationEnabled(): bool {
+		return $this->config->getAppValue(Application::APP_ID, 'federate_blocks', '1') !== '0';
+	}
+
 	public function getAppValue($key) {
 		$defaultValue = null;
 		if (array_key_exists($key, $this->defaults)) {
@@ -263,6 +272,17 @@ class ConfigService {
 
 
 	/**
+	 * Whether outbound requests may reach the instance's own network.
+	 *
+	 * The standard Nextcloud setting, off by default; the single switch every
+	 * outbound path consults before contacting a local address.
+	 */
+	public function isLocalNetworkAllowed(): bool {
+		return $this->config->getSystemValueBool('allow_local_remote_servers', false);
+	}
+
+
+	/**
 	 * getCloudHost - cloud.example.com
 	 *
 	 * @return string
@@ -358,8 +378,8 @@ class ConfigService {
 	 */
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
-			$url = $this->getCloudUrl(true) . $this->urlGenerator->linkToRoute(
-				'social.Navigation.navigate'
+			$url = $this->urlGenerator->getAbsoluteURL(
+				$this->urlGenerator->linkToRoute('social.Navigation.navigate')
 			);
 		}
 
@@ -397,18 +417,21 @@ class ConfigService {
 		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {
 			if ($request->getType() === Request::TYPE_GET) {
 				$request->addHeader(
-					'Accept', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+					'Accept', 'application/activity+json, application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
 				);
 			}
 
 			if ($request->getType() === Request::TYPE_POST) {
 				$request->addHeader(
-					'Content-Type', 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+					'Content-Type', 'application/activity+json'
 				);
 			}
 		}
 
-		$request->setLocalAddressAllowed(true);
+		// Federation reaches arbitrary public hosts, but must not be pointed at the
+		// instance's own network. Local targets are permitted only where the admin has
+		// opted in through the standard Nextcloud setting (default off).
+		$request->setLocalAddressAllowed($this->isLocalNetworkAllowed());
 		$request->setFollowLocation(true);
 	}
 }

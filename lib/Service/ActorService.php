@@ -7,6 +7,7 @@
 
 namespace OCA\Social\Service;
 
+use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
@@ -109,6 +110,26 @@ class ActorService {
 		$this->cacheDocumentIfNeeded($actor);
 
 		return $this->cacheActorsRequest->update($actor);
+	}
+
+
+	/**
+	 * Get the cached header URL for a local actor.
+	 *
+	 * @param Person $actor
+	 *
+	 * @return string
+	 */
+	public function getCachedHeader(Person $actor): string {
+		try {
+			$cached = $this->cacheActorsRequest->getFromLocalAccount(
+				$actor->getPreferredUsername()
+			);
+
+			return $cached->getHeader();
+		} catch (Exception $e) {
+			return '';
+		}
 	}
 
 

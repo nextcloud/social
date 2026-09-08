@@ -17,6 +17,9 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 
 class DeleteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
+	/** The types a deleted id can refer to, in the order they are looked up. */
+	private const DELETABLE_TYPES = ['Note', 'Person'];
+
 	/**
 	 * @throws InvalidOriginException
 	 */
@@ -24,28 +27,34 @@ class DeleteInterface extends AbstractActivityPubInterface implements IActivityP
 		$item->checkOrigin($item->getId());
 		$item->checkOrigin($item->getObjectId());
 
-		if (!$item->hasObject()) {
-			$types = ['Note', 'Person'];
-			foreach ($types as $type) {
-				try {
-					$interface = AP::$activityPub->getInterfaceFromType($type);
-					$object = $interface->getItemById($item->getObjectId());
-					$interface->delete($object);
+		if ($item->hasObject()) {
+			$object = $item->getObject();
+			try {
+				$interface = AP::$activityPub->getInterfaceForItem($object);
+				$interface->activity($item, $object);
 
-					return;
-				} catch (ItemNotFoundException $e) {
-				} catch (ItemUnknownException $e) {
-				}
+				return;
+			} catch (ItemUnknownException $e) {
+				// A Tombstone, or any other object type this app has no handler for.
+				// Its id is all that is needed to remove what it points at, so fall
+				// through to the lookup below.
 			}
-
-			return;
 		}
 
-		$object = $item->getObject();
-		try {
-			$interface = AP::$activityPub->getInterfaceForItem($object);
-			$interface->activity($item, $object);
-		} catch (ItemUnknownException $e) {
+		$this->deleteById($item->getObjectId());
+	}
+
+	private function deleteById(string $objectId): void {
+		foreach (self::DELETABLE_TYPES as $type) {
+			try {
+				$interface = AP::$activityPub->getInterfaceFromType($type);
+				$object = $interface->getItemById($objectId);
+				$interface->delete($object);
+
+				return;
+			} catch (ItemNotFoundException $e) {
+			} catch (ItemUnknownException $e) {
+			}
 		}
 	}
 }

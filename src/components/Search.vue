@@ -1,6 +1,6 @@
 <!--
-  - SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
-  - SPDX-License-Identifier: AGPL-3.0-or-later
+ - SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
 	<div class="social__wrapper">
@@ -20,12 +20,6 @@
 				<li v-for="tag in hashtags" :key="tag.hashtag" class="tag">
 					<router-link :to="{ name: 'tags', params: {tag: tag.hashtag } }">
 						<span>#{{ tag.hashtag }}</span>
-						<Trend :data="trendData(tag.trend)"
-							:gradient="['#17adff', '#0082c9']"
-							:smooth="true"
-							:width="150"
-							:height="44"
-							stroke-width="2" />
 					</router-link>
 				</li>
 			</div>
@@ -37,15 +31,14 @@
 
 import UserEntry from './UserEntry.vue'
 import axios from '@nextcloud/axios'
-import Trend from 'vuetrend'
 import { generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
+import { showError } from '@nextcloud/dialogs'
 
 export default {
 	name: 'Search',
 	components: {
 		UserEntry,
-		Trend,
 	},
 	props: {
 		term: {
@@ -63,7 +56,6 @@ export default {
 		}
 	},
 	computed: {
-		/** @return {import('../types/Mastodon.js').Account[]} */
 		allResults() {
 			if (this.results.accounts) {
 				if (this.results.accounts.exact) {
@@ -83,16 +75,6 @@ export default {
 		this.search(this.term)
 	},
 	methods: {
-		trendData(trend) {
-			const data = [
-				Math.max(0, trend['10d'] - trend['3d']),
-				Math.max(0, trend['3d'] - trend['1d']),
-				Math.max(0, trend['1d'] - trend['12h']),
-				Math.max(0, trend['12h'] - trend['1h']),
-				Math.max(0, trend['1h']),
-			]
-			return data
-		},
 		search(val) {
 			if (this.loading) {
 				return
@@ -100,7 +82,6 @@ export default {
 			this.loading = true
 			this.searchQuery(val).then((response) => {
 				this.results = response.data.result
-				this.loading = false
 
 				if (this.results.accounts.exact !== null) {
 					this.$store.commit('addAccount', { actorId: this.results.accounts.exact.id, data: this.results.accounts.exact })
@@ -109,6 +90,11 @@ export default {
 					this.$store.commit('addAccount', { actorId: account.id, data: account })
 				})
 				this.hashtags = this.results.hashtags.result
+			}).catch((error) => {
+				showError(translate('social', 'Failed to perform the search'))
+				console.error('Social search failed', error)
+			}).finally(() => {
+				this.loading = false
 			})
 		},
 		accountSearch(term) {
@@ -137,6 +123,7 @@ export default {
 		margin-top: -3px;
 		margin-left: 47px;
 	}
+
 	.tag {
 		list-style-type: none;
 		margin: 0;

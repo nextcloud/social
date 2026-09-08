@@ -5,7 +5,6 @@
 <template>
 	<NcButton :value="currentVisibilityPostLabel"
 		:disabled="disabled"
-		native-type="submit"
 		type="primary"
 		@click.prevent="handleClick">
 		<template #icon>
@@ -18,7 +17,7 @@
 <script>
 
 import Send from 'vue-material-design-icons/Send.vue'
-import NcButton from '@nextcloud/vue/dist/Components/NcButton.js'
+import NcButton from '@nextcloud/vue/components/NcButton'
 
 export default {
 	name: 'SubmitStatusButton',
@@ -36,6 +35,7 @@ export default {
 			default: true,
 		},
 	},
+	emits: ['click'],
 	computed: {
 		/** @return {string} */
 		postTo() {

@@ -111,6 +111,7 @@ class OStatusController extends Controller {
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
 	 * @PublicPage
+	 * @AnonRateThrottle(limit=10, period=300)
 	 */
 	public function getLink(string $local, string $account): Response {
 		try {

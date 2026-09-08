@@ -1,0 +1,278 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\WellKnown;
+
+use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\FediverseService;
+use OCA\Social\WellKnown\JrdResponse;
+use OCA\Social\WellKnown\WebfingerHandler;
+use OCA\Social\WellKnown\XrdResponse;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\JSONResponse;
+use OCP\Http\WellKnown\IRequestContext;
+use OCP\Http\WellKnown\IResponse;
+use OCP\IRequest;
+use OCP\IURLGenerator;
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+
+class WebfingerHandlerTest extends TestCase {
+	private const ACTOR_URL = 'https://cloud.example/index.php/apps/social/@alice';
+
+	/** @var IURLGenerator&MockObject */
+	private $urlGenerator;
+	/** @var CacheActorsRequest&MockObject */
+	private $cacheActorsRequest;
+	/** @var CacheActorService&MockObject */
+	private $cacheActorService;
+	/** @var FediverseService&MockObject */
+	private $fediverseService;
+	/** @var ConfigService&MockObject */
+	private $configService;
+	/** @var IRequest&MockObject */
+	private $request;
+	/** @var IRequestContext&MockObject */
+	private $context;
+	private WebfingerHandler $handler;
+
+	protected function setUp(): void {
+		$this->urlGenerator = $this->createMock(IURLGenerator::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->fediverseService = $this->createMock(FediverseService::class);
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->request = $this->createMock(IRequest::class);
+		$this->context = $this->createMock(IRequestContext::class);
+		$this->context->method('getHttpRequest')->willReturn($this->request);
+
+		$this->configService->method('getCloudUrl')->willReturnCallback(
+			fn (bool $noPhp = false): string => $noPhp ? 'https://cloud.example' : 'https://cloud.example/index.php'
+		);
+		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/index.php/apps/social/');
+		$this->urlGenerator->method('linkToRoute')
+			->with('social.ActivityPub.actorAlias', ['username' => 'alice'])
+			->willReturn('/index.php/apps/social/@alice');
+		$this->urlGenerator->method('getAbsoluteURL')
+			->willReturnCallback(fn (string $url): string => 'https://cloud.example' . $url);
+
+		\OC::$server->register(IRequest::class, $this->request);
+
+		$this->handler = new WebfingerHandler(
+			$this->urlGenerator,
+			$this->cacheActorsRequest,
+			$this->cacheActorService,
+			$this->fediverseService,
+			$this->configService
+		);
+	}
+
+	protected function tearDown(): void {
+		\OC::$server->reset();
+	}
+
+	private function resource(string $resource): void {
+		$this->request->method('getParam')->with('resource')->willReturn($resource);
+	}
+
+	/** @return Person&MockObject */
+	private function localActor(string $username, bool $local = true): Person {
+		$actor = $this->createMock(Person::class);
+		$actor->method('getPreferredUsername')->willReturn($username);
+		$actor->method('isLocal')->willReturn($local);
+
+		return $actor;
+	}
+
+	private function jsonOf(IResponse $response): array {
+		$http = $response->toHttpResponse();
+		$this->assertInstanceOf(JSONResponse::class, $http);
+
+		return $http->getData();
+	}
+
+
+	// handle() dispatch
+
+	public function testJailedInstanceLeavesThePreviousResponseUntouched(): void {
+		$this->fediverseService->method('jailed')->willThrowException(new UnauthorizedFediverseException());
+		$previous = $this->createMock(IResponse::class);
+		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
+
+		$this->assertSame($previous, $this->handler->handle('webfinger', $this->context, $previous));
+	}
+
+	public function testUnknownServicesLeaveThePreviousResponseUntouched(): void {
+		$previous = $this->createMock(IResponse::class);
+
+		$this->assertSame($previous, $this->handler->handle('openid-configuration', $this->context, $previous));
+		$this->assertNull($this->handler->handle('openid-configuration', $this->context, null));
+	}
+
+	public function testNodeinfoAdvertisesTheSchemaEndpoint(): void {
+		$response = $this->handler->handle('NodeInfo', $this->context, null);
+
+		$this->assertInstanceOf(JrdResponse::class, $response);
+		$this->assertSame([
+			'links' => [[
+				'rel' => 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+				'href' => 'https://cloud.example/index.php/apps/social/.well-known/nodeinfo/2.0',
+			]],
+		], $this->jsonOf($response));
+	}
+
+	public function testHostMetaAdvertisesTheWebfingerTemplateWithoutIndexPhp(): void {
+		$response = $this->handler->handle('host-meta', $this->context, null);
+
+		$this->assertInstanceOf(XrdResponse::class, $response);
+		$this->assertStringContainsString(
+			'<Link rel="lrdd"  template="https://cloud.example/.well-known/webfinger?resource={uri}"/>',
+			$response->toHttpResponse()->render()
+		);
+	}
+
+	public function testHostMetaIsSkippedWhenTheCloudUrlIsNotConfigured(): void {
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
+		$handler = new WebfingerHandler($this->urlGenerator, $this->cacheActorsRequest, $this->cacheActorService, $this->fediverseService, $configService);
+		$previous = $this->createMock(IResponse::class);
+
+		$this->assertSame($previous, $handler->handle('host-meta', $this->context, $previous));
+	}
+
+
+	// handleWebfinger()
+
+	public function testLocalAccountIsDescribedWithSelfAndProfileLinks(): void {
+		$this->resource('acct:alice@cloud.example');
+		$this->cacheActorService->method('getFromLocalAccount')->with('alice@cloud.example')->willReturn($this->localActor('alice'));
+
+		$response = $this->handler->handle('webfinger', $this->context, null);
+
+		$this->assertInstanceOf(JrdResponse::class, $response);
+		$http = $response->toHttpResponse();
+		$this->assertSame(Http::STATUS_OK, $http->getStatus());
+		$this->assertSame([
+			'subject' => 'acct:alice@cloud.example',
+			'aliases' => [self::ACTOR_URL, 'https://cloud.example/index.php/u/alice'],
+			'links' => [
+				['rel' => 'self', 'type' => 'application/activity+json', 'href' => self::ACTOR_URL],
+				['rel' => 'http://webfinger.net/rel/profile-page', 'type' => 'text/html', 'href' => 'https://cloud.example/index.php/u/alice'],
+				['rel' => 'http://ostatus.org/schema/1.0/subscribe', 'template' => 'https://cloud.example/index.php/apps/social/ostatus/follow/?uri={uri}'],
+			],
+		], $this->jsonOf($response));
+	}
+
+	public function testSubjectWithoutAcctPrefixIsLookedUpVerbatim(): void {
+		$this->resource('alice@cloud.example');
+		$this->cacheActorService->expects($this->once())->method('getFromLocalAccount')->with('alice@cloud.example')
+			->willReturn($this->localActor('alice'));
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame('alice@cloud.example', $json['subject']);
+	}
+
+	public function testResourceIsReadFromTheRequestUriWhenParamsAreMissing(): void {
+		$this->resource('');
+		$this->request->method('getRequestUri')->willReturn('/.well-known/webfinger?resource=acct%3Aalice%40cloud.example&rel=self');
+		$this->cacheActorService->expects($this->once())->method('getFromLocalAccount')->with('alice@cloud.example')
+			->willReturn($this->localActor('alice'));
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame('acct:alice@cloud.example', $json['subject']);
+	}
+
+	public function testUnknownLocalUserLeavesThePreviousResponseUntouched(): void {
+		$this->resource('acct:ghost@cloud.example');
+		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new ActorDoesNotExistException());
+		$this->cacheActorsRequest->expects($this->never())->method('getFromId');
+		$previous = $this->createMock(IResponse::class);
+
+		$this->assertNull($this->handler->handleWebfinger($this->context, $previous));
+		$this->assertSame($previous, $this->handler->handle('webfinger', $this->context, $previous));
+	}
+
+	public function testUnconfiguredAppLeavesThePreviousResponseUntouched(): void {
+		$this->resource('acct:alice@cloud.example');
+		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new SocialAppConfigException());
+		$previous = $this->createMock(IResponse::class);
+
+		$this->assertSame($previous, $this->handler->handle('webfinger', $this->context, $previous));
+	}
+
+	public function testActorIdFallsBackToTheActorCache(): void {
+		$this->resource(self::ACTOR_URL);
+		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
+		$this->cacheActorsRequest->expects($this->once())->method('getFromId')->with(self::ACTOR_URL)
+			->willReturn($this->localActor('alice'));
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame(self::ACTOR_URL, $json['subject']);
+		$this->assertSame(self::ACTOR_URL, $json['links'][0]['href']);
+	}
+
+	public function testUncachedUnknownActorIsAnEmpty404(): void {
+		$this->resource('acct:nobody@cloud.example');
+		$this->cacheActorService->method('getFromLocalAccount')->willThrowException(new CacheActorDoesNotExistException());
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+
+		$response = $this->handler->handleWebfinger($this->context, $this->createMock(IResponse::class));
+
+		$this->assertInstanceOf(JrdResponse::class, $response);
+		$this->assertTrue($response->isEmpty());
+		$http = $response->toHttpResponse();
+		$this->assertInstanceOf(DataResponse::class, $http);
+		$this->assertSame(Http::STATUS_NOT_FOUND, $http->getStatus());
+	}
+
+	public function testRemoteActorsAreNotServed(): void {
+		$this->resource('acct:bob@remote.example');
+		$this->cacheActorService->method('getFromLocalAccount')->willReturn($this->localActor('bob', false));
+
+		$response = $this->handler->handleWebfinger($this->context, null);
+
+		$this->assertInstanceOf(JrdResponse::class, $response);
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->toHttpResponse()->getStatus());
+	}
+
+	public function testAppSubjectAnnotatesThePreviousJrdWithTheAppLink(): void {
+		$this->resource(Application::APP_SUBJECT);
+		$this->configService->method('getAppValue')->with('installed_version')->willReturn('0.10.1');
+		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
+		$previous = new JrdResponse(Application::APP_SUBJECT);
+
+		$response = $this->handler->handleWebfinger($this->context, $previous);
+
+		$this->assertSame($previous, $response);
+		$this->assertSame([[
+			'rel' => Application::APP_REL,
+			'type' => 'application/json',
+			'href' => 'https://cloud.example/index.php/apps/social/',
+			'properties' => ['app' => 'social', 'name' => 'Social', 'version' => '0.10.1'],
+		]], $this->jsonOf($response)['links']);
+	}
+
+	public function testAppSubjectWithoutPreviousResponseYieldsNothing(): void {
+		$this->resource(Application::APP_SUBJECT);
+
+		$this->assertNull($this->handler->handleWebfinger($this->context, null));
+	}
+}

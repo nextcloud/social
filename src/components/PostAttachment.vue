@@ -31,7 +31,7 @@
 
 <script>
 import serverData from '../mixins/serverData.js'
-import NcModal from '@nextcloud/vue/dist/Components/NcModal.js'
+import NcModal from '@nextcloud/vue/components/NcModal'
 import MediaAttachment from './MediaAttachment.vue'
 
 export default {
@@ -82,19 +82,19 @@ export default {
 	.attachments-container {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 2px;
-		margin-top: 12px;
+		gap: 3px;
+		margin-top: 14px;
 		width: 100%;
-		border-radius: var(--border-radius-large);
+		border-radius: 12px;
 		overflow: hidden;
 		background: var(--color-background-dark);
 
 		.attachment {
 			flex-grow: 1;
 			flex-shrink: 1;
-			flex-basis: calc(50% - 2px);
+			flex-basis: calc(50% - 3px);
 			cursor: pointer;
-			height: 20vh;
+			height: 22vh;
 		}
 
 		.more-attachments {
@@ -103,6 +103,7 @@ export default {
 			justify-content: center;
 			font-size: 42px;
 			line-height: 0px;
+			color: var(--color-text-lighter);
 
 			&:hover {
 				background: var(--color-background-darker);

@@ -13,46 +13,31 @@ use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\StreamQueueService;
-use OCP\AppFramework\QueryException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
 
-/**
- * Class Queue
- *
- * @package OCA\Social\Cron
- */
 class Queue extends TimedJob {
 	private ActivityService $activityService;
 	private RequestQueueService $requestQueueService;
 	private StreamQueueService $streamQueueService;
 
-	/**
-	 * Cache constructor.
-	 */
 	public function __construct(ITimeFactory $time, RequestQueueService $requestQueueService, StreamQueueService $streamQueueService, ActivityService $activityService) {
 		parent::__construct($time);
-		$this->setInterval(12 * 60); // 12 minutes
+		$this->setInterval(12 * 60);
 		$this->requestQueueService = $requestQueueService;
 		$this->streamQueueService = $streamQueueService;
 		$this->activityService = $activityService;
 	}
 
-
-	/**
-	 * @param mixed $argument
-	 *
-	 * @throws QueryException
-	 */
 	protected function run($argument) {
 		$this->manageRequestQueue();
 		$this->manageStreamQueue();
 	}
 
-
-	/**
-	 */
 	private function manageRequestQueue() {
+		// Re-queue anything a dead worker left stranded mid-delivery before draining.
+		$this->requestQueueService->reapStaleRunning();
+
 		$requests = $this->requestQueueService->getRequestStandby();
 		$this->activityService->manageInit();
 
@@ -64,7 +49,6 @@ class Queue extends TimedJob {
 			}
 		}
 	}
-
 
 	private function manageStreamQueue() {
 		$total = 0;

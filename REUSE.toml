@@ -30,6 +30,12 @@ SPDX-FileCopyrightText = "2019 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
+path = "tests/Federation/fixtures/*.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
 path = ["psalm.xml", "tests/psalm-baseline.xml", "tests/stub.phpstub"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2022 Nextcloud GmbH and Nextcloud contributors"
@@ -53,3 +59,45 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "Katerina Limpitsouni"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 SPDX-FileComment = "The undraw illustrations are released with a non-free license and thus not AGPL-compatible but we have the illustrators permissions to use these 8 images in this project. See https://github.com/nextcloud/social/issues/277#issuecomment-508480655 and below."
+
+[[annotations]]
+path = ["js/*", "js-backup/*"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = ["*.md", "docs/*", ".github/ISSUE_TEMPLATE/*", ".github/pull_request_template.md"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = [".htaccess", "appinfo/.htaccess", "context/.htaccess", "src/.htaccess", ".gitignore", ".nextcloudignore"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = ["deploy.sh", "build-package.sh"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = ["img/screenshot.png", "img/social-promo.png"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "patches/*"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "tests/*"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

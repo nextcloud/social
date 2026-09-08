@@ -56,7 +56,19 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 
+	/**
+	 * Create a self-follow (Loopback) entry for a local actor.
+	 *
+	 * This ensures the user appears in their own home timeline.
+	 * Uses INSERT IGNORE to handle duplicate calls safely.
+	 *
+	 * @param Person $actor
+	 */
 	public function generateLoopbackAccount(Person $actor) {
+		if ($this->isLoppbackExisting($actor->getId())) {
+			return;  // Already has a loopback, skip
+		}
+
 		$qb = $this->getFollowsInsertSql();
 		$qb->setValue('id', $qb->createNamedParameter($actor->getId()))
 			->setValue('actor_id', $qb->createNamedParameter($actor->getId()))
@@ -82,14 +94,35 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
+	 * Check if a loopback (self-follow) already exists for this actor.
+	 *
+	 * @param string $actorId
+	 *
+	 * @return bool
+	 */
+	private function isLoppbackExisting(string $actorId): bool {
+		try {
+			$this->getByPersons($actorId, $actorId);
+			return true;
+		} catch (FollowNotFoundException $e) {
+			return false;
+		}
+	}
+
+
+	/**
+	 * Mark a follow as accepted.
+	 *
+	 * Critical: remote servers embed the Follow in their Accept with THEIR id,
+	 * not ours. Match by actor+object pair instead.
+	 *
 	 * @param Follow $follow
 	 */
 	public function accepted(Follow $follow) {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('accepted', $qb->createNamedParameter('1'));
-		$this->limitToIdString($qb, $follow->getId());
-		$this->limitToActorId($qb, $follow->getActorId());
-		$this->limitToObjectId($qb, $follow->getObjectId());
+		$qb->limitToActorIdPrim($qb->prim($follow->getActorId()));
+		$qb->limitToObjectIdPrim($qb->prim($follow->getObjectId()));
 
 		$qb->executeStatement();
 	}
@@ -131,6 +164,25 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->limitToObjectIdPrim($qb->prim($actorId));
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(true);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $this->getInt('count', $data, 0);
+	}
+
+
+	/**
+	 * @param string $actorId
+	 *
+	 * @return int
+	 */
+	public function countPendingRequests(string $actorId): int {
+		$qb = $this->countFollowsSelectSql();
+		$qb->limitToObjectIdPrim($qb->prim($actorId));
+		$qb->limitToType(Follow::TYPE);
+		$qb->limitToAccepted(false);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -208,6 +260,23 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 
 	/**
+	 * The follows towards this actor that still wait for approval.
+	 *
+	 * @return Follow[]
+	 */
+	public function getPendingByObjectId(string $actorId): array {
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToObjectId($qb, $actorId);
+		$this->limitToAccepted($qb, false);
+		$this->leftJoinCacheActors($qb, 'actor_id');
+		$this->leftJoinDetails($qb, 'id', 'ca');
+		$qb->orderBy('f.creation', 'desc');
+
+		return $this->getFollowsFromRequest($qb);
+	}
+
+
+	/**
 	 * @param string $actorId
 	 *
 	 * @return Follow[]
@@ -265,9 +334,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function deleteRelatedId(string $actorId) {
 		$qb = $this->getFollowsDeleteSql();
-		$orX = $qb->expr()->orX();
-		$orX->add($qb->exprLimitToDBField('actor_id_prim', $qb->prim($actorId)));
-		$orX->add($qb->exprLimitToDBField('object_id_prim', $qb->prim($actorId)));
+		$orX = $qb->expr()->orX(
+			$qb->exprLimitToDBField('actor_id_prim', $qb->prim($actorId)),
+			$qb->exprLimitToDBField('object_id_prim', $qb->prim($actorId))
+		);
 		$qb->where($orX);
 		$qb->executeStatement();
 	}
@@ -332,9 +402,10 @@ class FollowsRequest extends FollowsRequestBuilder {
 			$prims[] = $qb->prim($actorId);
 		}
 
-		$orX = $qb->expr()->orX();
-		$orX->add($qb->exprLimitInArray('actor_id_prim', $prims));
-		$orX->add($qb->exprLimitInArray('object_id_prim', $prims));
+		$orX = $qb->expr()->orX(
+			$qb->exprLimitInArray('actor_id_prim', $prims),
+			$qb->exprLimitInArray('object_id_prim', $prims)
+		);
 
 		return $this->getFollowsFromRequest($qb);
 	}

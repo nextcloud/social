@@ -1,0 +1,26 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1", {"manuallyApprovesFollowers": "as:manuallyApprovesFollowers", "alsoKnownAs": {"@id": "as:alsoKnownAs", "@type": "@id"}}],
+  "id": "https://mastodon.social/users/alice",
+  "type": "Person",
+  "following": "https://mastodon.social/users/alice/following",
+  "followers": "https://mastodon.social/users/alice/followers",
+  "inbox": "https://mastodon.social/users/alice/inbox",
+  "outbox": "https://mastodon.social/users/alice/outbox",
+  "featured": "https://mastodon.social/users/alice/collections/featured",
+  "preferredUsername": "alice",
+  "name": "Alice",
+  "summary": "<p>cat pictures, mostly</p>",
+  "url": "https://mastodon.social/@alice",
+  "manuallyApprovesFollowers": false,
+  "discoverable": true,
+  "published": "2020-03-01T00:00:00Z",
+  "alsoKnownAs": ["https://old.example/users/alice"],
+  "publicKey": {
+    "id": "https://mastodon.social/users/alice#main-key",
+    "owner": "https://mastodon.social/users/alice",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0\n-----END PUBLIC KEY-----\n"
+  },
+  "endpoints": {"sharedInbox": "https://mastodon.social/inbox"},
+  "icon": {"type": "Image", "mediaType": "image/png", "url": "https://files.mastodon.social/accounts/avatars/avatar.png"},
+  "image": {"type": "Image", "mediaType": "image/jpeg", "url": "https://files.mastodon.social/accounts/headers/header.jpg"}
+}

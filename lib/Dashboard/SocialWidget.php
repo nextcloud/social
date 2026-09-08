@@ -23,44 +23,26 @@ class SocialWidget implements IWidget {
 		$this->urlGenerator = $urlGenerator;
 	}
 
-	/**
-	 * @inheritDoc
-	 */
 	public function getId(): string {
 		return 'social_notifications';
 	}
 
-	/**
-	 * @inheritDoc
-	 */
 	public function getTitle(): string {
 		return $this->l10n->t('Social notifications');
 	}
 
-	/**
-	 * @inheritDoc
-	 */
 	public function getOrder(): int {
 		return 10;
 	}
 
-	/**
-	 * @inheritDoc
-	 */
 	public function getIconClass(): string {
 		return 'icon-social';
 	}
 
-	/**
-	 * @inheritDoc
-	 */
 	public function getUrl(): ?string {
 		return $this->urlGenerator->linkToRoute('social.local.streamNotifications', []);
 	}
 
-	/**
-	 * @inheritDoc
-	 */
 	public function load(): void {
 		\OCP\Util::addScript(Application::APP_ID, 'social-dashboard');
 		\OCP\Util::addStyle(Application::APP_ID, 'dashboard');

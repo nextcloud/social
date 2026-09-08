@@ -21,4 +21,30 @@ webpackConfig.entry = {
 	oauth: path.join(__dirname, 'src', 'oauth.js'),
 }
 
+webpackConfig.optimization.concatenateModules = false
+webpackConfig.module.rules.unshift({
+	test: /\.mjs$/,
+	type: 'javascript/auto',
+	resolve: {
+		fullySpecified: false,
+	},
+})
+webpackConfig.module.rules.unshift({
+	test: /node_modules\/(?:axios|webdav|@vue\/devtools-shared)\/.*\.js$/,
+	resolve: {
+		fullySpecified: false,
+	},
+})
+webpackConfig.resolve.extensions = ['.*', '.ts', '.js', '.vue', '.json']
+webpackConfig.resolve.fallback = {
+	...webpackConfig.resolve.fallback,
+	buffer: require.resolve('buffer/'),
+}
+
+// Preserve .htaccess and the hand-written admin-settings script when cleaning
+// the output directory
+webpackConfig.output.clean = {
+	keep: /\.htaccess|social-adminSettings\.js/,
+}
+
 module.exports = webpackConfig

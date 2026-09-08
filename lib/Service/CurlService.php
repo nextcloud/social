@@ -30,6 +30,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
+use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use Psr\Log\LoggerInterface;
@@ -220,13 +221,22 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function retrieveObject(string $id): array {
+	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
 		$this->logger->debug('retrieveObject id=' . $id);
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new NCRequest($url['path'], Request::TYPE_GET);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
+		if (isset($url['query']) && $url['query'] !== '') {
+			parse_str($url['query'], $queryParams);
+			foreach ($queryParams as $k => $v) {
+				$request->addParam($k, $v);
+			}
+		}
+		if ($acceptActivityJson) {
+			$request->addHeader('Accept', 'application/activity+json');
+		}
 
 		$result = $this->retrieveJson($request);
 		$result['_host'] = $request->getHost();
@@ -328,7 +338,9 @@ class CurlService {
 	public function doRequestOrig(Request $request): string {
 		$this->maxDownloadSizeReached = false;
 
-		$ignoreProtocolOnErrors = [7];
+		// allow falling back to the next protocol (e.g. http) when certain
+		// curl errors occur, like SSL hostname mismatch (60)
+		$ignoreProtocolOnErrors = [7, 60];
 		$result = '';
 		foreach ($request->getProtocols() as $protocol) {
 			$request->setUsedProtocol($protocol);
@@ -336,8 +348,8 @@ class CurlService {
 
 			$result = curl_exec($curl);
 			$this->logger->debug(
-				'[>>] ' . json_encode($request)
-				. '   result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']: ' . json_encode($result)
+				'[>>] ' . $request->getUsedProtocol() . '://' . $request->getHost()
+				. ' result [' . curl_getinfo($curl, CURLINFO_HTTP_CODE) . ']'
 			);
 
 			if (in_array(curl_errno($curl), $ignoreProtocolOnErrors)) {
@@ -380,6 +392,16 @@ class CurlService {
 
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, $request->isVerifyPeer());
 		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, $request->isFollowLocation());
+
+		// Only ever speak HTTP(S), on the initial request and on any redirect. This is
+		// what keeps a remote-supplied url (an actor's inbox, an icon, a @context)
+		// from turning into a file://, gopher:// or dict:// fetch.
+		curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+		curl_setopt($curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+
+		if (!$request->isLocalAddressAllowed() && RemoteAddress::isLocalHost($request->getHost())) {
+			throw new RequestServerException('host resolves to a local address: ' . $request->getHost());
+		}
 
 		curl_setopt($curl, CURLOPT_BUFFERSIZE, 128);
 		curl_setopt($curl, CURLOPT_NOPROGRESS, false);

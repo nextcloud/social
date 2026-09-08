@@ -3,16 +3,68 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import axios from '@nextcloud/axios'
-import { addCommands, User } from '@nextcloud/cypress'
 import { basename } from 'path'
 
-// Add custom commands
-import 'cypress-wait-until'
-addCommands()
+export class User {
+	userId: string
+	password: string
+
+	constructor(userId: string, password?: string) {
+		this.userId = userId
+		this.password = password || 'password'
+	}
+}
 
 const url = Cypress.config('baseUrl').replace(/\/index.php\/?$/g, '')
 Cypress.env('baseUrl', url)
+
+// Custom login - clear cookies, visit target route (triggers redirect to /login), login, get redirected back
+Cypress.Commands.add('login', (submission: User | string, password?: string, route?: string) => {
+	const username = typeof submission === 'object' ? submission.userId : submission
+	const pass = typeof submission === 'object' ? submission.password : (password ?? submission as string)
+	const targetRoute = route ?? '/apps/files'
+
+	cy.clearCookies()
+	cy.visit(targetRoute)
+	cy.get('input[name=user]').type(username)
+	cy.get('input[name=password]').type(pass)
+	cy.get('form[name=login] [type=submit]').click()
+	cy.url().should('include', targetRoute)
+})
+
+// Custom logout
+Cypress.Commands.add('logout', () => {
+	cy.document().then(document => {
+		const tokenElement = document.getElementsByTagName('head')[0]
+		const token = tokenElement.getAttribute('data-requesttoken') || ''
+		cy.visit(`/logout?requesttoken=${encodeURIComponent(token)}`)
+		cy.url().should('include', '/login')
+	})
+})
+
+Cypress.Commands.add('createUser', (user: User) => {
+	cy.clearCookies()
+	const baseUrl = Cypress.env('baseUrl')
+	return cy.request({
+		method: 'POST',
+		url: `${baseUrl}/ocs/v2.php/cloud/users`,
+		headers: {
+			'OCS-APIRequest': 'true',
+			'Content-Type': 'application/x-www-form-urlencoded',
+		},
+		body: `userid=${user.userId}&password=${user.password}`,
+		auth: {
+			username: 'admin',
+			password: 'admin',
+		},
+	})
+})
+
+Cypress.Commands.add('createRandomUser', () => {
+	const randomId = Math.random().toString(36).replace(/[^a-z]+/g, '').slice(0, 10)
+	const user = new User(randomId)
+	return cy.createUser(user).then(() => cy.wrap(user))
+})
 
 Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
 	// get fixture
@@ -22,14 +74,18 @@ Cypress.Commands.add('uploadFile', (fileName, mimeType, path = '') => {
 		try {
 			const file = new File([blob], fileName, { type: mimeType })
 			return cy.window().then(async window => {
-				await axios.put(`${Cypress.env('baseUrl')}/remote.php/webdav${path}/${fileName}`, file, {
+				const response = await fetch(`${Cypress.env('baseUrl')}/remote.php/webdav${path}/${fileName}`, {
+					method: 'PUT',
 					headers: {
 						requesttoken: window.OC.requestToken,
 						'Content-Type': mimeType,
 					},
-				}).then(response => {
-					cy.log(`Uploaded ${fileName}`, response)
+					body: file,
 				})
+				if (!response.ok) {
+					throw new Error(`Upload failed: ${response.status}`)
+				}
+				cy.log(`Uploaded ${fileName}`, response)
 			})
 		} catch (error) {
 			cy.log(error)
@@ -71,19 +127,24 @@ Cypress.Commands.add('deleteFile', fileName => {
 Cypress.Commands.add('createLinkShare', path => {
 	return cy.window().then(async window => {
 		try {
-			const request = await axios.post(`${Cypress.env('baseUrl')}/ocs/v2.php/apps/files_sharing/api/v1/shares`, {
-				path,
-				shareType: window.OC.Share.SHARE_TYPE_LINK,
-			}, {
+			const formData = new URLSearchParams()
+			formData.append('path', path)
+			formData.append('shareType', window.OC.Share.SHARE_TYPE_LINK.toString())
+			const response = await fetch(`${Cypress.env('baseUrl')}/ocs/v2.php/apps/files_sharing/api/v1/shares`, {
+				method: 'POST',
 				headers: {
 					requesttoken: window.OC.requestToken,
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'OCS-APIRequest': 'true',
 				},
+				body: formData.toString(),
 			})
-			if (!('ocs' in request.data) || !('token' in request.data.ocs.data && request.data.ocs.data.token.length > 0)) {
-				throw request
+			const json = await response.json()
+			if (!json.ocs?.data?.token) {
+				throw new Error('No token in response')
 			}
-			cy.log('Share link created', request.data.ocs.data.token)
-			return cy.wrap(request.data.ocs.data.token)
+			cy.log('Share link created', json.ocs.data.token)
+			return cy.wrap(json.ocs.data.token)
 		} catch (error) {
 			console.error(error)
 		}

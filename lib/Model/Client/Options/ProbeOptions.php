@@ -26,6 +26,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	public const DIRECT = 'direct';
 	public const ACCOUNT = 'account';
 	public const FAVOURITES = 'favourites';
+	public const BOOKMARKS = 'bookmarks';
 	public const HASHTAG = 'hashtag';
 	public const NOTIFICATIONS = 'notifications';
 
@@ -39,6 +40,9 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private int $minId = 0;
 	private int $maxId = 0;
 	private int $since = 0;
+	/** Upper bound on how many items one request may ask for. */
+	public const MAX_LIMIT = 50;
+
 	private int $limit = 20;
 	private bool $inverted = false;
 	private string $argument = '';
@@ -205,7 +209,9 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	 * @return ProbeOptions
 	 */
 	public function setLimit(int $limit): self {
-		$this->limit = $limit;
+		// Clamp: the limit reaches setMaxResults() directly, so an unbounded or
+		// negative value from the request would be a memory-limit fatal or invalid SQL.
+		$this->limit = max(1, min(self::MAX_LIMIT, $limit));
 
 		return $this;
 	}

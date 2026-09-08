@@ -11,7 +11,7 @@
 						{{ t('social', 'Close') }}
 					</span>
 				</a>
-				<h2>🎉 {{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
+				<h2>{{ t('social', 'Nextcloud becomes part of the federated social networks!') }}</h2>
 				<p>{{ t('social', 'This application is currently in beta stage.') }}</p>
 				<br>
 				<p>
@@ -40,6 +40,11 @@
 			{{ t('social', 'Notifications') }}
 		</h2>
 
+		<div v-if="searchQuery" class="search-active">
+			{{ t('social', 'Search') }}: «{{ searchQuery }}»
+			<a href="#" class="search-clear" @click.prevent="clearSearch">✕</a>
+		</div>
+
 		<TimelineList :type="type" />
 	</div>
 </template>
@@ -65,6 +70,9 @@ export default {
 		}
 	},
 	computed: {
+		searchQuery() {
+			return this.$store.getters.getSearchQuery
+		},
 		params() {
 			if (this.$route.name === 'tags') {
 				return { tag: this.$route.params.tag }
@@ -102,6 +110,9 @@ export default {
 		hideInfo() {
 			this.infoHidden = true
 		},
+		clearSearch() {
+			this.$store.commit('setSearchQuery', '')
+		},
 		followNextcloud() {
 			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
 		},
@@ -109,63 +120,122 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+.social__wrapper {
+	max-width: 600px;
+	margin: 0 auto;
+	padding: 0;
+}
 
-	.social__welcome {
-		margin: 15px auto;
-		padding: 15px;
-		border-bottom: 1px solid var(--color-border);
+.social__timeline {
+	margin: 0;
+}
+
+h2 {
+	font-size: 20px;
+	font-weight: 700;
+	margin: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
+	color: var(--color-text-lighter);
+	letter-spacing: -.01em;
+}
+
+.social__welcome {
+	background: var(--color-main-background);
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	margin: calc(var(--default-grid-baseline) * 4);
+	padding: calc(var(--default-grid-baseline) * 4);
+	position: relative;
+
+	h2 {
+		font-size: 20px;
+		font-weight: 700;
+		margin: 0 0 12px 0;
 	}
 
-	.social__welcome h3 {
+	h3 {
 		margin-top: 0;
+		font-size: 16px;
+		font-weight: 600;
 	}
 
-	.social__welcome .icon-close {
-		float: right;
-		padding: 22px;
-		margin: -15px;
-		opacity: .3;
+	p {
+		color: var(--color-text-lighter);
+		line-height: 1.7;
+		margin: 8px 0;
 	}
 
-	.social__welcome .icon-close:hover,
-	.social__welcome .icon-close:focus {
-		opacity: 1;
+	.icon-close {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		padding: 12px;
+		border-radius: 8px;
+		color: var(--color-text-lighter);
+
+		&:hover,
+		&:focus {
+			background: var(--color-background-hover);
+		}
 	}
 
-	.social__welcome .social-id {
-		font-weight: bold;
+	.social-id {
+		font-weight: 700;
+		color: var(--color-primary-element);
 	}
 
-	.social__welcome .follow-nextcloud {
-		overflow: hidden;
-		margin-top: 20px;
-	}
+	.follow-nextcloud {
+		margin-top: 16px;
+		padding-top: 16px;
+		border-top: 1px solid var(--color-border);
 
-	.social__welcome .follow-nextcloud input[type=button] {
-		float: right;
+		input[type=button] {
+			float: right;
+		}
 	}
+}
 
-	.social__timeline {
-		margin: 15px auto;
+#app-content {
+	position: relative;
+}
+
+.slide-fade-leave-active {
+	position: relative;
+	overflow: hidden;
+	transition: max-height .3s ease-out, opacity .3s ease-out;
+	max-height: 200px;
+}
+
+.slide-fade-leave-to {
+	max-height: 0;
+	opacity: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.search-active {
+	font-size: 13px;
+	color: var(--color-text-lighter);
+	padding: 8px 16px;
+	margin: 8px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+
+	.search-clear {
+		margin-left: auto;
+		color: var(--color-text-lighter);
+		text-decoration: none;
+		font-size: 14px;
+		padding: 2px 6px;
+		border-radius: 4px;
+
+		&:hover {
+			background: var(--color-background-hover);
+		}
 	}
-
-	#app-content {
-		position: relative;
-	}
-
-	.slide-fade-leave-active {
-		position: relative;
-		overflow: hidden;
-		transition: all .5s ease-out;
-		max-height: 200px;
-	}
-
-	.slide-fade-leave-to {
-		max-height: 0;
-		opacity: 0;
-		padding-top: 0;
-		padding-bottom: 0;
-	}
-
+}
 </style>

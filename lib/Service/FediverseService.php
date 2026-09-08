@@ -127,7 +127,9 @@ class FediverseService {
 	 * @return array
 	 */
 	public function getListedAddresses(): array {
-		return json_decode($this->configService->getAppValue(ConfigService::SOCIAL_ACCESS_LIST));
+		$list = json_decode($this->configService->getAppValue(ConfigService::SOCIAL_ACCESS_LIST));
+
+		return is_array($list) ? array_values($list) : [];
 	}
 
 	/**
@@ -136,9 +138,9 @@ class FediverseService {
 	 * @return bool
 	 */
 	public function isListed(string $address): bool {
-		$list = $this->getListedAddresses();
+		$list = array_map('strtolower', $this->getListedAddresses());
 
-		return (in_array($address, $list));
+		return in_array(strtolower($address), $list, true);
 	}
 
 	/**
@@ -169,8 +171,7 @@ class FediverseService {
 	 * @throws Exception
 	 */
 	public function removeAddress(string $address) {
-		$list = $this->getListedAddresses();
-		$list = array_diff($list, [$address]);
+		$list = array_values(array_udiff($this->getListedAddresses(), [$address], 'strcasecmp'));
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
 	}
 

@@ -279,6 +279,11 @@ class Document extends ACore implements JsonSerializable {
 		parent::import($data);
 
 		$this->setMediaType($this->validate(ACore::AS_STRING, 'mediaType', $data, ''));
+		// on the wire an attachment's alt text is its `name`; without this the
+		// description a remote author wrote never reaches local clients
+		if ($this->getDescription() === '') {
+			$this->setDescription($this->validate(ACore::AS_STRING, 'name', $data, ''));
+		}
 
 		if ($this->getId() === '') {
 			$this->generateUniqueId('/documents/g');
@@ -346,20 +351,28 @@ class Document extends ACore implements JsonSerializable {
 
 
 	public function getMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
-		$mime = ($mime === '') ? '' : '.' . $mime;
+		$ext = '';
+		if ($mime !== '') {
+			$parts = explode('/', $mime, 2);
+			$ext = '.' . end($parts);
+		}
 
 		return $urlGenerator->linkToRouteAbsolute(
 			'social.Api.mediaOpen',
-			['uuid' => $this->getLocalCopy() . $mime]
+			['uuid' => $this->getLocalCopy() . $ext]
 		);
 	}
 
 	public function getResizedMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
-		$mime = ($mime === '') ? '' : '.' . $mime;
+		$ext = '';
+		if ($mime !== '') {
+			$parts = explode('/', $mime, 2);
+			$ext = '.' . end($parts);
+		}
 
 		return $urlGenerator->linkToRouteAbsolute(
 			'social.Api.mediaOpen',
-			['uuid' => $this->getResizedCopy() . $mime]
+			['uuid' => $this->getResizedCopy() . $ext]
 		);
 	}
 

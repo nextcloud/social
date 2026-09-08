@@ -6,7 +6,7 @@
 	<div v-if="account">
 		<div v-if="!serverData.local">
 			<h2>{{ t('social', 'Follow on Nextcloud Social') }}</h2>
-			<p>{{ t('social', 'Hello') }} <avatar :user="currentUser.uid" :size="16" />{{ currentUser.displayName }}</p>
+			<p>{{ t('social', 'Hello') }} <ActorAvatar :actor="currentUserActor" :size="16" />{{ currentUser.displayName }}</p>
 			<p v-if="!isFollowing">
 				{{ t('social', 'Please confirm that you want to follow this account:') }}
 			</p>
@@ -43,17 +43,21 @@
 </template>
 
 <script>
-import NcAvatar from '@nextcloud/vue/dist/Components/NcAvatar.js'
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import axios from '@nextcloud/axios'
 import accountMixins from '../mixins/accountMixins.js'
 import currentuserMixin from '../mixins/currentUserMixin.js'
+import ActorAvatar from '../components/ActorAvatar.vue'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
 export default {
 	name: 'OStatus',
 	components: {
+		ActorAvatar,
 		NcAvatar,
+		NcButton,
 	},
 	mixins: [
 		accountMixins,
@@ -75,12 +79,21 @@ export default {
 		currentUser() {
 			return window.oc_current_user
 		},
+		/**
+		 * The logged-in user rendered as a (local) actor for ActorAvatar.
+		 *
+		 * @return {import('../types/Mastodon.js').Account}
+		 */
+		currentUserActor() {
+			const uid = this.currentUser?.uid ?? ''
+			return { username: uid, acct: uid }
+		},
 		displayName() {
 			if (typeof this.account.id === 'undefined') {
 				return (this.serverData.account ? this.serverData.account : this.serverData.local)
 			}
 
-			return (this.account.name ? this.account.name : this.account.preferredUsername)
+			return (this.account.display_name ? this.account.display_name : this.account.acct)
 		},
 	},
 	beforeMount() {
@@ -107,7 +120,7 @@ export default {
 	},
 	methods: {
 		follow() {
-			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account.account }).then(() => {
+			this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.account.acct }).then(() => {
 
 			})
 		},

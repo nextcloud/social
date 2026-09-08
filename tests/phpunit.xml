@@ -1,24 +1,28 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<phpunit bootstrap="bootstrap.php"
-		 verbose="true"
-		 convertDeprecationsToExceptions="true"
+<!--
+  - SPDX-FileCopyrightText: 2019 Nextcloud GmbH and Nextcloud contributors
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+		 bootstrap="bootstrap.php"
+		 colors="true"
+		 failOnWarning="true"
+		 failOnRisky="true"
+		 beStrictAboutOutputDuringTests="true"
 		 timeoutForSmallTests="900"
 		 timeoutForMediumTests="900"
 		 timeoutForLargeTests="900"
 		>
-	<testsuite name='Social App Tests'>
-		<directory suffix='Test.php'>.</directory>
-	</testsuite>
-	<!-- filters for code coverage -->
-	<filter>
-		<whitelist>
-			<directory suffix=".php">../appinfo</directory>
+	<testsuites>
+		<testsuite name="Social App Tests">
+			<directory suffix="Test.php">.</directory>
+			<exclude>./Integration</exclude>
+		</testsuite>
+	</testsuites>
+	<coverage>
+		<include>
 			<directory suffix=".php">../lib</directory>
-		</whitelist>
-	</filter>
-	<logging>
-		<!-- and this is where your report will be written -->
-		<log type="coverage-clover" target="./clover.xml"/>
-	</logging>
+		</include>
+	</coverage>
 </phpunit>
-

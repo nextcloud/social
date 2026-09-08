@@ -277,6 +277,7 @@ class CacheDocumentService {
 		$request = new NCRequest($url['path'], Request::TYPE_GET, true);
 		$request->setHost($url['host']);
 		$request->setProtocol($url['scheme']);
+		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
 		return $this->curlService->doRequest($request);
 	}
