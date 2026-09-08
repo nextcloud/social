@@ -98,6 +98,16 @@ class CacheDocumentServiceTest extends TestCase {
 			'jpeg' => ['image/jpeg'],
 			'gif' => ['image/gif'],
 			'png' => ['image/png'],
+			'webp' => ['image/webp'],
+			'mp4 video' => ['video/mp4'],
+			'webm' => ['video/webm'],
+			'quicktime' => ['video/quicktime'],
+			'mp3' => ['audio/mpeg'],
+			'aac' => ['audio/mp4'],
+			'ogg' => ['audio/ogg'],
+			'opus' => ['audio/opus'],
+			'wav' => ['audio/wav'],
+			'flac' => ['audio/flac'],
 		];
 	}
 
@@ -111,9 +121,9 @@ class CacheDocumentServiceTest extends TestCase {
 	public function rejectedMimeProvider(): array {
 		return [
 			'svg' => ['image/svg+xml'],
-			'webp' => ['image/webp'],
 			'html' => ['text/html'],
 			'php' => ['application/x-httpd-php'],
+			'mkv' => ['video/x-matroska'],
 			'empty' => [''],
 		];
 	}
@@ -122,6 +132,47 @@ class CacheDocumentServiceTest extends TestCase {
 	public function testFilterMimeTypesRejectsEverythingElse(string $mime): void {
 		$this->expectException(CacheContentMimeTypeException::class);
 		$this->service->filterMimeTypes($mime);
+	}
+
+	public function testSaveContentToCacheStoresVideoAsIsWithoutResizeOrBlurhash(): void {
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->expects($this->never())->method('generateBlurHash');
+		$document = new Document();
+		// a minimal MP4: size + ftyp box is enough for content sniffing
+		$mp4 = "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" . str_repeat("\x00", 64);
+
+		$mime = '';
+		$this->quietly(function () use ($document, $mp4, &$mime) {
+			$this->service->saveContentToCache($document, $mp4, $mime);
+		});
+
+		$this->assertSame('video/mp4', $mime);
+		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getLocalCopy());
+		$this->assertSame('', $document->getResizedCopy(), 'video keeps no resized copy');
+		$this->assertSame('', $document->getBlurHash());
+	}
+
+	public function testSaveContentToCacheResizesWebp(): void {
+		if (!function_exists('imagewebp')) {
+			$this->markTestSkipped('gd without webp');
+		}
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->method('generateBlurHash')->willReturn('hash');
+		$gd = imagecreatetruecolor(1200, 900);
+		ob_start();
+		imagewebp($gd);
+		$webp = ob_get_clean();
+		$document = new Document();
+
+		$mime = '';
+		$this->quietly(function () use ($document, $webp, &$mime) {
+			$this->service->saveContentToCache($document, $webp, $mime);
+		});
+
+		$this->assertSame('image/webp', $mime);
+		$this->assertMatchesRegularExpression(self::UUID_PATTERN, $document->getResizedCopy());
 	}
 
 	public function testSaveContentToCacheStoresOriginalAndResizedCopiesInHashedFolders(): void {
