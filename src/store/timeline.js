@@ -211,6 +211,24 @@ const actions = {
 		context.commit('setTimelineType', 'account')
 		context.commit('setAccount', account)
 	},
+	/**
+	 * Tells the server what an attachment shows, so it federates as alt text.
+	 *
+	 * @param {object} context the store
+	 * @param {object} media the attachment
+	 * @param {string} media.id its id on this server
+	 * @param {string} media.description what it shows
+	 */
+	async describeMedia(context, { id, description }) {
+		try {
+			await axios.put(generateUrl('apps/social/api/v1/media/' + id), { description })
+		} catch (error) {
+			// the post itself is still worth sending; say so and carry on
+			showError(t('social', 'Could not save the description of an attachment'))
+			logger.error('Failed to describe a media', { error })
+		}
+	},
+
 	async createMedia(context, file) {
 		try {
 			const formData = new FormData()

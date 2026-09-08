@@ -22,7 +22,8 @@
 				:key="randomKey"
 				:preview="item"
 				:random-key="randomKey"
-				@delete="deletePreview" />
+				@delete="deletePreview"
+				@describe="$emit('describe', $event)" />
 		</div>
 	</div>
 </template>
@@ -38,7 +39,7 @@ export default {
 		PreviewGridItem,
 		FileUpload,
 	},
-	emits: ['deleted'],
+	emits: ['deleted', 'describe'],
 	props: {
 		uploadProgress: {
 			type: Number,
