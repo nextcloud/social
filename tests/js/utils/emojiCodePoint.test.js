@@ -30,13 +30,16 @@ describe('toCodePoint', () => {
 		expect(toCodePoint('🇩🇪', '_')).toBe(twemoji.convert.toCodePoint('🇩🇪', '_'))
 	})
 
-	it('produces names that exist among the shipped images', () => {
-		// the real contract: the name has to resolve to a file in img/twemoji
-		const shipped = EMOJI
-			.map((emoji) => toCodePoint(emoji.replace(/️/g, '')))
-			.filter((name) => existsSync(resolve(process.cwd(), 'img/twemoji', `${name}.svg`)))
+	it('produces names that match the images the build ships', () => {
+		// The real contract: the name has to resolve to an asset. img/twemoji
+		// is a build artefact — webpack copies it out of the package — so the
+		// package's own svg directory is what to assert against; it is there
+		// whether or not anyone has run a build.
+		const assets = resolve(process.cwd(), 'node_modules/twemoji/2/svg')
+		const named = EMOJI.map((emoji) => toCodePoint(emoji.replace(/\ufe0f/g, '')))
+		const found = named.filter((name) => existsSync(resolve(assets, `${name}.svg`)))
 
-		expect(shipped.length).toBeGreaterThan(0)
+		expect(found.length).toBeGreaterThan(EMOJI.length / 2)
 	})
 
 	it('has nothing to say about an empty string', () => {
