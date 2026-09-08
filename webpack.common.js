@@ -22,6 +22,25 @@ webpackConfig.entry = {
 }
 
 webpackConfig.optimization.concatenateModules = false
+
+// The emoji picker is most of a megabyte, and it was landing in the same
+// vendor chunk as NcActionButton — which every post's overflow menu needs — so
+// everybody downloaded the whole emoji set to see a "..." button. Give it a
+// chunk of its own and it arrives when somebody opens the picker.
+webpackConfig.optimization.splitChunks = {
+	...(webpackConfig.optimization.splitChunks ?? {}),
+	cacheGroups: {
+		...(webpackConfig.optimization.splitChunks?.cacheGroups ?? {}),
+		emoji: {
+			test: /[\\/]node_modules[\\/](?:emoji-mart|emoji-mart-vue-fast)[\\/]/,
+			name: 'emoji-picker',
+			chunks: 'all',
+			priority: 30,
+			reuseExistingChunk: true,
+			enforce: true,
+		},
+	},
+}
 webpackConfig.module.rules.unshift({
 	test: /\.mjs$/,
 	type: 'javascript/auto',
