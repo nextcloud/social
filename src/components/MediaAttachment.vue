@@ -3,7 +3,12 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="attachment" @click="$emit('click')">
+	<!-- not focusable on purpose: an image here is already inside the parent's
+	     button, and video and audio carry their own controls. The click is a
+	     convenience for a pointer, never the only way to reach anything -->
+	<div class="attachment"
+		role="presentation"
+		@click="$emit('click')">
 		<video v-if="attachment !== null && attachment.type === 'video'"
 			class="attachment__preview"
 			:src="attachment.url"

@@ -3,7 +3,10 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<component :is="element" class="timeline-entry" :class="{ 'notification': isNotification, 'with-header': hasHeader }">
+	<component :is="element"
+		class="timeline-entry"
+		:class="{ 'notification': isNotification, 'with-header': hasHeader }"
+		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
 				<img :src="notification.account.avatar" alt="">

@@ -54,7 +54,9 @@ const status = (id) => ({
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
 	props: ['item', 'type'],
-	template: '<li class="timeline-entry-stub" :data-id="item.id" />',
+	// carries the real component's class and tabindex, because the list finds
+	// entries by that class and sends focus to them
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" />',
 }
 
 const entryIds = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => entry.attributes('data-id'))

@@ -308,7 +308,16 @@ export default {
 
 			this.$nextTick(() => {
 				const entries = this.$el.querySelectorAll('.timeline-entry')
-				entries[next]?.scrollIntoView({
+				const entry = entries[next]
+				if (entry === undefined) {
+					return
+				}
+
+				// real focus, not just a highlight: without it the reader most
+				// likely to be using j/k is told nothing at all, and scrolling
+				// alone leaves the keyboard somewhere else entirely
+				entry.focus({ preventScroll: true })
+				entry.scrollIntoView({
 					block: 'center',
 					behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
 				})
@@ -319,6 +328,13 @@ export default {
 			window.scrollTo({
 				top: 0,
 				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+			})
+
+			// scrolling moves the page, not the keyboard: send focus to the
+			// first of the posts the reader just asked to see
+			this.$nextTick(() => {
+				this.focused = 0
+				this.$el.querySelector('.timeline-entry')?.focus({ preventScroll: true })
 			})
 		},
 		t: translate,

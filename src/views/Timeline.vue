@@ -32,17 +32,18 @@
 
 		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :default-visibility="type === 'direct' ? 'direct' : undefined" />
 
-		<h2 v-if="type === 'tags'">
-			#{{ $route.params.tag }}
-		</h2>
-
-		<h2 v-if="type === 'notifications'">
-			{{ t('social', 'Notifications') }}
-		</h2>
+		<!-- the page had no heading at all outside tags and notifications, so
+		     there was nothing to land on and nothing to say where you were -->
+		<h1 class="timeline-heading" :class="{ 'hidden-visually': !headingIsVisible }">
+			{{ heading }}
+		</h1>
 
 		<div v-if="searchQuery" class="search-active">
 			{{ t('social', 'Search') }}: «{{ searchQuery }}»
-			<a href="#" class="search-clear" @click.prevent="clearSearch">✕</a>
+			<button type="button" class="search-clear" @click="clearSearch">
+				<span aria-hidden="true">✕</span>
+				<span class="hidden-visually">{{ t('social', 'Clear the search') }}</span>
+			</button>
 		</div>
 
 		<TimelineList :type="type" />
@@ -72,6 +73,35 @@ export default {
 		}
 	},
 	computed: {
+		/** What this timeline is, in the words the sidebar uses for it. */
+		heading() {
+			switch (this.type) {
+			case 'tags':
+				return '#' + this.$route.params.tag
+			case 'notifications':
+				return t('social', 'Notifications')
+			case 'direct':
+				return t('social', 'Direct messages')
+			case 'timeline':
+			case 'federated':
+				return t('social', 'Global timeline')
+			case 'liked':
+				return t('social', 'Liked posts')
+			case 'bookmarks':
+				return t('social', 'Bookmarks')
+			case 'single-post':
+				return t('social', 'Post')
+			default:
+				return t('social', 'Home timeline')
+			}
+		},
+		/**
+		 * The two that were on the page before stay on the page; the rest name
+		 * the view for a screen reader without changing what anyone sees.
+		 */
+		headingIsVisible() {
+			return this.type === 'tags' || this.type === 'notifications'
+		},
 		searchQuery() {
 			return this.$store.getters.getSearchQuery
 		},
@@ -133,7 +163,7 @@ export default {
 	margin: 0;
 }
 
-h2 {
+.timeline-heading {
 	font-size: 20px;
 	font-weight: 700;
 	margin: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
