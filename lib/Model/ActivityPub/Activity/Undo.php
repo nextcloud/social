@@ -20,7 +20,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Undo extends ACore implements JsonSerializable {
 	public const TYPE = 'Undo';
 
-
 	/**
 	 * Undo constructor.
 	 *
@@ -32,14 +31,12 @@ class Undo extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
 		parent::import($data);
 	}
-
 
 	/**
 	 * @return array

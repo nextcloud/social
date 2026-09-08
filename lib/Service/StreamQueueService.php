@@ -50,7 +50,6 @@ class StreamQueueService {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * StreamQueueService constructor.
 	 *
@@ -74,7 +73,6 @@ class StreamQueueService {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 * @param string $token
 	 * @param string $type
@@ -85,7 +83,6 @@ class StreamQueueService {
 
 		$this->streamQueueRequest->create($cache);
 	}
-
 
 	/**
 	 * @param int $total
@@ -107,7 +104,6 @@ class StreamQueueService {
 		return $result;
 	}
 
-
 	/**
 	 * @param string $token
 	 */
@@ -118,7 +114,6 @@ class StreamQueueService {
 			$this->manageStreamQueue($item);
 		}
 	}
-
 
 	/**
 	 * @param StreamQueue $queue
@@ -140,7 +135,6 @@ class StreamQueueService {
 				break;
 		}
 	}
-
 
 	/**
 	 * @param StreamQueue $queue
@@ -169,7 +163,6 @@ class StreamQueueService {
 		} catch (SocialAppConfigException $e) {
 		}
 	}
-
 
 	/**
 	 * @param Stream $stream
@@ -265,7 +258,6 @@ class StreamQueueService {
 		return $this->updateCache($stream, $cache);
 	}
 
-
 	/**
 	 * @param CacheItem $item
 	 *
@@ -316,7 +308,6 @@ class StreamQueueService {
 		$item->setContent(json_encode($note, JSON_UNESCAPED_SLASHES));
 	}
 
-
 	/**
 	 * @param Stream $stream
 	 * @param Cache $cache
@@ -341,7 +332,6 @@ class StreamQueueService {
 		return $done;
 	}
 
-
 	/**
 	 * @param StreamQueue $queue
 	 *
@@ -350,7 +340,6 @@ class StreamQueueService {
 	private function initCache(StreamQueue $queue) {
 		$this->streamQueueRequest->setAsRunning($queue);
 	}
-
 
 	/**
 	 * @param StreamQueue $queue
@@ -366,7 +355,6 @@ class StreamQueueService {
 		} catch (QueueStatusException $e) {
 		}
 	}
-
 
 	/**
 	 * @param StreamQueue $queue

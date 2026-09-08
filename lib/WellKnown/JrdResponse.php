@@ -59,7 +59,6 @@ final class JrdResponse implements IResponse {
 		return $this;
 	}
 
-
 	public function setHttpCode(int $httpCode): self {
 		$this->httpCode = $httpCode;
 

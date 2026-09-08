@@ -45,7 +45,6 @@ class ConfigController extends Controller {
 		return new DataResponse([]);
 	}
 
-
 	/**
 	 * Local Version+Setup Test
 	 *
@@ -67,7 +66,6 @@ class ConfigController extends Controller {
 			]
 		);
 	}
-
 
 	/**
 	 * Actor Test

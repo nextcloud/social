@@ -190,7 +190,6 @@ class ActivityServiceTest extends TestCase {
 		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
 	}
 
-
 	// createActivity()
 
 	public function testCreateActivityWrapsItemSignsSavesAndQueuesIt(): void {
@@ -270,7 +269,6 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame($stream, $activity->getObject());
 	}
 
-
 	// updateActivity()
 
 	public function testUpdateActivityWrapsItemInSignedUpdateWithoutSavingIt(): void {
@@ -301,7 +299,6 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame($queued, $note->getParent());
 		$this->assertSame($alice, $queued->getActor());
 	}
-
 
 	// deleteActivity()
 
@@ -334,7 +331,6 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(self::NOTE_ID, $queued->getObjectId());
 		$this->assertSame($queued, $queued->getObject()->getParent());
 	}
-
 
 	// request(): recipient resolution
 
@@ -426,7 +422,6 @@ class ActivityServiceTest extends TestCase {
 		$this->service->request($item);
 	}
 
-
 	// request(): queue lifecycle
 
 	public function testRequestWithoutAnyTargetNeedsNoToken(): void {
@@ -505,7 +500,6 @@ class ActivityServiceTest extends TestCase {
 
 		$this->assertSame(self::TOKEN, $this->service->request($note));
 	}
-
 
 	// manageRequest()
 

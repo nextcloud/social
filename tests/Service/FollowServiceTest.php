@@ -120,7 +120,6 @@ class FollowServiceTest extends TestCase {
 		return $follow;
 	}
 
-
 	// followAccount()
 
 	public function testFollowAccountSavesFollowAndSendsItToTargetInbox(): void {
@@ -205,7 +204,6 @@ class FollowServiceTest extends TestCase {
 		$this->service->followAccount($this->alice(), 'nobody@remote.example');
 	}
 
-
 	// unfollowAccount()
 
 	public function testUnfollowAccountDeletesFollowAndSendsUndo(): void {
@@ -250,7 +248,6 @@ class FollowServiceTest extends TestCase {
 		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
 	}
 
-
 	// getLinksBetweenPersons()
 
 	/**
@@ -284,7 +281,6 @@ class FollowServiceTest extends TestCase {
 
 		$this->assertSame(['follower' => $follower, 'following' => $following], $links);
 	}
-
 
 	// followers / following
 
@@ -345,7 +341,6 @@ class FollowServiceTest extends TestCase {
 		$this->assertSame(0, $this->service->getFollowersCollection($this->alice())->getTotalItems());
 		$this->assertSame(0, $this->service->getFollowingCollection($this->alice())->getTotalItems());
 	}
-
 
 	// setViewer() / getRelationships()
 

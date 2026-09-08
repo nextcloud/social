@@ -20,7 +20,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Block extends ACore implements JsonSerializable {
 	public const TYPE = 'Block';
 
-
 	/**
 	 * Block constructor.
 	 *
@@ -32,14 +31,12 @@ class Block extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
 		parent::import($data);
 	}
-
 
 	/**
 	 * @return array

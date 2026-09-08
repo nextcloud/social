@@ -62,7 +62,6 @@ class ActionService {
 		$this->streamActionService = $streamActionService;
 	}
 
-
 	/**
 	 * should return null
 	 * will return Stream only with translate action
@@ -83,7 +82,6 @@ class ActionService {
 		switch ($action) {
 			case self::TRANSLATE:
 				return $this->translate($nid);
-
 			case self::FAVOURITE:
 				$this->favourite($actor, $post->getId());
 				break;
@@ -119,7 +117,6 @@ class ActionService {
 
 		return null;
 	}
-
 
 	/**
 	 * TODO: returns a translated version of the Status

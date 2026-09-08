@@ -68,7 +68,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		);
 	}
 
-
 	/**
 	 * @param string $alias
 	 * @param string $link
@@ -84,7 +83,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			$this->andWhere($expr->eq($alias . '.stream_id', $link));
 		}
 	}
-
 
 	/**
 	 * @param string $alias
@@ -138,7 +136,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$this->leftJoinCacheDocuments('icon_id', $pf, 'ca_cachedocument_', 'cacd');
 	}
 
-
 	/**
 	 * @param array $data
 	 * @param string $prefix
@@ -171,7 +168,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		return $stream;
 	}
-
 
 	/**
 	 * @param array $data
@@ -217,7 +213,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		return $actor;
 	}
 
-
 	/**
 	 * @param string $linkField
 	 * @param string $linkAlias
@@ -252,7 +247,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			);
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -278,7 +272,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		return $document;
 	}
-
 
 	/**
 	 * @param string $alias
@@ -312,7 +305,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			'os_'
 		);
 	}
-
 
 	/**
 	 * @param string $link
@@ -353,7 +345,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		);
 	}
 
-
 	/**
 	 * @param string $alias
 	 */
@@ -377,7 +368,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$this->leftJoin($this->getDefaultSelectAlias(), CoreRequestBuilder::TABLE_FOLLOWS, $alias, $on);
 	}
 
-
 	/**
 	 * @param string $alias
 	 */
@@ -396,7 +386,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias('sa.replied', 'streamaction_replied')
 			->selectAlias('sa.bookmarked', 'streamaction_bookmarked');
 	}
-
 
 	/**
 	 * @param string $alias
@@ -435,7 +424,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		);
 	}
 
-
 	/**
 	 * @param string $type
 	 * @param string $field
@@ -447,7 +435,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	) {
 		$this->andWhere($this->exprInnerJoinStreamDest($type, $field, $aliasDest, $alias));
 	}
-
 
 	/**
 	 * @param string $type
@@ -470,7 +457,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		return $andX;
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param string $type
@@ -489,7 +475,6 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			)
 		);
 	}
-
 
 	/**
 	 * @param string $actorId

@@ -25,9 +25,7 @@ class HashtagService {
 	public const TREND_3D = 259200;
 	public const TREND_10D = 864000;
 
-
 	use TArrayTools;
-
 
 	private HashtagsRequest $hashtagsRequest;
 
@@ -36,7 +34,6 @@ class HashtagService {
 	private ConfigService $configService;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * ImportService constructor.
@@ -67,7 +64,6 @@ class HashtagService {
 	 *   '10d' => x
 	 * ]
 	 */
-
 
 	/**
 	 * @return int
@@ -102,7 +98,6 @@ class HashtagService {
 		return $count;
 	}
 
-
 	/**
 	 * @param string $hashtag
 	 *
@@ -117,7 +112,6 @@ class HashtagService {
 		return $this->hashtagsRequest->getHashtag($hashtag);
 	}
 
-
 	/**
 	 * @param string $hashtag
 	 * @param bool $all
@@ -127,7 +121,6 @@ class HashtagService {
 	public function searchHashtags(string $hashtag, bool $all = false): array {
 		return $this->hashtagsRequest->searchHashtags($hashtag, $all);
 	}
-
 
 	/**
 	 * @param int $timestamp
@@ -154,7 +147,6 @@ class HashtagService {
 		return $result;
 	}
 
-
 	/**
 	 * @param array $hashtags
 	 *
@@ -178,7 +170,6 @@ class HashtagService {
 		return $trends;
 	}
 
-
 	/**
 	 * @param array $list
 	 * @param string $hashtag
@@ -194,7 +185,6 @@ class HashtagService {
 
 		return 0;
 	}
-
 
 	/**
 	 * @param array $list

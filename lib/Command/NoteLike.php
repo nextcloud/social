@@ -34,7 +34,6 @@ class NoteLike extends Base {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * NoteBoost constructor.
 	 *
@@ -55,7 +54,6 @@ class NoteLike extends Base {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 *
 	 */
@@ -67,7 +65,6 @@ class NoteLike extends Base {
 			->addOption('unlike', '', InputOption::VALUE_NONE, 'Unlike')
 			->setDescription('Like a note');
 	}
-
 
 	/**
 	 * @param InputInterface $input

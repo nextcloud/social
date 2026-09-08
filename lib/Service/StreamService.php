@@ -67,14 +67,12 @@ class StreamService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
 		$this->streamRequest->setViewer($viewer);
 	}
-
 
 	/**
 	 * @param ACore $stream
@@ -96,7 +94,6 @@ class StreamService {
 		}
 	}
 
-
 	/**
 	 * @param Stream $stream
 	 *
@@ -105,7 +102,6 @@ class StreamService {
 	public function assignStream(Stream $stream) {
 		$stream->convertPublished();
 	}
-
 
 	/**
 	 * @param ACore $stream
@@ -161,7 +157,6 @@ class StreamService {
 		}
 	}
 
-
 	/**
 	 * Classify a stream by who can see it, for `DetailsService`.
 	 */
@@ -193,7 +188,6 @@ class StreamService {
 				: Stream::TYPE_DIRECT
 		);
 	}
-
 
 	/**
 	 * @param Stream $stream
@@ -233,7 +227,6 @@ class StreamService {
 		$stream->addInstancePath($instancePath);
 	}
 
-
 	/**
 	 * @param Note $note
 	 * @param string $hashtag
@@ -251,7 +244,6 @@ class StreamService {
 		}
 	}
 
-
 	/**
 	 * @param Stream $stream
 	 * @param string $type
@@ -263,7 +255,6 @@ class StreamService {
 		}
 	}
 
-
 	/**
 	 * @param Note $note
 	 * @param array $hashtags
@@ -274,7 +265,6 @@ class StreamService {
 			$this->addHashtag($note, $hashtag);
 		}
 	}
-
 
 	/**
 	 * @param Note $note
@@ -309,7 +299,6 @@ class StreamService {
 		);
 	}
 
-
 	/**
 	 * @param Stream $item
 	 * @param string $type
@@ -335,7 +324,6 @@ class StreamService {
 		$this->streamRequest->deleteById($item->getId(), $type);
 	}
 
-
 	/**
 	 * @param string $id
 	 * @param bool $asViewer
@@ -350,7 +338,6 @@ class StreamService {
 	): Stream {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
-
 
 	/**
 	 * @param int $nid
@@ -381,7 +368,6 @@ class StreamService {
 		];
 	}
 
-
 	/**
 	 * @param string $id
 	 * @param bool $asViewer
@@ -393,11 +379,9 @@ class StreamService {
 		return $this->streamRequest->getStreamByNid($nid);
 	}
 
-
 	public function updateStream(Stream $stream): void {
 		$this->streamRequest->update($stream);
 	}
-
 
 	/**
 	 * @param string $id
@@ -418,7 +402,6 @@ class StreamService {
 		return $this->streamRequest->getRepliesByParentId($id, $since, $limit, $asViewer);
 	}
 
-
 	/**
 	 * @param int $since
 	 * @param int $limit
@@ -435,7 +418,6 @@ class StreamService {
 	): array {
 		return $this->streamRequest->getTimelineHome_dep($since, $limit, $format);
 	}
-
 
 	/**
 	 * @param ProbeOptions $options
@@ -458,7 +440,6 @@ class StreamService {
 		return $this->streamRequest->getTimelineNotifications_dep($since, $limit);
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param int $since
@@ -472,7 +453,6 @@ class StreamService {
 		return $this->streamRequest->getTimelineAccount_dep($actorId, $since, $limit);
 	}
 
-
 	/**
 	 * @param int $since
 	 * @param int $limit
@@ -484,7 +464,6 @@ class StreamService {
 	public function getStreamDirect(int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineDirect_dep($since, $limit);
 	}
-
 
 	/**
 	 * @param int $since
@@ -498,7 +477,6 @@ class StreamService {
 		return $this->streamRequest->getTimelineGlobal_dep($since, $limit, true);
 	}
 
-
 	/**
 	 * @param string $hashtag
 	 * @param int $since
@@ -511,7 +489,6 @@ class StreamService {
 		return $this->streamRequest->getTimelineTag($hashtag, $since, $limit);
 	}
 
-
 	/**
 	 * @param int $since
 	 * @param int $limit
@@ -522,7 +499,6 @@ class StreamService {
 		// TODO - admin should be able to provide a list of 'friendly/internal' instance of ActivityPub
 		return [];
 	}
-
 
 	/**
 	 *
@@ -536,7 +512,6 @@ class StreamService {
 		return $this->streamRequest->getTimelineGlobal_dep($since, $limit, false);
 	}
 
-
 	/**
 	 *
 	 * @param int $since
@@ -548,7 +523,6 @@ class StreamService {
 	public function getStreamLiked(int $since = 0, int $limit = 5): array {
 		return $this->streamRequest->getTimelineLiked($since, $limit);
 	}
-
 
 	/**
 	 * @param $noteId
@@ -573,7 +547,6 @@ class StreamService {
 
 		return $this->cacheActorService->getFromId($note->getAttributedTo());
 	}
-
 
 	/**
 	 * @param Person $actor

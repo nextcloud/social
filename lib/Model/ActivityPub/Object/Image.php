@@ -22,7 +22,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Image extends Document implements JsonSerializable {
 	public const TYPE = 'Image';
 
-
 	/**
 	 * Image constructor.
 	 *
@@ -34,7 +33,6 @@ class Image extends Document implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -44,7 +42,6 @@ class Image extends Document implements JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 	}
-
 
 	/**
 	 * @return array

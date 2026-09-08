@@ -37,7 +37,6 @@ class ContactsMenuProvider implements IProvider {
 
 	private AccountService $accountService;
 
-
 	/**
 	 * ContactsMenuProvider constructor.
 	 *
@@ -57,7 +56,6 @@ class ContactsMenuProvider implements IProvider {
 		$this->l10n = $l10n;
 		$this->accountService = $accountService;
 	}
-
 
 	/**
 	 * @param IEntry $entry
@@ -81,7 +79,6 @@ class ContactsMenuProvider implements IProvider {
 			return;
 		}
 	}
-
 
 	/**
 	 * @param IEntry $entry

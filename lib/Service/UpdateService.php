@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -26,9 +27,7 @@ class UpdateService {
 
 	private INotificationManager $notificationManager;
 
-
 	private string $updateId = 'alpha3';
-
 
 	/**
 	 * UpdateService constructor.
@@ -48,7 +47,6 @@ class UpdateService {
 		$this->notificationManager = $notificationManager;
 	}
 
-
 	public function checkUpdateStatus() {
 		$notifications = $this->generateNotifications(true, 'update_alpha3', []);
 
@@ -61,7 +59,6 @@ class UpdateService {
 			$this->notificationManager->notify($notif);
 		}
 	}
-
 
 	/**
 	 * @param bool $adminOnly
@@ -90,7 +87,6 @@ class UpdateService {
 
 		return $notifications;
 	}
-
 
 	/**
 	 * @param string $userId

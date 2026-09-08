@@ -20,7 +20,6 @@ use OCA\Social\Tools\Traits\TAsync;
 //use OCP\Push\IPushManager;
 //use OCP\Push\Model\IPushWrapper;
 
-
 /**
  * Class PushService
  *
@@ -32,7 +31,6 @@ class PushService {
 	private DetailsService $detailsService;
 	private StreamService $streamService;
 	private MiscService $miscService;
-
 
 	/**
 	 * PushService constructor.
@@ -53,7 +51,6 @@ class PushService {
 		//			}
 		//		}
 	}
-
 
 	/**
 	 * @param string $streamId

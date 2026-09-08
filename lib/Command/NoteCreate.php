@@ -41,7 +41,6 @@ class NoteCreate extends Base {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * NoteCreate constructor.
 	 *
@@ -65,7 +64,6 @@ class NoteCreate extends Base {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
-
 
 	/**
 	 *
@@ -91,7 +89,6 @@ class NoteCreate extends Base {
 			->addArgument('content', InputArgument::REQUIRED, 'content of the post')
 			->setDescription('Create a new note');
 	}
-
 
 	/**
 	 * @param InputInterface $input

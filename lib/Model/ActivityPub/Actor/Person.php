@@ -32,14 +32,11 @@ use OCP\Server;
 class Person extends ACore implements IQueryRow, JsonSerializable {
 	use TDetails;
 
-
 	public const TYPE = 'Person';
-
 
 	public const LINK_VIEWER = 'viewer';
 	public const LINK_REMOTE = 'remote';
 	public const LINK_LOCAL = 'local';
-
 
 	private string $userId = '';
 	private string $name = '';
@@ -83,7 +80,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -102,7 +98,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -120,7 +115,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -144,7 +138,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -162,7 +155,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -187,7 +179,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -210,7 +201,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -228,7 +218,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -248,7 +237,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -267,7 +255,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -285,7 +272,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -344,7 +330,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -422,7 +407,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -440,7 +424,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return bool
@@ -460,7 +443,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -478,7 +460,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return bool
@@ -498,7 +479,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -516,7 +496,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return bool
@@ -536,7 +515,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -554,7 +532,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -574,7 +551,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -592,7 +568,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -765,7 +740,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -830,7 +804,6 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		return $result;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -841,8 +814,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$headerUrl = $this->getHeader();
 		$details = $this->getDetailsAll();
-		$result =
-			[
+		$result
+			= [
 				'id' => (string)$this->getNid(),
 				'username' => $this->getPreferredUsername(),
 				'acct' => $this->isLocal() ? $this->getPreferredUsername() : $this->getAccount(),

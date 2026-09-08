@@ -71,7 +71,6 @@ class CheckInstall extends Base {
 			->setDescription('Check the integrity of the installation');
 	}
 
-
 	/**
 	 * @throws Exception
 	 */
@@ -121,7 +120,6 @@ class CheckInstall extends Base {
 
 		return true;
 	}
-
 
 	/**
 	 * @param InputInterface $input

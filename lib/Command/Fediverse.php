@@ -117,7 +117,6 @@ class Fediverse extends Base {
 		}
 	}
 
-
 	/**
 	 * @throws Exception
 	 */

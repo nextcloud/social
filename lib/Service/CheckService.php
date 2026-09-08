@@ -1,4 +1,5 @@
 <?php
+
 /**
  * SPDX-FileCopyrightText: 2018 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
@@ -40,7 +41,6 @@ class CheckService {
 	use TArrayTools;
 	use TStringTools;
 
-
 	public const CACHE_PREFIX = 'social_check_';
 
 	private IUserManager $userManager;
@@ -81,7 +81,6 @@ class CheckService {
 		$this->userId = $userId;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -101,7 +100,6 @@ class CheckService {
 			'checks' => $checks
 		];
 	}
-
 
 	/**
 	 * @return bool
@@ -131,7 +129,6 @@ class CheckService {
 		return false;
 	}
 
-
 	/**
 	 * @param bool $light
 	 *
@@ -156,7 +153,6 @@ class CheckService {
 		return $result;
 	}
 
-
 	/**
 	 * create a fake follow entry. Mandatory to have Home Stream working.
 	 */
@@ -174,7 +170,6 @@ class CheckService {
 
 		$this->followRequest->save($follow);
 	}
-
 
 	/**
 	 * create entries in follows so that user follows itself.
@@ -199,7 +194,6 @@ class CheckService {
 		}
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -220,7 +214,6 @@ class CheckService {
 
 		return $count;
 	}
-
 
 	/**
 	 * @return int

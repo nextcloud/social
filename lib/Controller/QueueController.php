@@ -45,7 +45,6 @@ class QueueController extends Controller {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 * The whole worker's time budget. Whatever is left over stays STANDBY and is
 	 * delivered by the cron, so a post with many recipient inboxes (or a slow

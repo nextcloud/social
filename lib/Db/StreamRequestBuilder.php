@@ -30,7 +30,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class StreamRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Base of the Sql Insert request
 	 *
@@ -43,7 +42,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
 	 *
@@ -55,7 +53,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -82,7 +79,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Select request for Shares
 	 *
@@ -98,7 +94,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 *
@@ -110,7 +105,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * @param SocialQueryBuilder $qb
@@ -138,7 +132,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		$qb->andWhere($orX);
 	}
 
-
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
@@ -156,7 +149,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 		return $result;
 	}
 
-
 	/**
 	 * @param SocialQueryBuilder $qb
 	 *
@@ -168,7 +160,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 
 		return $result;
 	}
-
 
 	/**
 	 * @param array $data
@@ -222,7 +213,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 			} catch (CacheItemNotFoundException $e) {
 			}
 		}
-
 
 		if ($item->getType() === Announce::TYPE) {
 			$item->setAttributedTo($this->get('following_actor_id', $data, ''));

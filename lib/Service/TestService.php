@@ -30,13 +30,11 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class TestService {
 	use TArrayTools;
 
-
 	private CurlService $curlService;
 
 	private ConfigService $configService;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * PostService constructor.
@@ -52,7 +50,6 @@ class TestService {
 		$this->configService = $configService;
 		$this->miscService = $miscService;
 	}
-
 
 	public function testWebfinger(SimpleDataStore $tests) {
 		$account = ltrim($tests->g('account'), '@');
@@ -79,7 +76,6 @@ class TestService {
 			$path = '/.well-known/webfinger';
 		}
 		$tests->aObj('tests', $testHostMeta);
-
 
 		$request = new NCRequest($path);
 		$request->addParam('resource', 'acct:' . $account);
@@ -114,7 +110,6 @@ class TestService {
 
 		$tests->aObj('tests', $testActorLink);
 
-
 		$id = $this->get('href', $link, '');
 
 		$testActorData = new Test('actor-data', Test::SEVERITY_MANDATORY);
@@ -130,7 +125,6 @@ class TestService {
 		}
 
 		$tests->aObj('tests', $testActorData);
-
 
 		$testActor = new Test('actor', Test::SEVERITY_MANDATORY);
 		try {

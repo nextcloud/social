@@ -64,7 +64,6 @@ class OAuthController extends Controller {
 
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @PublicPage
@@ -100,7 +99,6 @@ class OAuthController extends Controller {
 
 		return new DataResponse($nodeInfo, Http::STATUS_OK);
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -142,7 +140,6 @@ class OAuthController extends Controller {
 		);
 	}
 
-
 	/**
 	 * @NoCSRFRequired
 	 * @NoAdminRequired
@@ -176,8 +173,8 @@ class OAuthController extends Controller {
 		$this->initialState->provideInitialState('appName', $client->getAppName());
 
 		return new TemplateResponse(Application::APP_ID, 'oauth2', [
-			'request' =>
-				[
+			'request'
+				=> [
 					'clientId' => $client_id,
 					'redirectUri' => $redirect_uri,
 					'responseType' => $response_type,
@@ -185,7 +182,6 @@ class OAuthController extends Controller {
 				]
 		]);
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -235,7 +231,6 @@ class OAuthController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 	}
-
 
 	/**
 	 * @NoCSRFRequired
@@ -309,7 +304,6 @@ class OAuthController extends Controller {
 			return $response;
 		}
 	}
-
 
 	/**
 	 * Token revocation (RFC 7009). Only the client the token was issued to may

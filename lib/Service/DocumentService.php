@@ -41,7 +41,6 @@ class DocumentService {
 	public const ERROR_MIMETYPE = 2;
 	public const ERROR_PERMISSION = 3;
 
-
 	private \OCP\IURLGenerator $urlGenerator;
 
 	private CacheDocumentsRequest $cacheDocumentsRequest;
@@ -55,7 +54,6 @@ class DocumentService {
 	private ConfigService $configService;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * DocumentInterface constructor.
@@ -81,7 +79,6 @@ class DocumentService {
 		$this->cacheService = $cacheService;
 		$this->miscService = $miscService;
 	}
-
 
 	/**
 	 * @param string $id
@@ -154,7 +151,6 @@ class DocumentService {
 		throw new CacheDocumentDoesNotExistException();
 	}
 
-
 	/**
 	 * @param string $id
 	 * @param string $mime
@@ -173,7 +169,6 @@ class DocumentService {
 
 		return $this->cacheService->getContentFromCache($document->getResizedCopy());
 	}
-
 
 	/**
 	 * @param string $id
@@ -248,8 +243,6 @@ class DocumentService {
 		$this->cacheDocumentsRequest->updateDescription($document);
 	}
 
-
-
 	/**
 	 * @return int
 	 * @throws Exception
@@ -274,7 +267,6 @@ class DocumentService {
 		return $count;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 *
@@ -289,8 +281,8 @@ class DocumentService {
 			'core.avatar.getAvatar', ['userId' => $actor->getUserId(), 'size' => 128]
 		);
 
-		$versionCurrent =
-			(int)$this->configService->getUserValue('version', $actor->getUserId(), 'avatar');
+		$versionCurrent
+			= (int)$this->configService->getUserValue('version', $actor->getUserId(), 'avatar');
 		$versionCached = $actor->getAvatarVersion();
 		if ($versionCurrent > $versionCached) {
 			/** @var Image $icon */
@@ -315,7 +307,6 @@ class DocumentService {
 
 		return $icon->getId();
 	}
-
 
 	/**
 	 * Cache a banner/header image for a local actor.

@@ -35,7 +35,6 @@ use Psr\Log\LoggerInterface;
 class LikeService {
 	use TStringTools;
 
-
 	private StreamRequest $streamRequest;
 
 	private StreamService $streamService;
@@ -53,7 +52,6 @@ class LikeService {
 	private MiscService $miscService;
 
 	private LoggerInterface $logger;
-
 
 	/**
 	 * LikeService constructor.
@@ -84,7 +82,6 @@ class LikeService {
 		$this->miscService = $miscService;
 		$this->logger = $logger;
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -128,7 +125,9 @@ class LikeService {
 		$this->assignInstance($like, $actor, $note);
 
 		$this->logger->info('LikeService::create - instance paths', [
-			'paths' => array_map(function ($p) { return $p->getAddress(); }, $like->getInstancePaths()),
+			'paths' => array_map(function ($p) {
+				return $p->getAddress();
+			}, $like->getInstancePaths()),
 			'likeId' => $like->getId(),
 		]);
 
@@ -147,7 +146,6 @@ class LikeService {
 
 		return $like;
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -193,7 +191,6 @@ class LikeService {
 
 		return $undo;
 	}
-
 
 	/**
 	 * @param ACore $item

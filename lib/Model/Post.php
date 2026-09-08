@@ -54,7 +54,6 @@ class Post implements JsonSerializable {
 		return $this->actor;
 	}
 
-
 	/**
 	 * @param string $to
 	 *
@@ -86,7 +85,6 @@ class Post implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -123,7 +121,6 @@ class Post implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return array
@@ -186,7 +183,6 @@ class Post implements JsonSerializable {
 		return $this->medias;
 	}
 
-
 	/**
 	 * @return Document[]
 	 */
@@ -205,7 +201,6 @@ class Post implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -219,7 +214,6 @@ class Post implements JsonSerializable {
 	public function setContent(string $content) {
 		$this->content = $content;
 	}
-
 
 	/**
 	 * @return array

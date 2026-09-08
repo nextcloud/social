@@ -33,16 +33,13 @@ class ClientService {
 	// an authorization code is single-use plumbing; it expires quickly
 	public const TIME_CODE_TTL = 600; // 10m
 
-
 	use TStringTools;
-
 
 	private ClientRequest $clientRequest;
 
 	private SecretHasher $secretHasher;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * ClientService constructor.
@@ -56,7 +53,6 @@ class ClientService {
 		$this->secretHasher = $secretHasher;
 		$this->miscService = $miscService;
 	}
-
 
 	/**
 	 * @param SocialClient $client
@@ -78,7 +74,6 @@ class ClientService {
 		$this->clientRequest->saveApp($client);
 	}
 
-
 	/**
 	 * @param SocialClient $client
 	 */
@@ -89,7 +84,6 @@ class ClientService {
 		$this->clientRequest->authClient($client);
 	}
 
-
 	/**
 	 * @param SocialClient $client
 	 */
@@ -98,7 +92,6 @@ class ClientService {
 
 		$this->clientRequest->updateToken($client);
 	}
-
 
 	/**
 	 * @param string $clientId
@@ -109,7 +102,6 @@ class ClientService {
 	public function getFromClientId(string $clientId): SocialClient {
 		return $this->clientRequest->getFromClientId($clientId);
 	}
-
 
 	/**
 	 * @param string $token
@@ -155,7 +147,6 @@ class ClientService {
 
 		$this->clientRequest->revokeToken($stored);
 	}
-
 
 	/**
 	 * @param SocialClient $client

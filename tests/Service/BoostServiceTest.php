@@ -173,7 +173,6 @@ class BoostServiceTest extends TestCase {
 		$this->fail('No instance path for ' . $uri . ' (type ' . $type . ', priority ' . $priority . ') in ' . json_encode($paths));
 	}
 
-
 	// create()
 
 	public function testCreateBuildsPublicAnnounceSavesFlagsAndFederatesIt(): void {
@@ -300,7 +299,6 @@ class BoostServiceTest extends TestCase {
 		$this->service->create($this->alice(), self::POST_ID);
 	}
 
-
 	// get()
 
 	public function testGetLooksUpAnnounceByBoostedObject(): void {
@@ -319,7 +317,6 @@ class BoostServiceTest extends TestCase {
 		$this->expectException(StreamNotFoundException::class);
 		$this->service->get(self::POST_ID);
 	}
-
 
 	// delete()
 

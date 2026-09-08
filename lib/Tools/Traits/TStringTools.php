@@ -37,7 +37,6 @@ trait TStringTools {
 		return $str;
 	}
 
-
 	/**
 	 * Generate uuid: 2b5a7a87-8db1-445f-a17b-405790f91c80
 	 *
@@ -62,7 +61,6 @@ trait TStringTools {
 
 		return $uuid;
 	}
-
 
 	/**
 	 * @param string $str1
@@ -89,7 +87,6 @@ trait TStringTools {
 		return substr($str1, 0, $i);
 	}
 
-
 	/**
 	 * @param string $line
 	 * @param array $params
@@ -105,7 +102,6 @@ trait TStringTools {
 		return $line;
 	}
 
-
 	/**
 	 * @param int $words
 	 *
@@ -119,7 +115,6 @@ trait TStringTools {
 
 		return implode(' ', $sentence);
 	}
-
 
 	/**
 	 * @param int $length

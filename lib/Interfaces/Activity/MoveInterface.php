@@ -50,7 +50,6 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		$this->cacheActorService = $cacheActorService;
 	}
 
-
 	/**
 	 * @throws InvalidOriginException
 	 */
@@ -83,7 +82,6 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		$this->moveAccount($old, $new);
 	}
 
-
 	public function moveAccount(Person $actor, Person $target): void {
 		$this->actionsRequest->moveAccount($actor->getId(), $target->getId());
 		$this->cacheDocumentsRequest->moveAccount($actor->getId(), $target->getId());
@@ -93,7 +91,6 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		$this->updateStreamFromActor($actor, $target);
 	}
-
 
 	/**
 	 * @param Person $actor

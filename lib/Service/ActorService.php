@@ -26,7 +26,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class ActorService {
 	use TArrayTools;
 
-
 	private CacheActorsRequest $cacheActorsRequest;
 
 	private CacheDocumentsRequest $cacheDocumentsRequest;
@@ -36,7 +35,6 @@ class ActorService {
 	private ConfigService $configService;
 
 	private MiscService $miscService;
-
 
 	/**
 	 * ActorService constructor.
@@ -60,7 +58,6 @@ class ActorService {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 *
@@ -78,7 +75,6 @@ class ActorService {
 		}
 	}
 
-
 	/**
 	 * @param Person $actor
 	 *
@@ -87,7 +83,6 @@ class ActorService {
 	public function cacheLocalActorDetails(Person $actor) {
 		$this->cacheActorsRequest->updateDetails($actor);
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -98,7 +93,6 @@ class ActorService {
 		$this->cacheDocumentIfNeeded($actor);
 		$this->cacheActorsRequest->save($actor);
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -111,7 +105,6 @@ class ActorService {
 
 		return $this->cacheActorsRequest->update($actor);
 	}
-
 
 	/**
 	 * Get the cached header URL for a local actor.
@@ -131,7 +124,6 @@ class ActorService {
 			return '';
 		}
 	}
-
 
 	/**
 	 * @param Person $actor

@@ -20,7 +20,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class HashtagsRequest extends HashtagsRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Insert a new Hashtag.
 	 *
@@ -35,7 +34,6 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * Insert a new Hashtag.
 	 *
@@ -49,7 +47,6 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * @return array
@@ -66,7 +63,6 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 		return $hashtags;
 	}
-
 
 	/**
 	 * @param string $hashtag
@@ -89,7 +85,6 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 
 		return $this->parseHashtagsSelectSql($data);
 	}
-
 
 	/**
 	 * @param string $hashtag

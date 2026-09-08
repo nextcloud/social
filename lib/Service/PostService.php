@@ -46,7 +46,6 @@ class PostService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param Post $post
 	 * @param string $token
@@ -127,7 +126,6 @@ class PostService {
 
 		return $updated;
 	}
-
 
 	/**
 	 * @param Post $post

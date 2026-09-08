@@ -65,7 +65,6 @@ class SocialPubController extends Controller {
 		$this->configService = $configService;
 	}
 
-
 	/**
 	 * @throws UrlCloudException
 	 * @throws SocialAppConfigException
@@ -96,7 +95,6 @@ class SocialPubController extends Controller {
 		return $page;
 	}
 
-
 	/**
 	 * Return webpage content for human navigation.
 	 * Should return information about a Social account, based on username.
@@ -111,7 +109,6 @@ class SocialPubController extends Controller {
 		return $this->renderPage($username);
 	}
 
-
 	/**
 	 * Return webpage content for human navigation.
 	 * Should return followers of a Social account, based on username.
@@ -125,7 +122,6 @@ class SocialPubController extends Controller {
 		return $this->renderPage($username);
 	}
 
-
 	/**
 	 * Return webpage content for human navigation.
 	 * Should return following of a Social account, based on username.
@@ -138,7 +134,6 @@ class SocialPubController extends Controller {
 	public function following(string $username): Response {
 		return $this->renderPage($username);
 	}
-
 
 	/**
 	 * Display the navigation page of the Social app.

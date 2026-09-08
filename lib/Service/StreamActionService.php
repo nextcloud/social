@@ -23,7 +23,6 @@ class StreamActionService {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * StreamActionService constructor.
 	 *
@@ -35,7 +34,6 @@ class StreamActionService {
 		$this->streamActionsRequest = $streamActionsRequest;
 		$this->miscService = $miscService;
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -49,7 +47,6 @@ class StreamActionService {
 		$this->saveAction($action);
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param string $streamId
@@ -62,7 +59,6 @@ class StreamActionService {
 		$this->saveAction($action);
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param string $streamId
@@ -74,7 +70,6 @@ class StreamActionService {
 		$action->updateValueBool($key, $value);
 		$this->saveAction($action);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -91,7 +86,6 @@ class StreamActionService {
 
 		return $action;
 	}
-
 
 	/**
 	 * @param StreamAction $action

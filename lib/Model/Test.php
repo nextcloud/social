@@ -21,11 +21,9 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class Test extends SimpleDataStore implements JsonSerializable {
 	use TArrayTools;
 
-
 	public const SEVERITY_USELESS = 'useless';
 	public const SEVERITY_OPTIONAL = 'optional';
 	public const SEVERITY_MANDATORY = 'mandatory';
-
 
 	private string $name;
 
@@ -34,7 +32,6 @@ class Test extends SimpleDataStore implements JsonSerializable {
 	private bool $success = false;
 
 	private array $messages = [];
-
 
 	/**
 	 * Test constructor.
@@ -49,7 +46,6 @@ class Test extends SimpleDataStore implements JsonSerializable {
 		$this->severity = $severity;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -57,14 +53,12 @@ class Test extends SimpleDataStore implements JsonSerializable {
 		return $this->name;
 	}
 
-
 	/**
 	 * @return string
 	 */
 	public function getSeverity(): string {
 		return $this->severity;
 	}
-
 
 	/**
 	 * @return bool
@@ -84,7 +78,6 @@ class Test extends SimpleDataStore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -102,7 +95,6 @@ class Test extends SimpleDataStore implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return array

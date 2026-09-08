@@ -183,7 +183,6 @@ class LinkedDataSignature implements JsonSerializable {
 		return hash('sha256', $res);
 	}
 
-
 	/**
 	 * @throws LinkedDataSignatureMissingException
 	 */
@@ -207,7 +206,6 @@ class LinkedDataSignature implements JsonSerializable {
 
 		$this->setObject($data);
 	}
-
 
 	/**
 	 * @return array

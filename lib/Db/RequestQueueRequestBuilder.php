@@ -15,7 +15,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class RequestQueueRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Base of the Sql Insert request
 	 *
@@ -28,7 +27,6 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
 	 *
@@ -40,7 +38,6 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -63,7 +60,6 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 *
@@ -75,7 +71,6 @@ class RequestQueueRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * @param array $data

@@ -81,7 +81,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		$this->save($item);
 	}
 
-
 	/**
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
@@ -118,7 +117,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	public function getItemById(string $id): ACore {
 		throw new ItemNotFoundException();
 	}
-
 
 	/**
 	 * @throws Exception
@@ -166,7 +164,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		$this->generateNotification($post, $actor);
 	}
 
-
 	/**
 	 * @throws InvalidOriginException
 	 * @throws InvalidResourceException
@@ -181,8 +178,8 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 	 */
 	public function delete(ACore $item): void {
 		try {
-			$knownItem =
-				$this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
+			$knownItem
+				= $this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
 
 			if ($item->hasActor()) {
 				$actor = $item->getActor();
@@ -245,8 +242,8 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		}
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface =
-			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface
+			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(
@@ -274,7 +271,6 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		}
 	}
 
-
 	/**
 	 * @throws ItemUnknownException
 	 * @throws SocialAppConfigException
@@ -285,8 +281,8 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		}
 
 		/** @var SocialAppNotificationInterface $notificationInterface */
-		$notificationInterface =
-			AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
+		$notificationInterface
+			= AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
 		try {
 			$notification = $this->streamRequest->getStreamByObjectId(

@@ -16,7 +16,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 class SocialAppNotification extends Stream implements JsonSerializable {
 	public const TYPE = 'SocialAppNotification';
 
-
 	/**
 	 * Notification constructor.
 	 *
@@ -28,7 +27,6 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -38,7 +36,6 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 		//parent::import($data);
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -47,7 +44,6 @@ class SocialAppNotification extends Stream implements JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 	}
-
 
 	/**
 	 * @return array

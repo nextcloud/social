@@ -52,7 +52,6 @@ class CacheDocumentsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 */

@@ -37,7 +37,6 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		$this->keyCipher = $keyCipher;
 	}
 
-
 	/**
 	 * Base of the Sql Insert request
 	 *
@@ -50,7 +49,6 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
 	 *
@@ -62,7 +60,6 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -86,7 +83,6 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 *
@@ -98,7 +94,6 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * @param array $data

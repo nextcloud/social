@@ -22,7 +22,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class StreamDestRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Base of the Sql Insert request
 	 */
@@ -32,7 +31,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Update request
@@ -45,7 +43,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -65,7 +62,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 *
@@ -77,7 +73,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -94,7 +89,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * @param SocialQueryBuilder $qb
@@ -121,7 +115,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	public function getStreamDestsFromRequest(SocialQueryBuilder $qb): array {
 		return $qb->getRows([$this, 'parseStreamDestSelectSql']);
 	}
-
 
 	/**
 	 * @param array $data

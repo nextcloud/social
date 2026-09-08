@@ -67,7 +67,6 @@ class CurlService {
 		$this->maxDownloadSize = $this->configService->getAppValue(ConfigService::SOCIAL_MAX_SIZE) * 1048576;
 	}
 
-
 	/**
 	 * @param string $account
 	 *
@@ -122,7 +121,6 @@ class CurlService {
 		return $result;
 	}
 
-
 	/**
 	 * @param string $host
 	 * @param array $protocols
@@ -155,7 +153,6 @@ class CurlService {
 
 		return parse_url($url, PHP_URL_PATH);
 	}
-
 
 	/**
 	 * @param string $account
@@ -207,7 +204,6 @@ class CurlService {
 		return $actor;
 	}
 
-
 	/**
 	 * @param $id
 	 *
@@ -245,7 +241,6 @@ class CurlService {
 		return $result;
 	}
 
-
 	/**
 	 * @param NCRequest $request
 	 *
@@ -264,7 +259,6 @@ class CurlService {
 		return $this->doRequestOrig($request);
 	}
 
-
 	/**
 	 * @param NCRequest $request
 	 */
@@ -273,7 +267,6 @@ class CurlService {
 			self::USER_AGENT . ' ' . $this->configService->getAppValue('installed_version')
 		);
 	}
-
 
 	/**
 	 * @param string $token
@@ -298,7 +291,6 @@ class CurlService {
 			$this->logger->error('Cannot initiate AsyncWithToken', ['token' => $token, 'exception' => $e]);
 		}
 	}
-
 
 	/**
 	 * @param NCRequest $request
@@ -327,7 +319,6 @@ class CurlService {
 
 		throw new RequestResultNotJsonException();
 	}
-
 
 	/**
 	 * @throws RequestContentException
@@ -373,7 +364,6 @@ class CurlService {
 
 		return (string)$result;
 	}
-
 
 	/**
 	 * @param Request $request
@@ -429,7 +419,6 @@ class CurlService {
 		return $curl;
 	}
 
-
 	/**
 	 * @param Request $request
 	 *
@@ -460,7 +449,6 @@ class CurlService {
 		return $curl;
 	}
 
-
 	/**
 	 * @param Request $request
 	 */
@@ -483,7 +471,6 @@ class CurlService {
 		curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 	}
 
-
 	/**
 	 * @param CurlHandle $curl
 	 * @param Request $request
@@ -500,7 +487,6 @@ class CurlService {
 		$request->setContentType((!is_string($contentType)) ? '' : $contentType);
 		$request->setResultCode($code);
 	}
-
 
 	/**
 	 * @param CurlHandle $curl

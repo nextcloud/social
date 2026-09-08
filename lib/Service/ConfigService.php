@@ -29,7 +29,6 @@ class ConfigService {
 	use TPathTools;
 	use TArrayTools;
 
-
 	public const CLOUD_URL = 'cloud_url';
 	public const SOCIAL_URL = 'social_url';
 	public const SOCIAL_ADDRESS = 'social_address';
@@ -40,7 +39,6 @@ class ConfigService {
 	public const SOCIAL_ACCESS_LIST = 'access_list';
 
 	public const SOCIAL_SELF_SIGNED = 'allow_self_signed';
-
 
 	public const BACKGROUND_CRON = 1;
 	public const BACKGROUND_ASYNC = 2;
@@ -80,7 +78,6 @@ class ConfigService {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -94,7 +91,6 @@ class ConfigService {
 
 		return $data;
 	}
-
 
 	/**
 	 * /**
@@ -225,7 +221,6 @@ class ConfigService {
 		return $this->config->setUserValue($userId, Application::APP_ID, $key, $value);
 	}
 
-
 	/**
 	 * @param string $key
 	 * @param string $value
@@ -250,14 +245,12 @@ class ConfigService {
 		$this->config->deleteAppValue('core', $key);
 	}
 
-
 	/**
 	 *
 	 */
 	public function unsetAppConfig() {
 		$this->config->deleteAppValues(Application::APP_ID);
 	}
-
 
 	/**
 	 * @param $key
@@ -270,7 +263,6 @@ class ConfigService {
 		return $this->config->getSystemValue($key, '');
 	}
 
-
 	/**
 	 * Whether outbound requests may reach the instance's own network.
 	 *
@@ -280,7 +272,6 @@ class ConfigService {
 	public function isLocalNetworkAllowed(): bool {
 		return $this->config->getSystemValueBool('allow_local_remote_servers', false);
 	}
-
 
 	/**
 	 * getCloudHost - cloud.example.com
@@ -293,7 +284,6 @@ class ConfigService {
 
 		return parse_url($url, PHP_URL_HOST);
 	}
-
 
 	/**
 	 * getCloudUrl - https://cloud.example.com/index.php
@@ -331,7 +321,6 @@ class ConfigService {
 		$this->setAppValue(self::CLOUD_URL, $cloudAddress);
 	}
 
-
 	/**
 	 * getSocialAddress - example.com
 	 *
@@ -354,7 +343,6 @@ class ConfigService {
 	public function setSocialAddress(string $address) {
 		$this->setAppValue(self::SOCIAL_ADDRESS, $address);
 	}
-
 
 	/**
 	 * getSocialUrl - https://cloud.example.com/apps/social/
@@ -390,7 +378,6 @@ class ConfigService {
 		$this->setAppValue(self::SOCIAL_URL, $url);
 	}
 
-
 	/**
 	 * @param string $path
 	 * @param bool $generateId
@@ -408,7 +395,6 @@ class ConfigService {
 
 		return $id;
 	}
-
 
 	public function configureRequest(NCRequest $request): void {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');

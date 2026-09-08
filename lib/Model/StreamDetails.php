@@ -32,7 +32,6 @@ class StreamDetails implements JsonSerializable {
 	private bool $public = false;
 	private bool $federated = false;
 
-
 	/**
 	 * StreamDetails constructor.
 	 */

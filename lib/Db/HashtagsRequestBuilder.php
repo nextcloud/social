@@ -19,7 +19,6 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class HashtagsRequestBuilder extends CoreRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Base of the Sql Insert request
 	 *
@@ -32,7 +31,6 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Update request
 	 *
@@ -44,7 +42,6 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * Base of the Sql Select request for Shares
@@ -64,7 +61,6 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
-
 	/**
 	 * Base of the Sql Delete request
 	 *
@@ -76,7 +72,6 @@ class HashtagsRequestBuilder extends CoreRequestBuilder {
 
 		return $qb;
 	}
-
 
 	/**
 	 * @param array $data

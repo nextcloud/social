@@ -56,7 +56,6 @@ class CacheDocumentService {
 		$this->configService = $configService;
 	}
 
-
 	/**
 	 * @brief Save the local upload to the cache
 	 *
@@ -69,7 +68,6 @@ class CacheDocumentService {
 
 		$this->saveContentToCache($document, $content, $mime);
 	}
-
 
 	/**
 	 * @param Document $document
@@ -91,7 +89,6 @@ class CacheDocumentService {
 
 		$this->saveContentToCache($document, $content, $mime);
 	}
-
 
 	/**
 	 * @param Document $document
@@ -139,7 +136,6 @@ class CacheDocumentService {
 		$document->setResizedCopy($resized);
 	}
 
-
 	/**
 	 * @param string $content
 	 *
@@ -163,7 +159,6 @@ class CacheDocumentService {
 		return $filename;
 	}
 
-
 	/**
 	 * creating a path aa/bb/cc/dd/ from the filename aabbccdd-0123-[...]
 	 *
@@ -174,7 +169,6 @@ class CacheDocumentService {
 	private function generatePath(string $filename): string {
 		return chunk_split(substr($filename, 0, 8), 2, '/');
 	}
-
 
 	/**
 	 *
@@ -195,7 +189,6 @@ class CacheDocumentService {
 
 		throw new CacheContentMimeTypeException();
 	}
-
 
 	/**
 	 * @param string $content
@@ -222,7 +215,6 @@ class CacheDocumentService {
 		$document->setBlurHash($hash);
 	}
 
-
 	/**
 	 * @param string $filename
 	 *
@@ -248,7 +240,6 @@ class CacheDocumentService {
 			throw new CacheContentException();
 		}
 	}
-
 
 	public function getFromUuid(string $uuid): ISimpleFile {
 		try {

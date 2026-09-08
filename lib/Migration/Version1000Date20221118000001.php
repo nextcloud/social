@@ -44,10 +44,8 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$this->createStreamQueue($schema);
 		$this->createStreamTags($schema);
 
-
 		return $schema;
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -121,7 +119,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->setPrimaryKey(['id_prim']);
 		$table->addUniqueIndex(['actor_id_prim', 'object_id_prim', 'type'], 'apopt');
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -211,7 +208,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['id_prim']);
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -309,7 +305,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->addUniqueIndex(['accepted', 'object_id_prim', 'actor_id_prim'], 'aoa');
 	}
 
-
 	/**
 	 * @param ISchemaWrapper $schema
 	 *
@@ -338,7 +333,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 
 		$table->setPrimaryKey(['hashtag']);
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -467,7 +461,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->setPrimaryKey(['uri']);
 		$table->addIndex(['local', 'uri', 'account_prim']);
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -713,7 +706,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->addIndex(['attributed_to_prim'], 'attributed_to_prim');
 	}
 
-
 	/**
 	 * @param ISchemaWrapper $schema
 	 *
@@ -885,7 +877,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->setPrimaryKey(['nid']);
 		$table->addUniqueIndex(['id_prim']);
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -1153,7 +1144,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->addUniqueIndex(['auth_code', 'token', 'app_client_id', 'app_client_secret']);
 	}
 
-
 	/**
 	 * @param ISchemaWrapper $schema
 	 *
@@ -1245,7 +1235,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->addIndex(['token']);
 	}
 
-
 	/**
 	 * @param ISchemaWrapper $schema
 	 *
@@ -1312,7 +1301,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->addUniqueIndex(['stream_id_prim', 'actor_id_prim'], 'sa');
 	}
 
-
 	/**
 	 * @param ISchemaWrapper $schema
 	 *
@@ -1360,7 +1348,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->addUniqueIndex(['stream_id', 'actor_id', 'type'], 'sat');
 		$table->addIndex(['type', 'subtype'], 'ts');
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema
@@ -1430,7 +1417,6 @@ class Version1000Date20221118000001 extends SimpleMigrationStep {
 		$table->setPrimaryKey(['id']);
 		$table->addIndex(['token']);
 	}
-
 
 	/**
 	 * @param ISchemaWrapper $schema

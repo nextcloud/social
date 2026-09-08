@@ -155,7 +155,6 @@ class Instance implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -209,7 +208,6 @@ class Instance implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -242,7 +240,6 @@ class Instance implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @param array $data
 	 *
@@ -268,7 +265,6 @@ class Instance implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return array

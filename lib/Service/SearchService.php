@@ -22,7 +22,6 @@ use Psr\Log\LoggerInterface;
 class SearchService {
 	use TArrayTools;
 
-
 	public const SEARCH_URI = 1;
 	public const SEARCH_ACCOUNTS = 2;
 	public const SEARCH_HASHTAGS = 4;
@@ -33,7 +32,6 @@ class SearchService {
 	private HashtagService $hashtagService;
 	private ConfigService $configService;
 	private LoggerInterface $logger;
-
 
 	/**
 	 * ImportService constructor.
@@ -55,7 +53,6 @@ class SearchService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param string $search
 	 *
@@ -73,7 +70,6 @@ class SearchService {
 
 		return [];
 	}
-
 
 	/**
 	 * @param string $search
@@ -98,7 +94,6 @@ class SearchService {
 		return $this->cacheActorService->searchCachedAccounts($search);
 	}
 
-
 	/**
 	 * @param string $search
 	 *
@@ -118,7 +113,6 @@ class SearchService {
 		return $this->hashtagService->searchHashtags($search, true);
 	}
 
-
 	/**
 	 * @param string $search
 	 *
@@ -136,7 +130,6 @@ class SearchService {
 		return $result;
 	}
 
-
 	/**
 	 * @param string $search
 	 *
@@ -147,10 +140,8 @@ class SearchService {
 		switch ($char) {
 			case '@':
 				return self::SEARCH_ACCOUNTS;
-
 			case '#':
 				return self::SEARCH_HASHTAGS;
-
 			default:
 				if (substr($search, 0, 4) === 'http') {
 					return self::SEARCH_URI;

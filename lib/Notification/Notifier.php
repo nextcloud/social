@@ -35,7 +35,6 @@ class Notifier implements INotifier {
 
 	protected ICloudIdManager $cloudIdManager;
 
-
 	public function __construct(
 		IL10N $l10n, IFactory $factory, IManager $contactsManager, IURLGenerator $url,
 		ICloudIdManager $cloudIdManager,
@@ -115,7 +114,6 @@ class Notifier implements INotifier {
 			default:
 				throw new InvalidArgumentException();
 		}
-
 
 		foreach ($notification->getActions() as $action) {
 			switch ($action->getLabel()) {

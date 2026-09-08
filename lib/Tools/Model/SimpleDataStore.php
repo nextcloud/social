@@ -22,10 +22,8 @@ use OCA\Social\Tools\Traits\TArrayTools;
 class SimpleDataStore implements JsonSerializable {
 	use TArrayTools;
 
-
 	/** @var array */
 	private $data;
-
 
 	/**
 	 * SimpleDataStore constructor.
@@ -40,14 +38,12 @@ class SimpleDataStore implements JsonSerializable {
 		$this->data = $data;
 	}
 
-
 	/**
 	 * @param array $default
 	 */
 	public function default(array $default = []) {
 		$this->data = array_merge($default, $this->data);
 	}
-
 
 	/**
 	 * @param string $key
@@ -86,7 +82,6 @@ class SimpleDataStore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $key
 	 * @param int $value
@@ -123,7 +118,6 @@ class SimpleDataStore implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param string $key
@@ -162,7 +156,6 @@ class SimpleDataStore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $key
 	 * @param array $values
@@ -200,7 +193,6 @@ class SimpleDataStore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @param string $key
 	 * @param JsonSerializable $value
@@ -228,7 +220,6 @@ class SimpleDataStore implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param string $key
@@ -267,7 +258,6 @@ class SimpleDataStore implements JsonSerializable {
 		return new SimpleDataStore($this->getArray($key, $this->data));
 	}
 
-
 	/**
 	 * @param string $key
 	 *
@@ -281,7 +271,6 @@ class SimpleDataStore implements JsonSerializable {
 
 		return $this->data[$key];
 	}
-
 
 	/**
 	 * @return array
@@ -301,7 +290,6 @@ class SimpleDataStore implements JsonSerializable {
 		return $this;
 	}
 
-
 	public function keys(): array {
 		return array_keys($this->data);
 	}
@@ -314,7 +302,6 @@ class SimpleDataStore implements JsonSerializable {
 	public function hasKey(string $key): bool {
 		return (array_key_exists($key, $this->data));
 	}
-
 
 	/**
 	 * @param array $keys
@@ -338,7 +325,6 @@ class SimpleDataStore implements JsonSerializable {
 		return true;
 	}
 
-
 	/**
 	 * @param array $keys
 	 * @param bool $must
@@ -360,7 +346,6 @@ class SimpleDataStore implements JsonSerializable {
 	public function haveKey(string $key): bool {
 		return $this->hasKey($key);
 	}
-
 
 	/**
 	 * @return array

@@ -44,7 +44,6 @@ class WebfingerHandler implements IHandler {
 		$this->configService = $configService;
 	}
 
-
 	/**
 	 * @see https://docs.joinmastodon.org/spec/webfinger/
 	 *
@@ -86,7 +85,6 @@ class WebfingerHandler implements IHandler {
 
 		return $previousResponse;
 	}
-
 
 	/**
 	 * handle request on /.well-known/webfinger
@@ -171,7 +169,6 @@ class WebfingerHandler implements IHandler {
 		return $response;
 	}
 
-
 	/**
 	 * handle request on /.well-known/nodeinfo
 	 * returns Json
@@ -190,7 +187,6 @@ class WebfingerHandler implements IHandler {
 
 		return $response;
 	}
-
 
 	/**
 	 * handle request on /.well-known/host-meta

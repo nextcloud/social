@@ -35,7 +35,6 @@ class Version1000Date20230217000002 extends SimpleMigrationStep {
 			}
 		}
 
-
 		// fix nid as primary on social_cache_actor
 		if ($schema->hasTable('social_cache_actor')) {
 			$table = $schema->getTable('social_cache_actor');
@@ -53,7 +52,6 @@ class Version1000Date20230217000002 extends SimpleMigrationStep {
 				$table->setPrimaryKey(['nid']);
 			}
 		}
-
 
 		if ($schema->hasTable('social_cache_doc')) {
 			$table = $schema->getTable('social_cache_doc');
@@ -90,7 +88,7 @@ class Version1000Date20230217000002 extends SimpleMigrationStep {
 					]
 				);
 			}
-			
+
 			if (!$table->hasColumn('blurhash')) {
 				$table->addColumn(
 					'blurhash', Types::STRING,

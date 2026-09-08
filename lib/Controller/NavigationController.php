@@ -87,7 +87,6 @@ class NavigationController extends Controller {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * Display the navigation page of the Social app.
 	 *
@@ -199,8 +198,8 @@ class NavigationController extends Controller {
 	}
 
 	private function setupCloudAddress(): string {
-		$frontControllerActive =
-			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+		$frontControllerActive
+			= ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
 			 || getenv('front_controller_active') === 'true');
 
 		$cloudAddress = rtrim($this->config->getSystemValue('overwrite.cli.url', ''), '/');
@@ -218,8 +217,8 @@ class NavigationController extends Controller {
 
 	private function getCliUrl() {
 		$url = rtrim($this->urlGenerator->getBaseUrl(), '/');
-		$frontControllerActive =
-			($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
+		$frontControllerActive
+			= ($this->config->getSystemValue('htaccess.IgnoreFrontController', false) === true
 			 || getenv('front_controller_active') === 'true');
 		if (!$frontControllerActive) {
 			$url .= '/index.php';
@@ -227,7 +226,6 @@ class NavigationController extends Controller {
 
 		return $url;
 	}
-
 
 	/**
 	 * Display the navigation page of the Social app.
@@ -257,7 +255,6 @@ class NavigationController extends Controller {
 	public function account(string $path = ''): TemplateResponse {
 		return $this->navigate();
 	}
-
 
 	/**
 	 * @NoAdminRequired
@@ -316,7 +313,6 @@ class NavigationController extends Controller {
 		}
 	}
 
-
 	/**
 	 * @NoAdminRequired
 	 * @NoCSRFRequired
@@ -335,7 +331,6 @@ class NavigationController extends Controller {
 			return $this->fail($e);
 		}
 	}
-
 
 	/**
 	 * @PublicPage

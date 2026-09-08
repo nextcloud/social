@@ -23,7 +23,6 @@ class FediverseService {
 
 	private MiscService $miscService;
 
-
 	/**
 	 * FediverseService constructor.
 	 *
@@ -37,7 +36,6 @@ class FediverseService {
 		$this->miscService = $miscService;
 	}
 
-
 	/**
 	 * @param string $address
 	 *
@@ -50,21 +48,20 @@ class FediverseService {
 			throw new UnauthorizedFediverseException('Empty Origin');
 		}
 
-		if ($this->getAccessType() ===
-			$this->configService->accessTypeList['BLACKLIST']
+		if ($this->getAccessType()
+			=== $this->configService->accessTypeList['BLACKLIST']
 			&& !$this->isListed($address)) {
 			return true;
 		}
 
-		if ($this->getAccessType() ===
-			$this->configService->accessTypeList['WHITELIST']
+		if ($this->getAccessType()
+			=== $this->configService->accessTypeList['WHITELIST']
 			&& ($this->isListed($address) || $this->isLocal($address))) {
 			return true;
 		}
 
 		throw new UnauthorizedFediverseException('Unauthorized Fediverse');
 	}
-
 
 	/**
 	 * @throws UnauthorizedFediverseException
@@ -78,14 +75,12 @@ class FediverseService {
 		throw new UnauthorizedFediverseException('Jailed Fediverse');
 	}
 
-
 	/**
 	 * @return string
 	 */
 	public function getAccessType(): string {
 		return $this->configService->getAppValue(ConfigService::SOCIAL_ACCESS_TYPE);
 	}
-
 
 	/**
 	 * @param string $type
@@ -101,7 +96,6 @@ class FediverseService {
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_TYPE, $type);
 	}
 
-
 	/**
 	 * @param string $address
 	 *
@@ -114,14 +108,12 @@ class FediverseService {
 		return ($local === $address);
 	}
 
-
 	/**
 	 * @return array
 	 */
 	public function getKnownAddresses(): array {
 		return [];
 	}
-
 
 	/**
 	 * @return array
@@ -174,7 +166,6 @@ class FediverseService {
 		$list = array_values(array_udiff($this->getListedAddresses(), [$address], 'strcasecmp'));
 		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
 	}
-
 
 	//
 	//	/**

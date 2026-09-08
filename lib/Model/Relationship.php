@@ -42,7 +42,6 @@ class Relationship implements JsonSerializable {
 		return $this->id;
 	}
 
-
 	public function setFollowing(bool $following): self {
 		$this->following = $following;
 

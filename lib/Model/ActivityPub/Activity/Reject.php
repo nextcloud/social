@@ -20,8 +20,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Reject extends ACore implements JsonSerializable {
 	public const TYPE = 'Reject';
 
-
-
 	/**
 	 * Undo constructor.
 	 *
@@ -33,14 +31,12 @@ class Reject extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 */
 	public function import(array $data) {
 		parent::import($data);
 	}
-
 
 	/**
 	 * @return array

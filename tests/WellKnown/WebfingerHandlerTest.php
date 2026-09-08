@@ -106,7 +106,6 @@ class WebfingerHandlerTest extends TestCase {
 		return $http->getData();
 	}
 
-
 	// handle() dispatch
 
 	public function testJailedInstanceLeavesThePreviousResponseUntouched(): void {
@@ -154,7 +153,6 @@ class WebfingerHandlerTest extends TestCase {
 
 		$this->assertSame($previous, $handler->handle('host-meta', $this->context, $previous));
 	}
-
 
 	// handleWebfinger()
 

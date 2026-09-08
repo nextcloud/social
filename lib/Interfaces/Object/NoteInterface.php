@@ -59,7 +59,6 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 	}
 
-
 	/**
 	 * @throws InvalidOriginException|ItemAlreadyExistsException
 	 */
@@ -130,7 +129,6 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		/** @var Note $item */
 		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
 	}
-
 
 	public function updateDetails(Note $stream): void {
 		if ($stream->getInReplyTo() === '') {

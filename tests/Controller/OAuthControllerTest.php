@@ -93,7 +93,6 @@ class OAuthControllerTest extends TestCase {
 		return $client;
 	}
 
-
 	// nodeinfo2()
 
 	public function testNodeinfo2DescribesTheLocalInstance(): void {
@@ -126,7 +125,6 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame([], $data['usage']);
 		$this->assertFalse($data['openRegistrations']);
 	}
-
 
 	// apps()
 
@@ -165,7 +163,6 @@ class OAuthControllerTest extends TestCase {
 
 		$this->assertSame('read', $this->controller->apps('App', 'https://a/cb')->getData()['scopes']);
 	}
-
 
 	// authorize()
 
@@ -223,7 +220,6 @@ class OAuthControllerTest extends TestCase {
 		$this->controller->authorize('client-1', 'https://evil.example/steal', 'code', 'read');
 	}
 
-
 	// authorizing()
 
 	public function testAuthorizingIssuesACodeBoundToTheUser(): void {
@@ -276,7 +272,6 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 		$this->assertSame(['error' => 'wrong scopes'], $response->getData());
 	}
-
 
 	// token()
 
@@ -377,7 +372,6 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame(['error' => 'wrong client_secret'], $response->getData());
 	}
-
 
 	// revoke()
 

@@ -118,7 +118,6 @@ class MediaAttachment implements JsonSerializable {
 		return $this->blurHash;
 	}
 
-
 	public function setExportFormat(int $exportFormat): self {
 		$this->exportFormat = $exportFormat;
 
@@ -128,7 +127,6 @@ class MediaAttachment implements JsonSerializable {
 	public function getExportFormat(): int {
 		return $this->exportFormat;
 	}
-
 
 	public function import(array $data): self {
 		$this->setId($this->get('id', $data));

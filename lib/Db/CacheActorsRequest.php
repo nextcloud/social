@@ -25,7 +25,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public const SYNC_BATCH = 50;
 	public const DETAILS_TTL = 60 * 18; // 18h
 
-
 	/**
 	 * Insert cache about an Actor in database.
 	 */
@@ -83,7 +82,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		}
 	}
 
-
 	public function update(Person $actor): int {
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
@@ -129,7 +127,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		return $qb->executeStatement();
 	}
 
-
 	public function updateDetails(Person $actor): int {
 		$qb = $this->getCacheActorsUpdateSql();
 		$qb->set('details', $qb->createNamedParameter(json_encode($actor->getDetailsAll())));
@@ -147,7 +144,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		return $qb->executeStatement();
 	}
 
-
 	/**
 	 * get Cached version of an Actor, based on the UriId
 	 *
@@ -163,7 +159,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorFromRequest($qb);
 	}
-
 
 	/**
 	 * get Cached version of an Actor, based on the Account
@@ -181,7 +176,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorFromRequest($qb);
 	}
-
 
 	/**
 	 * get Cached version of a local Actor, based on the preferred username
@@ -201,7 +195,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		return $this->getCacheActorFromRequest($qb);
 	}
 
-
 	/**
 	 * @param string $search
 	 *
@@ -216,7 +209,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
-
 
 	/**
 	 * @return Person[]
@@ -234,7 +226,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
-
 
 	/**
 	 * @return Person[]
@@ -264,7 +255,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -281,7 +271,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $inbox;
 	}
-
 
 	/**
 	 * @param ProbeOptions $options
@@ -334,7 +323,6 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param ProbeOptions $options

@@ -93,7 +93,6 @@ class AccountService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param string $username
 	 *
@@ -120,7 +119,6 @@ class AccountService {
 		return $actor;
 	}
 
-
 	/**
 	 * @return Person
 	 * @throws AccountDoesNotExistException
@@ -137,7 +135,6 @@ class AccountService {
 			throw new AccountDoesNotExistException('Account not found for current user: ' . $e->getMessage());
 		}
 	}
-
 
 	/**
 	 * @param string $userId
@@ -166,7 +163,6 @@ class AccountService {
 
 		return $actor;
 	}
-
 
 	/**
 	 * Method should be called by the frontend and will generate a fresh Social account for
@@ -222,7 +218,6 @@ class AccountService {
 		$this->followsRequest->generateLoopbackAccount($actor);
 	}
 
-
 	/**
 	 * @param string $handle
 	 *
@@ -262,7 +257,6 @@ class AccountService {
 		$this->activityService->request($delete);
 	}
 
-
 	/**
 	 * Stores whether new follows towards this user's actor need manual approval,
 	 * and refreshes the actor cache so the flag reaches the actor document and
@@ -280,7 +274,6 @@ class AccountService {
 		$this->actorsRequest->updateLocked($actor);
 		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
 	}
-
 
 	/**
 	 * @param string $username
@@ -313,7 +306,6 @@ class AccountService {
 		}
 	}
 
-
 	/**
 	 * Load the cached header document URL for a local actor.
 	 *
@@ -328,7 +320,6 @@ class AccountService {
 		} catch (Exception $e) {
 		}
 	}
-
 
 	/**
 	 * @param string $username
@@ -354,7 +345,6 @@ class AccountService {
 		$this->actorService->cacheLocalActorDetails($actor);
 	}
 
-
 	/**
 	 * @param Person $actor
 	 */
@@ -375,7 +365,6 @@ class AccountService {
 		$actor->setDetailArray('count', $count);
 		$actor->setDetail('last_post_creation', $lastPostCreation);
 	}
-
 
 	/**
 	 * @param Person $actor
@@ -399,7 +388,6 @@ class AccountService {
 		}
 	}
 
-
 	/**
 	 * @param string $username
 	 */
@@ -408,7 +396,6 @@ class AccountService {
 
 		return;
 	}
-
 
 	/**
 	 * @return int
@@ -432,7 +419,6 @@ class AccountService {
 		return $deleted;
 	}
 
-
 	/**
 	 * @return int
 	 * @throws Exception
@@ -448,7 +434,6 @@ class AccountService {
 
 		return sizeof($update);
 	}
-
 
 	/**
 	 * @return int
@@ -470,7 +455,6 @@ class AccountService {
 
 		return $count;
 	}
-
 
 	/**
 	 * @param string $userId

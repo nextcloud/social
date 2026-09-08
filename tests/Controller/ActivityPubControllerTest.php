@@ -151,7 +151,6 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertArrayNotHasKey('message', $data);
 	}
 
-
 	// actor()
 
 	/** @return iterable<string, array{string}> */
@@ -215,7 +214,6 @@ class ActivityPubControllerTest extends TestCase {
 
 		$this->assertFailure($response, CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND);
 	}
-
 
 	// sharedInbox() / inbox()
 
@@ -346,7 +344,6 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(1, $response->getData()['status']);
 	}
 
-
 	// getInbox()
 
 	public function testGetInboxReturnsAnEmptyOrderedCollection(): void {
@@ -372,7 +369,6 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		$this->assertSame([], $response->getData());
 	}
-
 
 	// outbox() / followers() / following()
 
@@ -431,7 +427,6 @@ class ActivityPubControllerTest extends TestCase {
 
 		$this->assertFailure($this->controller->followers('ghost'), CacheActorDoesNotExistException::class);
 	}
-
 
 	// displayPost()
 

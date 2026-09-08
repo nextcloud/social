@@ -20,7 +20,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Delete extends ACore implements JsonSerializable {
 	public const TYPE = 'Delete';
 
-
 	/**
 	 * Activity constructor.
 	 *
@@ -32,7 +31,6 @@ class Delete extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	/**
 	 * @param array $data
 	 */
@@ -40,7 +38,6 @@ class Delete extends ACore implements JsonSerializable {
 		parent::import($data);
 		$this->setActorId($this->validate(ACore::AS_ID, 'actor', $data, ''));
 	}
-
 
 	/**
 	 * @return array

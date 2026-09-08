@@ -28,12 +28,10 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function setDefaultSelectAlias(string $alias): IExtendedQueryBuilder;
 
-
 	/**
 	 * @return string
 	 */
 	public function getDefaultSelectAlias(): string;
-
 
 	/**
 	 * Limit the request to the Id
@@ -44,7 +42,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function limitToId(int $id): IExtendedQueryBuilder;
 
-
 	/**
 	 * Limit the request to Ids
 	 *
@@ -53,7 +50,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @return IExtendedQueryBuilder
 	 */
 	public function limitToIds(array $ids): IExtendedQueryBuilder;
-
 
 	/**
 	 * Limit the request to the Id (string)
@@ -64,7 +60,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function limitToIdString(string $id): IExtendedQueryBuilder;
 
-
 	/**
 	 * Limit the request to the UserId
 	 *
@@ -73,7 +68,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @return IExtendedQueryBuilder
 	 */
 	public function limitToUserId(string $userId): IExtendedQueryBuilder;
-
 
 	/**
 	 * Limit the request to the creation
@@ -85,7 +79,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function limitToCreation(int $delay = 0): IExtendedQueryBuilder;
 
-
 	/**
 	 * @param string $field
 	 * @param string $value
@@ -94,7 +87,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function limitToDBField(string $field, string $value, bool $cs = true, string $alias = '',
 	);
-
 
 	/**
 	 * @param string $field
@@ -115,7 +107,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 		string $field, array $values, bool $cs = true, string $alias = '',
 	);
 
-
 	/**
 	 * @param string $field
 	 * @param string $value
@@ -127,7 +118,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	public function filterDBFieldArray(
 		string $field, string $value, bool $cs = true, string $alias = '',
 	);
-
 
 	/**
 	 * @param string $field
@@ -142,14 +132,12 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 		string $field, array $values, bool $eq = true, bool $cs = true, string $alias = '',
 	): ICompositeExpression;
 
-
 	/**
 	 * @param string $field
 	 * @param int $value
 	 * @param string $alias
 	 */
 	public function limitToDBFieldInt(string $field, int $value, string $alias = '');
-
 
 	/**
 	 * @param string $field
@@ -160,7 +148,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function filterDBFieldInt(string $field, int $value, string $alias = '');
 
-
 	/**
 	 * @param string $field
 	 * @param int $value
@@ -168,12 +155,10 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 */
 	public function exprLimitToDBFieldInt(string $field, int $value, string $alias = ''): string;
 
-
 	/**
 	 * @param string $field
 	 */
 	public function limitToDBFieldEmpty(string $field);
-
 
 	/**
 	 * @param string $field
@@ -181,7 +166,6 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	 * @return mixed
 	 */
 	public function filterDBFieldEmpty(string $field);
-
 
 	/**
 	 * @param string $field
@@ -191,13 +175,11 @@ interface IExtendedQueryBuilder extends IQueryBuilder {
 	public function limitToDBFieldDateTime(string $field, DateTime $date, bool $orNull = false,
 	);
 
-
 	/**
 	 * @param int $timestamp
 	 * @param string $field
 	 */
 	public function limitToSince(int $timestamp, string $field);
-
 
 	/**
 	 * @param string $field

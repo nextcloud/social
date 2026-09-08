@@ -20,7 +20,6 @@ trait TDetails {
 	/** @var array */
 	private $details = [];
 
-
 	/**
 	 * @return array
 	 */
@@ -34,7 +33,6 @@ trait TDetails {
 	public function setDetailsAll(array $details) {
 		$this->details = $details;
 	}
-
 
 	/**
 	 * @param string $detail
@@ -76,7 +74,6 @@ trait TDetails {
 		$this->details[$detail] = $value;
 	}
 
-
 	/**
 	 * @param string $detail
 	 *
@@ -89,7 +86,6 @@ trait TDetails {
 
 		return $this->details[$detail];
 	}
-
 
 	public function getDetailInt(string $detail, int $default = 0): int {
 		return $this->details[$detail] ?? $default;
@@ -144,7 +140,6 @@ trait TDetails {
 
 		$this->details[$detail][] = $value;
 	}
-
 
 	/**
 	 * @param string $detail

@@ -25,7 +25,6 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class FollowsRequest extends FollowsRequestBuilder {
 	use TArrayTools;
 
-
 	/**
 	 * Insert a new Note in the database.
 	 *
@@ -54,7 +53,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->generatePrimaryKey($follow->getId());
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * Create a self-follow (Loopback) entry for a local actor.
@@ -92,7 +90,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * Check if a loopback (self-follow) already exists for this actor.
 	 *
@@ -108,7 +105,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 			return false;
 		}
 	}
-
 
 	/**
 	 * Mark a follow as accepted.
@@ -127,7 +123,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @return Follow[]
 	 */
@@ -136,7 +131,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getFollowsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -152,7 +146,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getFollowFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -172,7 +165,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $this->getInt('count', $data, 0);
 	}
 
-
 	/**
 	 * @param string $actorId
 	 *
@@ -190,7 +182,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getInt('count', $data, 0);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -210,7 +201,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $this->getInt('count', $data, 0);
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -223,7 +213,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getInt('count', $data, 0);
 	}
-
 
 	/**
 	 * @param string $followId
@@ -238,7 +227,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getFollowsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -258,7 +246,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $this->getFollowsFromRequest($qb);
 	}
 
-
 	/**
 	 * The follows towards this actor that still wait for approval.
 	 *
@@ -274,7 +261,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getFollowsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param string $actorId
@@ -292,7 +278,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $this->getFollowsFromRequest($qb);
 	}
 
-
 	/**
 	 * @param string $followId
 	 *
@@ -306,7 +291,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		return $this->getFollowsFromRequest($qb);
 	}
-
 
 	/**
 	 * @param Follow $follow
@@ -352,7 +336,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param Person $new
@@ -369,7 +352,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->executeStatement();
 	}
 
-
 	/**
 	 * @param string $actorId
 	 * @param Person $new
@@ -383,7 +365,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
 
 	/**
 	 * Returns everything related to a list of actorIds.

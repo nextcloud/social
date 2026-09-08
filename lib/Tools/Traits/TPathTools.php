@@ -28,7 +28,6 @@ trait TPathTools {
 		return trim($path);
 	}
 
-
 	/**
 	 * @param string $path
 	 * @param bool $force
@@ -51,7 +50,6 @@ trait TPathTools {
 		return trim($path);
 	}
 
-
 	/**
 	 * @param string $path
 	 *
@@ -63,7 +61,6 @@ trait TPathTools {
 
 		return trim($path);
 	}
-
 
 	/**
 	 * @param string $path
@@ -85,7 +82,6 @@ trait TPathTools {
 
 		return trim($path);
 	}
-
 
 	/**
 	 * @param string $path

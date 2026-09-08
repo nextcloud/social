@@ -84,7 +84,6 @@ class ActivityService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 * @param ACore $item
@@ -119,7 +118,6 @@ class ActivityService {
 		return $this->request($activity);
 	}
 
-
 	/**
 	 * @param Person $actor
 	 * @param ACore $item
@@ -141,7 +139,6 @@ class ActivityService {
 		return $this->request($update);
 	}
 
-
 	/**
 	 * @param ACore $item
 	 *
@@ -161,7 +158,6 @@ class ActivityService {
 
 		return $this->request($delete);
 	}
-
 
 	/**
 	 * @param string $id
@@ -189,7 +185,6 @@ class ActivityService {
 
 		throw new InvalidResourceException();
 	}
-
 
 	/**
 	 * @throws SocialAppConfigException
@@ -222,11 +217,9 @@ class ActivityService {
 		return $token;
 	}
 
-
 	public function manageInit() {
 		$this->failInstances = [];
 	}
-
 
 	/**
 	 * @param RequestQueue $queue
@@ -274,7 +267,6 @@ class ActivityService {
 		}
 	}
 
-
 	/** // ====> instanceService
 	 *
 	 * @param ACore $activity
@@ -286,8 +278,8 @@ class ActivityService {
 		foreach ($activity->getInstancePaths() as $instancePath) {
 			switch ($instancePath->getType()) {
 				case InstancePath::TYPE_FOLLOWERS:
-					$instancePaths =
-						array_merge($instancePaths, $this->generateInstancePathsFollowers($instancePath));
+					$instancePaths
+						= array_merge($instancePaths, $this->generateInstancePathsFollowers($instancePath));
 					break;
 
 				case InstancePath::TYPE_ALL:
@@ -302,7 +294,6 @@ class ActivityService {
 
 		return $instancePaths;
 	}
-
 
 	/**
 	 * @param InstancePath $instancePath
@@ -334,7 +325,6 @@ class ActivityService {
 		return $instancePaths;
 	}
 
-
 	/**
 	 * @return InstancePath[]
 	 */
@@ -351,7 +341,6 @@ class ActivityService {
 
 		return $instancePaths;
 	}
-
 
 	private function generateRequestFromQueue(RequestQueue $queue): NCRequest {
 		$path = $queue->getInstance();
@@ -372,7 +361,6 @@ class ActivityService {
 		return $request;
 	}
 
-
 	/**
 	 * $signature = new LinkedDataSignature();
 	 *
@@ -389,7 +377,6 @@ class ActivityService {
 		return $activity->getActorId();
 	}
 
-
 	/**
 	 * @param ACore $activity
 	 */
@@ -400,7 +387,6 @@ class ActivityService {
 			$this->saveObject($activity->getObject());
 		}
 	}
-
 
 	/**
 	 * @param ACore $item

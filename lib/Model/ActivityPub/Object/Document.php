@@ -44,7 +44,6 @@ class Document extends ACore implements JsonSerializable {
 	private array $localCopySize = [0, 0];
 	private array $resizedCopySize = [0, 0];
 
-
 	/**
 	 * Document constructor.
 	 *
@@ -56,7 +55,6 @@ class Document extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
-
 	public function setAccount(string $account): self {
 		$this->account = $account;
 
@@ -66,7 +64,6 @@ class Document extends ACore implements JsonSerializable {
 	public function getAccount(): string {
 		return $this->account;
 	}
-
 
 	/**
 	 * @return string
@@ -86,7 +83,6 @@ class Document extends ACore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -105,7 +101,6 @@ class Document extends ACore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -123,7 +118,6 @@ class Document extends ACore implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -161,7 +155,6 @@ class Document extends ACore implements JsonSerializable {
 		return $this->resizedCopySize;
 	}
 
-
 	public function setBlurHash(string $blurHash): self {
 		$this->blurHash = $blurHash;
 
@@ -192,7 +185,6 @@ class Document extends ACore implements JsonSerializable {
 		return $this->description;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -210,7 +202,6 @@ class Document extends ACore implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -230,7 +221,6 @@ class Document extends ACore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -249,7 +239,6 @@ class Document extends ACore implements JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return int
 	 */
@@ -267,7 +256,6 @@ class Document extends ACore implements JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param array $data
@@ -292,7 +280,6 @@ class Document extends ACore implements JsonSerializable {
 			//			$this->checkOrigin($this->getId());
 		}
 	}
-
 
 	/**
 	 * @param array $data
@@ -349,7 +336,6 @@ class Document extends ACore implements JsonSerializable {
 		return $result;
 	}
 
-
 	public function getMediaUrl(IURLGenerator $urlGenerator, string $mime = ''): string {
 		$ext = '';
 		if ($mime !== '') {
@@ -375,7 +361,6 @@ class Document extends ACore implements JsonSerializable {
 			['uuid' => $this->getResizedCopy() . $ext]
 		);
 	}
-
 
 	/**
 	 * @param IURLGenerator|null $urlGenerator

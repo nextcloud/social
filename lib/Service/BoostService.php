@@ -59,7 +59,6 @@ class BoostService {
 		$this->logger = $logger;
 	}
 
-
 	/**
 	 * @param Person $actor
 	 * @param string $postId
@@ -125,7 +124,6 @@ class BoostService {
 		return $announce;
 	}
 
-
 	/**
 	 * @param string $postId
 	 *
@@ -139,7 +137,6 @@ class BoostService {
 
 		return $stream;
 	}
-
 
 	/**
 	 * @param Person $actor

@@ -40,9 +40,7 @@ use OCP\Server;
 class Stream extends ACore implements IQueryRow, JsonSerializable {
 	use TDetails;
 
-
 	public const TYPE = 'Stream';
-
 
 	public const TYPE_PUBLIC = 'public';
 	public const TYPE_UNLISTED = 'unlisted';
@@ -75,7 +73,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		parent::__construct($parent);
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -94,14 +91,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
 	public function getContent(): string {
 		return $this->content;
 	}
-
 
 	/**
 	 * @param string $content
@@ -132,7 +127,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this->visibility;
 	}
 
-
 	/**
 	 * The content warning. On ActivityPub this is the object's `summary`
 	 * (which is also the database column), so the two accessors share one field —
@@ -155,7 +149,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -173,7 +166,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return string
@@ -211,7 +203,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return MediaAttachment[]
 	 */
@@ -230,7 +221,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	public function getMentions(): array {
 		return $this->mentions;
 	}
@@ -240,7 +230,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return bool
@@ -260,7 +249,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -278,7 +266,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @return int
@@ -308,7 +295,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -333,7 +319,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	public function addCacheItem(string $url): Stream {
 		$cacheItem = new CacheItem($url);
@@ -365,7 +350,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return ($this->action !== null);
 	}
 
-
 	/**
 	 * @return string
 	 */
@@ -384,7 +368,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
-
 	/**
 	 * @return bool
 	 */
@@ -402,7 +385,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return $this;
 	}
-
 
 	/**
 	 * @param array $data
@@ -436,7 +418,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$this->setDetailInt('replies', (int)$data['replies']['totalItems']);
 		}
 	}
-
 
 	/**
 	 * @throws ItemAlreadyExistsException
@@ -482,7 +463,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$this->setAttachments($new);
 	}
-
 
 	/**
 	 * @param array $data
@@ -589,7 +569,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		//		$this->setCompleteDetails(true);
 	}
 
-
 	/**
 	 * @return array
 	 */
@@ -623,7 +602,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return $result;
 	}
-
 
 	/**
 	 * @return array
@@ -682,7 +660,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return array_merge(parent::exportAsLocal(), $result);
 	}
 
-
 	public function exportAsNotification(): array {
 		// TODO - implements:
 		// status = Someone you enabled notifications for has posted a status
@@ -723,7 +700,6 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		return array_merge(parent::exportAsNotification(), $result);
 	}
-
 
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
