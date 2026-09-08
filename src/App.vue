@@ -4,10 +4,7 @@
 -->
 <template>
 	<NcContent v-if="!serverData.setup" app-name="social" :class="{public: serverData.public}">
-		<Navigation v-if="!serverData.public"
-			@search="search"
-			@open-composer="openComposer"
-			@reset-cache="resetCache" />
+		<Navigation v-if="!serverData.public" @search="search" />
 		<NcAppContent>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<h3 v-if="!serverData.checks.checks.wellknown">
@@ -115,19 +112,8 @@ export default {
 		hideInfo() {
 			this.infoHidden = true
 		},
-		openComposer() {
-			this.$store.commit('setComposerDisplayStatus', true)
-			if (this.$route.name !== 'timeline') {
-				this.$router.push({ name: 'timeline' })
-			}
-		},
-		resetCache() {
-			axios.post(generateUrl('apps/social/api/v1/cache/refresh')).then(() => {
-				this.$store.dispatch('refreshTimeline')
-			})
-		},
 		setCloudAddress() {
-			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then((response) => {
+			axios.post(generateUrl('apps/social/api/v1/config/cloudAddress'), { cloudAddress: this.cloudAddress }).then(() => {
 				this.$store.commit('setServerDataEntry', { key: 'setup', value: false })
 				this.$store.commit('setServerDataEntry', { key: 'cloudAddress', value: this.cloudAddress })
 			})
@@ -243,12 +229,31 @@ img.emoji {
 	}
 }
 
-.list-enter-active, .list-leave-active {
-	transition: opacity .15s ease;
+/**
+ * The transition both timeline <transition-group>s use, defined once here
+ * because this style block is global. Vue 3 names the starting class
+ * `-enter-from` (Vue 2 called it `-enter`, which never matched and left the
+ * enter animation dead), and `-move` is what makes the surrounding entries
+ * slide when one is inserted or removed instead of jumping.
+ */
+.list-enter-active,
+.list-leave-active,
+.list-move {
+	transition: opacity .2s ease, transform .2s ease;
 }
 
-.list-enter, .list-leave-to {
+.list-enter-from,
+.list-leave-to {
 	opacity: 0;
+	transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.list-enter-active,
+	.list-leave-active,
+	.list-move {
+		transition: none;
+	}
 }
 
 .social__welcome {

@@ -14,6 +14,7 @@ vi.mock('../../src/views/TimelineSinglePost.vue', () => ({ default: { name: 'Tim
 vi.mock('../../src/views/Profile.vue', () => ({ default: { name: 'Profile', render: () => null } }))
 vi.mock('../../src/views/ProfileTimeline.vue', () => ({ default: { name: 'ProfileTimeline', render: () => null } }))
 vi.mock('../../src/views/ProfileFollowers.vue', () => ({ default: { name: 'ProfileFollowers', render: () => null } }))
+vi.mock('../../src/views/BlockedAccounts.vue', () => ({ default: { name: 'BlockedAccounts', render: () => null } }))
 
 describe('router', () => {
 	it('is served under the app path and uses the "active" link class', () => {
@@ -101,6 +102,13 @@ describe('router', () => {
 		expect(route.name).toBeUndefined()
 		expect(Object.keys(route.matched[0].components)).toEqual(['default', 'details'])
 		expect(route.matched[0].props.default).toBe(true)
+	})
+
+	it('resolves the blocked accounts route', () => {
+		const route = router.resolve('/blocked')
+
+		expect(route.name).toBe('blocked-accounts')
+		expect(route.matched).toHaveLength(1)
 	})
 
 	it('does not match unknown paths', () => {

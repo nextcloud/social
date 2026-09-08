@@ -132,7 +132,7 @@
 					{{ t('social', 'Report') }}
 				</NcActionButton>
 			</NcActions>
-			<NcDialog :open.sync="showReportDialog"
+			<NcDialog v-model:open="showReportDialog"
 				:name="t('social', 'Report {account}', { account: item.account.acct })"
 				:buttons="reportButtons">
 				<p class="report-hint">
@@ -149,7 +149,8 @@
 
 <script>
 // eslint-disable-next-line no-unused-vars
-import * as linkify from 'linkifyjs'
+// side-effect imports: they register the mention plugin and the string
+// interface that the rendered content relies on
 import 'linkify-plugin-mention'
 import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
@@ -322,7 +323,7 @@ export default {
 		 * @function getSinglePostTimeline
 		 * @description Opens the timeline of the post clicked
 		 */
-		getSinglePostTimeline(e) {
+		getSinglePostTimeline() {
 			// Display internal or external post
 			if (!this.isLocal) {
 				logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })

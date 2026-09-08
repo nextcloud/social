@@ -201,6 +201,7 @@ h2 {
 	position: relative;
 }
 
+.slide-fade-enter-active,
 .slide-fade-leave-active {
 	position: relative;
 	overflow: hidden;
@@ -208,11 +209,19 @@ h2 {
 	max-height: 200px;
 }
 
+.slide-fade-enter-from,
 .slide-fade-leave-to {
 	max-height: 0;
 	opacity: 0;
 	padding-top: 0;
 	padding-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.slide-fade-enter-active,
+	.slide-fade-leave-active {
+		transition: none;
+	}
 }
 
 .search-active {

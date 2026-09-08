@@ -33,6 +33,7 @@ export default {
 		NcActionButton,
 		VisibilityIcon,
 	},
+	emits: ['update:visibility'],
 	props: {
 		visibility: {
 			type: String,

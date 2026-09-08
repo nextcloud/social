@@ -32,6 +32,7 @@ export default {
 		NcButton,
 		MediaAttachment,
 	},
+	emits: ['delete'],
 	props: {
 		/** @type {import('vue').PropType<import('./Composer.vue').LocalAttachment>} */
 		preview: {

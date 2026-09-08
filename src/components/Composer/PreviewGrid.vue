@@ -38,6 +38,7 @@ export default {
 		PreviewGridItem,
 		FileUpload,
 	},
+	emits: ['deleted'],
 	props: {
 		uploadProgress: {
 			type: Number,

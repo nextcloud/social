@@ -25,9 +25,9 @@ const stubs = {
 		template: '<input class="nav-search" :value="modelValue" :aria-label="label" @input="$emit(\'update:modelValue\', $event.target.value)">',
 	},
 	NcAppNavigationItem: {
-		props: ['name', 'active', 'counter', 'href', 'target'],
+		props: ['name', 'active', 'counter', 'href', 'target', 'to'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-counter="counter" :data-href="href" @click="$emit(\'click\')">'
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-counter="counter" :data-href="href" :data-to="to && to.name" @click="$emit(\'click\')">'
 			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span><slot name="subname" /><slot /></li>',
 	},
 	NcAppNavigationSpacer: { template: '<hr>' },
@@ -71,8 +71,7 @@ describe('Navigation', () => {
 			'Follow requests',
 			'Liked posts',
 			'Profile',
-			'Reset local cache',
-			'Help & documentation',
+			'Blocked and muted accounts',
 		])
 	})
 
@@ -89,6 +88,15 @@ describe('Navigation', () => {
 		const wrapper = mountNavigation()
 		await item(wrapper, name).trigger('click')
 		expect(router.push).toHaveBeenCalledWith(to)
+	})
+
+	it('offers the blocked and muted accounts in the settings section', () => {
+		const wrapper = mountNavigation()
+		const entry = item(wrapper, 'Blocked and muted accounts')
+
+		// a route rather than a click handler, so the entry behaves like a link
+		expect(entry.attributes('data-to')).toBe('blocked-accounts')
+		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
 	})
 
 	it('shows the notifications counter placeholder', () => {
@@ -132,12 +140,15 @@ describe('Navigation', () => {
 		expect(modal.find('.composer-stub').exists()).toBe(true)
 	})
 
-	it('emits reset-cache from the settings entry and links to the documentation', async () => {
+	it('offers nothing in the settings section but the accounts it can act on', () => {
 		const wrapper = mountNavigation()
 		expect(wrapper.find('.nav-settings').attributes('data-name')).toBe('Settings')
-		await item(wrapper, 'Reset local cache').trigger('click')
-		expect(wrapper.emitted('reset-cache')).toHaveLength(1)
-		expect(item(wrapper, 'Help & documentation').attributes('data-href')).toBe('https://github.com/SchBenedikt/social/')
+
+		// the cache reset posted to a route that never existed, and the help
+		// link pointed at a personal fork; both are gone
+		expect(item(wrapper, 'Reset local cache')).toBeUndefined()
+		expect(item(wrapper, 'Help & documentation')).toBeUndefined()
+		expect(wrapper.emitted('reset-cache')).toBeUndefined()
 	})
 
 	describe('errors', () => {

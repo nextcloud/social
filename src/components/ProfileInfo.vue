@@ -757,4 +757,11 @@ export default {
 	}
 
 }
+
+@media (prefers-reduced-motion: reduce) {
+	.user-profile__banner-upload,
+	.user-profile__banner-url {
+		transition: none;
+	}
+}
 </style>
