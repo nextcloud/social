@@ -57,6 +57,15 @@
 				</NcButton>
 			</div>
 		</div>
+		<div v-else-if="item.spoiler_text" class="post-warning">
+			<p class="post-warning__text">{{ item.spoiler_text }}</p>
+			<NcButton type="secondary" @click="warningLifted = !warningLifted">
+				{{ warningLifted ? t('social', 'Show less') : t('social', 'Show more') }}
+			</NcButton>
+			<div v-if="warningLifted" class="post-message post-message--behind-warning">
+				<MessageContent :item="item" />
+			</div>
+		</div>
 		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
@@ -245,6 +254,8 @@ export default {
 			refused: '',
 			/** whether j/k has this post, so l/b/r act on the right one */
 			hasKeyboardFocus: false,
+			/** a warned post stays closed until the reader opens it */
+			warningLifted: false,
 			editContent: '',
 			showReportDialog: false,
 			reportComment: '',
@@ -842,5 +853,24 @@ function nodeToPlainText(node) {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+/**
+ * A content warning is the author asking for their post not to be shown
+ * until the reader chooses to see it. Honouring that is the whole point,
+ * so the body is not in the DOM until it is opened.
+ */
+.post-warning {
+	margin: 4px 0 8px;
+
+	&__text {
+		margin-bottom: 8px;
+		font-weight: 600;
+	}
+}
+
+.post-message--behind-warning {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--color-border);
 }
 </style>

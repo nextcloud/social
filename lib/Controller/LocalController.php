@@ -326,7 +326,7 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
-	public function postCreate(string $content = '', array $to = [], ?string $type = null, ?string $replyTo = null, $attachments = null, array $hashtags = [], ?array $poll = null): DataResponse {
+	public function postCreate(string $content = '', array $to = [], ?string $type = null, ?string $replyTo = null, $attachments = null, array $hashtags = [], ?array $poll = null, string $spoilerText = ''): DataResponse {
 		$content = $content ?: '';
 		$replyTo = $replyTo ?? '';
 		$type = $type ?? Stream::TYPE_PUBLIC;
@@ -355,6 +355,7 @@ class LocalController extends Controller {
 			$post->setHashtags($hashtags);
 			$post->setAttachments($attachments);
 			$post->setPoll($poll);
+			$post->setSpoilerText($spoilerText);
 
 			$token = '';
 			$activity = $this->postService->createPost($post, $token);

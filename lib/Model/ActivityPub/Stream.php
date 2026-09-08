@@ -249,10 +249,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * A content warning is itself a statement that the body should not be
+	 * shown unasked, which is what `sensitive` means to a client — so a post
+	 * carrying one is sensitive whether or not the flag was set as well.
+	 *
 	 * @return bool
 	 */
 	public function isSensitive(): bool {
-		return $this->sensitive;
+		return $this->sensitive || $this->getSpoilerText() !== '';
 	}
 
 	/**

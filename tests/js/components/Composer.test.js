@@ -372,6 +372,61 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('content warnings', () => {
+		const addWarning = async (wrapper, text) => {
+			await wrapper.find('button[aria-label="Add content warning"]').trigger('click')
+			await wrapper.find('input.content-warning').setValue(text)
+		}
+
+		it('sends the warning and marks the post sensitive', async () => {
+			const { wrapper, $store } = mountComposer()
+			await setContent(wrapper, 'the spoiler itself')
+			await addWarning(wrapper, 'season finale')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).spoiler_text).toBe('season finale')
+			expect(postedStatus($store).sensitive).toBe(true)
+		})
+
+		it('sends no warning when the field was never opened', async () => {
+			const { wrapper, $store } = mountComposer()
+			await setContent(wrapper, 'nothing to warn about')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).spoiler_text).toBe('')
+			expect(postedStatus($store).sensitive).toBe(false)
+		})
+
+		it('drops a warning that was typed and then withdrawn', async () => {
+			const { wrapper, $store } = mountComposer()
+			await setContent(wrapper, 'no longer a spoiler')
+			await addWarning(wrapper, 'season finale')
+			// the same button closes it again
+			await wrapper.find('button[aria-label="Remove content warning"]').trigger('click')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).spoiler_text).toBe('')
+			expect(postedStatus($store).sensitive).toBe(false)
+		})
+
+		it('clears the warning once the post is away', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'the spoiler itself')
+			await addWarning(wrapper, 'season finale')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('input.content-warning').exists()).toBe(false)
+		})
+	})
+
 	describe('posting', () => {
 		it('sends the plain text of the message with the attachments and visibility', async () => {
 			const { wrapper, $store } = mountComposer({ defaultVisibility: 'public' })

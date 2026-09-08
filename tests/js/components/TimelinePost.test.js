@@ -201,6 +201,41 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('content warnings', () => {
+		const warned = () => makeItem({ spoiler_text: 'politics', content: '<p>the hidden part</p>' })
+
+		it('keeps a warned post closed, and the body out of the page entirely', () => {
+			const { wrapper } = mountPost({ item: warned() })
+
+			expect(wrapper.find('.post-warning__text').text()).toBe('politics')
+			// not merely hidden with css: an author asking for it not to be
+			// shown should not have it sitting in the markup
+			expect(wrapper.text()).not.toContain('the hidden part')
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(false)
+		})
+
+		it('opens and closes it on request', async () => {
+			const { wrapper } = mountPost({ item: warned() })
+			const toggle = () => wrapper.findAll('button').find((button) => /Show (more|less)/.test(button.text()))
+
+			expect(toggle().text()).toBe('Show more')
+			await toggle().trigger('click')
+
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(true)
+			expect(toggle().text()).toBe('Show less')
+
+			await toggle().trigger('click')
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(false)
+		})
+
+		it('shows an unwarned post as it always did', () => {
+			const { wrapper } = mountPost()
+
+			expect(wrapper.find('.post-warning').exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(true)
+		})
+	})
+
 	describe('where the post came from', () => {
 		it('marks a remote post with its instance, in that instance\'s colour', () => {
 			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })

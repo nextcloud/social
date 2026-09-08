@@ -500,4 +500,24 @@ class StreamTest extends TestCase {
 		$this->assertTrue($stream->hasCache());
 		$this->assertCount(2, $stream->getCache()->getItems());
 	}
+
+	public function testAContentWarningMakesAStatusSensitive(): void {
+		$stream = new Stream();
+		$this->assertFalse($stream->isSensitive());
+
+		$stream->setSpoilerText('season finale');
+
+		// clients that know nothing of `spoiler_text` still hide the body
+		$this->assertTrue($stream->isSensitive());
+		$this->assertTrue($stream->exportAsActivityPub()['sensitive']);
+	}
+
+	public function testAnEmptyContentWarningLeavesSensitiveAlone(): void {
+		$stream = new Stream();
+		$stream->setSpoilerText('');
+		$this->assertFalse($stream->isSensitive());
+
+		$stream->setSensitive(true);
+		$this->assertTrue($stream->isSensitive());
+	}
 }

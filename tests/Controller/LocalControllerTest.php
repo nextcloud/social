@@ -213,6 +213,21 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame([], $created->getTo());
 		$this->assertSame([], $created->getAttachments());
 		$this->assertSame([], $created->getHashtags());
+		$this->assertSame('', $created->getSpoilerText());
+	}
+
+	public function testPostCreateCarriesTheContentWarning(): void {
+		$this->actorForUser();
+		$created = null;
+		$this->postService->method('createPost')->willReturnCallback(function (Post $post) use (&$created): ACore {
+			$created = $post;
+
+			return $this->createMock(ACore::class);
+		});
+
+		$this->controller()->postCreate('who shot him', [], null, null, null, [], null, 'season finale');
+
+		$this->assertSame('season finale', $created->getSpoilerText());
 	}
 
 	public function testPostCreateRequiresALoggedInUser(): void {

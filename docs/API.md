@@ -78,7 +78,7 @@ Note that many `ApiController` endpoints are annotated `@PublicPage` but call `i
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| POST | `/api/v1/statuses` | public, no-csrf | Body (JSON or form-encoded): `status`, `visibility`, `media_ids` (array), `in_reply_to_id`, `spoiler_text`, `sensitive`, `content_type` | Creates a post. The body is read from `php://input` and parsed by `Content-Type`. Only `status`, `visibility`, `media_ids` and `in_reply_to_id` affect the created post — `spoiler_text`, `sensitive` and `content_type` are parsed but ignored here. `visibility` maps to the stream type (`public`, `unlisted`, `followers`, `direct`). Returns the new status; errors return HTTP 400 `{"error": "..."}`. |
+| POST | `/api/v1/statuses` | public, no-csrf | Body (JSON or form-encoded): `status`, `visibility`, `media_ids` (array), `in_reply_to_id`, `spoiler_text`, `sensitive`, `content_type` | Creates a post. The body is read from `php://input` and parsed by `Content-Type`. Only `status`, `visibility`, `media_ids`, `in_reply_to_id`, `poll` and `spoiler_text` affect the created post — `sensitive` and `content_type` are parsed but ignored here (a non-empty `spoiler_text` is itself what marks a post sensitive). `visibility` maps to the stream type (`public`, `unlisted`, `followers`, `direct`). Returns the new status; errors return HTTP 400 `{"error": "..."}`. |
 | GET | `/api/v1/statuses/{nid}` | public, no-csrf | — | One status by numeric id, local export format. |
 | PUT | `/api/v1/statuses/{nid}` | public, no-csrf | Body: `status`, `spoiler_text`, `sensitive` | Edits an own post via `PostService::editPost()`. An empty `spoiler_text` is sent as `null`. Errors return HTTP 400 `{"error": "..."}`. |
 | GET | `/api/v1/statuses/{nid}/context` | public, no-csrf | — | Ancestors/descendants of the status. |
@@ -189,7 +189,7 @@ All eight take `since` (int, 0) and `limit` (int, 5) and return `{"result": [sta
 |--------|-------|------|------------|-------------|
 | GET | `/local/v1/post` | user, public, no-csrf | `id` (required, ActivityPub id) | One post, returned **unwrapped** (`directSuccess()`). |
 | GET | `/local/v1/post/replies` | user, no-csrf | `id` (required), `since` (0), `limit` (5) | Replies to a post, wrapped in `result`. |
-| POST | `/api/v1/post` | user | `content` (`''`), `to` (array), `type` (default `public`), `replyTo` (`''`), `attachments` (mixed, default `[]`), `hashtags` (array) | Creates a post. Returns `{"result": {"post": <object>, "token": "<request token>"}, "status": 1}`. |
+| POST | `/api/v1/post` | user | `content` (`''`), `to` (array), `type` (default `public`), `replyTo` (`''`), `attachments` (mixed, default `[]`), `hashtags` (array), `poll` (object, optional), `spoilerText` (`''`, the content warning) | Creates a post. Returns `{"result": {"post": <object>, "token": "<request token>"}, "status": 1}`. |
 | DELETE | `/api/v1/post` | user | `id` (required) | Deletes an own post; `{"result": [], "status": 1}`. Rejects posts not attributed to the caller. |
 | POST | `/api/v1/post/like` | user | `postId` (required) | Likes a post; `{"result": {"like": <activity>, "token": "…"}, "status": 1}`. |
 | DELETE | `/api/v1/post/like` | user | `postId` (required) | Removes the like; same shape. |
