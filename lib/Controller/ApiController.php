@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -172,6 +173,98 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * Minimal Mastodon-style profile update: only `locked` (manually approve
+	 * followers) is supported for now. Returns the updated account entity.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function updateCredentials(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$input = $this->convertInput(file_get_contents('php://input'));
+			if (array_key_exists('locked', $input)) {
+				$locked = in_array($input['locked'], [true, 1, '1', 'true'], true);
+				$this->accountService->setLocked($this->currentSession(), $locked);
+
+				// refresh the viewer so the returned entity carries the change
+				$this->viewer = $this->cacheActorService->getFromLocalAccount(
+					$this->viewer->getPreferredUsername()
+				);
+				$this->viewer->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+
+			return new DataResponse($this->viewer, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * The accounts waiting for the viewer's approval to follow them.
+	 *
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function followRequests(): DataResponse {
+		try {
+			$this->initViewer(true);
+
+			$accounts = $this->followService->getPendingRequests();
+			foreach ($accounts as $account) {
+				$account->setExportFormat(ACore::FORMAT_LOCAL);
+			}
+
+			return new DataResponse($accounts, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e->getMessage());
+		}
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function followRequestAuthorize(string $id): DataResponse {
+		return $this->followRequestAction($id, true);
+	}
+
+
+	/**
+	 * @NoCSRFRequired
+	 * @PublicPage
+	 */
+	public function followRequestReject(string $id): DataResponse {
+		return $this->followRequestAction($id, false);
+	}
+
+
+	private function followRequestAction(string $id, bool $authorize): DataResponse {
+		try {
+			$this->initViewer(true);
+			$follower = $this->resolveTargetAccount($id);
+
+			if ($authorize) {
+				$this->followService->authorizeFollowRequest($follower);
+			} else {
+				$this->followService->rejectFollowRequest($follower);
+			}
+
+			return new DataResponse(
+				$this->followService->getRelationshipWith($follower), Http::STATUS_OK
+			);
+		} catch (FollowNotFoundException $e) {
+			return new DataResponse(['error' => 'no pending follow request'], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
 			return $this->error($e->getMessage());
 		}
@@ -1202,8 +1295,9 @@ class ApiController extends Controller {
 		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
 
 		$accepted = match ($name) {
-			'statusNew', 'statusUpdate', 'mediaNew', 'statusAction' => ['write'],
-			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute' => ['follow', 'write'],
+			'statusNew', 'statusUpdate', 'mediaNew', 'statusAction', 'updateCredentials' => ['write'],
+			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
+			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
 			'appsCredentials' => [],
 			default => ['read'],
 		};

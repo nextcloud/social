@@ -653,6 +653,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
 			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
 			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []));
+		$this->setLocked($this->getBool('manuallyApprovesFollowers', $data, false));
 
 		/** @var Image $icon */
 		$icon = AP::$activityPub->getItemFromType(Image::TYPE);
@@ -717,6 +718,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public function importFromDatabase(array $data) {
 		parent::importFromDatabase($data);
 
+		$this->setLocked($this->getInt('locked', $data, 0) === 1);
+
 		$source = json_decode($this->getSource(), true);
 		if (is_array($source)) {
 			$image = $this->get('image.url', $source, '');
@@ -724,6 +727,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				$this->setHeader($image);
 			}
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			$this->setLocked($this->getBool('manuallyApprovesFollowers', $source, $this->isLocked()));
 		}
 
 		$this->setPreferredUsername($this->validate(self::AS_USERNAME, 'preferred_username', $data, ''))
@@ -789,6 +793,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'publicKeyPem' => $this->getPublicKey()
 			]
 		];
+
+		$data['manuallyApprovesFollowers'] = $this->isLocked();
 
 		if ($this->getAlsoKnownAs() !== []) {
 			$data['alsoKnownAs'] = $this->getAlsoKnownAs();
@@ -862,7 +868,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 					'language' => $this->getLanguage(),
 					'note' => $this->getDescription(),
 					'fields' => [],
-					'follow_requests_count' => 0
+					'follow_requests_count' => $this->getInt('count.follow_requests', $details)
 				],
 				'emojis' => [],
 				'fields' => []

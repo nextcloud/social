@@ -99,6 +99,22 @@ class FollowLifecycleTest extends TestCase {
 		);
 	}
 
+	public function testPendingRequestsAreListedAndCountedUntilDecided(): void {
+		$this->follow(self::ALICE . '#follow/6', self::ALICE, self::BOB, false);
+		$this->follow(self::NEW_BOB . '#follow/7', self::NEW_BOB, self::BOB, true);
+
+		$pending = $this->request->getPendingByObjectId(self::BOB);
+		$this->assertCount(1, $pending, 'only the unaccepted follow is a pending request');
+		$this->assertSame(self::ALICE, $pending[0]->getActorId());
+		$this->assertSame(1, $this->request->countPendingRequests(self::BOB));
+
+		$this->request->accepted($pending[0]);
+
+		$this->assertSame([], $this->request->getPendingByObjectId(self::BOB));
+		$this->assertSame(0, $this->request->countPendingRequests(self::BOB));
+		$this->assertSame(2, $this->request->countFollowers(self::BOB));
+	}
+
 	public function testDeleteByPersonsRemovesExactlyThatEdge(): void {
 		$this->follow(self::ALICE . '#follow/4', self::ALICE, self::BOB, true);
 		$this->follow(self::BOB . '#follow/5', self::BOB, self::ALICE, true);

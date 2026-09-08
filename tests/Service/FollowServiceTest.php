@@ -15,6 +15,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
+use OCA\Social\Interfaces\Object\FollowInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -43,6 +44,8 @@ class FollowServiceTest extends TestCase {
 	private $actorRelationRequest;
 	private ActivityService|MockObject $activityService;
 	private CacheActorService|MockObject $cacheActorService;
+	/** @var FollowInterface&MockObject */
+	private $followInterface;
 	private FollowService $service;
 
 	protected function setUp(): void {
@@ -53,6 +56,7 @@ class FollowServiceTest extends TestCase {
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->followInterface = $this->createMock(FollowInterface::class);
 
 		$this->service = new FollowService(
 			$this->urlGenerator,
@@ -61,6 +65,7 @@ class FollowServiceTest extends TestCase {
 			$this->activityService,
 			$this->cacheActorService,
 			$this->createMock(ConfigService::class),
+			$this->followInterface,
 			new NullLogger()
 		);
 	}
@@ -497,5 +502,86 @@ class FollowServiceTest extends TestCase {
 		$this->assertFalse($relationships[0]->isFollowedBy());
 		$this->assertFalse($relationships[0]->isFollowing());
 		$this->assertFalse($relationships[0]->isRequested());
+	}
+
+	public function testGetPendingRequestsResolvesTheRequestingAccounts(): void {
+		$this->service->setViewer($this->alice());
+		$bob = $this->person(self::BOB_ID, 'bob', 2);
+
+		$this->followsRequest->expects($this->once())
+			->method('getPendingByObjectId')
+			->with(self::ALICE_ID)
+			->willReturn([
+				$this->follow(self::BOB_ID, self::ALICE_ID, false),
+				$this->follow(self::CAROL_ID, self::ALICE_ID, false),
+			]);
+		$this->cacheActorService->method('getFromId')
+			->willReturnCallback(function (string $id) use ($bob): Person {
+				if ($id === self::BOB_ID) {
+					return $bob;
+				}
+				// carol's server is gone: her request is skipped, not fatal
+				throw new CacheActorDoesNotExistException();
+			});
+
+		$this->assertSame([$bob], $this->service->getPendingRequests());
+	}
+
+	public function testAuthorizeFollowRequestConfirmsThePendingFollow(): void {
+		$this->service->setViewer($this->alice());
+		$pending = $this->follow(self::BOB_ID, self::ALICE_ID, false);
+		$this->followsRequest->method('getByPersons')
+			->with(self::BOB_ID, self::ALICE_ID)
+			->willReturn($pending);
+
+		$this->followInterface->expects($this->once())
+			->method('confirmFollowRequest')->with($this->identicalTo($pending));
+
+		$this->service->authorizeFollowRequest($this->person(self::BOB_ID, 'bob', 2));
+	}
+
+	public function testAuthorizeFollowRequestIsIdempotentOnAnAcceptedFollow(): void {
+		$this->service->setViewer($this->alice());
+		$this->followsRequest->method('getByPersons')
+			->willReturn($this->follow(self::BOB_ID, self::ALICE_ID, true));
+
+		$this->followInterface->expects($this->never())->method('confirmFollowRequest');
+
+		$this->service->authorizeFollowRequest($this->person(self::BOB_ID, 'bob', 2));
+	}
+
+	public function testAuthorizeFollowRequestWithoutARequestThrows(): void {
+		$this->service->setViewer($this->alice());
+		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+
+		$this->followInterface->expects($this->never())->method('confirmFollowRequest');
+
+		$this->expectException(FollowNotFoundException::class);
+
+		$this->service->authorizeFollowRequest($this->person(self::BOB_ID, 'bob', 2));
+	}
+
+	public function testRejectFollowRequestRejectsThePendingFollow(): void {
+		$this->service->setViewer($this->alice());
+		$pending = $this->follow(self::BOB_ID, self::ALICE_ID, false);
+		$this->followsRequest->method('getByPersons')
+			->with(self::BOB_ID, self::ALICE_ID)
+			->willReturn($pending);
+
+		$this->followInterface->expects($this->once())
+			->method('rejectFollowRequest')->with($this->identicalTo($pending));
+
+		$this->service->rejectFollowRequest($this->person(self::BOB_ID, 'bob', 2));
+	}
+
+	public function testRejectFollowRequestWithoutARequestThrows(): void {
+		$this->service->setViewer($this->alice());
+		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+
+		$this->followInterface->expects($this->never())->method('rejectFollowRequest');
+
+		$this->expectException(FollowNotFoundException::class);
+
+		$this->service->rejectFollowRequest($this->person(self::BOB_ID, 'bob', 2));
 	}
 }

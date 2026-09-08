@@ -12,6 +12,7 @@ namespace OCA\Social\Interfaces\Object;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidOriginException;
@@ -27,6 +28,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActorRelation;
@@ -50,6 +52,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 class FollowInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private FollowsRequest $followsRequest;
 	private ActorRelationRequest $actorRelationRequest;
+	private ActorsRequest $actorsRequest;
 	private CacheActorService $cacheActorService;
 	private AccountService $accountService;
 	private ActivityService $activityService;
@@ -57,16 +60,34 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 	public function __construct(
 		FollowsRequest $followsRequest, ActorRelationRequest $actorRelationRequest,
+		ActorsRequest $actorsRequest,
 		CacheActorService $cacheActorService,
 		AccountService $accountService, ActivityService $activityService,
 		MiscService $miscService,
 	) {
 		$this->followsRequest = $followsRequest;
 		$this->actorRelationRequest = $actorRelationRequest;
+		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->accountService = $accountService;
 		$this->activityService = $activityService;
 		$this->miscService = $miscService;
+	}
+
+	/**
+	 * Whether a follow towards this (local) actor needs manual approval. The
+	 * flag lives on the actor row, the source of truth for local accounts.
+	 */
+	private function isLockedLocalActor(Person $actor): bool {
+		if (!$actor->isLocal()) {
+			return false;
+		}
+
+		try {
+			return $this->actorsRequest->getFromUsername($actor->getPreferredUsername())->isLocked();
+		} catch (Exception $e) {
+			return false;
+		}
 	}
 
 	/**
@@ -177,7 +198,12 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		try {
 			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
 			if (!$knownFollow->isAccepted()) {
-				$this->confirmFollowRequest($follow);
+				$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+				if (!$this->isLockedLocalActor($actor)) {
+					// a re-sent Follow of an unlocked account: (re-)send the Accept.
+					// For a locked account the pending row simply stays pending.
+					$this->confirmFollowRequest($follow);
+				}
 			}
 		} catch (FollowNotFoundException $e) {
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
@@ -185,7 +211,12 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			if ($actor->isLocal()) {
 				$follow->setFollowId($actor->getFollowers());
 				$this->followsRequest->save($follow);
-				$this->confirmFollowRequest($follow);
+				if ($this->isLockedLocalActor($actor)) {
+					// wait for the owner: no Accept, a follow_request notification instead
+					$this->generateNotification($follow, true);
+				} else {
+					$this->confirmFollowRequest($follow);
+				}
 			}
 		}
 	}
@@ -230,7 +261,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	/**
 	 * @throws SocialAppConfigException|ItemAlreadyExistsException|ItemUnknownException
 	 */
-	private function generateNotification(Follow $follow): void {
+	private function generateNotification(Follow $follow, bool $pending = false): void {
 		/** @var SocialAppNotificationInterface $notificationInterface */
 		$notificationInterface = AP::$activityPub->getInterfaceFromType(SocialAppNotification::TYPE);
 
@@ -247,9 +278,9 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		$notification->setDetailItem('actor', $follower);
 		$notification->setAttributedTo($follow->getActorId())
 			->setId($follow->getId() . '/notification')
-			->setSubType(Follow::TYPE)
+			->setSubType($pending ? Follow::TYPE_REQUEST : Follow::TYPE)
 			->setActorId($follower->getId())
-			->setSummary('{account} is following you')
+			->setSummary($pending ? '{account} wants to follow you' : '{account} is following you')
 			->setTo($follow->getObjectId())
 			->setLocal(true);
 

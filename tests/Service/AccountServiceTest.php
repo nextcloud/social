@@ -328,7 +328,10 @@ class AccountServiceTest extends TestCase {
 		$this->assertSame('Alice Wonder', $alice->getName());
 		$this->assertSame('icon-42', $alice->getIconId());
 		$this->assertSame('https://cloud.example.com/header.jpg', $alice->getHeader());
-		$this->assertSame(['followers' => 3, 'following' => 2, 'post' => 7], $alice->getDetails('count'));
+		$this->assertSame(
+			['followers' => 3, 'following' => 2, 'follow_requests' => 0, 'post' => 7],
+			$alice->getDetails('count')
+		);
 		$this->assertSame('2026-09-01', $alice->getDetailsAll()['last_post_creation']);
 	}
 
@@ -368,13 +371,49 @@ class AccountServiceTest extends TestCase {
 		$alice = $this->alice();
 		$this->followsRequest->method('countFollowers')->willReturn(1);
 		$this->followsRequest->method('countFollowing')->willReturn(4);
+		$this->followsRequest->method('countPendingRequests')->willReturn(2);
 		$this->streamRequest->method('countNotesFromActorId')->willReturn(9);
 		$this->streamRequest->method('lastNoteFromActorId')->willThrowException(new StreamNotFoundException());
 		$this->actorService->expects($this->once())->method('cacheLocalActorDetails')->with($this->identicalTo($alice));
 
 		$this->service->cacheLocalActorDetailCount($alice);
 
-		$this->assertSame(['followers' => 1, 'following' => 4, 'post' => 9], $alice->getDetails('count'));
+		$this->assertSame(
+			['followers' => 1, 'following' => 4, 'follow_requests' => 2, 'post' => 9],
+			$alice->getDetails('count')
+		);
+	}
+
+	public function testSetLockedStoresTheFlagAndRefreshesTheCache(): void {
+		$alice = $this->alice();
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->actorsRequest->method('getFromUserId')->with('alice')->willReturn($alice);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->actorsRequest->expects($this->once())
+			->method('updateLocked')
+			->willReturnCallback(function (Person $actor): void {
+				$this->assertTrue($actor->isLocked());
+			});
+		// the refreshed cache document is what federates manuallyApprovesFollowers
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->with($this->identicalTo($alice));
+
+		$this->service->setLocked('alice', true);
+
+		$this->assertTrue($alice->isLocked());
+	}
+
+	public function testSetLockedCanUnlock(): void {
+		$alice = $this->alice();
+		$alice->setLocked(true);
+		$this->userManager->method('get')->with('alice')->willReturn($this->user('alice'));
+		$this->actorsRequest->method('getFromUserId')->with('alice')->willReturn($alice);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
+		$this->actorsRequest->expects($this->once())->method('updateLocked');
+
+		$this->service->setLocked('alice', false);
+
+		$this->assertFalse($alice->isLocked());
 	}
 
 	public function testManageCacheLocalActorsRefreshesEveryLocalActor(): void {

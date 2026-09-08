@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Controller\ApiController;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
@@ -794,6 +795,153 @@ class ApiControllerTest extends TestCase {
 		$this->relationshipService->expects($this->never())->method('getRelated');
 
 		$this->assertUnauthorized($this->controller()->blocks());
+	}
+
+	// follow requests
+
+	public function testFollowRequestsListThePendingAccountsForLocalExport(): void {
+		$this->loggedInAs();
+		$pending = $this->createMock(Person::class);
+		$pending->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+		$this->followService->expects($this->once())
+			->method('getPendingRequests')->willReturn([$pending]);
+
+		$response = $this->controller()->followRequests();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([$pending], $response->getData());
+	}
+
+	public function testFollowRequestsRequireAViewer(): void {
+		$this->followService->expects($this->never())->method('getPendingRequests');
+
+		$this->assertUnauthorized($this->controller()->followRequests());
+	}
+
+	public function testFollowRequestAuthorizeConfirmsAndReturnsTheRelationship(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->followService->expects($this->once())
+			->method('authorizeFollowRequest')->with($this->identicalTo($target));
+		$this->followService->expects($this->never())->method('rejectFollowRequest');
+
+		$relationship = new Relationship(42);
+		$this->followService->expects($this->once())
+			->method('getRelationshipWith')->with($this->identicalTo($target))->willReturn($relationship);
+
+		$response = $this->controller()->followRequestAuthorize('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($relationship, $response->getData());
+	}
+
+	public function testFollowRequestRejectRejectsAndReturnsTheRelationship(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		$this->followService->expects($this->once())
+			->method('rejectFollowRequest')->with($this->identicalTo($target));
+		$this->followService->expects($this->never())->method('authorizeFollowRequest');
+
+		$relationship = new Relationship(42);
+		$this->followService->method('getRelationshipWith')->willReturn($relationship);
+
+		$response = $this->controller()->followRequestReject('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($relationship, $response->getData());
+	}
+
+	public function testFollowRequestAuthorizeWithoutAPendingRequestIsNotFound(): void {
+		$this->loggedInAs();
+		$this->knownTarget();
+		$this->followService->method('authorizeFollowRequest')
+			->willThrowException(new FollowNotFoundException());
+
+		$response = $this->controller()->followRequestAuthorize('42');
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(['error' => 'no pending follow request'], $response->getData());
+	}
+
+	public function testFollowRequestsRequireAViewerForActions(): void {
+		$this->followService->expects($this->never())->method('authorizeFollowRequest');
+		$this->followService->expects($this->never())->method('rejectFollowRequest');
+
+		$this->assertUnauthorized($this->controller()->followRequestAuthorize('42'));
+		$this->assertUnauthorized($this->controller()->followRequestReject('42'));
+	}
+
+	public function testAFollowRequestRouteRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.followRequestAuthorize';
+		$this->bearerFor(['read']);
+		$this->followService->expects($this->never())->method('authorizeFollowRequest');
+
+		$this->assertUnauthorized(
+			$this->controller('Bearer s3cret')->followRequestAuthorize('42'),
+			'token scope does not allow this request (needs follow or write)'
+		);
+	}
+
+	public function testAFollowScopedTokenMayAuthorizeAFollowRequest(): void {
+		$this->route = 'social.Api.followRequestAuthorize';
+		$this->bearerFor(['follow']);
+		$target = $this->knownTarget();
+		$this->followService->expects($this->once())
+			->method('authorizeFollowRequest')->with($this->identicalTo($target));
+		$this->followService->method('getRelationshipWith')->willReturn(new Relationship(42));
+
+		$response = $this->controller('Bearer s3cret')->followRequestAuthorize('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	// update_credentials
+
+	public function testUpdateCredentialsLocksTheAccountAndReturnsTheRefreshedViewer(): void {
+		$viewer = $this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['locked' => 'true']);
+		$this->accountService->expects($this->once())->method('setLocked')->with('alice', true);
+
+		$response = $this->controller()->updateCredentials();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($viewer, $response->getData());
+	}
+
+	public function testUpdateCredentialsCanUnlockTheAccount(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['locked' => 'false']);
+		$this->accountService->expects($this->once())->method('setLocked')->with('alice', false);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->updateCredentials()->getStatus());
+	}
+
+	public function testUpdateCredentialsWithoutTheLockedFieldChangesNothing(): void {
+		$viewer = $this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['display_name' => 'Alice']);
+		$this->accountService->expects($this->never())->method('setLocked');
+
+		$response = $this->controller()->updateCredentials();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($viewer, $response->getData());
+	}
+
+	public function testUpdateCredentialsRequiresAViewer(): void {
+		$this->accountService->expects($this->never())->method('setLocked');
+
+		$this->assertUnauthorized($this->controller()->updateCredentials());
+	}
+
+	public function testUpdateCredentialsRefusesAReadOnlyToken(): void {
+		$this->route = 'social.Api.updateCredentials';
+		$this->bearerFor(['read']);
+		$this->accountService->expects($this->never())->method('setLocked');
+
+		$this->assertUnauthorized(
+			$this->controller('Bearer s3cret')->updateCredentials(),
+			'token scope does not allow this request (needs write)'
+		);
 	}
 
 	public function testAccountStatusesSyncsThenProbesTheAccountTimeline(): void {

@@ -127,6 +127,7 @@ class PersonTest extends TestCase {
 		$this->assertSame('https://mastodon.social/inbox', $person->getSharedInbox());
 		$this->assertSame(self::PEM, $person->getPublicKey());
 		$this->assertSame('2019-01-01T00:00:00Z', $person->getPublished());
+		$this->assertTrue($person->isLocked(), 'manuallyApprovesFollowers marks the account locked');
 
 		$this->assertTrue($person->hasIcon());
 		$this->assertInstanceOf(Image::class, $person->getIcon());
@@ -358,6 +359,46 @@ class PersonTest extends TestCase {
 			['followers' => 10, 'following' => 5, 'post' => 42, 'last_post_creation' => '2024-05-01'],
 			$person->getDetails('count')
 		);
+	}
+
+	public function testImportWithoutManuallyApprovesFollowersLeavesTheAccountUnlocked(): void {
+		$document = $this->mastodonActor();
+		unset($document['manuallyApprovesFollowers']);
+
+		$person = new Person();
+		$person->import($document);
+
+		$this->assertFalse($person->isLocked());
+	}
+
+	public function testLockedRoundTripsThroughTheActivityPubExport(): void {
+		$person = new Person();
+		$person->setId('https://social.example/@alice');
+		$person->setLocked(true);
+
+		$exported = $person->exportAsActivityPub();
+		$this->assertTrue($exported['manuallyApprovesFollowers']);
+
+		$copy = new Person();
+		$copy->import(json_decode(json_encode($exported), true));
+		$this->assertTrue($copy->isLocked());
+	}
+
+	public function testImportFromDatabaseReadsTheLockedColumn(): void {
+		$person = new Person();
+		$person->importFromDatabase(['id' => 'https://social.example/@alice', 'locked' => 1]);
+
+		$this->assertTrue($person->isLocked());
+	}
+
+	public function testImportFromDatabaseReadsLockedFromTheCachedSource(): void {
+		$person = new Person();
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => '{"manuallyApprovesFollowers":true}',
+		]);
+
+		$this->assertTrue($person->isLocked(), 'cache actor rows carry the flag in their source document');
 	}
 
 	public function testImportFromDatabaseReadsTheActorRow(): void {

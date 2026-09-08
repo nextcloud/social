@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Interfaces\Object;
 
 use OCA\Social\Db\ActorRelationRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -40,6 +41,8 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	private $followsRequest;
 	/** @var ActorRelationRequest&MockObject */
 	private $actorRelationRequest;
+	/** @var ActorsRequest&MockObject */
+	private $actorsRequest;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
 	/** @var AccountService&MockObject */
@@ -59,6 +62,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -67,6 +71,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->handler = new FollowInterface(
 			$this->followsRequest,
 			$this->actorRelationRequest,
+			$this->actorsRequest,
 			$this->cacheActorService,
 			$this->accountService,
 			$this->activityService,
@@ -74,6 +79,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		);
 
 		$this->alice = $this->person(self::LOCAL_URL . '/users/alice', true);
+		$this->alice->setPreferredUsername('alice');
 		$this->bob = $this->person(self::REMOTE_URL . '/users/bob');
 		$this->carol = $this->person('https://other.example/users/carol');
 
@@ -112,6 +118,13 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 	private function noKnownFollow(): void {
 		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
+	}
+
+	/** marks alice's actor row (the local source of truth) as locked. */
+	private function lockAlice(): void {
+		$row = new Person();
+		$row->setLocked(true);
+		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($row);
 	}
 
 	public function testNewFollowOfALocalActorIsStoredAgainstTheirFollowersCollection(): void {
@@ -271,6 +284,88 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->followsRequest->expects($this->once())->method('accepted')->with($this->identicalTo($follow));
 
 		$this->handler->processIncomingRequest($follow);
+	}
+
+	public function testFollowOfALockedAccountIsStoredButNotAccepted(): void {
+		$this->noKnownFollow();
+		$this->lockAlice();
+		$follow = $this->incomingFollow();
+
+		$this->followsRequest->expects($this->once())->method('save')->with($this->identicalTo($follow));
+		$this->followsRequest->expects($this->never())->method('accepted');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->handler->processIncomingRequest($follow);
+
+		$this->assertSame($this->alice->getFollowers(), $follow->getFollowId());
+	}
+
+	public function testFollowOfALockedAccountRaisesAFollowRequestNotification(): void {
+		$this->noKnownFollow();
+		$this->lockAlice();
+		$follow = $this->incomingFollow();
+
+		$notification = null;
+		$this->capture($this->notificationInterface, 'save', $notification);
+
+		$this->handler->processIncomingRequest($follow);
+
+		$this->assertInstanceOf(SocialAppNotification::class, $notification);
+		$this->assertSame(Follow::TYPE_REQUEST, $notification->getSubType());
+		$this->assertSame($this->alice->getId(), $notification->getTo());
+		$this->assertSame($this->bob->getId(), $notification->getActorId());
+		$this->assertStringContainsString('wants to follow', $notification->getSummary());
+	}
+
+	public function testResentFollowOfALockedAccountStaysPending(): void {
+		$this->lockAlice();
+		$this->followsRequest->method('getByPersons')->willReturn(new Follow());
+
+		$this->followsRequest->expects($this->never())->method('save');
+		$this->followsRequest->expects($this->never())->method('accepted');
+		$this->activityService->expects($this->never())->method('request');
+		$this->notificationInterface->expects($this->never())->method('save');
+
+		$this->handler->processIncomingRequest($this->incomingFollow());
+	}
+
+	public function testConfirmingAPendingFollowSendsTheAcceptAndNotifies(): void {
+		$this->lockAlice();
+		$follow = $this->incomingFollow();
+
+		$sent = null;
+		$this->capture($this->activityService, 'request', $sent, '');
+		$notification = null;
+		$this->capture($this->notificationInterface, 'save', $notification);
+		$this->followsRequest->expects($this->once())->method('accepted')->with($this->identicalTo($follow));
+
+		$this->handler->confirmFollowRequest($follow);
+
+		$this->assertInstanceOf(Accept::class, $sent);
+		$this->assertSame($follow, $sent->getObject());
+		$this->assertInstanceOf(SocialAppNotification::class, $notification);
+		$this->assertSame(Follow::TYPE, $notification->getSubType());
+	}
+
+	public function testRejectingAPendingFollowSendsARejectAndDeletesTheRow(): void {
+		$this->lockAlice();
+		$follow = $this->incomingFollow();
+
+		$sent = null;
+		$this->capture($this->activityService, 'request', $sent, '');
+		$this->followsRequest->expects($this->once())
+			->method('deleteByPersons')->with($this->identicalTo($follow));
+		$this->followsRequest->expects($this->never())->method('accepted');
+
+		$this->handler->rejectFollowRequest($follow);
+
+		$this->assertInstanceOf(Reject::class, $sent);
+		$this->assertSame($follow, $sent->getObject());
+		$this->assertSame($this->alice->getId(), $sent->getActorId());
+
+		$paths = $sent->getInstancePaths();
+		$this->assertCount(1, $paths);
+		$this->assertSame($this->bob->getInbox(), $paths[0]->getUri());
 	}
 
 	public function testFailedAcceptDeliveryIsLoggedAndLeavesTheFollowPending(): void {
