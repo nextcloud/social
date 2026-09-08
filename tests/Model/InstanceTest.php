@@ -71,7 +71,8 @@ class InstanceTest extends TestCase {
 		$this->assertSame([
 			'uri' => 'cloud.example.org',
 			'title' => 'Nextcloud Social',
-			'version' => '0.7.0',
+			// Pleroma-style: clients gate features on the advertised version
+			'version' => '4.1.0 (compatible; Nextcloud Social 0.7.0)',
 			'short_description' => 'short',
 			'description' => 'long',
 			'email' => 'admin@cloud.example.org',

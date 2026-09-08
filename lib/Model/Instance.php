@@ -71,6 +71,16 @@ class Instance implements IQueryRow, JsonSerializable {
 	}
 
 	public function getVersion(): string {
+		return $this->version;
+	}
+
+	/**
+	 * The version advertised to Mastodon API clients, Pleroma-style: clients
+	 * gate features on the version, so a plain app version would make them
+	 * treat the API as ancient. Only the /api/v1/instance entity carries it —
+	 * NodeInfo keeps reporting the real app version.
+	 */
+	public function getCompatVersion(): string {
 		return '4.1.0 (compatible; Nextcloud Social ' . $this->version . ')';
 	}
 
@@ -267,7 +277,7 @@ class Instance implements IQueryRow, JsonSerializable {
 		$arr = [
 			'uri' => $this->getUri(),
 			'title' => $this->getTitle(),
-			'version' => $this->getVersion(),
+			'version' => $this->getCompatVersion(),
 			'short_description' => $this->getShortDescription(),
 			'description' => $this->getDescription(),
 			'email' => $this->getEmail(),
