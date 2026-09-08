@@ -54,7 +54,9 @@ const status = (id) => ({
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
 	props: ['item', 'type'],
-	template: '<li class="timeline-entry-stub" :data-id="item.id" />',
+	// carries the real component's class and tabindex, because the list finds
+	// entries by that class and sends focus to them
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" />',
 }
 
 const entryIds = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => entry.attributes('data-id'))
@@ -321,6 +323,35 @@ describe('TimelineList', () => {
 			wrapper.unmount()
 
 			expect(() => eventBus.emit('shortcut:next')).not.toThrow()
+		})
+	})
+
+	describe('keyboard reading', () => {
+		const posts = [
+			{ id: '1', account: { id: 'a' }, content: 'one' },
+			{ id: '2', account: { id: 'b' }, content: 'two' },
+		]
+
+		it('moves the keyboard, not only a highlight', async () => {
+			const { wrapper } = mountList({ timeline: posts })
+			const entries = wrapper.findAll('.timeline-entry')
+			entries.forEach((entry) => {
+				entry.element.focus = vi.fn()
+				entry.element.scrollIntoView = vi.fn()
+			})
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			// scrolling alone leaves the keyboard where it was, which is the
+			// one thing a reader using j/k cannot afford
+			expect(entries[0].element.focus).toHaveBeenCalledWith({ preventScroll: true })
+		})
+
+		it('gives an entry somewhere for focus to land', () => {
+			const { wrapper } = mountList({ timeline: posts })
+
+			expect(wrapper.find('.timeline-entry').attributes('tabindex')).toBe('-1')
 		})
 	})
 

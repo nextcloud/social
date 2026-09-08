@@ -19,10 +19,11 @@
 			<p>{{ t('social', 'ActivityPub requires a fixed URL to make entries unique. Note that this cannot be changed later without resetting the Social app.') }}</p>
 			<form @submit.prevent="setCloudAddress">
 				<p>
-					<label class="hidden">
+					<label class="hidden" for="setup-cloud-address">
 						{{ t('social', 'ActivityPub URL base') }}
 					</label>
-					<input v-model="cloudAddress"
+					<input id="setup-cloud-address"
+						v-model="cloudAddress"
 						:placeholder="serverData.cliUrl"
 						type="url"
 						class="setup-input"

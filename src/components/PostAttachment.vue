@@ -5,18 +5,31 @@
 <template>
 	<div class="post-attachments">
 		<div class="attachments-container">
-			<div v-for="(item, index) in attachementsSlice"
-				:key="index"
-				ref="thumbnails"
-				class="attachment"
-				@click="showModal(index)">
-				<MediaAttachment :attachment="item" />
-			</div>
-			<div v-if="attachments.length > 4" class="attachment more-attachments" @click="showModal(3)">
-				+
-			</div>
+			<template v-for="(item, index) in attachementsSlice" :key="index">
+				<!-- an image is opened by pressing it, so it gets a button.
+				     Video and audio carry their own controls: nesting those
+				     inside a button is invalid, and they need no viewer to be
+				     watchable where they are -->
+				<button v-if="isPressable(item)"
+					ref="thumbnails"
+					type="button"
+					class="attachment"
+					:aria-label="openLabel(item, index)"
+					@click="showModal(index)">
+					<MediaAttachment :attachment="item" />
+				</button>
+				<MediaAttachment v-else ref="thumbnails" :attachment="item" />
+			</template>
+			<button v-if="attachments.length > 4"
+				type="button"
+				class="attachment more-attachments"
+				:aria-label="n('social', 'Show %n more attachment', 'Show %n more attachments', attachments.length - 4)"
+				@click="showModal(3)">
+				<span aria-hidden="true">+</span>
+			</button>
 		</div>
 		<NcModal v-if="modal"
+			:name="currentLabel"
 			:has-previous="current > 0"
 			:has-next="current < (attachments.length - 1)"
 			size="full"
@@ -46,6 +59,8 @@ import MediaAttachment from './MediaAttachment.vue'
 import { nameForTransition, withViewTransition } from '../utils/viewTransition.js'
 
 /** one name per document: only one lightbox is ever open */
+import { translate, translatePlural } from '@nextcloud/l10n'
+
 const MEDIA_TRANSITION = 'social-media'
 
 export default {
@@ -71,6 +86,16 @@ export default {
 		}
 	},
 	computed: {
+		/** What the open viewer is showing, so the dialog has a name. */
+		currentLabel() {
+			const attachment = this.attachments[this.current] ?? null
+
+			return attachment?.description
+				? attachment.description
+				: translate('social', 'Attachment {number} of {total}', {
+					number: this.current + 1, total: this.attachments.length,
+				})
+		},
 		/** @return {import('../types/Mastodon.js').MediaAttachment[]} */
 		attachementsSlice() {
 			if (this.attachments.length <= 4) {
@@ -81,6 +106,29 @@ export default {
 		},
 	},
 	methods: {
+		t: translate,
+		n: translatePlural,
+		/**
+		 * What opening this attachment will show. The author's own description
+		 * when there is one, because that is the only thing that says what the
+		 * picture actually is.
+		 *
+		 * @param {import('../types/Mastodon.js').MediaAttachment} attachment the media
+		 * @param {number} index its place in the post
+		 * @return {string} the button's accessible name
+		 */
+		/**
+		 * @param {import('../types/Mastodon.js').MediaAttachment} attachment the media
+		 * @return {boolean} whether pressing it should open the viewer
+		 */
+		isPressable(attachment) {
+			return attachment?.type !== 'video' && attachment?.type !== 'audio'
+		},
+		openLabel(attachment, index) {
+			return attachment.description
+				? translate('social', 'Open attachment: {description}', { description: attachment.description })
+				: translate('social', 'Open attachment {number}', { number: index + 1 })
+		},
 		/**
 		 * The tapped thumbnail and the opened viewer share a name for the
 		 * length of the transition, so the browser grows one into the other

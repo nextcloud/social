@@ -24,12 +24,15 @@
 			</template>
 			{{ t('social', 'Set from URL') }}
 		</NcButton>
-		<NcModal v-if="showBannerUrlModal" @close="showBannerUrlModal = false">
+		<NcModal v-if="showBannerUrlModal"
+			:name="t('social', 'Set banner from URL')"
+			@close="showBannerUrlModal = false">
 			<div class="user-profile__banner-url-modal">
 				<h3>{{ t('social', 'Set banner from URL') }}</h3>
 				<input v-model="bannerUrlInput"
 					type="url"
 					class="user-profile__banner-url-input"
+					:aria-label="t('social', 'Address of the banner image')"
 					:placeholder="t('social', 'https://example.com/image.jpg')"
 					@keyup.enter="uploadBannerByUrl">
 				<NcButton type="primary" :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
@@ -37,8 +40,11 @@
 				</NcButton>
 			</div>
 		</NcModal>
+		<!-- decorative: "Change banner" above is the control, and a click here is
+		     a shortcut for people who have a pointer, not the only way in -->
 		<div ref="bannerEl"
 			class="user-profile__banner"
+			aria-hidden="true"
 			:class="{
 				'user-profile__banner--editable': isOwnProfile,
 				'user-profile__banner--visible': bannerStyle !== '',
@@ -148,7 +154,9 @@
 					</dd>
 				</div>
 			</dl>
-			<NcModal v-if="showFieldsModal" @close="showFieldsModal = false">
+			<NcModal v-if="showFieldsModal"
+				:name="t('social', 'Profile fields')"
+				@close="showFieldsModal = false">
 				<div class="user-profile__fields-modal">
 					<h3>{{ t('social', 'Profile fields') }}</h3>
 					<p>{{ t('social', 'Up to four name/value pairs, shown on your profile and shared with other servers.') }}</p>
@@ -156,10 +164,12 @@
 						<input v-model="row.name"
 							type="text"
 							maxlength="255"
+							:aria-label="t('social', 'Label of field {number}', { number: index + 1 })"
 							:placeholder="t('social', 'Label')">
 						<input v-model="row.value"
 							type="text"
 							maxlength="500"
+							:aria-label="t('social', 'Content of field {number}', { number: index + 1 })"
 							:placeholder="t('social', 'Content')">
 						<NcButton type="tertiary"
 							:aria-label="t('social', 'Remove field')"
@@ -653,10 +663,18 @@ export default {
 				border-radius: 8px;
 
 				/* the profile's own colour, where the banner yielded one */
-				&.router-link-exact-active,
-				&:focus {
+				&.router-link-exact-active {
 					background: var(--profile-accent, var(--color-background-hover));
 					color: var(--profile-accent-text, inherit);
+				}
+
+				/* focus does not borrow the banner's colour: an indicator whose
+				   contrast depends on somebody's uploaded picture is not one */
+				&:focus-visible {
+					outline: 2px solid var(--color-primary-element);
+					outline-offset: 1px;
+					background: var(--color-background-hover);
+					color: inherit;
 				}
 
 				&.disabled {
@@ -735,9 +753,10 @@ export default {
 			background: var(--color-main-background);
 			color: var(--color-main-text);
 
-			&:focus {
+			&:focus-visible {
 				border-color: var(--color-primary-element);
-				outline: none;
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 1px;
 			}
 		}
 	}
@@ -779,9 +798,10 @@ export default {
 		background: var(--color-main-background);
 		color: var(--color-main-text);
 
-		&:focus {
+		&:focus-visible {
 			border-color: var(--color-primary-element);
-			outline: none;
+			outline: 2px solid var(--color-primary-element);
+			outline-offset: 1px;
 		}
 	}
 

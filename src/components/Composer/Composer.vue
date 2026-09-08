@@ -49,10 +49,15 @@
 				type="text"
 				class="content-warning"
 				maxlength="200"
+				:aria-label="t('social', 'Content warning')"
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
 			<div ref="composerInput"
 				:contenteditable="!loading"
 				class="message"
+				role="textbox"
+				aria-multiline="true"
+				:aria-label="t('social', 'What would you like to share?')"
+				:aria-describedby="statusIsTooLong ? 'composer-length' : undefined"
 				:placeholder="t('social', 'What would you like to share?')"
 				:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
 				@keyup.prevent.enter="keyup"
@@ -164,11 +169,17 @@
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
 				<span v-if="statusContent.length > 0"
+					id="composer-length"
 					class="char-ring"
 					:class="{ 'char-ring--warning': charsLeft <= 50, 'char-ring--over': statusIsTooLong }"
 					:style="{ '--char-progress': charProgress }"
-					:title="n('social', '%n character left', '%n characters left', charsLeft)">
-					<span v-if="charsLeft <= 50" class="char-ring__count">{{ charsLeft }}</span>
+					:title="charactersLeftLabel">
+					<span v-if="charsLeft <= 50" class="char-ring__count" aria-hidden="true">{{ charsLeft }}</span>
+					<!-- the ring is a colour and an arc; this is the same news in words,
+					     announced only once it is worth interrupting for -->
+					<span class="hidden-visually" role="status">
+						{{ charsLeft <= 50 ? charactersLeftLabel : '' }}
+					</span>
 				</span>
 				<SubmitStatusButton :visibility="visibility" :disabled="!canPost || loading" @click="createPost" />
 			</div>
@@ -346,6 +357,11 @@ export default {
 				'%n attachments have no description',
 				this.undescribed,
 			)
+		},
+		charactersLeftLabel() {
+			return this.statusIsTooLong
+				? translatePlural('social', '%n character too many', '%n characters too many', -this.charsLeft)
+				: translatePlural('social', '%n character left', '%n characters left', this.charsLeft)
 		},
 		canPost() {
 			if (Object.values(this.attachments).some(({ data }) => data === null)) {
@@ -789,10 +805,10 @@ function nodeToPlainText(node) {
 	font-size: 14px;
 	line-height: 1.6;
 	color: var(--color-main-text);
-	outline: none;
-
-	&:focus {
+	&:focus-visible {
 		border-color: var(--color-primary-element);
+		outline: 2px solid var(--color-primary-element);
+		outline-offset: 1px;
 	}
 
 	&.too-long {
@@ -1012,9 +1028,10 @@ function nodeToPlainText(node) {
 	color: var(--color-main-text);
 	font-size: 14px;
 
-	&:focus {
+	&:focus-visible {
 		border-color: var(--color-primary-element);
-		outline: none;
+		outline: 2px solid var(--color-primary-element);
+		outline-offset: 1px;
 	}
 }
 </style>

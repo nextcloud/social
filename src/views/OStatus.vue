@@ -14,7 +14,7 @@
 			<NcAvatar :url="avatarUrl" :disable-tooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form v-if="!isFollowing" @submit.prevent="follow">
-				<input type="submit" class="primary" value="Follow">
+				<input type="submit" class="primary" :value="t('social', 'Follow')">
 			</form>
 			<p v-else>
 				<span class="icon icon-checkmark-white" />
@@ -33,7 +33,10 @@
 			<NcAvatar :user="serverData.local" :disable-tooltip="true" :size="128" />
 			<h2>{{ displayName }}</h2>
 			<form @submit.prevent="followRemote">
-				<input v-model="remote" type="text" :placeholder="t('social', 'name@domain of your federation account')">
+				<input v-model="remote"
+					type="text"
+					:aria-label="t('social', 'Your account, as name@domain')"
+					:placeholder="t('social', 'name@domain of your federation account')">
 				<input type="submit" class="primary" :value="t('social', 'Continue')">
 			</form>
 			<p>{{ t('social', 'This step is needed as the user is probably not registered on the same server as you are. We will redirect you to your homeserver to follow this account.') }}</p>

@@ -7,9 +7,15 @@
 	<div v-if="!serverData.public && relationship !== undefined">
 		<div v-if="relationship.following"
 			class="follow-button-container">
+			<!-- the visible half of a hover swap, not a control: it has no
+			     click handler, so a keyboard user tabbing onto it and pressing
+			     Enter got nothing. The Unfollow button beside it is the action,
+			     and "Unfollow" already says that you are following -->
 			<NcButton :disabled="loading"
 				class="follow-button follow-button--following"
-				type="success">
+				type="success"
+				aria-hidden="true"
+				tabindex="-1">
 				<template #icon>
 					<Check :size="32" />
 				</template>
