@@ -147,7 +147,7 @@ The business logic lives in `lib/Service/`.
 - **DetailsService** — Computes a `StreamDetails` object describing which local viewers a stream reaches
 - **MiscService** — Logging helper and the running Nextcloud major version
 - **TestService** — Backs the WebFinger probe of `occ social:check:install`
-- **PushService** — `onNewStream()` returns immediately; the Nextcloud push integration it once wrapped is entirely commented out. Calling it has no effect
+- **PushService** — on a new stream, resolves the local audience through `DetailsService` (home + direct viewers) and pushes a `social_timeline` custom event per user through the notify_push app when it is installed; without notify_push every call is a cheap no-op and web clients keep polling. The web client listens via `@nextcloud/notify_push` and drops its 30-second poll to a 5-minute safety net when push is available
 - **UpdateService** — Builds admin notifications about the app's state, but nothing in `lib/` calls it; it is currently dead code
 
 ---
@@ -316,7 +316,7 @@ Fifteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also h
 - **Actor private keys are encrypted at rest.** `social_actor.private_key` holds the PEM encrypted with the instance secret (`ICrypto`, via `PrivateKeyCipher`), so a database dump alone is not enough to impersonate a local actor — it also takes the `secret` from `config.php`. Rows written before encryption existed (recognisable by their `-----BEGIN` prefix) are still readable and are rewritten once by the `EncryptPrivateKeys` repair step on upgrade
 - **The federation endpoints are unauthenticated.** `ActivityPubController::actor()`, `actorAlias()`, `outbox()`, `followers()`, `following()` and `displayPost()` all carry `#[PublicPage]` with `#[NoCSRFRequired]`, and there is no signed-fetch (authorized-fetch) requirement. Any anonymous caller can read a local actor's profile, outbox, follower and following collections and individual posts
 - **There is no blocking.** `BlockInterface` accepts an incoming Block and forwards it to a handler that ignores it, and the app never sends one. Per-actor blocks and mutes do not exist; the `mute`/`unmute` status actions are accepted by the API and discarded
-- **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**, along with `PushService`. What remains is the single-list `access_type`/`access_list` mechanism described above
+- **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**. What remains is the single-list `access_type`/`access_list` mechanism described above
 - **`FediverseService::getKnownAddresses()` returns an empty array** unconditionally
 - **The base URL is set once.** `ConfigService::setCloudUrl()` will overwrite it, but stored actor and stream ids embed the old URL, so changing it in practice requires `occ social:reset`
 

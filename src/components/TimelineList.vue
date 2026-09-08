@@ -20,6 +20,7 @@
 
 <script>
 import { showError } from '@nextcloud/dialogs'
+import { listen } from '@nextcloud/notify_push'
 
 import TimelineEntry from './TimelineEntry.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
@@ -144,7 +145,10 @@ export default {
 	},
 	mounted() {
 		this.infiniteHandler()
-		this.intervalId = setInterval(() => this.fetchNewStatuses(), 30 * 1000)
+		// with notify_push the server tells us about new entries; polling
+		// remains as a slow safety net. Without it, poll every 30 seconds.
+		const hasPush = listen('social_timeline', () => this.fetchNewStatuses())
+		this.intervalId = setInterval(() => this.fetchNewStatuses(), (hasPush ? 300 : 30) * 1000)
 		this.setupIntersectionObserver()
 	},
 	unmounted() {
