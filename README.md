@@ -12,6 +12,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - ✍️ **Composer** — write posts and replies, pick a visibility (public, unlisted, followers-only, direct), insert emoji, and attach images. `@mentions` and `#hashtags` typed by hand are extracted from the text and turned into real recipients and tags.
 - ✏️ **Edit posts** — edit your own local posts inline; the change is saved and federated as an ActivityPub `Update` (`lib/Service/PostService.php`, `editPost()`).
 - 🗑️ **Delete posts** — delete your own posts.
+- ⚠️ **Content warnings** — put a warning on a post in the composer and the body is folded away behind it until a reader asks to see it (it is not even in the page until then). Carried as the ActivityPub object's `summary` and as `spoiler_text` on the client API, so warnings written elsewhere in the Fediverse are honoured here and vice versa.
 - 👍 🔁 💬 **Post actions** — like/unlike, boost/unboost (`Announce`) and reply.
 - 👥 **Following** — follow and unfollow local and remote accounts, and browse followers/following lists.
 - 📌 **Pinned posts** — pin up to five of your own posts to the top of your profile (`pin`/`unpin` on the status-action endpoint, `?pinned=true` on the account statuses route). Pins are published in the actor's `featured` collection, so other Fediverse servers show them too; pinned posts of *remote* accounts are not fetched.

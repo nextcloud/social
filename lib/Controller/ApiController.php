@@ -443,6 +443,7 @@ class ApiController extends Controller {
 			$post = new Post($actor);
 			$post->setContent($status->getStatus());
 			$post->setPoll($status->getPoll());
+			$post->setSpoilerText($status->getSpoilerText());
 			$post->setType($status->getVisibility());
 
 			if (!empty($status->getMediaIds())) {

@@ -166,6 +166,39 @@ class PostServiceTest extends TestCase {
 		$this->assertSame([], $note->getAttachments());
 	}
 
+	public function testCreatePostCarriesTheContentWarningAsTheSummary(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('who shot him');
+		$post->setSpoilerText('season finale');
+		$this->service->createPost($post);
+
+		// AP calls it `summary`; the client API calls it `spoiler_text`
+		$this->assertSame('season finale', $note->getSpoilerText());
+		$this->assertSame('season finale', $note->getSummary());
+	}
+
+	public function testCreatePostEscapesTheContentWarning(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('body');
+		$post->setSpoilerText('<script>alert("x")</script>');
+		$this->service->createPost($post);
+
+		$this->assertSame(
+			'&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;',
+			$note->getSpoilerText()
+		);
+	}
+
+	public function testCreatePostWithoutAContentWarningLeavesTheSummaryEmpty(): void {
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('just words'));
+
+		$this->assertSame('', $note->getSpoilerText());
+	}
+
 	/**
 	 * @return array<string, array{string, string, string[], string[]}>
 	 */

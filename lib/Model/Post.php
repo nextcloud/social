@@ -31,6 +31,9 @@ class Post implements JsonSerializable {
 	private array $hashtags = [];
 	private ?array $poll = null;
 
+	/** the content warning, hiding the body until the reader asks for it */
+	private string $spoilerText = '';
+
 	/** @var string[] */
 	private array $attachments = [];
 	/** @var MediaAttachment[] */
@@ -185,6 +188,16 @@ class Post implements JsonSerializable {
 	 */
 	public function setPoll(?array $poll): self {
 		$this->poll = $poll;
+
+		return $this;
+	}
+
+	public function getSpoilerText(): string {
+		return $this->spoilerText;
+	}
+
+	public function setSpoilerText(string $spoilerText): self {
+		$this->spoilerText = trim($spoilerText);
 
 		return $this;
 	}

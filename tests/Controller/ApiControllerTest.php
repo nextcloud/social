@@ -338,6 +338,32 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $this->controller('Bearer s3cret')->statusNew()->getStatus());
 	}
 
+	// statusNew()
+
+	public function testStatusNewCarriesTheContentWarningToThePost(): void {
+		$this->route = 'social.Api.statusNew';
+		$this->bearerFor(['read', 'write']);
+		$this->request->method('getParams')->willReturn([
+			'status' => 'who shot him',
+			'spoiler_text' => 'season finale',
+		]);
+
+		$created = null;
+		$activity = $this->createMock(ACore::class);
+		$activity->method('getObjectId')->willReturn('https://cloud.example/apps/social/@alice/n1');
+		$this->postService->method('createPost')
+			->willReturnCallback(function (Post $post) use (&$created, $activity): ACore {
+				$created = $post;
+
+				return $activity;
+			});
+		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
+
+		$this->controller('Bearer s3cret')->statusNew();
+
+		$this->assertSame('season finale', $created->getSpoilerText());
+	}
+
 	public function testABearerTokenIsScopedEvenWhenASessionExists(): void {
 		// the token's grant must not silently widen to the cookie's full access
 		$this->route = 'social.Api.statusNew';

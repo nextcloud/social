@@ -93,6 +93,9 @@ class PostService {
 
 		$note->setAttributedTo($actor->getId());
 		$note->setContent(nl2br(htmlentities($post->getContent(), ENT_QUOTES)));
+		// the warning rides as the object's `summary`, which is what every
+		// other server reads it from
+		$note->setSpoilerText(htmlentities($post->getSpoilerText(), ENT_QUOTES));
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
 

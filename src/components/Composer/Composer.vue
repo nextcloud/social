@@ -44,6 +44,12 @@
 			<MessageContent :item="replyTo" />
 		</div>
 		<form class="new-post-form" @submit.prevent>
+			<input v-if="showWarning"
+				v-model="spoilerText"
+				type="text"
+				class="content-warning"
+				maxlength="200"
+				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
 			<div ref="composerInput"
 				:contenteditable="!loading"
 				class="message"
@@ -116,6 +122,15 @@
 					</template>
 				</NcButton>
 
+				<NcButton :title="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
+					type="tertiary"
+					:aria-label="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
+					:aria-pressed="showWarning"
+					@click.prevent="toggleWarning">
+					<template #icon>
+						<AlertOutline :size="22" decorative title="" />
+					</template>
+				</NcButton>
 				<NcButton :title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 					type="tertiary"
 					:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
@@ -166,6 +181,7 @@ import debounce from 'debounce'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmojiPicker from '@nextcloud/vue/components/NcEmojiPicker'
+import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
 import { translatePlural } from '@nextcloud/l10n'
 import he from 'he'
@@ -194,6 +210,7 @@ export default {
 		Paperclip,
 		EmoticonOutline,
 		Close,
+		AlertOutline,
 		PollIcon,
 		PreviewGrid,
 		VisibilitySelect,
@@ -221,6 +238,8 @@ export default {
 			loading: false,
 			attachments: {},
 			showPoll: false,
+			showWarning: false,
+			spoilerText: '',
 			pollOptions: ['', ''],
 			pollMultiple: false,
 			pollExpiresIn: 86400,
@@ -494,12 +513,15 @@ export default {
 
 			let status = nodeToPlainText(element).trim()
 			status = he.decode(status)
+			const warning = this.showWarning ? this.spoilerText.trim() : ''
 
 			const statusData = {
 				content_type: '',
 				media_ids: Object.values(this.attachments).map(preview => preview.data.id),
-				sensitive: false,
-				spoiler_text: '',
+				// a warning means the body is hidden until asked for, which is
+				// what `sensitive` says about the post as a whole
+				sensitive: warning !== '',
+				spoiler_text: warning,
 				status,
 				in_reply_to_id: this.replyTo?.id,
 				visibility: this.visibility,
@@ -528,7 +550,15 @@ export default {
 				this.showPoll = false
 				this.pollOptions = ['', '']
 				this.pollMultiple = false
+				this.showWarning = false
+				this.spoilerText = ''
 				this.$store.dispatch('refreshTimeline')
+			}
+		},
+		toggleWarning() {
+			this.showWarning = !this.showWarning
+			if (!this.showWarning) {
+				this.spoilerText = ''
 			}
 		},
 		togglePoll() {
@@ -887,6 +917,22 @@ function nodeToPlainText(node) {
 @media (prefers-reduced-motion: reduce) {
 	.char-ring {
 		transition: none;
+	}
+}
+
+.content-warning {
+	width: 100%;
+	margin-bottom: 6px;
+	padding: 8px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius, 8px);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font-size: 14px;
+
+	&:focus {
+		border-color: var(--color-primary-element);
+		outline: none;
 	}
 }
 </style>
