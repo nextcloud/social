@@ -51,13 +51,58 @@ describe('instanceColour', () => {
 
 			expect(hue).toBeGreaterThanOrEqual(0)
 			expect(hue).toBeLessThan(360)
-			// fixed saturation and lightness keep every instance equally loud
-			expect(colour).toContain('62%, 52%')
+			// the saturation is fixed; the lightness is whatever the hue needs
+			expect(colour).toContain('62%,')
 		}
 	})
 
 	it('has no colour for a local account', () => {
 		expect(instanceColour('')).toBe('')
+	})
+})
+
+describe('instanceColour contrast', () => {
+	/** WCAG 2 relative luminance of an hsl() string. */
+	const luminanceOf = (colour) => {
+		const [hue, saturation, lightness] = colour
+			.match(/^hsl\((\d+), ([\d.]+)%, ([\d.]+)%\)$/)
+			.slice(1)
+			.map(Number)
+		const s = saturation / 100
+		const l = lightness / 100
+		const channel = (n) => {
+			const a = s * Math.min(l, 1 - l)
+			const k = (n + hue / 30) % 12
+
+			return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+		}
+		const linear = (v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+
+		return 0.2126 * linear(channel(0)) + 0.7152 * linear(channel(8)) + 0.0722 * linear(channel(4))
+	}
+
+	it('carries white text at every hue it can produce', () => {
+		// a fixed lightness cannot: hsl(60, 62%, 52%) against white is ~1.5:1,
+		// so whoever happened to land on a yellow instance got an unreadable badge
+		const seen = new Set()
+		for (let i = 0; i < 400; i++) {
+			const colour = instanceColour('host' + i + '.example')
+			if (seen.has(colour)) {
+				continue
+			}
+			seen.add(colour)
+
+			const contrast = 1.05 / (luminanceOf(colour) + 0.05)
+			expect(contrast, colour).toBeGreaterThanOrEqual(4.5)
+		}
+
+		expect(seen.size).toBeGreaterThan(20)
+	})
+
+	it('keeps the hue, so two instances still look different', () => {
+		const hueOf = (host) => Number(instanceColour(host).match(/^hsl\((\d+),/)[1])
+
+		expect(hueOf('one.example')).not.toBe(hueOf('two.example'))
 	})
 })
 

@@ -8,6 +8,13 @@
 		:class="{ 'post-avatar--remote': !origin.local }"
 		:style="{ '--instance-colour': origin.colour }"
 		:title="origin.local ? undefined : origin.instance">
+		<!-- the ring says which instance in colour, which is nothing at all to
+		     a reader who cannot see it or cannot tell two hues apart. The post
+		     header shows the instance in words too, but not every avatar sits
+		     next to one -->
+		<span v-if="!origin.local" class="hidden-visually">
+			{{ t('social', 'Account on {instance}', { instance: origin.instance }) }}
+		</span>
 		<NcAvatar v-if="isLocal"
 			class="messages__avatar__icon"
 			:show-user-status="false"
@@ -23,6 +30,7 @@
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
+import { translate } from '@nextcloud/l10n'
 import { originOf } from '../utils/instanceIdentity.js'
 
 export default {
@@ -36,6 +44,9 @@ export default {
 			type: Object,
 			default: () => {},
 		},
+	},
+	methods: {
+		t: translate,
 	},
 	computed: {
 		/**

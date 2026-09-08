@@ -4,6 +4,12 @@
 -->
 <template>
 	<div class="social__timeline">
+		<!-- the timeline changes under the reader without a word otherwise: new
+		     posts appear, a page loads, the end is reached, and none of it is
+		     announced. Polite, so it waits for a gap rather than interrupting -->
+		<div class="hidden-visually" role="status" aria-live="polite">
+			{{ announcement }}
+		</div>
 		<transition name="pill">
 			<button v-if="arrived > 0"
 				class="new-posts-pill"
@@ -125,6 +131,24 @@ export default {
 		}
 	},
 	computed: {
+		/**
+		 * What has just changed, in one sentence. Only the thing worth saying:
+		 * a reader does not need to hear about every page that loads while
+		 * they scroll, but they do need to know when nothing more is coming.
+		 */
+		announcement() {
+			if (this.arrived > 0) {
+				return translatePlural('social', '%n new post available', '%n new posts available', this.arrived)
+			}
+			if (this.loading) {
+				return translate('social', 'Loading posts')
+			}
+			if (this.allLoaded && this.timeline.length > 0) {
+				return translate('social', 'You have reached the end')
+			}
+
+			return ''
+		},
 		searchQuery() {
 			return this.$store.getters.getSearchQuery
 		},
