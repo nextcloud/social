@@ -292,7 +292,29 @@ class ActivityService {
 			}
 		}
 
-		return $instancePaths;
+		return array_values(array_filter($instancePaths, fn (InstancePath $path): bool => !$this->isOurs($path)));
+	}
+
+	/**
+	 * Whether a delivery is addressed to this very instance.
+	 *
+	 * Everyone here already has the activity: recipients are written into
+	 * social_stream_dest when the item is saved, which is what puts it in a
+	 * local timeline — the HTTP round trip would only hand us back something we
+	 * wrote ourselves. Worse, it is a request the server has to be able to make
+	 * to its own public address, which behind a reverse proxy, split-horizon
+	 * DNS or an SSRF guard it often cannot: the delivery then fails fifteen
+	 * times and is dropped, while remote instances queue up behind it.
+	 */
+	private function isOurs(InstancePath $instancePath): bool {
+		try {
+			$local = strtolower($this->configService->getCloudHost());
+		} catch (SocialAppConfigException $e) {
+			// nothing configured to compare against; send it and find out
+			return false;
+		}
+
+		return $local !== '' && strtolower($instancePath->getAddress()) === $local;
 	}
 
 	/**

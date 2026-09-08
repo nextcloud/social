@@ -53,6 +53,7 @@ use ReflectionClass;
 
 class ActivityServiceTest extends TestCase {
 	private const CLOUD_URL = 'https://cloud.example';
+	private const CLOUD_HOST = 'cloud.example';
 	private const ALICE_ID = 'https://social.example/@alice';
 	private const NOTE_ID = 'https://social.example/@alice/42';
 	private const BOB_INBOX = 'https://remote.example/users/bob/inbox';
@@ -63,6 +64,7 @@ class ActivityServiceTest extends TestCase {
 	private SignatureService|MockObject $signatureService;
 	private RequestQueueService|MockObject $requestQueueService;
 	private CurlService|MockObject $curlService;
+	private ConfigService|MockObject $configService;
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
@@ -81,6 +83,9 @@ class ActivityServiceTest extends TestCase {
 		$this->requestQueueService = $this->createMock(RequestQueueService::class);
 		$this->curlService = $this->createMock(CurlService::class);
 
+		$this->configService = $this->createMock(ConfigService::class);
+		$this->configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -88,7 +93,7 @@ class ActivityServiceTest extends TestCase {
 			$this->signatureService,
 			$this->requestQueueService,
 			$this->curlService,
-			$this->createMock(ConfigService::class),
+			$this->configService,
 			new NullLogger()
 		);
 	}
@@ -185,7 +190,9 @@ class ActivityServiceTest extends TestCase {
 
 				return true;
 			}), $this->isInstanceOf(ACore::class), $this->isType('string'))
-			->willReturn(self::TOKEN);
+			// the real queue hands back no token when it was given nothing to
+			// send, and callers key off that
+			->willReturnCallback(fn (array $instancePaths): string => $instancePaths === [] ? '' : self::TOKEN);
 		$this->requestQueueService->method('getPriorityRequest')->willThrowException(new NoHighPriorityRequestException());
 		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
 	}
@@ -371,6 +378,42 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
 		$this->assertSame('https://other.example/inbox', $paths[1]->getUri());
 		$this->assertSame(InstancePath::TYPE_GLOBAL, $paths[1]->getType());
+	}
+
+	public function testRequestNeverPostsToThisInstance(): void {
+		$paths = [];
+		$this->capturePaths($paths);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([
+			// a follower on this very instance
+			$this->follower(self::CLOUD_URL . '/users/carol', self::CLOUD_URL . '/inbox'),
+			$this->follower('https://remote.example/users/bob', 'https://remote.example/inbox'),
+		]);
+
+		$note = new Note();
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW));
+
+		$this->service->request($note);
+
+		// carol already has it: recipients are written into stream_dest when the
+		// item is saved, and the round trip would hand us back our own writing
+		$this->assertSame(['https://remote.example/inbox'], array_map(
+			fn (InstancePath $path): string => $path->getUri(), $paths
+		));
+	}
+
+	public function testADirectTargetOnThisInstanceIsDroppedToo(): void {
+		$paths = [];
+		$this->capturePaths($paths);
+		$like = new Like();
+		$like->setActorId(self::ALICE_ID);
+		$like->addInstancePath(
+			new InstancePath(self::CLOUD_URL . '/users/carol/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH)
+		);
+
+		// nothing left to send, so no token is needed
+		$this->assertSame('<request token not needed>', $this->service->request($like));
+		$this->assertSame([], $paths);
 	}
 
 	public function testRequestExpandsAllToEveryKnownSharedInbox(): void {
