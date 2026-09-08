@@ -16,6 +16,12 @@
 					<span class="post-author-id">
 						@{{ item.account.username }}
 					</span>
+					<span v-if="!origin.local"
+						class="post-instance"
+						:style="{ '--instance-colour': origin.colour }"
+						:title="t('social', 'Posted from {instance}', { instance: origin.instance })">
+						{{ origin.instance }}
+					</span>
 				</router-link>
 			</div>
 			<a :data-timestamp="timestamp"
@@ -178,6 +184,7 @@ import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
+import { originOf } from '../utils/instanceIdentity.js'
 import moment from '@nextcloud/moment'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
@@ -225,6 +232,8 @@ export default {
 			celebrate: '',
 			/** which action the server refused, so the button can say so */
 			refused: '',
+			/** whether j/k has this post, so l/b/r act on the right one */
+			hasKeyboardFocus: false,
 			editContent: '',
 			showReportDialog: false,
 			reportComment: '',
@@ -232,6 +241,10 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {{instance: string, colour: string, local: boolean}} where the author lives */
+		origin() {
+			return originOf(this.item.account?.acct ?? '')
+		},
 		/** @return {boolean} a link preview replaces nothing, so media wins */
 		showCard() {
 			return !this.hasAttachments && Boolean(this.item.card?.title)
@@ -326,7 +339,47 @@ export default {
 			return visibilitiesInfo.find(({ id }) => this.item.visibility === id)
 		},
 	},
+	mounted() {
+		eventBus.on('timeline:focused', this.rememberFocus)
+		eventBus.on('shortcut:like', this.likeIfFocused)
+		eventBus.on('shortcut:boost', this.boostIfFocused)
+		eventBus.on('shortcut:reply', this.replyIfFocused)
+		eventBus.on('shortcut:open', this.openIfFocused)
+	},
+	unmounted() {
+		eventBus.off('timeline:focused', this.rememberFocus)
+		eventBus.off('shortcut:like', this.likeIfFocused)
+		eventBus.off('shortcut:boost', this.boostIfFocused)
+		eventBus.off('shortcut:reply', this.replyIfFocused)
+		eventBus.off('shortcut:open', this.openIfFocused)
+	},
 	methods: {
+		/**
+		 * @param {import('../types/Mastodon.js').Status} status the post the keyboard moved to
+		 */
+		rememberFocus(status) {
+			this.hasKeyboardFocus = status?.id === this.item.id
+		},
+		likeIfFocused() {
+			if (this.hasKeyboardFocus) {
+				this.like()
+			}
+		},
+		boostIfFocused() {
+			if (this.hasKeyboardFocus && (this.item.visibility === 'public' || this.item.visibility === 'unlisted')) {
+				this.boost()
+			}
+		},
+		replyIfFocused() {
+			if (this.hasKeyboardFocus) {
+				this.reply()
+			}
+		},
+		openIfFocused() {
+			if (this.hasKeyboardFocus) {
+				this.getSinglePostTimeline()
+			}
+		},
 		/**
 		 * @function getSinglePostTimeline
 		 * @description Opens the timeline of the post clicked
@@ -422,6 +475,10 @@ export default {
 		async act(name, action, celebrating) {
 			if (celebrating) {
 				this.celebrate = name
+				// a touch device can feel the confirmation as well as see it
+				if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					window.navigator.vibrate?.(8)
+				}
 				window.setTimeout(() => {
 					if (this.celebrate === name) {
 						this.celebrate = ''
@@ -755,5 +812,21 @@ function nodeToPlainText(node) {
 	.post-action__burst {
 		display: none;
 	}
+}
+
+.post-instance {
+	flex-shrink: 0;
+	margin-left: 6px;
+	padding: 1px 7px;
+	border-radius: var(--border-radius-pill, 10px);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .01em;
+	color: var(--color-primary-element-text);
+	background: var(--instance-colour);
+	max-width: 12ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 </style>

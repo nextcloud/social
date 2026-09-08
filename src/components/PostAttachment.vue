@@ -7,6 +7,7 @@
 		<div class="attachments-container">
 			<div v-for="(item, index) in attachementsSlice"
 				:key="index"
+				ref="thumbnails"
 				class="attachment"
 				@click="showModal(index)">
 				<MediaAttachment :attachment="item" />
@@ -22,7 +23,7 @@
 			@close="closeModal"
 			@previous="current--"
 			@next="current++">
-			<div class="attachment__viewer">
+			<div ref="viewer" class="attachment__viewer">
 				<video v-if="attachments[current].type === 'video'"
 					:src="attachments[current].url"
 					:aria-label="attachments[current].description || ''"
@@ -42,6 +43,10 @@
 import serverData from '../mixins/serverData.js'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import MediaAttachment from './MediaAttachment.vue'
+import { nameForTransition, withViewTransition } from '../utils/viewTransition.js'
+
+/** one name per document: only one lightbox is ever open */
+const MEDIA_TRANSITION = 'social-media'
 
 export default {
 	name: 'PostAttachment',
@@ -76,12 +81,37 @@ export default {
 		},
 	},
 	methods: {
-		showModal(index) {
-			this.current = index
-			this.modal = true
+		/**
+		 * The tapped thumbnail and the opened viewer share a name for the
+		 * length of the transition, so the browser grows one into the other
+		 * instead of the picture appearing from nowhere.
+		 *
+		 * @param {number} index which attachment was tapped
+		 */
+		async showModal(index) {
+			const thumbnail = this.$refs.thumbnails?.[index] ?? null
+			const release = nameForTransition(thumbnail, MEDIA_TRANSITION)
+
+			await withViewTransition(async () => {
+				this.current = index
+				this.modal = true
+				await this.$nextTick()
+				nameForTransition(this.$refs.viewer ?? null, MEDIA_TRANSITION)
+			})
+
+			release()
 		},
-		closeModal() {
-			this.modal = false
+		async closeModal() {
+			const release = nameForTransition(this.$refs.viewer ?? null, MEDIA_TRANSITION)
+			const thumbnail = this.$refs.thumbnails?.[this.current] ?? null
+
+			await withViewTransition(async () => {
+				this.modal = false
+				await this.$nextTick()
+				nameForTransition(thumbnail, MEDIA_TRANSITION)
+			})
+
+			release()
 		},
 	},
 }

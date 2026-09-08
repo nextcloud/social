@@ -49,6 +49,42 @@ export default {
 .empty-content__image {
 	height: 256px;
 	width: 256px;
+	/* they arrive at their own size and settle in */
+	animation: empty-content-settle .45s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes empty-content-settle {
+	from {
+		opacity: 0;
+		transform: scale(.94);
+	}
+
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/**
+ * The artwork is flat SVG served as <img>, so its palette cannot follow the
+ * instance's accent without inlining every file into the bundle. What it can
+ * do is stop glaring on a dark background: the light pastels are dimmed and
+ * pulled slightly towards the surrounding surface.
+ */
+@media (prefers-color-scheme: dark) {
+	.empty-content__image {
+		filter: brightness(.82) saturate(.9);
+	}
+}
+
+[data-themes*='dark'] .empty-content__image {
+	filter: brightness(.82) saturate(.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.empty-content__image {
+		animation: none;
+	}
 }
 
 :deep(.empty-content__icon) {

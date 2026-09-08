@@ -153,6 +153,79 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('keyboard actions', () => {
+		afterEach(() => {
+			eventBus.all.clear()
+		})
+
+		it('acts on the post the keyboard is on, and ignores the others', async () => {
+			const { wrapper, item, $store } = mountPost()
+			eventBus.emit('timeline:focused', item)
+			await wrapper.vm.$nextTick()
+
+			eventBus.emit('shortcut:like')
+			await flushPromises()
+			expect($store.dispatch).toHaveBeenCalledWith('postLike', expect.objectContaining({ status: item }))
+
+			// the keyboard moves on: this post stops answering
+			eventBus.emit('timeline:focused', { ...item, id: 'somewhere-else' })
+			await wrapper.vm.$nextTick()
+			$store.dispatch.mockClear()
+
+			eventBus.emit('shortcut:like')
+			eventBus.emit('shortcut:boost')
+			await flushPromises()
+			expect($store.dispatch).not.toHaveBeenCalled()
+		})
+
+		it('refuses to boost what cannot be boosted', async () => {
+			const { wrapper, item, $store } = mountPost({ item: makeItem({ visibility: 'direct' }) })
+			eventBus.emit('timeline:focused', item)
+			await wrapper.vm.$nextTick()
+
+			eventBus.emit('shortcut:boost')
+			await flushPromises()
+
+			expect($store.dispatch).not.toHaveBeenCalled()
+		})
+
+		it('opens the focused post', async () => {
+			const { wrapper, item, $router } = mountPost()
+			eventBus.emit('timeline:focused', item)
+			await wrapper.vm.$nextTick()
+
+			eventBus.emit('shortcut:open')
+			await flushPromises()
+
+			expect($router.push).toHaveBeenCalledWith(expect.objectContaining({ name: 'single-post' }))
+		})
+	})
+
+	describe('where the post came from', () => {
+		it('marks a remote post with its instance, in that instance\'s colour', () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			const chip = wrapper.find('.post-instance')
+
+			expect(chip.text()).toBe('remote.example')
+			expect(chip.attributes('style')).toContain('--instance-colour: hsl(')
+			expect(chip.attributes('title')).toContain('remote.example')
+		})
+
+		it('says nothing about the instance for a local post', () => {
+			// everything here is on this server; naming it would be noise
+			expect(mountPost().wrapper.find('.post-instance').exists()).toBe(false)
+		})
+
+		it('gives two accounts on the same instance the same colour', () => {
+			const other = { ...bob, id: '9', acct: 'carol@remote.example', username: 'carol' }
+			const first = mountPost({ item: makeItem({ account: bob }) }).wrapper
+			const second = mountPost({ item: makeItem({ account: other }) }).wrapper
+
+			expect(first.find('.post-instance').attributes('style'))
+				.toBe(second.find('.post-instance').attributes('style'))
+		})
+	})
+
 	describe('link preview', () => {
 		const card = {
 			url: 'https://example.org/news/today',
