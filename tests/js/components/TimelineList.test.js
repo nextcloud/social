@@ -7,9 +7,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { showError } from '@nextcloud/dialogs'
 import TimelineList from '../../../src/components/TimelineList.vue'
+import { listen } from '@nextcloud/notify_push'
 import EmptyContent from '../../../src/components/EmptyContent.vue'
 
 vi.mock('@nextcloud/dialogs', () => ({ showError: vi.fn() }))
+vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn(() => false) }))
 
 // @nextcloud/auth reads the user from <head>, which the harness does not set
 vi.mock('@nextcloud/auth', async (importOriginal) => ({
@@ -231,6 +233,30 @@ describe('TimelineList', () => {
 	})
 
 	describe('polling for new statuses', () => {
+		it('registers a push listener and slows polling down when push is available', async () => {
+			listen.mockReturnValueOnce(true)
+			const { dispatch } = mountList({ timeline: [status('30')] })
+			await flushPromises()
+			dispatch.mockClear()
+
+			expect(listen).toHaveBeenCalledWith('social_timeline', expect.any(Function))
+
+			// a pushed event refreshes immediately
+			listen.mock.calls[listen.mock.calls.length - 1][1]()
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+			dispatch.mockClear()
+
+			// the 30-second poll is off; the safety net runs every 5 minutes
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(dispatch).not.toHaveBeenCalled()
+
+			vi.advanceTimersByTime(270 * 1000)
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', { min_id: 30 })
+		})
+
 		it('asks for statuses newer than the first one every 30 seconds', async () => {
 			const { dispatch } = mountList({ timeline: [status('30'), status('20')] })
 			await flushPromises()

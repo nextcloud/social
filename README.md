@@ -16,6 +16,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - 👥 **Following** — follow and unfollow local and remote accounts, and browse followers/following lists.
 - 🖼️ **Profiles** — avatar, uploadable banner/header image and a profile description (`note`). Editable structured profile fields are *not* supported (see below).
 - 🌐 **Federation** — signed HTTP delivery of `Create`, `Update`, `Delete`, `Like`, `Announce`, `Follow`, `Accept` and `Undo` activities, an outbound request queue and a stream queue for resolving incoming objects, both drained by background jobs and by `occ social:queue:process`.
+- 🔔 **Live timelines with notify_push** — when the [notify_push](https://github.com/nextcloud/notify_push) app is installed, new timeline entries reach open web clients as push events and polling drops to a five-minute safety net; without it the client polls every 30 seconds.
 - 🔎 **Discovery & search** — WebFinger lookups, remote actor resolution and caching, and search over known accounts and hashtags.
 - 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](docs/OCC-Commands.md) for the details and its limits.
 - 🔑 **Mastodon-compatible API** — a subset of the Mastodon client API plus OAuth 2 authorization, so some third-party clients can talk to the app. See [docs/API.md](docs/API.md) for exactly which routes exist.

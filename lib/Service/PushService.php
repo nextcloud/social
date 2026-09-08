@@ -9,110 +9,92 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OC;
-use OCA\Social\Exceptions\SocialAppConfigException;
-//use OC\Push\Model\Helper\PushCallback;
+use Exception;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Tools\Traits\TAsync;
-
-//use OCP\Push\Exceptions\PushInstallException;
-//use OCP\Push\IPushManager;
-//use OCP\Push\Model\IPushWrapper;
+use OCP\Server;
+use Psr\Log\LoggerInterface;
 
 /**
- * Class PushService
- *
- * @package OCA\Social\Service
+ * Tells connected web clients about new timeline entries through the
+ * notify_push app, so they refresh immediately instead of on their next
+ * poll. Entirely optional: when notify_push is not installed every call is
+ * a cheap no-op and clients keep polling.
  */
 class PushService {
-	use TAsync;
+	/** the custom notify_push event name web clients listen on */
+	public const EVENT = 'social_timeline';
 
-	private DetailsService $detailsService;
-	private StreamService $streamService;
-	private MiscService $miscService;
+	private const QUEUE_CLASS = 'OCA\\NotifyPush\\Queue\\IQueue';
 
-	/**
-	 * PushService constructor.
-	 */
+	private bool $probed = false;
+	private ?object $queue = null;
+
 	public function __construct(
-		DetailsService $detailsService, StreamService $streamService, MiscService $miscService,
+		private DetailsService $detailsService,
+		private StreamService $streamService,
+		private LoggerInterface $logger,
 	) {
-		$this->detailsService = $detailsService;
-		$this->streamService = $streamService;
-		$this->miscService = $miscService;
+	}
 
-		// FIX ME: nc18/push
-		//		if ($this->miscService->getNcVersion() >= 19) {
-		//			try {
-		//				$this->pushManager = OC::$server->query(IPushManager::class);
-		//			} catch (QueryException $e) {
-		//				$miscService->log('QueryException while loading IPushManager - ' . $e->getMessage());
-		//			}
-		//		}
+	public function onNewStream(string $streamId): void {
+		$queue = $this->getQueue();
+		if ($queue === null) {
+			return;
+		}
+
+		try {
+			$stream = $this->streamService->getStreamById($streamId);
+		} catch (StreamNotFoundException $e) {
+			return;
+		}
+
+		try {
+			$details = $this->detailsService->generateDetailsFromStream($stream);
+		} catch (Exception $e) {
+			$this->logger->debug('no viewer details for push', ['exception' => $e]);
+
+			return;
+		}
+
+		$userIds = [];
+		foreach (array_merge($details->getHomeViewers(), $details->getDirectViewers()) as $viewer) {
+			/** @var Person $viewer */
+			if ($viewer->isLocal() && $viewer->getUserId() !== '') {
+				$userIds[$viewer->getUserId()] = true;
+			}
+		}
+
+		foreach (array_keys($userIds) as $userId) {
+			try {
+				$queue->push('notify_custom', [
+					'user' => (string)$userId,
+					'message' => self::EVENT,
+				]);
+			} catch (Exception $e) {
+				$this->logger->debug('notify_push delivery failed', ['exception' => $e]);
+
+				return;
+			}
+		}
 	}
 
 	/**
-	 * @param string $streamId
+	 * The notify_push queue, when that app is installed — probed once per
+	 * request. Overridable for tests.
 	 */
-	public function onNewStream(string $streamId) {
-		return;
-		//		if ($this->miscService->getNcVersion() < 19) {
-		//			return;
-		//		}
-		//
-		//		if (!$this->pushManager->isAvailable()) {
-		//			return;
-		//		}
-		//
-		//		try {
-		//			$stream = $this->streamService->getStreamById($streamId);
-		//		} catch (StreamNotFoundException $e) {
-		//			return;
-		//		}
-		//
-		//		try {
-		//			$pushHelper = $this->pushManager->getPushHelper();
-		//			$details = $this->detailsService->generateDetailsFromStream($stream);
-		//		} catch (PushInstallException $e) {
-		//			return;
-		//		} catch (SocialAppConfigException $e) {
-		//			return;
-		//		}
-		//
-		//		$home = array_map(
-		//			function(Person $item): string {
-		//				return $item->getUserId();
-		//			}, $details->getHomeViewers()
-		//		);
-		//
-		//		$callback = new PushCallback('social', 'timeline.home');
-		//		$callback->setPayloadSerializable($stream);
-		//		$callback->addUsers($home);
-		//		$pushHelper->toCallback($callback);
-		//
-		//		$direct = array_map(
-		//			function(Person $item): string {
-		//				return $item->getUserId();
-		//			}, $details->getDirectViewers()
-		//		);
-		//
-		//		$callback = new PushCallback('social', 'timeline.direct');
-		//		$callback->addUsers($direct);
-		//		$callback->setPayloadSerializable($stream);
-		//		$pushHelper->toCallback($callback);
-	}
+	protected function getQueue(): ?object {
+		if (!$this->probed) {
+			$this->probed = true;
+			try {
+				if (class_exists(self::QUEUE_CLASS)) {
+					$this->queue = Server::get(self::QUEUE_CLASS);
+				}
+			} catch (Exception $e) {
+				$this->queue = null;
+			}
+		}
 
-	//
-	//	/**
-	//	 * @param $userId
-	//	 *
-	//	 * @return IPushWrapper
-	//	 * @throws PushInstallException
-	//	 */
-	//	public function testOnAccount(string $userId): IPushWrapper {
-	////		$pushHelper = $this->pushManager->getPushHelper();
-	////
-	////		return $pushHelper->test($userId);
-	//	}
+		return $this->queue;
+	}
 }
