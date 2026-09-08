@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\AP;
 use OCA\Social\Controller\ApiController;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
@@ -40,6 +41,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\PinService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\PostService;
@@ -95,6 +97,8 @@ class ApiControllerTest extends TestCase {
 	private $pollService;
 	/** @var PinService&MockObject */
 	private $pinService;
+	private MarkerService|MockObject $markerService;
+	private StreamRequest|MockObject $streamRequest;
 	/** @var HashtagService&MockObject */
 	private $hashtagService;
 	/** @var ReportService&MockObject */
@@ -144,6 +148,8 @@ class ApiControllerTest extends TestCase {
 		$this->actionService = $this->createMock(ActionService::class);
 		$this->postService = $this->createMock(PostService::class);
 		$this->pollService = $this->createMock(PollService::class);
+		$this->markerService = $this->createMock(MarkerService::class);
+		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->pinService = $this->createMock(PinService::class);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->reportService = $this->createMock(ReportService::class);
@@ -184,6 +190,8 @@ class ApiControllerTest extends TestCase {
 			$this->pollService,
 			$this->pinService,
 			$this->hashtagService,
+			$this->markerService,
+			$this->streamRequest,
 			$this->reportService,
 			$this->searchService,
 			$this->configService,
@@ -287,6 +295,74 @@ class ApiControllerTest extends TestCase {
 		$viewer->method('getPreferredUsername')->willReturn($uid);
 		$viewer->method('getId')->willReturn('https://cloud.example/apps/social/@' . $uid);
 		$this->cacheActorService->method('getFromLocalAccount')->with($uid)->willReturn($viewer);
+	}
+
+	// markers and the unread badge
+
+	public function testTheUnreadCountIsWhatArrivedSinceTheMarker(): void {
+		$this->loggedInAs();
+		$this->markerService->method('lastReadId')->with('alice', 'notifications')->willReturn(42);
+		$this->streamRequest->expects($this->once())
+			->method('countNotificationsSince')
+			->with($this->anything(), 42)
+			->willReturn(7);
+
+		$response = $this->controller()->notificationsUnreadCount();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['count' => 7], $response->getData());
+	}
+
+	public function testMarkersComeBackForTheTimelinesAskedFor(): void {
+		$this->loggedInAs();
+		$this->markerService->expects($this->once())->method('get')
+			->with('alice', ['notifications'])
+			->willReturn(['notifications' => ['last_read_id' => '42', 'version' => 1, 'updated_at' => 'now']]);
+
+		$response = $this->controller()->markersGet(['notifications']);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertArrayHasKey('notifications', $response->getData());
+	}
+
+	public function testSettingAMarkerMovesOnlyTheTimelinesInTheBody(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn([
+			'notifications' => ['last_read_id' => '42'],
+		]);
+
+		$moved = [];
+		$this->markerService->method('set')->willReturnCallback(
+			function (string $user, string $timeline, string $id) use (&$moved): array {
+				$moved[$timeline] = $id;
+
+				return ['last_read_id' => $id, 'version' => 1, 'updated_at' => 'now'];
+			}
+		);
+
+		$response = $this->controller()->markersSet();
+
+		$this->assertSame(['notifications' => '42'], $moved, 'home was not in the body');
+		$this->assertSame(['notifications'], array_keys($response->getData()));
+	}
+
+	public function testSettingAMarkerNeedsAWriteToken(): void {
+		$this->route = 'social.Api.markersSet';
+		$this->bearerFor(['read']);
+
+		$this->assertSame(
+			Http::STATUS_BAD_REQUEST, $this->controller('Bearer s3cret')->markersSet()->getStatus()
+		);
+	}
+
+	public function testReadingMarkersIsSatisfiedByAReadToken(): void {
+		$this->route = 'social.Api.markersGet';
+		$this->bearerFor(['read']);
+		$this->markerService->method('get')->willReturn([]);
+
+		$this->assertSame(
+			Http::STATUS_OK, $this->controller('Bearer s3cret')->markersGet()->getStatus()
+		);
 	}
 
 	// token scopes
