@@ -41,7 +41,11 @@ class SocialWidget implements IWidget {
 	}
 
 	public function getUrl(): ?string {
-		return $this->urlGenerator->linkToRoute('social.local.streamNotifications', []);
+		// the notifications page, not the JSON endpoint that feeds it
+		return $this->urlGenerator->linkToRoute(
+			'social.Navigation.timeline',
+			['path' => 'notifications']
+		);
 	}
 
 	public function load(): void {

@@ -49,6 +49,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_DIRECT = 'direct';
 	public const TYPE_ANNOUNCE = 'announce';
 
+	/**
+	 * Mastodon's notification type for each notification sub-type. Kept as one
+	 * map so the `types`/`exclude_types` API filter and the exported entity
+	 * cannot drift apart.
+	 */
+	private const NOTIFICATION_TYPES = [
+		Like::TYPE => 'favourite',
+		Announce::TYPE => 'reblog',
+		Mention::TYPE => 'mention',
+		Follow::TYPE => 'follow',
+		Follow::TYPE_REQUEST => 'follow_request',
+	];
+
 	private string $activityId = '';
 	private string $content = '';
 	private string $visibility = '';
@@ -717,31 +730,36 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return array_merge(parent::exportAsLocal(), $result);
 	}
 
+	/**
+	 * Mastodon's name for a notification sub-type, or an empty string for a
+	 * sub-type Mastodon has no notification for.
+	 */
+	public static function notificationTypeOfSubType(string $subType): string {
+		return self::NOTIFICATION_TYPES[$subType] ?? '';
+	}
+
+	/**
+	 * The notification sub-types that the given Mastodon notification types
+	 * select. Unrecognised types select nothing, so a caller that asked only
+	 * for those gets an empty list back and must not query at all.
+	 *
+	 * @param string[] $types
+	 *
+	 * @return string[]
+	 */
+	public static function subTypesOfNotificationTypes(array $types): array {
+		$subTypes = array_flip(self::NOTIFICATION_TYPES);
+
+		return array_values(array_intersect_key($subTypes, array_flip($types)));
+	}
+
 	public function exportAsNotification(): array {
 		// TODO - implements:
 		// status = Someone you enabled notifications for has posted a status
 		// follow_request = Someone requested to follow you
 		// poll = A poll you have voted in or created has ended
 		// update = A status you boosted with has been edited
-		switch ($this->getSubType()) {
-			case Like::TYPE:
-				$type = 'favourite';
-				break;
-			case Announce::TYPE:
-				$type = 'reblog';
-				break;
-			case Mention::TYPE:
-				$type = 'mention';
-				break;
-			case Follow::TYPE:
-				$type = 'follow';
-				break;
-			case Follow::TYPE_REQUEST:
-				$type = 'follow_request';
-				break;
-			default:
-				$type = '';
-		}
+		$type = self::notificationTypeOfSubType($this->getSubType());
 
 		$result = [
 			'id' => (string)$this->getNid(),

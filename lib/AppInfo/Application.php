@@ -9,7 +9,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\AppInfo;
 
+use OCA\Social\Dashboard\SocialBookmarksWidget;
+use OCA\Social\Dashboard\SocialDirectWidget;
+use OCA\Social\Dashboard\SocialFederationHealthWidget;
+use OCA\Social\Dashboard\SocialFollowRequestsWidget;
+use OCA\Social\Dashboard\SocialMentionsWidget;
+use OCA\Social\Dashboard\SocialReportsWidget;
 use OCA\Social\Dashboard\SocialTimelineWidget;
+use OCA\Social\Dashboard\SocialTrendingWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
@@ -46,6 +53,13 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(UserDeletedEvent::class, UserDeletedListener::class);
 		$context->registerDashboardWidget(SocialWidget::class);
 		$context->registerDashboardWidget(SocialTimelineWidget::class);
+		$context->registerDashboardWidget(SocialMentionsWidget::class);
+		$context->registerDashboardWidget(SocialDirectWidget::class);
+		$context->registerDashboardWidget(SocialBookmarksWidget::class);
+		$context->registerDashboardWidget(SocialFollowRequestsWidget::class);
+		$context->registerDashboardWidget(SocialTrendingWidget::class);
+		$context->registerDashboardWidget(SocialReportsWidget::class);
+		$context->registerDashboardWidget(SocialFederationHealthWidget::class);
 		$context->registerNotifierService(Notifier::class);
 	}
 

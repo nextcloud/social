@@ -306,8 +306,15 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 
 | Integration | Class | Registered in | Description |
 |-------------|-------|---------------|-------------|
-| Dashboard | `SocialWidget` | `Application::register()` | Recent Social notifications; loads `social-dashboard` |
-| Dashboard | `SocialTimelineWidget` | `Application::register()` | Home timeline as an API widget, 300-second reload interval |
+| Dashboard | `SocialWidget` | `Application::register()` | Recent Social notifications, rendered client-side; loads `social-dashboard` |
+| Dashboard | `SocialTimelineWidget` | `Application::register()` | Home timeline, 300-second reload interval |
+| Dashboard | `SocialMentionsWidget` | `Application::register()` | The notifications probe filtered to `mention` |
+| Dashboard | `SocialDirectWidget` | `Application::register()` | Direct messages |
+| Dashboard | `SocialBookmarksWidget` | `Application::register()` | Saved posts |
+| Dashboard | `SocialFollowRequestsWidget` | `Application::register()` | Follow requests awaiting an answer; conditional — offered to a locked account, or one that still has requests waiting |
+| Dashboard | `SocialTrendingWidget` | `Application::register()` | Trending hashtags over one day, 900-second reload interval; needs no viewer |
+| Dashboard | `SocialReportsWidget` | `Application::register()` | Open moderation reports; conditional — admins only |
+| Dashboard | `SocialFederationHealthWidget` | `Application::register()` | Instances the outbound queue is failing to reach; conditional — admins only |
 | Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin |
 | Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
@@ -320,6 +327,15 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 | Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once |
 | Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once |
 | Repair step | `Migration\BackfillRemoteVisibility` | `appinfo/info.xml` | Backfills the empty visibility of remote statuses stored before estimation landed (public/unlisted set-based, followers/direct per author), idempotent |
+
+The four timeline tiles (home, mentions, direct, bookmarks) extend
+`Dashboard\TimelineWidget`, which resolves the viewer, builds the `ProbeOptions`
+and turns a stream row into a tile row; a subclass supplies the probe, the
+`/timeline/{path}` it opens and its empty-state wording. A row's `sinceId` is
+the stream `nid`, which is what the widget feeds back to `ProbeOptions::setSince()`
+on the next poll — `setMinId()` would return the oldest matching rows instead of
+the newest. A boost renders as the post it repeats, subtitled with who boosted
+it; a boost or notification whose subject did not resolve has no row.
 
 Fifteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, which is the abstract base the others extend and is not itself a command. See `docs/OCC-Commands.md`.
 

@@ -42,10 +42,11 @@ class SocialWidgetTest extends TestCase {
 		$this->assertSame('Soziale Benachrichtigungen', $this->widget->getTitle());
 	}
 
-	public function testUrlPointsToTheNotificationStream(): void {
-		$this->urlGenerator->method('linkToRoute')->with('social.local.streamNotifications', [])
-			->willReturn('/apps/social/api/v1/stream/notifications');
+	public function testUrlPointsAtThePageAndNotAtTheApi(): void {
+		$this->urlGenerator->method('linkToRoute')
+			->with('social.Navigation.timeline', ['path' => 'notifications'])
+			->willReturn('/apps/social/timeline/notifications');
 
-		$this->assertSame('/apps/social/api/v1/stream/notifications', $this->widget->getUrl());
+		$this->assertSame('/apps/social/timeline/notifications', $this->widget->getUrl());
 	}
 }

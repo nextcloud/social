@@ -23,6 +23,7 @@ use OCA\Social\Service\StreamService;
 use OCP\Dashboard\IAPIWidgetV2;
 use OCP\Dashboard\IButtonWidget;
 use OCP\Dashboard\IIconWidget;
+use OCP\Dashboard\IOptionWidget;
 use OCP\Dashboard\IReloadableWidget;
 use OCP\Dashboard\Model\WidgetButton;
 use OCP\IL10N;
@@ -46,7 +47,9 @@ class SocialTimelineWidgetTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->l10n = $this->createMock(IL10N::class);
-		$this->l10n->method('t')->willReturnArgument(0);
+		$this->l10n->method('t')->willReturnCallback(
+			static fn (string $text, array $params = []): string => vsprintf($text, $params)
+		);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
@@ -74,11 +77,11 @@ class SocialTimelineWidgetTest extends TestCase {
 	}
 
 	/** @return Note&MockObject */
-	private function note(string $content, string $attributedTo, int $published): Note {
+	private function note(string $content, string $attributedTo, int $nid): Note {
 		$note = $this->createMock(Note::class);
 		$note->method('getContent')->willReturn($content);
 		$note->method('getAttributedTo')->willReturn($attributedTo);
-		$note->method('getPublishedTime')->willReturn($published);
+		$note->method('getNid')->willReturn($nid);
 
 		return $note;
 	}
@@ -107,21 +110,34 @@ class SocialTimelineWidgetTest extends TestCase {
 
 	public function testIconAndUrlComeFromTheUrlGenerator(): void {
 		$this->urlGenerator->method('imagePath')->with('social', 'social-dark.svg')->willReturn('/apps/social/img/social-dark.svg');
-		$this->urlGenerator->method('linkToRoute')->with('social.Navigation.timeline')->willReturn('/apps/social/timeline');
+		$this->urlGenerator->method('linkToRoute')
+			->with('social.Navigation.timeline', ['path' => 'home'])
+			->willReturn('/apps/social/timeline/home');
 
 		$this->assertSame('/apps/social/img/social-dark.svg', $this->widget->getIconUrl());
-		$this->assertSame('/apps/social/timeline', $this->widget->getUrl());
+		$this->assertSame(
+			'/apps/social/timeline/home',
+			$this->widget->getUrl(),
+			'a widget opens its own timeline, not whichever one is the default'
+		);
 	}
 
 	public function testMoreButtonOpensTheTimeline(): void {
-		$this->urlGenerator->method('linkToRoute')->with('social.Navigation.timeline')->willReturn('/apps/social/timeline');
+		$this->urlGenerator->method('linkToRoute')
+			->with('social.Navigation.timeline', ['path' => 'home'])
+			->willReturn('/apps/social/timeline/home');
 
 		$buttons = $this->widget->getWidgetButtons('alice');
 
 		$this->assertCount(1, $buttons);
 		$this->assertSame(WidgetButton::TYPE_MORE, $buttons[0]->getType());
-		$this->assertSame('/apps/social/timeline', $buttons[0]->getLink());
+		$this->assertSame('/apps/social/timeline/home', $buttons[0]->getLink());
 		$this->assertSame('Open timeline', $buttons[0]->getText());
+	}
+
+	public function testItemIconsAreRoundedBecauseTheyAreAvatars(): void {
+		$this->assertInstanceOf(IOptionWidget::class, $this->widget);
+		$this->assertTrue($this->widget->getWidgetOptions()->withRoundItemIcons());
 	}
 
 	public function testItemsAreBuiltFromTheViewersHomeTimeline(): void {
@@ -133,9 +149,9 @@ class SocialTimelineWidgetTest extends TestCase {
 			$options = $o;
 
 			return [
-				$this->note('<p>Hello <b>world</b>, this is a fairly long post that should be truncated at one hundred and twenty characters for the dashboard tile.</p>', 'https://remote.example/users/bob', 1700000001),
+				$this->note('<p>Hello <b>world</b>, this is a fairly long post that should be truncated at one hundred and twenty characters for the dashboard tile.</p>', 'https://remote.example/users/bob', 4001),
 				$this->createMock(Announce::class),
-				$this->note('', 'https://remote.example/users/carol', 1700000002),
+				$this->note('', 'https://remote.example/users/carol', 4002),
 			];
 		});
 		$this->cacheActorService->method('getFromId')->willReturnMap([
@@ -151,7 +167,7 @@ class SocialTimelineWidgetTest extends TestCase {
 		$this->assertSame('Follow some accounts to see their posts here', $items->getEmptyContentMessage());
 		$this->assertSame('No recent posts', $items->getHalfEmptyContentMessage());
 		$list = $items->getItems();
-		$this->assertCount(2, $list, 'non-Note stream items are skipped');
+		$this->assertCount(2, $list, 'a boost whose subject did not resolve has nothing to show');
 		$this->assertSame(
 			'Hello world, this is a fairly long post that should be truncated at one hundred and twenty characters for the dashboard ',
 			$list[0]->getTitle(),
@@ -161,9 +177,68 @@ class SocialTimelineWidgetTest extends TestCase {
 		$this->assertSame('Bob B.', $list[0]->getSubtitle());
 		$this->assertSame('https://remote.example/bob.png', $list[0]->getIconUrl());
 		$this->assertSame('/apps/social/timeline/home', $list[0]->getLink());
-		$this->assertSame('1700000001', $list[0]->getSinceId());
+		$this->assertSame(
+			'4001',
+			$list[0]->getSinceId(),
+			'the sinceId is the stream nid, which is what setSince() paginates on'
+		);
 		$this->assertSame('(no content)', $list[1]->getTitle());
 		$this->assertSame('carol', $list[1]->getSubtitle(), 'falls back to the username without a display name');
+	}
+
+	public function testABoostShowsTheBoostedPostAndWhoBoostedIt(): void {
+		$this->viewer();
+		$boosted = $this->note('the original', 'https://remote.example/users/bob', 4001);
+		$announce = $this->createMock(Announce::class);
+		$announce->method('hasObject')->willReturn(true);
+		$announce->method('getObject')->willReturn($boosted);
+		$announce->method('getAttributedTo')->willReturn('https://remote.example/users/carol');
+		$announce->method('getNid')->willReturn(4100);
+		$this->streamService->method('getTimeline')->willReturn([$announce]);
+		$this->cacheActorService->method('getFromId')->willReturnMap([
+			['https://remote.example/users/bob', false, $this->author('Bob B.', 'bob', 'https://remote.example/bob.png')],
+			['https://remote.example/users/carol', false, $this->author('Carol C.', 'carol', '')],
+		]);
+		$list = $this->widget->getItemsV2('alice')->getItems();
+
+		$this->assertCount(1, $list, 'a boost is a row, not something to drop');
+		$this->assertSame('the original', $list[0]->getTitle());
+		$this->assertSame('Carol C. boosted Bob B.', $list[0]->getSubtitle());
+		$this->assertSame(
+			'https://remote.example/bob.png',
+			$list[0]->getIconUrl(),
+			'the avatar belongs to whoever wrote what is shown'
+		);
+		$this->assertSame('4100', $list[0]->getSinceId(), 'paging follows the boost, not the post it repeats');
+	}
+
+	public function testSinceAsksOnlyForNewerRowsWithoutInvertingTheOrder(): void {
+		$this->viewer();
+		$options = null;
+		$this->streamService->method('getTimeline')->willReturnCallback(function (ProbeOptions $o) use (&$options): array {
+			$options = $o;
+
+			return [];
+		});
+
+		$this->widget->getItemsV2('alice', '4001');
+
+		$this->assertSame(4001, $options->getSince());
+		$this->assertSame(0, $options->getMinId(), 'minId would hand back the oldest rows instead of the newest');
+	}
+
+	public function testAnUnusableSinceIsIgnored(): void {
+		$this->viewer();
+		$options = null;
+		$this->streamService->method('getTimeline')->willReturnCallback(function (ProbeOptions $o) use (&$options): array {
+			$options = $o;
+
+			return [];
+		});
+
+		$this->widget->getItemsV2('alice', 'not-a-number');
+
+		$this->assertSame(0, $options->getSince());
 	}
 
 	public function testLimitIsCappedAtTwenty(): void {
