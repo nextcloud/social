@@ -13,9 +13,17 @@ use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\IURLGenerator;
+use OCP\Server;
 
 class MediaAttachment implements JsonSerializable {
 	use TArrayTools;
+
+	/**
+	 * The tail of a link this instance serves media on: the cached document's
+	 * uuid, optionally carrying the extension the mime type implies.
+	 */
+	private const MEDIA_UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[a-z0-9]+)?$/i';
 
 	private string $id = '';
 	private string $type = '';
@@ -157,14 +165,38 @@ class MediaAttachment implements JsonSerializable {
 			[
 				'id' => $this->getId(),
 				'type' => $this->getType(),
-				'url' => $this->getUrl(),
-				'preview_url' => $this->getPreviewUrl(),
+				'url' => $this->onThisInstance($this->getUrl()),
+				'preview_url' => (string)$this->onThisInstance($this->getPreviewUrl()),
 				'remote_url' => $this->getRemoteUrl(),
 				'meta' => $this->getMeta(),
 				'description' => $this->getDescription(),
 				'blurhash' => $this->getBlurHash()
 			]
 		);
+	}
+
+	/**
+	 * A media link pointed at the address this instance answers on now.
+	 *
+	 * The stored link was absolute when the attachment was written, so rows
+	 * written before the instance moved — or written by cron under a different
+	 * `overwrite.cli.url` than a web request would have used — point at a host
+	 * that no longer serves them. Only the last segment, the document uuid,
+	 * stays meaningful, so the link is rebuilt from it. Anything whose tail is
+	 * not one of our uuids is somebody else's URL and is handed back untouched.
+	 */
+	private function onThisInstance(?string $stored): ?string {
+		if ($stored === null || $stored === '') {
+			return $stored;
+		}
+
+		$uuid = substr($stored, (int)strrpos($stored, '/') + 1);
+		if (preg_match(self::MEDIA_UUID, $uuid) !== 1) {
+			return $stored;
+		}
+
+		return Server::get(IURLGenerator::class)
+			->linkToRouteAbsolute('social.Api.mediaOpen', ['uuid' => $uuid]);
 	}
 
 	/**

@@ -150,6 +150,37 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		return $this->parseCacheDocumentsSelectSql($data);
 	}
 
+	/**
+	 * The document a media uuid belongs to, whether the uuid names its full
+	 * copy or its resized one.
+	 *
+	 * A preview link carries the resized uuid, so a lookup that knew only
+	 * about `local_copy` could never serve one.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getByCopy(string $uuid): Document {
+		$qb = $this->getCacheDocumentsSelectSql();
+
+		$expr = $qb->expr();
+		$qb->andWhere(
+			$expr->orX(
+				$expr->eq('cd.local_copy', $qb->createNamedParameter($uuid)),
+				$expr->eq('cd.resized_copy', $qb->createNamedParameter($uuid))
+			)
+		);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
+		return $this->parseCacheDocumentsSelectSql($data);
+	}
+
 	public function getByUrl(string $url) {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$this->limitToUrl($qb, $url);

@@ -106,7 +106,7 @@ class DocumentServiceTest extends TestCase {
 		$document = $this->createMock(Document::class);
 		$document->method('isPublic')->willReturn(true);
 		$this->cacheDocumentsRequest->expects($this->once())
-			->method('getByLocalCopy')->with(self::UUID)->willReturn($document);
+			->method('getByCopy')->with(self::UUID)->willReturn($document);
 		$this->cacheService->expects($this->once())->method('getFromUuid')->with(self::UUID)->willReturn($file);
 
 		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID));
@@ -115,7 +115,7 @@ class DocumentServiceTest extends TestCase {
 	public function testGetFromUuidRefusesANonPublicCopyByDefault(): void {
 		$document = $this->createMock(Document::class);
 		$document->method('isPublic')->willReturn(false);
-		$this->cacheDocumentsRequest->method('getByLocalCopy')->with(self::UUID)->willReturn($document);
+		$this->cacheDocumentsRequest->method('getByCopy')->with(self::UUID)->willReturn($document);
 		$this->cacheService->expects($this->never())->method('getFromUuid');
 
 		$this->expectException(NotFoundException::class);
@@ -126,7 +126,7 @@ class DocumentServiceTest extends TestCase {
 		$file = $this->createMock(ISimpleFile::class);
 		$document = $this->createMock(Document::class);
 		$document->method('isPublic')->willReturn(false);
-		$this->cacheDocumentsRequest->method('getByLocalCopy')->with(self::UUID)->willReturn($document);
+		$this->cacheDocumentsRequest->method('getByCopy')->with(self::UUID)->willReturn($document);
 		$this->cacheService->method('getFromUuid')->with(self::UUID)->willReturn($file);
 
 		$this->assertSame([$file, $document], $this->service->getFromUuid(self::UUID, false));
