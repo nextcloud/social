@@ -48,14 +48,8 @@
 				<file name="lib/Controller/ActivityPubController.php"/>
 			</errorLevel>
 		</InvalidTemplateParam>
-		<RedundantCondition>
-			<errorLevel type="suppress">
-				<file name="lib/Dashboard/SocialTimelineWidget.php"/>
-			</errorLevel>
-		</RedundantCondition>
 		<TypeDoesNotContainNull>
 			<errorLevel type="suppress">
-				<file name="lib/Dashboard/SocialTimelineWidget.php"/>
 				<file name="lib/Service/StreamService.php"/>
 			</errorLevel>
 		</TypeDoesNotContainNull>
