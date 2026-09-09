@@ -65,18 +65,18 @@ class BackfillRemoteVisibility implements IRepairStep {
 				->where($qb->expr()->emptyString('visibility'))
 				->andWhere($qb->expr()->eq('local', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 
-			$orX = $qb->expr()->orX();
+			$orParts = [];
 			foreach ($fields as $field) {
 				if ($field === 'to') {
-					$orX->add($qb->expr()->eq($field, $qb->createNamedParameter(ACore::CONTEXT_PUBLIC)));
+					$orParts[] = $qb->expr()->eq($field, $qb->createNamedParameter(ACore::CONTEXT_PUBLIC));
 				} else {
-					$orX->add($qb->expr()->like(
+					$orParts[] = $qb->expr()->like(
 						$field,
 						$qb->createNamedParameter('%"' . $this->connection->escapeLikeParameter(ACore::CONTEXT_PUBLIC) . '"%')
-					));
+					);
 				}
 			}
-			$qb->andWhere($orX);
+			$qb->andWhere($qb->expr()->orX(...$orParts));
 
 			$count += $qb->executeStatement();
 		}

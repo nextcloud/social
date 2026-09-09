@@ -85,6 +85,29 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Limit the request to a set of sub-types, or to everything but them.
+	 * An empty set is no constraint at all.
+	 *
+	 * @param string[] $subTypes
+	 */
+	public function limitToSubTypes(array $subTypes, bool $exclude = false): self {
+		if ($subTypes === []) {
+			return $this;
+		}
+
+		$field = $this->getDefaultSelectAlias() . '.subtype';
+		$param = $this->createNamedParameter($subTypes, IQueryBuilder::PARAM_STR_ARRAY);
+
+		$this->andWhere(
+			$exclude
+				? $this->expr()->notIn($field, $param)
+				: $this->expr()->in($field, $param)
+		);
+
+		return $this;
+	}
+
+	/**
 	 * Limit the request to clientId
 	 *
 	 * @param string $clientId

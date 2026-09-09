@@ -29,9 +29,16 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '@nextcloud/dialogs'
+import { listen } from '@nextcloud/notify_push'
 import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { notificationSummary } from '../services/notifications.js'
+
+/** Without notify_push the widget has to ask; once a minute is enough for a tile. */
+const POLL_MS = 60 * 1000
+
+/** A tile shows a handful of rows, so there is no point in keeping more. */
+const MAX_ITEMS = 10
 
 export default {
 	name: 'Dashboard',
@@ -54,6 +61,7 @@ export default {
 			showMoreUrl: generateUrl('/apps/social/timeline/notifications'),
 			showMoreText: t('social', 'Social notifications'),
 			loop: null,
+			stopListening: null,
 			state: 'loading',
 			appUrl: generateUrl('/apps/social'),
 		}
@@ -96,10 +104,31 @@ export default {
 
 	beforeMount() {
 		this.fetchNotifications()
-		this.loop = setInterval(() => this.fetchNotifications(), 10000)
+	},
+
+	mounted() {
+		// with notify_push the server says when something arrived; without it
+		// a slow poll keeps the tile current without hammering the instance
+		this.stopListening = listen('social_timeline', () => this.fetchNotifications())
+		if (!this.stopListening) {
+			this.loop = setInterval(() => this.fetchNotifications(), POLL_MS)
+		}
+	},
+
+	beforeUnmount() {
+		if (typeof this.stopListening === 'function') {
+			this.stopListening()
+		}
+		this.stopPolling()
 	},
 
 	methods: {
+		stopPolling() {
+			if (this.loop !== null) {
+				clearInterval(this.loop)
+				this.loop = null
+			}
+		},
 		async fetchNotifications() {
 			const url = generateUrl('apps/social/api/v1/notifications')
 
@@ -113,7 +142,7 @@ export default {
 					this.state = 'error'
 				}
 			} catch (error) {
-				clearInterval(this.loop)
+				this.stopPolling()
 				if (error.response?.status && error.response.status >= 400) {
 					showError(t('social', 'Failed to get Social notifications'))
 					this.state = 'error'
@@ -127,20 +156,17 @@ export default {
 		processNotifications(newNotifications) {
 			if (this.notifications.length === 0) {
 				// first time, we take everything the server sent
-				this.notifications = this.filter(newNotifications)
+				this.notifications = newNotifications.slice(0, MAX_ITEMS)
 				return
 			}
 			// the API returns notifications newest first; prepend only the ones
-			// we have not seen yet, identified by their id
+			// we have not seen yet, identified by their id. The cut keeps a tab
+			// left open for days from accumulating every notification it saw.
 			const knownIds = new Set(this.notifications.map((n) => n.id))
-			const toAdd = this.filter(newNotifications.filter((n) => !knownIds.has(n.id)))
+			const toAdd = newNotifications.filter((n) => !knownIds.has(n.id))
 			if (toAdd.length > 0) {
-				this.notifications = toAdd.concat(this.notifications)
+				this.notifications = toAdd.concat(this.notifications).slice(0, MAX_ITEMS)
 			}
-		},
-		/** @param {import('../types/Mastodon.js').Notification[]} notifications */
-		filter(notifications) {
-			return notifications
 		},
 		/** @param {import('../types/Mastodon.js').Notification} n */
 		getMainText(n) {

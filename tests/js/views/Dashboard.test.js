@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
+import { listen } from '@nextcloud/notify_push'
 import Dashboard from '../../../src/views/Dashboard.vue'
 
 vi.hoisted(() => {
@@ -17,6 +18,14 @@ vi.mock('@nextcloud/dialogs', async (importOriginal) => ({
 	...await importOriginal(),
 	showError: vi.fn(),
 }))
+
+vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn() }))
+
+/** The tile keeps this many rows; see MAX_ITEMS in the component. */
+const KEPT = 10
+
+/** Without notify_push the component polls on this interval. */
+const POLL_MS = 60 * 1000
 
 const NcDashboardWidgetStub = {
 	name: 'NcDashboardWidget',
@@ -43,6 +52,8 @@ describe('Dashboard', () => {
 	beforeEach(() => {
 		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
 		get = vi.spyOn(axios, 'get')
+		// no notify_push unless a test says otherwise, so the component polls
+		vi.mocked(listen).mockReturnValue(false)
 	})
 
 	afterEach(() => {
@@ -105,7 +116,7 @@ describe('Dashboard', () => {
 
 		// the next poll returns a brand new notification plus the one we already have
 		get.mockResolvedValueOnce({ data: [notifications[0], notifications[2]] }) // [n3, n1]
-		vi.advanceTimersByTime(10000)
+		vi.advanceTimersByTime(POLL_MS)
 		await flushPromises()
 
 		expect(wrapper.findComponent(NcDashboardWidgetStub).props('items').map((i) => i.id)).toEqual(['n3', 'n1'])
@@ -119,22 +130,83 @@ describe('Dashboard', () => {
 		expect(wrapper.find('.empty-content').exists()).toBe(true)
 		expect(showError).not.toHaveBeenCalled()
 
-		vi.advanceTimersByTime(10000)
+		vi.advanceTimersByTime(POLL_MS)
 		expect(get).toHaveBeenCalledTimes(2)
 	})
 
-	it('polls the server every ten seconds', async () => {
+	it('polls once a minute when notify_push is unavailable', async () => {
 		get.mockResolvedValue({ data: notifications })
 		mountWidget()
 		await flushPromises()
 		expect(get).toHaveBeenCalledTimes(1)
 
-		vi.advanceTimersByTime(9999)
+		vi.advanceTimersByTime(POLL_MS - 1)
 		expect(get).toHaveBeenCalledTimes(1)
 		vi.advanceTimersByTime(1)
 		expect(get).toHaveBeenCalledTimes(2)
-		vi.advanceTimersByTime(20000)
+		vi.advanceTimersByTime(POLL_MS * 2)
 		expect(get).toHaveBeenCalledTimes(4)
+	})
+
+	it('lets the server say when something arrived instead of polling', async () => {
+		get.mockResolvedValue({ data: notifications })
+		let notify
+		vi.mocked(listen).mockImplementation((channel, callback) => {
+			notify = callback
+			return () => {}
+		})
+
+		mountWidget()
+		await flushPromises()
+		expect(listen).toHaveBeenCalledWith('social_timeline', expect.any(Function))
+		expect(get).toHaveBeenCalledTimes(1)
+
+		// with push there is no timer at all
+		vi.advanceTimersByTime(POLL_MS * 5)
+		expect(get).toHaveBeenCalledTimes(1)
+
+		notify()
+		await flushPromises()
+		expect(get).toHaveBeenCalledTimes(2)
+	})
+
+	it('keeps only the newest rows so a tab left open cannot grow forever', async () => {
+		const many = Array.from({ length: KEPT + 4 }, (_, i) => ({
+			id: `m${i}`,
+			type: 'favourite',
+			created_at: '2026-03-01T09:00:00Z',
+			account: carol,
+		}))
+		get.mockResolvedValue({ data: many })
+		const wrapper = mountWidget()
+		await flushPromises()
+
+		expect(wrapper.findComponent(NcDashboardWidgetStub).props('items')).toHaveLength(KEPT)
+
+		// a later poll brings four more; the oldest fall off rather than pile up
+		get.mockResolvedValue({
+			data: [{ id: 'new1', type: 'favourite', created_at: '2026-03-01T10:00:00Z', account: carol }, ...many],
+		})
+		vi.advanceTimersByTime(POLL_MS)
+		await flushPromises()
+
+		const items = wrapper.findComponent(NcDashboardWidgetStub).props('items')
+		expect(items).toHaveLength(KEPT)
+		expect(items[0].id).toBe('new1')
+	})
+
+	it('stops polling and unsubscribes when the widget goes away', async () => {
+		const stop = vi.fn()
+		vi.mocked(listen).mockReturnValue(stop)
+		get.mockResolvedValue({ data: notifications })
+		const wrapper = mountWidget()
+		await flushPromises()
+
+		wrapper.unmount()
+
+		expect(stop).toHaveBeenCalled()
+		vi.advanceTimersByTime(POLL_MS * 3)
+		expect(get).toHaveBeenCalledTimes(1)
 	})
 
 	it('reports a server error, shows the error state and stops polling', async () => {
@@ -148,7 +220,7 @@ describe('Dashboard', () => {
 		expect(widget.props('items')).toEqual([])
 		expect(wrapper.find('.empty-content').exists()).toBe(true)
 
-		vi.advanceTimersByTime(30000)
+		vi.advanceTimersByTime(POLL_MS * 3)
 		expect(get).toHaveBeenCalledTimes(1)
 	})
 
@@ -160,7 +232,7 @@ describe('Dashboard', () => {
 
 		expect(showError).not.toHaveBeenCalled()
 		expect(wrapper.findComponent(NcDashboardWidgetStub).props('loading')).toBe(true)
-		vi.advanceTimersByTime(30000)
+		vi.advanceTimersByTime(POLL_MS * 3)
 		expect(get).toHaveBeenCalledTimes(1)
 	})
 })

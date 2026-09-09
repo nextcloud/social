@@ -273,6 +273,35 @@ class StreamTest extends TestCase {
 		$this->assertFalse($status['reblogged']);
 	}
 
+	/**
+	 * The reverse of the export map, used by the `types`/`exclude_types`
+	 * notification filter. Both directions come from one table, so this also
+	 * guards against the two drifting apart.
+	 */
+	public function testSubTypesOfNotificationTypesSelectsTheMatchingSubTypes(): void {
+		$this->assertSame(['Mention'], Stream::subTypesOfNotificationTypes(['mention']));
+		$this->assertSame(
+			['Like', 'Announce'],
+			Stream::subTypesOfNotificationTypes(['reblog', 'favourite']),
+			'the order is the map\'s, which is all an IN clause needs'
+		);
+		$this->assertSame(
+			['Mention'],
+			Stream::subTypesOfNotificationTypes(['mention', 'mention']),
+			'a repeated type is asked for once'
+		);
+	}
+
+	public function testAnUnknownNotificationTypeSelectsNothing(): void {
+		$this->assertSame([], Stream::subTypesOfNotificationTypes(['status']));
+		$this->assertSame(
+			['Mention'],
+			Stream::subTypesOfNotificationTypes(['mention', 'status']),
+			'an unknown type alongside a known one does not widen the filter'
+		);
+		$this->assertSame([], Stream::subTypesOfNotificationTypes([]));
+	}
+
 	public function notificationTypeProvider(): array {
 		return [
 			'like' => ['Like', 'favourite'],

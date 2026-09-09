@@ -657,10 +657,19 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineNotifications(ProbeOptions $options): array {
+		$wanted = Stream::subTypesOfNotificationTypes($options->getTypes());
+		if ($options->getTypes() !== [] && $wanted === []) {
+			// every requested type is one we have no notification for, so
+			// nothing can match and there is no point in asking the database
+			return [];
+		}
+
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$actor = $qb->getViewer();
 
 		$qb->limitToType(SocialAppNotification::TYPE);
+		$qb->limitToSubTypes($wanted);
+		$qb->limitToSubTypes(Stream::subTypesOfNotificationTypes($options->getExcludeTypes()), true);
 		$qb->paginate($options);
 
 		$qb->selectDestFollowing('sd', '');

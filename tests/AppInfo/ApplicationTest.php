@@ -10,7 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\AppInfo;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Dashboard\SocialBookmarksWidget;
+use OCA\Social\Dashboard\SocialDirectWidget;
+use OCA\Social\Dashboard\SocialFederationHealthWidget;
+use OCA\Social\Dashboard\SocialFollowRequestsWidget;
+use OCA\Social\Dashboard\SocialMentionsWidget;
+use OCA\Social\Dashboard\SocialReportsWidget;
 use OCA\Social\Dashboard\SocialTimelineWidget;
+use OCA\Social\Dashboard\SocialTrendingWidget;
 use OCA\Social\Dashboard\SocialWidget;
 use OCA\Social\Listeners\ProfileSectionListener;
 use OCA\Social\Listeners\UserAccountListener;
@@ -53,7 +60,7 @@ class ApplicationTest extends TestCase {
 				$listeners[$event] = $listener;
 			});
 		$widgets = [];
-		$context->expects($this->exactly(2))->method('registerDashboardWidget')
+		$context->expects($this->exactly(9))->method('registerDashboardWidget')
 			->willReturnCallback(function (string $widget) use (&$widgets): void {
 				$widgets[] = $widget;
 			});
@@ -66,7 +73,17 @@ class ApplicationTest extends TestCase {
 			// without this one a deleted user keeps a live Fediverse account
 			UserDeletedEvent::class => UserDeletedListener::class,
 		], $listeners);
-		$this->assertSame([SocialWidget::class, SocialTimelineWidget::class], $widgets);
+		$this->assertSame([
+			SocialWidget::class,
+			SocialTimelineWidget::class,
+			SocialMentionsWidget::class,
+			SocialDirectWidget::class,
+			SocialBookmarksWidget::class,
+			SocialFollowRequestsWidget::class,
+			SocialTrendingWidget::class,
+			SocialReportsWidget::class,
+			SocialFederationHealthWidget::class,
+		], $widgets);
 	}
 
 	public function testRegisterDoesNotTouchOtherRegistrationApis(): void {

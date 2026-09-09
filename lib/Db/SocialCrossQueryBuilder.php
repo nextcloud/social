@@ -133,7 +133,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			->selectAlias($pf . '.creation', 'ca_creation')
 			->selectAlias($pf . '.local', 'ca_local');
 
-		$this->leftJoinCacheDocuments('icon_id', $pf, 'ca_cachedocument_', 'cacd');
+		$this->leftJoinCacheDocuments('icon_id', $pf, 'ca_cd_', 'cacd');
 	}
 
 	/**
@@ -220,7 +220,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	public function leftJoinCacheDocuments(
 		string $linkField,
 		string $linkAlias = '',
-		string $prefix = 'cachedocument_',
+		string $prefix = 'cd_',
 		string $alias = 'cd',
 	) {
 		if ($this->getType() !== QueryBuilder::SELECT) {
@@ -255,7 +255,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	 */
 	public function parseLeftJoinCacheDocuments(array $data, string $prefix = ''): Document {
 		$new = [];
-		$prefix .= 'cachedocument_';
+		$prefix .= 'cd_';
 
 		foreach ($data as $k => $v) {
 			if (str_starts_with($k, $prefix)) {
@@ -340,7 +340,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		$this->leftJoinCacheDocuments(
 			'icon_id',
 			$leftAlias,
-			$prefix . 'ca_cachedocument_',
+			$prefix . 'ca_cd_',
 			$leftAlias . 'cacd'
 		);
 	}
