@@ -89,6 +89,32 @@ class MediaStorageTest extends TestCase {
 		$this->assertSame('image/png', mime_content_type('data://application/octet-stream;base64,' . base64_encode($file->getContent())));
 	}
 
+	/**
+	 * A preview link carries the *resized* uuid, so both copies have to resolve
+	 * to their document. While the lookup knew only `local_copy`, every preview
+	 * in every timeline answered 404 and no picture rendered.
+	 */
+	public function testEitherCopyOfADocumentResolvesByItsUuid(): void {
+		$document = $this->upload('a red rectangle');
+		$this->assertNotSame(
+			$document->getLocalCopy(),
+			$document->getResizedCopy(),
+			'the two copies are distinct files'
+		);
+
+		[$full, $fromFull] = $this->documentService->getFromUuid($document->getLocalCopy());
+		[$preview, $fromResized] = $this->documentService->getFromUuid($document->getResizedCopy());
+
+		$this->assertSame($document->getId(), $fromFull->getId());
+		$this->assertSame(
+			$document->getId(),
+			$fromResized->getId(),
+			'the resized uuid names the same document'
+		);
+		$this->assertNotSame('', $full->getContent());
+		$this->assertNotSame('', $preview->getContent());
+	}
+
 	public function testOwnershipScopingAndAltTextUpdate(): void {
 		$document = $this->upload('before');
 		$nid = (string)$document->getNid();

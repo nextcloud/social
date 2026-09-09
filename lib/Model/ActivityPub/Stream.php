@@ -576,7 +576,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$this->setFilterDuplicate($this->getBool('filter_duplicate', $data, false));
-		$this->setAttachments($this->getArray('attachments', $data, []));
+		// hydrated rather than handed on as the stored arrays, so that the one
+		// place that knows how a media link is shaped gets to rebuild it: the
+		// stored link is absolute and may name an address we no longer answer on
+		$attachments = [];
+		foreach ($this->getArray('attachments', $data, []) as $attachment) {
+			$attachments[] = (new MediaAttachment())->import($attachment);
+		}
+		$this->setAttachments($attachments);
 		$this->setMentions($this->getDetails('mentions'));
 		$this->setVisibility($this->get('visibility', $data));
 

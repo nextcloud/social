@@ -12,9 +12,23 @@ namespace OCA\Social\Tests\Model\Client;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Client\AttachmentMeta;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCP\IURLGenerator;
 use PHPUnit\Framework\TestCase;
 
 class MediaAttachmentTest extends TestCase {
+	protected function tearDown(): void {
+		\OC::$server->reset();
+	}
+
+	/** Registers a URL generator that builds links for this instance. */
+	private function withUrlGenerator(): void {
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			fn (string $route, array $args): string => 'https://cloud.example.org/media/' . ($args['uuid'] ?? '')
+		);
+		\OC::$server->register(IURLGenerator::class, $urlGenerator);
+	}
+
 	private function mastodonAttachment(): array {
 		return [
 			'id' => '55',
@@ -98,6 +112,55 @@ class MediaAttachmentTest extends TestCase {
 
 		$this->assertSame(0, $document['width']);
 		$this->assertSame(0, $document['height']);
+	}
+
+	/**
+	 * Media links are stored absolute, so a row written before the instance
+	 * moved — or written by cron under a different overwrite.cli.url than a
+	 * web request would have used — points at a host that no longer serves it.
+	 * The uuid is the only part still worth keeping.
+	 */
+	public function testAMediaLinkFromAnOldAddressIsRebuiltForThisInstance(): void {
+		$this->withUrlGenerator();
+		$media = new MediaAttachment();
+		$media->import([
+			'id' => '190',
+			'type' => 'image',
+			'url' => 'http://localhost:8099/index.php/apps/social/media/a0a962e5-7e98-433b-80e2-09106a0b074f.png',
+			'preview_url' => 'http://localhost/nextcloud/index.php/apps/social/media/272c3a32-c626-45a0-b08f-a03e7bb4ab2d.png',
+		]);
+
+		$local = $media->asLocal();
+
+		$this->assertSame(
+			'https://cloud.example.org/media/a0a962e5-7e98-433b-80e2-09106a0b074f.png',
+			$local['url'],
+		);
+		$this->assertSame(
+			'https://cloud.example.org/media/272c3a32-c626-45a0-b08f-a03e7bb4ab2d.png',
+			$local['preview_url'],
+		);
+	}
+
+	public function testALinkThatIsNotOneOfOurUuidsIsLeftAlone(): void {
+		$this->withUrlGenerator();
+		$media = new MediaAttachment();
+		$media->import($this->mastodonAttachment());
+
+		$local = $media->asLocal();
+
+		$this->assertSame('https://files.mastodon.social/media/cat.jpg', $local['url']);
+		$this->assertSame('https://files.mastodon.social/media/small/cat.jpg', $local['preview_url']);
+		$this->assertSame('https://remote.example/media/cat.jpg', $local['remote_url']);
+	}
+
+	public function testAnAttachmentWithoutLinksStaysWithout(): void {
+		$this->withUrlGenerator();
+
+		$local = (new MediaAttachment())->asLocal();
+
+		$this->assertArrayNotHasKey('url', $local);
+		$this->assertArrayNotHasKey('preview_url', $local);
 	}
 
 	public function testJsonSerializeFollowsTheExportFormat(): void {

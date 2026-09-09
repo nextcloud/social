@@ -214,7 +214,8 @@ class DocumentService {
 		}
 
 		try {
-			$document = $this->cacheDocumentsRequest->getByLocalCopy($uuid);
+			// either copy: a preview link names the resized one
+			$document = $this->cacheDocumentsRequest->getByCopy($uuid);
 		} catch (CacheDocumentDoesNotExistException $e) {
 			throw new NotFoundException('unknown document');
 		}
