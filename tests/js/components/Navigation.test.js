@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createStore } from 'vuex'
 import Navigation from '../../../src/components/Navigation.vue'
+import appRouter from '../../../src/router.js'
 import axios from '@nextcloud/axios'
 import errors from '../../../src/store/errors.js'
 import notifications from '../../../src/store/notifications.js'
@@ -55,6 +56,7 @@ const mountNavigation = (options = {}, route = { name: 'timeline', params: {} })
 const items = (wrapper) => wrapper.findAll('.nav-item')
 const itemNames = (wrapper) => items(wrapper).map((item) => item.attributes('data-name'))
 const item = (wrapper, name) => items(wrapper).find((candidate) => candidate.attributes('data-name') === name)
+const activeNames = (wrapper) => items(wrapper).filter((candidate) => candidate.classes('active')).map((candidate) => candidate.attributes('data-name'))
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(() => Promise.resolve({ data: [] })) },
@@ -169,20 +171,38 @@ describe('Navigation', () => {
 		expect(item(mountNavigation({ unread: 5 }), 'Notifications').attributes('data-counter')).toBe('5')
 	})
 
+	// Routes come from the real router rather than being written out here: an
+	// optional param the URL leaves out arrives as '', and a hand-written
+	// `params: {}` hid that difference — which is how Home came to be the one
+	// page that never highlighted itself.
 	it.each([
-		[{ name: 'timeline', params: {} }, 'Home'],
-		[{ name: 'timeline', params: { type: 'federated' } }, 'Global'],
-		[{ name: 'timeline', params: { type: 'direct' } }, 'Direct messages'],
-		[{ name: 'profile', params: { account: 'alice' } }, 'Profile'],
-		[{ name: 'profile.followers', params: { account: 'alice' } }, 'Profile'],
-	])('marks only the entry matching route %o as active', (route, active) => {
-		const wrapper = mountNavigation({}, route)
-		expect(items(wrapper).filter((candidate) => candidate.classes('active')).map((candidate) => candidate.attributes('data-name'))).toEqual([active])
+		['/timeline', 'Home'],
+		['/timeline/', 'Home'],
+		['/timeline/notifications', 'Notifications'],
+		['/timeline/direct', 'Direct messages'],
+		['/timeline/timeline', 'Local'],
+		['/timeline/federated', 'Global'],
+		['/timeline/favourites', 'Liked posts'],
+		['/timeline/bookmarks', 'Bookmarks'],
+		['/follow_requests', 'Follow requests'],
+		['/@alice', 'Profile'],
+		['/@alice/followers', 'Profile'],
+		['/@alice/following', 'Profile'],
+	])('marks only one entry active on %s', (path, active) => {
+		const wrapper = mountNavigation({}, appRouter.resolve(path))
+		expect(activeNames(wrapper)).toEqual([active])
+	})
+
+	it.each([
+		['/timeline/tags/nextcloud'],
+		['/@alice/112000000000000001'],
+	])('marks no entry active on %s, which no entry stands for', (path) => {
+		expect(activeNames(mountNavigation({}, appRouter.resolve(path)))).toEqual([])
 	})
 
 	it('does not mark the own profile entry active for somebody else\'s profile', () => {
-		const wrapper = mountNavigation({}, { name: 'profile', params: { account: 'bob@remote.example' } })
-		expect(items(wrapper).filter((candidate) => candidate.classes('active'))).toHaveLength(0)
+		const wrapper = mountNavigation({}, appRouter.resolve('/@bob@remote.example'))
+		expect(activeNames(wrapper)).toEqual([])
 	})
 
 	it('shows the current user on the profile entry', () => {
