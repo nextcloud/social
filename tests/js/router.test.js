@@ -116,6 +116,41 @@ describe('router', () => {
 	})
 })
 
+describe('router navigation', () => {
+	afterEach(() => {
+		delete document.startViewTransition
+	})
+
+	/** A router of its own, so pushing here cannot leak into the tests above. */
+	const freshRouter = async () => {
+		vi.resetModules()
+		const { default: instance } = await import('../../src/router.js')
+
+		return instance
+	}
+
+	it('does not wait for a view transition', async () => {
+		// A beforeResolve guard used to await document.startViewTransition on
+		// every navigation. The browser captures the whole document before it
+		// runs the callback, so the route — and with it the sidebar highlight —
+		// could not move until that snapshot and the cross-fade had finished.
+		// Worse, a call that never reached the callback never resolved at all,
+		// and the navigation hung: this stub reproduces exactly that.
+		const startViewTransition = vi.fn(() => ({
+			updateCallbackDone: Promise.resolve(),
+			ready: Promise.resolve(),
+			finished: Promise.resolve(),
+		}))
+		document.startViewTransition = startViewTransition
+
+		const router = await freshRouter()
+		await router.push('/timeline/direct')
+
+		expect(startViewTransition).not.toHaveBeenCalled()
+		expect(router.currentRoute.value.params.type).toBe('direct')
+	})
+})
+
 describe('router base detection', () => {
 	afterEach(() => {
 		globalThis._oc_webroot = ''
