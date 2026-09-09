@@ -4,7 +4,6 @@
  */
 
 import { createRouter, createWebHistory } from 'vue-router'
-import { transitionsWanted } from './utils/viewTransition.js'
 import { generateUrl } from '@nextcloud/router'
 
 const Timeline = () => import('./views/Timeline.vue')
@@ -118,33 +117,6 @@ const router = createRouter({
 			props: true,
 		},
 	],
-})
-
-/** @return {Promise<void>} resolves on the next paint */
-const nextFrame = () => new Promise((resolve) => window.requestAnimationFrame(resolve))
-
-/**
- * Route changes go through a view transition where the browser has one, so
- * moving between a timeline, a profile and a single post reads as one surface
- * changing rather than two unrelated pages. Browsers without the API, and
- * viewers who asked for less motion, navigate exactly as before.
- */
-router.beforeResolve(async () => {
-	if (!transitionsWanted()) {
-		return true
-	}
-
-	// the transition is started here and finished by the DOM update Vue
-	// performs right after this hook resolves
-	await new Promise((resolve) => {
-		document.startViewTransition(() => {
-			resolve()
-
-			return nextFrame()
-		})
-	})
-
-	return true
 })
 
 export default router
