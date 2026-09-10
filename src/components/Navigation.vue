@@ -75,19 +75,22 @@
 
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
 
-			<NcAppNavigationItem :name="menu.profile.title"
+			<!-- the account, as an account: the name people know the reader by,
+			     next to a portrait large enough to recognise. What stood here was
+			     the Nextcloud login name, pushed to the far edge of the row by the
+			     slot it was in — neither the name they publish under nor their
+			     handle, and aligned with nothing. -->
+			<NcAppNavigationItem class="navigation__profile"
+				:name="profileName"
 				:href="hrefFor(menu.profile.to)"
 				:active="isActive(menu.profile)"
 				@click="navigate(menu.profile.to, $event)">
 				<template #icon>
 					<NcAvatar :user="currentUser?.uid"
 						:display-name="currentUser?.displayName"
-						:size="20"
+						:size="36"
 						:disable-tooltip="true"
 						:disable-menu="true" />
-				</template>
-				<template #extra>
-					<span class="navigation__subname">@{{ currentUser?.uid }}</span>
 				</template>
 			</NcAppNavigationItem>
 		</template>
@@ -233,6 +236,19 @@ export default {
 		},
 		appErrors() {
 			return this.$store.getters.appErrors
+		},
+		/**
+		 * @return {string} the name the reader publishes under, falling back to
+		 *                  the login name only while the account is still loading
+		 */
+		profileName() {
+			return this.currentAccount?.display_name
+				|| this.currentUser?.displayName
+				|| this.currentUser?.uid
+				|| ''
+		},
+		currentAccount() {
+			return this.$store.getters.currentAccount
 		},
 		/** what is being searched for, as the URL says it */
 		searchQuery() {
@@ -452,6 +468,20 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.navigation__profile :deep(.app-navigation-entry-link),
+.navigation__profile :deep(.app-navigation-entry-button) {
+	// the icon box is one clickable area wide and the portrait is larger than
+	// the icon it replaces, so the row grows with it instead of clipping it
+	height: auto;
+	min-height: 48px;
+	align-items: center;
+}
+
+.navigation__profile :deep(.app-navigation-entry-icon) {
+	width: 44px;
+	min-width: 44px;
+}
+
 .navigation__subname {
 	font-size: 12px;
 	color: var(--color-text-lighter);

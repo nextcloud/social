@@ -220,6 +220,31 @@ class TimelineSeedTest extends TestCase {
 		$this->assertNotContains($bookmarked->getId(), $this->timeline($other, ProbeOptions::BOOKMARKS));
 	}
 
+	/**
+	 * The favourites page is decided over the action rows first and read
+	 * afterwards, so the order the page was chosen in has to survive the second
+	 * query — which reads by a set of ids, and a set has no order of its own.
+	 */
+	public function testFavouritesComeBackNewestFirst(): void {
+		$viewer = $this->cachedPerson(self::VIEWER, 'tlseed-viewer', true);
+		$this->cachedPerson(self::AUTHOR, 'tlseed-author');
+
+		// explicit ids: two notes written in the same second are ordered by a
+		// random component otherwise, which would make this assertion a coin toss
+		$base = (time() - 1000) * 1000;
+		$older = $this->note('page-1', self::AUTHOR, ACore::CONTEXT_PUBLIC, [], $base + 1);
+		$newer = $this->note('page-2', self::AUTHOR, ACore::CONTEXT_PUBLIC, [], $base + 2);
+		$this->action(self::VIEWER, $older->getId(), StreamAction::LIKED);
+		$this->action(self::VIEWER, $newer->getId(), StreamAction::LIKED);
+
+		$favourites = array_values(array_filter(
+			$this->timeline($viewer, ProbeOptions::FAVOURITES),
+			static fn (string $id): bool => in_array($id, [$older->getId(), $newer->getId()], true)
+		));
+
+		$this->assertSame([$newer->getId(), $older->getId()], $favourites);
+	}
+
 	public function testHashtagTimelineReturnsTaggedNotes(): void {
 		$viewer = $this->cachedPerson(self::VIEWER, 'tlseed-viewer', true);
 		$this->cachedPerson(self::AUTHOR, 'tlseed-author');
