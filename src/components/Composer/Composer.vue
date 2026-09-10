@@ -3,7 +3,10 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="new-post" data-id="">
+	<div class="new-post"
+		:class="{ 'new-post--collapsed': !expanded }"
+		data-id=""
+		@focusin="expand">
 		<input id="file-upload"
 			ref="fileUploadInput"
 			type="file"
@@ -21,9 +24,6 @@
 			<div class="post-author">
 				<span class="post-author-name">
 					{{ currentUser.displayName }}
-				</span>
-				<span class="post-author-id">
-					{{ socialId }}
 				</span>
 			</div>
 		</div>
@@ -248,6 +248,15 @@ export default {
 			type: String,
 			default: undefined,
 		},
+		/**
+		 * Opened already, for the places where writing a post is the whole
+		 * reason the composer is on screen — the New post dialog, say, where
+		 * asking for another click would be asking twice.
+		 */
+		startExpanded: {
+			type: Boolean,
+			default: false,
+		},
 	},
 	emits: ['posted'],
 	data() {
@@ -255,6 +264,9 @@ export default {
 			statusContent: '',
 			/** what would actually be sent — the string the counter measures */
 			statusText: '',
+			// what a click into the box opens up; the composer is also expanded
+			// by anything it already holds — see expanded()
+			openedByHand: this.startExpanded,
 			visibility: this.defaultVisibility || rememberedVisibility() || 'followers',
 			loading: false,
 			/** whether an attachment is on its way to the server */
@@ -416,6 +428,24 @@ export default {
 		},
 
 		/**
+		 * A composer with nothing in it is a placeholder and a portrait; the
+		 * eight controls underneath it are answers to a question nobody has
+		 * asked yet. It opens on a click, and stays open for as long as it holds
+		 * anything that would be lost by closing it.
+		 *
+		 * @return {boolean}
+		 */
+		expanded() {
+			return this.openedByHand
+				|| this.loading
+				|| this.replyTo !== null
+				|| this.showPoll
+				|| this.showWarning
+				|| !this.statusIsEmpty
+				|| Object.keys(this.attachments).length > 0
+		},
+
+		/**
 		 * Measured on what is sent, not on the markup that produces it. A
 		 * mention pill from a reply is ~200 characters of HTML and every line
 		 * break adds a <div>, so counting innerHTML burned half the allowance
@@ -475,8 +505,17 @@ export default {
 		if (this.initialMention !== null) {
 			this.prefillMessageWithMention(this.initialMention)
 		}
+
+		// a click anywhere else closes it again, which focusout cannot do on its
+		// own: the emoji picker is rendered outside this element, so following it
+		// with the caret looks exactly like leaving
+		this.onOutsideInteraction = (event) => this.collapseIfIdle(event)
+		document.addEventListener('pointerdown', this.onOutsideInteraction)
+		document.addEventListener('focusin', this.onOutsideInteraction)
 	},
 	unmounted() {
+		document.removeEventListener('pointerdown', this.onOutsideInteraction)
+		document.removeEventListener('focusin', this.onOutsideInteraction)
 		if (this.tribute && this.tributeTarget) {
 			this.tribute.detach(this.tributeTarget)
 		}
@@ -484,6 +523,32 @@ export default {
 		eventBus.off('shortcut:compose', this.onComposerFocus)
 	},
 	methods: {
+		expand() {
+			this.openedByHand = true
+		},
+
+		/**
+		 * @param {Event} event a click or a focus somewhere in the document
+		 */
+		collapseIfIdle(event) {
+			if (!this.openedByHand) {
+				return
+			}
+
+			const target = event.target
+			if (!(target instanceof Node) || this.$el.contains(target)) {
+				return
+			}
+
+			// the emoji picker and the visibility menu are teleported out of this
+			// element; using one of them is not leaving the composer
+			if (target instanceof Element && target.closest('.v-popper__popper, .modal-mask') !== null) {
+				return
+			}
+
+			this.openedByHand = false
+		},
+
 		/** Puts the caret in the composer, scrolling it into view if need be. */
 		focusInput() {
 			const input = this.$refs.composerInput
@@ -878,24 +943,86 @@ function nodeToPlainText(node) {
 </script>
 
 <style scoped lang="scss">
+// one duration and one curve for the whole opening, so the parts of it arrive
+// together rather than each on its own schedule
+$composer-ease: cubic-bezier(0.25, 0.8, 0.35, 1);
+$composer-duration: 220ms;
+
 .new-post {
 	background: var(--color-main-background);
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
+	border: 2px solid var(--color-border);
+	border-radius: var(--border-radius-large, 12px);
 	padding: 18px;
 	margin: calc(var(--default-grid-baseline) * 3) auto;
 	max-width: 600px;
 	position: sticky;
 	top: 0;
 	z-index: 100;
+	transition:
+		padding $composer-duration $composer-ease,
+		border-color $composer-duration $composer-ease,
+		box-shadow $composer-duration $composer-ease;
+
+	// lifted, not outlined: the box the caret is in draws the ring, and two
+	// nested rings around the same caret is one too many
+	&:focus-within {
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+	}
 
 	&-form {
 		margin-top: 12px;
 		margin-left: 0;
+		transition: margin-top $composer-duration $composer-ease;
 
 		&__emoji-picker {
 			z-index: 1;
 		}
+	}
+}
+
+// Closed: a portrait and a line to write on. Everything else is still in the
+// document — it is measured, not removed, so the opening can be animated — but
+// it is out of the tab order and out of the accessibility tree until it is.
+.new-post--collapsed {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+
+	.new-post-author {
+		padding-bottom: 0;
+		margin-bottom: 0;
+		border-bottom: none;
+	}
+
+	.new-post-form {
+		flex: 1 1 auto;
+		min-width: 0;
+		margin-top: 0;
+	}
+
+	.message {
+		min-height: 0;
+		padding: 9px 16px;
+		border-radius: 999px;
+	}
+
+	.options {
+		max-height: 0;
+		margin-top: 0;
+		opacity: 0;
+		visibility: hidden;
+		pointer-events: none;
+		transform: translateY(-4px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.new-post,
+	.new-post .new-post-form,
+	.new-post .message,
+	.new-post .options {
+		transition: none;
 	}
 }
 
@@ -909,17 +1036,12 @@ function nodeToPlainText(node) {
 
 	.post-author {
 		display: flex;
-		flex-direction: column;
+		align-items: center;
 
 		.post-author-name {
 			font-weight: 700;
 			font-size: 14px;
 			line-height: 1.3;
-		}
-
-		.post-author-id {
-			font-size: 12px;
-			color: var(--color-text-lighter);
 		}
 	}
 }
@@ -972,6 +1094,11 @@ function nodeToPlainText(node) {
 	padding: 12px 14px;
 	border: 1px solid var(--color-border);
 	border-radius: 8px;
+	transition:
+		min-height $composer-duration $composer-ease,
+		padding $composer-duration $composer-ease,
+		border-radius $composer-duration $composer-ease,
+		border-color $composer-duration $composer-ease;
 	background: var(--color-main-background);
 	font-size: 14px;
 	line-height: 1.6;
@@ -1015,6 +1142,16 @@ function nodeToPlainText(node) {
 	align-items: center;
 	gap: 8px;
 	margin-top: 10px;
+	max-height: 60px;
+	opacity: 1;
+	overflow: hidden;
+	transform: translateY(0);
+	transition:
+		max-height $composer-duration $composer-ease,
+		margin-top $composer-duration $composer-ease,
+		opacity $composer-duration $composer-ease,
+		transform $composer-duration $composer-ease,
+		visibility $composer-duration step-start;
 }
 
 .emptySpace {

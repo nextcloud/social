@@ -115,7 +115,7 @@
 		<div class="modal-composer">
 			<!-- the box emptied and the modal stayed open, which reads as if
 			     nothing had been sent -->
-			<Composer @posted="showComposer = false" />
+			<Composer start-expanded @posted="showComposer = false" />
 		</div>
 	</NcModal>
 
