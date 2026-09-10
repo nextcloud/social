@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use Gumlet\ImageResize;
 use Gumlet\ImageResizeException;
+use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -31,6 +32,7 @@ use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
+use Throwable;
 
 class CacheDocumentService {
 	use TArrayTools;
@@ -38,6 +40,16 @@ class CacheDocumentService {
 
 	public const RESIZED_WIDTH = 800;
 	public const RESIZED_HEIGHT = 800;
+
+	/**
+	 * Ceiling on the pixel count of an image this app will decode.
+	 *
+	 * A decoded image costs roughly four bytes a pixel in GD, so the size of
+	 * the file says nothing about the memory the decode needs: a 400 KB
+	 * 30000x30000 PNG wants about 3.6 GB. The dimensions are read from the
+	 * header before any decode happens, and anything past this is refused.
+	 */
+	public const MAX_PIXELS = 50000000; // 50 MP, ~200 MB decoded
 
 	private IAppData $appData;
 	private CurlService $curlService;
@@ -73,6 +85,7 @@ class CacheDocumentService {
 	 * @param Document $document
 	 * @param string $mime
 	 *
+	 * @throws CacheContentDecodeException
 	 * @throws CacheContentMimeTypeException
 	 * @throws MalformedArrayException
 	 * @throws NotFoundException
@@ -95,6 +108,7 @@ class CacheDocumentService {
 	 * @param string $content
 	 * @param string $mime
 	 *
+	 * @throws CacheContentDecodeException
 	 * @throws CacheContentMimeTypeException
 	 * @throws NotFoundException
 	 * @throws NotPermittedException
@@ -119,6 +133,12 @@ class CacheDocumentService {
 		}
 	}
 
+	/**
+	 * @throws CacheContentDecodeException
+	 * @throws CacheContentMimeTypeException
+	 * @throws NotFoundException
+	 * @throws NotPermittedException
+	 */
 	public function saveFromTempToCache(Document $document, string $tmpPath) {
 		$mime = mime_content_type($tmpPath);
 
@@ -207,11 +227,31 @@ class CacheDocumentService {
 	}
 
 	/**
-	 * @param string $content
+	 * Builds the preview copy, and refuses to try on content that only claims
+	 * to be an image.
+	 *
+	 * The mime type is sniffed from magic bytes alone, so a PNG header followed
+	 * by garbage arrives here looking like a picture. Decoding it fails, and the
+	 * failure has to surface as an exception the caller can record against the
+	 * document: an unreported failure here used to escape as an `Error` and
+	 * abandon caching for every document queued behind this one.
+	 *
+	 * @throws CacheContentDecodeException
 	 */
 	private function resizeImage(Document $document, string &$content): void {
+		$this->assertDecodable($content);
+
 		try {
 			$image = ImageResize::createFromString($content);
+		} catch (ImageResizeException $e) {
+			throw new CacheContentDecodeException('cannot read image: ' . $e->getMessage());
+		} catch (Throwable $e) {
+			// the library reaches into GD, which reports some failures as a
+			// warning plus a false return rather than as an exception
+			throw new CacheContentDecodeException('cannot read image: ' . $e->getMessage());
+		}
+
+		try {
 			$image->quality_jpg = 80;
 			$image->quality_png = 7;
 			$image->quality_webp = 80;
@@ -223,6 +263,8 @@ class CacheDocumentService {
 				$content = $newContent;
 			}
 		} catch (ImageResizeException $e) {
+			// the original is still usable as the full copy; only the preview
+			// is lost, so keep the sizes we do know and carry on
 		}
 
 		$document->setLocalCopySize($image->getSourceWidth(), $image->getSourceHeight());
@@ -231,6 +273,31 @@ class CacheDocumentService {
 		$gd = @imagecreatefromstring($content);
 		if ($gd !== false) {
 			$document->setBlurHash($this->blurService->generateBlurHash($gd));
+		}
+	}
+
+	/**
+	 * Reads the dimensions out of the image header and refuses anything whose
+	 * decode would not fit in memory, before a single pixel is decoded.
+	 *
+	 * @throws CacheContentDecodeException
+	 */
+	private function assertDecodable(string $content): void {
+		$size = @getimagesizefromstring($content);
+		if ($size === false) {
+			throw new CacheContentDecodeException('content is not a readable image');
+		}
+
+		$width = (int)($size[0] ?? 0);
+		$height = (int)($size[1] ?? 0);
+		if ($width < 1 || $height < 1) {
+			throw new CacheContentDecodeException('image has no usable dimensions');
+		}
+
+		if ($width * $height > self::MAX_PIXELS) {
+			throw new CacheContentDecodeException(
+				'image is too large to decode: ' . $width . 'x' . $height
+			);
 		}
 	}
 
@@ -300,11 +367,30 @@ class CacheDocumentService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function retrieveContent(string $url): string {
-		$url = parse_url($url);
-		$this->mustContains(['path', 'host', 'scheme'], $url);
-		$request = new NCRequest($url['path'], Request::TYPE_GET, true);
-		$request->setHost($url['host']);
-		$request->setProtocol($url['scheme']);
+		$parsed = parse_url($url);
+		if (!is_array($parsed)) {
+			throw new RequestServerException('unreadable url');
+		}
+
+		$scheme = strtolower($parsed['scheme'] ?? '');
+		if (!in_array($scheme, ['http', 'https'], true)) {
+			// every other scheme curl or the client could be talked into
+			// (file://, gopher://, …) reads something that is not the web
+			throw new RequestServerException('unsupported scheme: ' . $scheme);
+		}
+
+		$this->mustContains(['path', 'host', 'scheme'], $parsed);
+		$request = new NCRequest($parsed['path'], Request::TYPE_GET, true);
+		$request->setHost($parsed['host']);
+		$request->setProtocol($scheme);
+		// a signed CDN link carries its credentials in the query string; dropping
+		// it turned every such attachment into a 403
+		if (($parsed['query'] ?? '') !== '') {
+			parse_str($parsed['query'], $params);
+			foreach ($params as $key => $value) {
+				$request->addParam((string)$key, is_scalar($value) ? (string)$value : '');
+			}
+		}
 		$request->setClientOptions(['ignoreJsonHeaders' => true]);
 
 		return $this->curlService->doRequest($request);

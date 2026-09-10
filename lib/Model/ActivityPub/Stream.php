@@ -50,6 +50,12 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_ANNOUNCE = 'announce';
 
 	/**
+	 * How many attachments a single post may bring in. Twice what Mastodon
+	 * lets an author attach, so nothing real is ever cut.
+	 */
+	public const MAX_ATTACHMENTS = 8;
+
+	/**
 	 * Mastodon calls a followers-only post `private`; this app has always
 	 * called it `followers`. The two vocabularies have to be translated in
 	 * both directions: without it a client's followers-only post arrives as a
@@ -532,6 +538,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$new = [];
 		foreach ($list as $item) {
+			// A signed Create is authenticated, not trusted: a peer may list as
+			// many attachments as it likes, and each one is a row written and a
+			// file queued for download inside the inbox request. Real posts carry
+			// a handful (Mastodon allows four), so the rest of a list of fifty
+			// thousand is dropped rather than imported.
+			if (count($new) >= self::MAX_ATTACHMENTS) {
+				break;
+			}
+
 			try {
 				/** @var Document $attachment */
 				$attachment = AP::$activityPub->getItemFromData($item, $this);

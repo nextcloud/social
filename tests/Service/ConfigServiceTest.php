@@ -311,11 +311,67 @@ class ConfigServiceTest extends TestCase {
 		$this->assertNotSame($id, $this->service->generateId('documents/avatar'));
 	}
 
+	public function testTheRandomHalfOfAnIdIsNotDerivedFromTheClock(): void {
+		// crc32(uniqid()) left about a million candidates per second to
+		// enumerate offline; the same seed must not reproduce the value
+		$this->withAppValues([ConfigService::SOCIAL_URL => 'https://cloud.example.com/apps/social/']);
+
+		mt_srand(7);
+		$first = $this->service->generateId('documents/avatar');
+		mt_srand(7);
+
+		$this->assertNotSame($first, $this->service->generateId('documents/avatar'));
+	}
+
 	public function testGenerateIdRequiresTheSocialUrl(): void {
 		$this->withAppValues([]);
 
 		$this->expectException(SocialAppConfigException::class);
 		$this->service->generateId('/users/alice');
+	}
+
+	public function testWithRequestTimeoutBoundsTheRequestsMadeInside(): void {
+		$this->withAppValues([]);
+		$request = new NCRequest('/users/bob', Request::TYPE_GET);
+
+		$returned = $this->service->withRequestTimeout(3, function () use ($request) {
+			$this->service->configureRequest($request);
+
+			return 'done';
+		});
+
+		$this->assertSame('done', $returned);
+		$this->assertSame(3, $request->getTimeout());
+	}
+
+	public function testTheTimeoutOverrideLastsOnlyForThatCall(): void {
+		$this->withAppValues([]);
+		$default = (new NCRequest('/users/bob', Request::TYPE_GET))->getTimeout();
+
+		$this->service->withRequestTimeout(3, fn () => null);
+
+		$after = new NCRequest('/users/bob', Request::TYPE_GET);
+		$this->service->configureRequest($after);
+
+		$this->assertSame($default, $after->getTimeout());
+	}
+
+	public function testTheTimeoutOverrideIsLiftedEvenWhenTheCallThrows(): void {
+		$this->withAppValues([]);
+		$default = (new NCRequest('/users/bob', Request::TYPE_GET))->getTimeout();
+
+		try {
+			$this->service->withRequestTimeout(3, function (): void {
+				throw new \RuntimeException('boom');
+			});
+			$this->fail('expected the exception to surface');
+		} catch (\RuntimeException $e) {
+		}
+
+		$after = new NCRequest('/users/bob', Request::TYPE_GET);
+		$this->service->configureRequest($after);
+
+		$this->assertSame($default, $after->getTimeout());
 	}
 
 	public function testConfigureRequestAddsActivityPubAcceptHeaderOnGet(): void {

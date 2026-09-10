@@ -308,10 +308,33 @@ class CheckService {
 		return $count;
 	}
 
+	/**
+	 * Whether a base address is the one the admin configured for this instance.
+	 *
+	 * Only that address earns the right to be fetched even when it resolves
+	 * locally; one of the candidates below is built from the `Host` header the
+	 * caller sent, and letting that reach a local address turns the check into
+	 * a way to probe the server's own network from outside.
+	 */
+	private function isConfiguredBase(string $base): bool {
+		$configured = rtrim((string)$this->config->getSystemValue('overwrite.cli.url', ''), '/');
+		if ($configured === '') {
+			return false;
+		}
+
+		return $this->sameAddress($base, $configured)
+			|| $this->sameAddress($base, $this->derivedCloudAddress());
+	}
+
 	private function requestWellKnown(string $base): bool {
 		try {
+			$scheme = strtolower((string)parse_url($base, PHP_URL_SCHEME));
+			if (!in_array($scheme, ['http', 'https'], true)) {
+				return false;
+			}
+
 			$url = $base . '/.well-known/webfinger?resource=acct:' . $this->userId . '@' . parse_url($base, PHP_URL_HOST);
-			$options['nextcloud']['allow_local_address'] = true;
+			$options['nextcloud']['allow_local_address'] = $this->isConfiguredBase($base);
 			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
 
 			$response = $this->clientService->newClient()

@@ -186,6 +186,79 @@ class FediverseServiceTest extends TestCase {
 		$this->assertTrue($this->service->isListed('SPAM.Example'));
 	}
 
+	/**
+	 * @dataProvider provideSubdomainsOfAListedDomain
+	 */
+	public function testAListedDomainCoversWhatIsUnderIt(string $address): void {
+		// a suspension that only matched the exact string lasted as long as it
+		// took to point another wildcard record at the same host
+		$this->withAccess('all_but', ['evil.test']);
+
+		$this->assertTrue($this->service->isListed($address), $address . ' should be covered');
+	}
+
+	public function provideSubdomainsOfAListedDomain(): iterable {
+		yield 'the domain itself' => ['evil.test'];
+		yield 'www' => ['www.evil.test'];
+		yield 'a deeper label' => ['a.b.evil.test'];
+		yield 'the absolute form' => ['evil.test.'];
+		yield 'absolute subdomain' => ['www.evil.test.'];
+		yield 'mixed case' => ['WWW.Evil.TEST'];
+		yield 'padded' => [' www.evil.test '];
+	}
+
+	/**
+	 * @dataProvider provideNamesThatMerelyLookSimilar
+	 */
+	public function testASuffixMatchStopsAtALabelBoundary(string $address): void {
+		$this->withAccess('all_but', ['evil.test']);
+
+		$this->assertFalse($this->service->isListed($address), $address . ' is a different name');
+	}
+
+	public function provideNamesThatMerelyLookSimilar(): iterable {
+		yield 'longer label' => ['notevil.test'];
+		yield 'different tld' => ['evil.testing'];
+		yield 'the parent' => ['test'];
+		yield 'unrelated' => ['good.example'];
+		yield 'empty' => [''];
+	}
+
+	public function testBlacklistModeBlocksASubdomainOfABlockedDomain(): void {
+		$this->withAccess('all_but', ['evil.test']);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('a.evil.test');
+	}
+
+	public function testAWhitelistDoesNotWidenToSubdomains(): void {
+		// the other direction: whoever runs the parent domain is not asked
+		// before a subdomain appears, so an allow list stays exact
+		$this->withAccess('none_but', ['friend.example']);
+
+		$this->assertTrue($this->service->authorized('friend.example'));
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('impostor.friend.example');
+	}
+
+	public function testAddAddressTreatsAnAbsoluteNameAsTheSameEntry(): void {
+		$this->withAccess('all_but', ['a.example']);
+		$this->configService->expects($this->never())->method('setAppValue');
+
+		$this->service->addAddress('A.Example.');
+	}
+
+	public function testAddAddressStillAddsASubdomainOfAListedDomain(): void {
+		// covered by isListed(), but an admin may still want it written down
+		$this->withAccess('all_but', ['a.example']);
+		$this->configService->expects($this->once())
+			->method('setAppValue')
+			->with(ConfigService::SOCIAL_ACCESS_LIST, '["a.example","sub.a.example"]');
+
+		$this->service->addAddress('sub.a.example');
+	}
+
 	public function testBlacklistModeBlocksListedAddressesRegardlessOfCase(): void {
 		$this->withAccess('all_but', ['spam.example']);
 

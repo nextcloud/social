@@ -13,13 +13,16 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
@@ -81,6 +84,154 @@ class DocumentServiceTest extends TestCase {
 		$document->setError($error);
 
 		return $document;
+	}
+
+	private function viewer(string $username = 'alice', string $id = 'https://cloud.example/@alice'): Person {
+		$person = new Person();
+		$person->setId($id);
+		$person->setPreferredUsername($username);
+
+		return $person;
+	}
+
+	// viewer-scoped lookups: a document id is not a capability
+
+	public function testAPublicDocumentIsReadableByAnyone(): void {
+		$doc = $this->document('copy-1');
+		$doc->setPublic(true);
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$file = $this->createMock(ISimpleFile::class);
+		$this->cacheService->method('getContentFromCache')->with('copy-1')->willReturn($file);
+
+		$mime = '';
+		$this->assertSame($file, $this->service->getFromCacheAsViewer(self::DOC_ID, null, $mime));
+		$this->assertSame('image/png', $mime);
+	}
+
+	public function testANonPublicDocumentIsNotReadableWithoutASession(): void {
+		$this->cacheDocumentsRequest->method('getById')->willReturn($this->document('copy-1'));
+		$this->cacheService->expects($this->never())->method('getContentFromCache');
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$this->expectExceptionMessage('unknown document');
+		$mime = '';
+		$this->service->getFromCacheAsViewer(self::DOC_ID, null, $mime);
+	}
+
+	public function testAViewerReadsTheirOwnUpload(): void {
+		$doc = $this->document('copy-1');
+		$doc->setAccount('alice');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$file = $this->createMock(ISimpleFile::class);
+		$this->cacheService->method('getContentFromCache')->willReturn($file);
+
+		$mime = '';
+		$this->assertSame(
+			$file, $this->service->getFromCacheAsViewer(self::DOC_ID, $this->viewer(), $mime)
+		);
+	}
+
+	public function testAnotherAccountsUploadIsRefused(): void {
+		// the finding: any session could name any id and read anybody's media
+		$doc = $this->document('copy-1');
+		$doc->setAccount('bob');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$this->cacheService->expects($this->never())->method('getContentFromCache');
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$mime = '';
+		$this->service->getFromCacheAsViewer(self::DOC_ID, $this->viewer(), $mime);
+	}
+
+	public function testAnAttachmentOfAPostTheViewerCanSeeIsReadable(): void {
+		$doc = $this->document('copy-1');
+		$doc->setParentId('https://remote.example/notes/1');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$viewer = $this->viewer();
+		$this->streamRequest->expects($this->once())->method('setViewer')->with($viewer);
+		$this->streamRequest->expects($this->once())->method('getStreamById')
+			->with('https://remote.example/notes/1', true)
+			->willReturn(new Stream());
+		$file = $this->createMock(ISimpleFile::class);
+		$this->cacheService->method('getContentFromCache')->willReturn($file);
+
+		$mime = '';
+		$this->assertSame($file, $this->service->getFromCacheAsViewer(self::DOC_ID, $viewer, $mime));
+	}
+
+	public function testAnAttachmentOfAPostTheViewerCannotSeeIsRefused(): void {
+		// a direct message's attachment: the timeline check is what keeps it out
+		$doc = $this->document('copy-1');
+		$doc->setParentId('https://remote.example/notes/secret');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$this->streamRequest->method('getStreamById')
+			->willThrowException(new StreamNotFoundException());
+		$this->cacheService->expects($this->never())->method('getContentFromCache');
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$mime = '';
+		$this->service->getFromCacheAsViewer(self::DOC_ID, $this->viewer(), $mime);
+	}
+
+	public function testAViewerReadsTheirOwnActorsAvatar(): void {
+		$doc = $this->document('copy-1');
+		$doc->setParentId('https://cloud.example/@alice');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$this->streamRequest->expects($this->never())->method('getStreamById');
+		$file = $this->createMock(ISimpleFile::class);
+		$this->cacheService->method('getContentFromCache')->willReturn($file);
+
+		$mime = '';
+		$this->assertSame(
+			$file, $this->service->getFromCacheAsViewer(self::DOC_ID, $this->viewer(), $mime)
+		);
+	}
+
+	public function testTheResizedCopyIsScopedTheSameWay(): void {
+		$this->cacheDocumentsRequest->method('getById')->willReturn($this->document('copy-1'));
+		$this->cacheService->expects($this->never())->method('getContentFromCache');
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$mime = '';
+		$this->service->getResizedFromCacheAsViewer(self::DOC_ID, $this->viewer(), $mime);
+	}
+
+	public function testCachingOnBehalfOfAViewerIsScopedTheSameWay(): void {
+		$this->cacheDocumentsRequest->method('getById')->willReturn($this->document('copy-1'));
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$this->service->cacheRemoteDocumentAsViewer(self::DOC_ID, $this->viewer());
+	}
+
+	public function testAnUnknownIdIsRefusedTheSameWayAsAForbiddenOne(): void {
+		// probing must not tell the caller which ids are real
+		$this->cacheDocumentsRequest->method('getById')
+			->willThrowException(new CacheDocumentDoesNotExistException());
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$mime = '';
+		$this->service->getFromCacheAsViewer('https://remote.example/media/none', $this->viewer(), $mime);
+	}
+
+	// the cached copy of a remote url
+
+	public function testGetCachedFromUrlServesTheStoredCopy(): void {
+		$this->cacheDocumentsRequest->method('getByUrl')
+			->with('https://remote.example/header.jpg')->willReturn($this->document('copy-9'));
+		$file = $this->createMock(ISimpleFile::class);
+		$this->cacheService->method('getContentFromCache')->with('copy-9')->willReturn($file);
+
+		$mime = '';
+		$this->assertSame($file, $this->service->getCachedFromUrl('https://remote.example/header.jpg', $mime));
+		$this->assertSame('image/png', $mime);
+	}
+
+	public function testGetCachedFromUrlReportsAnUncachedUrl(): void {
+		$this->cacheDocumentsRequest->method('getByUrl')->willReturn($this->document());
+
+		$this->expectException(CacheDocumentDoesNotExistException::class);
+		$this->expectExceptionMessage('not cached');
+		$this->service->getCachedFromUrl('https://remote.example/header.jpg');
 	}
 
 	public function testGetMediaFromArrayDelegates(): void {
@@ -235,6 +386,79 @@ class DocumentServiceTest extends TestCase {
 		} catch (CacheDocumentDoesNotExistException $e) {
 			$this->assertSame(0, $doc->getError());
 		}
+	}
+
+	public function testAnUndecodableDocumentIsRecordedSoItIsNotRetriedForever(): void {
+		$doc = $this->document();
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$this->cacheService->method('saveRemoteFileToCache')
+			->willThrowException(new CacheContentDecodeException('not an image'));
+		$this->cacheDocumentsRequest->expects($this->once())->method('endCaching')->with($doc);
+		$this->cacheDocumentsRequest->expects($this->never())->method('deleteById');
+
+		try {
+			$this->service->cacheRemoteDocument(self::DOC_ID);
+			$this->fail('expected CacheDocumentDoesNotExistException');
+		} catch (CacheDocumentDoesNotExistException $e) {
+			// a non-zero error is what keeps getNotCachedDocuments() from
+			// handing the same row back on the next run
+			$this->assertSame(DocumentService::ERROR_CONTENT, $doc->getError());
+		}
+	}
+
+	public function testTheSniffedMimeTypeIsCarriedOntoTheStoredRow(): void {
+		$doc = $this->document();
+		$doc->setMimeType('');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$this->cacheService->method('saveRemoteFileToCache')
+			->willReturnCallback(function (Document $document, string &$mime): void {
+				$document->setLocalCopy('local-1');
+				$mime = 'image/webp';
+			});
+
+		$this->service->cacheRemoteDocument(self::DOC_ID);
+
+		$this->assertSame('image/webp', $doc->getMimeType());
+		$this->assertSame('image/webp', $doc->getMediaType());
+	}
+
+	public function testAnAlreadyKnownMediaTypeIsNotOverwritten(): void {
+		$doc = $this->document();
+		$doc->setMediaType('image/png');
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$this->cacheService->method('saveRemoteFileToCache')
+			->willReturnCallback(function (Document $document, string &$mime): void {
+				$document->setLocalCopy('local-1');
+				$mime = 'image/jpeg';
+			});
+
+		$this->service->cacheRemoteDocument(self::DOC_ID);
+
+		$this->assertSame('image/png', $doc->getMediaType());
+	}
+
+	public function testOneUnusableRowDoesNotEndTheCachingRun(): void {
+		// the poison pill: an Error escaping one row used to abandon caching for
+		// every row queued behind it, silently, on every run
+		$poison = $this->document();
+		$poison->setId('https://remote.example/media/poison');
+		$good = $this->document();
+		$good->setId('https://remote.example/media/good');
+		$this->cacheDocumentsRequest->method('getNotCachedDocuments')->willReturn([$poison, $good]);
+		$this->cacheDocumentsRequest->method('getById')->willReturnCallback(
+			fn (string $id) => $id === $poison->getId() ? $poison : $good
+		);
+		$this->cacheService->method('saveRemoteFileToCache')->willReturnCallback(
+			function (Document $document, string &$mime): void {
+				if ($document->getId() === 'https://remote.example/media/poison') {
+					throw new \Error('Call to a member function on null');
+				}
+				$document->setLocalCopy('local-1');
+				$mime = 'image/png';
+			}
+		);
+
+		$this->assertSame(1, $this->service->manageCacheDocuments());
 	}
 
 	public function testGetFromCacheReturnsTheLocalCopyAndItsMimeType(): void {

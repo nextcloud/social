@@ -165,6 +165,53 @@ class StreamTest extends TestCase {
 		$this->assertStringEndsWith('.png', $attachments[1]->getUrl());
 	}
 
+	public function testAnAbsurdAttachmentListIsCappedRatherThanImported(): void {
+		// a signed Create is authenticated, not trusted: each entry is a row
+		// written and a file queued inside the inbox request
+		$this->apInterface(DocumentInterface::class)
+			->expects($this->exactly(Stream::MAX_ATTACHMENTS))->method('save');
+
+		$attachments = [];
+		for ($i = 0; $i < 5000; $i++) {
+			$attachments[] = [
+				'type' => 'Document',
+				'mediaType' => 'image/jpeg',
+				'url' => 'https://files.mastodon.social/media/' . $i . '.jpg',
+			];
+		}
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => $attachments,
+		]);
+
+		$this->assertCount(Stream::MAX_ATTACHMENTS, $stream->getAttachments());
+	}
+
+	public function testAnOrdinaryPostKeepsEveryAttachment(): void {
+		$this->apInterface(DocumentInterface::class)->expects($this->exactly(4))->method('save');
+
+		$attachments = [];
+		for ($i = 0; $i < 4; $i++) {
+			$attachments[] = [
+				'type' => 'Document',
+				'mediaType' => 'image/jpeg',
+				'url' => 'https://files.mastodon.social/media/' . $i . '.jpg',
+			];
+		}
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => $attachments,
+		]);
+
+		$this->assertCount(4, $stream->getAttachments());
+	}
+
 	public function testConvertPublishedIgnoresUnparsableDates(): void {
 		$stream = new Stream();
 		$stream->setPublished('not a date');

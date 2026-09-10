@@ -75,6 +75,9 @@ class ConfigService {
 	private IURLGenerator $urlGenerator;
 	private MiscService $miscService;
 
+	/** Seconds; 0 leaves each request its own default. See withRequestTimeout(). */
+	private int $requestTimeout = 0;
+
 	public function __construct(
 		?string $userId, IConfig $config, IRequest $request, IURLGenerator $urlGenerator,
 		MiscService $miscService,
@@ -398,14 +401,45 @@ class ConfigService {
 
 		$id = $this->getSocialUrl() . $path;
 		if ($generateId === true) {
-			$id .= time() . crc32(uniqid());
+			// The random half comes from the system's random source rather than
+			// from crc32(uniqid()): uniqid() is the clock, and its checksum left
+			// roughly a million candidates per second to enumerate offline. Same
+			// shape as before — the timestamp followed by ten digits — so ids
+			// already stored stay valid.
+			$id .= time() . str_pad((string)random_int(0, 9999999999), 10, '0', STR_PAD_LEFT);
 		}
 
 		return $id;
 	}
 
+	/**
+	 * Runs $action with every federation request it makes bounded to $timeout
+	 * seconds instead of the default.
+	 *
+	 * Work that happens before a caller is authenticated must not be able to
+	 * hold a PHP worker for the full federation timeout — a few dozen
+	 * concurrent requests naming a host that never answers would otherwise take
+	 * the whole instance down, not just this app. The override lasts exactly as
+	 * long as the call.
+	 *
+	 * @return mixed whatever $action returns
+	 */
+	public function withRequestTimeout(int $timeout, callable $action) {
+		$previous = $this->requestTimeout;
+		$this->requestTimeout = max(1, $timeout);
+		try {
+			return $action();
+		} finally {
+			$this->requestTimeout = $previous;
+		}
+	}
+
 	public function configureRequest(NCRequest $request): void {
 		$request->setVerifyPeer($this->getAppValue(ConfigService::SOCIAL_SELF_SIGNED) !== '1');
+
+		if ($this->requestTimeout > 0) {
+			$request->setTimeout($this->requestTimeout);
+		}
 
 		// do not add json headers if required
 		if (!$this->getBool('ignoreJsonHeaders', $request->getClientOptions())) {

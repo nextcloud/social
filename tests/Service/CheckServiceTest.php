@@ -102,17 +102,80 @@ class CheckServiceTest extends TestCase {
 	public function testCheckWellKnownProbesTheConfiguredAddressFirstAndCachesSuccess(): void {
 		$this->cache->method('get')->willReturn(null);
 		$this->config->method('getAppValue')->with('social', 'address', '')->willReturn('https://social.example.com');
-		$this->config->method('getSystemValue')->with('social.checkssl', true)->willReturn(false);
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $key === 'social.checkssl' ? false : $default
+		);
 		$this->client->expects($this->once())
 			->method('get')
 			->with(
 				'https://social.example.com/.well-known/webfinger?resource=acct:alice@social.example.com',
-				['nextcloud' => ['allow_local_address' => true], 'verify' => false],
+				['nextcloud' => ['allow_local_address' => false], 'verify' => false],
 			)
 			->willReturn($this->response(200));
 		$this->cache->expects($this->once())->method('set')->with(CheckService::CACHE_PREFIX . 'wellknown', 'true', 3600);
 
 		$this->assertTrue($this->service->checkWellKnown());
+	}
+
+	public function testOnlyTheAdminsOwnAddressMayResolveLocally(): void {
+		// one of the candidates is built from the Host header, so reaching a
+		// local address must be limited to the URL the admin configured
+		$this->cache->method('get')->willReturn(null);
+		$this->config->method('getAppValue')->with('social', 'address', '')->willReturn('http://localhost');
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => match ($key) {
+				'overwrite.cli.url' => 'http://localhost',
+				'social.checkssl' => false,
+				default => $default,
+			}
+		);
+		$this->client->expects($this->once())
+			->method('get')
+			->with(
+				'http://localhost/.well-known/webfinger?resource=acct:alice@localhost',
+				['nextcloud' => ['allow_local_address' => true], 'verify' => false],
+			)
+			->willReturn($this->response(200));
+
+		$this->assertTrue($this->service->checkWellKnown());
+	}
+
+	public function testTheHostHeaderCandidateNeverReachesALocalAddress(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->config->method('getAppValue')->with('social', 'address', '')->willReturn('');
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => match ($key) {
+				'overwrite.cli.url' => 'https://cloud.example.com',
+				'social.checkssl' => false,
+				default => $default,
+			}
+		);
+		$this->request->method('getServerProtocol')->willReturn('http');
+		$this->request->method('getServerHost')->willReturn('127.0.0.1');
+		$this->urlGenerator->method('getBaseUrl')->willReturn('http://127.0.0.1');
+		$this->client->method('get')->willReturnCallback(
+			function (string $url, array $options): IResponse {
+				$this->assertFalse($options['nextcloud']['allow_local_address']);
+
+				return $this->response(404);
+			}
+		);
+
+		$this->assertFalse($this->service->checkWellKnown());
+	}
+
+	public function testANonWebAddressIsNotProbedAtAll(): void {
+		$this->cache->method('get')->willReturn(null);
+		$this->config->method('getAppValue')->with('social', 'address', '')->willReturn('file:///etc');
+		$this->config->method('getSystemValue')->willReturnCallback(
+			fn (string $key, $default = null) => $default
+		);
+		$this->request->method('getServerProtocol')->willReturn('https');
+		$this->request->method('getServerHost')->willReturn('cloud.example.com');
+		$this->urlGenerator->method('getBaseUrl')->willReturn('https://cloud.example.com');
+		$this->client->expects($this->exactly(2))->method('get')->willReturn($this->response(404));
+
+		$this->assertFalse($this->service->checkWellKnown());
 	}
 
 	public function testCheckWellKnownFallsBackToTheRequestHostThenTheBaseUrl(): void {

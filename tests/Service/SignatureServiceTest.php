@@ -11,6 +11,8 @@ namespace OCA\Social\Tests\Service;
 
 use DateTime;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
@@ -54,9 +56,12 @@ class SignatureServiceTest extends TestCase {
 
 	private ActorsRequest|MockObject $actorsRequest;
 	private CacheActorService|MockObject $cacheActorService;
+	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private SignatureService $service;
 	/** @var array<string, mixed> backing store of the mocked replay cache */
 	private array $seenSignatures = [];
+	/** @var array<string, mixed> backing store of the mocked key-attempt cache */
+	private array $keyAttempts = [];
 
 	public static function setUpBeforeClass(): void {
 		[self::$privateKey, self::$publicKey] = self::keyPair();
@@ -74,29 +79,66 @@ class SignatureServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		// no key is in the local cache unless a test puts one there
+		$this->cacheActorsRequest->method('getFromId')
+			->willThrowException(new CacheActorDoesNotExistException());
+
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		// the real one narrows the request timeout around the call; here it only
+		// has to run what it is given
+		$configService->method('withRequestTimeout')
+			->willReturnCallback(fn (int $timeout, callable $action) => $action());
 
-		// an in-memory stand-in for the distributed LD-signature replay cache
+		// in-memory stand-ins for the two distributed caches
 		$this->seenSignatures = [];
-		$cache = $this->createMock(ICache::class);
-		$cache->method('get')->willReturnCallback(fn (string $key) => $this->seenSignatures[$key] ?? null);
-		$cache->method('set')->willReturnCallback(function (string $key, $value) {
-			$this->seenSignatures[$key] = $value;
-
-			return true;
-		});
+		$this->keyAttempts = [];
 		$cacheFactory = $this->createMock(ICacheFactory::class);
-		$cacheFactory->method('createDistributed')->willReturn($cache);
+		$cacheFactory->method('createDistributed')->willReturnCallback(
+			fn (string $prefix): ICache => $prefix === 'social.keys'
+				? $this->arrayCache($this->keyAttempts)
+				: $this->arrayCache($this->seenSignatures)
+		);
 
 		$this->service = new SignatureService(
 			$this->actorsRequest,
 			$this->cacheActorService,
+			$this->cacheActorsRequest,
 			$this->createMock(CurlService::class),
 			$configService,
 			$cacheFactory,
 			new NullLogger(),
 		);
+	}
+
+	/**
+	 * @param array<string, mixed> $store
+	 * @return ICache&MockObject
+	 */
+	private function arrayCache(array &$store): ICache {
+		$cache = $this->createMock(ICache::class);
+		$cache->method('get')->willReturnCallback(
+			function (string $key) use (&$store) {
+				return $store[$key] ?? null;
+			}
+		);
+		$cache->method('set')->willReturnCallback(
+			function (string $key, $value) use (&$store) {
+				$store[$key] = $value;
+
+				return true;
+			}
+		);
+		$cache->method('remove')->willReturnCallback(
+			function (string $key) use (&$store) {
+				unset($store[$key]);
+
+				return true;
+			}
+		);
+
+		return $cache;
 	}
 
 	protected function tearDown(): void {
@@ -212,7 +254,7 @@ class SignatureServiceTest extends TestCase {
 		$headers = $this->signedHeaders($body, self::$privateKey);
 		$this->cacheActorService->expects($this->once())
 			->method('getFromId')
-			->with(self::REMOTE_KEY_ID, false)
+			->with(self::REMOTE_ACTOR, false)
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
 
 		$time = 0;
@@ -304,7 +346,7 @@ class SignatureServiceTest extends TestCase {
 		$headers = $this->signedHeaders($body, self::$privateKey);
 		$this->cacheActorService->expects($this->exactly(2))
 			->method('getFromId')
-			->withConsecutive([self::REMOTE_KEY_ID, false], [self::REMOTE_KEY_ID, true])
+			->withConsecutive([self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true])
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
 
 		// A signature that does not verify against either the cached or the refreshed
@@ -392,7 +434,7 @@ class SignatureServiceTest extends TestCase {
 		);
 		$this->cacheActorService->expects($this->once())
 			->method('getFromId')
-			->with(self::REMOTE_KEY_ID, false)
+			->with(self::REMOTE_ACTOR, false)
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
 
 		$time = 0;
@@ -400,6 +442,119 @@ class SignatureServiceTest extends TestCase {
 
 		$this->assertSame('remote.example', $origin);
 		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
+	}
+
+	// bounding the pre-authentication key fetch
+
+	public function testAKeyAlreadyInTheLocalCacheIsNeverFetched(): void {
+		// the whole point: a known peer's delivery costs a database read
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$cached = $this->createMock(CacheActorsRequest::class);
+		$cached->method('getFromId')->with(self::REMOTE_ACTOR)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+		$this->replaceLocalActorCache($cached);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testTheFetchOfAnUnknownKeyIsTimeBounded(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$seen = [];
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		$configService->method('withRequestTimeout')->willReturnCallback(
+			function (int $timeout, callable $action) use (&$seen) {
+				$seen[] = $timeout;
+
+				return $action();
+			}
+		);
+		$this->rebuildWith($configService);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+
+		$this->assertSame([SignatureService::UNKNOWN_KEY_TIMEOUT], $seen);
+	}
+
+	public function testAKeyThatCannotBeResolvedIsNotFetchedAgainImmediately(): void {
+		// a flood naming the same unresolvable keyId costs one fetch, not one
+		// fetch per request
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->willThrowException(new RequestContentException('unreachable'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the first attempt to fail');
+		} catch (\Exception $e) {
+		}
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('too recently');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testAForcedRefreshIsThrottledPerKeyId(): void {
+		// verification failing is free to trigger from outside, and each failure
+		// used to force another fetch of the same key
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		// known locally, but with a key the signature does not verify against
+		$cached = $this->createMock(CacheActorsRequest::class);
+		$cached->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+		$this->replaceLocalActorCache($cached);
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with(self::REMOTE_ACTOR, true)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the signature not to verify');
+		} catch (SignatureException $e) {
+		}
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('too recently');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/** Rebuilds the service around a different local actor cache. */
+	private function replaceLocalActorCache(CacheActorsRequest $cache): void {
+		$this->cacheActorsRequest = $cache;
+		$this->rebuildWith(null);
+	}
+
+	private function rebuildWith(?ConfigService $configService): void {
+		if ($configService === null) {
+			$configService = $this->createMock(ConfigService::class);
+			$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+			$configService->method('withRequestTimeout')
+				->willReturnCallback(fn (int $timeout, callable $action) => $action());
+		}
+
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('createDistributed')->willReturnCallback(
+			fn (string $prefix): ICache => $prefix === 'social.keys'
+				? $this->arrayCache($this->keyAttempts)
+				: $this->arrayCache($this->seenSignatures)
+		);
+
+		$this->service = new SignatureService(
+			$this->actorsRequest,
+			$this->cacheActorService,
+			$this->cacheActorsRequest,
+			$this->createMock(CurlService::class),
+			$configService,
+			$cacheFactory,
+			new NullLogger(),
+		);
 	}
 
 	/**

@@ -13,7 +13,9 @@ use DateTime;
 use Exception;
 use JsonLdException;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -63,16 +65,39 @@ class SignatureService {
 	 */
 	public const LD_WINDOW = 86400; // 24h
 
+	/**
+	 * How long a request is allowed to take when it is fetching the signing key
+	 * of a keyId this instance has never seen.
+	 *
+	 * Everything checked before that fetch is attacker-controlled and free to
+	 * satisfy, so an unauthenticated POST to the inbox can name any URL and hold
+	 * a PHP worker for as long as that URL takes to answer. At the default
+	 * federation timeout a few dozen concurrent requests exhaust the worker pool
+	 * and the whole Nextcloud instance stops answering — so pre-authentication
+	 * work gets a fraction of it. A key this instance already knows is read from
+	 * the database and needs no fetch at all.
+	 */
+	public const UNKNOWN_KEY_TIMEOUT = 3;
+
+	/** How long a failed key retrieval is remembered, in seconds. */
+	public const KEY_FAILURE_TTL = 300;
+
+	/** The shortest interval between two forced refreshes of the same keyId. */
+	public const KEY_REFRESH_INTERVAL = 300;
+
 	private CacheActorService $cacheActorService;
+	private CacheActorsRequest $cacheActorsRequest;
 	private ActorsRequest $actorsRequest;
 	private CurlService $curlService;
 	private ConfigService $configService;
 	private ICache $seenSignatures;
+	private ICache $keyAttempts;
 	private LoggerInterface $logger;
 
 	public function __construct(
 		ActorsRequest $actorsRequest,
 		CacheActorService $cacheActorService,
+		CacheActorsRequest $cacheActorsRequest,
 		CurlService $curlService,
 		ConfigService $configService,
 		ICacheFactory $cacheFactory,
@@ -80,9 +105,11 @@ class SignatureService {
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
 		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
+		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
 	}
 
@@ -412,8 +439,12 @@ class SignatureService {
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
+		// A retrieval failure is not a reason to retrieve again: only a key that
+		// was fetched and did not verify is worth refreshing, because only then
+		// might the peer have rotated it. Retrying on any failure meant a keyId
+		// that cannot be resolved cost two fetches per request instead of none.
+		$publicKey = $this->retrieveKey($keyId);
 		try {
-			$publicKey = $this->retrieveKey($keyId);
 			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
 		} catch (SignatureException $e) {
 			$publicKey = $this->retrieveKey($keyId, true);
@@ -528,10 +559,77 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
+	/**
+	 * The public key a keyId names, fetching it only when there is no other way
+	 * and never for free.
+	 *
+	 * This runs before the request is authenticated, on a route anyone on the
+	 * internet can POST to, with a keyId the sender wrote. Three things bound
+	 * what that can cost:
+	 *
+	 *  - a key already in the actor cache is read from the database, untouched
+	 *    by any of the limits below;
+	 *  - a keyId that has never resolved is not retried for a while, so
+	 *    repeating the same unresolvable id costs one fetch, not one per
+	 *    request;
+	 *  - the fetch itself, and a forced refresh, are bounded — in time and in
+	 *    how often the same keyId may ask for one.
+	 *
+	 * @throws SignatureException
+	 * @throws Exception
+	 */
 	private function retrieveKey(string $keyId, bool $refresh = false): string {
-		$actor = $this->cacheActorService->getFromId($keyId, $refresh);
+		$id = $this->keyIdWithoutAnchor($keyId);
+
+		if (!$refresh) {
+			try {
+				return $this->cacheActorsRequest->getFromId($id)
+					->getPublicKey();
+			} catch (CacheActorDoesNotExistException $e) {
+				// not known yet: fall through to the bounded fetch
+			}
+		}
+
+		$attemptKey = ($refresh ? 'refresh.' : 'resolve.') . hash('sha256', $id);
+		if ($this->keyAttempts->get($attemptKey) !== null) {
+			throw new SignatureException(
+				'key retrieval for ' . $id . ' was attempted too recently'
+			);
+		}
+		$this->keyAttempts->set(
+			$attemptKey,
+			1,
+			$refresh ? self::KEY_REFRESH_INTERVAL : self::KEY_FAILURE_TTL
+		);
+
+		// bounded: an unauthenticated caller must not be able to decide how long
+		// one of this instance's workers stays busy. A failure leaves the entry
+		// above in place, so the next request naming this keyId is refused
+		// without touching the network.
+		$actor = $this->configService->withRequestTimeout(
+			self::UNKNOWN_KEY_TIMEOUT,
+			fn (): Person => $this->cacheActorService->getFromId($id, $refresh)
+		);
+
+		if (!$refresh) {
+			// resolved and stored, so the read above will answer from now on;
+			// drop the entry rather than hold off a genuine peer whose first
+			// delivery merely raced a slow answer
+			$this->keyAttempts->remove($attemptKey);
+		}
 
 		return $actor->getPublicKey();
+	}
+
+	/**
+	 * A keyId is an actor id with a fragment (`…/users/bob#main-key`); the
+	 * fragment is not part of what is fetched or stored, and leaving it on would
+	 * make every fragment a separate cache entry.
+	 */
+	private function keyIdWithoutAnchor(string $keyId): string {
+		$posAnchor = strpos($keyId, '#');
+
+		return $posAnchor === false ? $keyId : substr($keyId, 0, $posAnchor);
 	}
 
 	/**

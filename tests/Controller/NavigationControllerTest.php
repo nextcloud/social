@@ -11,8 +11,10 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\NavigationController;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
+use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
@@ -295,14 +297,49 @@ class NavigationControllerTest extends TestCase {
 		return $file;
 	}
 
+	/**
+	 * The viewer-scoped variant: the id alone says nothing about who may read
+	 * the document, so these take the asking actor as well.
+	 */
+	private function cachedFileAsViewer(string $method, string $mime, ?Person $viewer): ISimpleFile {
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('getName')->willReturn('doc');
+		$this->documentService->expects($this->once())->method($method)
+			->willReturnCallback(function (string $id, ?Person $asked, string &$mimeType) use ($file, $mime, $viewer): ISimpleFile {
+				$this->assertSame('doc-1', $id);
+				$this->assertSame($viewer, $asked);
+				$mimeType = $mime;
+
+				return $file;
+			});
+
+		return $file;
+	}
+
 	private function assertServes(FileDisplayResponse|DataResponse $response, string $mime): void {
 		$this->assertInstanceOf(FileDisplayResponse::class, $response);
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($mime, $response->getHeaders()['Content-Type']);
 	}
 
-	public function testDocumentGetServesTheCachedDocument(): void {
-		$this->cachedFile('getFromCache', 'image/jpeg', false);
+	public function testDocumentGetServesTheCachedDocumentToItsViewer(): void {
+		$viewer = $this->createMock(Person::class);
+		$this->accountService->method('getActorFromUserId')->with('alice')->willReturn($viewer);
+		$this->cachedFileAsViewer('getFromCacheAsViewer', 'image/jpeg', $viewer);
+
+		$this->assertServes($this->controller()->documentGet('doc-1'), 'image/jpeg');
+	}
+
+	public function testDocumentGetAsksAsNobodyWhenThereIsNoSession(): void {
+		$this->cachedFileAsViewer('getFromCacheAsViewer', 'image/jpeg', null);
+
+		$this->assertServes($this->controller(null)->documentGet('doc-1'), 'image/jpeg');
+	}
+
+	public function testDocumentGetAsksAsNobodyWhenTheSessionHasNoSocialAccount(): void {
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new AccountDoesNotExistException());
+		$this->cachedFileAsViewer('getFromCacheAsViewer', 'image/jpeg', null);
 
 		$this->assertServes($this->controller()->documentGet('doc-1'), 'image/jpeg');
 	}
@@ -313,8 +350,10 @@ class NavigationControllerTest extends TestCase {
 		$this->assertServes($this->controller(null)->documentGetPublic('doc-1'), 'image/png');
 	}
 
-	public function testResizedGetServesTheResizedCopy(): void {
-		$this->cachedFile('getResizedFromCache', 'image/webp', false);
+	public function testResizedGetServesTheResizedCopyToItsViewer(): void {
+		$viewer = $this->createMock(Person::class);
+		$this->accountService->method('getActorFromUserId')->with('alice')->willReturn($viewer);
+		$this->cachedFileAsViewer('getResizedFromCacheAsViewer', 'image/webp', $viewer);
 
 		$this->assertServes($this->controller()->resizedGet('doc-1'), 'image/webp');
 	}
@@ -327,9 +366,9 @@ class NavigationControllerTest extends TestCase {
 
 	/** @return iterable<string, array{string, string}> */
 	public function documentEndpoints(): iterable {
-		yield 'documentGet' => ['documentGet', 'getFromCache'];
+		yield 'documentGet' => ['documentGet', 'getFromCacheAsViewer'];
 		yield 'documentGetPublic' => ['documentGetPublic', 'getFromCache'];
-		yield 'resizedGet' => ['resizedGet', 'getResizedFromCache'];
+		yield 'resizedGet' => ['resizedGet', 'getResizedFromCacheAsViewer'];
 		yield 'resizedGetPublic' => ['resizedGetPublic', 'getResizedFromCache'];
 	}
 

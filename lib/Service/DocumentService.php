@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -35,11 +36,19 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IURLGenerator;
+use Throwable;
 
 class DocumentService {
 	public const ERROR_SIZE = 1;
 	public const ERROR_MIMETYPE = 2;
 	public const ERROR_PERMISSION = 3;
+
+	/**
+	 * The bytes could not be decoded as the image they claimed to be, or were
+	 * too large to decode. Recorded on the row so the caching run stops
+	 * offering it again on every pass.
+	 */
+	public const ERROR_CONTENT = 4;
 
 	private \OCP\IURLGenerator $urlGenerator;
 
@@ -108,11 +117,28 @@ class DocumentService {
 
 		try {
 			$this->cacheService->saveRemoteFileToCache($document, $mime);
+			// the mime type is sniffed from the bytes at this point and nowhere
+			// else; unpersisted, the copy is later served with no Content-Type
+			if ($mime !== '') {
+				$document->setMimeType($mime);
+				if ($document->getMediaType() === '') {
+					$document->setMediaType($mime);
+				}
+			}
 			$this->cacheDocumentsRequest->endCaching($document);
 
 			$this->streamRequest->updateAttachments($document);
 
 			return $document;
+		} catch (CacheContentDecodeException $e) {
+			// A remote peer can hand us a PNG header followed by garbage, which
+			// passes the mime sniff and then fails to decode. Left unrecorded the
+			// row comes back on every caching run, so mark it and move on.
+			$this->miscService->log(
+				'Cannot decode document ' . json_encode($document) . ' ' . json_encode($e), 1
+			);
+			$document->setError(self::ERROR_CONTENT);
+			$this->cacheDocumentsRequest->endCaching($document);
 		} catch (CacheContentMimeTypeException $e) {
 			$this->miscService->log(
 				'Not allowed mime type ' . json_encode($document) . ' ' . json_encode($e), 1
@@ -191,6 +217,130 @@ class DocumentService {
 	}
 
 	/**
+	 * The document behind an id, as the viewer is allowed to see it.
+	 *
+	 * `/document/get` and `/document/get/resized` take a bare document id from
+	 * whoever is asking, so a session alone must not be enough: without this
+	 * check any account could name any id and read another account's
+	 * attachments, direct messages included. Same rule as `/media/{uuid}`,
+	 * widened by what the viewer's own timeline already shows them.
+	 *
+	 * @throws CacheContentException
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws MalformedArrayException
+	 * @throws SocialAppConfigException
+	 */
+	public function getFromCacheAsViewer(
+		string $id, ?Person $viewer, string &$mimeType = '',
+	): ISimpleFile {
+		$this->assertViewerMayRead($id, $viewer);
+
+		return $this->getFromCache($id, $mimeType);
+	}
+
+	/**
+	 * The preview copy behind an id, as the viewer is allowed to see it.
+	 *
+	 * @throws CacheContentException
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws MalformedArrayException
+	 * @throws SocialAppConfigException
+	 */
+	public function getResizedFromCacheAsViewer(
+		string $id, ?Person $viewer, string &$mimeType = '',
+	): ISimpleFile {
+		$this->assertViewerMayRead($id, $viewer);
+
+		return $this->getResizedFromCache($id, $mimeType);
+	}
+
+	/**
+	 * Caches (if needed) and returns a document the viewer is allowed to see.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws MalformedArrayException
+	 * @throws SocialAppConfigException
+	 */
+	public function cacheRemoteDocumentAsViewer(string $id, ?Person $viewer): Document {
+		$this->assertViewerMayRead($id, $viewer);
+
+		return $this->cacheRemoteDocument($id);
+	}
+
+	/**
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	private function assertViewerMayRead(string $id, ?Person $viewer): void {
+		$document = $this->cacheDocumentsRequest->getById($id);
+
+		if (!$this->viewerMayRead($document, $viewer)) {
+			// deliberately indistinguishable from an id that does not exist:
+			// probing must not tell the caller which ids are real
+			throw new CacheDocumentDoesNotExistException('unknown document');
+		}
+	}
+
+	/**
+	 * A public copy is readable by anyone, as `/media/{uuid}` already decided.
+	 * Beyond that a viewer may read their own uploads, their own actor's avatar
+	 * and header, and whatever hangs off a post their timeline would show them —
+	 * which is the check that keeps a direct message's attachment private.
+	 */
+	private function viewerMayRead(Document $document, ?Person $viewer): bool {
+		if ($document->isPublic()) {
+			return true;
+		}
+
+		if ($viewer === null) {
+			return false;
+		}
+
+		$account = $document->getAccount();
+		if ($account !== '' && $account === $viewer->getPreferredUsername()) {
+			return true;
+		}
+
+		$parentId = $document->getParentId();
+		if ($parentId === '') {
+			return false;
+		}
+
+		if ($parentId === $viewer->getId()) {
+			return true;
+		}
+
+		try {
+			$this->streamRequest->setViewer($viewer);
+
+			// asViewer applies the same visibility the timelines do
+			$this->streamRequest->getStreamById($parentId, true);
+
+			return true;
+		} catch (Exception $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * The cached copy of a remote url, when the caching run has already fetched
+	 * it. Lets a route hand over bytes this instance holds rather than pointing
+	 * the browser at the remote host.
+	 *
+	 * @throws CacheContentException
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getCachedFromUrl(string $url, string &$mimeType = ''): ISimpleFile {
+		$document = $this->cacheDocumentsRequest->getByUrl($url);
+		if ($document->getError() > 0 || $document->getLocalCopy() === '') {
+			throw new CacheDocumentDoesNotExistException('not cached');
+		}
+
+		$mimeType = $document->getMimeType();
+
+		return $this->cacheService->getContentFromCache($document->getLocalCopy());
+	}
+
+	/**
 	 * @param string $uuid
 	 *
 	 * @return ISimpleFile
@@ -259,7 +409,12 @@ class DocumentService {
 
 			try {
 				$this->cacheRemoteDocument($item->getId());
-			} catch (Exception $e) {
+			} catch (Throwable $e) {
+				// One unusable row must never end the run: everything queued
+				// behind it would silently stop being cached, on every pass.
+				$this->miscService->log(
+					'Could not cache document ' . $item->getId() . ' - ' . $e->getMessage(), 1
+				);
 				continue;
 			}
 			$count++;

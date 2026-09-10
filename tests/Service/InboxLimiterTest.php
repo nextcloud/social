@@ -76,18 +76,42 @@ class InboxLimiterTest extends TestCase {
 		$this->limiter->assertAllowed($request);
 	}
 
-	public function testDifferentClaimedHostsUseDifferentBuckets(): void {
-		$this->limit(1);
+	public function testRotatingTheClaimedHostDoesNotMintAFreshBucket(): void {
+		// the keyId is unverified at this point, so a flood that writes a new
+		// hostname on every request must still land in the same bucket
+		$this->limit(2);
 		$this->limiter->assertAllowed($this->request('https://one.example/actor#main-key'));
 		$this->limiter->assertAllowed($this->request('https://two.example/actor#main-key'));
-		$this->addToAssertionCount(1);
+
+		$this->expectException(TooManyRequestsException::class);
+
+		$this->limiter->assertAllowed($this->request('https://three.example/actor#main-key'));
+	}
+
+	public function testAClaimedHostIsAlsoCappedAcrossAddresses(): void {
+		// one origin delivering from a fleet of addresses is bounded too, at a
+		// looser ceiling than a single address gets
+		$this->limit(1);
+		$allowed = InboxLimiter::HOST_LIMIT_FACTOR;
+		for ($i = 0; $i < $allowed; $i++) {
+			$this->limiter->assertAllowed(
+				$this->request('https://one.example/actor#main-key', '198.51.100.' . $i)
+			);
+		}
+
+		$this->expectException(TooManyRequestsException::class);
+
+		$this->limiter->assertAllowed(
+			$this->request('https://one.example/actor#main-key', '198.51.100.200')
+		);
 	}
 
 	public function testDifferentSourceAddressesUseDifferentBuckets(): void {
-		// a busy shared IP is not punished for one noisy origin, and vice versa
+		// the per-address ceiling is per address: one noisy peer does not spend
+		// another's budget
 		$this->limit(1);
 		$this->limiter->assertAllowed($this->request('https://one.example/a#k', '198.51.100.7'));
-		$this->limiter->assertAllowed($this->request('https://one.example/a#k', '203.0.113.9'));
+		$this->limiter->assertAllowed($this->request('https://two.example/a#k', '203.0.113.9'));
 		$this->addToAssertionCount(1);
 	}
 

@@ -56,7 +56,10 @@ class FediverseService {
 
 		if ($this->getAccessType()
 			=== $this->configService->accessTypeList['WHITELIST']
-			&& ($this->isListed($address) || $this->isLocal($address))) {
+			&& ($this->isExactlyListed($address) || $this->isLocal($address))) {
+			// an allow list widens no further than what the admin wrote: a
+			// subdomain of an allowed domain is a different instance, and
+			// whoever runs the parent domain is not asked before one appears
 			return true;
 		}
 
@@ -125,14 +128,63 @@ class FediverseService {
 	}
 
 	/**
-	 * @param string $address
+	 * Whether an address is covered by the instance access list.
 	 *
-	 * @return bool
+	 * A listed domain covers the domain itself and everything under it, the way
+	 * every other Fediverse implementation reads a domain block: matching the
+	 * exact string only meant that blocking `evil.test` still let
+	 * `www.evil.test` and `a.evil.test` straight back in, so a suspension
+	 * lasted as long as it took to point another wildcard record at the same
+	 * host. A trailing dot (the absolute form of the same name) is the same
+	 * name, and case never matters in a hostname.
 	 */
 	public function isListed(string $address): bool {
-		$list = array_map('strtolower', $this->getListedAddresses());
+		$host = $this->normalizeAddress($address);
+		if ($host === '') {
+			return false;
+		}
 
-		return in_array(strtolower($address), $list, true);
+		foreach ($this->getListedAddresses() as $listed) {
+			$listed = $this->normalizeAddress((string)$listed);
+			if ($listed === '') {
+				continue;
+			}
+
+			if ($host === $listed || str_ends_with($host, '.' . $listed)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether the access list carries this exact address — no subdomains.
+	 *
+	 * What an allow list permits, and what `addAddress()` treats as already
+	 * known so an admin can still remove what they added.
+	 */
+	public function isExactlyListed(string $address): bool {
+		$host = $this->normalizeAddress($address);
+		if ($host === '') {
+			return false;
+		}
+
+		foreach ($this->getListedAddresses() as $listed) {
+			if ($this->normalizeAddress((string)$listed) === $host) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * A hostname in the one form comparisons can be made in: lowercase, without
+	 * the trailing dot of the absolute form, and without surrounding space.
+	 */
+	private function normalizeAddress(string $address): string {
+		return rtrim(strtolower(trim($address)), '.');
 	}
 
 	/**
@@ -146,7 +198,10 @@ class FediverseService {
 	 * @param string $address
 	 */
 	public function addAddress(string $address) {
-		if ($this->isListed($address)) {
+		// isListed() already answers true for a subdomain of a listed domain;
+		// the list itself stays a set of exact entries so an admin can remove
+		// what they added
+		if ($this->isExactlyListed($address)) {
 			return;
 		}
 

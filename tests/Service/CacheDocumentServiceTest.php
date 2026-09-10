@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Exceptions\CacheContentDecodeException;
 use OCA\Social\Exceptions\CacheContentException;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -17,7 +18,7 @@ use OCA\Social\Service\BlurService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
-use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCP\Files\IAppData;
@@ -350,11 +351,122 @@ class CacheDocumentServiceTest extends TestCase {
 		$this->assertSame('PNG-BYTES', $this->service->retrieveContent('https://remote.example/files/pic.png'));
 	}
 
+	// content that only claims to be an image
+
+	/** A PNG signature and IHDR that decode to nothing usable. */
+	private function pngHeaderThenGarbage(): string {
+		$ihdr = pack('N', 13) . 'IHDR' . pack('NN', 16, 16) . "\x08\x02\x00\x00\x00";
+		$ihdr .= pack('N', crc32(substr($ihdr, 4)));
+
+		return "\x89PNG\r\n\x1a\n" . $ihdr . str_repeat("\x41", 128);
+	}
+
+	/** A PNG header declaring dimensions no machine would decode. */
+	private function hugePngHeader(): string {
+		$ihdr = pack('N', 13) . 'IHDR' . pack('NN', 30000, 30000) . "\x08\x02\x00\x00\x00";
+		$ihdr .= pack('N', crc32(substr($ihdr, 4)));
+
+		return "\x89PNG\r\n\x1a\n" . $ihdr . str_repeat("\x00", 64);
+	}
+
+	public function testUndecodableImageContentIsReportedNotFatal(): void {
+		// this used to reach a method call on null and escape as an Error, which
+		// abandoned document caching for every row queued behind it
+		$written = [];
+		$this->captureWrites($written);
+		$document = new Document();
+
+		$this->expectException(CacheContentDecodeException::class);
+		$mime = '';
+		$this->quietly(function () use ($document, &$mime) {
+			$this->service->saveContentToCache($document, $this->pngHeaderThenGarbage(), $mime);
+		});
+	}
+
+	public function testAnImageTooLargeToDecodeIsRefusedBeforeDecoding(): void {
+		// 30000x30000 is a few hundred kilobytes on the wire and ~3.6 GB in GD
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->expects($this->never())->method('generateBlurHash');
+
+		$this->expectException(CacheContentDecodeException::class);
+		$this->expectExceptionMessage('too large to decode');
+		$mime = '';
+		$this->quietly(function () use (&$mime) {
+			$this->service->saveContentToCache(new Document(), $this->hugePngHeader(), $mime);
+		});
+	}
+
+	public function testAnImageWithinTheBudgetStillDecodes(): void {
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->method('generateBlurHash')->willReturn('hash');
+		$document = new Document();
+
+		$mime = '';
+		$this->quietly(function () use ($document, &$mime) {
+			$this->service->saveContentToCache($document, $this->pngBytes(64, 48), $mime);
+		});
+
+		$this->assertSame('image/png', $mime);
+		$this->assertSame(64, $document->getLocalCopySize()[0]);
+	}
+
+	public function testAnUploadedFileThatIsNotAnImageIsRefusedTheSameWay(): void {
+		$written = [];
+		$this->captureWrites($written);
+		$tmp = tempnam(sys_get_temp_dir(), 'social_test_');
+		file_put_contents($tmp, $this->pngHeaderThenGarbage());
+
+		try {
+			$this->expectException(CacheContentDecodeException::class);
+			$this->quietly(function () use ($tmp) {
+				$this->service->saveFromTempToCache(new Document(), $tmp);
+			});
+		} finally {
+			@unlink($tmp);
+		}
+	}
+
+	public function testRetrieveContentCarriesTheQueryString(): void {
+		// a signed CDN link keeps its credentials there
+		$this->curlService->expects($this->once())
+			->method('doRequest')
+			->with($this->callback(function (NCRequest $request) {
+				$this->assertSame('/files/pic.png', $request->getPath());
+				$this->assertSame(['sig' => 'abc', 'exp' => '12'], $request->getParams());
+
+				return true;
+			}))
+			->willReturn('PNG-BYTES');
+
+		$this->assertSame(
+			'PNG-BYTES',
+			$this->service->retrieveContent('https://remote.example/files/pic.png?sig=abc&exp=12')
+		);
+	}
+
 	public function testRetrieveContentRejectsIncompleteUrls(): void {
 		$this->curlService->expects($this->never())->method('doRequest');
 
-		$this->expectException(MalformedArrayException::class);
+		$this->expectException(RequestServerException::class);
 		$this->service->retrieveContent('/files/pic.png');
+	}
+
+	/**
+	 * @dataProvider provideNonWebUrls
+	 */
+	public function testRetrieveContentOnlyFetchesOverHttp(string $url): void {
+		$this->curlService->expects($this->never())->method('doRequest');
+
+		$this->expectException(RequestServerException::class);
+		$this->service->retrieveContent($url);
+	}
+
+	public function provideNonWebUrls(): iterable {
+		yield 'file' => ['file:///etc/passwd'];
+		yield 'gopher' => ['gopher://remote.example/1'];
+		yield 'ftp' => ['ftp://remote.example/pic.png'];
 	}
 
 	public function testSaveRemoteFileToCacheDownloadsThenStores(): void {

@@ -21,6 +21,7 @@ use OCA\Social\Tools\Exceptions\ArrayNotFoundException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
@@ -105,8 +106,13 @@ class OStatusController extends Controller {
 	}
 
 	/**
-	 * @AnonRateThrottle(limit=10, period=300)
+	 * Resolves where a remote account's instance sends a follow request.
+	 *
+	 * Anyone may call this, and the webfinger lookup it makes goes to whatever
+	 * host the caller names — so the limit has to be real: the annotation this
+	 * replaces was a docblock, and docblock throttles are no longer read.
 	 */
+	#[AnonRateLimit(limit: 10, period: 300)]
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
