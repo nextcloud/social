@@ -109,6 +109,9 @@ class StreamDeleteCascadeTest extends TestCase {
 			'parent_id_prim' => $this->prim($suffix), 'media_type' => 'image/png',
 			'mime_type' => 'image/png', 'url' => 'https://remote.example/media.png',
 			'local_copy' => '', 'resized_copy' => '', 'meta' => '[]',
+			// spelled out because MySQL drops the DEFAULT on a TEXT column: the
+			// schema says NOT NULL DEFAULT '', and MySQL keeps only the NOT NULL
+			'description' => '',
 		]);
 
 		return $note;
