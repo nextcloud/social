@@ -942,6 +942,77 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('opening and closing', () => {
+		const collapsed = (wrapper) => wrapper.find('.new-post').classes().includes('new-post--collapsed')
+		// jsdom has no PointerEvent; what the composer listens for is the type
+		const clickOutside = async (wrapper, target = document.body) => {
+			target.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+			await wrapper.vm.$nextTick()
+		}
+
+		it('starts as a line to write on, with the controls put away', () => {
+			const { wrapper } = mountComposer()
+
+			expect(collapsed(wrapper)).toBe(true)
+		})
+
+		it('opens when the reader puts the caret in it', async () => {
+			const { wrapper } = mountComposer()
+
+			await input(wrapper).trigger('focusin')
+
+			expect(collapsed(wrapper)).toBe(false)
+		})
+
+		it('closes again when the reader turns to something else', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+
+			await clickOutside(wrapper)
+
+			expect(collapsed(wrapper)).toBe(true)
+		})
+
+		it('stays open while it holds something that closing would hide', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await setContent(wrapper, 'half a thought')
+
+			await clickOutside(wrapper)
+
+			expect(collapsed(wrapper)).toBe(false)
+		})
+
+		it('stays open while the reader is in a menu of its own', async () => {
+			// the emoji picker is rendered outside this element, so following it
+			// with the caret looks exactly like leaving
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			const popper = document.createElement('div')
+			popper.className = 'v-popper__popper'
+			document.body.appendChild(popper)
+
+			await clickOutside(wrapper, popper)
+
+			expect(collapsed(wrapper)).toBe(false)
+			popper.remove()
+		})
+
+		it('is already open where writing a post is the whole point', () => {
+			const { wrapper } = mountComposer({ startExpanded: true })
+
+			expect(collapsed(wrapper)).toBe(false)
+		})
+
+		it('is open from the start when it carries a reply', async () => {
+			const { wrapper } = mountComposer()
+			eventBus.emit('composer-reply', replyTo())
+			await wrapper.vm.$nextTick()
+
+			expect(collapsed(wrapper)).toBe(false)
+		})
+	})
+
 	describe('lifecycle', () => {
 		it('listens for replies only while mounted', () => {
 			const { wrapper } = mountComposer()
