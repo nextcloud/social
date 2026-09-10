@@ -93,4 +93,48 @@ describe('FollowRequests', () => {
 		expect(showError).toHaveBeenCalled()
 		expect(wrapper.findAll('.follow-request')).toHaveLength(2)
 	})
+
+	describe('answering a request', () => {
+		it('renders the list through a transition group, so a row can collapse out of it', async () => {
+			// the rows were plain siblings: an answered one blinked away and
+			// the ones below jumped into the space it left
+			const wrapper = await mountView()
+			const group = wrapper.find('transition-group-stub')
+
+			expect(group.exists()).toBe(true)
+			expect(group.attributes('name')).toBe('collapse')
+			expect(group.findAll('.follow-request')).toHaveLength(2)
+		})
+
+		it('keys the rows on the account, so the rows that stay are the very same rows', async () => {
+			// keyed on the index, Vue answers a removal by patching Bob's row
+			// into Carol and dropping the last one: the wrong row collapses and
+			// Carol's row is rebuilt underneath the reader
+			const wrapper = await mountView()
+			const before = wrapper.findAll('.follow-request').map((row) => row.element)
+			axios.post.mockResolvedValueOnce({ data: {} })
+
+			await wrapper.findAll('.follow-request__actions button')[0].trigger('click')
+			await flushPromises()
+
+			const after = wrapper.findAll('.follow-request').map((row) => row.element)
+			expect(after).toHaveLength(1)
+			expect(after[0]).toBe(before[1])
+			expect(after[0].textContent).toContain('Carol')
+		})
+
+		it('brings the empty state in through a transition once the last one is answered', async () => {
+			const wrapper = await mountView([bob])
+			expect(wrapper.find('.empty-content').exists()).toBe(false)
+			axios.post.mockResolvedValueOnce({ data: {} })
+
+			await wrapper.findAll('.follow-request__actions button')[0].trigger('click')
+			await flushPromises()
+
+			expect(wrapper.findAll('.follow-request')).toHaveLength(0)
+			const empty = wrapper.find('transition-stub')
+			expect(empty.attributes('name')).toBe('empty')
+			expect(empty.find('.empty-content').exists()).toBe(true)
+		})
+	})
 })

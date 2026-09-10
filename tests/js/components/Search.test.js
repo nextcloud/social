@@ -252,4 +252,114 @@ describe('Search', () => {
 		expect(get).not.toHaveBeenCalled()
 		expect(wrapper.findComponent(NcEmptyContentStub).exists()).toBe(true)
 	})
+
+	describe('results arriving', () => {
+		/** @return {object} a promise with its resolve, to land responses out of order */
+		const deferred = () => {
+			let settle
+			const promise = new Promise((resolve) => {
+				settle = resolve
+			})
+			return { promise, settle }
+		}
+
+		it('brings each section in through a transition group', async () => {
+			// the three lists appeared all at once, hard, while the timelines
+			// around them animate every insertion
+			get.mockResolvedValue(response({
+				accounts: [bob, carol],
+				hashtags: ['nextcloud'],
+				statuses: [status('1')],
+			}))
+			const wrapper = mountSearch('nextcloud')
+			await flushPromises()
+
+			const groups = wrapper.findAll('transition-group-stub')
+			expect(groups).toHaveLength(3)
+			expect(groups.map((group) => group.attributes('name'))).toEqual(['result', 'result', 'result'])
+			expect(groups[0].findAllComponents(UserEntryStub)).toHaveLength(2)
+			expect(groups[1].findAll('li.tag')).toHaveLength(1)
+			expect(groups[2].findAllComponents(TimelineEntryStub)).toHaveLength(1)
+		})
+
+		it('keeps the results a refined term still finds, rather than rebuilding the list', async () => {
+			// keyed on the index, Vue answers [bob, carol] -> [carol] by
+			// patching Bob's entry into Carol and dropping the last one, so
+			// the result that stayed is a different element and animates as
+			// though it had just arrived
+			vi.useFakeTimers()
+			try {
+				get.mockResolvedValue(response({ accounts: [bob, carol] }))
+				const wrapper = mountSearch('o')
+				await flushPromises()
+				const before = wrapper.findAll('.user-entry-stub').map((entry) => entry.element)
+
+				get.mockResolvedValue(response({ accounts: [carol] }))
+				await wrapper.setProps({ term: 'carol' })
+				vi.advanceTimersByTime(300)
+				await flushPromises()
+
+				const after = wrapper.findAll('.user-entry-stub').map((entry) => entry.element)
+				expect(after).toHaveLength(1)
+				expect(after[0]).toBe(before[1])
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('holds the previous results on screen while a refined term is being searched', async () => {
+			// results -> spinner -> results, on every refinement, was a flicker
+			vi.useFakeTimers()
+			try {
+				const slow = deferred()
+				get.mockResolvedValueOnce(response({ accounts: [bob, carol] }))
+				const wrapper = mountSearch('o')
+				await flushPromises()
+
+				get.mockReturnValueOnce(slow.promise)
+				await wrapper.setProps({ term: 'carol' })
+				vi.advanceTimersByTime(300)
+				await flushPromises()
+
+				expect(wrapper.find('.loading-stub').exists()).toBe(false)
+				expect(wrapper.findAllComponents(UserEntryStub)).toHaveLength(2)
+				expect(wrapper.find('.social__search').attributes('aria-busy')).toBe('true')
+
+				slow.settle(response({ accounts: [carol] }))
+				await flushPromises()
+				expect(wrapper.find('.social__search').attributes('aria-busy')).toBe('false')
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('puts results that no longer answer the typed term on screen without motion', async () => {
+			// the responses are not ordered, and an earlier one can still land
+			// last: that is a known problem of this component, not fixed here,
+			// but the stale results must not be animated in as the answer
+			vi.useFakeTimers()
+			try {
+				const first = deferred()
+				const second = deferred()
+				get.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+				const wrapper = mountSearch('bob')
+
+				await wrapper.setProps({ term: 'bobby' })
+				vi.advanceTimersByTime(300)
+				await flushPromises()
+
+				// the answer to 'bob' lands while 'bobby' is what is being asked
+				first.settle(response({ accounts: [bob] }))
+				await flushPromises()
+				expect(wrapper.findAllComponents(UserEntryStub)).toHaveLength(1)
+				expect(wrapper.find('transition-group-stub').attributes('css')).toBe('false')
+
+				second.settle(response({ accounts: [bob, carol] }))
+				await flushPromises()
+				expect(wrapper.find('transition-group-stub').attributes('css')).toBe('true')
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+	})
 })

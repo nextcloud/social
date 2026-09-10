@@ -5,41 +5,50 @@
 <template>
 	<div class="social__follow-requests">
 		<h2>{{ t('social', 'Follow requests') }}</h2>
-		<NcEmptyContent v-if="!loading && requests.length === 0"
-			:name="t('social', 'No pending follow requests')"
-			:description="t('social', 'When your account is locked, people asking to follow you show up here.')">
-			<template #icon>
-				<AccountClock />
-			</template>
-		</NcEmptyContent>
-		<div v-for="account in requests" :key="account.id" class="follow-request">
-			<div class="follow-request__user">
-				<NcAvatar :url="account.avatar" :disable-tooltip="true" />
-				<router-link :to="{ name: 'profile', params: { account: account.acct } }">
-					<span class="follow-request__name">{{ account.display_name || account.username }}</span>
-					<span class="follow-request__acct">{{ account.acct }}</span>
-				</router-link>
+		<!-- the empty state waits for the last row to finish collapsing (the
+		     delay is on .empty-enter-active) so the two do not cross -->
+		<transition name="empty">
+			<NcEmptyContent v-if="!loading && requests.length === 0"
+				:name="t('social', 'No pending follow requests')"
+				:description="t('social', 'When your account is locked, people asking to follow you show up here.')">
+				<template #icon>
+					<AccountClock />
+				</template>
+			</NcEmptyContent>
+		</transition>
+		<!-- keyed on the account id, never on the index: on removal an index
+		     key makes Vue patch the row above into the one below and drop the
+		     last row, so the wrong row would collapse -->
+		<transition-group name="collapse" tag="div" class="follow-request-list">
+			<div v-for="account in requests" :key="account.id" class="follow-request">
+				<div class="follow-request__user">
+					<NcAvatar :url="account.avatar" :disable-tooltip="true" />
+					<router-link :to="{ name: 'profile', params: { account: account.acct } }">
+						<span class="follow-request__name">{{ account.display_name || account.username }}</span>
+						<span class="follow-request__acct">{{ account.acct }}</span>
+					</router-link>
+				</div>
+				<div class="follow-request__actions">
+					<NcButton :disabled="busy.includes(account.id)"
+						variant="primary"
+						:aria-label="t('social', 'Accept')"
+						@click="decide(account, true)">
+						<template #icon>
+							<Check :size="20" />
+						</template>
+						{{ t('social', 'Accept') }}
+					</NcButton>
+					<NcButton :disabled="busy.includes(account.id)"
+						:aria-label="t('social', 'Reject')"
+						@click="decide(account, false)">
+						<template #icon>
+							<Close :size="20" />
+						</template>
+						{{ t('social', 'Reject') }}
+					</NcButton>
+				</div>
 			</div>
-			<div class="follow-request__actions">
-				<NcButton :disabled="busy.includes(account.id)"
-					variant="primary"
-					:aria-label="t('social', 'Accept')"
-					@click="decide(account, true)">
-					<template #icon>
-						<Check :size="20" />
-					</template>
-					{{ t('social', 'Accept') }}
-				</NcButton>
-				<NcButton :disabled="busy.includes(account.id)"
-					:aria-label="t('social', 'Reject')"
-					@click="decide(account, false)">
-					<template #icon>
-						<Close :size="20" />
-					</template>
-					{{ t('social', 'Reject') }}
-				</NcButton>
-			</div>
-		</div>
+		</transition-group>
 		<div v-if="loading" class="loading-indicator">
 			{{ t('social', 'Loading…') }}
 		</div>
@@ -166,5 +175,61 @@ export default {
 .loading-indicator {
 	text-align: center;
 	padding: 20px;
+}
+
+/**
+ * An answered request collapses out of the list rather than blinking away,
+ * so the reader sees which row they just answered and the rows below close
+ * the gap instead of jumping into it.
+ *
+ * Same motion as the shared `list` transition in App.vue — .2s ease for the
+ * fade and the shift — with the height taken out over .3s ease-out, the way
+ * the welcome banner in Timeline.vue collapses. The max-height is headroom
+ * for one row, not a measurement: it only has to be larger than a row.
+ */
+.collapse-enter-active,
+.collapse-leave-active {
+	overflow: hidden;
+	max-height: 120px;
+	transition: opacity .2s ease, transform .2s ease, max-height .3s ease-out, padding .3s ease-out;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+	opacity: 0;
+	transform: translateY(-6px);
+	max-height: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+/* an inserted row pushes the others down instead of displacing them */
+.collapse-move {
+	transition: transform .2s ease;
+}
+
+/* "nothing pending" arrives as the last row finishes collapsing, not on top of it */
+.empty-enter-active {
+	transition: opacity .2s ease .25s, transform .2s ease .25s;
+}
+
+.empty-leave-active {
+	transition: opacity .15s ease;
+}
+
+.empty-enter-from,
+.empty-leave-to {
+	opacity: 0;
+	transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.collapse-enter-active,
+	.collapse-leave-active,
+	.collapse-move,
+	.empty-enter-active,
+	.empty-leave-active {
+		transition: none;
+	}
 }
 </style>
