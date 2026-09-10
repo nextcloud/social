@@ -25,9 +25,6 @@
 				<span class="post-author-name">
 					{{ currentUser.displayName }}
 				</span>
-				<span class="post-author-id">
-					{{ socialId }}
-				</span>
 			</div>
 		</div>
 		<div v-if="replyTo" class="reply-to">
@@ -1039,17 +1036,12 @@ $composer-duration: 220ms;
 
 	.post-author {
 		display: flex;
-		flex-direction: column;
+		align-items: center;
 
 		.post-author-name {
 			font-weight: 700;
 			font-size: 14px;
 			line-height: 1.3;
-		}
-
-		.post-author-id {
-			font-size: 12px;
-			color: var(--color-text-lighter);
 		}
 	}
 }

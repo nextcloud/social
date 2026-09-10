@@ -227,10 +227,15 @@ describe('Composer', () => {
 	})
 
 	describe('author', () => {
-		it('shows the current user with their federated handle', () => {
+		it('names the author, and does not repeat their handle at them', () => {
+			// whose account it is was never in question here — the composer only
+			// ever writes as the reader — so the handle was a second line saying
+			// nothing the first did not
 			const { wrapper } = mountComposer()
+
 			expect(wrapper.find('.post-author-name').text()).toBe('Alice')
-			expect(wrapper.find('.post-author-id').text()).toBe('@alice@cloud.example.org')
+			expect(wrapper.find('.post-author-id').exists()).toBe(false)
+			expect(wrapper.find('.new-post-author').text()).not.toContain('@alice')
 		})
 	})
 
