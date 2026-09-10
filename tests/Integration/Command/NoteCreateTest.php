@@ -10,8 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Command;
 
 use OCA\Social\Command\NoteCreate;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\StreamRequest;
-use OCA\Social\Service\AccountService;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\SignatureService;
 use OCP\IUserManager;
 use OCP\Server;
 
@@ -27,6 +30,9 @@ use OCP\Server;
 class NoteCreateTest extends CommandTestCase {
 	private string $userId = '';
 
+	/** Set when this test made the actor, so only then does it remove it. */
+	private string $createdActor = '';
+
 	/** @var string[] ids of the notes this test created */
 	private array $created = [];
 
@@ -41,13 +47,31 @@ class NoteCreateTest extends CommandTestCase {
 		}
 
 		$this->userId = (string)array_key_first($users);
-		Server::get(AccountService::class)->getActorFromUserId($this->userId, true);
+
+		// built directly rather than through AccountService, which refreshes the
+		// actor cache and so reaches out to this instance's own public address —
+		// something a test runner generally cannot do
+		$actorsRequest = Server::get(ActorsRequest::class);
+		try {
+			$actorsRequest->getFromUserId($this->userId);
+		} catch (ActorDoesNotExistException $e) {
+			$actor = new Person();
+			$actor->setPreferredUsername($this->userId);
+			$actor->setUserId($this->userId);
+			Server::get(SignatureService::class)->generateKeys($actor);
+			$actorsRequest->create($actor);
+			$this->createdActor = $this->userId;
+		}
 	}
 
 	protected function tearDown(): void {
 		$streamRequest = Server::get(StreamRequest::class);
 		foreach ($this->created as $id) {
 			$streamRequest->deleteById($id);
+		}
+
+		if ($this->createdActor !== '') {
+			Server::get(ActorsRequest::class)->delete($this->createdActor);
 		}
 
 		parent::tearDown();

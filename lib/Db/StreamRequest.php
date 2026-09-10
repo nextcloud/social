@@ -426,7 +426,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
 
-		$qb->orderBy('id', 'desc');
+		// qualified, and by the time rather than the id: `id` is a column on the
+		// joined dest table too, so the unqualified name was ambiguous and the
+		// database refused the query outright — and the id it meant to sort on
+		// is the post's URL, which says nothing about when it was written
+		$qb->orderBy('s.published_time', 'desc');
 		$qb->setMaxResults(1);
 
 		return $this->getStreamFromRequest($qb);
