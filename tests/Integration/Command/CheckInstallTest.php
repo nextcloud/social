@@ -53,7 +53,7 @@ class CheckInstallTest extends CommandTestCase {
 
 	public function testIndexIsRefusedNonInteractivelyWithoutForce(): void {
 		$connection = Server::get(IDBConnection::class);
-		$before = $this->count($connection, CoreRequestBuilder::TABLE_STREAM_DEST);
+		$before = $this->countRows($connection, CoreRequestBuilder::TABLE_STREAM_DEST);
 		$tester = $this->tester(CheckInstall::class);
 
 		// A ConfirmationQuestion answers itself with false when nobody is
@@ -63,18 +63,18 @@ class CheckInstallTest extends CommandTestCase {
 		$code = $this->runNonInteractive($tester, ['--index' => true]);
 
 		$this->assertSame(1, $code);
-		$this->assertSame($before, $this->count($connection, CoreRequestBuilder::TABLE_STREAM_DEST));
+		$this->assertSame($before, $this->countRows($connection, CoreRequestBuilder::TABLE_STREAM_DEST));
 	}
 
 	public function testDecliningTheIndexRebuildLeavesTheIndexAlone(): void {
 		$connection = Server::get(IDBConnection::class);
-		$before = $this->count($connection, CoreRequestBuilder::TABLE_STREAM_DEST);
+		$before = $this->countRows($connection, CoreRequestBuilder::TABLE_STREAM_DEST);
 		$tester = $this->tester(CheckInstall::class);
 
 		$code = $this->runInteractive($tester, ['--index' => true], ['n']);
 
 		$this->assertSame(0, $code);
-		$this->assertSame($before, $this->count($connection, CoreRequestBuilder::TABLE_STREAM_DEST));
+		$this->assertSame($before, $this->countRows($connection, CoreRequestBuilder::TABLE_STREAM_DEST));
 	}
 
 	/**
@@ -84,7 +84,7 @@ class CheckInstallTest extends CommandTestCase {
 	 */
 	public function testForcedIndexRebuildRestoresTheIndex(): void {
 		$connection = Server::get(IDBConnection::class);
-		$streams = $this->count($connection, CoreRequestBuilder::TABLE_STREAM);
+		$streams = $this->countRows($connection, CoreRequestBuilder::TABLE_STREAM);
 		if ($streams === 0) {
 			$this->markTestSkipped('no streams on this instance to index');
 		}
@@ -101,12 +101,12 @@ class CheckInstallTest extends CommandTestCase {
 		}
 		$this->assertGreaterThan(
 			0,
-			$this->count($connection, CoreRequestBuilder::TABLE_STREAM_DEST),
+			$this->countRows($connection, CoreRequestBuilder::TABLE_STREAM_DEST),
 			'the rebuild truncates the index first, so an empty index means it never refilled it'
 		);
 	}
 
-	private function count(IDBConnection $connection, string $table): int {
+	private function countRows(IDBConnection $connection, string $table): int {
 		$qb = $connection->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'total'))->from($table);
 		$cursor = $qb->executeQuery();
