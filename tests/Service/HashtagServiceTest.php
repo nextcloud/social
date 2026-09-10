@@ -170,14 +170,44 @@ class HashtagServiceTest extends TestCase {
 		// on a quiet instance almost nothing has changed since the last one
 		$requestedSince = [];
 		$this->counting([['steady', 60, 2]], $requestedSince);
+		$steady = ['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2];
 		$this->hashtagsRequest->method('getAll')->willReturn([
-			['hashtag' => 'steady', 'trend' => ['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2]],
+			['hashtag' => 'steady', 'trend' => $steady, 'counters' => $steady],
 		]);
 
 		$this->hashtagsRequest->expects($this->never())->method('update');
 		$this->hashtagsRequest->expects($this->never())->method('save');
 
 		$this->assertSame(0, $this->service->manageHashtags());
+	}
+
+	public function testAHashtagWhoseColumnsLagItsJsonIsWrittenAgain(): void {
+		// what an upgrade leaves behind: the JSON trend is the one the previous
+		// version wrote and is right, the sortable columns were added zeroed.
+		// The counts of a hashtag rarely move between two passes, so skipping on
+		// "the JSON has not changed" left those rows out of the trends endpoint
+		// and the dashboard widget for good — both read the columns.
+		$requestedSince = [];
+		$this->counting([['steady', 60, 2]], $requestedSince);
+		$steady = ['1h' => 2, '12h' => 2, '1d' => 2, '3d' => 2, '10d' => 2];
+		$this->hashtagsRequest->method('getAll')->willReturn([
+			[
+				'hashtag' => 'steady',
+				'trend' => $steady,
+				'counters' => ['1h' => 0, '12h' => 0, '1d' => 0, '3d' => 0, '10d' => 0],
+			],
+		]);
+
+		$written = [];
+		$this->hashtagsRequest->expects($this->once())
+			->method('update')
+			->willReturnCallback(function (string $hashtag, array $trend) use (&$written): void {
+				$written[$hashtag] = $trend;
+			});
+		$this->hashtagsRequest->expects($this->never())->method('save');
+
+		$this->assertSame(1, $this->service->manageHashtags());
+		$this->assertSame($steady, $written['steady']);
 	}
 
 	public function testTheCountingIsOneGroupedQueryPerWindow(): void {

@@ -27,9 +27,12 @@ use OCP\Migration\SimpleMigrationStep;
  *
  * The counts now also live in one integer column per window, written by the
  * same cron pass that writes the JSON. The JSON column stays: it is what the
- * API hands back, and it keeps this migration free of any backfill — the next
- * cron pass fills the columns in, and until then a trend reads as zero rather
- * than wrong.
+ * API hands back.
+ *
+ * The columns are added zeroed here. Filling them in for the rows an upgraded
+ * instance already has is Version1000Date20260910000003 — this step assumed
+ * the next cron pass would do it, which was wrong, because the cron skips a
+ * hashtag whose counts have not moved.
  *
  * Columns are added with a default, so no table is rewritten with a NOT NULL
  * scan on PostgreSQL.

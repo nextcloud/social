@@ -73,6 +73,11 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	}
 
 	/**
+	 * Rows carry a `counters` entry next to the JSON `trend`: the same numbers
+	 * as the sortable columns hold them. The trends cron needs to see the two
+	 * disagree — a row upgraded from a version that had no columns has a
+	 * correct JSON and zeroed columns, and nothing else would ever notice.
+	 *
 	 * @param int $limit 0 for every row — what the trends cron needs, since it
 	 *                   has to know which hashtags already have a row
 	 *
@@ -80,6 +85,9 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 	 */
 	public function getAll(int $limit = 0): array {
 		$qb = $this->getHashtagsSelectSql();
+		foreach (self::TREND_COLUMNS as $column) {
+			$qb->addSelect('h.' . $column);
+		}
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 		}
@@ -87,11 +95,28 @@ class HashtagsRequest extends HashtagsRequestBuilder {
 		$hashtags = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$hashtags[] = $this->parseHashtagsSelectSql($data);
+			$hashtags[] = array_merge(
+				$this->parseHashtagsSelectSql($data),
+				['counters' => self::countersFromRow($data)]
+			);
 		}
 		$cursor->closeCursor();
 
 		return $hashtags;
+	}
+
+	/**
+	 * The sortable counters of one row, keyed by window.
+	 *
+	 * @return array<string, int>
+	 */
+	public static function countersFromRow(array $data): array {
+		$counters = [];
+		foreach (self::TREND_COLUMNS as $period => $column) {
+			$counters[$period] = (int)($data[$column] ?? 0);
+		}
+
+		return $counters;
 	}
 
 	/**

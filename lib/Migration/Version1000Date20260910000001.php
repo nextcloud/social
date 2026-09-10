@@ -51,10 +51,24 @@ use OCP\Migration\SimpleMigrationStep;
  * declared unique. It costs an index write on every insert into the largest
  * table on the instance and can serve no query the `id_prim` index cannot.
  *
- * No table is rebuilt or rewritten here: these are index additions and one
- * index drop. On a large MySQL/MariaDB instance the additions are online
- * (ALGORITHM=INPLACE) but still take time proportional to the table, and
- * `social_stream` / `social_stream_act` / `social_cache_doc` are the big ones.
+ * What this costs an operator depends entirely on the database:
+ *
+ *  - MySQL/MariaDB and PostgreSQL get what it says on the tin — 15 statements,
+ *    index additions plus the one drop, no table touched otherwise. On
+ *    MySQL/MariaDB the additions are online (ALGORITHM=INPLACE) but still take
+ *    time proportional to the table, and `social_stream` / `social_stream_act`
+ *    / `social_cache_doc` are the big ones.
+ *  - SQLite cannot add or drop an index in place: Doctrine's SqlitePlatform
+ *    implements every index change as a full table rebuild, so these fourteen
+ *    additions and one drop become 79 statements that copy ten tables —
+ *    `social_stream`, `social_cache_actor`, `social_cache_doc`,
+ *    `social_follow`, `social_action`, `social_client`, both queues and both
+ *    stream side tables — into a temporary table, drop the original, recreate
+ *    it and copy the rows back, then rebuild every index each table had.
+ *    Plan the maintenance window for a rewrite of nearly the whole app schema,
+ *    and for peak disk of roughly twice what those tables occupy. The data is
+ *    not at risk: SQLite DDL is transactional and Nextcloud runs a migration
+ *    inside a transaction on every platform except MySQL.
  */
 class Version1000Date20260910000001 extends SimpleMigrationStep {
 	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {

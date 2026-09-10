@@ -102,8 +102,15 @@ class HashtagService {
 		foreach ($formatted as $hashtag => $trend) {
 			try {
 				$known = $this->getFromList($current, $hashtag);
-				if ($this->getArray('trend', $known, []) === $trend) {
-					// nothing moved for this hashtag since the last pass
+				if ($this->getArray('trend', $known, []) === $trend
+					&& $this->getArray('counters', $known, []) === $trend) {
+					// nothing moved for this hashtag since the last pass, and
+					// the sortable columns agree with the JSON. The second half
+					// matters on an instance upgraded from a version that had
+					// no columns: its JSON is right and its columns are zero,
+					// and on a quiet instance the counts never move again — so
+					// without this the row would stay out of the trends for
+					// good, because getTrending() reads the columns.
 					continue;
 				}
 

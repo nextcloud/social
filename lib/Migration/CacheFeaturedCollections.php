@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Migration;
 
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
+use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 
@@ -45,6 +47,7 @@ class CacheFeaturedCollections implements IRepairStep {
 		private ActorsRequest $actorsRequest,
 		private AccountService $accountService,
 		private ConfigService $configService,
+		private IDBConnection $connection,
 	) {
 	}
 
@@ -57,8 +60,12 @@ class CacheFeaturedCollections implements IRepairStep {
 			return;
 		}
 
-		$actors = $this->actorsRequest->getAll();
-		if (count($actors) > self::INLINE_LIMIT) {
+		// counted, not loaded: `getAll()` builds a Person per row with no limit,
+		// so asking it how many there are is exactly the work this guard exists
+		// to avoid — on a large instance it can hit the memory limit and fail
+		// the upgrade before the guard ever gets to decline the job.
+		$total = $this->countLocalActors();
+		if ($total > self::INLINE_LIMIT) {
 			// Doing this inline would hold the upgrade open for a long time.
 			// `occ social:cache:refresh` does the same work and can be run
 			// whenever it suits the operator.
@@ -67,7 +74,7 @@ class CacheFeaturedCollections implements IRepairStep {
 					'%d local actors need their cache refreshed; skipping it here to keep the '
 					. 'upgrade short. Run "occ social:cache:refresh" to publish their display '
 					. 'names and featured collections.',
-					count($actors)
+					$total
 				)
 			);
 			$this->configService->setAppValue(self::MARKER, (string)self::VERSION);
@@ -75,6 +82,7 @@ class CacheFeaturedCollections implements IRepairStep {
 			return;
 		}
 
+		$actors = $this->actorsRequest->getAll();
 		$refreshed = 0;
 		$output->startProgress(count($actors));
 		foreach ($actors as $actor) {
@@ -96,5 +104,21 @@ class CacheFeaturedCollections implements IRepairStep {
 		}
 
 		$this->configService->setAppValue(self::MARKER, (string)self::VERSION);
+	}
+
+	/**
+	 * Same rows `ActorsRequest::getAll()` returns, without building a model for
+	 * any of them.
+	 */
+	private function countLocalActors(): int {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'total'))
+			->from(CoreRequestBuilder::TABLE_ACTORS);
+
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($row['total'] ?? 0);
 	}
 }

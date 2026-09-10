@@ -23,9 +23,10 @@ use PHPUnit\Framework\TestCase;
  */
 class SchemaConventionsTest extends TestCase {
 	/**
-	 * Index names Nextcloud will reject. The limit is a hard 30 characters,
-	 * and it is checked when the migration runs — i.e. during somebody's
-	 * upgrade.
+	 * Nextcloud's own hard limit is 63 characters, checked when the migration
+	 * runs — i.e. during somebody's upgrade (`MigrationService::
+	 * ensureNamingConstraints()`). This app holds itself to 30, which is what
+	 * Oracle accepted and what every existing name here fits in.
 	 */
 	private const MAX_INDEX_NAME = 30;
 
@@ -46,12 +47,26 @@ class SchemaConventionsTest extends TestCase {
 		$found = [];
 		foreach (glob(__DIR__ . '/../../lib/Migration/*.php') as $file) {
 			$source = (string)file_get_contents($file);
+
+			// a name passed straight to addIndex()/addUniqueIndex()
 			preg_match_all(
 				"/add(?:Unique)?Index\(\s*\[[^\]]*\]\s*,\s*'([^']+)'/",
 				$source,
-				$matches
+				$direct
 			);
-			$found[basename($file)] = $matches[1];
+
+			// …and one declared in a table of [table, [columns], name] rows that
+			// a loop then feeds to addIndex(). A migration written that way was
+			// checked by nothing at all, which is the shape the app now uses.
+			preg_match_all(
+				"/\[\s*'[^']+'\s*,\s*\[[^\]]*\]\s*,\s*'([^']+)'\s*[,\]]/",
+				$source,
+				$tabular
+			);
+
+			$found[basename($file)] = array_values(
+				array_unique(array_merge($direct[1], $tabular[1]))
+			);
 		}
 
 		return $found;
@@ -64,7 +79,7 @@ class SchemaConventionsTest extends TestCase {
 					self::MAX_INDEX_NAME,
 					strlen($name),
 					$file . ' declares the index "' . $name . '" (' . strlen($name)
-					. ' characters); Nextcloud rejects anything over ' . self::MAX_INDEX_NAME
+					. ' characters); this app keeps index names to ' . self::MAX_INDEX_NAME
 				);
 			}
 		}
