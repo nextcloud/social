@@ -104,4 +104,32 @@ class PostTest extends TestCase {
 			'type' => 'public',
 		], $post->jsonSerialize());
 	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public function clientVisibilityProvider(): array {
+		return [
+			'public stays public' => ['public', Stream::TYPE_PUBLIC],
+			'unlisted stays unlisted' => ['unlisted', Stream::TYPE_UNLISTED],
+			// the whole point: Mastodon's followers-only value
+			'mastodon private means followers' => ['private', Stream::TYPE_FOLLOWERS],
+			'our own followers is accepted too' => ['followers', Stream::TYPE_FOLLOWERS],
+			'direct stays direct' => ['direct', Stream::TYPE_DIRECT],
+			'case and padding do not matter' => ['  PRIVATE ', Stream::TYPE_FOLLOWERS],
+			// never public: an unknown value used to be addressed to as:Public
+			'an unknown value is not public' => ['whatever', Stream::TYPE_DIRECT],
+			'an empty value is not public' => ['', Stream::TYPE_DIRECT],
+		];
+	}
+
+	/**
+	 * @dataProvider clientVisibilityProvider
+	 */
+	public function testSetTypeNormalisesTheClientVisibility(string $sent, string $expected): void {
+		$post = new Post($this->alice());
+		$post->setType($sent);
+
+		$this->assertSame($expected, $post->getType());
+	}
 }

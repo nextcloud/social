@@ -99,7 +99,9 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 			/** @var Reject $reject */
 			$reject = AP::$activityPub->getItemFromType(Reject::TYPE);
-			$reject->generateUniqueId('#reject/follows');
+			// hung off the local actor, not the cloud root: see
+			// ACore::generateUniqueIdFromActor()
+			$reject->generateUniqueIdFromActor($follow->getObjectId(), 'reject/follows');
 			$reject->setActorId($follow->getObjectId());
 			$reject->setObject($follow);
 
@@ -124,7 +126,7 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			$remoteActor = $this->cacheActorService->getFromId($follow->getActorId());
 
 			$accept = AP::$activityPub->getItemFromType(Accept::TYPE);
-			$accept->generateUniqueId('#accept/follows');
+			$accept->generateUniqueIdFromActor($follow->getObjectId(), 'accept/follows');
 			$accept->setActorId($follow->getObjectId());
 			$accept->setObject($follow);
 			//			$follow->setParent($accept);

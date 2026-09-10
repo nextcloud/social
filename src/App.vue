@@ -10,7 +10,11 @@
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<SetupChecks :checks="serverData.checks.checks" :addresses="serverData.checks.addresses" />
 			</div>
-			<router-view :key="$route.fullPath" />
+			<!-- not keyed on the full path: that remounted the whole view on
+			     every route change, so opening a post and pressing Back
+			     refetched page one and landed at the top of the timeline.
+			     The views watch their own route params instead. -->
+			<router-view />
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else app-name="social">
@@ -28,8 +32,8 @@
 						type="url"
 						class="setup-input"
 						required>
-					<NcButton type="primary"
-						native-type="submit">
+					<NcButton variant="primary"
+						type="submit">
 						{{ t('social', 'Finish setup') }}
 					</NcButton>
 				</p>
@@ -93,8 +97,10 @@ export default {
 		eventBus.off('shortcut:home', this.goHome)
 	},
 	watch: {
-		$route() {
-			this.$store.commit('setSearchQuery', '')
+		$route(to) {
+			// the query lives in the URL now; keep the store in step with it
+			// so the navigation's search box shows what is being searched
+			this.$store.commit('setSearchQuery', to.name === 'search' ? String(to.params.term ?? '') : '')
 		},
 	},
 	beforeMount() {
@@ -126,8 +132,31 @@ export default {
 				this.$store.commit('setServerDataEntry', { key: 'cloudAddress', value: this.cloudAddress })
 			})
 		},
+		/**
+		 * Searching asks the server, on its own route.
+		 *
+		 * It used to commit the term to the store, where two getters filtered
+		 * the ~15 statuses that happened to be loaded with String.includes —
+		 * so a fresh timeline answered "No posts match your search" for posts
+		 * this instance was holding.
+		 *
+		 * @param {string} term what was typed
+		 */
 		search(term) {
-			this.$store.commit('setSearchQuery', term)
+			const query = (term ?? '').trim()
+			this.$store.commit('setSearchQuery', query)
+
+			if (query === '') {
+				if (this.$route.name === 'search') {
+					this.$router.push({ name: 'timeline' })
+				}
+				return
+			}
+
+			// replace while the term is being refined, so Back does not have
+			// to walk out through every keystroke
+			const navigate = this.$route.name === 'search' ? this.$router.replace : this.$router.push
+			navigate.call(this.$router, { name: 'search', params: { term: query } })
 		},
 		fromPushApp(data) {
 			let timeline = 'home'

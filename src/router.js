@@ -13,6 +13,7 @@ const ProfileTimeline = () => import(/* webpackChunkName: "profile" */'./views/P
 const ProfileFollowers = () => import(/* webpackChunkName: "profile" */'./views/ProfileFollowers.vue')
 const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
 const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
+const Search = () => import('./components/Search.vue')
 
 /**
  * The path the app is actually served from, which is what the history base has
@@ -35,6 +36,28 @@ function getBase() {
 const router = createRouter({
 	history: createWebHistory(getBase()),
 	linkActiveClass: 'active',
+	/**
+	 * Where to be after a navigation. Without this every route change landed
+	 * at whatever offset the previous page happened to be at, and pressing
+	 * Back out of a post left the reader at the top of the timeline with no
+	 * way of finding their place again.
+	 *
+	 * @param {object} to the route being entered
+	 * @param {object} from the route being left
+	 * @param {object|null} savedPosition where Back or Forward was last at
+	 * @return {object|Promise<object>} the scroll target
+	 */
+	scrollBehavior(to, from, savedPosition) {
+		if (savedPosition) {
+			return savedPosition
+		}
+
+		if (to.hash) {
+			return { el: to.hash, behavior: 'smooth' }
+		}
+
+		return { top: 0 }
+	},
 	routes: [
 		{
 			path: '/',
@@ -99,6 +122,14 @@ const router = createRouter({
 				default: BlockedAccounts,
 			},
 			name: 'blocked-accounts',
+		},
+		{
+			path: '/search/:term?',
+			components: {
+				default: Search,
+			},
+			props: true,
+			name: 'search',
 		},
 		{
 			path: '/@:account/:id',

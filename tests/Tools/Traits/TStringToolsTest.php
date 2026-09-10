@@ -50,6 +50,32 @@ class TStringToolsTest extends TestCase {
 		$this->assertNotSame($uuid, $this->tools->uuid());
 	}
 
+	public function testUuidsAreDrawnFromTheSystemRandomSource(): void {
+		// a uuid is a document id and the filename behind /media/{uuid}, so it
+		// has to be unguessable, not merely unique: mt_rand() is seeded state
+		// that a handful of observed values recovers
+		$seen = [];
+		for ($i = 0; $i < 200; $i++) {
+			$seen[] = $this->tools->uuid();
+		}
+
+		$this->assertCount(200, array_unique($seen));
+
+		// the same seed twice must not reproduce the sequence
+		mt_srand(1);
+		$first = $this->tools->uuid();
+		mt_srand(1);
+		$this->assertNotSame($first, $this->tools->uuid());
+	}
+
+	public function testUuidCarriesTheVersionAndVariantBits(): void {
+		for ($i = 0; $i < 20; $i++) {
+			$uuid = $this->tools->uuid();
+			$this->assertSame('4', $uuid[14], 'version nibble');
+			$this->assertContains($uuid[19], ['8', '9', 'a', 'b'], 'variant nibble');
+		}
+	}
+
 	public function testShortUuidsDropTheDashesLongerOnesKeepThem(): void {
 		$this->assertMatchesRegularExpression('/^[0-9a-f]{8}$/', $this->tools->uuid(8));
 		$this->assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $this->tools->uuid(16));

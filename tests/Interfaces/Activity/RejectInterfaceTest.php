@@ -9,18 +9,47 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
+use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use Psr\Log\NullLogger;
 
 require_once __DIR__ . '/DispatchingActivityTestCase.php';
+require_once __DIR__ . '/TResolvesActivityObjects.php';
 
 class RejectInterfaceTest extends DispatchingActivityTestCase {
+	use TResolvesActivityObjects;
+
+	private ActivityObjectResolver $objectResolver;
+
+	protected function setUp(): void {
+		parent::setUp();
+
+		$this->objectResolver = $this->objectResolverOver();
+	}
+
 	protected function createHandler(): IActivityPubInterface {
-		return new RejectInterface();
+		return new RejectInterface($this->objectResolver, new NullLogger());
 	}
 
 	protected function activityType(): string {
 		return Reject::TYPE;
+	}
+
+	public function testRejectCarryingTheFollowAsALinkReachesTheFollowInterface(): void {
+		$follow = new Follow();
+		$follow->setId(self::LOCAL_URL . '/follows/1');
+		$this->objectResolver = $this->objectResolverOver([self::LOCAL_URL . '/follows/1' => $follow]);
+
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', self::REMOTE_URL . '/users/bob');
+		$reject->setObjectId(self::LOCAL_URL . '/follows/1');
+
+		$this->followInterface->expects($this->once())
+			->method('activity')
+			->with($this->identicalTo($reject), $this->identicalTo($follow));
+
+		$this->createHandler()->processIncomingRequest($reject);
 	}
 }

@@ -39,6 +39,8 @@ class Instance implements IQueryRow, JsonSerializable {
 	private bool $invitesEnabled = false;
 	private ?Person $contactAccount = null;
 	private ?string $accountPrim = null;
+	private array $configuration = [];
+	private array $rules = [];
 
 	public function isLocal(): bool {
 		return $this->local;
@@ -75,13 +77,24 @@ class Instance implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * The version advertised to Mastodon API clients, Pleroma-style: clients
+	 * The Mastodon version advertised to API clients, Pleroma-style: clients
 	 * gate features on the version, so a plain app version would make them
 	 * treat the API as ancient. Only the /api/v1/instance entity carries it —
 	 * NodeInfo keeps reporting the real app version.
+	 *
+	 * The claim has to be one this app can honour, because a client believes
+	 * it: `4.1.0` switched Tusky and Ivory onto the 4.x feature set — editing
+	 * with `GET /statuses/{id}/source` and `/history`, v2 filters, translation,
+	 * `/api/v1/push/subscription` — most of which does not exist here, so
+	 * every one of those became a broken button rather than an absent one.
+	 * `3.5.0` is the last Mastodon release whose client-visible surface this
+	 * app actually covers: statuses with polls and media, timelines,
+	 * notifications, markers, relationships, bookmarks, reports and trends.
 	 */
+	public const COMPAT_VERSION = '3.5.0';
+
 	public function getCompatVersion(): string {
-		return '4.1.0 (compatible; Nextcloud Social ' . $this->version . ')';
+		return self::COMPAT_VERSION . ' (compatible; Nextcloud Social ' . $this->version . ')';
 	}
 
 	public function setVersion(string $version): self {
@@ -230,6 +243,30 @@ class Instance implements IQueryRow, JsonSerializable {
 		return $this;
 	}
 
+	/**
+	 * Mastodon's `configuration` block: the limits a client has to respect
+	 * before it lets someone write a post it cannot send.
+	 */
+	public function getConfiguration(): array {
+		return $this->configuration;
+	}
+
+	public function setConfiguration(array $configuration): self {
+		$this->configuration = $configuration;
+
+		return $this;
+	}
+
+	public function getRules(): array {
+		return $this->rules;
+	}
+
+	public function setRules(array $rules): self {
+		$this->rules = $rules;
+
+		return $this;
+	}
+
 	public function getAccountPrim(): ?string {
 		return $this->accountPrim;
 	}
@@ -267,29 +304,75 @@ class Instance implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * @return array
+	 * Mastodon's V1::Instance entity — the very first request every client
+	 * makes, and the one that decides whether it will talk to this server at
+	 * all.
+	 *
+	 * `urls`, `stats` and `configuration` are cast to objects: an empty PHP
+	 * array json-encodes as `[]`, and a client that decodes `stats.user_count`
+	 * out of a dictionary — masto.js and every typed client do — fails on a
+	 * list and reports the instance as unreachable. `contact_account` is
+	 * always present (null when unset) for the same reason.
 	 */
 	public function jsonSerialize(): array {
-		$arr = [
+		return [
 			'uri' => $this->getUri(),
 			'title' => $this->getTitle(),
 			'version' => $this->getCompatVersion(),
 			'short_description' => $this->getShortDescription(),
 			'description' => $this->getDescription(),
 			'email' => $this->getEmail(),
-			'urls' => $this->getUrls(),
-			'stats' => $this->getStats(),
-			'thumbnail' => $this->getImage(),
+			'urls' => (object)$this->getUrls(),
+			'stats' => (object)$this->getStats(),
+			'thumbnail' => ($this->getImage() === '') ? null : $this->getImage(),
 			'languages' => $this->getLanguages(),
 			'registrations' => $this->isRegistrations(),
 			'approval_required' => $this->isApprovalRequired(),
-			'invites_enabled' => $this->isInvitesEnabled()
+			'invites_enabled' => $this->isInvitesEnabled(),
+			'configuration' => (object)$this->getConfiguration(),
+			'rules' => $this->getRules(),
+			'contact_account' => $this->getContactAccount(),
 		];
+	}
 
-		if ($this->hasContactAccount()) {
-			$arr['contact_account'] = $this->getContactAccount();
-		}
+	/**
+	 * Mastodon's V2::Instance entity, served at /api/v2/instance. Same facts,
+	 * re-shaped: v1's flat fields moved under `contact`, `thumbnail` became an
+	 * object, and `uri` became `domain`.
+	 */
+	public function asV2(): array {
+		$configuration = $this->getConfiguration();
+		$stats = $this->getStats();
 
-		return $arr;
+		return [
+			'domain' => $this->getUri(),
+			'title' => $this->getTitle(),
+			'version' => $this->getCompatVersion(),
+			'source_url' => 'https://github.com/nextcloud/social',
+			'description' => ($this->getShortDescription() !== '')
+				? $this->getShortDescription() : $this->getDescription(),
+			'usage' => (object)[
+				'users' => (object)['active_month' => (int)($stats['user_count'] ?? 0)],
+			],
+			'thumbnail' => (object)['url' => $this->getImage()],
+			'languages' => $this->getLanguages(),
+			'configuration' => (object)array_merge(
+				$configuration,
+				[
+					'urls' => (object)$this->getUrls(),
+					'translation' => (object)['enabled' => false],
+				]
+			),
+			'registrations' => (object)[
+				'enabled' => $this->isRegistrations(),
+				'approval_required' => $this->isApprovalRequired(),
+				'message' => null,
+			],
+			'contact' => (object)[
+				'email' => $this->getEmail(),
+				'account' => $this->getContactAccount(),
+			],
+			'rules' => $this->getRules(),
+		];
 	}
 }

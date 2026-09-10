@@ -10,40 +10,78 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\InstancesRequest;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Instance;
+use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\PostService;
 use OCP\IConfig;
+use OCP\IURLGenerator;
+use OCP\IUserManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class InstanceServiceTest extends TestCase {
 	private InstancesRequest|MockObject $instancesRequest;
+	private ConfigService|MockObject $configService;
 	private IConfig|MockObject $config;
+	private IUserManager|MockObject $userManager;
+	private CacheDocumentService|MockObject $cacheDocumentService;
 	private InstanceService $service;
 
 	protected function setUp(): void {
 		$this->instancesRequest = $this->createMock(InstancesRequest::class);
+		$this->configService = $this->createMock(ConfigService::class);
 		$this->config = $this->createMock(IConfig::class);
+		$this->userManager = $this->createMock(IUserManager::class);
+		$this->userManager->method('countUsers')->willReturn(['Database' => 3]);
+		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
+
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('imagePath')->willReturn('/apps/social/img/social.svg');
+		$urlGenerator->method('getAbsoluteURL')
+			->willReturnCallback(static fn (string $path): string => 'https://cloud.example.org' . $path);
+
 		$this->service = new InstanceService(
 			$this->instancesRequest,
-			$this->createMock(ConfigService::class),
+			$this->configService,
 			$this->createMock(MiscService::class),
 			$this->config,
+			$urlGenerator,
+			$this->userManager,
+			$this->cacheDocumentService,
 		);
 	}
 
-	public function testCreateLocalBuildsTheInstanceFromAppAndThemingConfig(): void {
-		$this->config->method('getAppValue')
-			->willReturnCallback(fn (string $app, string $key, $default) => match ([$app, $key]) {
-				['social', 'installed_version'] => '0.9.1',
-				['theming', 'slogan'] => 'Our slogan',
-				['theming', 'name'] => 'Our Cloud',
-				default => $default,
+	/** Only the mime types the cache service actually accepts. */
+	private function allowMimeTypes(array $allowed): void {
+		$this->cacheDocumentService->method('filterMimeTypes')
+			->willReturnCallback(static function (string $mime) use ($allowed): void {
+				if (!in_array($mime, $allowed, true)) {
+					throw new CacheContentMimeTypeException();
+				}
 			});
+	}
+
+	private function theming(array $values): void {
+		$this->config->method('getAppValue')
+			->willReturnCallback(
+				fn (string $app, string $key, $default = '') => $values[$app . '.' . $key] ?? $default
+			);
+	}
+
+	public function testCreateLocalBuildsTheInstanceFromAppAndThemingConfig(): void {
+		$this->theming([
+			'social.installed_version' => '0.9.1',
+			'theming.slogan' => 'Our slogan',
+			'theming.name' => 'Our Cloud',
+		]);
+		$this->configService->method('getSocialAddress')->willReturn('social.example.org');
 		$saved = null;
 		$this->instancesRequest->expects($this->once())
 			->method('save')
@@ -59,11 +97,13 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame('Our slogan', $instance->getDescription());
 		$this->assertSame('Our Cloud', $instance->getTitle());
 		$this->assertFalse($instance->isApprovalRequired());
+		// the entity used to be saved with an empty uri, which a client reads
+		// as "this is not a fediverse server"
+		$this->assertSame('social.example.org', $instance->getUri());
 	}
 
 	public function testCreateLocalUsesNextcloudDefaultsWhenThemingIsUnset(): void {
-		$this->config->method('getAppValue')
-			->willReturnCallback(fn (string $app, string $key, $default) => $default);
+		$this->theming([]);
 
 		$instance = $this->service->createLocal();
 
@@ -73,28 +113,120 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame('Nextcloud Social', $instance->jsonSerialize()['title']);
 	}
 
-	public function testGetLocalReturnsTheStoredInstanceInTheRequestedFormat(): void {
-		$stored = (new Instance())->setTitle('stored');
+	public function testTheUriFallsBackToTheCloudHost(): void {
+		$this->theming([]);
+		$this->configService->method('getSocialAddress')->willReturn('');
+		$this->configService->method('getCloudHost')->willReturn('cloud.example.org');
+
+		$this->assertSame('cloud.example.org', $this->service->createLocal()->getUri());
+	}
+
+	public function testGetLocalRefreshesTheStoredRowFromTheLiveConfiguration(): void {
+		// the row is written once at install and never updated, so an instance
+		// that has been renamed since would keep answering with the old name
+		$stored = (new Instance())->setTitle('what we were called in 2019');
 		$this->instancesRequest->expects($this->once())
 			->method('getLocal')
 			->with(ACore::FORMAT_ACTIVITYPUB)
 			->willReturn($stored);
 		$this->instancesRequest->expects($this->never())->method('save');
+		$this->theming(['theming.name' => 'What We Are Called Now']);
 
-		$this->assertSame($stored, $this->service->getLocal(ACore::FORMAT_ACTIVITYPUB));
+		$instance = $this->service->getLocal(ACore::FORMAT_ACTIVITYPUB);
+
+		$this->assertSame($stored, $instance);
+		$this->assertSame('What We Are Called Now', $instance->getTitle());
 	}
 
 	public function testGetLocalCreatesTheInstanceWhenMissing(): void {
 		$this->instancesRequest->method('getLocal')
 			->with(ACore::FORMAT_LOCAL)
 			->willThrowException(new InstanceDoesNotExistException());
-		$this->config->method('getAppValue')
-			->willReturnCallback(fn (string $app, string $key, $default) => $default);
+		$this->theming([]);
 		$this->instancesRequest->expects($this->once())->method('save');
 
 		$instance = $this->service->getLocal();
 
 		$this->assertTrue($instance->isLocal());
 		$this->assertSame('Nextcloud Social', $instance->getTitle());
+	}
+
+	public function testStatsAndUrlsAndConfigurationSerialiseAsObjects(): void {
+		$this->theming([]);
+		$this->allowMimeTypes(['image/png']);
+
+		$json = json_decode(
+			(string)json_encode($this->service->createLocal()->jsonSerialize()), false
+		);
+
+		// a client decoding stats.user_count out of a list fails, and reports
+		// the whole instance as unreachable
+		$this->assertIsObject($json->stats);
+		$this->assertIsObject($json->urls);
+		$this->assertIsObject($json->configuration);
+		$this->assertSame(3, $json->stats->user_count);
+		$this->assertSame(0, $json->stats->status_count);
+		$this->assertSame(0, $json->stats->domain_count);
+	}
+
+	public function testTheConfigurationBlockCarriesTheRealLimits(): void {
+		$this->theming([]);
+		$this->configService->method('getAppValueInt')
+			->with(ConfigService::SOCIAL_MAX_SIZE)->willReturn(20);
+		$this->allowMimeTypes(['image/png', 'video/mp4']);
+
+		$configuration = $this->service->createLocal()->getConfiguration();
+
+		$this->assertSame(
+			InstanceService::MAX_CHARACTERS, $configuration['statuses']['max_characters']
+		);
+		$this->assertSame(
+			Stream::MAX_ATTACHMENTS, $configuration['statuses']['max_media_attachments']
+		);
+		$this->assertSame(
+			PostService::POLL_MAX_OPTIONS, $configuration['polls']['max_options']
+		);
+		$this->assertSame(
+			20 * 1048576, $configuration['media_attachments']['image_size_limit']
+		);
+	}
+
+	public function testTheSupportedMimeTypesAreTheOnesTheCacheServiceAccepts(): void {
+		// asked of the one place that decides, so the two cannot drift and a
+		// client is never offered an upload the server would refuse
+		$this->allowMimeTypes(['image/png', 'audio/flac']);
+
+		$this->assertSame(['image/png', 'audio/flac'], $this->service->supportedMimeTypes());
+	}
+
+	public function testRulesAreOnePerLineOfTheAppValue(): void {
+		$this->theming(['social.rules' => "Be kind.\n\nNo spam.\n"]);
+
+		$this->assertSame(
+			[
+				['id' => '1', 'text' => 'Be kind.'],
+				['id' => '2', 'text' => 'No spam.'],
+			],
+			$this->service->createLocal()->getRules()
+		);
+	}
+
+	public function testTheV2EntityReshapesTheSameFacts(): void {
+		$this->theming([
+			'theming.name' => 'Our Cloud',
+			'theming.slogan' => 'Our slogan',
+		]);
+		$this->configService->method('getSocialAddress')->willReturn('social.example.org');
+
+		$v2 = json_decode((string)json_encode($this->service->createLocal()->asV2()), false);
+
+		$this->assertSame('social.example.org', $v2->domain);
+		$this->assertSame('Our Cloud', $v2->title);
+		$this->assertSame('Our slogan', $v2->description);
+		$this->assertIsObject($v2->configuration);
+		$this->assertIsObject($v2->registrations);
+		$this->assertFalse($v2->registrations->enabled);
+		$this->assertIsObject($v2->contact);
+		$this->assertSame(3, $v2->usage->users->active_month);
 	}
 }

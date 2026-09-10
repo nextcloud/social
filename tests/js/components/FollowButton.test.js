@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
@@ -9,6 +11,11 @@ import { createStore } from 'vuex'
 import FollowButton from '../../../src/components/FollowButton.vue'
 import account from '../../../src/store/account.js'
 import settings from '../../../src/store/settings.js'
+import logger from '../../../src/services/logger.js'
+
+vi.mock('../../../src/services/logger.js', () => ({
+	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
 
 // @nextcloud/auth reads the current user from <head> once and caches it.
 vi.hoisted(() => {
@@ -38,9 +45,31 @@ const setRelationship = (target, data = {}) => store.commit('addRelationship', {
 	data: { id: target.id, following: false, requested: false, ...data },
 })
 
+/**
+ * NcDialog teleports into <body> and renders its buttons itself, which vitest
+ * cannot drive; the stub renders them where the component is so the
+ * confirmation can be clicked.
+ */
+const NcDialogStub = {
+	name: 'NcDialog',
+	props: ['open', 'name', 'buttons'],
+	emits: ['update:open'],
+	template: `<div v-if="open" class="dialog-stub">
+		<span class="dialog-name">{{ name }}</span>
+		<button v-for="(button, index) in buttons"
+			:key="index"
+			:class="'dialog-button dialog-button--' + index"
+			@click="button.callback()">{{ button.label }}</button>
+	</div>`,
+}
+
 const mountButton = (uid = bob.acct, errorHandler) => mount(FollowButton, {
 	props: { uid },
-	global: { plugins: [store], config: { errorHandler } },
+	global: {
+		plugins: [store],
+		config: { errorHandler },
+		stubs: { NcDialog: NcDialogStub },
+	},
 })
 
 const buttonTexts = (wrapper) => wrapper.findAll('button').map((button) => button.text())
@@ -71,12 +100,47 @@ describe('FollowButton', () => {
 		expect(wrapper.find('button').attributes('disabled')).toBeUndefined()
 	})
 
-	it('shows the following state together with the hover unfollow action', () => {
+	it('offers unfollowing through one real button, reachable without a pointer', async () => {
 		setRelationship(bob, { following: true })
 		const wrapper = mountButton()
-		expect(wrapper.find('.follow-button-container .follow-button--following').text()).toBe('Following')
-		expect(wrapper.find('.follow-button-container .follow-button--unfollow').text()).toBe('Unfollow')
-		expect(buttonTexts(wrapper)).toEqual(['Following', 'Unfollow'])
+
+		// one control, not a hover swap of a label and a display:none button
+		expect(buttonTexts(wrapper)).toEqual(['Following'])
+		const button = wrapper.find('button')
+		expect(button.attributes('aria-hidden')).toBeUndefined()
+		expect(button.attributes('tabindex')).toBeUndefined()
+		expect(button.attributes('aria-label')).toBe('Unfollow bob@remote.example')
+
+		// the keyboard reaches it and it says what pressing it will do
+		await button.trigger('focus')
+		expect(button.text()).toBe('Unfollow')
+		await button.trigger('blur')
+		expect(button.text()).toBe('Following')
+	})
+
+	it('does not hide the unfollow control from the tab order in CSS', () => {
+		// `display: none` until :hover was what locked out keyboards and
+		// every touch device; the styles must not put it back
+		const source = readFileSync(resolve(process.cwd(), 'src/components/FollowButton.vue'), 'utf8')
+		const styles = source.slice(source.indexOf('<style'))
+		expect(styles).not.toMatch(/display:\s*none/)
+		expect(styles).not.toMatch(/:hover/)
+	})
+
+	it('asks before unfollowing', async () => {
+		setRelationship(bob, { following: true })
+		const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
+		const wrapper = mountButton()
+
+		await wrapper.find('button').trigger('click')
+		expect(dispatch).not.toHaveBeenCalled()
+		expect(wrapper.find('.dialog-stub').exists()).toBe(true)
+		expect(wrapper.find('.dialog-name').text()).toBe('Unfollow bob@remote.example?')
+
+		// cancelling leaves the follow alone
+		await wrapper.find('.dialog-button--0').trigger('click')
+		expect(dispatch).not.toHaveBeenCalled()
+		expect(wrapper.find('.dialog-stub').exists()).toBe(false)
 	})
 
 	it('shows a disabled "Requested" state while a follow request is pending', () => {
@@ -106,12 +170,14 @@ describe('FollowButton', () => {
 		expect(wrapper.find('button').attributes('disabled')).toBeUndefined()
 	})
 
-	it('dispatches unfollowAccount from the unfollow button', async () => {
+	it('dispatches unfollowAccount once the confirmation is accepted', async () => {
 		setRelationship(bob, { following: true })
 		const dispatch = vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
 		const wrapper = mountButton()
 
-		await wrapper.find('.follow-button--unfollow').trigger('click')
+		await wrapper.find('button').trigger('click')
+		await wrapper.find('.dialog-button--1').trigger('click')
+		await flushPromises()
 		expect(dispatch).toHaveBeenCalledWith('unfollowAccount', {
 			currentAccount: 'alice@cloud.example.org',
 			accountToUnfollow: 'bob@remote.example',
@@ -119,7 +185,7 @@ describe('FollowButton', () => {
 		expect(dispatch).toHaveBeenCalledTimes(1)
 	})
 
-	it('re-enables the button when the follow request is rejected', async () => {
+	it('re-enables the button on a follow that could not be carried out, and keeps the rejection in', async () => {
 		setRelationship(bob)
 		vi.spyOn(store, 'dispatch').mockRejectedValue(new Error('status -1'))
 		const errorHandler = vi.fn()
@@ -127,7 +193,11 @@ describe('FollowButton', () => {
 
 		await wrapper.find('button').trigger('click')
 		await flushPromises()
-		expect(errorHandler).toHaveBeenCalledTimes(1)
+
+		// the await had a `finally` and no `catch`, so a refusal left the
+		// component as an unhandled rejection on its way out
+		expect(errorHandler).not.toHaveBeenCalled()
+		expect(logger.error).toHaveBeenCalledWith('Failed to follow an account', { error: expect.any(Error) })
 		expect(wrapper.find('button').attributes('disabled')).toBeUndefined()
 	})
 
@@ -148,7 +218,7 @@ describe('FollowButton', () => {
 
 		store.commit('followAccount', bob.acct)
 		await nextTick()
-		expect(buttonTexts(wrapper)).toEqual(['Following', 'Unfollow'])
+		expect(buttonTexts(wrapper)).toEqual(['Following'])
 
 		store.commit('unfollowAccount', bob.acct)
 		await nextTick()

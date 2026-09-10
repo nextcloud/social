@@ -130,6 +130,22 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		}
 
 		try {
+			$post = $this->streamRequest->getStreamById($item->getObjectId(), false, ACore::FORMAT_LOCAL);
+		} catch (StreamNotFoundException $e) {
+			$post = null;
+		}
+
+		// A boost cannot widen the audience of the post it repeats: the local
+		// boost path refuses to create one at all (BoostService::create()), and
+		// storing a remote one would republish a followers-only or direct post
+		// into the timeline of everyone the booster reaches. An object we do
+		// not hold yet is caught on the way out instead, by the visibility
+		// condition on leftJoinObjectStatus().
+		if ($post !== null && !$post->isPublic()) {
+			return;
+		}
+
+		try {
 			$knownItem = $this->streamRequest->getStreamByObjectId($item->getObjectId(), Announce::TYPE);
 
 			$knownItem->setAttributedTo($actor->getId());
@@ -148,10 +164,8 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 			);
 		}
 
-		try {
-			$post = $this->streamRequest->getStreamById($item->getObjectId(), false, ACore::FORMAT_LOCAL);
-		} catch (StreamNotFoundException $e) {
-			return; // should not happen.
+		if ($post === null) {
+			return; // the object is not here (yet); nothing to count or notify
 		}
 
 		try {

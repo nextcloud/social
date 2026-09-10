@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\AP;
 use OCA\Social\Controller\ApiController;
+use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -54,12 +55,15 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class ApiControllerTest extends TestCase {
@@ -109,6 +113,10 @@ class ApiControllerTest extends TestCase {
 	private $configService;
 	/** @var CurlService&MockObject */
 	private $curlService;
+	private CacheDocumentsRequest|MockObject $cacheDocumentsRequest;
+	private ICacheFactory|MockObject $cacheFactory;
+	/** what a previous request with the same Idempotency-Key created, per test */
+	private array $idempotencyCache = [];
 
 	private array $filesBackup;
 	/** the value getParam('_route') hands the controller, per test */
@@ -117,12 +125,17 @@ class ApiControllerTest extends TestCase {
 	private bool $csrf = true;
 	/** the value getParam('description') hands the controller, per test */
 	private string $description = '';
+	/** the request headers the controller under construction will see */
+	private array $headers = [];
 
 	protected function setUp(): void {
 		$this->filesBackup = $_FILES;
 		$_FILES = [];
 
 		$this->request = $this->createMock(IRequest::class);
+		$this->headers = [];
+		$this->request->method('getHeader')
+			->willReturnCallback(fn (string $name): string => $this->headers[$name] ?? '');
 		// the app's own frontend sends the requesttoken header on every call
 		$this->csrf = true;
 		$this->request->method('passesCSRFCheck')->willReturnCallback(fn (): bool => $this->csrf);
@@ -156,6 +169,22 @@ class ApiControllerTest extends TestCase {
 		$this->searchService = $this->createMock(SearchService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->curlService = $this->createMock(CurlService::class);
+		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
+		$this->instanceService->method('maxUploadSize')->willReturn(10 * 1048576);
+
+		// a real in-memory cache, so the Idempotency-Key round trip is exercised
+		$this->idempotencyCache = [];
+		$cache = $this->createMock(ICache::class);
+		$cache->method('get')
+			->willReturnCallback(fn (string $key) => $this->idempotencyCache[$key] ?? null);
+		$cache->method('set')
+			->willReturnCallback(function (string $key, $value): bool {
+				$this->idempotencyCache[$key] = $value;
+
+				return true;
+			});
+		$this->cacheFactory = $this->createMock(ICacheFactory::class);
+		$this->cacheFactory->method('createDistributed')->willReturn($cache);
 
 		\OC::$server->register(IRequest::class, $this->request);
 	}
@@ -167,15 +196,25 @@ class ApiControllerTest extends TestCase {
 	}
 
 	private function controller(string $authorization = ''): ApiController {
-		$this->request->method('getHeader')->willReturnCallback(
-			fn (string $name): string => $name === 'Authorization' ? $authorization : ''
-		);
+		return $this->controllerWithHeaders($authorization);
+	}
+
+	/** @param array<string, string> $headers extra request headers */
+	private function controllerWithHeaders(
+		string $authorization,
+		array $headers = [],
+		?LoggerInterface $logger = null,
+	): ApiController {
+		// the callback is registered once, in setUp(): a second method() on the
+		// same mock never wins over the first, so per-controller headers have to
+		// go through a property
+		$this->headers = array_merge(['Authorization' => $authorization], $headers);
 
 		return new ApiController(
 			$this->request,
 			$this->urlGenerator,
 			$this->userSession,
-			new NullLogger(),
+			$logger ?? new NullLogger(),
 			$this->instanceService,
 			$this->clientService,
 			$this->accountService,
@@ -195,7 +234,9 @@ class ApiControllerTest extends TestCase {
 			$this->reportService,
 			$this->searchService,
 			$this->configService,
-			$this->curlService
+			$this->curlService,
+			$this->cacheDocumentsRequest,
+			$this->cacheFactory
 		);
 	}
 
@@ -224,6 +265,37 @@ class ApiControllerTest extends TestCase {
 	private function assertUnauthorized(DataResponse $response, string $error = self::REVOKED): void {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame(['error' => $error], $response->getData());
+		$this->assertSame(
+			'Bearer error="invalid_token"',
+			$response->getHeaders()['WWW-Authenticate'] ?? null,
+			'a 401 says what kind of credential it wanted'
+		);
+	}
+
+	/** A token whose grant does not cover the route: 403, not 401. */
+	private function assertInsufficientScope(DataResponse $response, string $error): void {
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertSame(['error' => $error], $response->getData());
+		$this->assertSame(
+			'Bearer error="insufficient_scope"',
+			$response->getHeaders()['WWW-Authenticate'] ?? null
+		);
+	}
+
+	private function assertNotFound(DataResponse $response, string $error): void {
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(['error' => $error], $response->getData());
+	}
+
+	private function assertUnprocessable(DataResponse $response, string $error): void {
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(['error' => $error], $response->getData());
+	}
+
+	/** An unexpected failure: 500, and nothing of the exception on the wire. */
+	private function assertServerError(DataResponse $response): void {
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'internal server error'], $response->getData());
 	}
 
 	/**
@@ -245,6 +317,44 @@ class ApiControllerTest extends TestCase {
 		};
 	}
 
+	/**
+	 * Every route here is reached with a bearer token and no session, so each
+	 * one has to declare that itself. Declaring it as a docblock annotation
+	 * reads the same and is not the same: Nextcloud stopped honouring the
+	 * annotation form, and a route that lost its `@PublicPage` that way answers
+	 * a client with the server's own `{"message": ""}` 401 — from the security
+	 * middleware, before this controller runs at all.
+	 */
+	public function testEveryRouteDeclaresItsAccessAsAnAttribute(): void {
+		$reflection = new \ReflectionClass(ApiController::class);
+
+		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->isConstructor() || $method->getDeclaringClass()->getName() !== ApiController::class) {
+				continue;
+			}
+
+			$attributes = array_map(
+				static fn (\ReflectionAttribute $a): string => $a->getName(),
+				$method->getAttributes()
+			);
+			$this->assertContains(
+				\OCP\AppFramework\Http\Attribute\PublicPage::class,
+				$attributes,
+				$method->getName() . '() does not declare #[PublicPage]'
+			);
+			$this->assertStringNotContainsString(
+				'@PublicPage',
+				(string)$method->getDocComment(),
+				$method->getName() . '() declares its access as a legacy annotation'
+			);
+			$this->assertStringNotContainsString(
+				'@NoCSRFRequired',
+				(string)$method->getDocComment(),
+				$method->getName() . '() declares its access as a legacy annotation'
+			);
+		}
+	}
+
 	// credentials
 
 	public function testAppsCredentialsRequiresAViewer(): void {
@@ -258,7 +368,11 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame(
-			['name' => 'Nextcloud Social', 'website' => 'https://github.com/nextcloud/social/'],
+			[
+				'name' => 'Nextcloud Social',
+				'website' => 'https://github.com/nextcloud/social/',
+				'vapid_key' => '',
+			],
 			$response->getData()
 		);
 	}
@@ -277,7 +391,10 @@ class ApiControllerTest extends TestCase {
 
 		$response = $this->controller('Bearer s3cret')->appsCredentials();
 
-		$this->assertSame(['name' => 'Tusky', 'website' => 'https://tusky.app'], $response->getData());
+		$this->assertSame(
+			['name' => 'Tusky', 'website' => 'https://tusky.app', 'vapid_key' => ''],
+			$response->getData()
+		);
 	}
 
 	/** A bearer client for alice, granted the given scopes. */
@@ -322,7 +439,18 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->markersGet(['notifications']);
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		$this->assertArrayHasKey('notifications', $response->getData());
+		$this->assertInstanceOf(\stdClass::class, $response->getData(), 'markers are an object');
+		$this->assertTrue(isset($response->getData()->notifications));
+	}
+
+	public function testMarkersOfAFreshAccountAreAnEmptyObjectNotAnEmptyList(): void {
+		$this->loggedInAs();
+		$this->markerService->method('get')->willReturn([]);
+
+		$data = $this->controller()->markersGet()->getData();
+
+		$this->assertInstanceOf(\stdClass::class, $data);
+		$this->assertSame('{}', json_encode($data), 'an empty list is not a marker map');
 	}
 
 	public function testSettingAMarkerMovesOnlyTheTimelinesInTheBody(): void {
@@ -343,15 +471,16 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->markersSet();
 
 		$this->assertSame(['notifications' => '42'], $moved, 'home was not in the body');
-		$this->assertSame(['notifications'], array_keys($response->getData()));
+		$this->assertSame(['notifications'], array_keys((array)$response->getData()));
 	}
 
 	public function testSettingAMarkerNeedsAWriteToken(): void {
 		$this->route = 'social.Api.markersSet';
 		$this->bearerFor(['read']);
 
-		$this->assertSame(
-			Http::STATUS_BAD_REQUEST, $this->controller('Bearer s3cret')->markersSet()->getStatus()
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->markersSet(),
+			'token scope does not allow this request (needs write)'
 		);
 	}
 
@@ -374,10 +503,8 @@ class ApiControllerTest extends TestCase {
 
 		$response = $this->controller('Bearer s3cret')->statusNew();
 
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(
-			['error' => 'token scope does not allow this request (needs write)'],
-			$response->getData()
+		$this->assertInsufficientScope(
+			$response, 'token scope does not allow this request (needs write)'
 		);
 	}
 
@@ -385,7 +512,7 @@ class ApiControllerTest extends TestCase {
 		$this->route = 'social.Api.accountMute';
 		$this->bearerFor(['read']);
 
-		$this->assertUnauthorized(
+		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->accountMute('42'),
 			'token scope does not allow this request (needs follow or write)'
 		);
@@ -395,7 +522,7 @@ class ApiControllerTest extends TestCase {
 		$this->route = 'social.Api.verifyCredentials';
 		$this->bearerFor([]);
 
-		$this->assertUnauthorized(
+		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->verifyCredentials(),
 			'token scope does not allow this request (needs read)'
 		);
@@ -449,10 +576,8 @@ class ApiControllerTest extends TestCase {
 
 		$response = $this->controller('Bearer s3cret')->statusNew();
 
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(
-			['error' => 'token scope does not allow this request (needs write)'],
-			$response->getData()
+		$this->assertInsufficientScope(
+			$response, 'token scope does not allow this request (needs write)'
 		);
 	}
 
@@ -461,6 +586,33 @@ class ApiControllerTest extends TestCase {
 		$this->loggedInAs();
 
 		$this->assertUnauthorized($this->controller()->verifyCredentials());
+	}
+
+	/**
+	 * A request with a missing or invalid token is answered with a 401; it is
+	 * not a server-side failure. Logging each one at error with a stack trace
+	 * filled the admin's nextcloud.log for every scanner that found the API.
+	 */
+	public function testAnInvalidTokenIsNotLoggedAsAServerError(): void {
+		$this->clientService->method('getFromToken')->willThrowException(new ClientNotFoundException());
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->never())->method('error');
+		$logger->expects($this->never())->method('warning');
+
+		$response = $this->controllerWithHeaders('Bearer gone', [], $logger)->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	/**
+	 * Several of these failures are raised with no message at all, and
+	 * `{"error": ""}` tells a client nothing about what happened.
+	 */
+	public function testAFailureWithNoMessageStillSaysSomething(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
+
+		$this->assertNotFound($this->controller()->statusDelete(7), 'not found');
 	}
 
 	public function testNonBearerAuthorizationIsIgnored(): void {
@@ -583,7 +735,7 @@ class ApiControllerTest extends TestCase {
 		$this->loggedInAs();
 		$this->streamService->expects($this->never())->method('getTimeline');
 
-		$this->assertUnauthorized($this->controller()->timelines($timeline), 'unknown timeline');
+		$this->assertUnprocessable($this->controller()->timelines($timeline), 'unknown timeline');
 	}
 
 	public function testTimelinesRequiresAViewer(): void {
@@ -592,11 +744,15 @@ class ApiControllerTest extends TestCase {
 		$this->assertUnauthorized($this->controller()->timelines('home'));
 	}
 
-	public function testTimelinesReportsServiceFailures(): void {
+	public function testTimelinesReportsServiceFailuresAsServerErrors(): void {
 		$this->loggedInAs();
 		$this->streamService->method('getTimeline')->willThrowException(new \RuntimeException('db down'));
 
-		$this->assertUnauthorized($this->controller()->timelines('home'), 'db down');
+		$response = $this->controller()->timelines('home');
+
+		// not a 401: a client reads that as a revoked token and logs the reader
+		// out over what is a transient failure on this side
+		$this->assertServerError($response);
 	}
 
 	// statuses
@@ -618,7 +774,7 @@ class ApiControllerTest extends TestCase {
 	public function testStatusGetOfUnknownStatusIsAnError(): void {
 		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException('not found'));
 
-		$this->assertUnauthorized($this->controller()->statusGet(42), 'not found');
+		$this->assertNotFound($this->controller()->statusGet(42), 'not found');
 	}
 
 	public function testStatusContextReturnsAncestorsAndDescendants(): void {
@@ -670,7 +826,7 @@ class ApiControllerTest extends TestCase {
 		$this->accountService->method('getActor')->willReturn($this->createMock(Person::class));
 		$this->actionService->method('action')->willThrowException(new InvalidActionException('unknown action'));
 
-		$this->assertUnauthorized($this->controller()->statusAction(12, 'explode'), 'unknown action');
+		$this->assertUnprocessable($this->controller()->statusAction(12, 'explode'), 'unknown action');
 	}
 
 	public function testStatusActionRequiresAViewer(): void {
@@ -734,13 +890,71 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('', $created->getReplyTo());
 	}
 
-	public function testStatusNewIsABadRequestForAnonymous(): void {
+	/**
+	 * `sensitive` is what makes a client blur the attachments. The create path
+	 * dropped it — the edit path has always carried it — so a post marked
+	 * sensitive in Tusky came back unblurred, here and on every instance the
+	 * Create federates to.
+	 */
+	public function testStatusNewCarriesTheSensitiveFlagToThePost(): void {
+		$created = $this->postWith(['status' => 'look at this', 'sensitive' => 'true']);
+
+		$this->assertTrue($created->isSensitive());
+	}
+
+	public function testStatusNewWithoutTheSensitiveFlagIsNotSensitive(): void {
+		$this->assertFalse($this->postWith(['status' => 'look at this'])->isSensitive());
+	}
+
+	/**
+	 * A status posted without a visibility used to become a direct message
+	 * addressed to nobody: the empty value fell through
+	 * `Stream::visibilityFromClient()` to `direct`, and a direct post with no
+	 * recipient is delivered to no one while the request answers 200.
+	 */
+	public function testAStatusWithoutAVisibilityIsPublic(): void {
+		$this->assertSame(Stream::TYPE_PUBLIC, $this->postWith(['status' => 'hi'])->getType());
+	}
+
+	public function testAVisibilityThisAppDoesNotKnowIsRefused(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['status' => 'hi', 'visibility' => 'friends']);
 		$this->postService->expects($this->never())->method('createPost');
 
-		$response = $this->controller()->statusNew();
+		$this->assertUnprocessable(
+			$this->controller()->statusNew(), 'unknown visibility: friends'
+		);
+	}
 
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => self::REVOKED], $response->getData());
+	/**
+	 * An empty, truncated or scalar JSON body decoded to `null`, which under
+	 * strict_types raised a TypeError out of `convertInput(): array` — a
+	 * Nextcloud HTML error page, stack trace and all, on a #[PublicPage] route.
+	 */
+	public function testAMalformedJsonBodyIsRefusedRatherThanCrashing(): void {
+		$this->loggedInAs();
+		$this->postService->expects($this->never())->method('createPost');
+
+		$response = $this->controllerWithHeaders('', ['Content-Type' => 'application/json; charset=utf-8'])
+			->statusNew();
+
+		$this->assertUnprocessable($response, 'the request body is not valid JSON');
+	}
+
+	/** Not every failure is an Exception; a client is owed JSON either way. */
+	public function testAPhpErrorIsStillAnsweredAsAnApiError(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['status' => 'hi']);
+		$this->postService->method('createPost')->willThrowException(new \Error('boom'));
+
+		$this->assertServerError($this->controller()->statusNew());
+	}
+
+	public function testStatusNewIsUnauthorizedForAnonymous(): void {
+		$this->postService->expects($this->never())->method('createPost');
+
+		// used to be a 400, which tells a client nothing about its credentials
+		$this->assertUnauthorized($this->controller()->statusNew());
 	}
 
 	public function testStatusUpdateEditsTheStatusWithSpoilerAndSensitivity(): void {
@@ -772,15 +986,12 @@ class ApiControllerTest extends TestCase {
 		$this->controller()->statusUpdate(5);
 	}
 
-	public function testStatusUpdateFailureIsABadRequest(): void {
+	public function testStatusUpdateOfAMissingStatusIsNotFound(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn(['status' => 'x']);
 		$this->postService->method('editPost')->willThrowException(new StreamNotFoundException('gone'));
 
-		$response = $this->controller()->statusUpdate(5);
-
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'gone'], $response->getData());
+		$this->assertNotFound($this->controller()->statusUpdate(5), 'gone');
 	}
 
 	// relationships / accounts
@@ -797,6 +1008,21 @@ class ApiControllerTest extends TestCase {
 
 	public function testRelationshipsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->relationships([1]));
+	}
+
+	/**
+	 * A request-bound array parameter is filled in by the dispatcher, before
+	 * the method's own try block, so a client asking with no `id[]` at all used
+	 * to raise a TypeError there — an HTML error page rather than an answer.
+	 */
+	public function testRelationshipsWithoutAnyIdIsAnEmptyAnswer(): void {
+		$this->loggedInAs();
+		$this->followService->method('getRelationships')->with([])->willReturn([]);
+
+		$response = $this->controller()->relationships();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
 	}
 
 	// blocking / muting
@@ -873,15 +1099,15 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnmute('42')->getStatus());
 	}
 
-	public function testAccountBlockOfAnUnknownAccountIsAnErrorAndBlocksNothing(): void {
+	public function testAccountBlockOfAnUnknownAccountIsNotFoundAndBlocksNothing(): void {
 		$this->loggedInAs();
 		$this->cacheActorService->method('getFromNids')->with([42])->willReturn([]);
-		$this->cacheActorService->method('getFromId')
-			->with('42')
-			->willThrowException(new CacheActorDoesNotExistException('who?'));
+		// a numeric id is an id, never a URL: it must not become a WebFinger
+		// lookup for the string "42"
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 		$this->relationshipService->expects($this->never())->method('block');
 
-		$this->assertUnauthorized($this->controller()->accountBlock('42'), 'who?');
+		$this->assertNotFound($this->controller()->accountBlock('42'), 'unknown account');
 	}
 
 	public function testAccountBlockRequiresAViewer(): void {
@@ -917,6 +1143,37 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([$muted], $response->getData());
+	}
+
+	/**
+	 * Neither route takes a cursor, so the next page a `Link` header would
+	 * advertise is the page just sent: a client paging on the header scrolled
+	 * the same blocked accounts for ever.
+	 */
+	public function testTheBlockedAccountsPageDoesNotAdvertiseANextPageItCannotServe(): void {
+		$viewer = $this->loggedInAs();
+		$this->requestUri('/api/v1/blocks?limit=2');
+		$blocked = [$this->createMock(Person::class), $this->createMock(Person::class)];
+		$blocked[0]->method('getNid')->willReturn(9);
+		$blocked[1]->method('getNid')->willReturn(8);
+		$this->relationshipService->method('getRelated')
+			->with($this->identicalTo($viewer), ActorRelation::TYPE_BLOCK, 2)
+			->willReturn($blocked);
+
+		$response = $this->controller()->blocks(2);
+
+		$this->assertSame($blocked, $response->getData());
+		$this->assertArrayNotHasKey('Link', $response->getHeaders());
+	}
+
+	public function testTheMutedAccountsPageDoesNotEither(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/mutes?limit=1');
+		$muted = $this->createMock(Person::class);
+		$muted->method('getNid')->willReturn(4);
+		$this->relationshipService->method('getRelated')->willReturn([$muted]);
+
+		$this->assertArrayNotHasKey('Link', $this->controller()->mutes(1)->getHeaders());
 	}
 
 	public function testBlocksRequireAViewer(): void {
@@ -1004,7 +1261,7 @@ class ApiControllerTest extends TestCase {
 		$this->bearerFor(['read']);
 		$this->followService->expects($this->never())->method('authorizeFollowRequest');
 
-		$this->assertUnauthorized(
+		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->followRequestAuthorize('42'),
 			'token scope does not allow this request (needs follow or write)'
 		);
@@ -1095,7 +1352,7 @@ class ApiControllerTest extends TestCase {
 		$this->bearerFor(['read']);
 		$this->accountService->expects($this->never())->method('setLocked');
 
-		$this->assertUnauthorized(
+		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->updateCredentials(),
 			'token scope does not allow this request (needs write)'
 		);
@@ -1142,7 +1399,7 @@ class ApiControllerTest extends TestCase {
 		$this->bearerFor(['read']);
 		$this->followService->expects($this->never())->method('followAccount');
 
-		$this->assertUnauthorized(
+		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->accountFollow('42'),
 			'token scope does not allow this request (needs follow or write)'
 		);
@@ -1288,7 +1545,7 @@ class ApiControllerTest extends TestCase {
 		$this->bearerFor(['read']);
 		$this->reportService->expects($this->never())->method('reportFromLocal');
 
-		$this->assertUnauthorized(
+		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->reportNew(),
 			'token scope does not allow this request (needs write)'
 		);
@@ -1338,10 +1595,10 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['pinned'], $response->getData());
 	}
 
-	public function testAccountStatusesOfUnknownAccountIsAnError(): void {
+	public function testAccountStatusesOfUnknownAccountIsNotFound(): void {
 		$this->cacheActorService->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException('who?'));
 
-		$this->assertUnauthorized($this->controller()->accountStatuses('nobody'), 'who?');
+		$this->assertNotFound($this->controller()->accountStatuses('nobody'), 'who?');
 	}
 
 	private function localHosts(): void {
@@ -1400,7 +1657,9 @@ class ApiControllerTest extends TestCase {
 			]]],
 		]);
 		$x = $this->createMock(Person::class);
+		$x->method('getNid')->willReturn(11);
 		$y = $this->createMock(Person::class);
+		$y->method('getNid')->willReturn(12);
 		$this->cacheActorService->method('getFromId')->willReturnMap([
 			['https://remote.example/users/x', false, $x],
 			['https://remote.example/users/y', false, $y],
@@ -1411,6 +1670,33 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->accountFollowers('bob@remote.example', 2);
 
 		$this->assertSame([$x, $y], $response->getData(), 'limit is applied and the third actor is never fetched');
+	}
+
+	public function testRemoteCollectionDropsActorsWithoutANumericId(): void {
+		$this->localHosts();
+		$actor = $this->createMock(Person::class);
+		$actor->method('getFollowers')->willReturn('https://remote.example/users/bob/followers');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		// the page carries the actors inline, as Mastodon's collections do
+		$this->curlService->method('retrieveObject')->willReturn(['orderedItems' => [
+			['id' => 'https://remote.example/users/x', 'type' => 'Person'],
+			['id' => 'https://remote.example/users/y', 'type' => 'Person'],
+		]]);
+
+		$uncached = $this->createMock(Person::class);
+		$uncached->method('getNid')->willReturn(0);
+		$known = $this->createMock(Person::class);
+		$known->method('getNid')->willReturn(9);
+		$this->cacheActorService->method('getFromId')->willReturnMap([
+			['https://remote.example/users/x', false, $uncached],
+			['https://remote.example/users/y', false, $known],
+		]);
+
+		// every entity in the API is addressed by its numeric id, so a page of
+		// accounts all sharing id "0" is one a client cannot act on at all
+		$this->assertSame(
+			[$known], $this->controller()->accountFollowers('bob@remote.example', 5)->getData()
+		);
 	}
 
 	public function testAccountFollowingOfRemoteAccountSkipsUnresolvableActors(): void {
@@ -1519,25 +1805,515 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(6, $probe->getLimit());
 	}
 
+	// pagination Link headers
+
+	/** A page of streams whose nids run from $high down to $low. */
+	private function pageOfStreams(int $high, int $low): array {
+		$posts = [];
+		for ($nid = $high; $nid >= $low; $nid--) {
+			$post = $this->createMock(Stream::class);
+			$post->method('getNid')->willReturn($nid);
+			$post->method('getSubType')->willReturn('');
+			$posts[] = $post;
+		}
+
+		return $posts;
+	}
+
+	private function requestUri(string $uri): void {
+		$this->request->method('getRequestUri')->willReturn($uri);
+		$this->urlGenerator->method('getAbsoluteURL')
+			->willReturnCallback(static fn (string $path): string => 'https://cloud.example' . $path);
+	}
+
+	/**
+	 * masto.js — which Elk and Phanpy are both built on — takes the next page
+	 * from the Link header and nowhere else, so without one those clients show
+	 * the first page of a timeline and stop.
+	 */
+	public function testATimelinePageCarriesTheLinkHeaderMastodonPagesWith(): void {
+		$this->loggedInAs();
+		$this->requestUri('/index.php/apps/social/api/v1/timelines/home?limit=3');
+		$this->captureTimelineOptions($this->pageOfStreams(30, 28));
+
+		$link = $this->controller()->timelines('home', false, 3)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString(
+			'<https://cloud.example/index.php/apps/social/api/v1/timelines/home'
+			. '?limit=3&max_id=28>; rel="next"',
+			$link
+		);
+		$this->assertStringContainsString('min_id=30>; rel="prev"', $link);
+	}
+
+	public function testAPageShorterThanTheLimitHasNoNextLink(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		$this->captureTimelineOptions($this->pageOfStreams(30, 29));
+
+		$link = $this->controller()->timelines('home', false, 20)->getHeaders()['Link'] ?? '';
+
+		// Mastodon stops offering a next page once one comes back short
+		$this->assertStringNotContainsString('rel="next"', $link);
+		$this->assertStringContainsString('rel="prev"', $link);
+	}
+
+	public function testAnEmptyPageHasNoLinkHeaderAtAll(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		$this->captureTimelineOptions([]);
+
+		$this->assertArrayNotHasKey('Link', $this->controller()->timelines('home')->getHeaders());
+	}
+
+	public function testTheCursorReplacesTheOldOneAndKeepsEveryOtherFilter(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home?limit=2&max_id=99&only_media=1');
+		$this->captureTimelineOptions($this->pageOfStreams(50, 49));
+
+		$link = $this->controller()->timelines('home', false, 2, 99)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('only_media=1', $link);
+		$this->assertStringNotContainsString('max_id=99', $link);
+		$this->assertStringContainsString('max_id=49', $link);
+	}
+
+	public function testFollowerPagesArePagedByTheirActorIds(): void {
+		$this->localHosts();
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://cloud.example/apps/social/@alice');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->requestUri('/api/v1/accounts/alice/followers');
+
+		$follower = $this->createMock(Person::class);
+		$follower->method('getNid')->willReturn(17);
+		$this->cacheActorService->method('probeActors')->willReturn([$follower]);
+
+		$link = $this->controller()->accountFollowers('alice', 1)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=17>; rel="next"', $link);
+	}
+
+	// accounts/{id} and accounts/lookup
+
+	public function testAnAccountIsReachableByTheNumericIdEveryEntityEmits(): void {
+		// without this route, tapping any author, mention, boost or notification
+		// asked for a profile nothing answered
+		$this->loggedInAs();
+		$target = $this->knownTarget(42);
+		$target->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+
+		$response = $this->controller()->accountGet('42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame($target, $response->getData());
+	}
+
+	public function testAnAccountIsAlsoReachableByHandle(): void {
+		$this->loggedInAs();
+		$target = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromAccount')->with('bob@remote.example')->willReturn($target);
+
+		$this->assertSame($target, $this->controller()->accountGet('@bob@remote.example')->getData());
+	}
+
+	public function testAnAccountIsAlsoReachableByActorUri(): void {
+		$this->loggedInAs();
+		$target = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->once())
+			->method('getFromId')->with('https://remote.example/users/bob')->willReturn($target);
+
+		$this->assertSame(
+			$target, $this->controller()->accountGet('https://remote.example/users/bob')->getData()
+		);
+	}
+
+	public function testAnUnknownAccountIsA404NotA401(): void {
+		$this->loggedInAs();
+		$this->cacheActorService->method('getFromNids')->willReturn([]);
+
+		$this->assertNotFound($this->controller()->accountGet('42'), 'unknown account');
+	}
+
+	public function testAccountLookupResolvesAHandleWithoutReachingOut(): void {
+		$this->loggedInAs();
+		$target = $this->createMock(Person::class);
+		$target->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
+		// `false`: lookup answers from what is cached, it never fetches
+		$this->cacheActorService->expects($this->once())
+			->method('getFromAccount')->with('bob@remote.example', false)->willReturn($target);
+
+		$this->assertSame(
+			$target, $this->controller()->accountLookup('@bob@remote.example')->getData()
+		);
+	}
+
+	public function testAccountLookupWithoutAnAcctIsUnprocessable(): void {
+		$this->loggedInAs();
+
+		$this->assertUnprocessable($this->controller()->accountLookup(''), 'acct is required');
+	}
+
+	public function testAccountStatusesAcceptsTheNumericId(): void {
+		$this->loggedInAs();
+		$local = $this->knownTarget(42);
+		$local->method('getId')->willReturn('https://cloud.example/apps/social/@bob');
+		$options = $this->captureTimelineOptions([]);
+
+		$this->controller()->accountStatuses('42');
+
+		$this->assertSame('https://cloud.example/apps/social/@bob', $options()->getAccountId());
+	}
+
+	// DELETE /statuses/{id} and /statuses/{id}/source
+
+	/** The viewer's own status, as statusDelete()/statusSource() find it. */
+	private function ownStatus(int $nid = 7, string $content = ''): Stream {
+		$item = $this->createMock(Stream::class);
+		$item->method('getNid')->willReturn($nid);
+		$item->method('getType')->willReturn('Note');
+		$item->method('getContent')->willReturn($content);
+		$item->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@alice');
+		$item->method('exportAsLocal')->willReturn(['id' => (string)$nid]);
+		$this->streamService->method('getStreamByNid')->with($nid)->willReturn($item);
+
+		return $item;
+	}
+
+	public function testStatusDeleteRemovesTheViewersOwnPostAndReturnsIt(): void {
+		$this->loggedInAs();
+		$item = $this->ownStatus(7);
+		$this->streamService->expects($this->once())
+			->method('deleteLocalItem')->with($this->identicalTo($item), 'Note');
+
+		$response = $this->controller()->statusDelete(7);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		// Mastodon answers with the status that went, which is what
+		// "delete & redraft" puts back in the composer
+		$this->assertSame(['id' => '7'], $response->getData());
+	}
+
+	public function testStatusDeleteOfSomebodyElsesPostIsA404AndDeletesNothing(): void {
+		$this->loggedInAs();
+		$item = $this->createMock(Stream::class);
+		$item->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@bob');
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->streamService->expects($this->never())->method('deleteLocalItem');
+
+		// the same answer an unknown id gets: whether somebody else's post
+		// exists is not this route's to tell
+		$this->assertNotFound($this->controller()->statusDelete(7), 'Stream not found');
+	}
+
+	public function testStatusDeleteNeedsAWriteToken(): void {
+		$this->route = 'social.Api.statusDelete';
+		$this->bearerFor(['read']);
+		$this->streamService->expects($this->never())->method('deleteLocalItem');
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->statusDelete(7),
+			'token scope does not allow this request (needs write)'
+		);
+	}
+
+	public function testStatusSourceGivesBackTheTextThatWasWritten(): void {
+		$this->loggedInAs();
+		$item = $this->ownStatus(7, 'first line<br />second &amp; last');
+		$item->method('getSpoilerText')->willReturn('spoilers');
+
+		$response = $this->controller()->statusSource(7);
+
+		$this->assertSame(
+			[
+				'id' => '7',
+				'text' => "first line\nsecond & last",
+				'spoiler_text' => 'spoilers',
+			],
+			$response->getData()
+		);
+	}
+
+	public function testStatusSourceOfSomebodyElsesPostIsA404(): void {
+		$this->loggedInAs();
+		$item = $this->createMock(Stream::class);
+		$item->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@bob');
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+
+		$this->assertNotFound($this->controller()->statusSource(7), 'Stream not found');
+	}
+
+	// Idempotency-Key
+
+	private function bearerPostingA(string $statusNid): Stream {
+		$this->route = 'social.Api.statusNew';
+		$this->bearerFor(['write']);
+		$this->request->method('getParams')->willReturn(['status' => 'hello']);
+
+		$activity = $this->createMock(ACore::class);
+		$activity->method('getObjectId')->willReturn('https://cloud.example/apps/social/@alice/n1');
+		$this->postService->method('createPost')->willReturn($activity);
+
+		$item = $this->createMock(Stream::class);
+		$item->method('getNid')->willReturn((int)$statusNid);
+		$this->streamService->method('getStreamById')->willReturn($item);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+
+		return $item;
+	}
+
+	/**
+	 * Tusky and Ivory retry a post when the connection drops, so on a flaky
+	 * link the same post used to be created — and federated to every follower —
+	 * more than once.
+	 */
+	public function testARetriedPostWithTheSameIdempotencyKeyIsNotPostedTwice(): void {
+		$item = $this->bearerPostingA('11');
+		$this->postService->expects($this->once())->method('createPost');
+
+		$controller = $this->controllerWithHeaders('Bearer s3cret', ['Idempotency-Key' => 'k-1']);
+		$first = $controller->statusNew();
+		$second = $controller->statusNew();
+
+		$this->assertSame($item, $first->getData());
+		$this->assertSame($item, $second->getData(), 'the same status comes back');
+	}
+
+	public function testADifferentIdempotencyKeyPostsAgain(): void {
+		$this->bearerPostingA('11');
+		$this->postService->expects($this->exactly(2))->method('createPost');
+
+		$this->controllerWithHeaders('Bearer s3cret', ['Idempotency-Key' => 'k-1'])->statusNew();
+		$this->controllerWithHeaders('Bearer s3cret', ['Idempotency-Key' => 'k-2'])->statusNew();
+	}
+
+	public function testWithoutAnIdempotencyKeyEveryPostIsANewOne(): void {
+		$this->bearerPostingA('11');
+		$this->postService->expects($this->exactly(2))->method('createPost');
+
+		$controller = $this->controller('Bearer s3cret');
+		$controller->statusNew();
+		$controller->statusNew();
+	}
+
+	// media scoping
+
+	private function attachedDocument(bool $public = false): Document {
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/local/1');
+		$document->setPublic($public);
+		$this->documentService->method('getMediaFromArray')->willReturn([$document]);
+
+		return $document;
+	}
+
+	private function postWith(array $params): ?Post {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn($params);
+		$activity = $this->createMock(ACore::class);
+		$activity->method('getObjectId')->willReturn('https://cloud.example/apps/social/@alice/n1');
+
+		$created = null;
+		$this->postService->method('createPost')
+			->willReturnCallback(function (Post $post) use (&$created, $activity): ACore {
+				$created = $post;
+
+				return $activity;
+			});
+		$this->streamService->method('getStreamById')->willReturn($this->createMock(Stream::class));
+		$this->controller()->statusNew();
+
+		return $created;
+	}
+
+	/**
+	 * `public` on a cached document decides whether the unauthenticated
+	 * /media/{uuid} route serves the file. Every upload used to be stored with
+	 * it set, so an attachment to a direct message was, by the row's own
+	 * account, readable by anybody who came by the uuid.
+	 */
+	public function testAttachmentsOfAPublicPostAreMarkedPublic(): void {
+		$document = $this->attachedDocument(false);
+		$this->cacheDocumentsRequest->expects($this->once())
+			->method('update')->with($this->identicalTo($document));
+
+		$this->postWith(['status' => 'hi', 'media_ids' => ['1'], 'visibility' => 'public']);
+
+		$this->assertTrue($document->isPublic());
+	}
+
+	public function testAttachmentsOfADirectMessageAreNotPublic(): void {
+		$document = $this->attachedDocument(true);
+		$this->cacheDocumentsRequest->expects($this->once())
+			->method('update')->with($this->identicalTo($document));
+
+		$this->postWith(['status' => 'hi', 'media_ids' => ['1'], 'visibility' => 'direct']);
+
+		$this->assertFalse($document->isPublic());
+	}
+
+	public function testAttachmentsOfAFollowersOnlyPostAreNotPublic(): void {
+		$document = $this->attachedDocument(true);
+
+		// Mastodon's followers-only value; the app calls it `followers`
+		$this->postWith(['status' => 'hi', 'media_ids' => ['1'], 'visibility' => 'private']);
+
+		$this->assertFalse($document->isPublic());
+	}
+
+	public function testAnAttachmentAlreadyScopedCorrectlyIsNotRewritten(): void {
+		$this->attachedDocument(true);
+		$this->cacheDocumentsRequest->expects($this->never())->method('update');
+
+		$this->postWith(['status' => 'hi', 'media_ids' => ['1'], 'visibility' => 'unlisted']);
+	}
+
+	// instance
+
+	public function testTheV2InstanceEntityIsServedToo(): void {
+		// newer clients ask for v2 first and only fall back to v1 on a 404
+		$instance = (new Instance())->setUri('cloud.example')->setTitle('Ours');
+		$this->instanceService->method('getLocal')->willReturn($instance);
+
+		$response = $this->controller()->instanceV2();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('cloud.example', $response->getData()['domain']);
+	}
+
+	// search
+
+	public function testTheV1SearchPathAnswersWithTheMastodonShape(): void {
+		// this path used to be the app's own web-UI search, which answered a
+		// client with a Nextcloud envelope it could make nothing of
+		$this->loggedInAs();
+		$this->searchService->method('searchUri')->willReturn([]);
+		$this->searchService->method('searchAccounts')->willReturn([]);
+		$this->searchService->method('searchStreamContent')->willReturn([]);
+		$this->searchService->method('searchHashtags')->willReturn([]);
+
+		$data = $this->controller()->search('cats')->getData();
+
+		$this->assertSame(['accounts', 'statuses', 'hashtags'], array_keys($data));
+	}
+
+	public function testSearchNarrowsByTypeLikeTheV2Route(): void {
+		$this->loggedInAs();
+		$this->searchService->expects($this->never())->method('searchAccounts');
+		$this->searchService->method('searchStreamContent')->willReturn(['s']);
+		$this->searchService->method('searchHashtags')->willReturn([]);
+
+		$data = $this->controller()->search('cats', 'statuses')->getData();
+
+		$this->assertSame(['s'], $data['statuses']);
+		$this->assertSame([], $data['accounts']);
+	}
+
+	// notifications
+
+	public function testANotificationTypeNoClientKnowsIsLeftOutOfThePage(): void {
+		$this->loggedInAs();
+		$known = $this->createMock(Stream::class);
+		$known->method('getSubType')->willReturn('Like');
+		$known->method('getNid')->willReturn(3);
+		$unknown = $this->createMock(Stream::class);
+		$unknown->method('getSubType')->willReturn('SomethingElse');
+		$unknown->method('getNid')->willReturn(2);
+		$this->captureTimelineOptions([$known, $unknown]);
+
+		// it would serialise as `"type": ""`, which a client with a closed enum
+		// cannot decode — and one bad entry loses the whole page
+		$this->assertSame([$known], $this->controller()->notifications()->getData());
+	}
+
+	/**
+	 * Whether there is a next page is what the query returned, not what
+	 * survived the filter above: a page shortened here says nothing about
+	 * older notifications, and Elk and Phanpy — which page on the `Link`
+	 * header and nowhere else — stopped there with the rest still in the
+	 * database.
+	 */
+	public function testAFilteredNotificationPageStillOffersTheNextOne(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/notifications?limit=3');
+		$page = [];
+		foreach ([30, 29] as $nid) {
+			$known = $this->createMock(Stream::class);
+			$known->method('getSubType')->willReturn('Like');
+			$known->method('getNid')->willReturn($nid);
+			$page[] = $known;
+		}
+		$unknown = $this->createMock(Stream::class);
+		$unknown->method('getSubType')->willReturn('SomethingElse');
+		$unknown->method('getNid')->willReturn(28);
+		$page[] = $unknown;
+		$this->captureTimelineOptions($page);
+
+		$response = $this->controller()->notifications(3);
+
+		$this->assertCount(2, $response->getData());
+		$link = $response->getHeaders()['Link'] ?? '';
+		$this->assertStringContainsString('max_id=28>; rel="next"', $link);
+	}
+
+	// public timeline
+
+	public function testThePublicTimelineIsReadableWithoutTheClientHavingAToken(): void {
+		// a client asks for it before it has one, to show what is here
+		$this->userSession->method('getUser')->willReturn(null);
+		$options = $this->captureTimelineOptions([]);
+
+		$response = $this->controller()->timelines('public');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(ProbeOptions::PUBLIC, $options()->getProbe());
+	}
+
+	public function testARevokedTokenOnThePublicTimelineStillSaysSo(): void {
+		// silently serving the anonymous view would leave the client believing
+		// its token is fine
+		$this->clientService->method('getFromToken')->willThrowException(new ClientNotFoundException());
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$this->assertUnauthorized($this->controller('Bearer gone')->timelines('public'));
+	}
+
+	public function testEveryOtherTimelineStillNeedsAViewer(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$this->assertUnauthorized($this->controller()->timelines('home'));
+	}
+
 	// media
 
 	public function testMediaNewWithoutUploadIsABadRequest(): void {
 		$this->loggedInAs();
 
-		$response = $this->controller()->mediaNew();
-
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'no media found'], $response->getData());
+		$this->assertUnprocessable($this->controller()->mediaNew(), 'no media found');
 	}
 
 	public function testMediaNewRequiresAViewer(): void {
 		$_FILES['file'] = ['tmp_name' => '/tmp/x', 'size' => 1, 'type' => 'image/png', 'error' => UPLOAD_ERR_OK];
 		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
 
-		$response = $this->controller()->mediaNew();
+		$this->assertUnauthorized($this->controller()->mediaNew());
+	}
 
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => self::REVOKED], $response->getData());
+	public function testMediaNewRefusesAFileOverTheSizeLimit(): void {
+		$this->loggedInAs();
+		$_FILES['file'] = [
+			'tmp_name' => '/tmp/php-upload',
+			'size' => 10 * 1048576 + 1,
+			'type' => 'image/png',
+			'error' => UPLOAD_ERR_OK,
+		];
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertUnprocessable(
+			$this->controller()->mediaNew(), 'file is larger than the 10MB limit'
+		);
 	}
 
 	public function testMediaNewReportsFailedUploads(): void {
@@ -1555,7 +2331,7 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['error' => 'missing details'], $this->controller()->mediaNew()->getData());
 	}
 
-	public function testMediaNewStoresTheUploadAsAPublicLocalDocument(): void {
+	public function testMediaNewStoresTheUploadAsANonPublicLocalDocument(): void {
 		$this->loggedInAs();
 		$_FILES['file'] = ['tmp_name' => '/tmp/php-upload', 'size' => 10, 'type' => 'image/png', 'error' => UPLOAD_ERR_OK];
 		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
@@ -1577,7 +2353,9 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertInstanceOf(MediaAttachment::class, $response->getData());
 		$this->assertTrue($saved->isLocal());
-		$this->assertTrue($saved->isPublic());
+		// not world-readable until a post says so: /media/{uuid} is
+		// unauthenticated and only serves what this flag allows
+		$this->assertFalse($saved->isPublic());
 		$this->assertSame('alice', $saved->getAccount());
 		$this->assertStringStartsWith('https://cloud.example/documents/local/', $saved->getId());
 	}
@@ -1622,10 +2400,7 @@ class ApiControllerTest extends TestCase {
 		// modern clients POST /api/v2/media and only fall back to v1 on a 404
 		$this->loggedInAs();
 
-		$response = $this->controller()->mediaNewV2();
-
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'no media found'], $response->getData());
+		$this->assertUnprocessable($this->controller()->mediaNewV2(), 'no media found');
 	}
 
 	private function ownDocumentInService(string $nid, string $description = ''): Document {

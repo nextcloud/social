@@ -93,9 +93,15 @@ class PostService {
 
 		$note->setAttributedTo($actor->getId());
 		$note->setContent(nl2br(htmlentities($post->getContent(), ENT_QUOTES)));
-		// the warning rides as the object's `summary`, which is what every
-		// other server reads it from
-		$note->setSpoilerText(htmlentities($post->getSpoilerText(), ENT_QUOTES));
+		// The warning rides as the object's `summary`, which is what every other
+		// server reads it from — and unlike the content it is plain text
+		// wherever it is read: `spoiler_text` to a client, interpolated rather
+		// than rendered by this app's own frontend. Encoding it entity by entity
+		// federated `Bob&#039;s finale` to every other instance and baked those
+		// entities into the next edit, so markup is dropped instead of encoded:
+		// nothing downstream has to undo it, and editPost() agrees.
+		$note->setSpoilerText(strip_tags($post->getSpoilerText()));
+		$note->setSensitive($post->isSensitive());
 		$note->setAttachments($post->getMedias());
 		$note->setVisibility($post->getType());
 
@@ -130,7 +136,7 @@ class PostService {
 
 		$stream->setContent(nl2br(htmlentities($content, ENT_QUOTES)));
 		if ($spoilerText !== null) {
-			$stream->setSpoilerText($spoilerText);
+			$stream->setSpoilerText(strip_tags($spoilerText));
 		}
 		if ($sensitive !== null) {
 			$stream->setSensitive($sensitive);

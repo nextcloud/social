@@ -13,7 +13,7 @@ import { translate as t } from '@nextcloud/l10n'
  */
 
 /** @type {Visibility[]} */
-export default [
+const visibilities = [
 	{
 		id: 'public',
 		text: t('social', 'Public'),
@@ -35,3 +35,17 @@ export default [
 		description: t('social', 'Visible to mentioned users only'),
 	},
 ]
+
+export default visibilities
+
+/**
+ * Whether anything in the app knows what to do with this id. A visibility read
+ * back from localStorage — a draft or the last-used one — was written by some
+ * version of this app, not necessarily this one.
+ *
+ * @param {string} id the id to check
+ * @return {boolean}
+ */
+export function isKnownVisibility(id) {
+	return visibilities.some((visibility) => visibility.id === id)
+}

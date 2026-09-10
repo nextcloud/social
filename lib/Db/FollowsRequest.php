@@ -117,8 +117,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 	public function accepted(Follow $follow) {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('accepted', $qb->createNamedParameter('1'));
-		$qb->limitToActorIdPrim($qb->prim($follow->getActorId()));
-		$qb->limitToObjectIdPrim($qb->prim($follow->getObjectId()));
+		$this->limitToPrim($qb, 'actor_id_prim', $follow->getActorId());
+		$this->limitToPrim($qb, 'object_id_prim', $follow->getObjectId());
 
 		$qb->executeStatement();
 	}
@@ -133,6 +133,25 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
+	 * The follow a URI names.
+	 *
+	 * Only a peer that sends the object of an `Undo`/`Accept`/`Reject` as a
+	 * bare link needs this: the id is then all there is to go on.
+	 *
+	 * @throws FollowNotFoundException
+	 */
+	public function getById(string $id): Follow {
+		if ($id === '') {
+			throw new FollowNotFoundException('empty follow id');
+		}
+
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToIdPrimString($qb, $id);
+
+		return $this->getFollowFromRequest($qb);
+	}
+
+	/**
 	 * @param string $actorId
 	 * @param string $remoteActorId
 	 *
@@ -141,8 +160,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getByPersons(string $actorId, string $remoteActorId): Follow {
 		$qb = $this->getFollowsSelectSql();
-		$qb->limitToActorIdPrim($qb->prim($actorId));
-		$qb->limitToObjectIdPrim($qb->prim($remoteActorId));
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
+		$this->limitToPrim($qb, 'object_id_prim', $remoteActorId);
 
 		return $this->getFollowFromRequest($qb);
 	}
@@ -154,7 +173,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function countFollowers(string $actorId): int {
 		$qb = $this->countFollowsSelectSql();
-		$qb->limitToObjectIdPrim($qb->prim($actorId));
+		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(true);
 
@@ -172,7 +191,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function countPendingRequests(string $actorId): int {
 		$qb = $this->countFollowsSelectSql();
-		$qb->limitToObjectIdPrim($qb->prim($actorId));
+		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(false);
 
@@ -190,7 +209,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function countFollowing(string $actorId): int {
 		$qb = $this->countFollowsSelectSql();
-		$qb->limitToActorIdPrim($qb->prim($actorId));
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 		$qb->limitToType(Follow::TYPE);
 		$qb->limitToAccepted(true);
 
@@ -221,7 +240,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function getByFollowId(string $followId): array {
 		$qb = $this->getFollowsSelectSql();
-		$qb->limitToFollowId($followId);
+		$this->limitToPrim($qb, 'follow_id_prim', $followId);
 		$qb->limitToAccepted(true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 
@@ -229,21 +248,68 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
+	 * The accepted followers of an actor, newest first.
+	 *
+	 * Each row is hydrated into a Follow with a Person and its details, so
+	 * $limit/$offset are what keep this bounded — it serves the paged
+	 * `followers` collection and the re-follow after a Move, both of which want
+	 * the follows themselves. Federated delivery used to fan out over it and
+	 * loaded a popular actor's whole follower list into memory for every post;
+	 * it asks getFollowerInboxes() for the distinct inboxes instead.
 	 *
 	 * @return Follow[]
 	 */
-	public function getFollowersByActorId(string $actorId): array {
+	public function getFollowersByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToObjectId($qb, $actorId);
+		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$this->limitToAccepted($qb, true);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
 
-		// TODO: pagination
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+			$qb->setFirstResult($offset);
+		}
 
 		return $this->getFollowsFromRequest($qb);
+	}
+
+	/**
+	 * Where a post has to be delivered for the followers of an actor to see
+	 * it: one row per distinct inbox, resolved in the database.
+	 *
+	 * The fan-out only ever needed the inboxes, and there are as many of those
+	 * as there are instances involved — not as many as there are followers.
+	 *
+	 * @return string[] the shared inbox where there is one, the personal inbox otherwise
+	 */
+	public function getFollowerInboxes(string $actorId): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+
+		$qb->selectDistinct('ca.shared_inbox')
+			->addSelect('ca.inbox')
+			->from(self::TABLE_FOLLOWS, 'f')
+			->innerJoin('f', self::TABLE_CACHE_ACTORS, 'ca', $expr->eq('ca.id_prim', 'f.actor_id_prim'))
+			->where($expr->eq('f.object_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->andWhere($expr->eq('f.type', $qb->createNamedParameter(Follow::TYPE)))
+			->andWhere($expr->eq('f.accepted', $qb->createNamedParameter('1')));
+
+		$inboxes = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$inbox = (string)($data['shared_inbox'] ?? '');
+			if ($inbox === '') {
+				$inbox = (string)($data['inbox'] ?? '');
+			}
+			if ($inbox !== '' && !in_array($inbox, $inboxes, true)) {
+				$inboxes[] = $inbox;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $inboxes;
 	}
 
 	/**
@@ -251,10 +317,13 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return Follow[]
 	 */
-	public function getPendingByObjectId(string $actorId): array {
+	public function getPendingByObjectId(string $actorId, int $limit = 0): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToObjectId($qb, $actorId);
+		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$this->limitToAccepted($qb, false);
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
@@ -267,10 +336,14 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return Follow[]
 	 */
-	public function getFollowingByActorId(string $actorId): array {
+	public function getFollowingByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToActorId($qb, $actorId);
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 		$this->limitToAccepted($qb, true);
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+			$qb->setFirstResult($offset);
+		}
 		$this->leftJoinCacheActors($qb, 'object_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
@@ -283,10 +356,13 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return Follow[]
 	 */
-	public function getFollowersByFollowId(string $followId): array {
+	public function getFollowersByFollowId(string $followId, int $limit = 0): array {
 		$qb = $this->getFollowsSelectSql();
-		$this->limitToFollowId($qb, $followId);
+		$this->limitToPrim($qb, 'follow_id_prim', $followId);
 		$this->limitToAccepted($qb, true);
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
 		$this->leftJoinAccounts($qb, 'actor_id');
 
 		return $this->getFollowsFromRequest($qb);
@@ -297,7 +373,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function delete(Follow $follow) {
 		$qb = $this->getFollowsDeleteSql();
-		$this->limitToIdString($qb, $follow->getId());
+		$this->limitToIdPrimString($qb, $follow->getId());
 
 		$qb->executeStatement();
 	}
@@ -307,8 +383,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function deleteByPersons(Follow $follow) {
 		$qb = $this->getFollowsDeleteSql();
-		$this->limitToActorId($qb, $follow->getActorId());
-		$this->limitToObjectId($qb, $follow->getObjectId());
+		$this->limitToPrim($qb, 'actor_id_prim', $follow->getActorId());
+		$this->limitToPrim($qb, 'object_id_prim', $follow->getObjectId());
 
 		$qb->executeStatement();
 	}
@@ -331,7 +407,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 */
 	public function deleteById(string $id) {
 		$qb = $this->getFollowsDeleteSql();
-		$this->limitToIdString($qb, $id);
+		$this->limitToIdPrimString($qb, $id);
 
 		$qb->executeStatement();
 	}
@@ -347,7 +423,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 			->set('follow_id', $qb->createNamedParameter($new->getFollowers()))
 			->set('follow_id_prim', $qb->createNamedParameter($qb->prim($new->getFollowers())));
 
-		$qb->limitToObjectIdPrim($qb->prim($actorId));
+		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 
 		$qb->executeStatement();
 	}
@@ -361,7 +437,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb->set('actor_id', $qb->createNamedParameter($new->getId()))
 			->set('actor_id_prim', $qb->createNamedParameter($qb->prim($new->getId())));
 
-		$qb->limitToActorIdPrim($qb->prim($actorId));
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 
 		$qb->executeStatement();
 	}
@@ -383,9 +459,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 			$prims[] = $qb->prim($actorId);
 		}
 
-		$orX = $qb->expr()->orX(
-			$qb->exprLimitInArray('actor_id_prim', $prims),
-			$qb->exprLimitInArray('object_id_prim', $prims)
+		$qb->andWhere(
+			$qb->expr()->orX(
+				$qb->exprLimitInArray('actor_id_prim', $prims),
+				$qb->exprLimitInArray('object_id_prim', $prims)
+			)
 		);
 
 		return $this->getFollowsFromRequest($qb);

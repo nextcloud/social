@@ -8,11 +8,11 @@
 		:user="actor.username"
 		:display-name="actor.acct"
 		:disable-tooltip="true"
-		:show-user-status="false" />
+		:hide-status="true" />
 	<NcAvatar v-else
 		:size="size"
 		:url="avatarUrl"
-		:show-user-status="false"
+		:hide-status="true"
 		:disable-tooltip="true" />
 </template>
 

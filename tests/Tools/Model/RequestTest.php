@@ -196,6 +196,7 @@ class RequestTest extends TestCase {
 		$request->basedOnUrl('https://mastodon.social/users/alice');
 		$request->setUserAgent('ua')
 			->setTimeout(3)
+			->setConnectTimeout(2)
 			->addHeader('Accept', 'application/activity+json')
 			->setCookies(['session' => 'x'])
 			->addParam('page', '1')
@@ -213,6 +214,7 @@ class RequestTest extends TestCase {
 			'host' => 'mastodon.social',
 			'url' => '/users/alice/inbox',
 			'timeout' => 3,
+			'connectTimeout' => 2,
 			'type' => Request::TYPE_POST,
 			'cookies' => ['session' => 'x'],
 			'headers' => ['user-agent' => 'ua', 'Accept' => 'application/activity+json'],

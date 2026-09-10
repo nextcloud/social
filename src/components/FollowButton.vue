@@ -5,45 +5,52 @@
 <template>
 	<!-- Show button only if user is authenticated and she is not the same as the account viewed -->
 	<div v-if="!serverData.public && relationship !== undefined">
-		<div v-if="relationship.following"
-			class="follow-button-container">
-			<!-- the visible half of a hover swap, not a control: it has no
-			     click handler, so a keyboard user tabbing onto it and pressing
-			     Enter got nothing. The Unfollow button beside it is the action,
-			     and "Unfollow" already says that you are following -->
-			<NcButton :disabled="loading"
-				class="follow-button follow-button--following"
-				type="success"
-				aria-hidden="true"
-				tabindex="-1">
-				<template #icon>
-					<Check :size="32" />
-				</template>
-				{{ t('social', 'Following') }}
-			</NcButton>
-			<NcButton :disabled="loading"
-				class="follow-button follow-button--unfollow"
-				type="error"
-				@click="unfollow()">
-				<template #icon>
-					<CloseOctagon :size="32" />
-				</template>
-				{{ t('social', 'Unfollow') }}
-			</NcButton>
-		</div>
+		<!--
+		  One real button, not two swapped by a :hover rule. The pair used to be
+		  a "Following" label with no handler plus an "Unfollow" button that
+		  `display: none` kept out of the tab order until a pointer hovered the
+		  container — so a keyboard user and every touch device had no way to
+		  unfollow anyone at all. The label changes on hover and focus instead.
+		-->
+		<NcButton v-if="relationship.following"
+			:disabled="loading"
+			class="follow-button follow-button--following"
+			:variant="unfollowIntent ? 'error' : 'success'"
+			:aria-label="t('social', 'Unfollow {account}', { account: uid })"
+			@mouseenter="unfollowIntent = true"
+			@mouseleave="unfollowIntent = false"
+			@focus="unfollowIntent = true"
+			@blur="unfollowIntent = false"
+			@click="askToUnfollow">
+			<template #icon>
+				<CloseOctagon v-if="unfollowIntent" :size="20" />
+				<Check v-else :size="20" />
+			</template>
+			{{ unfollowIntent ? t('social', 'Unfollow') : t('social', 'Following') }}
+		</NcButton>
 		<NcButton v-else-if="relationship.requested"
 			:disabled="true"
-			type="secondary"
+			variant="secondary"
 			class="follow-button">
 			{{ t('social', 'Requested') }}
 		</NcButton>
 		<NcButton v-else
 			:disabled="loading"
-			type="primary"
+			variant="primary"
 			class="follow-button"
 			@click="follow">
 			{{ t('social', 'Follow') }}
 		</NcButton>
+
+		<!-- unfollowing is quiet and easy to do by accident, and on a locked
+		     account following again means asking again -->
+		<NcDialog v-model:open="confirmUnfollow"
+			:name="t('social', 'Unfollow {account}?', { account: uid })"
+			:buttons="unfollowButtons">
+			<p class="unfollow-hint">
+				{{ t('social', 'Their posts stop appearing in your home timeline. If their account is locked you will have to ask again to follow them.') }}
+			</p>
+		</NcDialog>
 	</div>
 </template>
 
@@ -53,6 +60,9 @@ import currentUser from '../mixins/currentUserMixin.js'
 import Check from 'vue-material-design-icons/Check.vue'
 import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
+import { translate } from '@nextcloud/l10n'
+import logger from '../services/logger.js'
 
 export default {
 	name: 'FollowButton',
@@ -60,6 +70,7 @@ export default {
 		Check,
 		CloseOctagon,
 		NcButton,
+		NcDialog,
 	},
 	mixins: [
 		accountMixins,
@@ -74,6 +85,9 @@ export default {
 	data() {
 		return {
 			loading: false,
+			/** whether the pointer or the keyboard is on the button */
+			unfollowIntent: false,
+			confirmUnfollow: false,
 		}
 	},
 	computed: {
@@ -85,24 +99,51 @@ export default {
 		currentAccount() {
 			return this.$store.getters.currentAccount
 		},
+		unfollowButtons() {
+			return [
+				{
+					label: translate('social', 'Cancel'),
+					callback: () => {
+						this.confirmUnfollow = false
+					},
+				},
+				{
+					label: translate('social', 'Unfollow'),
+					variant: 'error',
+					callback: () => this.unfollow(),
+				},
+			]
+		},
 	},
 	methods: {
+		t: translate,
+		askToUnfollow() {
+			this.confirmUnfollow = true
+		},
 		async follow() {
-			console.debug('[FollowButton] follow clicked', { profileAccount: this.profileAccount, relationship: this.relationship })
+			logger.debug('Following an account', { account: this.profileAccount })
 			try {
 				this.loading = true
 				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
+			} catch (error) {
+				// the store says what went wrong; without this the rejection
+				// had nowhere to go but the console, as an unhandled one
+				logger.error('Failed to follow an account', { error })
 			} finally {
 				this.loading = false
 			}
 		},
 		async unfollow() {
-			console.debug('[FollowButton] unfollow clicked', { profileAccount: this.profileAccount, relationship: this.relationship })
+			this.confirmUnfollow = false
+			logger.debug('Unfollowing an account', { account: this.profileAccount })
 			try {
 				this.loading = true
 				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
+			} catch (error) {
+				logger.error('Failed to unfollow an account', { error })
 			} finally {
 				this.loading = false
+				this.unfollowIntent = false
 			}
 		},
 	},
@@ -115,24 +156,10 @@ export default {
 		font-weight: 600 !important;
 	}
 
-	.follow-button-container {
-		.follow-button--following {
-			display: flex;
-			border-radius: 10px !important;
-		}
-		.follow-button--unfollow {
-			display: none;
-			border-radius: 10px !important;
-		}
-
-		&:hover {
-			.follow-button--following {
-				display: none;
-			}
-			.follow-button--unfollow {
-				display: flex;
-			}
-		}
+	.unfollow-hint {
+		padding: 0 12px 12px;
+		color: var(--color-text-lighter);
+		line-height: 1.5;
 	}
 
 	.user-entry {

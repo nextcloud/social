@@ -177,11 +177,11 @@ class LinkPreviewService {
 	 */
 	private function fetch(string $url): string {
 		$parsed = parse_url($url);
-		$request = new NCRequest((string)($parsed['path'] ?? '/'), Request::TYPE_GET);
-		$request->setHost((string)$parsed['host']);
-		$request->setProtocol((string)$parsed['scheme']);
+		$request = new NCRequest($parsed['path'] ?? '/', Request::TYPE_GET);
+		$request->setHost($parsed['host']);
+		$request->setProtocol($parsed['scheme']);
 		if (($parsed['query'] ?? '') !== '') {
-			parse_str((string)$parsed['query'], $params);
+			parse_str($parsed['query'], $params);
 			foreach ($params as $key => $value) {
 				$request->addParam((string)$key, is_array($value) ? '' : (string)$value);
 			}
@@ -290,7 +290,7 @@ class LinkPreviewService {
 			return $root . $url;
 		}
 
-		$path = (string)($parsed['path'] ?? '/');
+		$path = $parsed['path'] ?? '/';
 
 		return $root . substr($path, 0, (int)strrpos($path, '/') + 1) . $url;
 	}

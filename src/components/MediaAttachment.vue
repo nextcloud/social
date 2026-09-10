@@ -29,24 +29,38 @@
 			<canvas ref="canvas"
 				class="attachment__blurhash"
 				:class="{ 'attachment__blurhash--hidden': previewLoaded }" />
-			<img v-if="attachment !== null"
+			<img v-if="hasPreview && !previewFailed"
 				class="attachment__preview attachment__preview--fading"
 				:class="{ 'attachment__preview--shown': previewLoaded }"
 				:src="attachment.preview_url"
 				:alt="attachment.description || ''"
-				@load="previewLoaded = true">
+				@load="previewLoaded = true"
+				@error="onPreviewError">
+			<!-- federated media that has gone away used to spin forever: no
+			     @error meant previewLoaded stayed false and the spinner stayed.
+			     So did media the server says outright it has no preview for -->
+			<span v-if="showsPlaceholder"
+				class="attachment__failed"
+				role="img"
+				:aria-label="placeholderLabel">
+				<ImageOff :size="32" />
+			</span>
 		</template>
-		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !isAv)" :size="40" />
+		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !showsPlaceholder && !isAv)" :size="40" />
 	</div>
 </template>
 
 <script>
 import { decode } from 'blurhash'
+import { translate } from '@nextcloud/l10n'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import ImageOff from 'vue-material-design-icons/ImageOff.vue'
+import logger from '../services/logger.js'
 
 export default {
 	name: 'MediaAttachment',
 	components: {
+		ImageOff,
 		NcLoadingIcon,
 	},
 	emits: ['click'],
@@ -60,6 +74,7 @@ export default {
 	data() {
 		return {
 			previewLoaded: false,
+			previewFailed: false,
 		}
 	},
 	computed: {
@@ -67,9 +82,41 @@ export default {
 		isAv() {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
 		},
+		/**
+		 * Whether there is a preview to wait for at all. The server sends
+		 * `preview_url: null` when it has none, and Vue drops a null `src`:
+		 * neither @load nor @error is then guaranteed to fire — on Firefox
+		 * neither does — so the spinner stayed up for good.
+		 *
+		 * @return {boolean}
+		 */
+		hasPreview() {
+			return this.attachment !== null
+				&& typeof this.attachment.preview_url === 'string'
+				&& this.attachment.preview_url !== ''
+		},
+		/** @return {boolean} whether the still-image placeholder is on screen */
+		showsPlaceholder() {
+			return !this.isAv && this.attachment !== null && (this.previewFailed || !this.hasPreview)
+		},
+		/** @return {string} what the placeholder stands for */
+		placeholderLabel() {
+			const description = this.attachment?.description
+			if (this.previewFailed) {
+				return description
+					? translate('social', 'Attachment could not be loaded: {description}', { description })
+					: translate('social', 'Attachment could not be loaded')
+			}
+
+			return description
+				? translate('social', 'No preview available: {description}', { description })
+				: translate('social', 'No preview available')
+		},
 	},
 	watch: {
 		attachment() {
+			this.previewLoaded = false
+			this.previewFailed = false
 			this.drawBlurhash()
 		},
 	},
@@ -77,8 +124,20 @@ export default {
 		this.drawBlurhash()
 	},
 	methods: {
+		onPreviewError() {
+			this.previewFailed = true
+			this.previewLoaded = false
+		},
 		drawBlurhash() {
 			if (this.isAv || this.attachment?.meta?.small?.width === undefined) {
+				return
+			}
+
+			// CacheDocumentService sets the copy sizes before it knows GD could
+			// read the image, so an unreadable upload arrives with dimensions
+			// and an empty blurhash — and decode('') throws
+			const blurhash = this.attachment.blurhash
+			if (typeof blurhash !== 'string' || blurhash.length < 6) {
 				return
 			}
 
@@ -86,11 +145,16 @@ export default {
 				return
 			}
 
-			const ctx = this.$refs.canvas.getContext('2d')
-			const imageData = ctx.createImageData(this.attachment.meta.small.width, this.attachment.meta.small.height)
-			const pixels = decode(this.attachment.blurhash, this.attachment.meta.small.width, this.attachment.meta.small.height)
-			imageData.data.set(pixels)
-			ctx.putImageData(imageData, 0, 0)
+			try {
+				const ctx = this.$refs.canvas.getContext('2d')
+				const imageData = ctx.createImageData(this.attachment.meta.small.width, this.attachment.meta.small.height)
+				const pixels = decode(blurhash, this.attachment.meta.small.width, this.attachment.meta.small.height)
+				imageData.data.set(pixels)
+				ctx.putImageData(imageData, 0, 0)
+			} catch (error) {
+				// a malformed hash is not worth losing the attachment over
+				logger.debug('Could not draw the blurhash placeholder', { error })
+			}
 		},
 	},
 }
@@ -135,6 +199,16 @@ export default {
 			opacity: 1;
 			transform: scale(1);
 		}
+	}
+
+	&__failed {
+		position: absolute;
+		inset: 0;
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--color-text-maxcontrast);
 	}
 
 	.loading-icon {

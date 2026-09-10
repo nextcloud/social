@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /* global setInitialState */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, shallowRef } from 'vue'
@@ -173,14 +175,61 @@ describe('App', () => {
 		expect(mountApp().find('.setup').exists()).toBe(false)
 	})
 
-	it('stores the search term coming from the navigation and clears it on navigation', async () => {
-		const wrapper = mountApp()
-		wrapper.findComponent(stubs.Navigation).vm.$emit('search', 'fediverse')
-		expect(store.state.timeline.searchQuery).toBe('fediverse')
+	describe('searching', () => {
+		it('takes the term to the search route rather than filtering what is loaded', () => {
+			const wrapper = mountApp()
+			wrapper.findComponent(stubs.Navigation).vm.$emit('search', 'fediverse')
 
-		route.value = { name: 'timeline', params: { type: 'federated' }, fullPath: '/timeline/federated' }
-		await nextTick()
-		expect(store.state.timeline.searchQuery).toBe('')
+			expect(store.state.timeline.searchQuery).toBe('fediverse')
+			expect(router.push).toHaveBeenCalledWith({ name: 'search', params: { term: 'fediverse' } })
+		})
+
+		it('refines the term in place, so Back does not walk out through the keystrokes', () => {
+			route = shallowRef({ name: 'search', params: { term: 'fedi' }, fullPath: '/search/fedi' })
+			router.replace = vi.fn()
+			const wrapper = mountApp()
+
+			wrapper.findComponent(stubs.Navigation).vm.$emit('search', 'fediverse')
+
+			expect(router.replace).toHaveBeenCalledWith({ name: 'search', params: { term: 'fediverse' } })
+			expect(router.push).not.toHaveBeenCalled()
+		})
+
+		it('leaves the search route when the box is emptied', () => {
+			route = shallowRef({ name: 'search', params: { term: 'fedi' }, fullPath: '/search/fedi' })
+			const wrapper = mountApp()
+
+			wrapper.findComponent(stubs.Navigation).vm.$emit('search', '   ')
+
+			expect(store.state.timeline.searchQuery).toBe('')
+			expect(router.push).toHaveBeenCalledWith({ name: 'timeline' })
+		})
+
+		it('goes nowhere when the box is emptied off the search route', () => {
+			const wrapper = mountApp()
+			wrapper.findComponent(stubs.Navigation).vm.$emit('search', '')
+
+			expect(router.push).not.toHaveBeenCalled()
+		})
+
+		it('keeps the stored term in step with the route', async () => {
+			mountApp()
+
+			route.value = { name: 'search', params: { term: 'fediverse' }, fullPath: '/search/fediverse' }
+			await nextTick()
+			expect(store.state.timeline.searchQuery).toBe('fediverse')
+
+			route.value = { name: 'timeline', params: { type: 'federated' }, fullPath: '/timeline/federated' }
+			await nextTick()
+			expect(store.state.timeline.searchQuery).toBe('')
+		})
+	})
+
+	it('does not remount the whole view on every route change', () => {
+		// :key="$route.fullPath" refetched page one of the timeline and
+		// landed at the top for every navigation, Back included
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+		expect(source).not.toMatch(/<router-view[^>]*:key=/)
 	})
 
 	describe('push notifications', () => {

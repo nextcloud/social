@@ -8,7 +8,13 @@
 
 name: PHPUnit PostgreSQL
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
 
 permissions:
   contents: read
@@ -21,8 +27,10 @@ jobs:
   matrix:
     runs-on: ubuntu-latest-low
     outputs:
-      php-version: ${{ steps.versions.outputs.php-available-list }}
-      server-max: ${{ steps.versions.outputs.branches-max-list }}
+      # sparse-matrix covers the whole range info.xml claims (both the min and
+      # the max server version) with minimal redundancy; branches-max-list
+      # tested the newest server only, so the claimed floor went unexercised.
+      matrix: ${{ steps.versions.outputs.sparse-matrix }}
     steps:
       - name: Checkout app
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -57,6 +65,8 @@ jobs:
               - '.php-cs-fixer.dist.php'
               - 'composer.json'
               - 'composer.lock'
+              - 'docs/**'
+              - 'README.md'
 
   phpunit-pgsql:
     runs-on: ubuntu-latest
@@ -65,9 +75,7 @@ jobs:
     if: needs.changes.outputs.src != 'false'
 
     strategy:
-      matrix:
-        php-versions: ${{ fromJson(needs.matrix.outputs.php-version) }}
-        server-versions: ${{ fromJson(needs.matrix.outputs.server-max) }}
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
 
     name: PostgreSQL PHP ${{ matrix.php-versions }} Nextcloud ${{ matrix.server-versions }}
 
@@ -100,7 +108,20 @@ jobs:
         with:
           path: apps/${{ env.APP_NAME }}
 
+      - name: Check PHP version requirement
+        id: php_check
+        run: |
+          PHP_MIN=$(grep -oP 'php min-version="\K[^"]+' apps/${{ env.APP_NAME }}/appinfo/info.xml)
+          echo "App requires PHP >= $PHP_MIN, current is ${{ matrix.php-versions }}"
+          if php -r "exit(version_compare('${{ matrix.php-versions }}', '$PHP_MIN') < 0 ? 1 : 0);"; then
+            echo "PHP version ${{ matrix.php-versions }} meets minimum requirement $PHP_MIN"
+          else
+            echo "PHP version ${{ matrix.php-versions }} is below minimum $PHP_MIN, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up php ${{ matrix.php-versions }}
+        if: steps.php_check.outputs.skip != 'true'
         uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231 # v2.31.1
         with:
           php-version: ${{ matrix.php-versions }}
@@ -112,6 +133,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check composer file existence
+        if: steps.php_check.outputs.skip != 'true'
         id: check_composer
         uses: andstor/file-existence-action@076e0072799f4942c8bc574a82233e1e4d13e9d6 # v3.0.0
         with:
@@ -119,11 +141,12 @@ jobs:
 
       - name: Set up dependencies
         # Only run if phpunit config file exists
-        if: steps.check_composer.outputs.files_exists == 'true'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_composer.outputs.files_exists == 'true'
         working-directory: apps/${{ env.APP_NAME }}
         run: composer i
 
       - name: Set up Nextcloud
+        if: steps.php_check.outputs.skip != 'true'
         env:
           DB_PORT: 4444
         run: |
@@ -132,6 +155,7 @@ jobs:
           ./occ app:enable --force ${{ env.APP_NAME }}
 
       - name: Check PHPUnit script is defined
+        if: steps.php_check.outputs.skip != 'true'
         id: check_phpunit
         continue-on-error: true
         working-directory: apps/${{ env.APP_NAME }}
@@ -140,11 +164,12 @@ jobs:
 
       - name: PHPUnit
         # Only run if phpunit config file exists
-        if: steps.check_phpunit.outcome == 'success'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_phpunit.outcome == 'success'
         working-directory: apps/${{ env.APP_NAME }}
         run: composer run test:unit
 
       - name: Check PHPUnit integration script is defined
+        if: steps.php_check.outputs.skip != 'true'
         id: check_integration
         continue-on-error: true
         working-directory: apps/${{ env.APP_NAME }}
@@ -153,26 +178,32 @@ jobs:
 
       - name: Run Nextcloud
         # Only run if phpunit integration config file exists
-        if: steps.check_integration.outcome == 'success'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_integration.outcome == 'success'
         run: php -S localhost:8080 &
 
       - name: PHPUnit integration
         # Only run if phpunit integration config file exists
-        if: steps.check_integration.outcome == 'success'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_integration.outcome == 'success'
         working-directory: apps/${{ env.APP_NAME }}
         run: composer run test:integration
 
       - name: Print logs
-        if: always()
+        # always(), so the log is there to read when a test failed
+        if: always() && steps.php_check.outputs.skip != 'true'
         run: |
           cat data/nextcloud.log
 
       - name: Skipped
         # Fail the action when neither unit nor integration tests ran
-        if: steps.check_phpunit.outcome == 'failure' && steps.check_integration.outcome == 'failure'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_phpunit.outcome == 'failure' && steps.check_integration.outcome == 'failure'
         run: |
           echo 'Neither PHPUnit nor PHPUnit integration tests are specified in composer.json scripts'
           exit 1
+
+      - name: Skipped notification
+        if: steps.php_check.outputs.skip == 'true'
+        run: |
+          echo "PHP version ${{ matrix.php-versions }} is below app minimum, skipping"
 
   summary:
     permissions:

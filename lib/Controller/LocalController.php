@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -42,9 +43,11 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
@@ -83,9 +86,11 @@ class LocalController extends Controller {
 	private ActorService $actorService;
 	private ActivityService $activityService;
 	private CacheDocumentService $cacheDocumentService;
+	private CacheActorsRequest $cacheActorsRequest;
 
 	public function __construct(
 		IRequest $request, ?string $userId, AccountService $accountService, CacheActorService $cacheActorService,
+		CacheActorsRequest $cacheActorsRequest,
 		HashtagService $hashtagService,
 		FollowService $followService, PostService $postService, StreamService $streamService,
 		SearchService $searchService,
@@ -101,6 +106,7 @@ class LocalController extends Controller {
 
 		$this->userId = $userId;
 		$this->cacheActorService = $cacheActorService;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->hashtagService = $hashtagService;
 		$this->accountService = $accountService;
 		$this->streamService = $streamService;
@@ -136,7 +142,6 @@ class LocalController extends Controller {
 	 *
 	 */
 	#[NoAdminRequired]
-	#[NoCSRFRequired]
 	public function uploadBanner(): DataResponse {
 		try {
 			if ($this->userId === null) {
@@ -207,8 +212,8 @@ class LocalController extends Controller {
 	 * @return DataResponse
 	 */
 	#[NoAdminRequired]
-	#[NoCSRFRequired]
 	public function uploadBannerByUrl(string $url = ''): DataResponse {
+		$tmpFile = null;
 		try {
 			if ($this->userId === null) {
 				throw new AccountDoesNotExistException('User not logged in');
@@ -236,37 +241,20 @@ class LocalController extends Controller {
 				'host' => $host,
 			]);
 
-			$tmpFile = tempnam(sys_get_temp_dir(), 'social_banner_');
-			$fp = fopen($tmpFile, 'w+');
-			$ch = curl_init();
-			curl_setopt_array($ch, [
-				CURLOPT_URL => $url,
-				CURLOPT_FILE => $fp,
-				CURLOPT_FOLLOWLOCATION => true,
-				CURLOPT_MAXREDIRS => 5,
-				CURLOPT_TIMEOUT => 30,
-				CURLOPT_CONNECTTIMEOUT => 10,
-				CURLOPT_MAXFILESIZE => self::BANNER_MAX_SIZE,
-				CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-				CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-				CURLOPT_USERAGENT => 'Nextcloud-Social/0.10',
-			]);
-			$success = curl_exec($ch);
-			$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-			curl_close($ch);
-			fclose($fp);
-
-			if (!$success || $httpCode < 200 || $httpCode >= 300) {
-				unlink($tmpFile);
-				throw new Exception('Failed to download image from URL (HTTP ' . $httpCode . ')');
+			// The download goes through the app's own HTTP client rather than a
+			// hand-rolled curl handle. That is what makes the checks above hold:
+			// the client re-checks the target on every redirect it follows and
+			// pins the resolved address, so a 302 to 127.0.0.1 or to a cloud
+			// metadata endpoint is refused instead of fetched. It also applies
+			// the instance access list and the configured size ceiling.
+			$content = $this->cacheDocumentService->retrieveContent($url);
+			if (strlen($content) > self::BANNER_MAX_SIZE) {
+				throw new Exception('Banner image is too large');
 			}
 
-			// CURLOPT_MAXFILESIZE trusts Content-Length; enforce the ceiling on the
-			// bytes that actually landed as well.
-			if (filesize($tmpFile) > self::BANNER_MAX_SIZE) {
-				unlink($tmpFile);
-				throw new Exception('Banner image is too large');
+			$tmpFile = tempnam(sys_get_temp_dir(), 'social_banner_');
+			if ($tmpFile === false || file_put_contents($tmpFile, $content) === false) {
+				throw new Exception('Cannot store the downloaded banner');
 			}
 
 			$actor = $this->accountService->getActorFromUserId($this->userId);
@@ -283,8 +271,6 @@ class LocalController extends Controller {
 
 			$interface = AP::$activityPub->getInterfaceForItem($image);
 			$interface->save($image);
-
-			unlink($tmpFile);
 
 			$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());
 			$cached = $this->cacheActorService->getFromId($actor->getId());
@@ -318,6 +304,10 @@ class LocalController extends Controller {
 				'trace' => $e->getTraceAsString(),
 			]);
 			return $this->fail($e);
+		} finally {
+			if (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
+				unlink($tmpFile);
+			}
 		}
 	}
 
@@ -575,8 +565,17 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * A profile timeline, which first asks the account's own server for its outbox.
+	 *
+	 * Anyone may call this and the handle names the server that is fetched, so the
+	 * throttle has to be real: without it one anonymous request per second keeps a
+	 * worker busy fetching from, and ingesting into, whatever host the caller picked.
+	 */
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	public function streamAccount(string $username, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer();
@@ -841,8 +840,18 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * Everything known about one account, resolving an unknown handle remotely.
+	 *
+	 * A handle this instance has never seen costs a host-meta, a WebFinger and four
+	 * signed actor fetches — six outbound requests at a ten-second timeout, aimed at
+	 * a host the caller names and signed by a named local actor. `OStatusController::getLink`
+	 * throttles a single WebFinger lookup for the same reason.
+	 */
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 10, period: 300)]
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function globalAccountInfo(string $account): DataResponse {
 		$this->logger->debug('[LocalController] globalAccountInfo called', ['account' => $account]);
 		try {
@@ -920,11 +929,48 @@ class LocalController extends Controller {
 	public function globalActorInfo(string $id): DataResponse {
 		try {
 			$this->initViewer();
-			$actor = $this->cacheActorService->getFromId($id);
+			$actor = $this->knownActor($id);
 
 			return $this->success(['actor' => $actor]);
 		} catch (Exception $e) {
 			return $this->fail($e);
+		}
+	}
+
+	/**
+	 * The actor an id names, resolving it remotely only for a caller with a
+	 * session.
+	 *
+	 * The three routes below are public, and the id comes from the query string.
+	 * Resolving an unknown one means fetching whatever URL the caller wrote,
+	 * storing the actor, and downloading its icon into appdata — so an
+	 * unauthenticated caller could use the instance as an HTTP reflector and
+	 * fill its disk with bytes of their choosing, a request at a time. Actors
+	 * this instance already knows stay readable by anyone (public profiles and
+	 * avatars have to work without a login); discovering a new one requires a
+	 * session.
+	 *
+	 * @throws CacheActorDoesNotExistException
+	 * @throws Exception
+	 */
+	private function knownActor(string $id): Person {
+		$posAnchor = strpos($id, '#');
+		if ($posAnchor !== false) {
+			$id = substr($id, 0, $posAnchor);
+		}
+
+		try {
+			return $this->cacheActorsRequest->getFromId($id);
+		} catch (CacheActorDoesNotExistException $e) {
+			if ($this->userId === null) {
+				$this->logger->debug('[LocalController] refusing to resolve an unknown actor id', [
+					'id' => $id,
+				]);
+
+				throw new CacheActorDoesNotExistException('unknown actor');
+			}
+
+			return $this->cacheActorService->getFromId($id);
 		}
 	}
 
@@ -955,7 +1001,7 @@ class LocalController extends Controller {
 	#[PublicPage]
 	public function globalActorAvatar(string $id): Response {
 		try {
-			$actor = $this->cacheActorService->getFromId($id);
+			$actor = $this->knownActor($id);
 			if ($actor->hasIcon()) {
 				$avatar = $actor->getIcon();
 				$mime = '';
@@ -979,10 +1025,36 @@ class LocalController extends Controller {
 	#[PublicPage]
 	public function globalActorHeader(string $id): Response {
 		try {
-			$actor = $this->cacheActorService->getFromId($id);
+			$actor = $this->knownActor($id);
 			$headerUrl = $actor->getHeader();
 			if ($headerUrl === '') {
 				throw new InvalidResourceException('no header for this Actor');
+			}
+
+			// The value comes from another instance's JSON, and this route lives
+			// on the Nextcloud origin the user trusts: a redirect to it must not
+			// be a way to send that user anywhere at all.
+			$scheme = strtolower((string)parse_url($headerUrl, PHP_URL_SCHEME));
+			if (!in_array($scheme, ['http', 'https'], true)) {
+				throw new InvalidResourceException('unsupported header address');
+			}
+
+			// Prefer the copy this instance holds: no redirect off-origin at all,
+			// and the reader's address is not handed to the remote host.
+			try {
+				$mime = '';
+				$cached = $this->documentService->getCachedFromUrl($headerUrl, $mime);
+				$response = new FileDisplayResponse(
+					$cached, Http::STATUS_OK, ['Content-Type' => $mime === '' ? 'application/octet-stream' : $mime]
+				);
+				$response->cacheFor(86400);
+
+				return $response;
+			} catch (Exception $e) {
+				$this->logger->debug('[LocalController] header is not cached locally', [
+					'id' => $actor->getId(),
+					'error' => $e->getMessage(),
+				]);
 			}
 
 			$response = new RedirectResponse($headerUrl);
@@ -1078,10 +1150,16 @@ class LocalController extends Controller {
 	#[NoAdminRequired]
 	public function documentsCache(array $documents): DataResponse {
 		try {
+			$this->initViewer(true);
+
 			$cached = [];
 			foreach ($documents as $id) {
 				try {
-					$document = $this->documentService->cacheRemoteDocument($id);
+					// a document id is not a capability: only what this viewer
+					// is allowed to see gets cached and described back to them
+					$document = $this->documentService->cacheRemoteDocumentAsViewer(
+						(string)$id, $this->viewer
+					);
 					$cached[] = $document;
 				} catch (Exception $e) {
 				}

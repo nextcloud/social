@@ -1,0 +1,14 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams", "https://w3id.org/security/v1"],
+  "type": "Organization",
+  "id": "https://a.gup.pe/u/fediverse",
+  "preferredUsername": "fediverse",
+  "name": "Fediverse group",
+  "inbox": "https://a.gup.pe/u/fediverse/inbox",
+  "followers": "https://a.gup.pe/u/fediverse/followers",
+  "publicKey": {
+    "id": "https://a.gup.pe/u/fediverse#main-key",
+    "owner": "https://a.gup.pe/u/fediverse",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBg\n-----END PUBLIC KEY-----\n"
+  }
+}

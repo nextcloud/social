@@ -26,8 +26,17 @@ const state = {
 
 const addAccount = (state, { actorId, data }) => {
 	state.accounts = { ...state.accounts, [actorId]: { ...state.accounts[actorId], ...data } }
-	state.accountsFollowers = { ...state.accountsFollowers, [actorId]: [] }
-	state.accountsFollowings = { ...state.accountsFollowings, [actorId]: [] }
+	// The follower and following lists used to be reset to [] here, so any
+	// refresh of the account — saving the profile fields, uploading a banner,
+	// a search result arriving — emptied an open followers list under the
+	// reader. They are seeded by addFollowers/addFollowing, which is the only
+	// thing that knows whether they have been loaded at all.
+	if (state.accountsFollowers[actorId] === undefined) {
+		state.accountsFollowers = { ...state.accountsFollowers, [actorId]: [] }
+	}
+	if (state.accountsFollowings[actorId] === undefined) {
+		state.accountsFollowings = { ...state.accountsFollowings, [actorId]: [] }
+	}
 	if (!data.acct) return
 	const accountId = (data.acct.indexOf('@') === -1) ? data.acct + '@' + new URL(data.url).hostname : data.acct
 	state.accountIdMap = { ...state.accountIdMap, [accountId]: data.url }
@@ -232,16 +241,25 @@ const getters = {
 	},
 }
 
+/**
+ * How long to let relationship requests pile up before sending them as one.
+ * Long enough for a page of UserEntry components to mount, short enough that
+ * the follow buttons do not visibly lag.
+ */
+const RELATIONSHIP_BATCH_MS = 30
+
+let pendingRelationshipIds = new Set()
+let pendingRelationshipBatch = null
+
 const actions = {
 	async fetchAccountInfo(context, account) {
 		try {
-			console.debug('[Social] fetchAccountInfo', { account })
 			const response = await axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`))
-			console.debug('[Social] account info response', { url: response.data.url, id: response.data.id, acct: response.data.acct })
 			context.commit('addAccount', { actorId: response.data.url, data: response.data })
 			return response.data
 		} catch (error) {
-			console.error('[Social] fetchAccountInfo failed', account, error.response?.data || error.message || error)
+			// the account handle is somebody's identity: it belongs in the
+			// app log, not in every reader's browser console
 			logger.error('Failed to load account details', { error })
 			context.dispatch('addAppError', {
 				title: t('social', 'Account lookup failed'),
@@ -250,20 +268,58 @@ const actions = {
 		}
 	},
 	async fetchAccountRelationshipInfo(context, ids) {
+		const wanted = (Array.isArray(ids) ? ids : [ids]).filter((id) => id !== undefined && id !== null)
+		if (wanted.length === 0) {
+			return []
+		}
+
 		try {
-			console.debug('[Social] fetchAccountRelationshipInfo', { ids })
-			const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: ids } })
-			console.debug('[Social] relationships response', response.data)
+			logger.debug('Loading relationships', { count: wanted.length })
+			const response = await axios.get(generateUrl('apps/social/api/v1/accounts/relationships'), { params: { id: wanted } })
 			response.data.forEach(account => {
-				console.debug('[Social] addRelationship', { actorId: account.id, following: account.following, data: account })
 				context.commit('addRelationship', { actorId: account.id, data: account })
 			})
 			return response.data
 		} catch (error) {
-			console.error('[Social] fetchAccountRelationshipInfo failed', ids, error.response?.data || error.message || error)
 			logger.error('Failed to load relationship info', { error })
 			showError(t('social', 'Could not load the relationship with this account'))
 		}
+	},
+	/**
+	 * Asks for one account's relationship, together with everybody else who
+	 * asked in the same moment.
+	 *
+	 * Twenty followers on a page used to be twenty round-trips, because each
+	 * UserEntry dispatched its own single-id request on mount — and the guard
+	 * that was supposed to prevent that could never hold. The endpoint takes
+	 * an array, so the ids are collected and sent once.
+	 *
+	 * @param {object} context the store
+	 * @param {string} id the account id to ask about
+	 * @return {Promise<object[]>} the relationships in the batch this joined
+	 */
+	fetchRelationship(context, id) {
+		if (id === undefined || id === null) {
+			return Promise.resolve([])
+		}
+
+		if (context.getters.getRelationshipWith(id) !== undefined) {
+			return Promise.resolve([])
+		}
+
+		pendingRelationshipIds.add(id)
+		if (pendingRelationshipBatch === null) {
+			pendingRelationshipBatch = new Promise((resolve) => {
+				window.setTimeout(() => {
+					const ids = [...pendingRelationshipIds]
+					pendingRelationshipIds = new Set()
+					pendingRelationshipBatch = null
+					resolve(context.dispatch('fetchAccountRelationshipInfo', ids))
+				}, RELATIONSHIP_BATCH_MS)
+			})
+		}
+
+		return pendingRelationshipBatch
 	},
 	async fetchPublicAccountInfo(context, uid) {
 		try {
@@ -284,40 +340,34 @@ const actions = {
 	},
 	async followAccount(context, { accountToFollow }) {
 		try {
-			console.debug('[Social] followAccount action called', { accountToFollow })
 			const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToFollow))
-			console.debug('[Social] PUT', url)
 			const response = await axios.put(url)
-			console.debug('[Social] followAccount response', response.data)
 			if (response.data.status === -1) {
-				console.error('[Social] followAccount failed:', response.data)
-				return Promise.reject(response)
+				// thrown rather than returned: a rejected thenable returned
+				// from inside the try resolves only after this frame has
+				// popped, so the catch below never saw it — a refusal was a
+				// silent unhandled rejection, with no toast and no error state
+				throw new Error('The server refused the follow')
 			}
 			context.commit('followAccount', accountToFollow)
-			console.debug('[Social] followAccount mutation committed, following=true')
 			return response
 		} catch (error) {
-			console.error('[Social] Failed to follow user', accountToFollow, error.response?.data || error.message || error)
 			showError(t('social', 'Could not follow {account}', { account: accountToFollow }))
 			logger.error(`Failed to follow user ${accountToFollow}`, { error })
 		}
 	},
 	async unfollowAccount(context, { accountToUnfollow }) {
 		try {
-			console.debug('[Social] unfollowAccount action called', { accountToUnfollow })
 			const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToUnfollow))
-			console.debug('[Social] DELETE', url)
 			const response = await axios.delete(url)
-			console.debug('[Social] unfollowAccount response', response.data)
 			if (response.data.status === -1) {
-				console.error('[Social] unfollowAccount failed:', response.data)
-				return Promise.reject(response)
+				// see followAccount: returning a rejection from inside the try
+				// escapes this function's own catch
+				throw new Error('The server refused the unfollow')
 			}
 			context.commit('unfollowAccount', accountToUnfollow)
-			console.debug('[Social] unfollowAccount mutation committed, following=false')
 			return response
 		} catch (error) {
-			console.error('[Social] Failed to unfollow user', accountToUnfollow, error.response?.data || error.message || error)
 			showError(t('social', 'Could not unfollow {account}', { account: accountToUnfollow }))
 			logger.error(`Failed to unfollow user ${accountToUnfollow}`, { error })
 			return error

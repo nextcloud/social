@@ -1,0 +1,16 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams"],
+  "type": "Create",
+  "id": "https://mobilizon.example/events/9f/activity",
+  "actor": "https://mobilizon.example/@group",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "object": {
+    "type": "Event",
+    "id": "https://mobilizon.example/events/9f",
+    "name": "Fediverse meetup",
+    "url": "https://mobilizon.example/events/9f",
+    "attributedTo": "https://mobilizon.example/@group",
+    "published": "2026-03-03T08:00:00Z",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"]
+  }
+}

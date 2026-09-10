@@ -1,0 +1,8 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Accept",
+  "id": "https://gotosocial.example/users/bob/accepts/01H",
+  "actor": "https://gotosocial.example/users/bob",
+  "object": "https://cloud.example/apps/social/@alice#follows/4711",
+  "to": ["https://cloud.example/apps/social/@alice"]
+}

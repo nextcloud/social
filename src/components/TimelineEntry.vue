@@ -80,6 +80,7 @@ import TimelinePost from './TimelinePost.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import { notificationSummary } from '../services/notifications.js'
+import { onTick } from '../services/clock.js'
 
 export default {
 	name: 'TimelineEntry',
@@ -112,6 +113,12 @@ export default {
 			default: 'li',
 		},
 	},
+	data() {
+		return {
+			/** re-read from the shared clock, so the wording stays true */
+			now: Date.now(),
+		}
+	},
 	computed: {
 		/**
 		 * @return {import('../types/Mastodon.js').Status}
@@ -136,7 +143,7 @@ export default {
 		},
 		/** @return {string} */
 		notificationRelativeTimestamp() {
-			return fromNow(this.notification.created_at)
+			return fromNow(this.notification.created_at, new Date(this.now))
 		},
 		/** @return {boolean} */
 		isBoost() {
@@ -166,6 +173,14 @@ export default {
 		actionSummary() {
 			return notificationSummary(this.notification)
 		},
+	},
+	mounted() {
+		this.stopTicking = onTick((now) => {
+			this.now = now
+		})
+	},
+	unmounted() {
+		this.stopTicking?.()
 	},
 	methods: {
 		t: translate,

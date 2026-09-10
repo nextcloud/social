@@ -55,60 +55,76 @@ class Cache extends TimedJob {
 	}
 
 	protected function run($argument) {
-		try {
+		$this->step('manageDeletedActors', function (): void {
 			$this->accountService->manageDeletedActors();
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		try {
+		$this->step('manageCacheLocalActors', function (): void {
 			$this->accountService->manageCacheLocalActors();
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		try {
+		$this->step('manageCacheRemoteActors', function (): void {
 			$this->cacheActorService->manageCacheRemoteActors();
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		try {
+		$this->step('manageDetailsRemoteActors', function (): void {
 			$this->cacheActorService->manageDetailsRemoteActors();
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		try {
+		$this->step('manageCacheDocuments', function (): void {
 			$this->documentService->manageCacheDocuments();
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		try {
+		$this->step('manageHashtags', function (): void {
 			$this->hashtagService->manageHashtags();
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		try {
+		$this->step('prune', function (): void {
 			// bounded per run so retention never dominates a cron slot
 			$this->streamPruneService->prune(null, false, 5000);
-		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
-		}
+		});
 
-		// Sync timelines of cached remote actors
+		$this->step('syncRemoteTimelines', function (): void {
+			$this->syncRemoteTimelines();
+		});
+	}
+
+	/**
+	 * Runs one step of the cron and keeps going if it fails.
+	 *
+	 * At `warning`, not `debug`: Nextcloud's default loglevel is 2, so a
+	 * `debug` line is written on no default instance, and the four cron steps
+	 * that keep the caches alive used to fail invisibly. The step is named,
+	 * because seven identical messages could not tell an administrator which
+	 * one broke.
+	 */
+	private function step(string $step, callable $work): void {
 		try {
-			$remoteActors = $this->cacheActorsRequest->getRemoteActorsToUpdate(false);
-			foreach ($remoteActors as $actor) {
-				try {
-					$this->streamService->syncRemoteTimeline($actor);
-				} catch (Exception $e) {
-				}
-			}
+			$work();
 		} catch (\Throwable $e) {
-			$this->logger->debug('[Cron\\Cache] step failed', ['exception' => $e]);
+			$this->logger->warning(
+				'[Cron\\Cache] step "' . $step . '" failed: ' . $e->getMessage(),
+				['exception' => $e, 'step' => $step]
+			);
+		}
+	}
+
+	/**
+	 * One unreachable remote instance must not stop the sync of the others,
+	 * so each actor is caught on its own — but it is still logged, with the
+	 * actor it happened on.
+	 */
+	private function syncRemoteTimelines(): void {
+		foreach ($this->cacheActorsRequest->getRemoteActorsToUpdate(false) as $actor) {
+			try {
+				$this->streamService->syncRemoteTimeline($actor);
+			} catch (Exception $e) {
+				$this->logger->warning(
+					'[Cron\\Cache] could not sync the timeline of ' . $actor->getId()
+					. ': ' . $e->getMessage(),
+					['exception' => $e, 'step' => 'syncRemoteTimelines', 'actor' => $actor->getId()]
+				);
+			}
 		}
 	}
 }

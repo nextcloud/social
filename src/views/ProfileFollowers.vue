@@ -7,18 +7,36 @@
 		<UserEntry v-for="user in users" :key="user.id" :item="user" />
 		<div ref="sentinel" class="list-sentinel" />
 		<div v-if="loading" class="loading-indicator">
-			Loading…
+			<NcLoadingIcon :size="24" />
+			<span>{{ t('social', 'Loading …') }}</span>
 		</div>
+		<!-- a finished list with nobody in it used to be a blank panel -->
+		<NcEmptyContent v-else-if="users.length === 0"
+			:name="isFollowers ? t('social', 'No followers yet') : t('social', 'Not following anyone yet')"
+			:description="isFollowers
+				? t('social', 'People who follow this account will show up here.')
+				: t('social', 'Accounts this account follows will show up here.')">
+			<template #icon>
+				<AccountMultipleOutline :size="20" />
+			</template>
+		</NcEmptyContent>
 	</div>
 </template>
 
 <script>
+import { translate } from '@nextcloud/l10n'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
 import UserEntry from '../components/UserEntry.vue'
 import serverData from '../mixins/serverData.js'
 
 export default {
 	name: 'ProfileFollowers',
 	components: {
+		AccountMultipleOutline,
+		NcEmptyContent,
+		NcLoadingIcon,
 		UserEntry,
 	},
 	mixins: [
@@ -101,6 +119,7 @@ export default {
 		}
 	},
 	methods: {
+		t: translate,
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
 				if (entries[0].isIntersecting && !this.allLoaded) {
@@ -150,7 +169,10 @@ export default {
 	}
 
 	.loading-indicator {
-		text-align: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
 		padding: 16px;
 		color: var(--color-text-lighter);
 	}

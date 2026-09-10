@@ -12,6 +12,7 @@ import axios from '@nextcloud/axios'
 import errors from '../../../src/store/errors.js'
 import notifications from '../../../src/store/notifications.js'
 import settings from '../../../src/store/settings.js'
+import timeline from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -27,17 +28,22 @@ const stubs = {
 		emits: ['update:modelValue'],
 		template: '<input class="nav-search" :value="modelValue" :aria-label="label" @input="$emit(\'update:modelValue\', $event.target.value)">',
 	},
+	// `counter` is a slot in @nextcloud/vue 9, not a prop, and there is no
+	// `subname` slot — the app's extras go through `extra`
 	NcAppNavigationItem: {
-		props: ['name', 'active', 'counter', 'href', 'target', 'to'],
+		props: ['name', 'active', 'href', 'target', 'to'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-counter="counter" :data-href="href" :data-to="to && to.name" @click="$emit(\'click\')">'
-			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span><slot name="subname" /><slot /></li>',
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" @click="$emit(\'click\', $event)">'
+			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span>'
+			+ '<span class="nav-item__counter"><slot name="counter" /></span>'
+			+ '<slot name="extra" /><slot /></li>',
 	},
+	NcCounterBubble: { props: ['count', 'type'], template: '<span class="nc-counter" :data-count="count">{{ count }}</span>' },
 	NcAppNavigationSpacer: { template: '<hr>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" />' },
 	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
-	Composer: { template: '<div class="composer-stub" />' },
+	Composer: { emits: ['posted'], template: '<div class="composer-stub" @click="$emit(\'posted\')" />' },
 }
 
 let store
@@ -67,7 +73,10 @@ describe('Navigation', () => {
 		store = createStore({ modules: { errors, settings, notifications } })
 		store.commit('clearErrors')
 		store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
-		router = { push: vi.fn() }
+		router = {
+			push: vi.fn(),
+			resolve: vi.fn((to) => ({ href: '/resolved/' + to.name + (to.params?.type ? '/' + to.params.type : '') })),
+		}
 	})
 
 	afterEach(() => {
@@ -100,9 +109,15 @@ describe('Navigation', () => {
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['Profile', { name: 'profile', params: { account: 'alice' } }],
-	])('navigates to the %s timeline on click', async (name, to) => {
-		const wrapper = mountNavigation()
-		await item(wrapper, name).trigger('click')
+	])('points the %s entry at its route', async (name, to) => {
+		// an href so it is a real link, and a click that stays in the app: with
+		// `to` the component ORs vue-router's own idea of active into the entry,
+		// and /timeline counts as active for every /timeline/* page
+		const entry = item(mountNavigation(), name)
+
+		expect(entry.attributes('data-href')).toBe(router.resolve(to).href)
+
+		await entry.trigger('click')
 		expect(router.push).toHaveBeenCalledWith(to)
 	})
 
@@ -110,8 +125,7 @@ describe('Navigation', () => {
 		const wrapper = mountNavigation()
 		const entry = item(wrapper, 'Blocked and muted accounts')
 
-		// a route rather than a click handler, so the entry behaves like a link
-		expect(entry.attributes('data-to')).toBe('blocked-accounts')
+		expect(entry.attributes('data-href')).toBe(router.resolve({ name: 'blocked-accounts' }).href)
 		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
 	})
 
@@ -136,14 +150,16 @@ describe('Navigation', () => {
 			expect(trends[0].text()).toContain('12')
 		})
 
-		it('opens the tag timeline when one is picked', async () => {
+		it('points a trending tag at its timeline', async () => {
 			axios.get.mockResolvedValueOnce({ data: [tag('nextcloud', 12)] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
+			const to = { name: 'tags', params: { tag: 'nextcloud' } }
 			await item(wrapper, '#nextcloud').trigger('click')
 
-			expect(router.push).toHaveBeenCalledWith({ name: 'tags', params: { tag: 'nextcloud' } })
+			expect(router.push).toHaveBeenCalledWith(to)
+			expect(item(wrapper, '#nextcloud').attributes('data-href')).toBe(router.resolve(to).href)
 		})
 
 		it('leaves the section out on a quiet instance', async () => {
@@ -164,11 +180,11 @@ describe('Navigation', () => {
 		})
 	})
 
-	it('shows how many notifications are waiting', () => {
-		expect(item(mountNavigation(), 'Notifications').attributes('data-counter')).toBe('0')
-
-		// the badge used to be hard-coded to zero, so it never said anything
-		expect(item(mountNavigation({ unread: 5 }), 'Notifications').attributes('data-counter')).toBe('5')
+	it('shows how many notifications are waiting, through the counter slot', () => {
+		// `:counter="…"` was silently ignored in @nextcloud/vue 9, so the
+		// badge never appeared at all
+		expect(item(mountNavigation(), 'Notifications').find('.nc-counter').exists()).toBe(false)
+		expect(item(mountNavigation({ unread: 5 }), 'Notifications').find('.nc-counter').attributes('data-count')).toBe('5')
 	})
 
 	// Routes come from the real router rather than being written out here: an
@@ -211,10 +227,20 @@ describe('Navigation', () => {
 		expect(profile.find('.navigation__subname').text()).toBe('@alice')
 	})
 
-	it('emits the search term as the user types', async () => {
-		const wrapper = mountNavigation()
-		await wrapper.find('.nav-search').setValue('nextcloud')
-		expect(wrapper.emitted('search')).toEqual([['nextcloud']])
+	it('emits the search term once the typing settles, not per keystroke', async () => {
+		vi.useFakeTimers()
+		try {
+			const wrapper = mountNavigation()
+			await wrapper.find('.nav-search').setValue('next')
+			await wrapper.find('.nav-search').setValue('nextcloud')
+			// searching now costs a request; un-debounced it was one per letter
+			expect(wrapper.emitted('search')).toBeUndefined()
+
+			vi.advanceTimersByTime(300)
+			expect(wrapper.emitted('search')).toEqual([['nextcloud']])
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
 	it('opens the composer modal from "New post"', async () => {
@@ -224,6 +250,18 @@ describe('Navigation', () => {
 		const modal = wrapper.find('.modal-stub')
 		expect(modal.attributes('data-name')).toBe('New post')
 		expect(modal.find('.composer-stub').exists()).toBe(true)
+	})
+
+	it('closes the composer modal once the post is away', async () => {
+		const wrapper = mountNavigation()
+		await item(wrapper, 'New post').trigger('click')
+		expect(wrapper.find('.modal-stub').exists()).toBe(true)
+
+		// the composer cleared its box and the modal stayed open, which reads
+		// as if nothing had been sent
+		await wrapper.find('.composer-stub').trigger('click')
+
+		expect(wrapper.find('.modal-stub').exists()).toBe(false)
 	})
 
 	it('offers nothing in the settings section but the accounts it can act on', () => {
@@ -246,7 +284,7 @@ describe('Navigation', () => {
 		it('adds an errors entry with the error count', () => {
 			const wrapper = mountNavigation()
 			expect(itemNames(wrapper).slice(0, 3)).toEqual(['New post', 'Errors', 'Home'])
-			expect(item(wrapper, 'Errors').attributes('data-counter')).toBe('2')
+			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('2')
 		})
 
 		it('opens a modal listing the errors and dismisses a single one through the store', async () => {
@@ -263,7 +301,7 @@ describe('Navigation', () => {
 			expect(dispatch).toHaveBeenCalledWith('dismissAppError', firstError.id)
 			await nextTick()
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Post failed'])
-			expect(item(wrapper, 'Errors').attributes('data-counter')).toBe('1')
+			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('1')
 		})
 
 		it('offers "Dismiss all" only for several errors and clears them all', async () => {
@@ -288,5 +326,101 @@ describe('Navigation', () => {
 			await item(wrapper, 'Errors').trigger('click')
 			expect(wrapper.findAll('.modal-stub button').map((button) => button.text())).toEqual(['Dismiss'])
 		})
+	})
+
+	it('keeps the search box on the term the URL is showing', async () => {
+		const searchStore = createStore({ modules: { errors, settings, notifications, timeline } })
+		searchStore.commit('setServerData', { public: false })
+		searchStore.commit('setSearchQuery', 'nextcloud')
+		const wrapper = mount(Navigation, {
+			global: { plugins: [searchStore], mocks: { $route: { name: 'search', params: { term: 'nextcloud' } }, $router: router }, stubs },
+		})
+		expect(wrapper.find('.nav-search').element.value).toBe('nextcloud')
+
+		// navigating away clears the query; read once in mounted() the box kept
+		// showing a term nothing was being searched for any more
+		searchStore.commit('setSearchQuery', '')
+		await nextTick()
+		expect(wrapper.find('.nav-search').element.value).toBe('')
+	})
+})
+
+// The sidebar shell is stubbed everywhere above, which cannot show what the
+// entries really render. These use the component the app uses.
+describe('Navigation entries are links', () => {
+	const realStubs = {
+		NcAppNavigation: { template: '<nav><slot name="list" /><slot name="footer" /></nav>' },
+		NcAppNavigationSearch: true,
+		NcAppNavigationSettings: { template: '<div><slot /></div>' },
+		NcAvatar: true,
+	}
+
+	const mountReal = async (path = '/timeline') => {
+		const realStore = createStore({ modules: { errors, settings, notifications } })
+		realStore.commit('setServerData', { public: false })
+		await appRouter.push(path)
+		await appRouter.isReady()
+
+		return mount(Navigation, { global: { plugins: [realStore, appRouter], stubs: realStubs } })
+	}
+
+	const link = (wrapper, name) => wrapper.findAll('a').find((anchor) => anchor.text().startsWith(name))
+
+	it.each([
+		['Home', '/index.php/apps/social/timeline'],
+		['Notifications', '/index.php/apps/social/timeline/notifications'],
+		['Direct messages', '/index.php/apps/social/timeline/direct'],
+		['Local', '/index.php/apps/social/timeline/timeline'],
+		['Global', '/index.php/apps/social/timeline/federated'],
+		['Follow requests', '/index.php/apps/social/follow_requests'],
+		['Liked posts', '/index.php/apps/social/timeline/favourites'],
+		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
+		['Profile', '/index.php/apps/social/@alice'],
+		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
+	])('gives %s a real href', async (name, href) => {
+		expect(link(await mountReal(), name).attributes('href')).toBe(href)
+	})
+
+	it('lights exactly one entry, whichever page is open', async () => {
+		// NcAppNavigationItem ORs its own router-derived active state with the
+		// `active` prop, and vue-router counts /timeline as active while
+		// /timeline/direct is open — so Home stayed lit alongside whichever
+		// timeline the reader had actually chosen.
+		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
+		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
+		const names = ['Home', 'Notifications', 'Direct messages', 'Local', 'Global', 'Liked posts', 'Bookmarks']
+
+		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
+		expect(lit(await mountReal('/timeline'), names)).toEqual(['Home'])
+		expect(lit(await mountReal('/timeline/favourites'), names)).toEqual(['Liked posts'])
+	})
+
+	it('does not let the browser follow the anchor as well', async () => {
+		// NcAppNavigationItem falls back to href="#" for an entry with no `to`,
+		// and only calls preventDefault() when it has one. Driven from a click
+		// handler instead, the fragment navigation that followed the click
+		// reached vue-router as a popstate and cancelled the route change that
+		// the click had just started — which is why "Follow requests", whose
+		// chunk still had to be fetched, went nowhere while every entry on the
+		// already-loaded timeline chunk resolved before the popstate landed.
+		const wrapper = await mountReal()
+		const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+		link(wrapper, 'Follow requests').element.dispatchEvent(event)
+		await flushPromises()
+
+		expect(event.defaultPrevented).toBe(true)
+		// the view is a lazy chunk, so the navigation lands a few ticks later
+		await vi.waitFor(() => expect(appRouter.currentRoute.value.name).toBe('follow-requests'))
+	})
+
+	it('opens the composer without navigating anywhere', async () => {
+		const wrapper = await mountReal()
+		const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+		link(wrapper, 'New post').element.dispatchEvent(event)
+		await flushPromises()
+
+		// nothing to route to, so the bare href="#" must not become a history entry
+		expect(event.defaultPrevented).toBe(true)
+		expect(appRouter.currentRoute.value.name).toBe('timeline')
 	})
 })

@@ -12,11 +12,20 @@
 				:show-parents="true"
 				:type="$route.params.type"
 				:reverse-order="true" />
-			<TimelineEntry ref="mainPost"
+			<TimelineEntry v-if="singlePost"
+				ref="mainPost"
 				class="main-post"
 				:item="singlePost"
 				type="single-post"
 				element="div" />
+			<!-- a deleted post is not an empty page: say so -->
+			<NcEmptyContent v-else
+				:name="t('social', 'This post is not available')"
+				:description="t('social', 'It may have been deleted, or this server never received it.')">
+				<template #icon>
+					<CommentRemoveOutline :size="20" />
+				</template>
+			</NcEmptyContent>
 			<TimelineList v-if="timeline" class="descendants thread__descendants" :type="$route.params.type" />
 		</div>
 	</div>
@@ -24,6 +33,9 @@
 
 <script>
 import { defineAsyncComponent } from 'vue'
+import { translate } from '@nextcloud/l10n'
+import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import CommentRemoveOutline from 'vue-material-design-icons/CommentRemoveOutline.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
 import currentUserMixin from '../mixins/currentUserMixin.js'
@@ -31,6 +43,7 @@ import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
+import logger from '../services/logger.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -38,6 +51,8 @@ export default {
 	name: 'TimelineSinglePost',
 	components: {
 		Composer,
+		CommentRemoveOutline,
+		NcEmptyContent,
 		TimelineEntry,
 		TimelineList,
 	},
@@ -58,8 +73,15 @@ export default {
 		composerDisplayStatus() {
 			return this.$store.getters.getComposerDisplayStatus
 		},
+		/**
+		 * Whose post this is. The route says so; this used to be read off
+		 * window.location by splitting the href and slicing a '@' off the
+		 * second-to-last segment, which broke on any URL shape but one.
+		 *
+		 * @return {string}
+		 */
 		account() {
-			return window.location.href.split('/')[window.location.href.split('/').length - 2].slice(1)
+			return String(this.$route.params.account ?? '').replace(/^@/, '')
 		},
 		timeline() {
 			return this.$store.getters.getTimeline
@@ -69,6 +91,7 @@ export default {
 		},
 	},
 	watch: {
+		'$route.params.id': 'load',
 		parentsTimeline(_, previousValue) {
 			// beforeMount() resets the timeline, so this fires during the first render's
 			// pre-flush, before the template refs exist.
@@ -84,33 +107,61 @@ export default {
 		},
 	},
 	async beforeMount() {
-		const singlePost = this.$store.getters.getPostFromTimeline(this.$route.params.id) || loadState('social', 'item')
-
-		this.$store.commit('addToStatuses', singlePost)
-		this.$store.dispatch('changeTimelineType', {
-			type: 'single-post',
-			params: {
-				account: this.account,
-				id: this.$route.params.id,
-				type: 'single-post',
-				singlePost: this.$route.params.id || loadState('social', 'item').id,
-			},
-		})
-
 		// Keep the handler so unmounted() removes only this one — a bare
 		// eventBus.off('composer-reply') would also detach the Composer's.
 		this.onComposerReply = (item) => {
 			this.$nextTick(() => {
-				this.$refs.socialWrapper.querySelector(`[data-social-status="${item.id}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' })
+				this.$refs.socialWrapper?.querySelector(`[data-social-status="${item.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 			})
 		}
 		eventBus.on('composer-reply', this.onComposerReply)
 
-		const response = await this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account)
-		this.uid = response.username
+		await this.load()
 	},
 	unmounted() {
 		eventBus.off('composer-reply', this.onComposerReply)
+	},
+	methods: {
+		t: translate,
+		/**
+		 * Opens the conversation the route names. Called again when the route
+		 * changes to another post, because the router-view is no longer keyed
+		 * on the full path and this component is reused.
+		 */
+		async load() {
+			// read before the reset: changeTimelineType prunes the status index
+			const singlePost = this.$store.getters.getPostFromTimeline(this.$route.params.id) ?? this.postFromInitialState()
+
+			this.$store.dispatch('changeTimelineType', {
+				type: 'single-post',
+				params: {
+					account: this.account,
+					id: this.$route.params.id,
+					type: 'single-post',
+					singlePost: this.$route.params.id || singlePost?.id,
+				},
+			})
+			this.$store.commit('addToStatuses', singlePost)
+
+			const response = await this.$store.dispatch(this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo', this.account)
+			this.uid = response?.username ?? this.uid
+		},
+		/**
+		 * The post the server rendered into the page, for a permalink opened
+		 * cold. `loadState` throws when the key is absent — which is what a
+		 * deleted post looks like — and the throw used to happen inside
+		 * beforeMount, so the view never rendered at all.
+		 *
+		 * @return {object|null}
+		 */
+		postFromInitialState() {
+			try {
+				return loadState('social', 'item')
+			} catch (error) {
+				logger.debug('No post in the initial state', { error })
+				return null
+			}
+		},
 	},
 }
 </script>

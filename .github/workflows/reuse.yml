@@ -12,7 +12,13 @@ name: REUSE Compliance Check
 permissions:
   contents: read
 
-on: [pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
 
 jobs:
   reuse-compliance-check:

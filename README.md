@@ -10,12 +10,15 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 
 - 🧭 **Timelines** — Home, Local, Global (federated), Direct messages, Liked posts, Notifications, per-account and per-hashtag timelines.
 - ✍️ **Composer** — write posts and replies, pick a visibility (public, unlisted, followers-only, direct), insert emoji, and attach images. `@mentions` and `#hashtags` typed by hand are extracted from the text and turned into real recipients and tags.
+- 📊 **Polls** — write one in the composer (up to four options, single or multiple choice, 30 minutes to a week), and view and vote on federated ones. Votes travel to the poll's author as ActivityPub vote notes, incoming votes are counted, and the new totals federate back as `Update{Question}` (`lib/Service/PollService.php`).
+- 🖼️ **Media attachments** — images (JPEG, PNG, GIF, WebP — each gets a resized preview and a blurhash), video (MP4, WebM, QuickTime) and audio (MP3, MP4/AAC, OGG/Opus, WAV, FLAC); `filterMimeTypes()` in `lib/Service/CacheDocumentService.php` is the exact list. Video and audio are stored as-is (no transcoding, no thumbnail — the player is the preview), and remote copies respect the `max_size` app setting (default 10 MB). Clients upload through `POST /api/v2/media` (or v1), with alt text via `description`, editable with `PUT /api/v1/media/{id}` and attached to a status with `media_ids`.
+- 😀 **Custom emoji from other instances** — `Emoji` tags on remote statuses and actors survive the cache (via the stored wire source) and are served in the `emojis` field of status and account entities; the web client shows them inline in content and display names.
 - ✏️ **Edit posts** — edit your own local posts inline; the change is saved and federated as an ActivityPub `Update` (`lib/Service/PostService.php`, `editPost()`).
 - 🗑️ **Delete posts** — delete your own posts.
 - ⚠️ **Content warnings** — put a warning on a post in the composer and the body is folded away behind it until a reader asks to see it (it is not even in the page until then). Carried as the ActivityPub object's `summary` and as `spoiler_text` on the client API, so warnings written elsewhere in the Fediverse are honoured here and vice versa.
 - 👍 🔁 💬 **Post actions** — like/unlike, boost/unboost (`Announce`) and reply.
 - 👥 **Following** — follow and unfollow local and remote accounts, and browse followers/following lists.
-- 📌 **Pinned posts** — pin up to five of your own posts to the top of your profile (`pin`/`unpin` on the status-action endpoint, `?pinned=true` on the account statuses route). Pins are published in the actor's `featured` collection, so other Fediverse servers show them too; pinned posts of *remote* accounts are not fetched.
+- 📌 **Pinned posts** — pin up to five of your own **public or unlisted** posts to the top of your profile (`pin`/`unpin` on the status-action endpoint, `?pinned=true` on the account statuses route). Pins are published in the actor's `featured` collection, which anyone on the internet may read, so nothing with a narrower audience can go into it — a followers-only or direct post is refused. Pins of *remote* accounts arrive as `Add`/`Remove` activities; their `featured` collection is never fetched.
 - 🖼️ **Profiles** — avatar, uploadable banner/header image, a profile description (`note`) and up to four editable **profile metadata fields** (the name/value table under the bio), federated as `PropertyValue` attachments on the actor and shown for remote accounts too.
 - 🌐 **Federation** — signed HTTP delivery of `Create`, `Update`, `Delete`, `Like`, `Announce`, `Follow`, `Accept` and `Undo` activities, an outbound request queue and a stream queue for resolving incoming objects, both drained by background jobs and by `occ social:queue:process`.
 - 🔁 **Inbox forwarding** — a reply to one of your posts that arrives from a stranger's instance is passed on to your followers, so everyone reading the thread sees the same one. Forwarded untouched and only when the reply carries its author's linked-data signature, so the servers receiving it verify the original author rather than trusting this one; private posts and their replies are never fanned out.
@@ -31,23 +34,24 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - ♿ **Usable without a mouse or without sight** — every post is an `article` named after its author, timelines carry a heading, `j`/`k` moves the keyboard rather than only a highlight, the composer is a named text box with a visible focus ring, attachments and the post timestamp are real buttons, like and boost are single toggles that report their state (and do not throw away the focus of whoever pressed them), and every dialog has a name.
 - 🩺 **Federation health** — the administration settings show what the outbound queue is doing: how many deliveries are waiting, how many keep failing, which instances they are stacked up against and how close each is to being given up on (a delivery is abandoned after 15 attempts, previously without a word to anyone). `occ social:queue:status` prints the same summary.
 - ⚖️ **Moderation that can act** — a report used to be something an admin could mark handled and nothing more. Each one now carries **Silence**, **Suspend** and **Lift**. Silencing keeps an account reachable for the people who follow it and takes it out of the public and global timelines, changes no data and is undone by lifting; suspending deletes what the account posted here, drops its cached actor and refuses everything it sends afterwards (lifting stops the refusal, it does not bring the posts back — the confirmation says so). Single posts can be removed too.
-- 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](docs/OCC-Commands.md) for the details and its limits.
-- 🔑 **Mastodon-compatible API** — the Mastodon client API's core surface plus OAuth 2 authorization: third-party clients can log in, read every timeline, post (with media and polls), follow/unfollow, favourite/boost/bookmark, search (`/api/v2/search`), manage follow requests and report. No streaming endpoint or push subscriptions — clients poll. See [docs/API.md](docs/API.md) for exactly which routes exist.
+- 🚫 **Blocking and muting** — block an account to sever the relationship in both directions and hide it everywhere (federated as a `Block` activity unless `occ config:app:set social federate_blocks --value 0`); mute one to hide it from your timelines — and optionally your notifications — without it ever knowing. Both are done from an account's profile menu, **Settings → Blocked and muted accounts** in the app's sidebar lists them with unblock/unmute inline, and the Mastodon API carries them (`/api/v1/accounts/{id}/block|unblock|mute|unmute`, `/api/v1/blocks`, `/api/v1/mutes`).
+- 🚩 **Reporting** — `POST /api/v1/reports` files a report, incoming federated `Flag` activities are stored the same way, admins are notified, and reports are reviewed in the Social section of the administration settings. Reports are never forwarded to the reported account's instance.
+- 🔒 **Locked accounts and approvable follow requests** — `PATCH /api/v1/accounts/update_credentials` with `locked` toggles `manuallyApprovesFollowers`; an incoming follow towards a locked account stays pending (with a `follow_request` notification) until the owner authorizes or rejects it via `/api/v1/follow_requests` (`lib/Interfaces/Object/FollowInterface.php`).
+- 🛡️ **Instance access list** — an allow-list or deny-list of remote hosts, enforced on incoming activities and outgoing requests. Managed with `occ social:fediverse`; see [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for the details and its limits.
+- 🔑 **Mastodon-compatible API** — the Mastodon client API's core surface plus OAuth 2 authorization: third-party clients can log in, read every timeline, post (with media and polls), follow/unfollow, favourite/boost/bookmark, search (`/api/v2/search`), manage follow requests and report. No streaming endpoint or push subscriptions — clients poll. See [docs/API.md](https://github.com/nextcloud/social/blob/master/docs/API.md) for exactly which routes exist.
 
 ### 🚧 Not implemented yet
 
 These are absent from the code today, not merely rough edges:
 
-- **Blocking and muting** are supported: block an account to sever the relationship in both directions and hide it everywhere (federated as a `Block` activity unless `occ config:app:set social federate_blocks --value 0`); mute an account to hide it from your timelines — and optionally notifications — without it ever knowing. Blocking and muting are done from an account's profile menu, and **Settings → Blocked and muted accounts** in the app's left sidebar lists both, with unblock/unmute inline. Exposed over the Mastodon API too (`/api/v1/accounts/{id}/block|unblock|mute|unmute`, `/api/v1/blocks`, `/api/v1/mutes`).
-
-- **Reporting** is supported: `POST /api/v1/reports` files a report, incoming federated `Flag` activities are stored the same way, admins are notified and review reports (and manage the Fediverse access list) in the Social section of the administration settings. Reports are never forwarded to the reported account's instance.
-- **Locked accounts / approvable follow requests** are supported: `PATCH /api/v1/accounts/update_credentials` with `locked` toggles `manuallyApprovesFollowers`; incoming follows towards a locked account stay pending (with a `follow_request` notification) until the owner authorizes or rejects them via `/api/v1/follow_requests` (`lib/Interfaces/Object/FollowInterface.php`).
-- **Profile metadata fields** are supported: up to four name/value pairs, edited on your own profile page or through `PATCH /api/v1/accounts/update_credentials` with `fields_attributes`, stored on the local actor row, federated as `PropertyValue` attachments and read back from remote actors (`lib/Model/ActivityPub/Actor/Person.php`). They carry no link verification — `verified_at` is always `null`.
-- **Polls** are fully supported: write your own in the composer (up to four options, single or multiple choice, 30 minutes to a week), and view and vote on federated ones — votes federate to the poll's author as ActivityPub vote notes, incoming votes are counted and the new totals federate back as `Update{Question}` (`lib/Service/PollService.php`). **No lists.**
-- **Media attachments** cover images (JPEG, PNG, GIF, WebP — images get a resized preview and a blurhash), video (MP4, WebM, QuickTime) and audio (MP3, MP4/AAC, OGG/Opus, WAV, FLAC); see `filterMimeTypes()` in `lib/Service/CacheDocumentService.php` for the exact list. Video and audio are stored as-is (no transcoding, no thumbnail — the player is the preview) and remote copies respect the `max_size` app setting (default 10 MB). No document/file attachments.
-- **Custom emoji from other instances render** — `Emoji` tags on remote statuses and actors survive the cache (via the stored wire source) and are served in the `emojis` field of status and account entities; the web client shows them inline in content and display names. The instance has no custom emoji of its own: `/api/v1/custom_emojis` returns an empty list (`lib/Controller/ApiController.php`, `customEmojis()`).
 - **No status translation.** The `translate` action returns the post unchanged (`lib/Service/ActionService.php`).
-- **Media uploads** go through `POST /api/v2/media` (or v1) in `lib/Controller/ApiController.php`: jpeg/gif/png, with alt text via `description`, editable with `PUT /api/v1/media/{id}` and attachable to statuses via `media_ids`.
+- **No lists.** There is no list timeline and no `/api/v1/lists` route.
+- **No document or file attachments.** Images, video and audio only — anything else is refused by `filterMimeTypes()` (`lib/Service/CacheDocumentService.php`).
+- **No custom emoji of this instance's own.** Emoji from other servers render; `/api/v1/custom_emojis` returns an empty list (`lib/Controller/ApiController.php`, `customEmojis()`).
+- **No streaming API and no push subscriptions.** Third-party clients poll. (The web client does get live timelines when [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a Nextcloud channel, not a Mastodon one.)
+- **No link verification on profile fields.** The four name/value pairs federate as `PropertyValue` attachments, but nothing is checked, so `verified_at` is always `null`.
+- **A remote account's existing pins never arrive.** An `Add`/`Remove` sent while the account is known here is applied (`lib/Interfaces/Activity/FeaturedCollection.php`), so pins made from now on show up; nothing ever fetches a remote actor's `featured` collection, so whatever was pinned before this instance heard of the account stays invisible here.
+- **No focal points on attachments.** `focus` is accepted by the media endpoints and discarded.
 
 ## 📦 Quickstart (install & develop)
 
@@ -69,8 +73,12 @@ npm run build        # production bundle into js/
 5. To produce a release archive, run `./build-package.sh`. It runs
    `composer install --no-dev`, `npm run build`, copies the app without the dev
    files and writes `build/artifacts/social.tar.gz`. `make appstore` builds the same
-   archive through the Makefile; despite the `sign_dir` name it only stages and tars,
-   it does not sign anything.
+   archive through the Makefile, but installs from the lock files (`npm ci`,
+   `composer install`) rather than resolving dependency versions no CI job has run,
+   and refuses to package when `js/social-adminSettings.js` or `js/.htaccess` is
+   missing — both are committed files rather than webpack output, and the target
+   used to delete `js/` wholesale before building. Despite the `sign_dir` name it
+   only stages and tars, it does not sign anything.
 
 ## 🧭 "`.well-known/webfinger` isn't properly set up!" — Troubleshooting
 
@@ -89,7 +97,9 @@ silence: WebFinger answers for a host nobody asks about, and the app blames
 Social reports the mismatch with both addresses but will not correct it, because the
 stored address is baked into every id already written. Either point
 `overwrite.cli.url` back at the address Social knows, or accept the rename and run
-`occ social:reset --uri=<new address>`, which deletes everything Social holds.
+`occ social:reset --uri=<new address>`, which deletes everything Social holds. It
+asks twice; add `--force` to run it from a script (without it, `--no-interaction`
+refuses rather than quietly doing nothing).
 
 To see the two values:
 
@@ -157,7 +167,7 @@ occ social:reset
 
   This prompts twice and then empties every Social table. `occ social:reset
   --uninstall` additionally drops the tables, migrations, background jobs and app
-  config. See [docs/OCC-Commands.md](docs/OCC-Commands.md) for all commands.
+  config. See [docs/OCC-Commands.md](https://github.com/nextcloud/social/blob/master/docs/OCC-Commands.md) for all commands.
 
 ## License
 

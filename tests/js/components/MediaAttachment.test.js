@@ -89,6 +89,70 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('img').attributes('src')).toBe(attachment.preview_url)
 	})
 
+	it('stops spinning and says so when the preview cannot be loaded', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, description: '' } } })
+		expect(wrapper.find('.loading-icon').exists()).toBe(true)
+
+		// no @error meant previewLoaded stayed false forever, so federated
+		// media that has gone away spun for the life of the page
+		await wrapper.find('img').trigger('error')
+
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+		expect(wrapper.find('img').exists()).toBe(false)
+		expect(wrapper.find('.attachment__failed').attributes('aria-label'))
+			.toBe('Attachment could not be loaded')
+	})
+
+	it('does not spin for an attachment the server has no preview for', async () => {
+		// Vue drops a null `src`, so neither @load nor @error is guaranteed to
+		// fire — on Firefox neither does — and the spinner stayed up for good
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, preview_url: null, description: '' } } })
+
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+		expect(wrapper.find('img').exists()).toBe(false)
+		expect(wrapper.find('.attachment__failed').attributes('aria-label')).toBe('No preview available')
+	})
+
+	it('names an undescribed-preview attachment by its description', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, preview_url: '', description: 'a cat' } } })
+
+		expect(wrapper.find('.attachment__failed').attributes('aria-label')).toBe('No preview available: a cat')
+	})
+
+	it('names the attachment in the failure when the author described it', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, description: 'a cat' } } })
+		await wrapper.find('img').trigger('error')
+
+		expect(wrapper.find('.attachment__failed').attributes('aria-label'))
+			.toBe('Attachment could not be loaded: a cat')
+	})
+
+	it('starts over when a new attachment replaces one that failed', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		await wrapper.find('img').trigger('error')
+		expect(wrapper.find('img').exists()).toBe(false)
+
+		await wrapper.setProps({ attachment: { ...attachment, id: 'other' } })
+		expect(wrapper.find('img').exists()).toBe(true)
+	})
+
+	it('draws nothing rather than throwing for an attachment with no blurhash', () => {
+		// CacheDocumentService sets the copy sizes before it knows GD could
+		// read the image, so an unreadable upload arrives sized with an empty
+		// hash — and decode('') throws
+		for (const blurhash of ['', undefined, null, 'abc']) {
+			expect(() => mount(MediaAttachment, { props: { attachment: { ...attachment, blurhash } } })).not.toThrow()
+		}
+		expect(context.putImageData).not.toHaveBeenCalled()
+	})
+
+	it('draws nothing rather than throwing for a hash that does not decode', () => {
+		expect(() => mount(MediaAttachment, {
+			props: { attachment: { ...attachment, blurhash: '!!!!!!!!!!!!' } },
+		})).not.toThrow()
+		expect(context.putImageData).not.toHaveBeenCalled()
+	})
+
 	it('emits click so a parent can open the viewer', async () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment } })
 		await wrapper.find('.attachment').trigger('click')

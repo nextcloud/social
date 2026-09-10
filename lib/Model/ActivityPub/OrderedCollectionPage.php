@@ -25,6 +25,44 @@ class OrderedCollectionPage extends ACore implements JsonSerializable {
 		$this->setType(self::TYPE);
 	}
 
+	/**
+	 * One page of a collection: the items, a back-reference to the collection
+	 * they belong to, and the neighbours a consumer walks.
+	 *
+	 * `next` is present exactly when the page came back full — the only thing
+	 * that can be known here without counting the whole collection again — so a
+	 * consumer stops at the first page that is not.
+	 *
+	 * @param string[]|array[] $items
+	 */
+	public static function of(string $partOf, string $pageUrl, int $page, array $items): self {
+		$collectionPage = new self();
+		$collectionPage->setId($pageUrl . '?page=' . $page);
+		$collectionPage->setPartOf($partOf);
+		$collectionPage->setOrderedItems($items);
+
+		if (count($items) === OrderedCollection::PAGE_SIZE) {
+			$collectionPage->setNext($pageUrl . '?page=' . ($page + 1));
+		}
+		if ($page > 1) {
+			$collectionPage->setPrev($pageUrl . '?page=' . ($page - 1));
+		}
+
+		return $collectionPage;
+	}
+
+	/**
+	 * The page number a `page` query parameter asks for, or 0 when it asks for
+	 * none. `?page=true` is Mastodon's way of saying "the first one".
+	 */
+	public static function requestedPage(string $page): int {
+		if ($page === 'true') {
+			return 1;
+		}
+
+		return (ctype_digit($page) && (int)$page > 0) ? (int)$page : 0;
+	}
+
 	public function getPartOf(): string {
 		return $this->partOf;
 	}

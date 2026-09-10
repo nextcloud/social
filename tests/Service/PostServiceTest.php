@@ -178,17 +178,65 @@ class PostServiceTest extends TestCase {
 		$this->assertSame('season finale', $note->getSummary());
 	}
 
-	public function testCreatePostEscapesTheContentWarning(): void {
+	/**
+	 * `spoiler_text` is plain text on the wire, so what is stored and federated
+	 * is what was typed. It used to be entity-encoded, which every reader —
+	 * here, on every instance it federated to, and in the composer of the next
+	 * edit — showed as the entities themselves.
+	 */
+	public function testCreatePostKeepsTheContentWarningAsPlainText(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('who shot him');
+		$post->setSpoilerText("Bob's finale");
+		$this->service->createPost($post);
+
+		$this->assertSame("Bob's finale", $note->getSpoilerText());
+	}
+
+	public function testCreatePostDropsMarkupFromTheContentWarning(): void {
 		$this->expectCreateActivity($note);
 
 		$post = $this->post('body');
 		$post->setSpoilerText('<script>alert("x")</script>');
 		$this->service->createPost($post);
 
-		$this->assertSame(
-			'&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;',
-			$note->getSpoilerText()
-		);
+		// dropped rather than encoded: a plain-text field carries no markup,
+		// and nothing downstream has to unescape it
+		$this->assertSame('alert("x")', $note->getSpoilerText());
+	}
+
+	/** The edit path stores the same shape the create path does. */
+	public function testEditPostKeepsTheContentWarningAsPlainTextToo(): void {
+		$stored = $this->storedNote();
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnOnConsecutiveCalls($stored, $this->storedNote());
+		$this->activityService->method('updateActivity')->willReturn('token');
+
+		$this->service->editPost(7, $this->actor(), 'body', "<b>Bob's</b> finale");
+
+		$this->assertSame("Bob's finale", $stored->getSpoilerText());
+	}
+
+	public function testCreatePostCarriesTheSensitiveFlagToTheNote(): void {
+		$this->expectCreateActivity($note);
+
+		$post = $this->post('look at this');
+		$post->setSensitive(true);
+		$this->service->createPost($post);
+
+		// what makes a client blur the attachments, here and on every instance
+		// the Create federates to
+		$this->assertTrue($note->isSensitive());
+		$this->assertTrue($note->exportAsActivityPub()['sensitive']);
+	}
+
+	public function testCreatePostWithoutTheSensitiveFlagIsNotSensitive(): void {
+		$this->expectCreateActivity($note);
+
+		$this->service->createPost($this->post('look at this'));
+
+		$this->assertFalse($note->isSensitive());
 	}
 
 	public function testCreatePostWithoutAContentWarningLeavesTheSummaryEmpty(): void {

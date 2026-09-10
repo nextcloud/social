@@ -5,6 +5,7 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 import { showError } from '@nextcloud/dialogs'
 import TimelineList from '../../../src/components/TimelineList.vue'
 import eventBus from '../../../src/services/eventBus.js'
@@ -65,7 +66,7 @@ const entryIds = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry
 const mountList = ({
 	timeline = [],
 	parents = [],
-	searchQuery = '',
+	identity = '["home","",{}]',
 	route = { name: 'timeline', params: { type: 'home' } },
 	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
 	responses = [[]],
@@ -84,7 +85,7 @@ const mountList = ({
 	const $store = {
 		dispatch,
 		commit: vi.fn(),
-		getters: {
+		getters: reactive({
 			// fresh arrays, as the real getters return, so reverse() cannot leak
 			get getTimeline() {
 				return [...timeline]
@@ -92,9 +93,9 @@ const mountList = ({
 			get getParentsTimeline() {
 				return [...parents]
 			},
-			getSearchQuery: searchQuery,
 			getServerData: serverData,
-		},
+			getTimelineIdentity: identity,
+		}),
 	}
 	const wrapper = mount(TimelineList, {
 		props: { type: 'home', ...props },
@@ -103,7 +104,7 @@ const mountList = ({
 			stubs: { TimelineEntry: TimelineEntryStub },
 		},
 	})
-	return { wrapper, dispatch }
+	return { wrapper, dispatch, $store }
 }
 
 const emptyTitle = (wrapper) => wrapper.findComponent(EmptyContent).props('item').title
@@ -324,6 +325,18 @@ describe('TimelineList', () => {
 
 			expect(() => eventBus.emit('shortcut:next')).not.toThrow()
 		})
+
+		it('leaves the ancestors list alone, so one press moves one focus', async () => {
+			// both lists in the single-post view listened, so j walked the
+			// ancestors and the replies at the same time
+			const { wrapper } = mountList({ parents: [status('5')], props: { showParents: true } })
+			await flushPromises()
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			expect(focusedIds(wrapper)).toEqual([])
+		})
 	})
 
 	describe('keyboard reading', () => {
@@ -444,16 +457,112 @@ describe('TimelineList', () => {
 			expect(wrapper.find('.icon-loading').exists()).toBe(false)
 		})
 
-		it('reports a failed page and stops loading', async () => {
-			const { wrapper, dispatch } = mountList({ responses: [new Error('network')] })
+		it('shows a failed first page as an error with a retry, not as an empty timeline', async () => {
+			const { wrapper } = mountList({ responses: [new Error('network')] })
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Could not load more posts')
 			expect(wrapper.find('.icon-loading').exists()).toBe(false)
-			expect(wrapper.findComponent(EmptyContent).exists()).toBe(true)
+			// "No posts found / Posts from people you follow will show up
+			// here" for a server error was the old answer
+			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
+			expect(wrapper.find('.timeline-error').text()).toContain('The posts could not be loaded.')
+			expect(wrapper.find('.timeline-error').attributes('role')).toBe('alert')
+		})
 
+		it('keeps paging alive after a failure', async () => {
+			const { dispatch } = mountList({ responses: [new Error('network'), new Error('network')] })
+			await flushPromises()
+
+			// allLoaded used to be set here, which stopped the observer from
+			// ever firing again: infinite scroll was dead until a reload
 			await intersect()
-			expect(dispatch).toHaveBeenCalledTimes(1)
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+		})
+
+		it('clears the error and loads again when the retry is pressed', async () => {
+			const { wrapper, dispatch } = mountList({ responses: [new Error('network'), [status('20')]] })
+			await flushPromises()
+			expect(wrapper.find('.timeline-error').exists()).toBe(true)
+
+			await wrapper.find('.timeline-error button').trigger('click')
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+			expect(wrapper.find('.timeline-error').exists()).toBe(false)
+		})
+
+		it('starts over when the store swaps the list underneath it', async () => {
+			// the router-view is no longer keyed on the full path, so going
+			// from Home to Global (or to another profile) reuses this
+			// component: without this nothing would ask for the new list
+			const { wrapper, dispatch, $store } = mountList({ responses: [[]] })
+			await flushPromises()
+			expect(wrapper.findComponent(EmptyContent).exists()).toBe(true)
+			dispatch.mockClear()
+			dispatch.mockResolvedValue([status('9')])
+
+			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
+			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
+		})
+
+		it('asks for the new list even while the previous one is still loading', async () => {
+			// Clicking Global during the ~200 ms the home timeline is loading
+			// left `loading` set, so infiniteHandler returned at once and
+			// nothing was ever requested for the list now on screen.
+			let finishHome
+			const { dispatch, $store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			await flushPromises()
+			dispatch.mockClear()
+			dispatch.mockResolvedValue([status('9')])
+
+			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
+			finishHome([])
+		})
+
+		it('lets the previous list\'s answer decide nothing once it arrives', async () => {
+			let finishHome
+			const { wrapper, dispatch, $store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			await flushPromises()
+
+			let finishFederated
+			dispatch.mockClear()
+			dispatch.mockReturnValue(new Promise((resolve) => { finishFederated = resolve }))
+			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			await flushPromises()
+
+			// home answers "nothing more", which used to end the new list
+			// before its own first page had come back
+			finishHome([])
+			await flushPromises()
+			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(true)
+
+			finishFederated([status('9')])
+			await flushPromises()
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(false)
+		})
+
+		it('does not start over for the ancestors list, which fetches nothing', async () => {
+			const { dispatch, $store } = mountList({ parents: [status('5')], props: { showParents: true } })
+			await flushPromises()
+
+			$store.getters.getTimelineIdentity = '["single-post","",{"id":"9"}]'
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+		})
+
+		it('says less when a later page fails and the reader already has posts', async () => {
+			const { wrapper } = mountList({ timeline: [status('30')], responses: [new Error('network')] })
+			await flushPromises()
+
+			expect(wrapper.find('.timeline-error').text()).toContain('No more posts could be loaded.')
 		})
 	})
 
@@ -567,6 +676,68 @@ describe('TimelineList', () => {
 			expect(dispatch).not.toHaveBeenCalled()
 		})
 
+		it('does not fetch, observe or poll at all for the ancestors list', async () => {
+			// the single-post view mounts two lists over one /context response:
+			// the ancestors list used to make its own identical request, keep
+			// its own observer and run its own 30-second interval
+			const { dispatch } = mountList({ parents: [status('5')], props: { showParents: true } })
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+			expect(FakeIntersectionObserver.instances).toHaveLength(0)
+		})
+
+		it('says a polling failure once, not once per tick', async () => {
+			const { dispatch } = mountList({ responses: [[]] })
+			await flushPromises()
+			dispatch.mockReset()
+			dispatch.mockRejectedValue(new Error('down'))
+
+			for (let tick = 0; tick < 4; tick++) {
+				vi.advanceTimersByTime(30 * 1000)
+				await flushPromises()
+			}
+
+			// a server that is down produced an endless stream of toasts
+			expect(dispatch.mock.calls.length).toBeGreaterThanOrEqual(4)
+			expect(showError).toHaveBeenCalledTimes(1)
+			expect(showError).toHaveBeenCalledWith('Could not load the newest posts')
+		})
+
+		it('says it again once the server has answered in between', async () => {
+			const { dispatch } = mountList({ responses: [[]] })
+			await flushPromises()
+			dispatch.mockReset()
+
+			dispatch.mockRejectedValueOnce(new Error('down'))
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(showError).toHaveBeenCalledTimes(1)
+
+			dispatch.mockResolvedValueOnce([])
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			dispatch.mockRejectedValueOnce(new Error('down again'))
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(showError).toHaveBeenCalledTimes(2)
+		})
+
+		it('stops catching up after ten pages, however the server answers', async () => {
+			const { dispatch } = mountList({ responses: [[]] })
+			await flushPromises()
+			dispatch.mockReset()
+			// a server that ignores min_id used to keep this recursing for as
+			// long as the tab was open
+			dispatch.mockResolvedValue([status('9')])
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledTimes(10)
+		})
+
 		it('stops polling and observing when unmounted', async () => {
 			const { wrapper, dispatch } = mountList()
 			await flushPromises()
@@ -632,13 +803,35 @@ describe('TimelineList', () => {
 			expect(emptyTitle(wrapper)).toBe('alice hasn\'t tooted yet')
 		})
 
-		it('explains an empty search result', async () => {
-			const { wrapper } = mountList({ searchQuery: 'nothing-matches' })
-			await flushPromises()
-			expect(wrapper.findComponent(EmptyContent).props('item')).toEqual({
-				title: 'No posts match your search',
-				description: 'Try a different search term',
+		it('does not rewrite the shared empty-content entry for a public profile', async () => {
+			// the computed used to assign into this.emptyContent, so the
+			// rewritten title stayed behind for every later route
+			const first = mountList({
+				route: { name: 'profile', params: { account: 'alice' } },
+				serverData: { public: true, cloudAddress: 'https://cloud.example.org' },
 			})
+			await flushPromises()
+			expect(emptyTitle(first.wrapper)).toBe('alice hasn\'t tooted yet')
+
+			const second = mountList({ route: { name: 'profile', params: { account: 'alice' } } })
+			await flushPromises()
+			expect(emptyTitle(second.wrapper)).toBe('You have not tooted yet')
+		})
+
+		it('says a thread has no replies rather than leaving a blank area', async () => {
+			// /context answers with {ancestors, descendants}, whose `.length`
+			// is undefined: allLoaded was never set, so nothing was said and
+			// the sentinel kept asking for a page that does not exist
+			const { wrapper, dispatch } = mountList({
+				route: { name: 'single-post', params: { type: 'single-post', id: '1' } },
+				responses: [{ ancestors: [], descendants: [] }],
+			})
+			await flushPromises()
+
+			expect(emptyTitle(wrapper)).toBe('No replies found')
+
+			await intersect()
+			expect(dispatch).toHaveBeenCalledTimes(1)
 		})
 
 		it('mentions missing replies below a single post but stays silent for its ancestors', async () => {

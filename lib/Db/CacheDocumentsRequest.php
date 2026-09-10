@@ -120,6 +120,11 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->set('blurhash', $qb->createNamedParameter($document->getBlurHash()));
 		$qb->set('description', $qb->createNamedParameter($document->getDescription()));
 		$qb->set('error', $qb->createNamedParameter($document->getError()));
+		// The mime type is sniffed from the downloaded bytes and this is the only
+		// write that runs afterwards; without it the row keeps the empty type it
+		// was created with and the copy is served with no Content-Type at all.
+		$qb->set('mime_type', $qb->createNamedParameter($document->getMimeType()));
+		$qb->set('media_type', $qb->createNamedParameter($document->getMediaType()));
 
 		$qb->executeStatement();
 	}
@@ -218,9 +223,12 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
-	 * @param string $id
-	 * @param bool $public
-	 * @param bool $useNid
+	 * The document row for an id.
+	 *
+	 * Unless `$public` is set this is an unscoped lookup: a document id names any
+	 * row in the table, so anything that takes the id from a request must decide
+	 * for itself whether the caller may see the result — see
+	 * `DocumentService::getFromCacheAsViewer()`.
 	 *
 	 * @return Document
 	 * @throws CacheDocumentDoesNotExistException

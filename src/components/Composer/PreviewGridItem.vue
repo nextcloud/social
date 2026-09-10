@@ -8,7 +8,7 @@
 			<MediaAttachment :attachment="preview.data" />
 
 			<div class="preview-item__actions">
-				<NcButton type="tertiary-no-background" @click="$emit('delete', randomKey)">
+				<NcButton variant="tertiary-no-background" @click="$emit('delete', randomKey)">
 					<template #icon>
 						<Close :size="16" fill-color="white" />
 					</template>
@@ -131,7 +131,7 @@ export default {
 	overflow: hidden;
 	position: relative;
 
-	.button-vue--vue-tertiary-no-background {
+	.button-vue--tertiary-no-background {
 		color: white !important;
 	}
 

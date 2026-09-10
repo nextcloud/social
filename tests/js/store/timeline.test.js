@@ -101,13 +101,35 @@ describe('timeline store mutations', () => {
 		expect(state.timeline).toEqual(['3', '4'])
 	})
 
-	it('removeStatus drops the id from the timeline but keeps the status indexed', () => {
+	it('removeStatus drops the id from the timeline and from the index', () => {
 		mutations.addToTimeline(state, [makeStatus('1'), makeStatus('2'), makeStatus('3')])
 
 		mutations.removeStatus(state, { id: '2' })
 
 		expect(state.timeline).toEqual(['1', '3'])
-		expect(state.statuses['2']).toBeDefined()
+		// the object used to be left behind, so the index only ever grew
+		expect(state.statuses['2']).toBeUndefined()
+	})
+
+	it('restoreStatus puts a status back into the list it came from', () => {
+		const parent = makeStatus('1')
+		const reply = makeStatus('2')
+		mutations.addToTimeline(state, { ancestors: [parent], descendants: [reply] })
+
+		mutations.removeStatus(state, parent)
+		mutations.removeStatus(state, reply)
+		expect(state.parentsTimeline).toEqual([])
+		expect(state.timeline).toEqual([])
+
+		mutations.restoreStatus(state, parent)
+		mutations.restoreStatus(state, reply)
+
+		// an ancestor goes back among the ancestors: addToTimeline always
+		// appended to state.timeline, so a failed delete of a parent
+		// reappeared among its own replies
+		expect(state.parentsTimeline).toEqual(['1'])
+		expect(state.timeline).toEqual(['2'])
+		expect(state.statuses['1']).toBe(parent)
 	})
 
 	it('removeStatus ignores ids that are not in the timeline', () => {
@@ -189,7 +211,7 @@ describe('timeline store mutations', () => {
 		expect(state.statuses).toBe(statusesBefore)
 	})
 
-	it('resetTimeline empties both id lists but keeps the index and the type', () => {
+	it('resetTimeline empties both id lists and prunes the index, keeping the type', () => {
 		state.type = 'tags'
 		mutations.addToTimeline(state, { ancestors: [makeStatus('1')], descendants: [makeStatus('2')] })
 
@@ -197,7 +219,9 @@ describe('timeline store mutations', () => {
 
 		expect(state.timeline).toEqual([])
 		expect(state.parentsTimeline).toEqual([])
-		expect(state.statuses['1']).toBeDefined()
+		// the id lists used to be the only thing cleared, so every page of
+		// every timeline ever opened stayed in memory for the session
+		expect(state.statuses).toEqual({})
 		expect(state.type).toBe('tags')
 	})
 
@@ -298,21 +322,18 @@ describe('timeline store getters', () => {
 		expect(getters.getTimeline(state)).toEqual([newer, older])
 	})
 
-	it('getTimeline filters by content, display name and acct, case-insensitively', () => {
+	it('getTimeline is the timeline, not a client-side search over it', () => {
 		mutations.addToTimeline(state, [
 			makeStatus('1', { created_at: '2026-01-03T10:00:00.000Z', content: '<p>Hello Fediverse</p>' }),
 			makeStatus('2', { created_at: '2026-01-02T10:00:00.000Z', content: '<p>nothing</p>', account: { acct: 'bob@remote.tld', display_name: 'Bob' } }),
 			makeStatus('3', { created_at: '2026-01-01T10:00:00.000Z', content: '<p>nothing</p>', account: { acct: 'carol', display_name: 'Carol FEDI' } }),
 		])
 
+		// filtering the ~15 loaded statuses with String.includes answered
+		// "No posts match your search" for posts the instance was holding;
+		// searching asks /api/v2/search now, and the timeline stays whole
 		state.searchQuery = 'fedi'
-		expect(getters.getTimeline(state).map(s => s.id)).toEqual(['1', '3'])
-
-		state.searchQuery = 'REMOTE.TLD'
-		expect(getters.getTimeline(state).map(s => s.id)).toEqual(['2'])
-
-		state.searchQuery = ''
-		expect(getters.getTimeline(state)).toHaveLength(3)
+		expect(getters.getTimeline(state).map(s => s.id)).toEqual(['1', '2', '3'])
 	})
 
 	it('getParentsTimeline sorts and filters the ancestors the same way', () => {
@@ -327,7 +348,7 @@ describe('timeline store getters', () => {
 		expect(getters.getParentsTimeline(state).map(s => s.id)).toEqual(['2', '1'])
 
 		state.searchQuery = 'root'
-		expect(getters.getParentsTimeline(state).map(s => s.id)).toEqual(['1'])
+		expect(getters.getParentsTimeline(state).map(s => s.id)).toEqual(['2', '1'])
 	})
 
 	it('getStatus, getSinglePost, getSearchQuery and getComposerDisplayStatus read from the state', () => {
@@ -381,7 +402,7 @@ describe('timeline store actions', () => {
 			params: { tag: 'nextcloud' },
 			account: '',
 		})
-		expect(tl().statuses['1']).toBeDefined()
+		expect(tl().statuses).toEqual({})
 	})
 
 	it('changeTimelineTypeAccount switches to the statuses of one account', async () => {
@@ -423,6 +444,31 @@ describe('timeline store actions', () => {
 			expect(showError).toHaveBeenCalledWith('Could not upload the attachment')
 			expect(logger.error).toHaveBeenCalledWith('Failed to create a media', { error: expect.any(Error) })
 		})
+
+		it('reports how far the upload has got, so the bar is real', async () => {
+			const file = new File(['png'], 'cat.png', { type: 'image/png' })
+			axios.post.mockResolvedValue({ data: { id: '42' } })
+			const onProgress = vi.fn()
+
+			await store.dispatch('createMedia', { file, onProgress })
+
+			const [, , config] = axios.post.mock.calls[0]
+			config.onUploadProgress({ loaded: 50, total: 200 })
+			config.onUploadProgress({ loaded: 200, total: 200 })
+			// the composer used to pass :upload-progress="0.4" behind a v-if="false"
+			expect(onProgress.mock.calls.map(([fraction]) => fraction)).toEqual([0.25, 1])
+		})
+
+		it('reports nothing rather than dividing by zero for a size the browser does not know', async () => {
+			axios.post.mockResolvedValue({ data: { id: '42' } })
+			const onProgress = vi.fn()
+
+			await store.dispatch('createMedia', { file: new File(['x'], 'x.txt'), onProgress })
+
+			const [, , config] = axios.post.mock.calls[0]
+			config.onUploadProgress({ loaded: 10, total: undefined })
+			expect(onProgress).toHaveBeenCalledWith(0)
+		})
 	})
 
 	describe('describeMedia', () => {
@@ -447,11 +493,13 @@ describe('timeline store actions', () => {
 	})
 
 	describe('post', () => {
-		it('POSTs the status payload to /statuses', async () => {
+		it('POSTs the status payload to /statuses and answers with what was created', async () => {
 			axios.post.mockResolvedValue({ data: { id: '1' } })
 			const payload = { status: 'hello', visibility: 'public', spoiler_text: '', media_ids: ['42'] }
 
-			await store.dispatch('post', payload)
+			// the composer cannot tell success from failure without this: it
+			// used to clear itself either way
+			await expect(store.dispatch('post', payload)).resolves.toEqual({ id: '1' })
 
 			expect(axios.post).toHaveBeenCalledWith(`${API}/statuses`, payload)
 			expect(showError).not.toHaveBeenCalled()
@@ -464,6 +512,27 @@ describe('timeline store actions', () => {
 
 			expect(showError).toHaveBeenCalledWith('Could not send the post')
 			expect(logger.error).toHaveBeenCalledWith('Failed to create a status', { error: expect.any(Error) })
+		})
+	})
+
+	describe('updateStatusPoll', () => {
+		it('carries a vote into the store, where every other view reads it', () => {
+			const status = makeStatus('1', { poll: { id: 'p1', voted: false, votes_count: 0 } })
+			store.commit('addToTimeline', [status])
+
+			store.commit('updateStatusPoll', {
+				statusId: '1',
+				poll: { id: 'p1', voted: true, votes_count: 1, own_votes: [0] },
+			})
+
+			// the vote used to live only in the component's own copy, so
+			// navigating away and back showed the poll unvoted again
+			expect(tl().statuses['1'].poll).toEqual({ id: 'p1', voted: true, votes_count: 1, own_votes: [0] })
+		})
+
+		it('ignores a poll for a status the store does not hold', () => {
+			store.commit('updateStatusPoll', { statusId: 'missing', poll: { id: 'p1' } })
+			expect(tl().statuses.missing).toBeUndefined()
 		})
 	})
 
@@ -612,6 +681,7 @@ describe('timeline store actions', () => {
 			await store.dispatch('postBookmark', { status: makeStatus('1', { bookmarked: true }), bookmarked: false })
 
 			expect(tl().timeline).toEqual(['2'])
+			expect(tl().removedFrom).toEqual({})
 		})
 	})
 
@@ -662,6 +732,18 @@ describe('timeline store actions', () => {
 
 			expect(tl().timeline).toEqual(['2'])
 			expect(tl().statuses['1']).toMatchObject({ favourited: false })
+		})
+
+		it('forgets where the post came from once the unlike stands', async () => {
+			// only restoreStatus cleared the hint, so a rollback of the same id
+			// later on would still be told it belonged to the parents list
+			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false }) })
+			store.commit('setTimelineType', 'favourites')
+			store.commit('addToTimeline', [liked()])
+
+			await store.dispatch('postUnlike', { status: liked() })
+
+			expect(tl().removedFrom).toEqual({})
 		})
 
 		it('leaves the post where it is on every other timeline', async () => {
@@ -742,6 +824,22 @@ describe('timeline store actions', () => {
 			await store.dispatch('fetchTimeline', { since: '100', max_id: '50', limit: 30 })
 
 			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/home`, { params: { since: '100', max_id: '50', limit: 30 } })
+		})
+
+		it('drops a page that belongs to a timeline the reader has left', async () => {
+			// clicking Global while home's page is in flight used to commit
+			// home's posts under the Global heading
+			let answerHome
+			axios.get.mockReturnValueOnce(new Promise((resolve) => { answerHome = resolve }))
+			await store.dispatch('changeTimelineType', { type: 'home', params: {} })
+			const pending = store.dispatch('fetchTimeline')
+
+			await store.dispatch('changeTimelineType', { type: 'federated', params: {} })
+			answerHome({ data: statuses })
+
+			await expect(pending).resolves.toEqual([])
+			expect(tl().timeline).toEqual([])
+			expect(tl().statuses).toEqual({})
 		})
 
 		it('does not swallow request errors and leaves the timeline untouched', async () => {

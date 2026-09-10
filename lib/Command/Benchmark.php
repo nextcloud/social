@@ -27,6 +27,7 @@ use OCP\IRequest;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ConfirmationQuestion;
 
 /**
  * Fills the tables with a plausible amount of content and times the queries
@@ -63,7 +64,11 @@ class Benchmark extends Base {
 			->addOption('viewer', '', InputOption::VALUE_REQUIRED, 'the local account the timelines are read as', '')
 			->addOption('seed-only', '', InputOption::VALUE_NONE, 'seed without timing')
 			->addOption('time-only', '', InputOption::VALUE_NONE, 'time what is already seeded')
-			->addOption('clean', '', InputOption::VALUE_NONE, 'remove everything this command wrote');
+			->addOption('clean', '', InputOption::VALUE_NONE, 'remove everything this command wrote')
+			->addOption(
+				'force', 'f', InputOption::VALUE_NONE,
+				'seed without asking (required with --no-interaction)'
+			);
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
@@ -79,6 +84,16 @@ class Benchmark extends Base {
 		}
 
 		if (!$input->getOption('time-only')) {
+			$confirmed = $this->confirmSeeding(
+				$input,
+				$output,
+				(int)$input->getOption('actors'),
+				(int)$input->getOption('notes')
+			);
+			if (!$confirmed) {
+				return 1;
+			}
+
 			$this->seed(
 				(int)$input->getOption('actors'),
 				(int)$input->getOption('notes'),
@@ -93,6 +108,50 @@ class Benchmark extends Base {
 		}
 
 		return 0;
+	}
+
+	/**
+	 * This command ships to every install (appinfo/info.xml registers it), and
+	 * seeding writes thousands of rows into whichever database occ is pointed
+	 * at. There is nothing in the name to warn somebody that `social:benchmark`
+	 * is not read-only, so it asks — and refuses to guess when nobody is
+	 * there to answer.
+	 */
+	private function confirmSeeding(InputInterface $input, OutputInterface $output, int $actors, int $notes): bool {
+		$output->writeln(
+			'<error>This writes ' . $notes . ' notes and ' . $actors
+			. ' remote actors into the database this occ is pointed at.</error>'
+		);
+		$output->writeln(
+			'Everything it writes carries the host <info>' . self::HOST
+			. '</info>, so "--clean" takes it all back out — but do not run it on a'
+			. ' production instance.'
+		);
+		$output->writeln('');
+
+		if ($input->getOption('force')) {
+			return true;
+		}
+
+		if (!$input->isInteractive()) {
+			$output->writeln(
+				'<error>Refusing to seed non-interactively without --force.</error>'
+			);
+
+			return false;
+		}
+
+		$question = new ConfirmationQuestion(
+			'<info>Seed this database?</info> (y/N) ', false, '/^(y|Y)/i'
+		);
+
+		if ((bool)$this->getHelper('question')->ask($input, $output, $question)) {
+			return true;
+		}
+
+		$output->writeln('cancelled, nothing was written.');
+
+		return false;
 	}
 
 	private function viewer(string $username, OutputInterface $output): ?Person {
@@ -125,8 +184,8 @@ class Benchmark extends Base {
 			$ids[] = $id;
 
 			$actor = new Person();
-			$actor->setId($id)
-				->setPreferredUsername('actor' . $i)
+			$actor->setId($id);
+			$actor->setPreferredUsername('actor' . $i)
 				->setFollowers($id . '/followers');
 			$actor->setAccount('actor' . $i . '@' . self::HOST);
 			$this->cacheActorsRequest->save($actor);

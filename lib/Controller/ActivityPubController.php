@@ -11,16 +11,26 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActivityPubFormatException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\RealTokenException;
+use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\TooManyRequestsException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -33,6 +43,10 @@ use OCA\Social\Service\PinService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Exceptions\MalformedArrayException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TAsync;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCA\Social\Tools\Traits\TStringTools;
@@ -78,6 +92,7 @@ class ActivityPubController extends Controller {
 		AccountService $accountService,
 		FollowService $followService,
 		StreamService $streamService,
+		private StreamRequest $streamRequest,
 		private PinService $pinService,
 		ConfigService $configService,
 		IInitialStateService $initialStateService,
@@ -169,7 +184,8 @@ class ActivityPubController extends Controller {
 	 * local actors). Flow:
 	 *  1. Read raw JSON body
 	 *  2. Verify HTTP Signature: ensures the request came from the claimed origin
-	 *  3. Check Fediverse authorization (blocklist/allowlist)
+	 *  3. Check Fediverse authorization (blocklist/allowlist) and the per-origin
+	 *     rate ceiling, now that the origin is proven
 	 *  4. Parse JSON into an ActivityPub model object
 	 *  5. Verify LinkedDataSignature (if present), else trust HTTP signature origin
 	 *  6. Process the incoming activity (varies by type: Follow→auto-accept,
@@ -182,13 +198,21 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	public function sharedInbox(): Response {
+		$body = '';
+		$origin = '';
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
-			$body = file_get_contents('php://input');
+			$body = (string)file_get_contents('php://input');
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
+
+			// the per-origin ceiling is spent here rather than on the way in:
+			// before this line the origin is only what the sender wrote, and
+			// counting against a name anyone can write is a way to throttle the
+			// instance that owns it
+			$this->inboxLimiter->assertOriginAllowed($origin);
 
 			$activity = $this->importService->importFromJson($body);
 			if (!$this->signatureService->checkObject($activity)) {
@@ -198,6 +222,7 @@ class ActivityPubController extends Controller {
 			try {
 				$this->importService->parseIncomingRequest($activity);
 			} catch (ItemUnknownException $e) {
+				$this->logUnhandled($e, $origin, $activity);
 			}
 
 			$this->async();
@@ -208,8 +233,10 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (TooManyRequestsException $e) {
 			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
+		} catch (ItemUnknownException $e) {
+			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->rejectDelivery($e);
 		}
 	}
 
@@ -226,13 +253,21 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	public function inbox(string $username): Response {
+		$body = '';
+		$origin = '';
 		try {
 			$this->inboxLimiter->assertAllowed($this->request);
-			$body = file_get_contents('php://input');
+			$body = (string)file_get_contents('php://input');
 
 			$requestTime = 0;
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime);
 			$this->fediverseService->authorized($origin);
+
+			// the per-origin ceiling is spent here rather than on the way in:
+			// before this line the origin is only what the sender wrote, and
+			// counting against a name anyone can write is a way to throttle the
+			// instance that owns it
+			$this->inboxLimiter->assertOriginAllowed($origin);
 
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
@@ -244,6 +279,7 @@ class ActivityPubController extends Controller {
 			try {
 				$this->importService->parseIncomingRequest($activity);
 			} catch (ItemUnknownException $e) {
+				$this->logUnhandled($e, $origin, $activity);
 			}
 
 			$this->async();
@@ -254,9 +290,108 @@ class ActivityPubController extends Controller {
 			return $this->success();
 		} catch (TooManyRequestsException $e) {
 			return new DataResponse(['error' => 'too many requests'], Http::STATUS_TOO_MANY_REQUESTS);
+		} catch (ItemUnknownException $e) {
+			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->rejectDelivery($e);
 		}
+	}
+
+	/**
+	 * A delivery this instance will not take, answered with what the refusal
+	 * actually is.
+	 *
+	 * The status is the only thing a peer reads to decide what to do next, and
+	 * Mastodon re-queues a 5xx with backoff for about two days. Answering every
+	 * rejection 500 — which a catch-all `fail()` did — therefore turned one
+	 * refused delivery into a dozen, and made blocking an instance *multiply*
+	 * its traffic instead of ending it. A 4xx is final: the peer drops the
+	 * activity and stops.
+	 */
+	private function rejectDelivery(Exception $e): Response {
+		return $this->fail($e, [], $this->statusForRejection($e));
+	}
+
+	/**
+	 * 500 is reserved for a fault of this instance's own — anything else the
+	 * inbox refuses has a status that says which part of the request was
+	 * unacceptable.
+	 */
+	private function statusForRejection(Exception $e): int {
+		return match (true) {
+			// a decision about who may talk to this instance, not a failure
+			$e instanceof UnauthorizedFediverseException => Http::STATUS_FORBIDDEN,
+
+			// the sender is fine, the verification is not finishable right now:
+			// the host holding the signing key could not be reached, or its
+			// last fetch failed recently enough to still be in backoff. This is
+			// the one rejection that *should* be redelivered.
+			$e instanceof RequestNetworkException,
+			$e instanceof RequestServerException,
+			$e instanceof SignatureException
+			&& $e->getCode() === Http::STATUS_SERVICE_UNAVAILABLE => Http::STATUS_SERVICE_UNAVAILABLE,
+
+			// nothing about the request proves who sent it: no signature, one
+			// that does not verify, a replay, a Date outside the window, a
+			// Signature header missing its parts, or an activity whose actor is
+			// not the origin that signed for it
+			$e instanceof SignatureException,
+			$e instanceof MalformedArrayException,
+			$e instanceof InvalidOriginException => Http::STATUS_UNAUTHORIZED,
+
+			// the bytes could not be read as an activity, and redelivering the
+			// same bytes will not change that
+			$e instanceof ActivityPubFormatException,
+			$e instanceof DateTimeException => Http::STATUS_BAD_REQUEST,
+
+			// addressed to a local actor that does not exist
+			$e instanceof CacheActorDoesNotExistException,
+			$e instanceof ActorDoesNotExistException => Http::STATUS_NOT_FOUND,
+
+			default => Http::STATUS_INTERNAL_SERVER_ERROR,
+		};
+	}
+
+	/**
+	 * An activity that was understood well enough to be modelled, but for which
+	 * there is no handler.
+	 *
+	 * The delivery itself succeeded, so the answer stays a success — what was
+	 * missing was any record of what arrived. Without this line the only symptom
+	 * of a whole class of activity being ignored is that nothing happens, which
+	 * is indistinguishable from the peer never having sent it.
+	 */
+	private function logUnhandled(ItemUnknownException $e, string $origin, ACore $activity): void {
+		$this->logger->notice('an incoming activity was not handled', [
+			'activityType' => $activity->getType(),
+			'subType' => $activity->getSubType(),
+			'activity' => $activity->getId(),
+			'object' => $activity->getObjectId(),
+			'actor' => $activity->getActorId(),
+			'origin' => $origin,
+			'reason' => $e->getMessage(),
+		]);
+	}
+
+	/**
+	 * An activity whose own `type` this app has no model for: it never became an
+	 * item, so there is nothing to name it but the raw document.
+	 *
+	 * This used to answer 500, which makes a peer redeliver something we will
+	 * never understand — for as long as its own queue allows.
+	 */
+	private function acceptUnhandledType(ItemUnknownException $e, string $origin, string $body): Response {
+		$data = json_decode($body, true);
+		$type = is_array($data) ? (string)($data['type'] ?? '') : '';
+
+		$this->logger->notice('an incoming activity is of an unknown type', [
+			'activityType' => $type,
+			'activity' => is_array($data) ? (string)($data['id'] ?? '') : '',
+			'origin' => $origin,
+			'reason' => $e->getMessage(),
+		]);
+
+		return $this->success();
 	}
 
 	/**
@@ -294,7 +429,7 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
-	public function outbox(string $username): Response {
+	public function outbox(string $username, string $page = ''): Response {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
 		//		}
@@ -302,10 +437,53 @@ class ActivityPubController extends Controller {
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
+			$requested = OrderedCollectionPage::requestedPage($page);
+			if ($requested > 0) {
+				return $this->activityPubSuccess($this->outboxPage($actor, $requested));
+			}
+
 			return $this->activityPubSuccess($this->streamService->getOutboxCollection($actor));
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
+	}
+
+	/**
+	 * One page of an actor's outbox: the `Create` activities of their public
+	 * posts, newest first, as Mastodon serialises them.
+	 *
+	 * The activity is rebuilt around the stored post rather than replayed from
+	 * what was sent: the post is the durable record, and a consumer reading an
+	 * outbox wants the object, not our original delivery envelope.
+	 */
+	private function outboxPage(Person $actor, int $page): OrderedCollectionPage {
+		$items = [];
+		$posts = $this->streamRequest->getPublicByAuthor(
+			$actor->getId(),
+			OrderedCollection::PAGE_SIZE,
+			($page - 1) * OrderedCollection::PAGE_SIZE
+		);
+
+		// The activities live inside the page, so none of them is a document
+		// root: giving each one a parent is what keeps a `@context` off all
+		// forty of them.
+		$enclosing = new OrderedCollectionPage();
+
+		foreach ($posts as $post) {
+			$create = new Create($enclosing);
+			$post->setParent($create);
+			$create->setId($post->getId() . '/activity');
+			$create->setActorId($post->getAttributedTo());
+			$create->setPublished($post->getPublished());
+			$create->setTo($post->getTo());
+			$create->setToArray($post->getToArray());
+			$create->setCcArray($post->getCcArray());
+			$create->setObject($post);
+
+			$items[] = $create->exportAsActivityPub();
+		}
+
+		return OrderedCollectionPage::of($actor->getOutbox(), $actor->getOutbox(), $page, $items);
 	}
 
 	/**
@@ -357,13 +535,24 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
-	public function followers(string $username): Response {
+	public function followers(string $username, string $page = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
 		}
 
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
+
+			// The collection has always advertised `first` as `?page=1` while
+			// nothing read the parameter, so `?page=1` answered with the
+			// collection again and its `first` pointed at itself: a consumer
+			// following it looped or gave up.
+			$requested = OrderedCollectionPage::requestedPage($page);
+			if ($requested > 0) {
+				return $this->activityPubSuccess(
+					$this->followService->getFollowersPage($actor, $requested)
+				);
+			}
 
 			return $this->activityPubSuccess($this->followService->getFollowersCollection($actor));
 		} catch (Exception $e) {
@@ -383,13 +572,20 @@ class ActivityPubController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
-	public function following(string $username): Response {
+	public function following(string $username, string $page = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
 		}
 
 		try {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
+
+			$requested = OrderedCollectionPage::requestedPage($page);
+			if ($requested > 0) {
+				return $this->activityPubSuccess(
+					$this->followService->getFollowingPage($actor, $requested)
+				);
+			}
 
 			return $this->activityPubSuccess($this->followService->getFollowingCollection($actor));
 		} catch (Exception $e) {

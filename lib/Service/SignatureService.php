@@ -13,7 +13,9 @@ use DateTime;
 use Exception;
 use JsonLdException;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -63,26 +65,92 @@ class SignatureService {
 	 */
 	public const LD_WINDOW = 86400; // 24h
 
+	/**
+	 * How long a request is allowed to take when it is fetching the signing key
+	 * of a keyId this instance has never seen.
+	 *
+	 * Everything checked before that fetch is attacker-controlled and free to
+	 * satisfy, so an unauthenticated POST to the inbox can name any URL and hold
+	 * a PHP worker for as long as that URL takes to answer. At the default
+	 * federation timeout a few dozen concurrent requests exhaust the worker pool
+	 * and the whole Nextcloud instance stops answering — so pre-authentication
+	 * work gets a fraction of it. A key this instance already knows is read from
+	 * the database and needs no fetch at all.
+	 *
+	 * Three seconds was not that fraction, it was less than the work takes: DNS,
+	 * TCP, TLS and the peer rendering its actor JSON all have to fit inside it
+	 * on first contact, which a small self-hosted instance does not manage —
+	 * and the failure then poisoned the negative cache below, so a follow to a
+	 * slow-but-honest peer never completed at all. These match what Mastodon
+	 * allows a peer of its own. Note `CurlService::retrieveObject()` retries
+	 * unsigned after a 401/403, so a worker can be held for roughly twice the
+	 * read budget.
+	 */
+	public const UNKNOWN_KEY_TIMEOUT = 10;
+
+	/** Seconds for DNS+TCP+TLS alone, within UNKNOWN_KEY_TIMEOUT. */
+	public const UNKNOWN_KEY_CONNECT_TIMEOUT = 5;
+
+	/**
+	 * How long a key retrieval that failed on its own terms — no such actor,
+	 * an answer that is not one — is remembered, in seconds.
+	 */
+	public const KEY_FAILURE_TTL = 300;
+
+	/**
+	 * How long a key retrieval that never got an answer — the host was
+	 * unreachable, or slower than the budget above — is remembered.
+	 *
+	 * Much shorter, because it is not a fact about the keyId: it says the peer
+	 * was having a bad minute, and holding that against it for five would keep
+	 * an instance that is merely slow permanently unable to federate here. Long
+	 * enough that repeating the same unreachable keyId still costs far fewer
+	 * fetches than requests.
+	 */
+	public const KEY_UNREACHABLE_TTL = 30;
+
+	/**
+	 * Digest algorithms this server can compute, keyed by the name as it
+	 * appears (lowercased) in a Digest or Content-Digest header.
+	 */
+	public const DIGEST_ALGORITHMS = [
+		'sha-256' => 'sha256',
+		'sha256' => 'sha256',
+		'sha-512' => 'sha512',
+		'sha512' => 'sha512',
+	];
+
+	/** The shortest interval between two forced refreshes of the same keyId. */
+	public const KEY_REFRESH_INTERVAL = 300;
+
 	private CacheActorService $cacheActorService;
+	private CacheActorsRequest $cacheActorsRequest;
 	private ActorsRequest $actorsRequest;
 	private CurlService $curlService;
 	private ConfigService $configService;
+	private HttpSignatureService $httpSignatureService;
 	private ICache $seenSignatures;
+	private ICache $keyAttempts;
 	private LoggerInterface $logger;
 
 	public function __construct(
 		ActorsRequest $actorsRequest,
 		CacheActorService $cacheActorService,
+		CacheActorsRequest $cacheActorsRequest,
 		CurlService $curlService,
 		ConfigService $configService,
+		HttpSignatureService $httpSignatureService,
 		ICacheFactory $cacheFactory,
 		LoggerInterface $logger,
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
+		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
+		$this->httpSignatureService = $httpSignatureService;
 		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
+		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
 	}
 
@@ -124,80 +192,7 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 */
 	public function signRequest(NCRequest $request, RequestQueue $queue): void {
-		$date = gmdate(self::DATE_HEADER);
-		$path = $queue->getInstance();
-
-		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
-
-		$headersElements = ['(request-target)', 'content-length', 'date', 'host', 'digest'];
-		$allElements = [
-			'(request-target)' => 'post ' . $path->getPath(),
-			'date' => $date,
-			'host' => $path->getAddress(),
-			'digest' => $this->generateDigest($request->getDataBody()),
-			'content-length' => strlen($request->getDataBody())
-		];
-
-		$signing = $this->generateHeaders($headersElements, $allElements, $request);
-		// the warning a bad key raises is handled right here, as an exception
-		if (!@openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256)) {
-			// an empty or undecryptable private key must fail loudly, not send
-			// base64('') as the signature
-			throw new SignatureException(
-				'cannot sign request for ' . $localActor->getId() . ': ' . openssl_error_string()
-			);
-		}
-
-		$signed = base64_encode($signed);
-		$signature = $this->generateSignature($headersElements, $localActor->getId(), $signed);
-
-		$request->addHeader('Signature', $signature);
-	}
-
-	/**
-	 * @param array $elements
-	 * @param array $data
-	 * @param NCRequest $request
-	 *
-	 * @return string
-	 */
-	private function generateHeaders(array $elements, array $data, NCRequest $request): string {
-		$signingElements = [];
-		foreach ($elements as $element) {
-			$signingElements[] = $element . ': ' . $data[$element];
-			if ($element !== '(request-target)') {
-				$request->addHeader($element, (string)$data[$element]);
-			}
-		}
-
-		return implode("\n", $signingElements);
-	}
-
-	/**
-	 * @param array $elements
-	 * @param string $actorId
-	 * @param string $signed
-	 *
-	 * @return string
-	 */
-	private function generateSignature(array $elements, string $actorId, string $signed): string {
-		$signatureElements[] = 'keyId="' . $actorId . '#main-key"';
-		$signatureElements[] = 'algorithm="rsa-sha256"';
-		$signatureElements[] = 'headers="' . implode(' ', $elements) . '"';
-		$signatureElements[] = 'signature="' . $signed . '"';
-
-		return implode(',', $signatureElements);
-	}
-
-	/**
-	 * @param string $data
-	 *
-	 * @return string
-	 */
-	private function generateDigest(string $data): string {
-		$encoded = hash('sha256', $data, true);
-
-		return 'SHA-256=' . base64_encode($encoded);
+		$this->httpSignatureService->signDelivery($request, $queue);
 	}
 
 	/**
@@ -247,16 +242,8 @@ class SignatureService {
 			throw new SignatureException('object is from the future');
 		}
 
-		if (strlen($data) !== (int)$request->getHeader('content-length')) {
-			throw new SignatureException('issue with content-length');
-		}
-
-		if ($this->generateDigest($data) !== $request->getHeader('digest')) {
-			throw new SignatureException(
-				'issue with digest -- sent: '
-				. $request->getHeader('digest') . ', expected: ' . $this->generateDigest($data)
-			);
-		}
+		$this->checkContentLength($request, $data);
+		$this->checkDigest($request, $data);
 
 		try {
 			return $this->checkRequestSignature($request, $data);
@@ -274,6 +261,111 @@ class SignatureService {
 				$e
 			);
 		}
+	}
+
+	/**
+	 * A declared body length has to match the body.
+	 *
+	 * The header is optional, though: a sender using chunked transfer encoding
+	 * sends no Content-Length at all, and comparing the body against an absent
+	 * header's `(int)''` rejected every one of them.
+	 *
+	 * @throws SignatureException
+	 */
+	private function checkContentLength(IRequest $request, string $data): void {
+		$length = $request->getHeader('content-length');
+		if ($length === '') {
+			return;
+		}
+
+		if (strlen($data) !== (int)$length) {
+			throw new SignatureException(
+				'content-length does not match the body -- sent: ' . $length
+				. ', body: ' . strlen($data)
+			);
+		}
+	}
+
+	/**
+	 * The body has to match a digest the sender computed over it.
+	 *
+	 * What is on the wire is wider than one fixed string. RFC 3230's `Digest`
+	 * carries `algorithm=base64`, with an algorithm name that is
+	 * case-insensitive and a list that may hold several entries; RFC 9530's
+	 * `Content-Digest` carries `sha-256=:base64:` and is what newer
+	 * implementations are moving to. Comparing bytes against exactly
+	 * `SHA-256=…` refused `sha-256=…`, refused
+	 * `Digest: SHA-256=…,SHA-512=…`, and refused a sender that offers only
+	 * `Content-Digest` — in every case reading as a forged body.
+	 *
+	 * At least one digest this server knows how to compute has to be present
+	 * and has to match: an unrecognised algorithm on its own is not a pass,
+	 * because then nothing binds the body to the signature.
+	 *
+	 * @throws SignatureException
+	 */
+	private function checkDigest(IRequest $request, string $data): void {
+		$digests = array_merge(
+			$this->parseDigestHeader($request->getHeader('digest')),
+			$this->parseDigestHeader($request->getHeader('content-digest'))
+		);
+
+		if ($digests === []) {
+			throw new SignatureException('no digest header');
+		}
+
+		$checked = 0;
+		foreach ($digests as $algorithm => $sent) {
+			$expected = self::DIGEST_ALGORITHMS[$algorithm] ?? '';
+			if ($expected === '') {
+				continue;
+			}
+
+			$checked++;
+			if (!hash_equals(base64_encode(hash($expected, $data, true)), $sent)) {
+				throw new SignatureException(
+					'digest does not match the body -- algorithm: ' . $algorithm
+					. ', sent: ' . $sent
+				);
+			}
+		}
+
+		if ($checked === 0) {
+			throw new SignatureException(
+				'no digest algorithm we can compute: ' . implode(', ', array_keys($digests))
+			);
+		}
+	}
+
+	/**
+	 * `algorithm=base64` entries of a Digest or Content-Digest header, keyed by
+	 * lowercased algorithm name.
+	 *
+	 * @return array<string, string>
+	 */
+	private function parseDigestHeader(string $header): array {
+		$digests = [];
+		foreach (explode(',', $header) as $entry) {
+			$entry = trim($entry);
+			$separator = strpos($entry, '=');
+			if ($entry === '' || $separator === false || $separator === 0) {
+				continue;
+			}
+
+			$algorithm = strtolower(substr($entry, 0, $separator));
+			$value = substr($entry, $separator + 1);
+
+			// RFC 9530 wraps the byte sequence in colons
+			if (strlen($value) > 1 && $value[0] === ':' && substr($value, -1) === ':') {
+				$value = substr($value, 1, -1);
+			}
+
+			if ($value !== '') {
+				$digests[$algorithm] = $value;
+			}
+		}
+
+		return $digests;
 	}
 
 	/**
@@ -404,16 +496,27 @@ class SignatureService {
 		// captured request can be replayed against another instance or with a swapped
 		// body. Everything sending to the Fediverse signs at least these four.
 		$signedHeaders = explode(' ', strtolower($headers));
-		foreach (['(request-target)', 'host', 'date', 'digest'] as $mandatory) {
+		foreach (['(request-target)', 'host', 'date'] as $mandatory) {
 			if (!in_array($mandatory, $signedHeaders, true)) {
 				throw new SignatureException('header is not signed: ' . $mandatory);
 			}
 		}
+
+		// whichever of the two digest headers the sender used, one of them has
+		// to be inside the signature or the digest binds nothing
+		if (!in_array('digest', $signedHeaders, true)
+			&& !in_array('content-digest', $signedHeaders, true)) {
+			throw new SignatureException('header is not signed: digest');
+		}
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
 
+		// A retrieval failure is not a reason to retrieve again: only a key that
+		// was fetched and did not verify is worth refreshing, because only then
+		// might the peer have rotated it. Retrying on any failure meant a keyId
+		// that cannot be resolved cost two fetches per request instead of none.
+		$publicKey = $this->retrieveKey($keyId);
 		try {
-			$publicKey = $this->retrieveKey($keyId);
 			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
 		} catch (SignatureException $e) {
 			$publicKey = $this->retrieveKey($keyId, true);
@@ -475,7 +578,21 @@ class SignatureService {
 
 			$value = $request->getHeader($key);
 			if ($key === 'host') {
-				$value = $this->configService->getCloudHost();
+				// The signed host is what the sender addressed; substituting the
+				// configured one is what stops a captured request being replayed
+				// against another instance. But on a deployment whose configured
+				// host is not the one peers reach (a second domain, a
+				// non-default port, a proxy that rewrites Host), that
+				// substitution makes *every* inbound delivery fail verification
+				// — with nothing in the log to say why.
+				$configured = $this->configService->getCloudHost();
+				if ($value !== '' && strtolower($value) !== strtolower($configured)) {
+					$this->logger->notice(
+						'the host a peer signed is not the configured host, so its signature cannot verify',
+						['signedHost' => $value, 'configuredHost' => $configured]
+					);
+				}
+				$value = $configured;
 			}
 
 			$estimated .= $key . ': ' . $value . "\n";
@@ -528,10 +645,108 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
+	/**
+	 * The public key a keyId names, fetching it only when there is no other way
+	 * and never for free.
+	 *
+	 * This runs before the request is authenticated, on a route anyone on the
+	 * internet can POST to, with a keyId the sender wrote. Three things bound
+	 * what that can cost:
+	 *
+	 *  - a key already in the actor cache is read from the database, untouched
+	 *    by any of the limits below;
+	 *  - a keyId that has never resolved is not retried for a while, so
+	 *    repeating the same unresolvable id costs one fetch, not one per
+	 *    request;
+	 *  - the fetch itself, and a forced refresh, are bounded — in time and in
+	 *    how often the same keyId may ask for one.
+	 *
+	 * @throws SignatureException
+	 * @throws Exception
+	 */
 	private function retrieveKey(string $keyId, bool $refresh = false): string {
-		$actor = $this->cacheActorService->getFromId($keyId, $refresh);
+		$id = $this->keyIdWithoutAnchor($keyId);
+
+		if (!$refresh) {
+			try {
+				return $this->cacheActorsRequest->getFromId($id)
+					->getPublicKey();
+			} catch (CacheActorDoesNotExistException $e) {
+				// not known yet: fall through to the bounded fetch
+			}
+		}
+
+		$attemptKey = ($refresh ? 'refresh.' : 'resolve.') . hash('sha256', $id);
+		if ($this->keyAttempts->get($attemptKey) !== null) {
+			// temporary by construction: the caller has to answer something that
+			// asks the peer to deliver this again rather than to give up on it
+			throw new SignatureException(
+				'key retrieval for ' . $id . ' was attempted too recently',
+				Http::STATUS_SERVICE_UNAVAILABLE
+			);
+		}
+
+		// while the fetch is in flight the entry stands for the fetch itself, so
+		// a burst of deliveries naming the same unknown keyId costs one of them
+		// and not one each. What it means afterwards depends on how it ended.
+		$this->keyAttempts->set(
+			$attemptKey,
+			1,
+			$refresh ? self::KEY_REFRESH_INTERVAL : self::UNKNOWN_KEY_TIMEOUT * 2
+		);
+
+		// bounded: an unauthenticated caller must not be able to decide how long
+		// one of this instance's workers stays busy.
+		try {
+			$actor = $this->configService->withRequestTimeout(
+				self::UNKNOWN_KEY_TIMEOUT,
+				fn (): Person => $this->cacheActorService->getFromId($id, $refresh),
+				self::UNKNOWN_KEY_CONNECT_TIMEOUT
+			);
+		} catch (RequestNetworkException|RequestServerException $e) {
+			$this->rememberFailedAttempt($attemptKey, self::KEY_UNREACHABLE_TTL, $refresh);
+
+			throw $e;
+		} catch (Exception $e) {
+			// the peer answered, and the answer was not a usable actor: that is
+			// a fact about the keyId, and worth remembering for a while
+			$this->rememberFailedAttempt($attemptKey, self::KEY_FAILURE_TTL, $refresh);
+
+			throw $e;
+		}
+
+		if (!$refresh) {
+			// resolved and stored, so the read above will answer from now on;
+			// drop the entry rather than hold off a genuine peer whose first
+			// delivery merely raced a slow answer
+			$this->keyAttempts->remove($attemptKey);
+		}
 
 		return $actor->getPublicKey();
+	}
+
+	/**
+	 * How long the next request naming this keyId is refused without touching
+	 * the network.
+	 *
+	 * A forced refresh keeps the interval it was given: that entry is a ceiling
+	 * on how often the same key may be re-fetched, not a record of a failure.
+	 */
+	private function rememberFailedAttempt(string $attemptKey, int $ttl, bool $refresh): void {
+		if (!$refresh) {
+			$this->keyAttempts->set($attemptKey, 1, $ttl);
+		}
+	}
+
+	/**
+	 * A keyId is an actor id with a fragment (`…/users/bob#main-key`); the
+	 * fragment is not part of what is fetched or stored, and leaving it on would
+	 * make every fragment a separate cache entry.
+	 */
+	private function keyIdWithoutAnchor(string $keyId): string {
+		$posAnchor = strpos($keyId, '#');
+
+		return $posAnchor === false ? $keyId : substr($keyId, 0, $posAnchor);
 	}
 
 	/**
@@ -556,14 +771,31 @@ class SignatureService {
 	 *
 	 * @return string
 	 */
+	/**
+	 * The hash a signature says it was computed with.
+	 *
+	 * `hs2019` deliberately names no hash: the key type decides, and for the
+	 * RSA keys ActivityPub actors publish that is SHA-256 — so it maps there,
+	 * and so does an absent parameter (the draft's own default). Anything else
+	 * is refused rather than silently treated as SHA-256: an Ed25519 or ECDSA
+	 * signature verified as `rsa-sha256` fails with "signature cannot be
+	 * checked", which says nothing about what actually happened.
+	 *
+	 * @throws SignatureException
+	 */
 	private function getAlgorithmFromSignature(array $sign): string {
-		switch ($this->get('algorithm', $sign, '')) {
+		$algorithm = strtolower($this->get('algorithm', $sign, ''));
+		switch ($algorithm) {
 			case 'rsa-sha512':
 				return 'sha512';
+			case '':
+			case 'hs2019':
 			case 'rsa-sha256':
 				return 'sha256';
 			default:
-				return 'sha256';
+				throw new SignatureException(
+					'unsupported signature algorithm: ' . $algorithm
+				);
 		}
 	}
 

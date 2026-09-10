@@ -45,6 +45,8 @@ class CacheTest extends TestCase {
 	private $jobList;
 	/** @var LoggerInterface&MockObject */
 	private $logger;
+	/** @var array<int, array{message: string, context: array}> what captureWarnings() collected */
+	private array $warnings = [];
 	private Cache $job;
 
 	protected function setUp(): void {
@@ -120,13 +122,57 @@ class CacheTest extends TestCase {
 		$this->documentService->expects($this->once())->method('manageCacheDocuments');
 		$this->hashtagService->expects($this->once())->method('manageHashtags');
 		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')->willReturn([]);
+		$this->captureWarnings();
 
 		$this->job->start($this->jobList);
+
+		$this->assertCount(2, $this->warnings, 'both failing steps have to be reported');
+	}
+
+	/**
+	 * The seven catches used to log at `debug` with one identical message, so
+	 * on a default instance (loglevel 2 = warn) nothing was written at all,
+	 * and even at loglevel 0 you could not tell which step had failed.
+	 */
+	public function testEachFailingStepIsLoggedAtWarningAndNamed(): void {
+		$this->accountService->method('manageDeletedActors')->willThrowException(new \RuntimeException('boom'));
+		$this->cacheActorsRequest->method('getRemoteActorsToUpdate')->willReturn([]);
+		$this->logger->expects($this->never())->method('debug');
+		$this->captureWarnings();
+
+		$this->job->start($this->jobList);
+
+		$this->assertCount(1, $this->warnings);
+		$this->assertStringContainsString('manageDeletedActors', $this->warnings[0]['message']);
+		$this->assertStringContainsString('boom', $this->warnings[0]['message']);
+		$this->assertSame('manageDeletedActors', $this->warnings[0]['context']['step'] ?? null);
+		$this->assertInstanceOf(\RuntimeException::class, $this->warnings[0]['context']['exception'] ?? null);
+	}
+
+	public function testEveryStepIsNamedByADistinctMessage(): void {
+		$this->accountService->method('manageDeletedActors')->willThrowException(new \RuntimeException('a'));
+		$this->accountService->method('manageCacheLocalActors')->willThrowException(new \RuntimeException('b'));
+		$this->cacheActorService->method('manageCacheRemoteActors')->willThrowException(new \RuntimeException('c'));
+		$this->cacheActorService->method('manageDetailsRemoteActors')->willThrowException(new \RuntimeException('d'));
+		$this->documentService->method('manageCacheDocuments')->willThrowException(new \RuntimeException('e'));
+		$this->hashtagService->method('manageHashtags')->willThrowException(new \RuntimeException('f'));
+		$this->streamPruneService->method('prune')->willThrowException(new \RuntimeException('g'));
+		$this->cacheActorsRequest->method('getRemoteActorsToUpdate')->willThrowException(new \RuntimeException('h'));
+		$this->captureWarnings();
+
+		$this->job->start($this->jobList);
+
+		$steps = array_column(array_column($this->warnings, 'context'), 'step');
+
+		$this->assertCount(8, $this->warnings);
+		$this->assertSame($steps, array_unique($steps), 'two steps report the same name');
 	}
 
 	public function testOneUnreachableRemoteActorDoesNotStopTheTimelineSync(): void {
 		$gone = $this->createMock(Person::class);
+		$gone->method('getId')->willReturn('https://gone.example/users/x');
 		$alive = $this->createMock(Person::class);
+		$alive->method('getId')->willReturn('https://alive.example/users/y');
 		$this->cacheActorsRequest->method('getRemoteActorsToUpdate')->willReturn([$gone, $alive]);
 		$this->streamService->expects($this->exactly(2))->method('syncRemoteTimeline')
 			->willReturnCallback(function (Person $actor) use ($gone): int {
@@ -136,8 +182,26 @@ class CacheTest extends TestCase {
 
 				return 3;
 			});
+		$this->captureWarnings();
 
 		$this->job->start($this->jobList);
+
+		$this->assertCount(1, $this->warnings, 'the unreachable actor has to be reported');
+		$this->assertStringContainsString('https://gone.example/users/x', $this->warnings[0]['message']);
+	}
+
+	/**
+	 * Records what the job logs at `warning` into $this->warnings.
+	 *
+	 * The returned name is only there to read naturally at the call site; the
+	 * array itself is the property, which fills up while the job runs.
+	 */
+	private function captureWarnings(): void {
+		$this->warnings = [];
+		$this->logger->method('warning')
+			->willReturnCallback(function (string $message, array $context = []): void {
+				$this->warnings[] = ['message' => $message, 'context' => $context];
+			});
 	}
 
 	public function testRunIsSkippedWhenTheLastRunIsTooRecent(): void {

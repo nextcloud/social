@@ -10,24 +10,30 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Interfaces\Activity;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\MoveInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamDest;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\MockObject\MockObject;
+use Psr\Log\NullLogger;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
 
@@ -49,6 +55,10 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 	private $streamDestRequest;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
+	/** @var ActorsRequest&MockObject */
+	private $actorsRequest;
+	/** @var ActivityService&MockObject */
+	private $activityService;
 	private MoveInterface $handler;
 
 	private Person $old;
@@ -64,6 +74,8 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
+		$this->activityService = $this->createMock(ActivityService::class);
 
 		$this->handler = new MoveInterface(
 			$this->actionsRequest,
@@ -73,6 +85,9 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 			$this->streamRequest,
 			$this->streamDestRequest,
 			$this->cacheActorService,
+			$this->actorsRequest,
+			$this->activityService,
+			new NullLogger(),
 		);
 
 		$this->old = $this->person(self::REMOTE_URL . '/users/bob');
@@ -265,6 +280,100 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$this->cacheActorService->expects($this->once())
 			->method('getFromId')->with($this->new->getId(), true)->willReturn($this->new);
 		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
+
+		$this->handler->processIncomingRequest($this->move());
+	}
+
+	// re-following the new account
+
+	private function follow(string $actorId, string $objectId): Follow {
+		$follow = new Follow();
+		$follow->setId(self::LOCAL_URL . '/follows/' . md5($actorId . $objectId));
+		$follow->setActorId($actorId);
+		$follow->setObjectId($objectId);
+		$follow->setAccepted(true);
+
+		return $follow;
+	}
+
+	private function acceptMove(): void {
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->old);
+		$this->cacheActorService->method('getFromId')->willReturn($this->new);
+		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
+	}
+
+	/**
+	 * Rewriting the rows was only half of it: they then said the local user
+	 * follows the new account while the new account's instance had never heard
+	 * of them, so no posts arrived and a later unfollow sent an Undo for a
+	 * follow that was never established.
+	 */
+	public function testALocalFollowerIsFollowedOverToTheNewAccount(): void {
+		$this->acceptMove();
+		$alice = self::LOCAL_URL . '/users/alice';
+		$known = $this->follow($alice, $this->old->getId());
+		$this->followsRequest->method('getFollowersByActorId')
+			->with($this->old->getId())->willReturn([$known]);
+		$this->actorsRequest->method('getFromId')->with($alice)
+			->willReturn($this->person($alice, true));
+
+		/** @var Follow|null $sent */
+		$sent = null;
+		$this->capture($this->activityService, 'request', $sent, 'token');
+
+		$this->handler->processIncomingRequest($this->move());
+
+		$this->assertInstanceOf(Follow::class, $sent);
+		$this->assertSame($alice, $sent->getActorId());
+		$this->assertSame($this->new->getId(), $sent->getObjectId());
+		$this->assertSame($this->new->getFollowers(), $sent->getFollowId());
+		// the id the local row already has, so the Accept matches it and a
+		// later Undo names something the target knows
+		$this->assertSame($known->getId(), $sent->getId());
+
+		$paths = $sent->getInstancePaths();
+		$this->assertCount(1, $paths);
+		$this->assertSame($this->new->getInbox(), $paths[0]->getUri());
+	}
+
+	/** A remote follower's own instance receives the same Move and acts on it. */
+	public function testARemoteFollowerIsNotFollowedOverOnTheirBehalf(): void {
+		$this->acceptMove();
+		$carol = self::CAROL;
+		$this->followsRequest->method('getFollowersByActorId')
+			->willReturn([$this->follow($carol, $this->old->getId())]);
+		$this->actorsRequest->method('getFromId')
+			->willThrowException(new ActorDoesNotExistException());
+
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->handler->processIncomingRequest($this->move());
+	}
+
+	public function testNothingIsSentToATargetWithoutAnInbox(): void {
+		$this->new->setInbox('');
+		$this->acceptMove();
+		$alice = self::LOCAL_URL . '/users/alice';
+		$this->followsRequest->method('getFollowersByActorId')
+			->willReturn([$this->follow($alice, $this->old->getId())]);
+		$this->actorsRequest->method('getFromId')->willReturn($this->person($alice, true));
+
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->handler->processIncomingRequest($this->move());
+	}
+
+	/** One unreachable target must not stop the rest of the migration. */
+	public function testAFailedRefollowIsSwallowed(): void {
+		$this->acceptMove();
+		$alice = self::LOCAL_URL . '/users/alice';
+		$this->followsRequest->method('getFollowersByActorId')
+			->willReturn([$this->follow($alice, $this->old->getId())]);
+		$this->actorsRequest->method('getFromId')->willReturn($this->person($alice, true));
+		$this->activityService->method('request')
+			->willThrowException(new SocialAppConfigException());
+
+		$this->streamRequest->expects($this->once())->method('updateAuthor');
 
 		$this->handler->processIncomingRequest($this->move());
 	}

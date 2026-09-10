@@ -9,22 +9,23 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
-use OCA\Social\AP;
-use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 
 class RemoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	public function processIncomingRequest(ACore $item): void {
-		if (!$item->hasObject()) {
-			return;
-		}
-		$object = $item->getObject();
+	public function __construct(
+		private FeaturedCollection $featuredCollection,
+	) {
+	}
 
-		try {
-			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
-			$service->activity($item, $object);
-		} catch (ItemUnknownException $e) {
-		}
+	/**
+	 * `Remove{object, target}` where target is the actor's `featured`
+	 * collection is an unpin. See FeaturedCollection.
+	 *
+	 * @throws InvalidOriginException
+	 */
+	public function processIncomingRequest(ACore $item): void {
+		$this->featuredCollection->toggle($item, false);
 	}
 }

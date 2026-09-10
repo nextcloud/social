@@ -27,6 +27,9 @@ class Relationship implements JsonSerializable {
 	private bool $requested = false;
 	private bool $domainBlocking = false;
 	private bool $endorsed = false;
+	private bool $requestedBy = false;
+	private string $note = '';
+	private array $languages = [];
 
 	public function __construct(int $id = 0) {
 		$this->id = $id;
@@ -152,9 +155,52 @@ class Relationship implements JsonSerializable {
 		return $this->endorsed;
 	}
 
+	public function setRequestedBy(bool $requestedBy): self {
+		$this->requestedBy = $requestedBy;
+
+		return $this;
+	}
+
+	public function isRequestedBy(): bool {
+		return $this->requestedBy;
+	}
+
+	/** The private note the viewer keeps about this account; not stored yet. */
+	public function setNote(string $note): self {
+		$this->note = $note;
+
+		return $this;
+	}
+
+	public function getNote(): string {
+		return $this->note;
+	}
+
+	/**
+	 * Which languages the viewer wants from this account. Mastodon sends null
+	 * for "all of them", which is the only thing this app offers.
+	 */
+	public function setLanguages(array $languages): self {
+		$this->languages = $languages;
+
+		return $this;
+	}
+
+	public function getLanguages(): array {
+		return $this->languages;
+	}
+
+	/**
+	 * Mastodon's Relationship entity.
+	 *
+	 * `id` is a string, like every other id on the wire: a strongly typed
+	 * client that declares `id: String` (Ivory, Mona and anything else built on
+	 * Swift's Codable) fails to decode an integer, so the follow/block/mute
+	 * button state broke after every action that returns one of these.
+	 */
 	public function jsonSerialize(): array {
 		return [
-			'id' => $this->getId(),
+			'id' => (string)$this->getId(),
 			'following' => $this->isFollowing(),
 			'showing_reblogs' => $this->isShowingReblogs(),
 			'notifying' => $this->isNotifying(),
@@ -165,7 +211,10 @@ class Relationship implements JsonSerializable {
 			'muting_notifications' => $this->isMutingNotifications(),
 			'requested' => $this->isRequested(),
 			'domain_blocking' => $this->isDomainBlocking(),
-			'endorsed' => $this->isEndorsed()
+			'endorsed' => $this->isEndorsed(),
+			'requested_by' => $this->isRequestedBy(),
+			'note' => $this->getNote(),
+			'languages' => ($this->getLanguages() === []) ? null : $this->getLanguages(),
 		];
 	}
 }

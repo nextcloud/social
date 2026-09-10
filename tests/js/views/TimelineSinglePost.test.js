@@ -5,7 +5,7 @@
 /* global setInitialState */
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { nextTick, reactive } from 'vue'
 import { createStore } from 'vuex'
 import TimelineSinglePost from '../../../src/views/TimelineSinglePost.vue'
 import eventBus from '../../../src/services/eventBus.js'
@@ -34,6 +34,11 @@ const TimelineEntryStub = {
 	name: 'TimelineEntry',
 	props: ['item', 'type', 'element'],
 	template: '<div class="timeline-entry-stub" />',
+}
+const NcEmptyContentStub = {
+	name: 'NcEmptyContent',
+	props: ['name', 'description'],
+	template: '<div class="empty-stub"><span class="empty-name">{{ name }}</span></div>',
 }
 
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob' }
@@ -70,13 +75,18 @@ const makeStore = (serverData = {}) => {
 // every view registers an event bus listener, so unmount them after each test
 const mounted = []
 
-const mountView = () => {
+const mountView = (route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })) => {
 	const wrapper = mount(TimelineSinglePost, {
 		attachTo: document.body,
 		global: {
 			plugins: [store],
-			mocks: { $route: { name: 'single-post', params: { account: 'bob', id: '123' } } },
-			stubs: { Composer: ComposerStub, TimelineList: TimelineListStub, TimelineEntry: TimelineEntryStub },
+			mocks: { $route: route },
+			stubs: {
+				Composer: ComposerStub,
+				TimelineList: TimelineListStub,
+				TimelineEntry: TimelineEntryStub,
+				NcEmptyContent: NcEmptyContentStub,
+			},
 		},
 	})
 	mounted.push(wrapper)
@@ -213,6 +223,48 @@ describe('TimelineSinglePost', () => {
 		eventBus.emit('composer-reply', { id: 'reply-1' })
 		await nextTick()
 		expect(scrollIntoView).toHaveBeenCalledTimes(1)
+	})
+
+	it('takes the author from the route, not from the shape of the browser URL', async () => {
+		// this used to split window.location.href and slice a '@' off the
+		// second-to-last segment, which broke on any other URL shape
+		window.history.replaceState({}, '', '/index.php/apps/social/some/other/path')
+		mountView(reactive({ name: 'single-post', params: { account: '@carol@remote.example', id: '9' } }))
+
+		expect(dispatch).toHaveBeenCalledWith('fetchAccountInfo', 'carol@remote.example')
+		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', {
+			type: 'single-post',
+			params: { account: 'carol@remote.example', id: '9', type: 'single-post', singlePost: '9' },
+		})
+	})
+
+	it('renders a page rather than throwing when the post is gone', () => {
+		// loadState throws when the key is absent, which is what a deleted
+		// post looks like — and it threw inside beforeMount, so the view
+		// never rendered at all
+		setState('item', undefined)
+		window._nc_initial_state?.clear()
+		document.getElementById('initial-state-social-item')?.remove()
+
+		const wrapper = mountView()
+
+		expect(wrapper.find('.social__wrapper').exists()).toBe(true)
+		expect(wrapper.find('.empty-name').text()).toBe('This post is not available')
+		expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(false)
+	})
+
+	it('reloads when the route moves to another post in the same view', async () => {
+		store.commit('addToStatuses', status)
+		const route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })
+		mountView(route)
+		dispatch.mockClear()
+
+		route.params.id = '456'
+		await nextTick()
+
+		expect(dispatch).toHaveBeenCalledWith('changeTimelineType', expect.objectContaining({
+			params: expect.objectContaining({ id: '456' }),
+		}))
 	})
 
 	it('leaves other composer-reply listeners attached when it unmounts', () => {

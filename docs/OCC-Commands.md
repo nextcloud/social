@@ -2,7 +2,7 @@
 
 All commands are invoked via `php occ <command>` from the Nextcloud root directory.
 
-This page documents the fourteen commands the app registers in `appinfo/info.xml`.
+This page documents the seventeen commands the app registers in `appinfo/info.xml`.
 Every command extends Nextcloud's `OC\Core\Command\Base`, so the generic
 `--output plain|json|json_pretty` option exists on all of them, but only
 `social:timeline` reads it (see below).
@@ -91,11 +91,11 @@ php occ social:note:create [-r|--replyTo REPLYTO] [-t|--to TO] [-y|--type TYPE] 
 |--------|-------|-------------|
 | `-r`, `--replyTo` | optional | Id of the post this one replies to |
 | `-t`, `--to` | optional | A single mentioned account |
-| `-y`, `--type` | optional | Visibility: `unlisted`, `followers` or `direct`. Anything else — including omitting the option — results in a **public** post; the value is not validated (`StreamService::setRecipient()`, `lib/Service/StreamService.php:115`). |
+| `-y`, `--type` | optional | Visibility: `public`, `unlisted`, `followers` (Mastodon's `private` is accepted as a synonym) or `direct`. Anything else — including omitting the option — becomes **`direct`**, the most restrictive option, because `Post::setType()` maps a value it does not know through `Stream::visibilityFromClient()`. Note the option's own `--help` text still says "public (default)", which is not what happens. |
 | `-g`, `--hashtag` | optional | A single hashtag, without the leading `#` |
 
 `--to` and `--hashtag` each accept only one value. In addition,
-`PostService::fixRecipientAndHashtags()` (`lib/Service/PostService.php:86`) scans the
+`PostService::fixRecipientAndHashtags()` scans the
 content for `@mentions` and `#hashtags` and adds those too.
 
 Prints the resulting activity as pretty JSON followed by `token: <request token>`
@@ -170,8 +170,7 @@ php occ social:timeline [--local] [--min_id MIN] [--max_id MAX] [--since SINCE] 
 | `--account` | required | `''` | A **local** account, resolved with `CacheActorService::getFromLocalAccount()`; used as the account filter |
 | `--crop` | required | `0` | Truncate the printed content to N characters (`0` = no cropping) |
 
-Supported `timeline` values (`StreamRequest::getTimeline()`,
-`lib/Db/StreamRequest.php:410`):
+Supported `timeline` values (the `switch` in `StreamRequest::getTimeline()`):
 
 | Value | Meaning |
 |-------|---------|
@@ -180,12 +179,13 @@ Supported `timeline` values (`StreamRequest::getTimeline()`,
 | `direct` | Direct messages |
 | `account` | Posts of one account (combine with `--account`) |
 | `favourites` | Liked posts |
+| `bookmarks` | Posts the viewer bookmarked |
 | `notifications` | Notifications (rendered in the notification format) |
 | `#<tag>` | A leading `#` selects the hashtag timeline for `<tag>` |
 
-`ProbeOptions` also defines `followers` and `following`, but `getTimeline()` has no
-case for them and silently returns an empty list (`lib/Db/StreamRequest.php:434`).
-Any other value behaves the same way.
+Matching is case-insensitive. `ProbeOptions` also defines `followers` and
+`following`, but `getTimeline()` has no case for them and silently returns an
+empty list. Any other value behaves the same way.
 
 Output is a table (`Nid`, `Id`, `Source`, `Type`, `Author`, `Content`).
 `--output json` switches this command to a JSON dump of the streams.
@@ -279,6 +279,36 @@ Federation health section of the administration settings.
 
 ---
 
+### `social:queue:retry`
+
+Put queued deliveries back on standby, or drop them.
+
+```
+php occ social:queue:retry [-t|--token TOKEN] [--min-tries N] [--limit N]
+                           [--stream] [--flush] [-f|--force]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-t`, `--token` | optional | Act on one delivery only, by the token `social:queue:status` prints |
+| `--min-tries` | int (1) | Without a token, act on the rows that have already failed at least this many times |
+| `--limit` | int (500) | How many rows one run touches at most; run it again to work through the rest |
+| `--stream` | none | Act on the inbound stream queue (`social_stream_queue`) instead of the outbound delivery queue |
+| `--flush` | none | Delete the matching rows instead of queueing them again |
+| `-f`, `--force` | none | Do not ask for confirmation (required with `--no-interaction`) |
+
+Retrying clears the attempt count and sets the row back to standby, so it gets the
+full run of retries again on the next queue cron (or `occ social:queue:process`)
+rather than being abandoned on its next failure. `--flush` deletes the rows: those
+activities are never delivered, which is what you want for a delivery that will
+never succeed — a peer that is gone, or an activity it refuses.
+
+Rows that already succeeded are never touched, so a retry cannot send an activity
+twice. The command prints how many rows matched, across how many delivery tokens
+and with what spread of attempt counts, and asks before it changes anything.
+
+---
+
 ## Development
 
 ### `social:benchmark`
@@ -287,7 +317,7 @@ Seeds a plausible amount of content and times the queries behind the timelines, 
 
 ```
 php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer=USER]
-                         [--seed-only] [--time-only] [--clean]
+                         [--seed-only] [--time-only] [--clean] [-f|--force]
 ```
 
 | Option | Value | Description |
@@ -299,6 +329,12 @@ php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer
 | `--seed-only` | none | Write the rows without timing anything |
 | `--time-only` | none | Time what is already seeded |
 | `--clean` | none | Delete everything the command wrote and nothing else |
+| `-f`, `--force` | none | Seed without asking (required with `--no-interaction`) |
+
+Seeding says how many rows it is about to write and asks before writing any of
+them; under `--no-interaction` it refuses unless `--force` is given, rather than
+seeding a production database because nobody was there to say no. `--clean` and
+`--time-only` write nothing and do not ask.
 
 Every row it writes carries `benchmark.invalid` in its id, which is what `--clean` matches on. The reported time is the second run of each query, so it measures a served request rather than a cold cache.
 
@@ -321,10 +357,12 @@ php occ social:cache:refresh [-f|--force] [--rotate-keys]
 
 Steps and their output lines: local accounts deleted, local accounts regenerated,
 remote accounts created, remote accounts updated, remote accounts details updated,
-documents cached, hashtags updated.
+documents cached, hashtags updated. With `--rotate-keys`, `N key pairs refreshed`
+is printed first.
 
-Key-pair rotation is **not** part of this command; the `blindKeyRotation()` call is
-commented out (`lib/Command/CacheRefresh.php:51`).
+Rotation is the only step that is opt-in, and it is the only way to rotate a key
+pair: nothing else calls `AccountService::blindKeyRotation()`, and the cron never
+does.
 
 ---
 
@@ -345,10 +383,11 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-t`, `--type` | required | Set the access type. Only `all_but` (deny-list, the default) and `none_but` (allow-list) are accepted; anything else throws `invalid type` (`lib/Service/ConfigService.php:61`). |
+| `-t`, `--type` | required | Set the access type. Only `all_but` (deny-list, the default) and `none_but` (allow-list) are accepted; anything else throws `invalid type` (`FediverseService::setAccessType()`). |
 
 Passing `--type` **sets the type and exits** — the `action` argument is not executed
-in the same invocation (`lib/Command/Fediverse.php:53`). Without `--type`, the
+in the same invocation (`Fediverse::typeAccess()` returns true and the command
+returns). Without `--type`, the
 command first prints the current access type and then runs the action:
 
 | Action | Effect |
@@ -365,25 +404,36 @@ An unknown action throws `specify action: add, remove, list, reset`.
 **What is actually enforced.** There is a single list (`access_list`) whose meaning
 depends on `access_type`: with `all_but` every address that is *not* listed is
 allowed; with `none_but` only listed addresses and the local host are allowed.
-`FediverseService::authorized()` is enforced on incoming activities
-(`lib/Controller/ActivityPubController.php:183` and `:226`) and on every outgoing
-HTTP request (`lib/Service/CurlService.php:259`), so the list does take effect for
-inbox delivery and for fetching remote data.
+`FediverseService::authorized()` is enforced on both inbox routes in
+`ActivityPubController` and on every outgoing HTTP request in `CurlService`, so the
+list does take effect for inbox delivery and for fetching remote data. A refused
+inbox delivery is answered **403**, not 500, so the peer stops redelivering it —
+see the rejection table in `docs/Architecture.md`.
+
+**How an address is matched.** Case-insensitively, and without the trailing dot of
+the absolute form. The two modes then read the list differently, on purpose:
+
+- With `all_but`, a listed domain covers the domain itself **and everything under
+  it** (`isListed()`). Blocking `evil.test` while `www.evil.test` walks straight
+  back in is not a block.
+- With `none_but`, an entry matches **exactly** (`isExactlyListed()`). A subdomain
+  of an allowed domain is a different instance, and whoever runs the parent domain
+  was never asked before it appeared.
+
+There is no wildcard syntax; `add` stores what you type, and `remove` takes it away
+by the same exact comparison.
 
 **Known limitations:**
 
 - `list` always prints an empty `Known address:` section, because
-  `FediverseService::getKnownAddresses()` returns an empty array
-  (`lib/Service/FediverseService.php:121`).
+  `FediverseService::getKnownAddresses()` returns an empty array.
 - The older two-list implementation (`blockAddress()`, `allowAddress()`,
   `isBlocked()`, `isAllowed()`, and the separate blacklist/whitelist config keys) is
-  commented out (`lib/Service/FediverseService.php:178-255`). Only the single
+  commented out at the end of `lib/Service/FediverseService.php`. Only the single
   `access_list` above exists; there is no separate block list.
 - Webfinger lookups are not filtered per address; `WebfingerHandler` only calls
   `jailed()`, which refuses service when the instance is in `none_but` mode with an
-  empty list (`lib/WellKnown/WebfingerHandler.php:63`).
-- Matching is exact string comparison against the host
-  (`FediverseService::isListed()`); there is no wildcard or subdomain handling.
+  empty list.
 
 ---
 
@@ -394,12 +444,13 @@ inbox delivery and for fetching remote data.
 Check the integrity of the installation, or regenerate the stream index.
 
 ```
-php occ social:check:install [--index]
+php occ social:check:install [--index] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--index` | none | Regenerate the stream index instead of running the checks |
+| `-f`, `--force` | none | Skip the confirmation of `--index` (required with `--no-interaction`) |
 
 Without `--index`:
 
@@ -410,11 +461,14 @@ Without `--index`:
 
 With `--index` the checks are skipped entirely. The command warns that the operation
 takes a while, asks `Do you confirm this operation? (y/N)`, and on confirmation
-empties `stream_dest` and `stream_tags` and rebuilds both for every stream, with a
-progress bar. Answering anything but `y` exits without changes.
+empties `stream_dest` and `stream_tags` and rebuilds both from `social_stream`, a
+few hundred rows at a time, with a progress bar. Answering anything but `y` exits
+without changes; under `--no-interaction` it refuses unless `--force` is given
+(exit code `1`), because the index tables are truncated before the rebuild starts
+and a run that stops there leaves every timeline empty.
 
-A `--push` option for testing Nextcloud Push integration is present in the source but
-commented out (`lib/Command/CheckInstall.php:66-70`), so it is not available.
+Rows it cannot parse are reported at the end (the first ten in full, then a count)
+and make the command exit `1`; the rest of the index is still rebuilt.
 
 ---
 
@@ -423,26 +477,33 @@ commented out (`lib/Command/CheckInstall.php:66-70`), so it is not available.
 Delete all Social data, or uninstall the app's database footprint.
 
 ```
-php occ social:reset [--uninstall]
+php occ social:reset [--uninstall] [--uri ADDRESS] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--uninstall` | none | Full removal instead of a data flush |
+| `--uri` | address | The cloud base address to rebuild every id from, instead of being asked for it. This is the option `social:check:install` names when the configured address no longer matches the server |
+| `-f`, `--force` | none | Skip both confirmations (required with `--no-interaction`) |
 
-The command always asks **two** confirmations before doing anything:
+The command asks **two** confirmations before doing anything:
 
 1. `Do you confirm this operation? (y/N)`
 2. `Operation is destructive. Are you sure about this? (y/N)`
 
-Answering anything but `y` to either question aborts with exit code `0`.
+Answering anything but `y` to either question aborts with exit code `0` and changes
+nothing. Under `--no-interaction` the command refuses with exit code `1` unless
+`--force` is given: a confirmation prompt answers itself with its default when
+nobody is there, so without this the command would exit `0` having done nothing.
 
 Without `--uninstall`:
 
 - empties every Social table (`CoreRequestBuilder::emptyAll()`),
 - re-runs `checkInstallationStatus(true)`,
-- offers to change the cloud base address, pre-filled with the current one; entering
-  the same value leaves it unchanged.
+- sets the cloud base address to `--uri`, or, with somebody at the keyboard and no
+  `--uri`, offers to change it, pre-filled with the current one; entering the same
+  value leaves it unchanged. Non-interactively and without `--uri` the address is
+  left as it was.
 
 With `--uninstall`:
 
@@ -459,8 +520,8 @@ The app files themselves are not removed, and the app is not disabled.
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success, and also an aborted confirmation prompt or a caught error in `social:reset` |
-| 1 | `social:account:following` handled failure, or an uncaught exception in any command |
+| 0 | Success, and also a confirmation prompt answered with "no" |
+| 1 | A refusal to act non-interactively without `--force` (`social:reset`, `social:check:install --index`, `social:benchmark`, `social:queue:retry`), a failed flush or uninstall in `social:reset`, streams `social:check:install --index` could not parse, `social:account:following` handled failure, or an uncaught exception in any command |
 
 ---
 

@@ -47,7 +47,15 @@ class PinServiceTest extends TestCase {
 		$note = new Note();
 		$note->setId($id);
 		$note->setAttributedTo(self::AUTHOR);
+		$note->setTo(ACore::CONTEXT_PUBLIC);
 		$note->setLocal(true);
+
+		return $note;
+	}
+
+	private function followersOnlyPost(string $id = self::POST_ID): Note {
+		$note = $this->ownPost($id);
+		$note->setTo(self::AUTHOR . '/followers');
 
 		return $note;
 	}
@@ -99,6 +107,14 @@ class PinServiceTest extends TestCase {
 		$foreign = $this->ownPost();
 		$foreign->setAttributedTo('https://remote.example/users/bob');
 		$this->streamRequest->method('getStreamByNid')->willReturn($foreign);
+		$this->actionsRequest->expects($this->never())->method('save');
+
+		$this->expectException(InvalidActionException::class);
+		$this->service->pin($this->author, 42);
+	}
+
+	public function testPinRefusesAPostThatIsNotPublic(): void {
+		$this->streamRequest->method('getStreamByNid')->willReturn($this->followersOnlyPost());
 		$this->actionsRequest->expects($this->never())->method('save');
 
 		$this->expectException(InvalidActionException::class);
@@ -170,6 +186,25 @@ class PinServiceTest extends TestCase {
 		);
 		$this->assertTrue($posts[0]->isPinned());
 		$this->assertTrue($posts[1]->isPinned());
+	}
+
+	public function testGetPinnedPostsWithoutAViewerStillFiltersOnVisibility(): void {
+		$this->actionsRequest->method('getActionsByActor')->willReturn($this->pins(self::POST_ID));
+		// the mock stands in for the query: asked as a viewer it applies
+		// limitToViewer(), which without one is the public-only filter; asked
+		// otherwise it applies no visibility condition at all
+		$asViewer = null;
+		$this->streamRequest->method('getStreamById')->willReturnCallback(
+			function (string $id, bool $flag) use (&$asViewer): Note {
+				$asViewer = $flag;
+
+				return $this->ownPost($id);
+			}
+		);
+
+		$this->service->getPinnedPosts(self::AUTHOR);
+
+		$this->assertTrue($asViewer, 'the featured collection is read by anyone at all');
 	}
 
 	public function testAPinnedPostThatIsGoneIsSkipped(): void {

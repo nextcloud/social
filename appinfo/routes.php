@@ -63,10 +63,15 @@ return [
 		['name' => 'Api#pollGet', 'url' => '/api/v1/polls/{nid}', 'verb' => 'GET'],
 		['name' => 'Api#pollVote', 'url' => '/api/v1/polls/{nid}/votes', 'verb' => 'POST'],
 		['name' => 'Api#instance', 'url' => '/api/v1/instance/', 'verb' => 'GET'],
+		['name' => 'Api#instanceV2', 'url' => '/api/v2/instance', 'verb' => 'GET'],
 		['name' => 'Api#customEmojis', 'url' => '/api/v1/custom_emojis', 'verb' => 'GET'],
 		['name' => 'Api#trendTags', 'url' => '/api/v1/trends/tags', 'verb' => 'GET'],
 		['name' => 'Api#savedSearches', 'url' => '/api/saved_searches/list.json', 'verb' => 'GET'],
 		['name' => 'Api#searchV2', 'url' => '/api/v2/search', 'verb' => 'GET'],
+		// Mastodon's own v1 search. This path used to be the app's web-UI search
+		// (now /local/v1/search): the shape a client got back was a Nextcloud
+		// envelope it could make nothing of.
+		['name' => 'Api#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
 		['name' => 'Api#timelines', 'url' => '/api/v1/timelines/{timeline}/', 'verb' => 'GET'],
 		['name' => 'Api#favourites', 'url' => '/api/v1/favourites/', 'verb' => 'GET'],
 		['name' => 'Api#bookmarks', 'url' => '/api/v1/bookmarks', 'verb' => 'GET'],
@@ -83,9 +88,12 @@ return [
 		['name' => 'Api#statusNew', 'url' => '/api/v1/statuses', 'verb' => 'POST'],
 		['name' => 'Api#statusUpdate', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'PUT'],
 		['name' => 'Api#statusGet', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'GET'],
+		['name' => 'Api#statusDelete', 'url' => '/api/v1/statuses/{nid}', 'verb' => 'DELETE'],
+		['name' => 'Api#statusSource', 'url' => '/api/v1/statuses/{nid}/source', 'verb' => 'GET'],
 		['name' => 'Api#statusContext', 'url' => '/api/v1/statuses/{nid}/context', 'verb' => 'GET'],
 		['name' => 'Api#statusAction', 'url' => '/api/v1/statuses/{nid}/{act}', 'verb' => 'POST'],
 		['name' => 'Api#relationships', 'url' => '/api/v1/accounts/relationships', 'verb' => 'GET'],
+		['name' => 'Api#accountLookup', 'url' => '/api/v1/accounts/lookup', 'verb' => 'GET'],
 		['name' => 'Api#accountStatuses', 'url' => '/api/v1/accounts/{account}/statuses', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollow', 'url' => '/api/v1/accounts/{id}/follow', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
 		['name' => 'Api#accountUnfollow', 'url' => '/api/v1/accounts/{id}/unfollow', 'verb' => 'POST', 'requirements' => ['id' => '.+']],
@@ -97,6 +105,11 @@ return [
 		['name' => 'Api#mutes', 'url' => '/api/v1/mutes', 'verb' => 'GET'],
 		['name' => 'Api#accountFollowers', 'url' => '/api/v1/accounts/{account}/followers', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
 		['name' => 'Api#accountFollowing', 'url' => '/api/v1/accounts/{account}/following', 'verb' => 'GET', 'requirements' => ['account' => '.+']],
+		// Last of the /accounts routes on purpose, and it has to stay last:
+		// {id} accepts slashes (a client may hold an actor URI rather than a
+		// numeric id), so it would otherwise swallow 'relationships', 'lookup',
+		// 'verify_credentials' and the {account} sub-routes.
+		['name' => 'Api#accountGet', 'url' => '/api/v1/accounts/{id}', 'verb' => 'GET', 'requirements' => ['id' => '.+']],
 
 		['name' => 'Local#streamHome', 'url' => '/api/v1/stream/home', 'verb' => 'GET'],
 		['name' => 'Local#streamNotifications', 'url' => '/api/v1/stream/notifications', 'verb' => 'GET'],
@@ -127,7 +140,7 @@ return [
 		['name' => 'Local#uploadBannerByUrl', 'url' => '/api/v1/banner/url', 'verb' => 'POST'],
 		['name' => 'Local#globalAccountsSearch', 'url' => '/api/v1/global/accounts/search', 'verb' => 'GET'],
 		['name' => 'Local#globalTagsSearch', 'url' => '/api/v1/global/tags/search', 'verb' => 'GET'],
-		['name' => 'Local#search', 'url' => '/api/v1/search', 'verb' => 'GET'],
+		['name' => 'Local#search', 'url' => '/local/v1/search', 'verb' => 'GET'],
 
 		['name' => 'Queue#asyncForRequest', 'url' => '/async/request/{token}', 'verb' => 'POST'],
 

@@ -14,6 +14,8 @@ const state = {
 	statuses: {},
 	timeline: [],
 	parentsTimeline: [],
+	/** which list a removed status came from, so a rollback restores it there */
+	removedFrom: {},
 	type: 'home',
 	params: {},
 	account: '',
@@ -22,14 +24,21 @@ const state = {
 }
 
 /**
+ * Indexes a status, and the status it boosts, by id.
  *
- * @param state
- * @param status
+ * @param {object} state the module state
+ * @param {object} status the status to index
  */
 function addToStatuses(state, status) {
-	state.statuses = { ...state.statuses, [status.id]: status }
+	if (status === undefined || status === null || status.id === undefined) {
+		return
+	}
+
+	// assigned in place: replacing the whole map per status meant fifteen full
+	// copies of every status in memory for each page that loaded
+	state.statuses[status.id] = status
 	if (status.reblog !== undefined && status.reblog !== null) {
-		state.statuses = { ...state.statuses, [status.reblog.id]: status.reblog }
+		state.statuses[status.reblog.id] = status.reblog
 	}
 }
 
@@ -64,6 +73,44 @@ const mutations = {
 		if (parentsTimelineIndex !== -1) {
 			state.parentsTimeline.splice(parentsTimelineIndex, 1)
 		}
+		// which list it came from, so a failed delete puts it back where it was
+		state.removedFrom = { ...state.removedFrom, [status.id]: parentsTimelineIndex !== -1 ? 'parents' : 'timeline' }
+		delete state.statuses[status.id]
+	},
+	/**
+	 * Puts a status back after a delete the server refused. `addToTimeline`
+	 * always appended to `state.timeline`, so a failed delete of an ancestor
+	 * reappeared among the replies.
+	 *
+	 * @param {object} state the module state
+	 * @param {object} status the status that could not be deleted
+	 */
+	restoreStatus(state, status) {
+		addToStatuses(state, status)
+		const list = state.removedFrom?.[status.id] === 'parents' ? 'parentsTimeline' : 'timeline'
+		if (state[list].indexOf(status.id) === -1) {
+			state[list].push(status.id)
+		}
+		const removedFrom = { ...state.removedFrom }
+		delete removedFrom[status.id]
+		state.removedFrom = removedFrom
+	},
+	/**
+	 * Drops the "where it came from" hint for a removal that is final. Only
+	 * restoreStatus cleared it, so unliking from the liked timeline and
+	 * un-bookmarking from the bookmarks left a hint behind for a status that
+	 * is not coming back — and the next rollback of that id read it.
+	 *
+	 * @param {object} state the module state
+	 * @param {object} status the status whose removal stands
+	 */
+	forgetRemoval(state, status) {
+		if (state.removedFrom[status.id] === undefined) {
+			return
+		}
+		const removedFrom = { ...state.removedFrom }
+		delete removedFrom[status.id]
+		state.removedFrom = removedFrom
 	},
 	removeStatusesByActor(state, accountId) {
 		const id = String(accountId)
@@ -82,6 +129,10 @@ const mutations = {
 	resetTimeline(state) {
 		state.timeline = []
 		state.parentsTimeline = []
+		// the id lists used to be the only thing cleared, so `statuses` grew
+		// for the whole session: every page of every timeline ever opened
+		state.statuses = {}
+		state.removedFrom = {}
 	},
 	setTimelineType(state, type) {
 		state.type = type
@@ -99,27 +150,42 @@ const mutations = {
 		state.searchQuery = query
 	},
 	likeStatus(state, { status }) {
-		if (state.statuses[status.id] !== undefined) {
-			state.statuses[status.id] = { ...state.statuses[status.id], favourited: true }
-			state.statuses[status.id].favourites_count++
+		const known = state.statuses[status.id]
+		if (known !== undefined) {
+			state.statuses[status.id] = { ...known, favourited: true, favourites_count: (known.favourites_count ?? 0) + 1 }
 		}
 	},
 	unlikeStatus(state, { status }) {
-		if (state.statuses[status.id] !== undefined) {
-			state.statuses[status.id] = { ...state.statuses[status.id], favourited: false }
-			state.statuses[status.id].favourites_count--
+		const known = state.statuses[status.id]
+		if (known !== undefined) {
+			state.statuses[status.id] = { ...known, favourited: false, favourites_count: Math.max((known.favourites_count ?? 0) - 1, 0) }
 		}
 	},
 	boostStatus(state, { status }) {
-		if (state.statuses[status.id] !== undefined) {
-			state.statuses[status.id] = { ...state.statuses[status.id], reblogged: true }
-			state.statuses[status.id].reblogs_count++
+		const known = state.statuses[status.id]
+		if (known !== undefined) {
+			state.statuses[status.id] = { ...known, reblogged: true, reblogs_count: (known.reblogs_count ?? 0) + 1 }
 		}
 	},
 	unboostStatus(state, { status }) {
-		if (state.statuses[status.id] !== undefined) {
-			state.statuses[status.id] = { ...state.statuses[status.id], reblogged: false }
-			state.statuses[status.id].reblogs_count--
+		const known = state.statuses[status.id]
+		if (known !== undefined) {
+			state.statuses[status.id] = { ...known, reblogged: false, reblogs_count: Math.max((known.reblogs_count ?? 0) - 1, 0) }
+		}
+	},
+	/**
+	 * A vote reaches every view of the same post, not just the component that
+	 * cast it.
+	 *
+	 * @param {object} state the module state
+	 * @param {object} payload the status and its new poll
+	 * @param {string} payload.statusId the status that carries the poll
+	 * @param {object} payload.poll the poll as the server returned it
+	 */
+	updateStatusPoll(state, { statusId, poll }) {
+		const known = state.statuses[statusId]
+		if (known !== undefined) {
+			state.statuses[statusId] = { ...known, poll }
 		}
 	},
 	bookmarkStatus(state, { status, bookmarked }) {
@@ -139,48 +205,55 @@ const mutations = {
 	},
 }
 
+/**
+ * @param {object} state the module state
+ * @param {string[]} ids the ids of one of the two lists
+ * @return {object[]} the statuses those ids name, newest first
+ */
+function sortedByDate(state, ids) {
+	return ids
+		.map(statusId => state.statuses[statusId])
+		.filter(Boolean)
+		.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+}
+
 const getters = {
 	getComposerDisplayStatus(state) {
 		return state.composerDisplayStatus
 	},
+	/**
+	 * The timeline, newest first.
+	 *
+	 * This used to also filter by `searchQuery` with String.includes over the
+	 * ~15 statuses that happened to be loaded, which answered "No posts match
+	 * your search" for posts the instance was holding. Searching now asks the
+	 * server (`/api/v2/search`), so the timeline is only the timeline.
+	 *
+	 * @param {object} state the module state
+	 * @return {object[]} the statuses
+	 */
 	getTimeline(state) {
-		let items = state.timeline
-			.map(statusId => state.statuses[statusId])
-			.filter(Boolean)
-			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-		if (state.searchQuery) {
-			const q = state.searchQuery.toLowerCase()
-			items = items.filter(item => {
-				const content = item.content ? item.content.toLowerCase() : ''
-				const displayName = item.account?.display_name?.toLowerCase() || ''
-				const acct = item.account?.acct?.toLowerCase() || ''
-				return content.includes(q) || displayName.includes(q) || acct.includes(q)
-			})
-		}
-
-		return items
+		return sortedByDate(state, state.timeline)
 	},
 	getParentsTimeline(state) {
-		let items = state.parentsTimeline
-			.map(statusId => state.statuses[statusId])
-			.filter(Boolean)
-			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-		if (state.searchQuery) {
-			const q = state.searchQuery.toLowerCase()
-			items = items.filter(item => {
-				const content = item.content ? item.content.toLowerCase() : ''
-				const displayName = item.account?.display_name?.toLowerCase() || ''
-				const acct = item.account?.acct?.toLowerCase() || ''
-				return content.includes(q) || displayName.includes(q) || acct.includes(q)
-			})
-		}
-
-		return items
+		return sortedByDate(state, state.parentsTimeline)
 	},
 	getSearchQuery(state) {
 		return state.searchQuery
+	},
+	/**
+	 * What list the store is currently holding, as one comparable value.
+	 *
+	 * The router-view is no longer keyed on the full path, so a view — and the
+	 * TimelineList inside it — is reused across a navigation. This is what
+	 * tells the list that the thing it is showing has been swapped underneath
+	 * it, whether by a type, a tag, an account or a single post.
+	 *
+	 * @param {object} state the module state
+	 * @return {string} the identity of the current timeline
+	 */
+	getTimelineIdentity(state) {
+		return JSON.stringify([state.type, state.account, state.params])
 	},
 	getStatus(state) {
 		return (statusId) => state.statuses[statusId]
@@ -229,7 +302,16 @@ const actions = {
 		}
 	},
 
-	async createMedia(context, file) {
+	/**
+	 * Uploads one attachment.
+	 *
+	 * @param {object} context the store
+	 * @param {File|object} payload the file, or `{file, onProgress}`
+	 * @return {Promise<object|undefined>} the media entity, or undefined when the server refused
+	 */
+	async createMedia(context, payload) {
+		const file = payload instanceof File ? payload : payload.file
+		const onProgress = payload instanceof File ? undefined : payload.onProgress
 		try {
 			const formData = new FormData()
 			formData.append('file', file)
@@ -240,6 +322,9 @@ const actions = {
 					headers: {
 						'Content-Type': 'multipart/form-data',
 					},
+					onUploadProgress: typeof onProgress === 'function'
+						? (event) => onProgress(event.total ? Math.min(event.loaded / event.total, 1) : 0)
+						: undefined,
 				},
 			)
 			logger.info('Media created with id ' + data.id)
@@ -249,10 +334,22 @@ const actions = {
 			logger.error('Failed to create a media', { error })
 		}
 	},
+	/**
+	 * Sends a status.
+	 *
+	 * Resolves with what the server created and with `undefined` when it
+	 * refused, so the composer can tell the two apart: it used to clear itself
+	 * either way, and an offline moment threw away what was typed.
+	 *
+	 * @param {object} context the store
+	 * @param {object} status the status to send
+	 * @return {Promise<object|undefined>} the created status, or undefined
+	 */
 	async post(context, status) {
 		try {
 			const { data } = await axios.post(generateUrl('apps/social/api/v1/statuses'), status)
 			logger.info('Post created', data.id)
+			return data
 		} catch (error) {
 			showError(t('social', 'Could not send the post'))
 			logger.error('Failed to create a status', { error })
@@ -278,7 +375,10 @@ const actions = {
 			const response = await axios.delete(generateUrl(`apps/social/api/v1/post?id=${status.uri}`))
 			logger.info('Post deleted with token ' + response.data.result.token)
 		} catch (error) {
-			context.commit('addToTimeline', [status])
+			// restoreStatus puts it back in the list it came from; addToTimeline
+			// always appended to the replies, so a failed delete of an ancestor
+			// reappeared among its own answers
+			context.commit('restoreStatus', status)
 			showError(t('social', 'Could not delete the post'))
 			logger.error('Failed to delete the status', { error })
 		}
@@ -305,13 +405,14 @@ const actions = {
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unfavourite`))
 			logger.info('Post unliked')
 			context.commit('addToStatuses', response.data)
+			context.commit('forgetRemoval', status)
 			return response
 		} catch (error) {
 			if (context.state.type === 'favourites') {
-				// addToTimeline restores the caller's pre-unlike copy of the
+				// restoreStatus puts back the caller's pre-unlike copy of the
 				// status (favourited, original count) — a likeStatus on top of
 				// that would count the like twice.
-				context.commit('addToTimeline', [status])
+				context.commit('restoreStatus', status)
 			} else {
 				context.commit('likeStatus', { status })
 			}
@@ -356,6 +457,7 @@ const actions = {
 			context.commit('addToStatuses', response.data)
 			if (!bookmarked && context.state.type === 'bookmarks') {
 				context.commit('removeStatus', status)
+				context.commit('forgetRemoval', status)
 			}
 			return response
 		} catch (error) {
@@ -392,16 +494,20 @@ const actions = {
 			params.limit = 15
 		}
 
+		// context.state, not the module-closure `state`: the closure works only
+		// because there happens to be exactly one store, which is the trap
+		// store/notifications.js already documents
+		const current = context.state
 		let url = ''
-		switch (state.type) {
+		switch (current.type) {
 		case 'account':
-			url = generateUrl(`apps/social/api/v1/accounts/${state.account}/statuses`)
+			url = generateUrl(`apps/social/api/v1/accounts/${current.account}/statuses`)
 			break
 		case 'tags':
-			url = generateUrl(`apps/social/api/v1/timelines/tag/${state.params.tag}`)
+			url = generateUrl(`apps/social/api/v1/timelines/tag/${current.params.tag}`)
 			break
 		case 'single-post':
-			url = generateUrl(`apps/social/api/v1/statuses/${state.params.id}/context`)
+			url = generateUrl(`apps/social/api/v1/statuses/${current.params.id}/context`)
 			break
 		case 'timeline':
 			url = generateUrl('apps/social/api/v1/timelines/public')
@@ -418,10 +524,19 @@ const actions = {
 			url = generateUrl('apps/social/api/v1/bookmarks')
 			break
 		default:
-			url = generateUrl(`apps/social/api/v1/timelines/${state.type}`)
+			url = generateUrl(`apps/social/api/v1/timelines/${current.type}`)
 		}
 
+		// which list this page was asked for, so an answer that arrives after
+		// the reader has moved on is dropped instead of being committed under
+		// the new heading
+		const identity = context.getters.getTimelineIdentity
 		const response = await axios.get(url, { params })
+
+		if (context.getters.getTimelineIdentity !== identity) {
+			logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })
+			return []
+		}
 
 		context.commit('addToTimeline', response.data)
 

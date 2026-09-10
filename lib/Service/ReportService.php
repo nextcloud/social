@@ -104,14 +104,29 @@ class ReportService {
 	}
 
 	/**
+	 * The reports for the moderation panel, with their target accounts filled
+	 * in from what is already cached.
+	 *
+	 * One query for the accounts of the whole page, and no federated request
+	 * on a miss: resolving per report meant up to 200 synchronous requests to
+	 * other instances per admin page load, and a single unreachable one held
+	 * the page for its curl timeout. A report whose account is not cached
+	 * still shows — with the id it was filed against, which is what the
+	 * moderator needs to act on it.
+	 *
 	 * @return Report[] target accounts resolved where possible
 	 */
 	public function getReports(bool $includeResolved = false): array {
 		$reports = $this->reportsRequest->getAll($includeResolved);
+
+		$accounts = $this->cacheActorService->getCachedFromIds(
+			array_map(static fn (Report $report): string => $report->getAccountId(), $reports)
+		);
+
 		foreach ($reports as $report) {
-			try {
-				$report->setTargetAccount($this->cacheActorService->getFromId($report->getAccountId()));
-			} catch (Exception $e) {
+			$account = $accounts[$report->getAccountId()] ?? null;
+			if ($account !== null) {
+				$report->setTargetAccount($account);
 			}
 		}
 

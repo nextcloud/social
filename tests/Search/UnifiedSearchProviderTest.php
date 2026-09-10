@@ -41,6 +41,10 @@ class UnifiedSearchProviderTest extends TestCase {
 	protected function setUp(): void {
 		$this->l10n = $this->createMock(IL10N::class);
 		$this->l10n->method('t')->willReturnArgument(0);
+		$this->l10n->method('n')->willReturnCallback(
+			fn (string $singular, string $plural, int $count, array $params = []): string
+				=> vsprintf(str_replace('%n', (string)$count, $count === 1 ? $singular : $plural), $params)
+		);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->searchService = $this->createMock(SearchService::class);
 
@@ -173,30 +177,80 @@ class UnifiedSearchProviderTest extends TestCase {
 		$this->searchService->method('searchAccounts')->willReturn([]);
 		$this->searchService->method('searchHashtags')->willReturn([
 			['hashtag' => 'nextcloud', 'trend' => ['10d' => 42]],
+			['hashtag' => 'solo', 'trend' => ['10d' => 1]],
+			['hashtag' => 'untracked'],
 		]);
-		$this->urlGenerator->method('linkToRouteAbsolute')
-			->with('social.Navigation.timeline', ['path' => 'tags/nextcloud'])
-			->willReturn('https://cloud.example/apps/social/timeline/tags/nextcloud');
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			fn (string $route, array $args): string => 'https://cloud.example/apps/social/timeline/' . $args['path']
+		);
 
 		$entries = $this->provider->search($this->user(), $this->query('nextcloud'))->jsonSerialize()['entries'];
 
-		$this->assertCount(1, $entries);
+		$this->assertCount(3, $entries);
 		$this->assertSame("42 posts related to 'nextcloud'", $entries[0]->getTitle());
 		$this->assertSame('#nextcloud', $entries[0]->getSubline());
 		$this->assertSame('https://cloud.example/apps/social/timeline/tags/nextcloud', $entries[0]->getResourceUrl());
 		$this->assertSame('', $entries[0]->getThumbnailUrl());
+		// the count goes through the plural forms of the language, like every other
+		// string this provider emits
+		$this->assertSame("1 post related to 'solo'", $entries[1]->getTitle());
+		$this->assertSame("0 posts related to 'untracked'", $entries[2]->getTitle());
 	}
 
-	public function testResultIsPaginatedFromTheCursor(): void {
+	public function testLoadMoreServesTheNextResultsAndTheLastPageAdvertisesNoOther(): void {
+		// The cursor used to be handed out without ever being read, so every
+		// "load more" answered with the first page again, for ever.
+		$accounts = [];
+		for ($i = 0; $i < 12; $i++) {
+			$accounts[] = $this->account('user' . $i, 'user' . $i . '@cloud.example');
+		}
+		$this->searchService->method('searchUri')->willReturn([]);
+		$this->searchService->method('searchHashtags')->willReturn([]);
+		$this->searchService->method('searchStreamContent')->willReturn([]);
+		$this->searchService->method('searchAccounts')->willReturnCallback(
+			fn (string $search, ?int $limit = null): array
+				=> ($limit === null) ? $accounts : array_slice($accounts, 0, $limit)
+		);
+		$this->urlGenerator->method('linkToRoute')->willReturn('/social');
+
+		$first = $this->provider->search($this->user(), $this->query('user', 5))->jsonSerialize();
+		$second = $this->provider->search($this->user(), $this->query('user', 5, $first['cursor']))->jsonSerialize();
+		$last = $this->provider->search($this->user(), $this->query('user', 5, $second['cursor']))->jsonSerialize();
+
+		$this->assertSame(['user0', 'user1', 'user2', 'user3', 'user4'], $this->titles($first));
+		$this->assertTrue($first['isPaginated']);
+		$this->assertSame(5, $first['cursor']);
+
+		$this->assertSame(['user5', 'user6', 'user7', 'user8', 'user9'], $this->titles($second));
+		$this->assertTrue($second['isPaginated']);
+		$this->assertSame(10, $second['cursor']);
+
+		$this->assertSame(['user10', 'user11'], $this->titles($last));
+		$this->assertFalse($last['isPaginated'], 'a page that ends the results must not advertise another');
+	}
+
+	public function testAPageThatFitsIsNotAdvertisedAsPaginated(): void {
 		$this->searchService->method('searchUri')->willReturn([]);
 		$this->searchService->method('searchAccounts')->willReturn([]);
 		$this->searchService->method('searchHashtags')->willReturn([]);
+		$this->searchService->method('searchStreamContent')->willReturn([]);
 
-		$first = $this->provider->search($this->user(), $this->query('x', 5))->jsonSerialize();
-		$next = $this->provider->search($this->user(), $this->query('x', 5, 10))->jsonSerialize();
+		$result = $this->provider->search($this->user(), $this->query('x', 5))->jsonSerialize();
 
-		$this->assertTrue($first['isPaginated']);
-		$this->assertSame(5, $first['cursor']);
-		$this->assertSame(15, $next['cursor']);
+		$this->assertSame([], $result['entries']);
+		$this->assertFalse($result['isPaginated'], 'no results is not a page to load more of');
+	}
+
+	public function testEverySourceIsAskedForNoMoreThanThePageNeeds(): void {
+		$this->searchService->expects($this->once())->method('searchAccounts')->with('x', 8)->willReturn([]);
+		$this->searchService->expects($this->once())->method('searchHashtags')->with('x', 8)->willReturn([]);
+		$this->searchService->expects($this->once())->method('searchStreamContent')->with('x', 8)->willReturn([]);
+		$this->searchService->method('searchUri')->willReturn([]);
+
+		$this->provider->search($this->user(), $this->query('x', 5, 2));
+	}
+
+	private function titles(array $result): array {
+		return array_map(fn (UnifiedSearchResult $entry): string => $entry->getTitle(), $result['entries']);
 	}
 }

@@ -13,9 +13,11 @@ use OCA\Social\AP;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Model\Report;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use OCP\IURLGenerator;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../Model/TActivityPubMocks.php';
@@ -32,34 +34,165 @@ class ApiContractTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->installActivityPub();
+
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
+			static fn (string $route, array $args = []): string
+				=> 'https://cloud.example.org/apps/social/' . ($args['path'] ?? '')
+		);
+		\OC::$server->register(IURLGenerator::class, $urlGenerator);
 	}
 
 	protected function tearDown(): void {
 		AP::$activityPub = null;
+		Stream::resetReplyParentCache();
 		\OC::$server->reset();
 	}
 
-	public function testTheStatusEntityKeysAreStable(): void {
+	/**
+	 * The keys as they actually reach a client.
+	 *
+	 * `exportAsLocal()` is not the wire payload: what a DataResponse encodes is
+	 * `jsonSerialize()`, and the subclasses add keys on top of it — Note used
+	 * to bolt on its own `hashtags`, and Stream an `attachment` beside
+	 * `media_attachments`. Asserting against the export alone pinned a contract
+	 * nothing served.
+	 */
+	private function serialisedKeys(\JsonSerializable $entity): array {
+		$keys = array_keys((array)json_decode((string)json_encode($entity), true));
+		sort($keys);
+
+		return $keys;
+	}
+
+	/** @return string[] */
+	private function expectedStatusKeys(): array {
+		// 'account' joins the set when an actor is attached; 'nid' is app-specific
+		$expected = [
+			'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
+			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
+			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned',
+			'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
+			'tags', 'uri', 'url', 'visibility',
+		];
+		sort($expected);
+
+		return $expected;
+	}
+
+	private function status(): Note {
 		$note = new Note();
 		$note->setId('https://cloud.example.org/apps/social/@alice/1');
 		$note->setNid(7);
 		$note->setPublishedTime(1714564800);
+		$note->setExportFormat(ACore::FORMAT_LOCAL);
+
+		return $note;
+	}
+
+	public function testTheStatusEntityKeysAreStable(): void {
+		$actual = array_keys($this->status()->exportAsLocal());
+		sort($actual);
+
+		$this->assertSame($this->expectedStatusKeys(), $actual);
+	}
+
+	/**
+	 * The same set, taken from the JSON a client actually receives rather than
+	 * from `exportAsLocal()`.
+	 */
+	public function testTheSerialisedStatusCarriesExactlyTheSameKeys(): void {
+		$this->assertSame(
+			$this->expectedStatusKeys(),
+			$this->serialisedKeys($this->status()),
+			'jsonSerialize() and exportAsLocal() must not drift'
+		);
+	}
+
+	/**
+	 * Nothing may be dropped from the client format, and only the extras named
+	 * here may be added to it.
+	 *
+	 * `attachment` was a second copy of `media_attachments` under the
+	 * ActivityPub name, and is gone. `hashtags` is the app's own name for what
+	 * Mastodon calls `tags` (now exported alongside it); it is still added by
+	 * `Note::jsonSerialize()` and should come off that list, at which point it
+	 * comes off this one.
+	 */
+	public function testTheClientFormatAddsNothingButTheKnownExtras(): void {
+		$note = $this->status();
+		$note->setHashtags(['cats']);
+		$note->setCompleteDetails(true);
+
+		$keys = $this->serialisedKeys($note);
+
+		$this->assertSame([], array_values(array_diff($this->expectedStatusKeys(), $keys)));
+		// nothing beyond the Mastodon contract: `hashtags` was this app's own
+		// bare-string shape and `tags` now carries the same data as Mastodon
+		// spells it, so the client format carries no extras at all
+		$this->assertSame(
+			[],
+			array_values(array_diff($keys, $this->expectedStatusKeys()))
+		);
+		$this->assertNotContains('attachment', $keys);
+		$this->assertNotContains('hashtags', $keys);
+	}
+
+	/**
+	 * The keys a status entity carries even when there is nothing to put in
+	 * them. `Note::jsonSerialize()` used to run the whole payload through
+	 * `cleanArray()`, which drops every empty string and empty list, so a post
+	 * with no content warning arrived without `spoiler_text` and one with no
+	 * attachments without `media_attachments`.
+	 */
+	public function testAnEmptyStatusStillCarriesEveryKey(): void {
+		$serialised = (array)json_decode((string)json_encode($this->status()), true);
+
+		$this->assertArrayHasKey('spoiler_text', $serialised);
+		$this->assertSame('', $serialised['spoiler_text']);
+		$this->assertArrayHasKey('media_attachments', $serialised);
+		$this->assertSame([], $serialised['media_attachments']);
+		$this->assertArrayHasKey('mentions', $serialised);
+		$this->assertArrayHasKey('tags', $serialised);
+		$this->assertArrayHasKey('in_reply_to_id', $serialised);
+		$this->assertArrayHasKey('content', $serialised);
+	}
+
+	public function testHashtagsAreExportedAsMastodonTags(): void {
+		$note = $this->status();
+		$note->setHashtags(['#Cats', 'dogs', '']);
+
+		$this->assertSame(
+			[
+				['name' => 'Cats', 'url' => 'https://cloud.example.org/apps/social/tags/Cats'],
+				['name' => 'dogs', 'url' => 'https://cloud.example.org/apps/social/tags/dogs'],
+			],
+			$note->exportAsLocal()['tags']
+		);
+	}
+
+	public function testAReplyToAnUnknownParentReportsNullRatherThanBreaking(): void {
+		$note = $this->status();
+		$note->setInReplyTo('https://remote.example/statuses/999');
 
 		$status = $note->exportAsLocal();
 
-		// 'account' joins the set when an actor is attached; 'nid' is app-specific
-		$expected = [
-			'bookmarked', 'card', 'content', 'created_at', 'emojis', 'favourited', 'favourites_count', 'id',
-			'in_reply_to_account_id', 'in_reply_to_id', 'language', 'local',
-			'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'reblog',
-			'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
-			'uri', 'url', 'visibility',
-		];
-		sort($expected);
-		$actual = array_keys($status);
-		sort($actual);
+		$this->assertNull($status['in_reply_to_id']);
+		$this->assertNull($status['in_reply_to_account_id']);
+	}
 
-		$this->assertSame($expected, $actual);
+	public function testMentionIdsAreStringsEvenWhenUnresolvable(): void {
+		$note = $this->status();
+		// fillMentions() stores an integer 0 for a handle it could not resolve
+		$note->setMentions([
+			['id' => 0, 'username' => 'ghost', 'url' => 'https://remote.example/@ghost', 'acct' => 'ghost'],
+			['id' => '4', 'username' => 'bob', 'url' => 'https://remote.example/@bob', 'acct' => 'bob'],
+		]);
+
+		$mentions = $note->exportAsLocal()['mentions'];
+
+		$this->assertSame('0', $mentions[0]['id']);
+		$this->assertSame('4', $mentions[1]['id']);
 	}
 
 	public function testTheAccountEntityKeysAreStable(): void {
@@ -88,14 +221,17 @@ class ApiContractTest extends TestCase {
 
 		$expected = [
 			'blocked_by', 'blocking', 'domain_blocking', 'endorsed', 'followed_by',
-			'following', 'id', 'muting', 'muting_notifications',
-			'notifying', 'requested', 'showing_reblogs',
+			'following', 'id', 'languages', 'muting', 'muting_notifications',
+			'note', 'notifying', 'requested', 'requested_by', 'showing_reblogs',
 		];
 		$actual = array_keys($relationship->jsonSerialize());
 		sort($expected);
 		sort($actual);
 
 		$this->assertSame($expected, $actual);
+		$this->assertIsString(
+			$relationship->jsonSerialize()['id'], 'relationship ids are strings on the wire'
+		);
 	}
 
 	public function testTheReportEntityKeysAreStable(): void {

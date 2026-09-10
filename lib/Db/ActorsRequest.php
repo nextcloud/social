@@ -51,7 +51,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
 			->set('summary', $qb->createNamedParameter($actor->getSummary()))
 			->set('name', $qb->createNamedParameter($actor->getName()));
-		$this->limitToIdString($qb, $actor->getId());
+		$this->limitToIdPrimString($qb, $actor->getId());
 
 		$qb->executeStatement();
 	}
@@ -62,7 +62,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateFields(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('fields', $qb->createNamedParameter(json_encode($actor->getFields())));
-		$this->limitToIdString($qb, $actor->getId());
+		$this->limitToIdPrimString($qb, $actor->getId());
 
 		$qb->executeStatement();
 	}
@@ -73,7 +73,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateLocked(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0));
-		$this->limitToIdString($qb, $actor->getId());
+		$this->limitToIdPrimString($qb, $actor->getId());
 
 		$qb->executeStatement();
 	}
@@ -91,7 +91,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$this->limitToIdString($qb, $actor->getId());
+		$this->limitToIdPrimString($qb, $actor->getId());
 
 		$qb->executeStatement();
 	}
@@ -123,7 +123,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 */
 	public function getFromId(string $id): Person {
 		$qb = $this->getActorsSelectSql();
-		$qb->limitToIdString($id);
+		$this->limitToIdPrimString($qb, $id);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();

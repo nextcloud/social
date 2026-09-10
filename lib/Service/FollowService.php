@@ -29,6 +29,7 @@ use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Relationship;
@@ -239,7 +240,9 @@ class FollowService {
 
 			$undo = AP::$activityPub->getItemFromType(Undo::TYPE);
 			$follow->setParent($undo);
-			$undo->generateUniqueId('#undo/follows');
+			// hung off the local actor, not the cloud root: see
+			// ACore::generateUniqueIdFromActor()
+			$undo->generateUniqueIdFromActor($actor->getId(), 'undo/follows');
 			$undo->setObject($follow);
 			$undo->setActorId($actor->getId());
 
@@ -297,18 +300,37 @@ class FollowService {
 	 * @return OrderedCollection
 	 */
 	public function getFollowersCollection(Person $actor): OrderedCollection {
-		$collection = new OrderedCollection();
-		$collection->setId($actor->getFollowers());
-		$collection->setTotalItems($this->getInt('followers', $actor->getDetails('count')));
+		return OrderedCollection::paged(
+			$actor->getFollowers(),
+			$this->getInt('followers', $actor->getDetails('count')),
+			$this->collectionRoute('social.ActivityPub.followers', $actor)
+		);
+	}
 
-		$first = $this->urlGenerator->linkToRouteAbsolute(
-			'social.ActivityPub.followers',
-			['username' => $actor->getPreferredUsername()]
-		)
-				 . '?page=1';
-		$collection->setFirst($first);
-
-		return $collection;
+	/**
+	 * One page of the followers collection.
+	 *
+	 * The collection has always advertised `first` as `?page=1`, but nothing
+	 * read the parameter: `?page=1` returned the identical collection, whose
+	 * `first` pointed at itself. A consumer following `first` either looped or
+	 * gave up, so nobody could enumerate a local actor's followers — which is
+	 * how another instance discovers who to deliver to when its own record is
+	 * incomplete, and how account migration tools rebuild a follower list.
+	 */
+	public function getFollowersPage(Person $actor, int $page): OrderedCollectionPage {
+		return OrderedCollectionPage::of(
+			$actor->getFollowers(),
+			$this->collectionRoute('social.ActivityPub.followers', $actor),
+			$page,
+			array_map(
+				static fn (Follow $follow): string => $follow->getActorId(),
+				$this->followsRequest->getFollowersByActorId(
+					$actor->getId(),
+					OrderedCollection::PAGE_SIZE,
+					($page - 1) * OrderedCollection::PAGE_SIZE
+				)
+			)
+		);
 	}
 
 	/**
@@ -328,18 +350,34 @@ class FollowService {
 	 * @return OrderedCollection
 	 */
 	public function getFollowingCollection(Person $actor): OrderedCollection {
-		$collection = new OrderedCollection();
-		$collection->setId($actor->getFollowing());
-		$collection->setTotalItems($this->getInt('following', $actor->getDetails('count')));
+		return OrderedCollection::paged(
+			$actor->getFollowing(),
+			$this->getInt('following', $actor->getDetails('count')),
+			$this->collectionRoute('social.ActivityPub.following', $actor)
+		);
+	}
 
-		$first = $this->urlGenerator->linkToRouteAbsolute(
-			'social.ActivityPub.following',
-			['username' => $actor->getPreferredUsername()]
-		)
-				 . '?page=1';
-		$collection->setFirst($first);
+	/** One page of the following collection. See getFollowersPage(). */
+	public function getFollowingPage(Person $actor, int $page): OrderedCollectionPage {
+		return OrderedCollectionPage::of(
+			$actor->getFollowing(),
+			$this->collectionRoute('social.ActivityPub.following', $actor),
+			$page,
+			array_map(
+				static fn (Follow $follow): string => $follow->getObjectId(),
+				$this->followsRequest->getFollowingByActorId(
+					$actor->getId(),
+					OrderedCollection::PAGE_SIZE,
+					($page - 1) * OrderedCollection::PAGE_SIZE
+				)
+			)
+		);
+	}
 
-		return $collection;
+	private function collectionRoute(string $route, Person $actor): string {
+		return $this->urlGenerator->linkToRouteAbsolute(
+			$route, ['username' => $actor->getPreferredUsername()]
+		);
 	}
 
 	/**

@@ -65,7 +65,15 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertSame(400, $media->getMeta()->getSmall()->getHeight());
 	}
 
-	public function testAsLocalDropsEmptyFieldsAndKeepsTheMeta(): void {
+	/**
+	 * Mastodon sends every one of these keys on every attachment, so a client
+	 * is entitled to declare them non-optional. They used to be run through
+	 * `array_filter()` with no callback, which drops every *falsy* value: an
+	 * attachment with no alt text lost `description`, one with no preview lost
+	 * `preview_url`, and the first attachment ever cached (id `"0"`) lost its
+	 * `id` — and the status carrying it then failed to decode too.
+	 */
+	public function testAsLocalNullsEmptyFieldsRatherThanDroppingThem(): void {
 		$media = new MediaAttachment();
 		$media->import($this->mastodonAttachment());
 		$media->setDescription('');
@@ -76,9 +84,36 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertSame('image', $local['type']);
 		$this->assertSame('https://files.mastodon.social/media/cat.jpg', $local['url']);
 		$this->assertSame('https://remote.example/media/cat.jpg', $local['remote_url']);
-		$this->assertSame($media->getMeta(), $local['meta']);
-		$this->assertArrayNotHasKey('description', $local);
 		$this->assertSame('UBL_:rOp', $local['blurhash']);
+		$this->assertArrayHasKey('description', $local);
+		$this->assertNull($local['description']);
+		$this->assertSame(
+			['id', 'type', 'url', 'preview_url', 'remote_url', 'meta', 'description', 'blurhash'],
+			array_keys($local)
+		);
+	}
+
+	public function testTheMetaIsAnObjectOnTheWire(): void {
+		$media = new MediaAttachment();
+		$media->import($this->mastodonAttachment());
+
+		$json = json_decode((string)json_encode($media->asLocal()), false);
+
+		$this->assertIsObject($json->meta, 'meta is a dictionary, never a list');
+		$this->assertSame(1200, $json->meta->original->width);
+	}
+
+	public function testAnAttachmentWithNoMetaAtAllReportsItAsNull(): void {
+		// an AttachmentMeta holding nothing json-encodes as `[]`, which a client
+		// decoding a dictionary rejects; null is what Mastodon sends instead
+		$this->assertNull((new MediaAttachment())->asLocal()['meta']);
+	}
+
+	public function testAnAttachmentWithIdZeroKeepsIt(): void {
+		$media = new MediaAttachment();
+		$media->import(['id' => '0', 'type' => 'image', 'url' => 'https://a.example/x.png']);
+
+		$this->assertSame('0', $media->asLocal()['id']);
 	}
 
 	public function testAsDocumentBuildsAnActivityPubDocument(): void {
@@ -154,13 +189,15 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertSame('https://remote.example/media/cat.jpg', $local['remote_url']);
 	}
 
-	public function testAnAttachmentWithoutLinksStaysWithout(): void {
+	public function testAnAttachmentWithoutLinksReportsThemAsNull(): void {
 		$this->withUrlGenerator();
 
 		$local = (new MediaAttachment())->asLocal();
 
-		$this->assertArrayNotHasKey('url', $local);
-		$this->assertArrayNotHasKey('preview_url', $local);
+		$this->assertArrayHasKey('url', $local);
+		$this->assertNull($local['url']);
+		$this->assertArrayHasKey('preview_url', $local);
+		$this->assertNull($local['preview_url']);
 	}
 
 	public function testJsonSerializeFollowsTheExportFormat(): void {
@@ -168,7 +205,7 @@ class MediaAttachmentTest extends TestCase {
 		$media->import($this->mastodonAttachment());
 
 		$this->assertSame(ACore::FORMAT_LOCAL, $media->getExportFormat());
-		$this->assertSame($media->asLocal(), $media->jsonSerialize());
+		$this->assertEquals($media->asLocal(), $media->jsonSerialize());
 
 		$media->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
 		$this->assertSame($media->asDocument(), $media->jsonSerialize());

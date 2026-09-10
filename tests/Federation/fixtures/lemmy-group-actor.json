@@ -1,0 +1,26 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "sensitive": "as:sensitive",
+      "postingRestrictedToMods": "lemmy:postingRestrictedToMods",
+      "lemmy": "https://join-lemmy.org/ns#"
+    }
+  ],
+  "type": "Group",
+  "id": "https://lemmy.world/c/technology",
+  "preferredUsername": "technology",
+  "name": "Technology",
+  "summary": "<p>Tech news and discussion.</p>",
+  "inbox": "https://lemmy.world/c/technology/inbox",
+  "outbox": "https://lemmy.world/c/technology/outbox",
+  "followers": "https://lemmy.world/c/technology/followers",
+  "endpoints": { "sharedInbox": "https://lemmy.world/inbox" },
+  "publicKey": {
+    "id": "https://lemmy.world/c/technology#main-key",
+    "owner": "https://lemmy.world/c/technology",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBg\n-----END PUBLIC KEY-----\n"
+  },
+  "published": "2023-06-01T10:00:00Z"
+}

@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\LocalController;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -37,6 +39,9 @@ use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
@@ -54,6 +59,8 @@ class LocalControllerTest extends TestCase {
 	private $accountService;
 	/** @var CacheActorService&MockObject */
 	private $cacheActorService;
+	/** @var CacheActorsRequest&MockObject */
+	private $cacheActorsRequest;
 	/** @var HashtagService&MockObject */
 	private $hashtagService;
 	/** @var FollowService&MockObject */
@@ -81,6 +88,11 @@ class LocalControllerTest extends TestCase {
 
 	private array $filesBackup;
 
+	/** @var array<string, Person> actors this instance already has cached locally */
+	private array $localActors = [];
+	/** @var array<string, ISimpleFile> remote urls whose bytes are already cached */
+	private array $cachedRemoteFiles = [];
+
 	protected function setUp(): void {
 		$this->filesBackup = $_FILES;
 		$_FILES = [];
@@ -88,6 +100,19 @@ class LocalControllerTest extends TestCase {
 		$this->request = $this->createMock(IRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		// the public routes read the local actor cache first and only resolve an
+		// unknown id for a caller with a session
+		$this->localActors = [];
+		$this->cacheActorsRequest->method('getFromId')->willReturnCallback(
+			function (string $id): Person {
+				if (!array_key_exists($id, $this->localActors)) {
+					throw new CacheActorDoesNotExistException('not cached');
+				}
+
+				return $this->localActors[$id];
+			}
+		);
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->postService = $this->createMock(PostService::class);
@@ -96,6 +121,17 @@ class LocalControllerTest extends TestCase {
 		$this->boostService = $this->createMock(BoostService::class);
 		$this->likeService = $this->createMock(LikeService::class);
 		$this->documentService = $this->createMock(DocumentService::class);
+		$this->cachedRemoteFiles = [];
+		$this->documentService->method('getCachedFromUrl')->willReturnCallback(
+			function (string $url, string &$mime) {
+				if (!array_key_exists($url, $this->cachedRemoteFiles)) {
+					throw new CacheDocumentDoesNotExistException('not cached');
+				}
+				$mime = 'image/jpeg';
+
+				return $this->cachedRemoteFiles[$url];
+			}
+		);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->actorService = $this->createMock(ActorService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -115,6 +151,7 @@ class LocalControllerTest extends TestCase {
 			$userId,
 			$this->accountService,
 			$this->cacheActorService,
+			$this->cacheActorsRequest,
 			$this->hashtagService,
 			$this->followService,
 			$this->postService,
@@ -578,9 +615,10 @@ class LocalControllerTest extends TestCase {
 		$this->assertFailure($this->controller(null)->globalAccountInfo('ghost@remote.example'), CacheActorDoesNotExistException::class);
 	}
 
-	public function testGlobalActorInfoLooksUpById(): void {
+	public function testGlobalActorInfoLooksUpAnActorThisInstanceKnows(): void {
 		$actor = $this->createMock(Person::class);
-		$this->cacheActorService->method('getFromId')->with('https://remote.example/users/bob')->willReturn($actor);
+		$this->localActors['https://remote.example/users/bob'] = $actor;
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 
 		$this->assertSuccess($this->controller(null)->globalActorInfo('https://remote.example/users/bob'), ['actor' => $actor]);
 	}
@@ -588,7 +626,39 @@ class LocalControllerTest extends TestCase {
 	public function testGlobalActorInfoOfUnknownIdFails(): void {
 		$this->cacheActorService->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller(null)->globalActorInfo('https://x'), CacheActorDoesNotExistException::class);
+		$this->assertFailure($this->controller('alice')->globalActorInfo('https://x'), CacheActorDoesNotExistException::class);
+	}
+
+	public function testAnAnonymousCallerCannotMakeTheInstanceResolveAnUnknownActor(): void {
+		// resolving an id fetches whatever url it names and downloads the
+		// actor's icon: not something anybody may trigger without a session
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->assertFailure(
+			$this->controller(null)->globalActorInfo('https://evil.test/a/1'),
+			CacheActorDoesNotExistException::class, 'unknown actor'
+		);
+	}
+
+	public function testALoggedInCallerStillResolvesAnUnknownActor(): void {
+		$actor = $this->createMock(Person::class);
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with('https://remote.example/users/new')->willReturn($actor);
+
+		$this->assertSuccess(
+			$this->controller('alice')->globalActorInfo('https://remote.example/users/new'),
+			['actor' => $actor]
+		);
+	}
+
+	public function testTheKeyFragmentIsNotPartOfTheActorId(): void {
+		$actor = $this->createMock(Person::class);
+		$this->localActors['https://remote.example/users/bob'] = $actor;
+
+		$this->assertSuccess(
+			$this->controller(null)->globalActorInfo('https://remote.example/users/bob#main-key'),
+			['actor' => $actor]
+		);
 	}
 
 	// avatar / header
@@ -600,7 +670,7 @@ class LocalControllerTest extends TestCase {
 		$actor = $this->createMock(Person::class);
 		$actor->method('hasIcon')->willReturn(true);
 		$actor->method('getIcon')->willReturn($icon);
-		$this->cacheActorService->method('getFromId')->willReturn($actor);
+		$this->localActors['https://remote.example/users/bob'] = $actor;
 		$file = $this->createMock(ISimpleFile::class);
 		$file->method('getName')->willReturn('avatar');
 		$this->documentService->method('getFromCache')
@@ -622,7 +692,7 @@ class LocalControllerTest extends TestCase {
 	public function testGlobalActorAvatarIs404WithoutIcon(): void {
 		$actor = $this->createMock(Person::class);
 		$actor->method('hasIcon')->willReturn(false);
-		$this->cacheActorService->method('getFromId')->willReturn($actor);
+		$this->localActors['https://x'] = $actor;
 
 		$this->assertFailure(
 			$this->controller(null)->globalActorAvatar('https://x'),
@@ -630,11 +700,23 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
+	public function testGlobalActorAvatarOfAnUnknownActorIs404ForAnonymousCallers(): void {
+		// the download this would start is the point: it writes attacker-chosen
+		// bytes into appdata, so an anonymous caller never reaches it
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$this->documentService->expects($this->never())->method('getFromCache');
+
+		$this->assertFailure(
+			$this->controller(null)->globalActorAvatar('https://evil.test/a/1'),
+			CacheActorDoesNotExistException::class, 'unknown actor', Http::STATUS_NOT_FOUND
+		);
+	}
+
 	public function testGlobalActorHeaderRedirectsToTheHeaderImage(): void {
 		\OC::$server->register(ITimeFactory::class, $this->createMock(ITimeFactory::class));
 		$actor = $this->createMock(Person::class);
 		$actor->method('getHeader')->willReturn('https://remote.example/header.jpg');
-		$this->cacheActorService->method('getFromId')->willReturn($actor);
+		$this->localActors['https://x'] = $actor;
 
 		$response = $this->controller(null)->globalActorHeader('https://x');
 
@@ -643,10 +725,48 @@ class LocalControllerTest extends TestCase {
 		$this->assertStringContainsString('max-age=86400', $response->getHeaders()['Cache-Control']);
 	}
 
+	public function testGlobalActorHeaderPrefersTheCopyThisInstanceHolds(): void {
+		\OC::$server->register(ITimeFactory::class, $this->createMock(ITimeFactory::class));
+		$actor = $this->createMock(Person::class);
+		$actor->method('getHeader')->willReturn('https://remote.example/header.jpg');
+		$this->localActors['https://x'] = $actor;
+		$file = $this->createMock(ISimpleFile::class);
+		$file->method('getName')->willReturn('header');
+		$this->cachedRemoteFiles['https://remote.example/header.jpg'] = $file;
+
+		$response = $this->controller(null)->globalActorHeader('https://x');
+
+		$this->assertInstanceOf(FileDisplayResponse::class, $response);
+		$this->assertSame('image/jpeg', $response->getHeaders()['Content-Type']);
+	}
+
+	/**
+	 * @dataProvider provideUnusableHeaderAddresses
+	 */
+	public function testGlobalActorHeaderRefusesAnAddressThatIsNotWebContent(string $header): void {
+		// the value is remote JSON, and this route answers from the origin the
+		// user trusts: it must not become a redirect to anywhere at all
+		$actor = $this->createMock(Person::class);
+		$actor->method('getHeader')->willReturn($header);
+		$this->localActors['https://x'] = $actor;
+
+		$this->assertFailure(
+			$this->controller(null)->globalActorHeader('https://x'),
+			InvalidResourceException::class, 'unsupported header address', Http::STATUS_NOT_FOUND
+		);
+	}
+
+	public function provideUnusableHeaderAddresses(): iterable {
+		yield 'javascript' => ['javascript:alert(1)'];
+		yield 'data' => ['data:text/html;base64,PHNjcmlwdD4='];
+		yield 'file' => ['file:///etc/passwd'];
+		yield 'scheme-relative' => ['//evil.test/header.jpg'];
+	}
+
 	public function testGlobalActorHeaderIs404WithoutHeader(): void {
 		$actor = $this->createMock(Person::class);
 		$actor->method('getHeader')->willReturn('');
-		$this->cacheActorService->method('getFromId')->willReturn($actor);
+		$this->localActors['https://x'] = $actor;
 
 		$this->assertFailure(
 			$this->controller(null)->globalActorHeader('https://x'),
@@ -712,16 +832,36 @@ class LocalControllerTest extends TestCase {
 	// documents / uploads
 
 	public function testDocumentsCacheSkipsDocumentsThatCannotBeCached(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->actorForUser());
 		$doc = $this->createMock(Document::class);
-		$this->documentService->method('cacheRemoteDocument')->willReturnCallback(function (string $id) use ($doc): Document {
-			if ($id === 'bad') {
-				throw new \RuntimeException('unreachable');
-			}
+		$this->documentService->method('cacheRemoteDocumentAsViewer')
+			->willReturnCallback(function (string $id) use ($doc): Document {
+				if ($id === 'bad') {
+					throw new \RuntimeException('unreachable');
+				}
 
-			return $doc;
-		});
+				return $doc;
+			});
 
 		$this->assertSuccess($this->controller()->documentsCache(['good', 'bad']), [$doc]);
+	}
+
+	public function testDocumentsCacheAsksAsTheViewer(): void {
+		// a document id names any row in the table, so what comes back has to be
+		// scoped to who is asking
+		$viewer = $this->actorForUser();
+		$this->accountService->method('getActorFromUserId')->willReturn($viewer);
+		$doc = $this->createMock(Document::class);
+		$this->documentService->expects($this->once())->method('cacheRemoteDocumentAsViewer')
+			->with('doc-1', $viewer)->willReturn($doc);
+
+		$this->assertSuccess($this->controller()->documentsCache(['doc-1']), [$doc]);
+	}
+
+	public function testDocumentsCacheRequiresALoggedInUser(): void {
+		$this->documentService->expects($this->never())->method('cacheRemoteDocumentAsViewer');
+
+		$this->assertNotLoggedIn($this->controller(null)->documentsCache(['doc-1']));
 	}
 
 	public function testUploadAttachementIsNotImplemented(): void {
@@ -755,5 +895,75 @@ class LocalControllerTest extends TestCase {
 		$this->accountService->expects($this->never())->method('getActorFromUserId');
 
 		$this->assertFailure($this->controller()->uploadBannerByUrl(''), \Exception::class, 'No URL provided');
+	}
+
+	public function testUploadBannerByUrlDownloadsThroughTheAppsHttpClient(): void {
+		// the hand-rolled curl this replaces followed redirects itself and
+		// checked only the first host, so a 302 to a local address was fetched
+		// unchecked; the app's client re-checks every hop
+		// the host check itself needs no network here: the admin has opted in,
+		// which is exactly the case where the per-redirect check has to hold
+		$this->configService->method('isLocalNetworkAllowed')->willReturn(true);
+		$this->cacheDocumentService->expects($this->once())->method('retrieveContent')
+			->with('https://cdn.example/banner.png')
+			->willThrowException(new \RuntimeException('refused by the client'));
+
+		$this->assertFailure(
+			$this->controller()->uploadBannerByUrl('https://cdn.example/banner.png'),
+			\RuntimeException::class
+		);
+	}
+
+	/**
+	 * @dataProvider provideRefusedBannerUrls
+	 */
+	public function testUploadBannerByUrlRefusesWhatIsNotAPublicWebAddress(string $url): void {
+		$this->configService->method('isLocalNetworkAllowed')->willReturn(false);
+		$this->cacheDocumentService->expects($this->never())->method('retrieveContent');
+
+		$this->assertFailure(
+			$this->controller()->uploadBannerByUrl($url), \Exception::class, 'Unsupported banner URL'
+		);
+	}
+
+	public function provideRefusedBannerUrls(): iterable {
+		yield 'loopback' => ['http://127.0.0.1/x.png'];
+		yield 'localhost' => ['http://localhost/x.png'];
+		yield 'link-local metadata' => ['http://169.254.169.254/latest/meta-data/'];
+		yield 'file' => ['file:///etc/passwd'];
+		yield 'gopher' => ['gopher://evil.test/1'];
+		yield 'no host' => ['https:///x.png'];
+	}
+
+	public function testUploadBannerByUrlRefusesAnOversizedDownload(): void {
+		$this->configService->method('isLocalNetworkAllowed')->willReturn(true);
+		$this->cacheDocumentService->method('retrieveContent')
+			->willReturn(str_repeat('A', 10 * 1024 * 1024 + 1));
+		$this->cacheDocumentService->expects($this->never())->method('saveFromTempToCache');
+
+		$this->assertFailure(
+			$this->controller()->uploadBannerByUrl('https://cdn.example/banner.png'),
+			\Exception::class, 'Banner image is too large'
+		);
+	}
+
+	public function testPublicRoutesThatReachOutToRemoteServersAreRateLimited(): void {
+		// Both are #[PublicPage] and both fetch from whatever host the handle names:
+		// globalAccountInfo signs half a dozen outbound requests per call and
+		// streamAccount pulls and ingests a remote outbox. An anonymous throttle is
+		// all that stands between one HTTP request and that work being repeated at
+		// will, the way OStatusController::getLink is already throttled.
+		$reflection = new \ReflectionClass(LocalController::class);
+
+		foreach (['streamAccount', 'globalAccountInfo'] as $route) {
+			$attributes = array_map(
+				fn (\ReflectionAttribute $attribute): string => $attribute->getName(),
+				$reflection->getMethod($route)->getAttributes()
+			);
+
+			$this->assertContains(PublicPage::class, $attributes, $route . ' is expected to stay public');
+			$this->assertContains(AnonRateLimit::class, $attributes, $route . ' is public but not throttled for anonymous callers');
+			$this->assertContains(UserRateLimit::class, $attributes, $route . ' is not throttled for sessions');
+		}
 	}
 }

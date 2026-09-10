@@ -134,6 +134,32 @@ class MediaStorageTest extends TestCase {
 		$this->assertSame('after', $this->documentService->getMediaFromArray([$nid], self::OWNER)[0]->getDescription());
 	}
 
+	/**
+	 * The mime type is sniffed from the downloaded bytes, and `endCaching()` is
+	 * the only write that runs after that. While it left the column alone, a
+	 * cached remote copy kept the empty type its row was created with and was
+	 * served with no Content-Type at all.
+	 */
+	public function testEndCachingPersistsTheSniffedMimeType(): void {
+		$document = new Document();
+		$document->setUrlCloud('https://cloud.example.org');
+		$document->generateUniqueId('/documents/remote');
+		$document->setUrl('https://remote.example/files/pic.png');
+		$document->setMimeType('');
+		$document->setMediaType('');
+		$this->cacheDocumentsRequest->save($document);
+		$this->documents[] = $document->getId();
+
+		$document->setLocalCopy('copy-of-a-remote-file');
+		$document->setMimeType('image/png');
+		$document->setMediaType('image/png');
+		$this->cacheDocumentsRequest->endCaching($document);
+
+		$stored = $this->cacheDocumentsRequest->getById($document->getId());
+		$this->assertSame('image/png', $stored->getMimeType());
+		$this->assertSame('image/png', $stored->getMediaType());
+	}
+
 	public function testTheAttachmentCarriesTheAltTextOnTheWire(): void {
 		$document = $this->upload('a red rectangle');
 

@@ -22,7 +22,7 @@
 			</div>
 			<div class="follow-request__actions">
 				<NcButton :disabled="busy.includes(account.id)"
-					type="primary"
+					variant="primary"
 					:aria-label="t('social', 'Accept')"
 					@click="decide(account, true)">
 					<template #icon>

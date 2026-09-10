@@ -7,7 +7,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.11.5  
+**App version:** 0.11.51  
 **Supported Nextcloud versions:** 28 – 35  
 **Supported PHP versions:** 8.1 – 8.5  
 
@@ -26,14 +26,14 @@ social/
 │   ├── AP.php                  # ActivityPub type registry (factory + interface lookup)
 │   ├── AppInfo/
 │   │   └── Application.php     # Bootstrap, integration registration
-│   ├── Command/                # occ CLI commands (+ ExtendedBase, a shared abstract base)
-│   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config)
+│   ├── Command/                # occ CLI commands (+ ExtendedBase, a shared base that registers no command of its own)
+│   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config, moderation, public pages)
 │   ├── Cron/                   # Background jobs (Cache, Queue)
 │   ├── Dashboard/              # Nextcloud Dashboard widgets
 │   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs)
 │   ├── Exceptions/             # Custom exceptions
 │   ├── Interfaces/             # Per-ActivityPub-type handlers (Activity/, Actor/, Object/, Internal/)
-│   ├── Listeners/              # Event listeners (ProfileSectionListener, UserAccountListener)
+│   ├── Listeners/              # Event listeners (ProfileSectionListener, UserAccountListener, UserDeletedListener)
 │   ├── Migration/              # Database schema migrations + repair steps
 │   ├── Model/                  # ActivityPub model objects + support models
 │   ├── Notification/           # Nextcloud notification integration (Notifier)
@@ -52,13 +52,13 @@ social/
 │   ├── profile.js              # Profile-page custom element entry
 │   ├── App.vue                 # Root component of the main SPA
 │   ├── router.js               # Vue Router configuration
-│   ├── store/                  # Vuex store (index.js + timeline, account, settings, errors)
+│   ├── store/                  # Vuex store (index.js + timeline, account, settings, errors, notifications)
 │   ├── views/                  # Route- and entry-level components
 │   ├── components/             # UI components (`.vue`, plus MessageContent.js)
-│   ├── services/               # eventBus, logger, notifications
-│   ├── mixins/                 # accountMixins, currentUserMixin, popoverMenu, serverData
+│   ├── services/               # eventBus, logger, notifications, clock, draft, shortcuts
+│   ├── mixins/                 # accountMixins, currentUserMixin, serverData
 │   ├── directives/             # focusOnCreate
-│   ├── utils/                  # sanitizeHtml (+ its unit test)
+│   ├── utils/                  # sanitizeHtml (+ its unit test), dominantColour, emojiCodePoint, instanceIdentity, relativeTime, viewTransition
 │   └── types/                  # JSDoc type definitions (ActivityPub, Mastodon)
 ├── templates/                  # PHP templates: main.php (SPA), oauth2.php
 ├── l10n/                       # Translations
@@ -81,7 +81,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_cache_doc` | Cached remote and local media attachments |
 | `social_client` | OAuth 2.0 client registrations |
 | `social_follow` | Follow relationships (actor → object, with accepted flag) |
-| `social_hashtag` | Hashtag trend data (a JSON `trend` blob per hashtag) |
+| `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`) |
 | `social_instance` | Known federated instances (version, metadata) |
 | `social_req_queue` | Outbound ActivityPub delivery queue |
 | `social_stream` | Core content table: posts, notes, activities |
@@ -90,10 +90,23 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_stream_queue` | Inbound stream processing queue |
 | `social_stream_tag` | Stream-to-hashtag mapping |
 | `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
+| `social_report` | Moderation reports, local and federated `Flag` activities, with a `resolved` flag |
+| `social_moderation` | The decision taken about an account: one row per silenced or suspended actor (`level`) |
+| `social_stream_card` | The link-preview card of a status (url, title, description, image, provider), one row per stream |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, and `Version1000Date20260908000003` adds `social_report` (moderation reports).
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)) and drops the redundant five-column `ipoha` unique index on `social_stream`, `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` zeroed (the JSON `trend` column stays and remains what the API hands back), `Version1000Date20260910000003` fills those columns in from the JSON, and `Version1000Date20260911000001` adds the `sensitive` flag to `social_stream`.
 
-Note that `CoreRequestBuilder::TABLE_NOTIFICATION` (`social_notif`) is declared but no migration creates that table and no repository queries it; it is a leftover constant. In-app notifications are stored in `social_stream` as `SocialAppNotification` items.
+Two of those deserve a warning.
+
+`Version1000Date20260907000001` adds an autoincrement `BIGINT` primary key to `social_stream_dest` and `social_stream_tag`, the two highest-cardinality tables. On MySQL/MariaDB that is a full table rebuild, so on a large instance `occ upgrade` will sit there for a while with the instance in maintenance mode. The change is correct and needed; the cost is not obvious from the migration.
+
+`Version1000Date20260910000001` costs what it looks like — fifteen index statements, no table touched — on MySQL/MariaDB and PostgreSQL only. SQLite cannot change an index in place: Doctrine implements every one of them as a full table rebuild, so the same migration copies ten tables (`social_stream`, `social_cache_actor`, `social_cache_doc`, `social_follow`, `social_action`, `social_client`, both queues and both stream side tables) out, drops them, recreates them and copies the rows back. Plan the window for a rewrite of nearly the whole schema and for peak disk of about twice what those tables occupy. Nothing is at risk — SQLite DDL is transactional — but an operator sizing the outage from the MySQL figure will be wrong by an order of magnitude.
+
+`Version1000Date20260910000003` exists because the step before it was wrong about the cron. `manageHashtags()` skips a hashtag whose freshly counted trend equals the JSON already stored, which on an instance that has just upgraded is the normal case — so the zeroed counter columns would never have been written, and `getTrending()` reads nothing else. The backfill pages through `social_hashtag` on its primary key, leaves rows already in agreement alone, and is a no-op on a fresh install.
+
+There is no downgrade path, and none is possible: `Version1000Date20260611000001` drops tables outright.
+
+There is no notifications table: in-app notifications are stored in `social_stream` as `SocialAppNotification` items. (A `TABLE_NOTIFICATION` constant naming a `social_notif` table that no migration ever created used to be declared here; it has been removed.)
 
 ---
 
@@ -110,34 +123,40 @@ The business logic lives in `lib/Service/`.
 
 ### Content & Timelines
 
-- **StreamService** — Core stream/timeline engine. Assigns ActivityPub ids, expands recipients (public/unlisted/followers/direct), resolves reply chains, detects stream types, deletes local items, and reads the timelines (home, local, global/federated, tag, account, liked, direct, notifications)
-- **PostService** — Creates posts (text, attachments, reply-to, mentions, hashtags) and edits existing local posts, delegating federation to `ActivityService`
+- **StreamService** — Core stream/timeline engine. Assigns ActivityPub ids, expands recipients (public/unlisted/followers/direct), resolves reply chains, detects stream types, deletes local items, and reads the timelines (home, local, global/federated, tag, account, liked, direct, notifications). Deleting a post takes what belongs to it with it: `StreamRequest::deleteRelatedTo()` removes the `social_stream_dest`, `social_stream_tag`, `social_stream_act` and `social_stream_card` rows, the `social_action` rows pointing at the post, and its cached attachment rows together with the files on disk. The cascade sits in `StreamRequest`, so every caller gets it rather than retention alone. `syncRemoteTimeline()` — a profile timeline asking the account's own server for its outbox — walks at most `SYNC_ITEM_LIMIT` (20) entries of the page it gets back, and puts every field of each through the same validation helpers the inbox path uses. It used to walk the whole page unbounded and store `url`, `content`, `summary` and the tags unchecked, from a public route, against a host the caller names
+- **PostService** — Creates posts (text, attachments, reply-to, mentions, hashtags, the content warning and the `sensitive` flag) and edits existing local posts, delegating federation to `ActivityService`. A visibility a client sent is translated once, in `Post::setType()`: Mastodon calls a followers-only post `private` and this app calls it `followers`, and a visibility the app does not recognise becomes `direct` rather than being addressed to `as:Public`. The content warning is stored as plain text on both paths (`strip_tags()`), because it is read as plain text everywhere it is shown — as the object's `summary`, as `spoiler_text`, and interpolated rather than rendered by this app's own frontend; entity-encoding it federated `Bob&#039;s finale` and baked the entities into the next edit
 - **PollService** — Federated polls: serves the Mastodon Poll entity of a stored `Question` and votes on remote polls (one vote note per choice to the poll's author; the viewer's choices are remembered in the per-viewer stream action, authoritative counts arrive as `Update{Question}`)
 - **FollowService** — Follow/unfollow flows, follower/following collections, and relationship lookups
 - **LikeService** — Creates and undoes Like activities
 - **StreamPruneService** — Retention: deletes remote statuses older than `retention_days` (default 0 = disabled) that no local user interacted with, whose author nobody follows, that no local status replies to or boosts, and that are not DMs — together with their dest/action/tag rows and cached attachments. Runs bounded in the Cache cron and unbounded via `occ social:stream:prune`
 - **BoostService** — Creates and undoes Announce (boost/reblog) activities
-- **ActionService** — Dispatcher for the Mastodon-style status actions. favourite/unfavourite create and delete a Like, reblog/unreblog an Announce, and bookmark/unbookmark toggle the viewer's local `bookmarked` flag (never federated, served by `/api/v1/bookmarks`). `translate` returns the status unchanged, and the unimplemented `mute`, `unmute`, `pin` and `unpin` are refused with `InvalidActionException` instead of silently doing nothing
+- **ActionService** — Dispatcher for the Mastodon-style status actions. favourite/unfavourite create and delete a Like, reblog/unreblog an Announce, and bookmark/unbookmark toggle the viewer's local `bookmarked` flag (never federated, served by `/api/v1/bookmarks`), and pin/unpin hand off to `PinService`. `translate` returns the status unchanged, and the unimplemented `mute` and `unmute` are refused with `InvalidActionException` instead of silently doing nothing
 - **HashtagService** — Recomputes hashtag trends over 1h/12h/1d/3d/10d windows and searches hashtags
 - **StreamActionService** — Writes the per-viewer flags in `social_stream_act`
-- **SearchService** — Backing searches for accounts, hashtags and URIs; `searchStreamContent()` exists but no caller uses it
+- **PinService** — Pinned posts: the own posts an account keeps at the top of its profile. A pin is a row in `social_action` (type `Pin`), so there is no schema change, and it is never federated as an activity of its own — remote servers read pins from the actor's `featured` collection. Only a public or unlisted post can be pinned (`pin()` refuses the rest with `InvalidActionException`), and pins are read back through the visibility filter like any other status, so a post that stopped being readable stops being served: both readers of this collection — the `featured` route and `?pinned=true` on the account statuses route — are public pages, and reading these unfiltered served a pinned followers-only post in full to the anonymous internet
+- **LinkPreviewService** — Builds the link-preview card of a post from what the linked page says about itself (OpenGraph, falling back to the HTML title/description), fetched once per post from the inbound queue through `CurlService`. Cards are never federated, so every instance reads the page itself
+- **MarkerService** — How far through a timeline someone has read (Mastodon's markers), stored as a per-user config value rather than a table; the unread badge is the only thing the app itself needs one for
+- **SearchService** — Backing searches for accounts, hashtags, URIs and status content; `searchStreamContent()` backs the client API search, the local API and the unified search provider. Each search takes an optional row limit, for a caller that pages; without one it returns whatever the query returns
 - Every timeline query filters actors the viewer has blocked or muted (and actors who blocked the viewer) through one anti-join, `SocialLimitsQueryBuilder::filterHiddenActors()` — blocks apply everywhere, mutes to aggregated timelines and threads but not to a muted account's own profile or a directly opened post, and muted-with-notifications to the notification stream.
 
 ### Federation
 
 - **ActivityService** — Wraps items in Create/Update/Delete activities, LD-signs them, resolves target inboxes, and drives the delivery queue. `request()` sends the single highest-priority entry synchronously and kicks off an async request for the rest
 - **ImportService** — Parses incoming ActivityPub JSON into typed model objects (`AP::getItemFromData()`) and dispatches to the matching handler in `lib/Interfaces/`
-- **SignatureService** — RSA-2048 key generation, HTTP Signature signing and verification (checking `date` freshness, `content-length` and `digest` before the signature itself), and RsaSignature2017 Linked Data signatures
-- **RequestQueueService** — Manages `social_req_queue`: creates entries, hands out the priority entry, and re-offers standby entries after a `floor(tries^4 / 3)` second backoff
-- **StreamQueueService** — Manages `social_stream_queue`, the inbound side. Its only implemented queue type is `Cache`: for each Note a received stream references (a reply parent, a boosted post), it fetches that Note, caches its author, stores it, and embeds it in the referencing stream's cache. Anything that is not a Note, or whose id does not match the URL it was fetched from, is rejected
+- **SignatureService** — RSA-2048 key generation, HTTP Signature verification (checking `date` freshness, then the body against `Content-Length` if the sender sent one and against `Digest`/`Content-Digest`, before the signature itself) and RsaSignature2017 Linked Data signatures. The signing itself is delegated to `HttpSignatureService`. Fetching a signing key this instance does not already hold is bounded — `UNKNOWN_KEY_CONNECT_TIMEOUT` (5 s) for DNS, TCP and TLS within `UNKNOWN_KEY_TIMEOUT` (10 s) overall, what Mastodon allows a peer of its own — and a fetch that failed is remembered so a burst naming the same unknown key costs one fetch and not one each: 300 s (`KEY_FAILURE_TTL`) when the peer answered and the answer was not a usable actor, 30 s (`KEY_UNREACHABLE_TTL`) when it never answered, because that says the peer was having a bad minute rather than anything about the key
+- **HttpSignatureService** — The one place an outbound HTTP signature is produced. A delivery is signed by its own author over `(request-target) content-length date host digest`; an ActivityPub GET is signed over `(request-target) host date` by `signFetch()`, using one fixed local actor as the fetching identity — signing as whoever is reading would tell the remote instance which local account reads which of its posts. A key that cannot sign raises rather than sending an empty signature
+- **ForwardService** — Inbox forwarding (ActivityPub §7.1.2); see below
+- **InboxLimiter** — Per-minute rate limits on the inbox routes, one spent before the signature is checked and one after; see [Security](#security)
+- **RequestQueueService** — Manages `social_req_queue`: creates entries, hands out the priority entry, and re-offers standby entries once they are due. The `floor(tries^4 / 3)` second backoff and the `MAX_TRIES` (15) give-up are applied by the query (`CoreRequestBuilder::limitToQueueDue()`), and exhausted rows are deleted before the 200-row window is read — filtered in PHP afterwards, the rows of one dead instance permanently occupied that window and starved every other delivery. A delivered row is removed rather than kept as a success row. A row whose delivery fails in a way `ActivityService` does not handle itself — a corrupt signing key, the database going away — is logged and handed back to standby by the caller (`Cron\Queue` and `QueueController`), because it was marked `running` before the attempt: left that way it was never retried, never counted against `MAX_TRIES`, and took the rest of the 200-row batch with it
+- **StreamQueueService** — Manages `social_stream_queue`, the inbound side. Two queue types are implemented. `Cache`: for each Note a received stream references (a reply parent, a boosted post), it fetches that Note, caches its author, stores it, and embeds it in the referencing stream's cache — anything that is not a Note, or whose id does not match the URL it was fetched from, is rejected. `LinkPreview`: reads the page a post links to, once, and stores the card. Any other type is dropped. This side has the same 200-row batch cap and the same in-query backoff, give-up (`MAX_TRIES`, 10 here) and delete-on-success as the outbound queue; it used to keep one permanent row per activity ever cached and was never pruned
 - **CurlService** — Outbound HTTP for ActivityPub fetches, WebFinger and host-meta lookups, and the async self-call that drains a delivery token. The transport is the server's own client (`OCP\Http\Client\IClientService`), so the CA bundle, the proxy configuration and the local-address checks come from the server; what stays here is federation-specific: the protocol fallback (an instance reachable over `http` only), the download size ceiling, and the mapping onto the app's request exceptions
 - **FediverseService** — Instance-level access control; see [Security](#security)
 - **InstanceService** — Builds and returns the local instance's NodeInfo-style metadata
 
 ### Media
 
-- **DocumentService** — Owns the cached document lifecycle: caching a remote document by id, serving originals and resized copies out of app storage, and caching the local actor's avatar and header
-- **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out
+- **DocumentService** — Owns the cached document lifecycle: caching a remote document by id, serving originals and resized copies out of app storage, and caching the local actor's avatar and header. Serving applies a viewer bound: a cached attachment is handed to a logged-in user only if it hangs off a post they may read or is their own upload, and the unauthenticated `/media/{uuid}` route only for a row marked public
+- **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`ApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
 - **BlurService** — Generates a blurhash string from a GD image
 
 ### System
@@ -147,9 +166,11 @@ The business logic lives in `lib/Service/`.
 - **ClientService** — OAuth 2.0 client registration, authorization and token issuing
 - **DetailsService** — Computes a `StreamDetails` object describing which local viewers a stream reaches
 - **MiscService** — Logging helper and the running Nextcloud major version
+- **ReportService** — Moderation reports: stores what was filed locally over the client API or arrived from a remote instance as a `Flag`, and notifies the instance admins
+- **ModerationService** — Acts on a report: silence, suspend, or take one post down. the two levels are described under ActivityPub Federation below
+- **FederationHealthService** — What the outbound queue looks like to an administrator: which instances deliveries are failing against, so an instance that has quietly stopped receiving anything is distinguishable from one nobody posted to
 - **TestService** — Backs the WebFinger probe of `occ social:check:install`
 - **PushService** — on a new stream, resolves the local audience through `DetailsService` (home + direct viewers) and pushes a `social_timeline` custom event per user through the notify_push app when it is installed; without notify_push every call is a cheap no-op and web clients keep polling. The web client listens via `@nextcloud/notify_push` and drops its 30-second poll to a 5-minute safety net when push is available
-- **UpdateService** — Builds admin notifications about the app's state, but nothing in `lib/` calls it; it is currently dead code
 
 ---
 
@@ -163,32 +184,52 @@ Each Nextcloud user that has been given a Social account gets a Person actor:
 
 - **ID:** the configured social URL plus `@username`, e.g. `https://cloud.tld/apps/social/@username`
 - **Keys:** RSA 2048-bit key pair, generated per actor by `SignatureService::generateKeys()`
-- **Endpoints:** `/@{user}/inbox`, the shared `/inbox`, `/@{user}/outbox`, `/@{user}/followers`, `/@{user}/following`
+- **Endpoints:** `/@{user}/inbox`, the shared `/inbox`, `/@{user}/outbox`, `/@{user}/followers`, `/@{user}/following`, `/@{user}/collections/featured`
+- **Collections:** followers, following and outbox answer with an `OrderedCollection` whose `first` and `last` point at `?page=N`, and with `?page=N` they answer with a real `OrderedCollectionPage` of `OrderedCollection::PAGE_SIZE` (40) items linked by `next`/`prev`, so a consumer can enumerate them. `featured` — the actor's pinned posts, which is how a remote server learns about a pin — is a single unpaged collection
 
 ### Outgoing Flow
 
 1. A user action (post, edit, delete, follow, unfollow, like, boost) has a service build the activity
-2. `SignatureService::signObject()` adds a Linked Data Signature — for Create, Update, Delete, Like, Announce and their Undos. Follow and Accept are **not** LD-signed; they travel with the HTTP signature only
+2. `SignatureService::signObject()` adds a Linked Data Signature — for Create, Update, Delete, Like, Announce and their Undos. Follow, Accept, Reject, Block and `Undo{Block}` are **not** LD-signed; they travel with the HTTP signature only
 3. `ActivityService::request()` expands the activity's instance paths into concrete target inboxes
 4. Targets on this instance are dropped: everyone here already has the item, because recipients are written into `social_stream_dest` when it is saved, which is what puts it in a local timeline. Posting to our own inbox would only hand us back what we wrote, and it is a request the server has to be able to make to its own public address — behind a reverse proxy, split-horizon DNS or an SSRF guard it often cannot, and the delivery then fails its way to being abandoned while remote instances queue up behind it
 5. `RequestQueueService::generateRequestQueue()` writes one `social_req_queue` row per remaining target
 6. At most one row is delivered inline: `RequestQueueService::getPriorityRequest()` hands back the first row only when its priority is `TOP`, or `HIGH`/`MEDIUM` under narrow conditions, and otherwise throws `NoHighPriorityRequestException` so nothing is sent synchronously. If rows remain on standby, `CurlService::asyncWithToken()` fires a request at the app's own `/async/request/{token}` route to drain them
-7. `Cron\Queue` (12-minute interval) retries whatever is still on standby, with the backoff above
+7. `Cron\Queue` (12-minute interval) retries whatever the query says is due, with the backoff above, after returning rows a dead worker left `running` to standby
 8. Every delivery is an HTTP POST signed by `SignatureService::signRequest()`
 
-**Activities the app emits:** Create, Update, Delete, Follow, Accept, Like, Announce, Undo.
+A delivery is retried when the peer's answer says it might accept the activity later — 408, 429 and any 5xx — and the row is dropped only on an answer that says it never will, or once `MAX_TRIES` is reached. A host that has just answered with a transient status is added to the run's failing set, so the rest of the run does not ask it once per queued activity.
 
-The app never emits Reject, Add, Remove, Move or Block. It can parse all of them — `AP::getItemFromType()` constructs each one for an incoming document — but no service ever builds one to send.
+**Activities the app emits:** Create, Update, Delete, Follow, Accept, Reject, Like, Announce, Block, Undo.
+
+Reject goes out when a follow request is refused (`FollowInterface::rejectFollowRequest()`, also used to answer a `Follow` from a blocked actor) and when an accepted follow is severed by a block. Block and `Undo{Block}` go out from `RelationshipService`, unless the `federate_blocks` app setting is `0`.
+
+The app never emits Add, Remove or Move. It can parse all three — `AP::getItemFromType()` constructs each one for an incoming document — but no service builds one to send: a pin is a local row that remote servers read from the `featured` collection, and nothing here migrates an account away.
 
 ### Incoming Flow
 
 1. A remote instance POSTs to `/@{username}/inbox` or the shared `/inbox`
-2. `SignatureService::checkRequest()` checks the `date` header for freshness, that `content-length` matches the body, that `digest` matches the body, and then the HTTP signature. It returns the verified origin host, or an empty string if the signature does not verify
-3. `FediverseService::authorized()` is called with that origin. An empty origin is rejected, so a request with an unverifiable signature is refused here
-4. `ImportService::importFromJson()` parses the body into a typed object
-5. If the body carries a valid Linked Data Signature the origin is taken from it, otherwise the HTTP-signature origin is used
-6. `ImportService::parseIncomingRequest()` looks the handler up with `AP::getInterfaceForItem()` and calls `processIncomingRequest()`. Every exception from the handler is logged and swallowed
-7. The controller answers 200 and then drains the inbound stream queue for that request token
+2. `InboxLimiter::assertAllowed()` spends the per-address bucket, before anything is read
+3. `SignatureService::checkRequest()` checks the `date` header for freshness, that `content-length` matches the body, that `digest` matches the body, and then the HTTP signature. It returns the verified origin host, or throws — a request whose signature does not verify never reaches step 4
+4. `FediverseService::authorized()` is called with that origin, then `InboxLimiter::assertOriginAllowed()` spends that origin's own, looser bucket. The per-origin ceiling is spent here rather than at step 2 because before step 3 the origin is only what the sender wrote
+5. `ImportService::importFromJson()` parses the body into a typed object
+6. If the body carries a valid Linked Data Signature the origin is taken from it, otherwise the HTTP-signature origin is used
+7. `ImportService::parseIncomingRequest()` looks the handler up with `AP::getInterfaceForItem()` and calls `processIncomingRequest()`. Every exception from the handler is logged and swallowed
+8. The controller answers 200 and then drains the inbound stream queue for that request token
+
+**What a refused delivery is answered with.** The status is the only thing a peer reads to decide what to do next, and Mastodon re-queues a 5xx with backoff for about two days — so answering every rejection 500, which a catch-all used to do, turned one refused delivery into a dozen and made blocking an instance *multiply* its traffic. `ActivityPubController::statusForRejection()` maps the failure instead:
+
+| Status | When |
+|--------|------|
+| 401 | Nothing about the request proves who sent it: no signature, one that does not verify, a replay, a `Date` outside the window, a `Signature` header missing its parts, or an activity whose actor is not the origin that signed for it |
+| 403 | The instance access list refuses this origin — a decision about who may talk to this instance, not a failure |
+| 400 | The bytes could not be read as an activity, or the `Date` could not be parsed. Redelivering the same bytes cannot help |
+| 404 | Addressed to a local actor that does not exist |
+| 429 | A rate limit, either bucket |
+| 503 | The signature could not be *checked*: the host holding the signing key was unreachable, or its last fetch failed recently enough to still be in backoff. This is the one rejection that invites a redelivery |
+| 500 | A fault of this instance's own, and nothing else |
+
+An activity that is understood but has no handler is still answered 200 (see below), as is one whose signature says the key is gone.
 
 **Incoming activities that are actually acted on:**
 
@@ -203,7 +244,7 @@ The app never emits Reject, Add, Remove, Move or Block. It can parse all of them
 | `Reject` (Follow) | Local follow row deleted |
 | `Undo` (Follow, Like, Announce) | The wrapped relation or action is deleted |
 | `Like` | Stored as an action, notification generated |
-| `Announce` | Stored as a boost, notification generated |
+| `Announce` | Stored as a boost, notification generated — unless the announced object is one this instance holds and is not public, in which case the activity is dropped. A boost carries the *booster's* audience, so storing it would republish a followers-only post to everyone the booster reaches; the local boost path has always refused to create one |
 | `Move` | Actions, follows, streams and cached documents are repointed to the target actor — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused |
 
 **Moderation.** `social_moderation` holds what the *instance* has decided about an account, as against `social_actor_relation`, which holds what one of its users has. Two levels: `silence` keeps the account reachable for its followers and drops it from the public and global timelines (`StreamRequest::filterSilencedActors()`, a small NOT IN rather than a join, because a moderator acts rarely); `suspend` deletes the account's streams and cached actor and makes `ImportService::parseIncomingRequest()` refuse everything it sends afterwards — without that last part a suspension would undo itself the next time the account posted. Lifting removes the record; it cannot undo a deletion, and the admin panel says so before suspending.
@@ -212,9 +253,11 @@ The app never emits Reject, Add, Remove, Move or Block. It can parse all of them
 
 A reply is forwarded only when all of this holds: it arrived with a **valid linked-data signature** (`SignatureService::ORIGIN_SIGNATURE`), because the recipients must be able to check the author's own signature rather than take our word for it; the post it replies to is **local**, since only the instance holding a post owes its followers the thread; and both the reply and the post are **public or unlisted**, so a private audience is never widened. The body sent is `getSource()` — the document exactly as it arrived, since re-encoding our model of it would drop the signature and change what was signed. Delivery goes through the normal request queue at `PRIORITY_LOW` via `RequestQueueService::generateRequestQueueFromSource()`, so nothing about it holds up the inbox response. The sender's instance and this one are left out of the recipient list.
 
-**Incoming activities that are accepted but do nothing:** `Add`, `Remove` and `Block` are dispatched to a handler that forwards to the wrapped object's `activity()` method, and no object handler recognises those activity types. `BlockInterface` in particular means Block is a no-op — the app has no blocking implementation.
+**`Add` and `Remove`** are handled by `FeaturedCollection`, which is how a remote account's pinned posts arrive: the activity's `object` is resolved against the local store (Mastodon sends a bare URI, not an embedded object), `target` must be the actor's own `featured` collection, and the post must be one this instance holds and that actor authored. A pin is stored as an action row, capped at `MAX_REMOTE_PINS`. `BlockInterface` records the incoming block as an `ActorRelation` of type `TYPE_BLOCKED_BY`.
 
-**Object types that are dropped:** `AP::getItemFromType()` can build `Group`, `Organization`, `Application`, `OrderedCollection` and `Stream`, but `AP::getInterfaceFromType()` has no case for any of them. An incoming activity whose top-level type is one of these raises `ItemUnknownException`, which the inbox controller catches and ignores, so the message is silently discarded. In practice only Person and Service actors federate; Group, Organization and Application actors are not processed.
+**Actor types:** `Person`, `Service`, `Group`, `Organization` and `Application` all resolve to a handler, so all five are cached and can be followed — which is what Lemmy communities, Friendica and a.gup.pe groups, and Mastodon's instance and relay actors need. `OrderedCollection` and `Stream` have no handler, being containers rather than things an activity is about.
+
+An activity whose type this app does not implement is logged at `notice` with its type, activity id, object id, actor and origin, and answered `200 OK` so the sender does not redeliver it forever. It used to be discarded without a word, which made "posts from that instance never arrive" impossible to diagnose from this side.
 
 `Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
 
@@ -224,7 +267,7 @@ An incoming `Block` targeting a local user is remembered as a `blocked_by` relat
 
 `WellKnown/WebfingerHandler` is registered as a Nextcloud well-known handler and serves three services at the server root:
 
-- **WebFinger:** `/.well-known/webfinger?resource=acct:user@domain` — returns the `self` link to the actor
+- **WebFinger:** `/.well-known/webfinger?resource=acct:user@domain` — returns the `self` link to the actor. The href is the actor's **stored id**, not a URL built from the host the request arrived under: on an instance reachable under two names, the request-derived form handed a remote server an actor id that disagreed with the document it then fetched
 - **NodeInfo:** `/.well-known/nodeinfo` — returns the discovery document pointing at the app's own `/apps/social/.well-known/nodeinfo/2.0` route (`OAuthController::nodeinfo2()`), which carries the actual server metadata
 - **host-meta:** `/.well-known/host-meta`
 
@@ -253,6 +296,18 @@ Measured with `occ social:benchmark` on 20 000 notes: the home timeline went
 from 219 ms to 89 ms and the public timeline from 121 ms to 29 ms, returning
 the same rows in the same order.
 
+The status a row *points at* — the post a boost repeats, the post a notification
+is about — is joined by `SocialCrossQueryBuilder::leftJoinObjectStatus()`, and
+that join carries the viewer bound of its own: addressed to the public
+collection, written by the viewer, addressed to the viewer, or written by
+somebody the viewer follows, as correlated `EXISTS` clauses rather than as
+further joins (a second FROM entry for the dest or follow table is a cartesian
+product). A boost carries the audience of the *booster*, not of the post, so
+without this a remote `Announce` of a followers-only status handed that status,
+in full, to everyone the booster reaches. When the viewer is not entitled to the
+object the joined columns come back empty, which reads downstream as "no
+object": the row stays, its content does not.
+
 ## Frontend Architecture
 
 The user interface is a **Vue 3** front end using Vue Router, Vuex, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.
@@ -273,7 +328,7 @@ The OStatus bundle and `src/views/OStatus.vue` are therefore dead code today: `O
 
 ### Store
 
-`src/store/index.js` registers four Vuex modules: `timeline`, `account`, `settings` and `errors`. Server-side state is not a store module — it is passed through Nextcloud's initial state as `serverData` and read by the `serverData` mixin.
+`src/store/index.js` registers five Vuex modules: `timeline`, `account`, `settings`, `errors` and `notifications`. Server-side state is not a store module — it is passed through Nextcloud's initial state as `serverData` and read by the `serverData` mixin.
 
 ### Routes and views
 
@@ -315,7 +370,7 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 | Dashboard | `SocialTrendingWidget` | `Application::register()` | Trending hashtags over one day, 900-second reload interval; needs no viewer |
 | Dashboard | `SocialReportsWidget` | `Application::register()` | Open moderation reports; conditional — admins only |
 | Dashboard | `SocialFederationHealthWidget` | `Application::register()` | Instances the outbound queue is failing to reach; conditional — admins only |
-| Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin |
+| Unified Search | `UnifiedSearchProvider` | `Application::register()` | Searches URIs, accounts, hashtags and **status content** (case-insensitive substring over the statuses the viewer may see: own posts, public/unlisted, and what is addressed to them — the timeline viewer bound). Local hits link to the post page, remote hits to their origin. Honours the query's cursor and limit — each source is asked for one entry past the end of the page, and a further page is offered only when one of them supplied it. It used to advertise a next cursor unconditionally while reading neither, so "load more" served the first page for ever |
 | Notifications | `Notifier` | `Application::register()` | Prepares Social notifications for the NC notification system |
 | Profile Page | `ProfileSectionListener` | `Application::register()` (on `BeforeTemplateRenderedEvent`) | Adds the `social-profilePage` script to the user profile page |
 | User Events | `UserAccountListener` | `Application::register()` (on `UserUpdatedEvent`) | Re-caches the local actor when the NC account changes |
@@ -324,9 +379,10 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 | Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, prunes remote statuses past retention (bounded to 5000 per run), syncs remote timelines |
 | Background Jobs | `Cron\Queue` | `appinfo/info.xml` | 12-minute interval: drains the outbound request queue and the inbound stream queue |
 | Repair step | `Migration\RenameDocumentLocalCopy` | `appinfo/info.xml` | Post-migration repair of cached document paths |
-| Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once |
-| Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once |
+| Repair step | `Migration\EncryptPrivateKeys` | `appinfo/info.xml` | Seals legacy plaintext actor private keys with ICrypto, once. A row it cannot process is named and skipped rather than aborting `occ upgrade` with the instance in maintenance mode |
+| Repair step | `Migration\HashClientSecrets` | `appinfo/info.xml` | Rewrites legacy plaintext client secrets/codes/tokens as sha256 digests, once. Asks the database for the rows that still need converting instead of hydrating the whole client table, and isolates a row it cannot process |
 | Repair step | `Migration\BackfillRemoteVisibility` | `appinfo/info.xml` | Backfills the empty visibility of remote statuses stored before estimation landed (public/unlisted set-based, followers/direct per author), idempotent |
+| Repair step | `Migration\CacheFeaturedCollections` | `appinfo/info.xml` | Rebuilds the cached copy of every local actor when something the cache carries has changed — the `featured` URL, the display name. Gated on a `VERSION` marker rather than re-running on every upgrade, and it counts the local actors before loading any |
 
 The four timeline tiles (home, mentions, direct, bookmarks) extend
 `Dashboard\TimelineWidget`, which resolves the viewer, builds the `ProbeOptions`
@@ -337,7 +393,7 @@ on the next poll — `setMinId()` would return the oldest matching rows instead 
 the newest. A boost renders as the post it repeats, subtitled with who boosted
 it; a boost or notification whose subject did not resolve has no row.
 
-Fifteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, which is the abstract base the others extend and is not itself a command. See `docs/OCC-Commands.md`.
+Seventeen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also holds `ExtendedBase.php`, a shared base several of them extend; it calls no `setName()`, so it registers no command of its own. See `docs/OCC-Commands.md`.
 
 ---
 
@@ -345,22 +401,22 @@ Fifteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also h
 
 **What is enforced**
 
-- **HTTP Signatures on outbound requests** — every queued delivery is signed with the sending actor's RSA private key over `(request-target)`, `content-length`, `date`, `host` and `digest`
-- **HTTP Signature verification on inbound requests** — `SignatureService::checkRequest()` requires `(request-target)`, `host`, `date` and `digest` to all be within the signed header set, so the signature binds the body and cannot be replayed against another host; it rejects a missing, stale or future `date` (±`DATE_DELAY`, 300 s), a `content-length` that disagrees with the body, and a `digest` that does not match. A signature that does not verify, or whose key cannot be retrieved, is refused by `checkRequest()` itself (it throws), rather than returning an empty origin for a later check to catch
-- **Inbound inbox deliveries are rate-limited** — `InboxLimiter` caps deliveries per (claimed keyId host, source address) bucket per minute (`inbox_throttle` app setting, default 300, 0 disables) before any signature work, so a valid-but-hostile peer cannot fill the stream queue and a claimed-host lie only moves the flood into the liar's own bucket
+- **HTTP Signatures on outbound requests** — every queued delivery is signed with the sending actor's RSA private key over `(request-target)`, `content-length`, `date`, `host` and `digest`. Outbound ActivityPub **GET**s are signed too, by `HttpSignatureService::signFetch()`, over `(request-target) host date` — there is no body to digest. Without this, any peer running Mastodon's authorized-fetch or GoToSocial's secure mode answers 401 to every actor, object and collection fetch, which reads as "user not found" when following and as threads that stop at the first remote reply. The signing identity is one fixed local actor rather than whoever is reading, so a remote instance is not told which of our accounts read which of its posts; a peer that rejects a signed GET is retried once unsigned, so nobody becomes less reachable than before. WebFinger, host-meta and NodeInfo stay unsigned
+- **HTTP Signature verification on inbound requests** — `SignatureService::checkRequest()` requires `(request-target)`, `host`, `date` and `digest` to all be within the signed header set, so the signature binds the body and cannot be replayed against another host; it rejects a missing, stale or future `date` (±`DATE_DELAY`, 300 s), a `content-length` that disagrees with the body *when the header is sent* (a chunked sender omits it, and refusing those outright cost interoperability for nothing), and a `digest` that does not match. `Digest` and `Content-Digest` are parsed rather than byte-compared, so a lowercase algorithm token, a multi-value digest or an RFC 9530 header is accepted as long as one algorithm we can compute matches. A signature algorithm that is neither `hs2019` nor absent is refused by name instead of being assumed to be sha256, which used to fail an Ed25519 key with a misleading message. When the signed `host` differs from the configured one — which fails every inbound delivery on a multi-domain or non-default-port install — the log now names both. A signature that does not verify, or whose key cannot be retrieved, is refused by `checkRequest()` itself (it throws), rather than returning an empty origin for a later check to catch
+- **Inbound inbox deliveries are rate-limited** — `InboxLimiter` caps deliveries in two places (`inbox_throttle` app setting, default 300 per minute, 0 disables). Before any signature work, `assertAllowed()` spends a bucket keyed on the **source address**, which is the one thing about an unauthenticated request the sender cannot choose. After the signature has been verified, `assertOriginAllowed()` spends a second, looser bucket (`HOST_LIMIT_FACTOR`, 4×) keyed on the **verified origin**, which bounds what one instance can send from however many addresses. The second bucket used to be spent up front on the host named in the sender's own unverified `keyId` — which meant four cheap addresses could fill a large instance's bucket every minute and have its genuine deliveries answered 429, cutting this server off from it. Only a peer that can sign for a host now spends that host's budget
 - **LD signatures are bounded in time and replay-checked** — `checkObject()` refuses a signature whose `created` lies more than `LD_WINDOW` (24 h) from now, and remembers accepted signatures in a distributed cache for twice the window, so a captured activity cannot be re-POSTed indefinitely by an instance that once saw it
 - **Linked Data Signatures** — outgoing Create, Update, Delete, Like, Announce and Undo carry an RsaSignature2017 signature; incoming ones are verified by `SignatureService::checkObject()`, which also retries against a refreshed public key. Follow and Accept are not LD-signed
-- **Instance access control** — `FediverseService::authorized()` is checked on both inbox routes and on every outgoing `CurlService` request. It reads one app config value, `access_type`, which is either `all_but` (the default: everything is allowed unless the host is in the list) or `none_but` (only listed hosts, plus the local host, are allowed), together with a single host list in `access_list`; hosts are compared case-insensitively. `occ social:fediverse` manages both
+- **Instance access control** — `FediverseService::authorized()` is checked on both inbox routes and on every outgoing `CurlService` request. It reads one app config value, `access_type`, which is either `all_but` (the default: everything is allowed unless the host is in the list) or `none_but` (only listed hosts, plus the local host, are allowed), together with a single host list in `access_list`. Hosts are compared case-insensitively and without the trailing dot of the absolute form, and the two modes read the list differently on purpose: a deny-list entry covers the domain and everything under it (`isListed()`), because blocking `evil.test` while `www.evil.test` walks straight back in is not a block; an allow-list entry matches exactly (`isExactlyListed()`), because a subdomain of an allowed domain is a different instance and whoever runs the parent was never asked. `occ social:fediverse` manages both
 - **Outbound requests cannot be steered at the local network.** A host that is, or resolves to, a private, loopback, link-local, multicast or otherwise reserved address is refused before anything is sent, unless the instance has set `allow_local_remote_servers` (`lib/Tools/RemoteAddress.php`; a name that resolves to nothing is refused too — failing closed). The server's HTTP client then enforces the same rule itself, and re-checks it on **every redirect it follows**, which is why `CurlService` leaves redirect handling to it; only `http`/`https` are ever followed, so a `file://` or `gopher://` location cannot be reached. The banner-by-URL endpoint applies the same rules and a size ceiling before fetching
 - **JSON-LD contexts are served only from the copies shipped in `context/`.** Signature normalisation never resolves a document's `@context` over the network, so a remote activity cannot make the server open an arbitrary URL and cannot substitute the bytes a signature is computed over; an unrecognised context makes the LD signature unverifiable rather than triggering a fetch
 - **HTML sanitisation** — remote HTML reaches local timelines, so `ACore` runs `lib/Tools/HtmlSanitizer.php` over every `AS_CONTENT` field it imports, and strips tags from string, username and account fields. The frontend sanitises again with DOMPurify in `src/utils/sanitizeHtml.js`
+- **Actor private keys are encrypted at rest** — `social_actor.private_key` holds the PEM encrypted with the instance secret (`ICrypto`, via `PrivateKeyCipher`), so a database dump alone is not enough to impersonate a local actor — it also takes the `secret` from `config.php`. Rows written before encryption existed (recognisable by their `-----BEGIN` prefix) are still readable and are rewritten once by the `EncryptPrivateKeys` repair step on upgrade
+- **Client secrets, authorization codes and access tokens are stored hashed** — `sha256:<hex>` digests (`SecretHasher`). A presented secret that already carries that prefix is never looked up as a legacy plaintext row, so the stored digest is not itself a working credential: offering it for lookup made a database dump, a backup or a read-only SQL flaw hand out usable tokens, which is the one thing hashing them is for
 - **Self-signed certificates** — TLS peer verification is skipped only when the `allow_self_signed` app config value is `1`
 
 **Known gaps — these are real and deliberate to record**
 
-- **Actor private keys are encrypted at rest.** `social_actor.private_key` holds the PEM encrypted with the instance secret (`ICrypto`, via `PrivateKeyCipher`), so a database dump alone is not enough to impersonate a local actor — it also takes the `secret` from `config.php`. Rows written before encryption existed (recognisable by their `-----BEGIN` prefix) are still readable and are rewritten once by the `EncryptPrivateKeys` repair step on upgrade
-- **The federation endpoints are unauthenticated.** `ActivityPubController::actor()`, `actorAlias()`, `outbox()`, `followers()`, `following()` and `displayPost()` all carry `#[PublicPage]` with `#[NoCSRFRequired]`, and there is no signed-fetch (authorized-fetch) requirement. Any anonymous caller can read a local actor's profile, outbox, follower and following collections and individual posts
-- **There is no blocking.** `BlockInterface` accepts an incoming Block and forwards it to a handler that ignores it, and the app never sends one. Per-actor blocks and mutes do not exist; the `mute`/`unmute` status actions are accepted by the API and discarded
+- **The federation endpoints are readable by anyone.** `ActivityPubController::actor()`, `actorAlias()`, `outbox()`, `followers()`, `following()` and `displayPost()` all carry `#[PublicPage]` with `#[NoCSRFRequired]`. This instance does not *require* a signed fetch of its own collections, so any anonymous caller can read a local actor's profile, outbox, follower and following collections and individual posts. (Outbound fetches this app makes *are* signed — see above; the two directions are independent.)
 - **The older dual blacklist/whitelist implementation in `FediverseService` is commented out**. What remains is the single-list `access_type`/`access_list` mechanism described above
 - **`FediverseService::getKnownAddresses()` returns an empty array** unconditionally
 - **The base URL is set once.** `ConfigService::setCloudUrl()` will overwrite it, but stored actor and stream ids embed the old URL, so changing it in practice requires `occ social:reset`
@@ -371,4 +427,13 @@ Fifteen occ commands are registered in `appinfo/info.xml`. `lib/Command/` also h
 
 This file, `docs/API.md` and `docs/OCC-Commands.md` describe the current implementation. They must be updated in the same change as the code they describe.
 
-`tests/DocumentationTest.php` mechanically enforces the parts that can be checked — the registered occ commands, the HTTP routes, and the supported Nextcloud and PHP version ranges. Everything else is on the author of the change.
+`tests/DocumentationTest.php` mechanically enforces the parts that can be checked, in both directions where that is possible:
+
+- the registered occ commands, **and every option and argument each of them declares** — a documented flag that does not exist, and an existing flag nobody documented, both fail;
+- the HTTP routes of `appinfo/routes.php` against the route tables of `docs/API.md`;
+- the repair steps of `appinfo/info.xml` against the integration table above;
+- the tables declared in `CoreRequestBuilder` against the schema table above;
+- the supported Nextcloud and PHP version ranges, and the app version stated at the top of this file, against `appinfo/info.xml`;
+- two claims of *absence*, which is the direction the rest of it is blind in: a sentence saying there is no `/some/route` must be true, and a symbol the docs call "commented out" may not be called by live code. The false claim that key-pair rotation was unavailable, published six lines after the flag that performs it, is what these were written for.
+
+Everything else is on the author of the change. In particular nothing can check a paragraph of prose against the behaviour it describes, so a feature described in words the "not implemented" guard does not recognise, or a mechanism described plausibly and wrongly, still gets through.

@@ -15,7 +15,6 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Tools\Exceptions\CacheItemNotFoundException;
@@ -249,10 +248,6 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 				$cache->updateItem($cachedItem, false);
 			} catch (CacheItemNotFoundException $e) {
 			}
-		}
-
-		if ($item->getType() === Announce::TYPE) {
-			$item->setAttributedTo($this->get('following_actor_id', $data, ''));
 		}
 
 		return $item;

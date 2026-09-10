@@ -99,6 +99,22 @@ class ReportsRequest extends ReportsRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * The reports an account is the subject of, and the ones it filed. Both are
+	 * about something that no longer exists once the account is gone.
+	 */
+	public function deleteRelatedId(string $actorId): void {
+		$qb = $this->getReportsDeleteSql();
+		$qb->where(
+			$qb->expr()->orX(
+				$qb->expr()->eq('actor_id', $qb->createNamedParameter($actorId)),
+				$qb->expr()->eq('account_id', $qb->createNamedParameter($actorId))
+			)
+		);
+
+		$qb->executeStatement();
+	}
+
 	public function delete(int $id): void {
 		$qb = $this->getReportsDeleteSql();
 		$qb->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));

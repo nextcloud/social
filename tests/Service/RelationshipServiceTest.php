@@ -12,7 +12,6 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\AP;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -275,8 +274,10 @@ class RelationshipServiceTest extends TestCase {
 		$block = $this->assertOneOfType($sent, Block::class);
 		$this->assertSame(self::ALICE_ID, $block->getActorId());
 		$this->assertSame(self::BOB_ID, $block->getObjectId());
-		$this->assertStringStartsWith(self::CLOUD_URL . '/', $block->getId());
-		$this->assertStringContainsString('#block/', $block->getId());
+		// the id hangs off the actor, not the cloud root: everything after `#`
+		// is a fragment, so an id on the root dereferences to the Nextcloud
+		// landing page rather than to the activity
+		$this->assertStringStartsWith(self::ALICE_ID . '#block/', $block->getId());
 		$this->assertDeliveredToInbox($block, self::BOB_ID . '/inbox');
 	}
 
@@ -417,13 +418,14 @@ class RelationshipServiceTest extends TestCase {
 			->method('getByActor')
 			->with(self::ALICE_ID, ActorRelation::TYPE_BLOCK, 5)
 			->willReturn([$relationToBob, $relationToGhost]);
-		$this->cacheActorService->method('getFromId')
-			->willReturnCallback(function (string $id) use ($bob): Person {
-				if ($id === self::BOB_ID) {
-					return $bob;
-				}
-				throw new CacheActorDoesNotExistException();
-			});
+		// resolved from the cache in one query: an account you have blocked is
+		// an account you have seen, and a listing must not make a federated
+		// request per row
+		$this->cacheActorService->expects($this->once())
+			->method('getCachedFromIds')
+			->with([self::BOB_ID, 'https://gone.example/users/ghost'])
+			->willReturn([self::BOB_ID => $bob]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 
 		$this->assertSame([$bob], $this->service->getRelated($this->alice(), ActorRelation::TYPE_BLOCK, 5));
 	}

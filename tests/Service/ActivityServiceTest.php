@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -65,6 +66,7 @@ class ActivityServiceTest extends TestCase {
 	private RequestQueueService|MockObject $requestQueueService;
 	private CurlService|MockObject $curlService;
 	private ConfigService|MockObject $configService;
+	private ActorsRequest|MockObject $actorsRequest;
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
@@ -86,6 +88,7 @@ class ActivityServiceTest extends TestCase {
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
 
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -94,6 +97,7 @@ class ActivityServiceTest extends TestCase {
 			$this->requestQueueService,
 			$this->curlService,
 			$this->configService,
+			$this->actorsRequest,
 			new NullLogger()
 		);
 	}
@@ -140,21 +144,6 @@ class ActivityServiceTest extends TestCase {
 		$note->addInstancePath(new InstancePath(self::BOB_INBOX, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM));
 
 		return $note;
-	}
-
-	private function follower(string $id, ?string $sharedInbox): Follow {
-		$follow = new Follow();
-		$follow->setActorId($id);
-		$follow->setObjectId(self::ALICE_ID);
-		if ($sharedInbox !== null) {
-			$actor = new Person();
-			$actor->setId($id);
-			$actor->setInbox($id . '/inbox');
-			$actor->setSharedInbox($sharedInbox);
-			$follow->setActor($actor);
-		}
-
-		return $follow;
 	}
 
 	private function queue(string $inbox = self::BOB_INBOX, int $type = InstancePath::TYPE_INBOX): RequestQueue {
@@ -312,7 +301,7 @@ class ActivityServiceTest extends TestCase {
 	public function testDeleteActivitySendsTombstoneOnBehalfOfItemAuthor(): void {
 		$note = $this->note();
 		$note->setActorId(self::ALICE_ID);
-		$this->signatureService->expects($this->never())->method('signObject');
+		$this->actorsRequest->method('getFromId')->with(self::ALICE_ID)->willReturn($this->alice());
 		$this->noteInterface->expects($this->never())->method('save');
 
 		$queued = null;
@@ -339,6 +328,38 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame($queued, $queued->getObject()->getParent());
 	}
 
+	/**
+	 * A recipient may only pass an activity on (AP §7.1.2) if it carries the
+	 * author's own signature. Unsigned, a Delete of a reply cannot travel the
+	 * way the reply itself did, so the post stays visible on every instance
+	 * that only ever received it forwarded.
+	 */
+	public function testADeleteIsSignedByItsAuthor(): void {
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$alice = $this->alice();
+		$this->actorsRequest->expects($this->once())
+			->method('getFromId')->with(self::ALICE_ID)->willReturn($alice);
+		$this->signatureService->expects($this->once())
+			->method('signObject')
+			->with($this->identicalTo($alice), $this->isInstanceOf(Delete::class));
+		$this->expectQueuedWithoutInlineDelivery();
+
+		$this->service->deleteActivity($note);
+	}
+
+	/** An author we cannot load is a Delete that still has to go out. */
+	public function testADeleteWithoutASignableAuthorIsStillSent(): void {
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$this->actorsRequest->method('getFromId')
+			->willThrowException(new ActorDoesNotExistException());
+		$this->signatureService->expects($this->never())->method('signObject');
+		$this->expectQueuedWithoutInlineDelivery();
+
+		$this->assertSame(self::TOKEN, $this->service->deleteActivity($note));
+	}
+
 	// request(): recipient resolution
 
 	public function testRequestKeepsDirectInboxTargets(): void {
@@ -353,18 +374,22 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame([$direct], $paths);
 	}
 
-	public function testRequestExpandsFollowersToDeduplicatedSharedInboxes(): void {
+	/**
+	 * The fan-out asks the database for the distinct inboxes instead of
+	 * hydrating every follower into a Follow with a Person and its details just
+	 * to read one string off each: the number of inboxes involved is the number
+	 * of instances, not of followers. Deduplication and the shared-inbox
+	 * fallback happen there — see FollowsRequest::getFollowerInboxes() and its
+	 * integration test.
+	 */
+	public function testRequestExpandsFollowersToTheInboxesTheDatabaseNames(): void {
 		$paths = [];
 		$this->capturePaths($paths);
 		$this->followsRequest->expects($this->once())
-			->method('getFollowersByActorId')
+			->method('getFollowerInboxes')
 			->with(self::ALICE_ID)
-			->willReturn([
-				$this->follower('https://remote.example/users/bob', 'https://remote.example/inbox'),
-				$this->follower('https://remote.example/users/carol', 'https://remote.example/inbox'),
-				$this->follower('https://other.example/users/dave', 'https://other.example/inbox'),
-				$this->follower('https://gone.example/users/erin', null),
-			]);
+			->willReturn(['https://remote.example/inbox', 'https://other.example/inbox']);
+		$this->followsRequest->expects($this->never())->method('getFollowersByActorId');
 
 		$note = new Note();
 		$note->setActorId(self::ALICE_ID);
@@ -380,13 +405,29 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(InstancePath::TYPE_GLOBAL, $paths[1]->getType());
 	}
 
+	public function testAFollowersFanOutWithNoInboxesSendsNothing(): void {
+		$paths = [];
+		$this->capturePaths($paths);
+		$this->followsRequest->method('getFollowerInboxes')->willReturn([]);
+
+		$note = new Note();
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(
+			new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
+		);
+
+		$this->service->request($note);
+
+		$this->assertSame([], $paths);
+	}
+
 	public function testRequestNeverPostsToThisInstance(): void {
 		$paths = [];
 		$this->capturePaths($paths);
-		$this->followsRequest->method('getFollowersByActorId')->willReturn([
+		$this->followsRequest->method('getFollowerInboxes')->willReturn([
 			// a follower on this very instance
-			$this->follower(self::CLOUD_URL . '/users/carol', self::CLOUD_URL . '/inbox'),
-			$this->follower('https://remote.example/users/bob', 'https://remote.example/inbox'),
+			self::CLOUD_URL . '/inbox',
+			'https://remote.example/inbox',
 		]);
 
 		$note = new Note();
@@ -438,9 +479,8 @@ class ActivityServiceTest extends TestCase {
 	public function testRequestCombinesFollowersAndDirectTargets(): void {
 		$paths = [];
 		$this->capturePaths($paths);
-		$this->followsRequest->method('getFollowersByActorId')->willReturn([
-			$this->follower('https://remote.example/users/bob', 'https://remote.example/inbox'),
-		]);
+		$this->followsRequest->method('getFollowerInboxes')
+			->willReturn(['https://remote.example/inbox']);
 
 		$note = $this->note();
 		$note->setActorId(self::ALICE_ID);
@@ -656,6 +696,84 @@ class ActivityServiceTest extends TestCase {
 
 		$this->service->manageInit();
 		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * @return array<string, array{int}>
+	 */
+	public function transientHttpStatusProvider(): array {
+		return [
+			'request timeout' => [408],
+			'rate limited' => [429],
+			'internal server error' => [500],
+			'bad gateway' => [502],
+			'service unavailable, e.g. the peer is upgrading' => [503],
+			'gateway timeout' => [504],
+		];
+	}
+
+	/**
+	 * A peer that is briefly unwell must not cost us the activity: these used
+	 * to be indistinguishable from a permanent rejection, so every post queued
+	 * for an instance having a bad minute was deleted outright.
+	 *
+	 * @dataProvider transientHttpStatusProvider
+	 */
+	public function testManageRequestRetriesWhenThePeerAnswersWithATransientStatus(int $status): void {
+		$queue = $this->queue();
+		$this->curlService->method('retrieveJson')
+			->willThrowException(new RequestContentException('', $status));
+
+		$this->requestQueueService->expects($this->once())
+			->method('endRequest')->with($this->identicalTo($queue), false);
+		$this->requestQueueService->expects($this->never())->method('deleteRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * @return array<string, array{int}>
+	 */
+	public function permanentHttpStatusProvider(): array {
+		return [
+			'bad request' => [400],
+			'unauthorized' => [401],
+			'forbidden' => [403],
+			'gone' => [410],
+			'unprocessable' => [422],
+		];
+	}
+
+	/**
+	 * @dataProvider permanentHttpStatusProvider
+	 */
+	public function testManageRequestDropsWhenThePeerRejectsTheActivityForGood(int $status): void {
+		$queue = $this->queue();
+		$this->curlService->method('retrieveJson')
+			->willThrowException(new RequestContentException('', $status));
+
+		$this->requestQueueService->expects($this->once())
+			->method('deleteRequest')->with($this->identicalTo($queue));
+		$this->requestQueueService->expects($this->never())->method('endRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * A host that just answered 503 is skipped for the rest of the run rather
+	 * than being asked once per queued activity.
+	 */
+	public function testManageRequestStopsAskingAHostThatAnsweredATransientStatus(): void {
+		$this->curlService->method('retrieveJson')
+			->willThrowException(new RequestContentException('', 503));
+		$this->requestQueueService->expects($this->once())->method('endRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($this->queue());
+		// same host, second activity: not attempted again
+		$this->service->manageRequest($this->queue());
 	}
 
 	/**

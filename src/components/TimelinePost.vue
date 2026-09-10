@@ -42,13 +42,28 @@
 				:visibility="visibility.id" />
 		</div>
 		<div v-if="isEditing" class="post-edit-inline">
+			<input v-model="editSpoiler"
+				type="text"
+				class="post-edit-warning"
+				maxlength="200"
+				:aria-label="t('social', 'Content warning')"
+				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
 			<textarea ref="editInput"
 				v-model="editContent"
 				class="post-edit-textarea"
+				:maxlength="MAX_LENGTH"
+				:aria-describedby="editIsTooLong ? `post-edit-count-${item.id}` : undefined"
 				:placeholder="t('social', 'Edit your post')"
 				@keydown.ctrl.enter="saveEdit" />
 			<div class="post-edit-actions">
-				<NcButton type="primary"
+				<span :id="`post-edit-count-${item.id}`"
+					class="post-edit-count"
+					:class="{ 'post-edit-count--over': editIsTooLong }"
+					role="status">
+					{{ editCharactersLeftLabel }}
+				</span>
+				<NcButton variant="primary"
+					:disabled="!editCanSave"
 					:aria-label="t('social', 'Save')"
 					@click="saveEdit">
 					{{ t('social', 'Save') }}
@@ -59,29 +74,49 @@
 				</NcButton>
 			</div>
 		</div>
-		<div v-else-if="item.spoiler_text" class="post-warning">
+		<!--
+		  A content warning covers the post, not only its text: the pictures,
+		  the poll and the link preview used to be siblings rendered
+		  unconditionally, so the one thing the feature exists to prevent
+		  happened anyway.
+		-->
+		<div v-else-if="hasSpoiler" class="post-warning">
 			<p class="post-warning__text">{{ item.spoiler_text }}</p>
-			<NcButton type="secondary" @click="warningLifted = !warningLifted">
+			<NcButton variant="secondary"
+				:aria-expanded="warningLifted ? 'true' : 'false'"
+				@click="warningLifted = !warningLifted">
 				{{ warningLifted ? t('social', 'Show less') : t('social', 'Show more') }}
 			</NcButton>
 			<div v-if="warningLifted" class="post-message post-message--behind-warning">
-				<MessageContent :item="item" />
+				<MessageContent v-if="item.content" :item="item" />
 			</div>
 		</div>
 		<div v-else-if="item.content" class="post-message">
 			<MessageContent :item="item" />
 		</div>
-		<!-- Sanitized: the bio is remote HTML, see sanitizeHtml.js -->
-		<!-- eslint-disable-next-line vue/no-v-html -->
-		<div v-else class="post-message" v-html="sanitizedAccountNote" />
-		<Poll v-if="localPoll" :poll="localPoll" @update:poll="localPoll = $event" />
-		<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
-		<PostCard v-if="showCard" :card="item.card" />
+		<template v-if="mediaRevealed">
+			<Poll v-if="localPoll" :poll="localPoll" @update:poll="updatePoll" />
+			<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
+			<PostCard v-if="showCard" :card="item.card" />
+		</template>
+		<!-- not when there is a content warning: that already renders a
+		     "Show more" for the very same flag, so a post with both offered
+		     two buttons for one reveal. No aria-expanded either — this
+		     control is gone the moment it would have to say "true". -->
+		<div v-else-if="!hasSpoiler" class="post-sensitive">
+			<NcButton variant="secondary"
+				@click="warningLifted = true">
+				<template #icon>
+					<EyeOff :size="20" />
+				</template>
+				{{ t('social', 'Show sensitive content') }}
+			</NcButton>
+		</div>
 		<div v-if="$route && $route.params.type !== 'notifications' && !serverData.public" class="post-actions">
 			<div class="post-action-group">
 				<NcButton :title="t('social', 'Reply')"
 					:aria-label="t('social', 'Reply')"
-					type="tertiary"
+					variant="tertiary"
 					@click="reply">
 					<template #icon>
 						<Reply :size="20" />
@@ -95,7 +130,7 @@
 					:title="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 					:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
 					:aria-pressed="isBoosted ? 'true' : 'false'"
-					type="tertiary"
+					variant="tertiary"
 					:class="{ 'post-action--spun': celebrate === 'boost' }"
 					@click="boost">
 					<template #icon>
@@ -113,7 +148,7 @@
 				<NcButton :title="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
 					:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
 					:aria-pressed="isLiked ? 'true' : 'false'"
-					type="tertiary"
+					variant="tertiary"
 					:class="{ 'post-action--popped': isLiked && celebrate === 'like' }"
 					@click="like">
 					<template #icon>
@@ -131,9 +166,18 @@
 				</NcActionButton>
 				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
 					icon="icon-delete"
-					@click="remove()">
+					@click="showDeleteDialog = true">
 					{{ t('social', 'Delete') }}
 				</NcActionButton>
+				<!-- NcActionLink sets rel="nofollow noreferrer noopener" itself -->
+				<NcActionLink v-if="!origin.local && item.url"
+					:href="item.url"
+					target="_blank">
+					<template #icon>
+						<OpenInNew :size="20" />
+					</template>
+					{{ t('social', 'Open on original instance') }}
+				</NcActionLink>
 				<NcActionButton @click="toggleBookmark">
 					<template #icon>
 						<Bookmark v-if="item.bookmarked" :size="20" />
@@ -168,6 +212,15 @@
 					:placeholder="t('social', 'Why are you reporting this post? (optional)')"
 					rows="3" />
 			</NcDialog>
+			<!-- deleting is irreversible and federates: it is not something to
+			     do on the first click of a menu item sitting under "Edit" -->
+			<NcDialog v-model:open="showDeleteDialog"
+				:name="t('social', 'Delete this post?')"
+				:buttons="deleteButtons">
+				<p class="delete-hint">
+					{{ t('social', 'The post is removed from this server and a deletion is sent to every server that received it. This cannot be undone.') }}
+				</p>
+			</NcDialog>
 		</div>
 	</article>
 </template>
@@ -182,11 +235,13 @@ import 'linkify-string'
 import currentUser from './../mixins/currentUserMixin.js'
 import PostAttachment from './PostAttachment.vue'
 import PostCard from './PostCard.vue'
-import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcActionLink from '@nextcloud/vue/components/NcActionLink'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
+import EyeOff from 'vue-material-design-icons/EyeOff.vue'
+import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
 import Flag from 'vue-material-design-icons/Flag.vue'
 import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
@@ -201,12 +256,16 @@ import Heart from 'vue-material-design-icons/Heart.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
+import { onTick } from '../services/clock.js'
 import { originOf } from '../utils/instanceIdentity.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
+
+/** what the server accepts in one status, the same limit the composer shows */
+const MAX_LENGTH = 500
 
 export default {
 	name: 'TimelinePost',
@@ -215,7 +274,10 @@ export default {
 		PostCard,
 		NcActions,
 		NcActionButton,
+		NcActionLink,
 		NcDialog,
+		EyeOff,
+		OpenInNew,
 		Flag,
 		NcButton,
 		Bookmark,
@@ -245,6 +307,7 @@ export default {
 	},
 	data() {
 		return {
+			MAX_LENGTH,
 			isEditing: false,
 			/** which action is playing its confirmation, '' when none */
 			celebrate: '',
@@ -255,12 +318,54 @@ export default {
 			/** a warned post stays closed until the reader opens it */
 			warningLifted: false,
 			editContent: '',
+			editSpoiler: '',
 			showReportDialog: false,
+			showDeleteDialog: false,
 			reportComment: '',
 			localPoll: this.item?.poll ?? null,
+			/** re-read from the shared clock, so "5 minutes ago" stays true */
+			now: Date.now(),
 		}
 	},
 	computed: {
+		/** @return {boolean} the author asked for the post to be covered */
+		hasSpoiler() {
+			return Boolean(this.item.spoiler_text)
+		},
+		/** @return {boolean} anything a warning is supposed to cover */
+		hasMedia() {
+			return this.hasAttachments || this.localPoll !== null || this.showCard
+		},
+		/**
+		 * @return {boolean} whether the media sits behind a reveal. A warning
+		 * covers the whole post; `sensitive` on its own covers only the media,
+		 * which is what Mastodon shows for a post flagged without a warning.
+		 */
+		hasGatedMedia() {
+			return (this.hasSpoiler || this.item.sensitive === true) && this.hasMedia
+		},
+		/** @return {boolean} */
+		mediaRevealed() {
+			return !this.hasGatedMedia || this.warningLifted
+		},
+		/** @return {number} how many characters the edit has left */
+		editCharsLeft() {
+			return MAX_LENGTH - this.editContent.length
+		},
+		/** @return {boolean} */
+		editIsTooLong() {
+			return this.editCharsLeft < 0
+		},
+		/** @return {boolean} */
+		editCanSave() {
+			return this.editContent.trim() !== '' && !this.editIsTooLong
+		},
+		/** @return {string} */
+		editCharactersLeftLabel() {
+			return this.editIsTooLong
+				? n('social', '%n character too many', '%n characters too many', -this.editCharsLeft)
+				: n('social', '%n character left', '%n characters left', this.editCharsLeft)
+		},
 		/** Who wrote it, so moving between posts by landmark says something. */
 		postLabel() {
 			return t('social', 'Post by {account}', { account: this.item.account?.acct ?? '' })
@@ -273,9 +378,17 @@ export default {
 		showCard() {
 			return !this.hasAttachments && Boolean(this.item.card?.title)
 		},
-		/** @return {boolean} own local posts can be pinned to the profile */
+		/**
+		 * @return {boolean} own local posts can be pinned to the profile, and
+		 * only the ones anyone may see: a pinned followers-only post was
+		 * served in full to the anonymous internet through the featured
+		 * collection, so the server now refuses anything that is not public
+		 * or unlisted — the same set a boost is allowed for.
+		 */
 		canPin() {
-			return this.item.account.acct === this.currentAccount?.acct && this.item.local !== false
+			return this.item.account.acct === this.currentAccount?.acct
+				&& this.item.local !== false
+				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
 		},
 		reportButtons() {
 			return [
@@ -287,24 +400,31 @@ export default {
 				},
 				{
 					label: t('social', 'Report'),
-					type: 'error',
+					variant: 'error',
 					callback: () => this.sendReport(),
 				},
 			]
 		},
-		/**
-		 * The author's bio, reduced to markup that is safe to inject.
-		 *
-		 * @return {string}
-		 */
-		sanitizedAccountNote() {
-			return sanitizeHtml(this.item.account?.note ?? '')
+		deleteButtons() {
+			return [
+				{
+					label: t('social', 'Cancel'),
+					callback: () => {
+						this.showDeleteDialog = false
+					},
+				},
+				{
+					label: t('social', 'Delete'),
+					variant: 'error',
+					callback: () => this.remove(),
+				},
+			]
 		},
 		/**
 		 * @return {string}
 		 */
 		relativeTimestamp() {
-			return fromNow(this.item.created_at)
+			return fromNow(this.item.created_at, new Date(this.now))
 		},
 		/**
 		 * @return {string}
@@ -363,12 +483,22 @@ export default {
 			return visibilitiesInfo.find(({ id }) => this.item.visibility === id)
 		},
 	},
+	watch: {
+		// a vote cast elsewhere (or reloaded from the server) has to reach the
+		// copy this component renders, or navigating back shows the poll unvoted
+		'item.poll'(poll) {
+			this.localPoll = poll ?? null
+		},
+	},
 	mounted() {
 		eventBus.on('timeline:focused', this.rememberFocus)
 		eventBus.on('shortcut:like', this.likeIfFocused)
 		eventBus.on('shortcut:boost', this.boostIfFocused)
 		eventBus.on('shortcut:reply', this.replyIfFocused)
 		eventBus.on('shortcut:open', this.openIfFocused)
+		this.stopTicking = onTick((now) => {
+			this.now = now
+		})
 	},
 	unmounted() {
 		eventBus.off('timeline:focused', this.rememberFocus)
@@ -376,6 +506,7 @@ export default {
 		eventBus.off('shortcut:boost', this.boostIfFocused)
 		eventBus.off('shortcut:reply', this.replyIfFocused)
 		eventBus.off('shortcut:open', this.openIfFocused)
+		this.stopTicking?.()
 	},
 	methods: {
 		/**
@@ -406,19 +537,25 @@ export default {
 		},
 		/**
 		 * @function getSinglePostTimeline
-		 * @description Opens the timeline of the post clicked
+		 * @description Opens the conversation the post belongs to.
+		 *
+		 * Remote posts used to return here with a logger.warn, which made the
+		 * timestamp — the only affordance for opening a thread — silently dead
+		 * on the Global and Federated timelines. The server serves the context
+		 * of any status it has (`/api/v1/statuses/{nid}/context`), local or not.
 		 */
 		getSinglePostTimeline() {
-			// Display internal or external post
-			if (!this.isLocal) {
-				logger.warn("Don't know what to do with posts of type " + this.type, { post: this.item })
+			if (!this.item.account?.acct || this.item.id === undefined) {
+				logger.warn('Cannot open a post without an account and an id', { post: this.item })
 				return
 			}
 
 			this.$router.push({
 				name: 'single-post',
 				params: {
-					account: this.item.account.username,
+					// acct, not username: two remote accounts can share a
+					// username, and the route has to name one of them
+					account: this.item.account.acct,
 					id: this.item.id,
 					type: 'single-post',
 				},
@@ -451,8 +588,10 @@ export default {
 			await this.act('boost', undo ? 'postUnBoost' : 'postBoost', !undo)
 		},
 		editPost() {
-			const rawContent = this.item.content || this.item.account?.note || ''
-			this.editContent = htmlToPlainText(rawContent)
+			// never the author's bio: an image-only post has no content, and
+			// seeding the editor from account.note offered to publish it
+			this.editContent = htmlToPlainText(this.item.content || '')
+			this.editSpoiler = this.item.spoiler_text || ''
 			this.isEditing = true
 			this.$nextTick(() => {
 				if (this.$refs.editInput) {
@@ -461,24 +600,46 @@ export default {
 			})
 		},
 		async saveEdit() {
-			if (this.editContent.trim() === '') {
+			if (!this.editCanSave) {
 				return
 			}
-			await this.$store.dispatch('postEdit', {
+
+			const warning = this.editSpoiler.trim()
+			const response = await this.$store.dispatch('postEdit', {
 				status: this.item,
 				content: this.editContent.trim(),
-				spoiler_text: '',
-				sensitive: false,
+				// fixing a typo used to un-hide sensitive content for every
+				// follower, because the warning was always sent back empty
+				spoiler_text: warning,
+				sensitive: warning !== '' || this.item.sensitive === true,
 			})
+			if (response === undefined) {
+				// the store already said so; keep what was typed
+				return
+			}
+
 			this.isEditing = false
 			this.editContent = ''
+			this.editSpoiler = ''
 		},
 		cancelEdit() {
 			this.isEditing = false
 			this.editContent = ''
+			this.editSpoiler = ''
 		},
 		remove() {
+			this.showDeleteDialog = false
 			this.$store.dispatch('postDelete', this.item)
+		},
+		/**
+		 * A vote is cast on the component's own copy of the poll; the store
+		 * holds the one every other view reads, so it hears about it too.
+		 *
+		 * @param {object} poll the poll as the server returned it after voting
+		 */
+		updatePoll(poll) {
+			this.localPoll = poll
+			this.$store.commit('updateStatusPoll', { statusId: this.item.id, poll })
 		},
 		toggleBookmark() {
 			this.$store.dispatch('postBookmark', { status: this.item, bookmarked: !this.item.bookmarked })
@@ -742,11 +903,41 @@ function nodeToPlainText(node) {
 			}
 		}
 
+		.post-edit-warning {
+			width: 100%;
+			margin-bottom: 6px;
+			padding: 8px 10px;
+			border: 1px solid var(--color-border);
+			border-radius: var(--border-radius, 8px);
+			background: var(--color-main-background);
+			color: var(--color-main-text);
+			font-size: 14px;
+			box-sizing: border-box;
+
+			&:focus-visible {
+				border-color: var(--color-primary-element);
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 1px;
+			}
+		}
+
 		.post-edit-actions {
 			display: flex;
 			gap: 8px;
 			margin-top: 8px;
+			align-items: center;
 			justify-content: flex-end;
+		}
+
+		.post-edit-count {
+			margin-right: auto;
+			font-size: 12px;
+			color: var(--color-text-lighter);
+
+			&--over {
+				color: var(--color-error);
+				font-weight: 600;
+			}
 		}
 	}
 
@@ -875,5 +1066,26 @@ function nodeToPlainText(node) {
 	margin-top: 10px;
 	padding-top: 10px;
 	border-top: 1px solid var(--color-border);
+}
+
+/**
+ * A post flagged sensitive without a warning shows its text but not its
+ * pictures until the reader asks for them.
+ */
+.post-sensitive {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: 10px 0;
+	padding: 20px;
+	border: 1px dashed var(--color-border-dark);
+	border-radius: 12px;
+	background: var(--color-background-dark);
+}
+
+.delete-hint {
+	padding: 0 12px 12px;
+	color: var(--color-text-lighter);
+	line-height: 1.5;
 }
 </style>

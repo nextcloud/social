@@ -28,15 +28,12 @@ use OCP\AppFramework\Http\JSONResponse;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class WebfingerHandlerTest extends TestCase {
 	private const ACTOR_URL = 'https://cloud.example/index.php/apps/social/@alice';
 
-	/** @var IURLGenerator&MockObject */
-	private $urlGenerator;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
 	/** @var CacheActorService&MockObject */
@@ -52,7 +49,6 @@ class WebfingerHandlerTest extends TestCase {
 	private WebfingerHandler $handler;
 
 	protected function setUp(): void {
-		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->fediverseService = $this->createMock(FediverseService::class);
@@ -65,16 +61,10 @@ class WebfingerHandlerTest extends TestCase {
 			fn (bool $noPhp = false): string => $noPhp ? 'https://cloud.example' : 'https://cloud.example/index.php'
 		);
 		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/index.php/apps/social/');
-		$this->urlGenerator->method('linkToRoute')
-			->with('social.ActivityPub.actorAlias', ['username' => 'alice'])
-			->willReturn('/index.php/apps/social/@alice');
-		$this->urlGenerator->method('getAbsoluteURL')
-			->willReturnCallback(fn (string $url): string => 'https://cloud.example' . $url);
 
 		\OC::$server->register(IRequest::class, $this->request);
 
 		$this->handler = new WebfingerHandler(
-			$this->urlGenerator,
 			$this->cacheActorsRequest,
 			$this->cacheActorService,
 			$this->fediverseService,
@@ -93,6 +83,7 @@ class WebfingerHandlerTest extends TestCase {
 	/** @return Person&MockObject */
 	private function localActor(string $username, bool $local = true): Person {
 		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('https://cloud.example/index.php/apps/social/@' . $username);
 		$actor->method('getPreferredUsername')->willReturn($username);
 		$actor->method('isLocal')->willReturn($local);
 
@@ -148,7 +139,7 @@ class WebfingerHandlerTest extends TestCase {
 	public function testHostMetaIsSkippedWhenTheCloudUrlIsNotConfigured(): void {
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
-		$handler = new WebfingerHandler($this->urlGenerator, $this->cacheActorsRequest, $this->cacheActorService, $this->fediverseService, $configService);
+		$handler = new WebfingerHandler($this->cacheActorsRequest, $this->cacheActorService, $this->fediverseService, $configService);
 		$previous = $this->createMock(IResponse::class);
 
 		$this->assertSame($previous, $handler->handle('host-meta', $this->context, $previous));
@@ -293,5 +284,32 @@ class WebfingerHandlerTest extends TestCase {
 		$this->resource(Application::APP_SUBJECT);
 
 		$this->assertNull($this->handler->handleWebfinger($this->context, null));
+	}
+
+	public function testTheEmittedLinksComeFromTheActorsOwnIdNotTheRequestHost(): void {
+		// An instance answering on more than one trusted domain used to describe the
+		// actor with whichever host asked, while the actor document it points at
+		// keeps the configured id: a remote server then fetched a document whose
+		// `id` disagreed with the `href` that sent it there.
+		$this->resource('acct:alice@localhost');
+		$this->cacheActorService->method('getFromLocalAccount')->willReturn($this->localActor('alice'));
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame(self::ACTOR_URL, $json['links'][0]['href']);
+		$this->assertSame(self::ACTOR_URL, $json['aliases'][0]);
+	}
+
+	public function testAnActorWithoutAStoredIdIsA404(): void {
+		$this->resource('acct:alice@cloud.example');
+		$actor = $this->createMock(Person::class);
+		$actor->method('getId')->willReturn('');
+		$actor->method('isLocal')->willReturn(true);
+		$this->cacheActorService->method('getFromLocalAccount')->willReturn($actor);
+
+		$response = $this->handler->handleWebfinger($this->context, null);
+
+		$this->assertInstanceOf(JrdResponse::class, $response);
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->toHttpResponse()->getStatus());
 	}
 }

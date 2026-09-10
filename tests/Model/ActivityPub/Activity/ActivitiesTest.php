@@ -77,7 +77,9 @@ class ActivitiesTest extends TestCase {
 		$this->assertTrue($activity->isPublic());
 
 		$export = $activity->jsonSerialize();
-		$this->assertSame([ACore::CONTEXT_ACTIVITYSTREAMS], $export['@context']);
+		$this->assertSame(
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_EXTENSIONS], $export['@context']
+		);
 		$this->assertSame($type, $export['type']);
 		$this->assertSame('https://mastodon.social/users/alice', $export['actor']);
 		$this->assertSame('https://cloud.example.org/apps/social/@bob/1', $export['object']);

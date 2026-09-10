@@ -29,6 +29,8 @@ class OrganizationInterfaceTest extends ActorInterfaceTestCase {
 			$this->streamDestRequest,
 			$this->actorService,
 			$this->configService,
+			$this->streamActionsRequest,
+			$this->reportsRequest,
 		);
 	}
 

@@ -33,6 +33,7 @@ import { listen } from '@nextcloud/notify_push'
 import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { notificationSummary } from '../services/notifications.js'
+import logger from '../services/logger.js'
 
 /** Without notify_push the widget has to ask; once a minute is enough for a tile. */
 const POLL_MS = 60 * 1000
@@ -148,7 +149,7 @@ export default {
 					this.state = 'error'
 				} else {
 					// there was an error in notif processing
-					console.error(error)
+					logger.error('Failed to process the Social notifications', { error })
 				}
 			}
 		},

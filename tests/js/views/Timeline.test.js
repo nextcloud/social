@@ -98,10 +98,18 @@ describe('Timeline', () => {
 		expect(store.state.timeline.timeline).toEqual([])
 	})
 
+	// the types are the ones the sidebar and the store really use: `timeline`
+	// is Local (the store sends `local: true` for it) and the liked timeline is
+	// `favourites`, so Local used to be headed "Global timeline" and Liked
+	// posts fell through to "Home timeline"
 	it.each([
 		[{ name: 'timeline', params: {} }, 'Home timeline', false],
 		[{ name: 'timeline', params: { type: 'direct' } }, 'Direct messages', false],
 		[{ name: 'timeline', params: { type: 'notifications' } }, 'Notifications', true],
+		[{ name: 'timeline', params: { type: 'timeline' } }, 'Local timeline', false],
+		[{ name: 'timeline', params: { type: 'federated' } }, 'Global timeline', false],
+		[{ name: 'timeline', params: { type: 'favourites' } }, 'Liked posts', false],
+		[{ name: 'timeline', params: { type: 'bookmarks' } }, 'Bookmarks', false],
 	])('names the timeline %o for a reader who cannot see which one it is', (route, heading, visible) => {
 		const wrapper = mountTimeline(route)
 		const title = wrapper.find('h1')
@@ -136,17 +144,14 @@ describe('Timeline', () => {
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('notifications')
 	})
 
-	it('shows the active search with a way to clear it', async () => {
+	it('shows no search banner over a timeline it does not filter', async () => {
+		// searching has its own route and asks the server; a banner saying
+		// "Search: «…»" over the unfiltered timeline would be a lie
 		const wrapper = mountTimeline()
-		expect(wrapper.find('.search-active').exists()).toBe(false)
-
 		store.commit('setSearchQuery', 'fediverse')
 		await nextTick()
-		expect(wrapper.find('.search-active').text()).toContain('Search: «fediverse»')
-
-		await wrapper.find('.search-clear').trigger('click')
-		expect(store.state.timeline.searchQuery).toBe('')
 		expect(wrapper.find('.search-active').exists()).toBe(false)
+		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
 	})
 
 	it('does not show the welcome box or look up the Nextcloud account after the first run', () => {

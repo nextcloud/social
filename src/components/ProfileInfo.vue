@@ -35,7 +35,7 @@
 					:aria-label="t('social', 'Address of the banner image')"
 					:placeholder="t('social', 'https://example.com/image.jpg')"
 					@keyup.enter="uploadBannerByUrl">
-				<NcButton type="primary" :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
+				<NcButton variant="primary" :disabled="!bannerUrlInput || loadingUrl" @click="uploadBannerByUrl">
 					{{ loadingUrl ? t('social', 'Downloading…') : t('social', 'Apply') }}
 				</NcButton>
 			</div>
@@ -89,12 +89,12 @@
 			<div class="user-profile__actions">
 				<FollowButton v-if="!relationship || !relationship.blocking" :uid="uid" />
 				<NcButton v-if="serverData.public"
-					type="primary"
+					variant="primary"
 					@click="followRemote">
 					{{ t('social', 'Follow') }}
 				</NcButton>
 				<NcButton v-if="isOwnProfile"
-					type="tertiary"
+					variant="tertiary"
 					@click="openFieldsModal">
 					<template #icon>
 						<TableEdit :size="20" />
@@ -171,7 +171,7 @@
 							maxlength="500"
 							:aria-label="t('social', 'Content of field {number}', { number: index + 1 })"
 							:placeholder="t('social', 'Content')">
-						<NcButton type="tertiary"
+						<NcButton variant="tertiary"
 							:aria-label="t('social', 'Remove field')"
 							@click="fieldRows.splice(index, 1)">
 							<template #icon>
@@ -181,11 +181,11 @@
 					</div>
 					<div class="user-profile__fields-modal-actions">
 						<NcButton v-if="fieldRows.length < 4"
-							type="tertiary"
+							variant="tertiary"
 							@click="fieldRows.push({ name: '', value: '' })">
 							{{ t('social', 'Add field') }}
 						</NcButton>
-						<NcButton type="primary" :disabled="savingFields" @click="saveFields">
+						<NcButton variant="primary" :disabled="savingFields" @click="saveFields">
 							{{ savingFields ? t('social', 'Saving…') : t('social', 'Save') }}
 						</NcButton>
 					</div>
@@ -208,7 +208,7 @@ import NcActions from '@nextcloud/vue/components/NcActions'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
-import { generateRemoteUrl, generateUrl } from '@nextcloud/router'
+import { generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import accountMixins from '../mixins/accountMixins.js'
@@ -216,6 +216,7 @@ import serverData from '../mixins/serverData.js'
 import currentUser from '../mixins/currentUserMixin.js'
 import FollowButton from './FollowButton.vue'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
+import logger from '../services/logger.js'
 
 export default {
 	name: 'ProfileInfo',
@@ -270,9 +271,6 @@ export default {
 		},
 		avatarUrl() {
 			return generateUrl('/apps/social/api/v1/global/actor/avatar?id=' + this.accountInfo.id)
-		},
-		website() {
-			return this.accountInfo.fields.find(field => field.name === 'Website')
 		},
 		/**
 		 * Remote field values arrive as HTML; render only their text, as a
@@ -373,10 +371,10 @@ export default {
 				try {
 					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
 				} catch (e) {
-					console.warn('[Social] Failed to refresh account info after saving fields', e)
+					logger.warn('Could not refresh the account after saving the fields', { error: e })
 				}
 			} catch (error) {
-				console.error('[Social] Failed to save profile fields', error)
+				logger.error('Failed to save the profile fields', { error })
 				await this.showError(t('social', 'Failed to save profile fields'))
 			} finally {
 				this.savingFields = false
@@ -394,27 +392,26 @@ export default {
 		async uploadBanner(event) {
 			const file = event?.target?.files?.[0]
 			if (!file) return
-			console.log('[Social] Banner upload started', { fileName: file.name, fileSize: file.size, fileType: file.type })
+			// the file name is the reader's own document title; it does not
+			// belong in a console every extension can read
+			logger.debug('Uploading a banner', { size: file.size, type: file.type })
 			this.loading = true
 			try {
 				const formData = new FormData()
 				formData.append('file', file)
-				console.log('[Social] Sending POST to /api/v1/banner')
 				const { data } = await axios.post(
 					generateUrl('apps/social/api/v1/banner'),
 					formData,
 				)
-				console.log('[Social] Banner upload response', data)
 				this.bannerUrl = data.result.url
 				await this.showSuccess(t('social', 'Banner uploaded successfully'))
 				try {
 					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
-					console.log('[Social] Account info refreshed after banner upload')
 				} catch (e) {
-					console.warn('[Social] Failed to refresh account info after banner upload', e)
+					logger.warn('Could not refresh the account after the banner upload', { error: e })
 				}
 			} catch (error) {
-				console.error('[Social] Banner upload failed', error)
+				logger.error('Failed to upload the banner', { error })
 				await this.showError(t('social', 'Failed to upload banner'))
 			} finally {
 				this.loading = false
@@ -422,64 +419,9 @@ export default {
 			}
 		},
 
-		async uploadBannerFromPath(path) {
-			console.log('[Social] Banner upload from path started', { path })
-			this.loading = true
-			try {
-				let filePath = path
-				if (filePath && typeof filePath === 'object') {
-					filePath = filePath.path || filePath.value || filePath.fullPath || filePath.name || filePath[0] || null
-				}
-				const downloadCandidates = []
-				if (!filePath) {
-					if (path && typeof path === 'object') {
-						downloadCandidates.push(path.url, path.downloadUrl, path.href)
-					}
-				} else {
-					downloadCandidates.push(
-						generateRemoteUrl('dav/files/' + encodeURIComponent(this.currentUser.uid) + filePath),
-					)
-				}
-				console.log('[Social] Download candidates for banner', downloadCandidates)
-				let blob = null
-				for (const candidate of downloadCandidates) {
-					if (!candidate) continue
-					try {
-						const resp = await axios.get(candidate, { responseType: 'blob' })
-						blob = resp.data
-						console.log('[Social] Downloaded banner from', candidate)
-						break
-					} catch (e) {
-						continue
-					}
-				}
-				if (!blob) throw new Error('Failed to download file for upload')
-				const filename = (filePath && filePath.split) ? filePath.split('/').pop() : 'banner'
-				const file = new File([blob], filename, { type: blob.type })
-				const formData = new FormData()
-				formData.append('file', file)
-				console.log('[Social] Sending POST to /api/v1/banner (from path)')
-				const { data } = await axios.post(generateUrl('apps/social/api/v1/banner'), formData)
-				console.log('[Social] Banner upload response', data)
-				this.bannerUrl = data.result.url
-				await this.showSuccess(t('social', 'Banner uploaded successfully'))
-				try {
-					this.$store && this.$store.dispatch && await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
-					console.log('[Social] Account info refreshed after banner upload')
-				} catch (e) {
-					console.warn('[Social] Failed to refresh account info after banner upload', e)
-				}
-			} catch (error) {
-				console.error('[Social] Banner upload from path failed', error)
-				await this.showError(t('social', 'Failed to upload banner'))
-			} finally {
-				this.loading = false
-			}
-		},
 		async uploadBannerByUrl() {
 			const url = this.bannerUrlInput.trim()
 			if (!url) return
-			console.log('[Social] Banner upload by URL started', { url })
 			this.loadingUrl = true
 			try {
 				const formData = new URLSearchParams()
@@ -489,19 +431,17 @@ export default {
 					formData,
 					{ headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
 				)
-				console.log('[Social] Banner upload by URL response', data)
 				this.bannerUrl = data.result.url
 				this.showBannerUrlModal = false
 				this.bannerUrlInput = ''
 				await this.showSuccess(t('social', 'Banner set successfully'))
 				try {
 					await this.$store.dispatch('fetchAccountInfo', this.profileAccount)
-					console.log('[Social] Account info refreshed after banner URL upload')
 				} catch (e) {
-					console.warn('[Social] Failed to refresh account info', e)
+					logger.warn('Could not refresh the account after setting the banner', { error: e })
 				}
 			} catch (error) {
-				console.error('[Social] Banner upload by URL failed', error)
+				logger.error('Failed to set the banner from a URL', { error })
 				await this.showError(t('social', 'Failed to set banner from URL'))
 			} finally {
 				this.loadingUrl = false

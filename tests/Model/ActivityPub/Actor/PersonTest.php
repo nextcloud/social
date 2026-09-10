@@ -201,7 +201,10 @@ class PersonTest extends TestCase {
 	public function testExportAsActivityPubProducesTheKeyAndEndpointBlocks(): void {
 		$export = $this->localActor()->exportAsActivityPub();
 
-		$this->assertSame([ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_SECURITY], $export['@context']);
+		$this->assertSame(
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_SECURITY, ACore::CONTEXT_EXTENSIONS],
+			$export['@context']
+		);
 		$this->assertSame('Person', $export['type']);
 		$this->assertSame('alice', $export['preferredUsername']);
 		$this->assertSame('Alice', $export['name']);
@@ -228,7 +231,10 @@ class PersonTest extends TestCase {
 		$person = $this->localActor();
 		$person->setPublicKey('');
 
-		$this->assertSame([ACore::CONTEXT_ACTIVITYSTREAMS], $person->exportAsActivityPub()['@context']);
+		$this->assertSame(
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_EXTENSIONS],
+			$person->exportAsActivityPub()['@context']
+		);
 	}
 
 	public function testExportAsActivityPubDescribesIconAndHeaderImages(): void {

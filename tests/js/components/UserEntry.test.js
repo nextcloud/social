@@ -124,9 +124,20 @@ describe('UserEntry', () => {
 		expect(mountEntry({ ...local, note: undefined }).find('.user-details p').text()).toBe('')
 	})
 
-	it('fetches the relationship with the account for logged-in viewers', () => {
+	it('asks for the relationship through the batching action, not one request per entry', () => {
 		mountEntry(remote)
-		expect(store.dispatch).toHaveBeenCalledWith('fetchAccountRelationshipInfo', ['https://remote.example/users/bob'])
+		// a page of twenty followers used to be twenty round-trips, because
+		// the guard tested a `relationship` this component never defined
+		expect(store.dispatch).toHaveBeenCalledWith('fetchRelationship', 'https://remote.example/users/bob')
+	})
+
+	it('does not ask again for a relationship the store already knows', () => {
+		store.commit('addRelationship', {
+			actorId: remote.id,
+			data: { id: remote.id, following: true, requested: false },
+		})
+		mountEntry(remote)
+		expect(store.dispatch).not.toHaveBeenCalledWith('fetchRelationship', remote.id)
 	})
 
 	it('shows the follow button by default and hides it on request', () => {

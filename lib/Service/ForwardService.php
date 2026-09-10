@@ -160,24 +160,14 @@ class ForwardService {
 		$skip = array_filter([strtolower($origin), $this->localHost()]);
 
 		$paths = [];
-		$seen = [];
-		foreach ($this->followsRequest->getFollowersByActorId($actorId) as $follow) {
-			$actor = $follow->getActor();
-			if ($actor === null) {
-				continue;
-			}
-
-			$inbox = $actor->getSharedInbox() !== '' ? $actor->getSharedInbox() : $actor->getInbox();
-			if ($inbox === '' || in_array($inbox, $seen, true)) {
-				continue;
-			}
-
+		// the distinct inboxes, resolved in the database: the shared one where
+		// the remote publishes one, its personal inbox otherwise
+		foreach ($this->followsRequest->getFollowerInboxes($actorId) as $inbox) {
 			$host = strtolower((string)parse_url($inbox, PHP_URL_HOST));
 			if ($host === '' || in_array($host, $skip, true)) {
 				continue;
 			}
 
-			$seen[] = $inbox;
 			$paths[] = new InstancePath($inbox, InstancePath::TYPE_GLOBAL, InstancePath::PRIORITY_LOW);
 		}
 

@@ -97,6 +97,6 @@ class FederationHealthService {
 			return [$other['tries'], $other['requests']] <=> [$one['tries'], $one['requests']];
 		});
 
-		return array_slice(array_values($hosts), 0, self::TOP_INSTANCES);
+		return array_slice($hosts, 0, self::TOP_INSTANCES);
 	}
 }

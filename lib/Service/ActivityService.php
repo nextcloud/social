@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -39,6 +40,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Http;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -72,6 +74,7 @@ class ActivityService {
 		RequestQueueService $requestQueueService,
 		CurlService $curlService,
 		ConfigService $configService,
+		private ActorsRequest $actorsRequest,
 		LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
@@ -156,6 +159,22 @@ class ActivityService {
 		$delete->setObject($tombstone);
 		$delete->addInstancePaths($item->getInstancePaths());
 
+		// A recipient may only pass an activity on (AP §7.1.2) if it carries the
+		// author's own signature over the document. Unsigned, a Delete of a
+		// reply cannot travel the way the reply itself did, so the post stays
+		// visible on every instance that only ever received it forwarded.
+		try {
+			$this->signatureService->signObject(
+				$this->actorsRequest->getFromId($delete->getActorId()), $delete
+			);
+		} catch (Exception $e) {
+			$this->logger->notice('a Delete goes out without a linked-data signature', [
+				'activity' => $delete->getId(),
+				'actor' => $delete->getActorId(),
+				'exception' => $e,
+			]);
+		}
+
 		return $this->request($delete);
 	}
 
@@ -222,6 +241,20 @@ class ActivityService {
 	}
 
 	/**
+	 * Whether an HTTP status from a peer is worth trying again later.
+	 *
+	 * 408 and 429 are explicitly temporary, and any 5xx is the peer's own
+	 * problem rather than something wrong with what we sent. Everything else
+	 * in the 4xx range means this activity will never be accepted, so there is
+	 * nothing to gain by keeping it queued.
+	 */
+	private function isTransientHttpStatus(int $status): bool {
+		return $status === Http::STATUS_REQUEST_TIMEOUT
+			|| $status === Http::STATUS_TOO_MANY_REQUESTS
+			|| $status >= Http::STATUS_INTERNAL_SERVER_ERROR;
+	}
+
+	/**
 	 * @param RequestQueue $queue
 	 *
 	 * @throws SocialAppConfigException
@@ -251,7 +284,28 @@ class ActivityService {
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (ActorDoesNotExistException|RequestContentException|RequestResultSizeException $e) {
+		} catch (RequestContentException $e) {
+			// The peer answered, but not with a 2xx. Whether that is worth
+			// retrying depends entirely on the status: a 503 during an upgrade
+			// or a 429 from a rate limiter is temporary and used to cost us
+			// every activity queued for that instance, deleted on the spot.
+			if ($this->isTransientHttpStatus($e->getCode())) {
+				$this->logger->notice(
+					'Temporary error while managing request: HTTP ' . $e->getCode() . ' - '
+					. json_encode($request) . ' - ' . $e->getMessage()
+				);
+				$this->requestQueueService->endRequest($queue, false);
+				$this->failInstances[] = $host;
+
+				return;
+			}
+
+			$this->logger->notice(
+				'Permanent error while managing request: HTTP ' . $e->getCode() . ' - '
+				. json_encode($request) . ' - ' . $e->getMessage()
+			);
+			$this->requestQueueService->deleteRequest($queue);
+		} catch (ActorDoesNotExistException|RequestResultSizeException $e) {
 			$this->logger->notice(
 				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
 				. $e->getMessage()
@@ -323,24 +377,22 @@ class ActivityService {
 	 * @return InstancePath[]
 	 */
 	private function generateInstancePathsFollowers(InstancePath $instancePath): array {
-		$follows = $this->followsRequest->getFollowersByActorId($instancePath->getUri());
-
-		$sharedInboxes = [];
 		$instancePaths = [];
-		foreach ($follows as $follow) {
-			if (!$follow->hasActor()) {
-				continue;
-			}
 
-			$sharedInbox = $follow->getActor()
-				->getSharedInbox();
-			if (in_array($sharedInbox, $sharedInboxes)) {
-				continue;
-			}
-
-			$sharedInboxes[] = $sharedInbox;
+		// One row per distinct inbox, resolved in the database. This used to
+		// hydrate every follower into a Follow with a Person and its details
+		// just to read one string off each — a popular local actor's every post
+		// loaded its whole follower list into PHP memory, while the number of
+		// inboxes involved is the number of *instances*, not of followers.
+		//
+		// The shared inbox is used where the remote publishes one and its
+		// personal inbox otherwise: `endpoints.sharedInbox` is optional, and
+		// using the empty string unconditionally aimed the delivery at host ''
+		// — and, because the deduplication then treated '' as an inbox already
+		// seen, dropped every follower after the first one on any such instance.
+		foreach ($this->followsRequest->getFollowerInboxes($instancePath->getUri()) as $inbox) {
 			$instancePaths[] = new InstancePath(
-				$sharedInbox, InstancePath::TYPE_GLOBAL, $instancePath->getPriority()
+				$inbox, InstancePath::TYPE_GLOBAL, $instancePath->getPriority()
 			);
 		}
 

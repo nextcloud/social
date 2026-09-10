@@ -193,7 +193,9 @@ class NoteTest extends TestCase {
 
 		$export = $note->exportAsActivityPub();
 
-		$this->assertSame([ACore::CONTEXT_ACTIVITYSTREAMS], $export['@context']);
+		$this->assertSame(
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_EXTENSIONS], $export['@context']
+		);
 		foreach (['id', 'type', 'url', 'to', 'cc', 'published', 'summary', 'content', 'attributedTo', 'inReplyTo', 'sensitive', 'conversation', 'tag'] as $key) {
 			$this->assertSame($source[$key], $export[$key], $key . ' survives the round trip');
 		}

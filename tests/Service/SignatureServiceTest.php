@@ -11,6 +11,8 @@ namespace OCA\Social\Tests\Service;
 
 use DateTime;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\SignatureException;
 use OCA\Social\Exceptions\SignatureIsGoneException;
@@ -23,10 +25,12 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCP\Files\AppData\IAppDataFactory;
@@ -54,9 +58,14 @@ class SignatureServiceTest extends TestCase {
 
 	private ActorsRequest|MockObject $actorsRequest;
 	private CacheActorService|MockObject $cacheActorService;
+	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private SignatureService $service;
 	/** @var array<string, mixed> backing store of the mocked replay cache */
 	private array $seenSignatures = [];
+	/** @var array<string, mixed> backing store of the mocked key-attempt cache */
+	private array $keyAttempts = [];
+	/** @var array<string, int> the ttl each cache entry was written with */
+	private array $cacheTtl = [];
 
 	public static function setUpBeforeClass(): void {
 		[self::$privateKey, self::$publicKey] = self::keyPair();
@@ -74,29 +83,69 @@ class SignatureServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		// no key is in the local cache unless a test puts one there
+		$this->cacheActorsRequest->method('getFromId')
+			->willThrowException(new CacheActorDoesNotExistException());
+
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		// the real one narrows the request timeout around the call; here it only
+		// has to run what it is given
+		$configService->method('withRequestTimeout')
+			->willReturnCallback(fn (int $timeout, callable $action) => $action());
 
-		// an in-memory stand-in for the distributed LD-signature replay cache
+		// in-memory stand-ins for the two distributed caches
 		$this->seenSignatures = [];
-		$cache = $this->createMock(ICache::class);
-		$cache->method('get')->willReturnCallback(fn (string $key) => $this->seenSignatures[$key] ?? null);
-		$cache->method('set')->willReturnCallback(function (string $key, $value) {
-			$this->seenSignatures[$key] = $value;
-
-			return true;
-		});
+		$this->keyAttempts = [];
+		$this->cacheTtl = [];
 		$cacheFactory = $this->createMock(ICacheFactory::class);
-		$cacheFactory->method('createDistributed')->willReturn($cache);
+		$cacheFactory->method('createDistributed')->willReturnCallback(
+			fn (string $prefix): ICache => $prefix === 'social.keys'
+				? $this->arrayCache($this->keyAttempts)
+				: $this->arrayCache($this->seenSignatures)
+		);
 
 		$this->service = new SignatureService(
 			$this->actorsRequest,
 			$this->cacheActorService,
+			$this->cacheActorsRequest,
 			$this->createMock(CurlService::class),
 			$configService,
+			new HttpSignatureService($this->actorsRequest, new NullLogger()),
 			$cacheFactory,
 			new NullLogger(),
 		);
+	}
+
+	/**
+	 * @param array<string, mixed> $store
+	 * @return ICache&MockObject
+	 */
+	private function arrayCache(array &$store): ICache {
+		$cache = $this->createMock(ICache::class);
+		$cache->method('get')->willReturnCallback(
+			function (string $key) use (&$store) {
+				return $store[$key] ?? null;
+			}
+		);
+		$cache->method('set')->willReturnCallback(
+			function (string $key, $value, $ttl = 0) use (&$store) {
+				$store[$key] = $value;
+				$this->cacheTtl[$key] = (int)$ttl;
+
+				return true;
+			}
+		);
+		$cache->method('remove')->willReturnCallback(
+			function (string $key) use (&$store) {
+				unset($store[$key]);
+
+				return true;
+			}
+		);
+
+		return $cache;
 	}
 
 	protected function tearDown(): void {
@@ -212,7 +261,7 @@ class SignatureServiceTest extends TestCase {
 		$headers = $this->signedHeaders($body, self::$privateKey);
 		$this->cacheActorService->expects($this->once())
 			->method('getFromId')
-			->with(self::REMOTE_KEY_ID, false)
+			->with(self::REMOTE_ACTOR, false)
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
 
 		$time = 0;
@@ -236,8 +285,127 @@ class SignatureServiceTest extends TestCase {
 		$this->cacheActorService->expects($this->never())->method('getFromId');
 
 		$this->expectException(SignatureException::class);
-		$this->expectExceptionMessage('issue with digest');
+		$this->expectExceptionMessage('digest does not match the body');
 		$this->service->checkRequest($this->incomingRequest($headers), $tampered);
+	}
+
+	/**
+	 * A sender using chunked transfer encoding sends no Content-Length at all.
+	 * Comparing the body against `(int)''` rejected every one of them.
+	 */
+	public function testCheckRequestAcceptsARequestWithoutContentLength(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body, self::$privateKey, ['content-length' => ''], '(request-target) host date digest'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function digestVariantProvider(): array {
+		$body = '{"type":"Follow"}';
+		$sha256 = base64_encode(hash('sha256', $body, true));
+		$sha512 = base64_encode(hash('sha512', $body, true));
+
+		return [
+			'RFC 3230, upper case' => ['SHA-256=' . $sha256],
+			'lower case algorithm' => ['sha-256=' . $sha256],
+			'no hyphen' => ['SHA256=' . $sha256],
+			'several algorithms' => ['SHA-256=' . $sha256 . ',SHA-512=' . $sha512],
+			'sha-512 only' => ['SHA-512=' . $sha512],
+			'an algorithm we do not know, alongside one we do'
+				=> ['id-sha-3=deadbeef,SHA-256=' . $sha256],
+			'spaces around the list separator' => ['SHA-512=' . $sha512 . ', SHA-256=' . $sha256],
+		];
+	}
+
+	/**
+	 * @dataProvider digestVariantProvider
+	 */
+	public function testCheckRequestAcceptsEveryDigestFormOnTheWire(string $digest): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => $digest]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	/** RFC 9530: what newer implementations are moving to. */
+	public function testCheckRequestAcceptsAContentDigestOnItsOwn(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body,
+			self::$privateKey,
+			[
+				'digest' => '',
+				'content-digest' => 'sha-256=:' . base64_encode(hash('sha256', $body, true)) . ':',
+			],
+			'(request-target) host date content-digest'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestRejectsADigestWeCannotCompute(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => 'id-sha-3=deadbeef']);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('no digest algorithm we can compute');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAMissingDigest(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => '']);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('no digest header');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsASecondDigestThatDoesNotMatch(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, [
+			'digest' => 'SHA-256=' . base64_encode(hash('sha256', $body, true))
+				. ',SHA-512=' . base64_encode(hash('sha512', 'something else', true)),
+		]);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('digest does not match the body');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/**
+	 * hs2019 names no hash: the key type decides, and for the RSA keys actors
+	 * publish that is SHA-256.
+	 */
+	public function testCheckRequestAcceptsHs2019OverAnRsaKey(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body, self::$privateKey, [], '(request-target) host date digest', 'hs2019'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	/**
+	 * Mapping an unknown algorithm to sha256 made an Ed25519 signature fail as
+	 * "signature cannot be checked", which describes nothing.
+	 */
+	public function testCheckRequestNamesAnAlgorithmItCannotVerify(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body, self::$privateKey, [], '(request-target) host date digest', 'ed25519'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('unsupported signature algorithm: ed25519');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
 	public function testCheckRequestRejectsAWrongContentLength(): void {
@@ -304,7 +472,7 @@ class SignatureServiceTest extends TestCase {
 		$headers = $this->signedHeaders($body, self::$privateKey);
 		$this->cacheActorService->expects($this->exactly(2))
 			->method('getFromId')
-			->withConsecutive([self::REMOTE_KEY_ID, false], [self::REMOTE_KEY_ID, true])
+			->withConsecutive([self::REMOTE_ACTOR, false], [self::REMOTE_ACTOR, true])
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
 
 		// A signature that does not verify against either the cached or the refreshed
@@ -392,7 +560,7 @@ class SignatureServiceTest extends TestCase {
 		);
 		$this->cacheActorService->expects($this->once())
 			->method('getFromId')
-			->with(self::REMOTE_KEY_ID, false)
+			->with(self::REMOTE_ACTOR, false)
 			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
 
 		$time = 0;
@@ -400,6 +568,217 @@ class SignatureServiceTest extends TestCase {
 
 		$this->assertSame('remote.example', $origin);
 		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
+	}
+
+	// bounding the pre-authentication key fetch
+
+	public function testAKeyAlreadyInTheLocalCacheIsNeverFetched(): void {
+		// the whole point: a known peer's delivery costs a database read
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$cached = $this->createMock(CacheActorsRequest::class);
+		$cached->method('getFromId')->with(self::REMOTE_ACTOR)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+		$this->replaceLocalActorCache($cached);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testTheFetchOfAnUnknownKeyIsTimeBounded(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$seen = [];
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		$configService->method('withRequestTimeout')->willReturnCallback(
+			function (int $timeout, callable $action) use (&$seen) {
+				$seen[] = $timeout;
+
+				return $action();
+			}
+		);
+		$this->rebuildWith($configService);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+
+		$this->assertSame([SignatureService::UNKNOWN_KEY_TIMEOUT], $seen);
+	}
+
+	public function testAKeyThatCannotBeResolvedIsNotFetchedAgainImmediately(): void {
+		// a flood naming the same unresolvable keyId costs one fetch, not one
+		// fetch per request
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->willThrowException(new RequestContentException('unreachable'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the first attempt to fail');
+		} catch (\Exception $e) {
+		}
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('too recently');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/**
+	 * Three seconds had to cover DNS, TCP, TLS and the peer rendering its actor
+	 * JSON. A small self-hosted instance does not manage that on first contact,
+	 * and every miss then poisoned the negative cache below — so a follow to it
+	 * simply never completed.
+	 */
+	public function testTheFirstKeyFetchGetsABudgetARealPeerCanMeet(): void {
+		$this->assertGreaterThanOrEqual(
+			5, SignatureService::UNKNOWN_KEY_TIMEOUT,
+			'Mastodon alone allows 5s just to connect'
+		);
+		// still bounded, and CurlService::retrieveObject() retries unsigned
+		// after a 401/403, so a worker can be held for roughly twice this
+		$this->assertLessThanOrEqual(10, SignatureService::UNKNOWN_KEY_TIMEOUT);
+	}
+
+	/**
+	 * A host that was unreachable, or slower than the budget, has said nothing
+	 * about its keyId: remembering that for the full failure interval is what
+	 * kept a slow-but-honest peer from ever federating, since every delivery in
+	 * the window was refused without a fetch.
+	 */
+	public function testAPeerThatCouldNotBeReachedIsRetriedSoon(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new RequestNetworkException('timeout'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the fetch to fail');
+		} catch (RequestNetworkException $e) {
+		}
+
+		$this->assertSame(
+			[SignatureService::KEY_UNREACHABLE_TTL],
+			array_values($this->cacheTtl),
+			'an unreachable host is not held against its keyId for the full interval'
+		);
+	}
+
+	public function testAnAnswerThatIsNotAUsableKeyIsRememberedForLonger(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new RequestContentException('404'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the fetch to fail');
+		} catch (\Exception $e) {
+		}
+
+		$this->assertSame(
+			[SignatureService::KEY_FAILURE_TTL],
+			array_values($this->cacheTtl),
+			'the peer answered, and the answer is a fact about the keyId'
+		);
+	}
+
+	public function testASuccessfulFetchLeavesNoAttemptBehind(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+
+		$this->assertSame([], $this->keyAttempts, 'the in-flight marker is dropped on success');
+	}
+
+	/**
+	 * The backoff is this instance's own, and temporary: a peer told to give up
+	 * on the delivery would lose it for good, so the refusal has to read as
+	 * "later", which is what the inbox turns into a 503.
+	 */
+	public function testTheBackoffRefusalAsksForARedelivery(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')
+			->willThrowException(new RequestNetworkException('timeout'));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the fetch to fail');
+		} catch (RequestNetworkException $e) {
+		}
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the second attempt to be refused without a fetch');
+		} catch (SignatureException $e) {
+			$this->assertStringContainsString('too recently', $e->getMessage());
+			$this->assertSame(\OCP\AppFramework\Http::STATUS_SERVICE_UNAVAILABLE, $e->getCode());
+		}
+	}
+
+	public function testAForcedRefreshIsThrottledPerKeyId(): void {
+		// verification failing is free to trigger from outside, and each failure
+		// used to force another fetch of the same key
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		// known locally, but with a key the signature does not verify against
+		$cached = $this->createMock(CacheActorsRequest::class);
+		$cached->method('getFromId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+		$this->replaceLocalActorCache($cached);
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with(self::REMOTE_ACTOR, true)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+
+		try {
+			$this->service->checkRequest($this->incomingRequest($headers), $body);
+			$this->fail('expected the signature not to verify');
+		} catch (SignatureException $e) {
+		}
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('too recently');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/** Rebuilds the service around a different local actor cache. */
+	private function replaceLocalActorCache(CacheActorsRequest $cache): void {
+		$this->cacheActorsRequest = $cache;
+		$this->rebuildWith(null);
+	}
+
+	private function rebuildWith(?ConfigService $configService): void {
+		if ($configService === null) {
+			$configService = $this->createMock(ConfigService::class);
+			$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+			$configService->method('withRequestTimeout')
+				->willReturnCallback(fn (int $timeout, callable $action) => $action());
+		}
+
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('createDistributed')->willReturnCallback(
+			fn (string $prefix): ICache => $prefix === 'social.keys'
+				? $this->arrayCache($this->keyAttempts)
+				: $this->arrayCache($this->seenSignatures)
+		);
+
+		$this->service = new SignatureService(
+			$this->actorsRequest,
+			$this->cacheActorService,
+			$this->cacheActorsRequest,
+			$this->createMock(CurlService::class),
+			$configService,
+			new HttpSignatureService($this->actorsRequest, new NullLogger()),
+			$cacheFactory,
+			new NullLogger(),
+		);
 	}
 
 	/**

@@ -15,6 +15,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
@@ -166,7 +167,10 @@ class NavigationController extends Controller {
 		 * Create social user account if it doesn't exist yet
 		 */
 		try {
-			$this->accountService->createActor($this->userId, $this->userId);
+			$this->accountService->createActor(
+				$this->userId,
+				$this->accountService->generateHandleFromUserId($this->userId)
+			);
 			$serverData['firstrun'] = true;
 			$this->logger->info('[NavigationController] Created new actor for user', [
 				'userId' => $this->userId
@@ -253,6 +257,25 @@ class NavigationController extends Controller {
 	}
 
 	/**
+	 * The Social actor of the session, when there is one.
+	 *
+	 * A document id says nothing about who may read the document, so the routes
+	 * below need to know who is asking; a session without a Social account (or
+	 * no session at all) is nobody in particular and sees only public copies.
+	 */
+	private function viewer(): ?Person {
+		if ($this->userId === null) {
+			return null;
+		}
+
+		try {
+			return $this->accountService->getActorFromUserId($this->userId);
+		} catch (Exception $e) {
+			return null;
+		}
+	}
+
+	/**
 	 *
 	 * @param string $id
 	 *
@@ -264,7 +287,7 @@ class NavigationController extends Controller {
 		$this->logger->debug('[NavigationController] documentGet called', ['id' => $id]);
 		try {
 			$mime = '';
-			$file = $this->documentService->getFromCache($id, $mime);
+			$file = $this->documentService->getFromCacheAsViewer($id, $this->viewer(), $mime);
 			$this->logger->info('[NavigationController] Document retrieved from cache', [
 				'id' => $id,
 				'mime' => $mime
@@ -320,7 +343,7 @@ class NavigationController extends Controller {
 	public function resizedGet(string $id): Response {
 		try {
 			$mime = '';
-			$file = $this->documentService->getResizedFromCache($id, $mime);
+			$file = $this->documentService->getResizedFromCacheAsViewer($id, $this->viewer(), $mime);
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {

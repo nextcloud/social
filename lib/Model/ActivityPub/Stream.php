@@ -13,6 +13,7 @@ use DateTime;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -50,6 +51,74 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_ANNOUNCE = 'announce';
 
 	/**
+	 * How many attachments a single post may bring in. Twice what Mastodon
+	 * lets an author attach, so nothing real is ever cut.
+	 */
+	public const MAX_ATTACHMENTS = 8;
+
+	/**
+	 * Mastodon calls a followers-only post `private`; this app has always
+	 * called it `followers`. The two vocabularies have to be translated in
+	 * both directions: without it a client's followers-only post arrives as a
+	 * value this app does not know, and `StreamService::setRecipient()` used
+	 * to address exactly those to the public collection.
+	 */
+	private const CLIENT_VISIBILITIES = [
+		'public' => self::TYPE_PUBLIC,
+		'unlisted' => self::TYPE_UNLISTED,
+		'private' => self::TYPE_FOLLOWERS,
+		'followers' => self::TYPE_FOLLOWERS,
+		'direct' => self::TYPE_DIRECT,
+	];
+
+	/**
+	 * Translate a visibility as a client writes it into this app's own
+	 * vocabulary. Anything unrecognised becomes `direct` — the most
+	 * restrictive option. Guessing wrong in the other direction publishes
+	 * somebody's private post to the whole Fediverse.
+	 */
+	public static function visibilityFromClient(string $visibility): string {
+		return self::CLIENT_VISIBILITIES[strtolower(trim($visibility))] ?? self::TYPE_DIRECT;
+	}
+
+	/**
+	 * True when a client sent a visibility this app understands. Callers that
+	 * can report an error to the client should use this and answer 422 rather
+	 * than silently posting to nobody.
+	 */
+	public static function isKnownClientVisibility(string $visibility): bool {
+		return array_key_exists(strtolower(trim($visibility)), self::CLIENT_VISIBILITIES);
+	}
+
+	/**
+	 * The visibilities a client may ask for, for telling somebody which ones
+	 * those are when they asked for something else.
+	 *
+	 * @return string[]
+	 */
+	public static function clientVisibilities(): array {
+		return array_keys(self::CLIENT_VISIBILITIES);
+	}
+
+	/**
+	 * The hashtags on this item.
+	 *
+	 * Only a Note actually stores any — it overrides this — but the tags belong
+	 * to the exported status entity, which is built here, and `StreamRequest`
+	 * asks any Stream for them when it writes one.
+	 *
+	 * @return string[]
+	 */
+	public function getHashtags(): array {
+		return [];
+	}
+
+	/** Translate this app's vocabulary back into what a client expects. */
+	public static function visibilityForClient(string $visibility): string {
+		return ($visibility === self::TYPE_FOLLOWERS) ? 'private' : $visibility;
+	}
+
+	/**
 	 * Mastodon's notification type for each notification sub-type. Kept as one
 	 * map so the `types`/`exclude_types` API filter and the exported entity
 	 * cannot drift apart.
@@ -80,6 +149,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private bool $filterDuplicate = false;
 	private bool $pinned = false;
 	private ?StreamCard $card = null;
+
+	/**
+	 * The parents already looked up in this request, keyed by their
+	 * ActivityPub id: `{'https://…' => [status nid, author nid]}`.
+	 *
+	 * A timeline of replies to the same thread would otherwise ask the database
+	 * for the same parent once per reply.
+	 *
+	 * @var array<string, array{int, int}>
+	 */
+	private static array $replyParents = [];
 
 	/**
 	 * Stream constructor.
@@ -493,6 +573,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$new = [];
 		foreach ($list as $item) {
+			// A signed Create is authenticated, not trusted: a peer may list as
+			// many attachments as it likes, and each one is a row written and a
+			// file queued for download inside the inbox request. Real posts carry
+			// a handful (Mastodon allows four), so the rest of a list of fifty
+			// thousand is dropped rather than imported.
+			if (count($new) >= self::MAX_ATTACHMENTS) {
+				break;
+			}
+
 			try {
 				/** @var Document $attachment */
 				$attachment = AP::$activityPub->getItemFromData($item, $this);
@@ -544,6 +633,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
 		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
+		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));
@@ -601,7 +691,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setContent($this->get('content', $data));
 		$this->setSensitive($this->getBool('sensitive', $data));
 		$this->setSpoilerText($this->get('spoiler_text', $data));
-		$this->setVisibility($this->get('visibility', $data));
+		$this->setVisibility(self::visibilityFromClient($this->get('visibility', $data)));
 		$this->setLanguage($this->get('language', $data));
 
 		$action = new StreamAction();
@@ -651,8 +741,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			parent::exportAsActivityPub(),
 			[
 				'content' => $this->getContent(),
-				'attributedTo' => ($this->getAttributedTo() !== '') ? $this->getUrlSocial()
-																	  . $this->getAttributedTo() : '',
+				// `attributedTo` is always set to a full actor URI (see
+				// PostService and PollService), so it is emitted as-is. It used
+				// to be prefixed with `urlSocial`, which produced a valid value
+				// only because nothing ever calls `setUrlSocial()` on a stream —
+				// that is done on Person rows alone. The day anything did, every
+				// outgoing post would have carried a doubled URL and remote
+				// thread resolution would have stopped working.
+				'attributedTo' => $this->getAttributedTo(),
 				'inReplyTo' => $this->getInReplyTo(),
 				'sensitive' => $this->isSensitive(),
 				'conversation' => $this->getConversation()
@@ -700,17 +796,20 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				}
 			}
 		}
+		[$inReplyToId, $inReplyToAccountId] = $this->resolveInReplyTo();
+
 		$result = [
 			'local' => $this->isLocal(),
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),
-			'visibility' => $this->getVisibility(),
+			'visibility' => self::visibilityForClient($this->getVisibility()),
 			'language' => $this->getLanguage(),
-			'in_reply_to_id' => null,
-			'in_reply_to_account_id' => null,
-			'mentions' => $this->getMentions(),
+			'in_reply_to_id' => $inReplyToId,
+			'in_reply_to_account_id' => $inReplyToAccountId,
+			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
+			'tags' => $this->exportTagsAsLocal(),
 			'replies_count' => $this->getDetailInt('replies'),
 			'reblogs_count' => $this->getDetailInt('boosts'),
 			'favourites_count' => $this->getDetailInt('likes'),
@@ -725,6 +824,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'reblog' => null,
 			'media_attachments' => $this->getAttachments(),
 			'created_at' => gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z',
+			'edited_at' => $this->editedAt(),
 			'noindex' => false
 		];
 
@@ -735,6 +835,138 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return array_merge(parent::exportAsLocal(), $result);
+	}
+
+	/**
+	 * The parent of a reply, as the two numeric ids Mastodon addresses it by.
+	 *
+	 * These were hard-coded to null, and a reply with no `in_reply_to_id` is
+	 * not a reply: Elk and Phanpy render it as a fresh top-level post, and the
+	 * status handed back from `POST /statuses` lost the link the client needed
+	 * to slot it under the post being answered. The row only carries the
+	 * parent's ActivityPub id, so the numbers come from a lookup — memoised for
+	 * the request, since a thread's replies all name the same parent.
+	 *
+	 * A parent this instance has never seen has no numeric id here, and null is
+	 * then the honest answer.
+	 *
+	 * @return array{?string, ?string}
+	 */
+	private function resolveInReplyTo(): array {
+		$parentId = $this->getInReplyTo();
+		if ($parentId === '') {
+			return [null, null];
+		}
+
+		if (!array_key_exists($parentId, self::$replyParents)) {
+			self::$replyParents[$parentId] = $this->lookupParent($parentId);
+		}
+
+		[$nid, $accountNid] = self::$replyParents[$parentId];
+
+		return [
+			($nid > 0) ? (string)$nid : null,
+			($accountNid > 0) ? (string)$accountNid : null,
+		];
+	}
+
+	/**
+	 * @return array{int, int}
+	 */
+	private function lookupParent(string $parentId): array {
+		try {
+			$parent = Server::get(StreamRequest::class)->getStreamById($parentId);
+			$author = $parent->hasActor() ? $parent->getActor()->getNid() : 0;
+
+			return [$parent->getNid(), $author];
+		} catch (\Throwable $e) {
+			return [0, 0];
+		}
+	}
+
+	/** Forgets the memoised parents; for tests, which share one process. */
+	public static function resetReplyParentCache(): void {
+		self::$replyParents = [];
+	}
+
+	/**
+	 * The hashtags as Mastodon's Tag entities.
+	 *
+	 * The app used to emit its own `hashtags: ["foo"]` alongside nothing a
+	 * client recognises, so a post's tags were invisible in every client and
+	 * there was nothing to tap through to the hashtag timeline.
+	 *
+	 * @return array<array{name: string, url: string}>
+	 */
+	private function exportTagsAsLocal(): array {
+		$tags = [];
+		foreach ($this->getHashtags() as $hashtag) {
+			$hashtag = ltrim(trim((string)$hashtag), '#');
+			if ($hashtag === '') {
+				continue;
+			}
+
+			$tags[] = ['name' => $hashtag, 'url' => $this->hashtagUrl($hashtag)];
+		}
+
+		return $tags;
+	}
+
+	private function hashtagUrl(string $hashtag): string {
+		try {
+			return Server::get(IURLGenerator::class)->linkToRouteAbsolute(
+				'social.Navigation.timeline', ['path' => 'tags/' . $hashtag]
+			);
+		} catch (\Throwable $e) {
+			return '';
+		}
+	}
+
+	/**
+	 * The mentions, with every id a string.
+	 *
+	 * An unresolvable mention is stored with an integer `0` for an id, and a
+	 * client that declares the field a string fails to decode the mention —
+	 * and with it the status carrying it.
+	 */
+	private function exportMentionsAsLocal(): array {
+		return array_map(
+			static function (array $mention): array {
+				$mention['id'] = (string)($mention['id'] ?? '0');
+
+				return $mention;
+			},
+			array_values(array_filter($this->getMentions(), 'is_array'))
+		);
+	}
+
+	/**
+	 * When this status was last edited, or null if it never was.
+	 *
+	 * Nothing stores an edit timestamp of its own, but `PostService::editPost()`
+	 * stamps `published` with the moment of the edit and leaves `published_time`
+	 * — which is what `created_at` is built from — at the original. The two
+	 * agreeing means the post has not been edited since it was written.
+	 */
+	private function editedAt(): ?string {
+		$published = $this->getPublished();
+		if ($published === '' || $this->getPublishedTime() === 0) {
+			return null;
+		}
+
+		try {
+			$edited = (new DateTime($published))->getTimestamp();
+		} catch (Exception $e) {
+			return null;
+		}
+
+		// a second of slack: creating a post writes both from the same moment,
+		// but not from the same value
+		if ($edited - $this->getPublishedTime() < 2) {
+			return null;
+		}
+
+		return gmdate('Y-m-d\TH:i:s', $edited) . '.000Z';
 	}
 
 	/**
@@ -786,9 +1018,37 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
 
-		//		$result['media_attachments'] = $this->getAttachments();
-		$result['attachment'] = $this->getAttachments();
+		// `attachment` is the ActivityPub name for these; the client format
+		// already carries them as `media_attachments`, and a second copy under
+		// a key Mastodon does not define was only ever confusing.
+		if ($this->getExportFormat() !== self::FORMAT_LOCAL) {
+			$result['attachment'] = $this->getAttachments();
+		}
 
 		return $result;
+	}
+
+	/**
+	 * The client format is a fixed key set, and nothing may be filtered out of
+	 * it.
+	 *
+	 * `Note::jsonSerialize()` runs its result through `cleanArray()`, which
+	 * drops every empty string and empty list. For an ActivityPub document that
+	 * is the intent — an absent property is simply absent. For a Mastodon
+	 * status entity it is silent data loss: a post with no content warning lost
+	 * `spoiler_text`, one with no attachments lost `media_attachments`, one
+	 * that is not a reply lost `in_reply_to_id`, and a client that declares
+	 * those keys non-optional — which Mastodon's own behaviour entitles it to —
+	 * failed to decode the status, and with it the page it arrived on.
+	 *
+	 * It went unnoticed because `ApiContractTest` asserted against
+	 * `exportAsLocal()`, which is not what a client receives.
+	 */
+	protected function cleanArray(array &$arr) {
+		if ($this->getExportFormat() === self::FORMAT_LOCAL) {
+			return;
+		}
+
+		parent::cleanArray($arr);
 	}
 }

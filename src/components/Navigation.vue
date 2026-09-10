@@ -10,8 +10,11 @@
 				@update:modelValue="onSearchInput" />
 		</template>
 		<template #list>
+			<!-- no `to`, so NcAppNavigationItem renders href="#" and leaves the
+			     default action alone: without .prevent the click also pushes a
+			     bare fragment onto the history -->
 			<NcAppNavigationItem :name="t('social', 'New post')"
-				@click="showComposer = true">
+				@click.prevent="showComposer = true">
 				<template #icon>
 					<IconPlus :size="20" />
 				</template>
@@ -19,21 +22,34 @@
 
 			<NcAppNavigationItem v-if="hasErrors"
 				:name="t('social', 'Errors')"
-				:counter="errorCount"
-				@click="showErrors = true">
+				@click.prevent="showErrors = true">
 				<template #icon>
 					<IconAlertCircle class="error-icon" :size="20" />
 				</template>
+				<!-- `counter` is a slot in @nextcloud/vue 9, not a prop: passing
+				     the number as `:counter` rendered nothing at all -->
+				<template #counter>
+					<NcCounterBubble :count="errorCount" type="highlighted" />
+				</template>
 			</NcAppNavigationItem>
 
+			<!-- `href` rather than `to`: with `to`, the component ORs its own
+			     router-derived state into `active`, and vue-router counts
+			     /timeline as active while /timeline/direct is open — so Home
+			     stayed lit next to whichever timeline was actually chosen.
+			     navigate() keeps the click in the SPA while leaving a modified
+			     click (new tab, new window) to the browser. -->
 			<NcAppNavigationItem v-for="item in menu.timelines"
 				:key="item.key"
 				:name="item.title"
+				:href="hrefFor(item.to)"
 				:active="isActive(item)"
-				:counter="item.counter"
-				@click="navigate(item)">
+				@click="navigate(item.to, $event)">
 				<template #icon>
 					<component :is="item.icon" :size="20" />
+				</template>
+				<template v-if="item.counter > 0" #counter>
+					<NcCounterBubble :count="item.counter" type="highlighted" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -44,12 +60,13 @@
 				:key="`trend-${tag.name}`"
 				class="navigation__trend"
 				:name="`#${tag.name}`"
+				:href="hrefFor({ name: 'tags', params: { tag: tag.name } })"
 				:active="isTagActive(tag)"
-				@click="openTag(tag)">
+				@click="navigate({ name: 'tags', params: { tag: tag.name } }, $event)">
 				<template #icon>
 					<IconPound :size="20" />
 				</template>
-				<template #subname>
+				<template #extra>
 					<span class="navigation__subname">
 						{{ n('social', '%n post', '%n posts', usesOf(tag)) }}
 					</span>
@@ -59,8 +76,9 @@
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
 
 			<NcAppNavigationItem :name="menu.profile.title"
+				:href="hrefFor(menu.profile.to)"
 				:active="isActive(menu.profile)"
-				@click="navigate(menu.profile)">
+				@click="navigate(menu.profile.to, $event)">
 				<template #icon>
 					<NcAvatar :user="currentUser?.uid"
 						:display-name="currentUser?.displayName"
@@ -68,7 +86,7 @@
 						:disable-tooltip="true"
 						:disable-menu="true" />
 				</template>
-				<template #subname>
+				<template #extra>
 					<span class="navigation__subname">@{{ currentUser?.uid }}</span>
 				</template>
 			</NcAppNavigationItem>
@@ -77,7 +95,8 @@
 			<div class="navigation__footer">
 				<NcAppNavigationSettings :name="t('social', 'Settings')">
 					<NcAppNavigationItem :name="t('social', 'Blocked and muted accounts')"
-						:to="{ name: 'blocked-accounts' }">
+						:href="hrefFor({ name: 'blocked-accounts' })"
+						@click="navigate({ name: 'blocked-accounts' }, $event)">
 						<template #icon>
 							<IconCancel :size="20" />
 						</template>
@@ -91,7 +110,9 @@
 		:name="t('social', 'New post')"
 		@close="showComposer = false">
 		<div class="modal-composer">
-			<Composer />
+			<!-- the box emptied and the modal stayed open, which reads as if
+			     nothing had been sent -->
+			<Composer @posted="showComposer = false" />
 		</div>
 	</NcModal>
 
@@ -106,11 +127,11 @@
 				<div class="modal-errors__message">
 					{{ error.message }}
 				</div>
-				<NcButton type="tertiary" @click="dismissError(error.id)">
+				<NcButton variant="tertiary" @click="dismissError(error.id)">
 					{{ t('social', 'Dismiss') }}
 				</NcButton>
 			</div>
-			<NcButton v-if="appErrors.length > 1" type="tertiary" @click="clearAllErrors">
+			<NcButton v-if="appErrors.length > 1" variant="tertiary" @click="clearAllErrors">
 				{{ t('social', 'Dismiss all') }}
 			</NcButton>
 		</div>
@@ -127,6 +148,7 @@ import NcAppNavigationSettings from '@nextcloud/vue/components/NcAppNavigationSe
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 
 import { defineAsyncComponent } from 'vue'
 
@@ -156,6 +178,9 @@ const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "compose
 /** how often to re-read the badge when the server cannot push */
 const UNREAD_POLL_MS = 60 * 1000
 
+/** how long to let the typing settle before searching */
+const SEARCH_DEBOUNCE_MS = 300
+
 export default {
 	name: 'Navigation',
 	components: {
@@ -168,6 +193,7 @@ export default {
 		NcAvatar,
 		NcModal,
 		NcButton,
+		NcCounterBubble,
 		Composer,
 		IconHome,
 		IconBell,
@@ -192,6 +218,7 @@ export default {
 			showErrors: false,
 			stopListening: null,
 			pollTimer: null,
+			searchTimer: null,
 		}
 	},
 	computed: {
@@ -206,6 +233,10 @@ export default {
 		},
 		appErrors() {
 			return this.$store.getters.appErrors
+		},
+		/** what is being searched for, as the URL says it */
+		searchQuery() {
+			return this.$store.getters.getSearchQuery ?? ''
 		},
 		menu() {
 			return {
@@ -269,6 +300,17 @@ export default {
 			}
 		},
 	},
+	watch: {
+		// the box has to follow the store, not just read it once: synced only
+		// in mounted() it kept showing a term the reader had already navigated
+		// away from
+		searchQuery: {
+			immediate: true,
+			handler(query) {
+				this.localSearch = query
+			},
+		},
+	},
 	mounted() {
 		this.fetchTrending()
 		this.$store.dispatch('fetchUnreadNotifications')
@@ -290,6 +332,9 @@ export default {
 		}
 		if (this.pollTimer !== null) {
 			clearInterval(this.pollTimer)
+		}
+		if (this.searchTimer !== null) {
+			window.clearTimeout(this.searchTimer)
 		}
 	},
 	methods: {
@@ -321,14 +366,36 @@ export default {
 		 * @param {object} tag a Tag entity
 		 * @return {boolean} whether its timeline is the one being shown
 		 */
-		isTagActive(tag) {
-			return this.$route?.name === 'tags' && this.$route?.params?.tag === tag.name
+		/**
+		 * @param {object} to a route location
+		 * @return {string} where it points, so the entry is a real link that can
+		 *                  be opened in a new tab or copied
+		 */
+		hrefFor(to) {
+			return this.$router.resolve(to).href
+		},
+		/**
+		 * Follows the entry inside the app, unless the reader asked the browser
+		 * for something else — the modifier keys and the middle button belong to
+		 * them, which is the rule router-link itself applies.
+		 *
+		 * @param {object} to a route location
+		 * @param {MouseEvent} event the click
+		 */
+		navigate(to, event) {
+			if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0)) {
+				return
+			}
+
+			event?.preventDefault()
+			this.$router.push(to)
 		},
 		/**
 		 * @param {object} tag a Tag entity
+		 * @return {boolean} whether its timeline is the one being shown
 		 */
-		openTag(tag) {
-			this.$router.push({ name: 'tags', params: { tag: tag.name } })
+		isTagActive(tag) {
+			return this.$route?.name === 'tags' && this.$route?.params?.tag === tag.name
 		},
 		dismissError(id) {
 			this.$store.dispatch('dismissAppError', id)
@@ -336,8 +403,18 @@ export default {
 		clearAllErrors() {
 			this.$store.commit('clearErrors')
 		},
+		/**
+		 * Searching now costs a request, so it waits for the typing to stop.
+		 * Un-debounced, every keystroke went straight through.
+		 */
 		onSearchInput() {
-			this.$emit('search', this.localSearch)
+			if (this.searchTimer !== null) {
+				window.clearTimeout(this.searchTimer)
+			}
+			this.searchTimer = window.setTimeout(() => {
+				this.searchTimer = null
+				this.$emit('search', this.localSearch)
+			}, SEARCH_DEBOUNCE_MS)
 		},
 		/**
 		 * Whether an entry is the page on screen. An entry matches its own
@@ -369,9 +446,6 @@ export default {
 			}
 
 			return true
-		},
-		navigate(item) {
-			this.$router.push(item.to)
 		},
 	},
 }

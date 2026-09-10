@@ -124,16 +124,28 @@ class UnifiedSearchProvider implements IProvider {
 		$this->initViewer($user);
 		$search = trim($query->getTerm());
 
+		$limit = max(1, $query->getLimit());
+		$offset = max(0, (int)($query->getCursor() ?? 0));
+
+		// Each source is asked for one entry beyond where this page ends: that
+		// makes the merged list a faithful prefix as far as the page reaches, and
+		// the leftover is what says whether there is a next page at all. Advertising
+		// a cursor without it — which is what used to happen — made "load more"
+		// answer with the same first page for ever.
+		$reach = $offset + $limit + 1;
 		$result = array_merge(
 			$this->convertAccounts($this->searchService->searchUri($search)),
-			$this->convertAccounts($this->searchService->searchAccounts($search)),
-			$this->convertHashtags($this->searchService->searchHashtags($search)),
-			$this->convertStreams($this->searchService->searchStreamContent($search))
+			$this->convertAccounts($this->searchService->searchAccounts($search, $reach)),
+			$this->convertHashtags($this->searchService->searchHashtags($search, $reach)),
+			$this->convertStreams($this->searchService->searchStreamContent($search, $reach))
 		);
 
-		return SearchResult::paginated(
-			$this->l10n->t('Social'), $result, ($query->getCursor() ?? 0) + $query->getLimit()
-		);
+		$page = array_slice($result, $offset, $limit);
+		if (count($result) > $offset + $limit) {
+			return SearchResult::paginated($this->l10n->t('Social'), $page, $offset + $limit);
+		}
+
+		return SearchResult::complete($this->l10n->t('Social'), $page);
 	}
 
 	/**
@@ -229,10 +241,11 @@ class UnifiedSearchProvider implements IProvider {
 	private function convertHashtags(array $hashtags): array {
 		$result = [];
 		foreach ($hashtags as $hashtag) {
-			$tag = $hashtag['hashtag'];
+			$tag = $this->get('hashtag', $hashtag, '');
+			$posts = $this->getInt('10d', $this->getArray('trend', $hashtag, []), 0);
 			$result[] = new UnifiedSearchResult(
 				'',
-				$hashtag['trend']['10d'] . ' posts related to \'' . $tag . '\'',
+				$this->l10n->n('%n post related to \'%s\'', '%n posts related to \'%s\'', $posts, [$tag]),
 				'#' . $tag,
 				$this->urlGenerator->linkToRouteAbsolute(
 					'social.Navigation.timeline', ['path' => 'tags/' . $tag]

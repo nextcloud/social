@@ -1,0 +1,24 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    { "sensitive": "as:sensitive", "pt": "https://joinpeertube.org/ns#" }
+  ],
+  "type": "Create",
+  "id": "https://peertube.example/videos/watch/6f4c1e1a/activity",
+  "actor": "https://peertube.example/video-channels/news",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://peertube.example/video-channels/news/followers"],
+  "object": {
+    "type": "Video",
+    "id": "https://peertube.example/videos/watch/6f4c1e1a",
+    "name": "The state of the Fediverse",
+    "content": "<p>A talk about federation.</p>",
+    "url": "https://peertube.example/w/6f4c1e1a",
+    "attributedTo": "https://peertube.example/video-channels/news",
+    "published": "2026-02-02T09:00:00Z",
+    "sensitive": false,
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "cc": ["https://peertube.example/video-channels/news/followers"]
+  }
+}

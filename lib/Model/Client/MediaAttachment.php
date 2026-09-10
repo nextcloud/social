@@ -160,19 +160,36 @@ class MediaAttachment implements JsonSerializable {
 		return $this->asDocument();
 	}
 
+	/**
+	 * Mastodon's MediaAttachment entity.
+	 *
+	 * Every key is always present. This used to be wrapped in `array_filter()`
+	 * with no callback, which drops every *falsy* value rather than every empty
+	 * one: an attachment with no alt text lost `description`, an image with no
+	 * preview lost `preview_url`, a local upload lost `remote_url`, and the
+	 * first attachment ever cached (id `"0"`) lost its `id`. A client that
+	 * declares those keys non-optional — which Mastodon's own documentation
+	 * permits, since Mastodon always sends them — fails to decode the
+	 * attachment, and with it the whole status it hangs off.
+	 */
 	public function asLocal(): array {
-		return array_filter(
-			[
-				'id' => $this->getId(),
-				'type' => $this->getType(),
-				'url' => $this->onThisInstance($this->getUrl()),
-				'preview_url' => (string)$this->onThisInstance($this->getPreviewUrl()),
-				'remote_url' => $this->getRemoteUrl(),
-				'meta' => $this->getMeta(),
-				'description' => $this->getDescription(),
-				'blurhash' => $this->getBlurHash()
-			]
-		);
+		$meta = $this->getMeta()?->jsonSerialize();
+		$preview = $this->onThisInstance($this->getPreviewUrl());
+		$remote = $this->getRemoteUrl();
+
+		return [
+			'id' => $this->getId(),
+			'type' => $this->getType(),
+			'url' => $this->onThisInstance($this->getUrl()),
+			'preview_url' => ($preview === null || $preview === '') ? null : $preview,
+			'remote_url' => ($remote === null || $remote === '') ? null : $remote,
+			// `meta` is an object on the wire, never a list: an empty
+			// AttachmentMeta json-encodes as `[]`, which a client decoding a
+			// dictionary rejects
+			'meta' => ($meta === null || $meta === []) ? null : (object)$meta,
+			'description' => ($this->getDescription() === '') ? null : $this->getDescription(),
+			'blurhash' => ($this->getBlurHash() === '') ? null : $this->getBlurHash(),
+		];
 	}
 
 	/**

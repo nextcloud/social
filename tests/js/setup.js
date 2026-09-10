@@ -15,7 +15,10 @@ import { vi } from 'vitest'
 
 const translate = (app, text, vars = {}) => Object.entries(vars)
 	.reduce((str, [key, value]) => str.replaceAll(`{${key}}`, String(value)), text)
-const translatePlural = (app, singular, plural, count, vars = {}) => translate(app, count === 1 ? singular : plural, { count, ...vars })
+// %n is what @nextcloud/l10n substitutes the count into; leaving it in place
+// made every plural assertion read '%n character left'
+const translatePlural = (app, singular, plural, count, vars = {}) =>
+	translate(app, (count === 1 ? singular : plural).replaceAll('%n', String(count)), { count, ...vars })
 
 globalThis.t = translate
 globalThis.n = translatePlural

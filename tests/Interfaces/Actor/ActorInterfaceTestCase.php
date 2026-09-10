@@ -14,7 +14,9 @@ use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -52,6 +54,10 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 	protected $streamRequest;
 	/** @var StreamDestRequest&MockObject */
 	protected $streamDestRequest;
+	/** @var StreamActionsRequest&MockObject */
+	protected $streamActionsRequest;
+	/** @var ReportsRequest&MockObject */
+	protected $reportsRequest;
 	/** @var ActorService&MockObject */
 	protected $actorService;
 	protected PersonInterface $handler;
@@ -73,6 +79,8 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->requestQueueRequest = $this->createMock(RequestQueueRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
+		$this->streamActionsRequest = $this->createMock(StreamActionsRequest::class);
+		$this->reportsRequest = $this->createMock(ReportsRequest::class);
 		$this->actorService = $this->createMock(ActorService::class);
 
 		$this->handler = $this->createHandler();
@@ -142,6 +150,9 @@ abstract class ActorInterfaceTestCase extends ActivityPubTestCase {
 		$this->actorRelationRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
 		$this->streamRequest->expects($this->once())->method('deleteByAuthor')->with(self::BOB);
 		$this->streamDestRequest->expects($this->once())->method('deleteRelatedToActor')->with(self::BOB);
+		// their own likes, boosts, bookmarks and votes, and the reports either way
+		$this->streamActionsRequest->expects($this->once())->method('deleteByActor')->with(self::BOB);
+		$this->reportsRequest->expects($this->once())->method('deleteRelatedId')->with(self::BOB);
 
 		$this->handler->activity($delete, $bob);
 	}

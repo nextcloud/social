@@ -53,6 +53,31 @@ describe('Poll', () => {
 		expect(wrapper.find('button').attributes('disabled')).toBeDefined()
 	})
 
+	it('gives every poll on the page its own radio group', async () => {
+		// `name="poll-option"` was a literal, and the inputs are not inside a
+		// <form>: the group was document-wide, so choosing in one poll cleared
+		// another's selection on screen while its `selected` stayed as it was
+		// — and it went on to submit the choice nobody could see any more
+		const host = document.createElement('div')
+		document.body.appendChild(host)
+		const first = mount(Poll, { props: { poll: makePoll() }, attachTo: host })
+		const second = mount(Poll, { props: { poll: makePoll({ id: '43' }) }, attachTo: host })
+
+		const groups = [...first.findAll('input'), ...second.findAll('input')].map((input) => input.attributes('name'))
+		expect(new Set(groups).size).toBe(2)
+
+		await first.findAll('input')[0].setValue(true)
+		await second.findAll('input')[1].setValue(true)
+
+		expect(first.findAll('input')[0].element.checked).toBe(true)
+		expect(first.vm.selectedIndices).toEqual([0])
+		expect(second.vm.selectedIndices).toEqual([1])
+
+		first.unmount()
+		second.unmount()
+		host.remove()
+	})
+
 	it('uses checkboxes for multiple-choice polls', () => {
 		const wrapper = mountPoll(makePoll({ multiple: true }))
 

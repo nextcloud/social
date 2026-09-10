@@ -79,6 +79,9 @@ class Request implements JsonSerializable {
 	/** @var int */
 	private $timeout = 10;
 
+	/** Seconds allowed for DNS+TCP+TLS alone; 0 means "share the read budget". */
+	private int $connectTimeout = 0;
+
 	/** @var string */
 	private $userAgent = '';
 
@@ -665,6 +668,20 @@ class Request implements JsonSerializable {
 	}
 
 	/**
+	 * @return int 0 when no separate budget was set: reaching the peer may then
+	 *             use the whole read timeout
+	 */
+	public function getConnectTimeout(): int {
+		return $this->connectTimeout;
+	}
+
+	public function setConnectTimeout(int $connectTimeout): Request {
+		$this->connectTimeout = $connectTimeout;
+
+		return $this;
+	}
+
+	/**
 	 * @return string
 	 */
 	public function getUserAgent(): string {
@@ -729,6 +746,7 @@ class Request implements JsonSerializable {
 			'host' => $this->getHost(),
 			'url' => $this->getPath(),
 			'timeout' => $this->getTimeout(),
+			'connectTimeout' => $this->getConnectTimeout(),
 			'type' => $this->getType(),
 			'cookies' => $this->getCookies(),
 			'headers' => $this->getHeaders(),

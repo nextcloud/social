@@ -14,10 +14,10 @@
 				name="requesttoken"
 				:value="OC.requestToken">
 			<div class="button-row">
-				<NcButton type="primary" native-type="submit">
+				<NcButton variant="primary" type="submit">
 					{{ t('social', 'Authorize') }}
 				</NcButton>
-				<NcButton type="error" :href="homeUrl">
+				<NcButton variant="error" :href="homeUrl">
 					{{ t('social', 'Deny') }}
 				</NcButton>
 			</div>

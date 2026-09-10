@@ -43,6 +43,12 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		$this->cacheActorService = $cacheActorService;
 	}
 
+	/**
+	 * A dest row is what puts a post in a timeline, so a failure here is a post
+	 * that exists and is in nobody's timeline — permanently, and until now
+	 * invisibly. The duplicate case is expected (the same recipient can appear
+	 * in both `to` and `cc`) and stays quiet; anything else is logged.
+	 */
 	public function create(string $streamId, string $actorId, string $type, string $subType = '') {
 		$qb = $this->getStreamDestInsertSql();
 
@@ -54,6 +60,17 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		try {
 			$qb->executeStatement();
 		} catch (DBException $e) {
+			if ($e->getReason() === DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				return;
+			}
+
+			$this->logger->error('could not store the recipient of a stream', [
+				'streamId' => $streamId,
+				'actorId' => $actorId,
+				'type' => $type,
+				'subtype' => $subType,
+				'exception' => $e,
+			]);
 		}
 	}
 
@@ -145,8 +162,11 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 *
 	 * @return StreamDest[]
 	 */
-	public function getRelatedToActor(Person $actor): array {
+	public function getRelatedToActor(Person $actor, int $limit = 0): array {
 		$qb = $this->getStreamDestSelectSql();
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
 		$orX = $qb->expr()->orX(
 			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getId())),
 			$qb->exprLimitToDBField('actor_id', $qb->prim($actor->getFollowers())),
@@ -162,7 +182,9 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 */
 	public function deleteRelatedToActor(string $actorId): void {
 		$qb = $this->getStreamDestDeleteSql();
-		$qb->limitToActorId($qb->prim($actorId));
+		// actor_id holds the prim already, so it is matched as it stands:
+		// LOWER() over it only defeated the social_sd_at index
+		$qb->limitToDBField('actor_id', $qb->prim($actorId));
 
 		$qb->executeStatement();
 	}
@@ -173,7 +195,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	public function moveActor(string $actorId, string $newId): void {
 		$qb = $this->getStreamDestUpdateSql();
 		$qb->set('actor_id', $qb->createNamedParameter($qb->prim($newId)));
-		$qb->limitToActorId($qb->prim($actorId));
+		$qb->limitToDBField('actor_id', $qb->prim($actorId));
 
 		$qb->executeStatement();
 	}

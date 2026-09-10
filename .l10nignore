@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Paths the translation extractor must not read.
+#
+# js/ holds the built bundle: the same strings as src/, so extracting both only
+# duplicates every source reference. node_modules/ and vendor/ are third-party
+# code translated by their own projects, and cypress/ and tests/ are not shipped.
+js/
+build/
+node_modules/
+vendor/
+vendor-bin/
+cypress/
+tests/

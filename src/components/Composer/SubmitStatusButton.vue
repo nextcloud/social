@@ -5,7 +5,7 @@
 <template>
 	<NcButton :value="currentVisibilityPostLabel"
 		:disabled="disabled"
-		type="primary"
+		variant="primary"
 		@click.prevent="handleClick">
 		<template #icon>
 			<Send title="" :size="22" decorative />

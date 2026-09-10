@@ -17,8 +17,7 @@
 		</span>
 		<NcAvatar v-if="isLocal"
 			class="messages__avatar__icon"
-			:show-user-status="false"
-			menu-position="left"
+			:hide-status="true"
 			:user="item.account.username"
 			:display-name="item.account.display_name"
 			:disable-tooltip="true" />

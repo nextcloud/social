@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\ActivityPub;
 
 use OCA\Social\AP;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -46,6 +47,7 @@ class StreamTest extends TestCase {
 
 	protected function tearDown(): void {
 		date_default_timezone_set($this->timezone);
+		Stream::resetReplyParentCache();
 		AP::$activityPub = null;
 		\OC::$server->reset();
 	}
@@ -165,6 +167,53 @@ class StreamTest extends TestCase {
 		$this->assertStringEndsWith('.png', $attachments[1]->getUrl());
 	}
 
+	public function testAnAbsurdAttachmentListIsCappedRatherThanImported(): void {
+		// a signed Create is authenticated, not trusted: each entry is a row
+		// written and a file queued inside the inbox request
+		$this->apInterface(DocumentInterface::class)
+			->expects($this->exactly(Stream::MAX_ATTACHMENTS))->method('save');
+
+		$attachments = [];
+		for ($i = 0; $i < 5000; $i++) {
+			$attachments[] = [
+				'type' => 'Document',
+				'mediaType' => 'image/jpeg',
+				'url' => 'https://files.mastodon.social/media/' . $i . '.jpg',
+			];
+		}
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => $attachments,
+		]);
+
+		$this->assertCount(Stream::MAX_ATTACHMENTS, $stream->getAttachments());
+	}
+
+	public function testAnOrdinaryPostKeepsEveryAttachment(): void {
+		$this->apInterface(DocumentInterface::class)->expects($this->exactly(4))->method('save');
+
+		$attachments = [];
+		for ($i = 0; $i < 4; $i++) {
+			$attachments[] = [
+				'type' => 'Document',
+				'mediaType' => 'image/jpeg',
+				'url' => 'https://files.mastodon.social/media/' . $i . '.jpg',
+			];
+		}
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => $attachments,
+		]);
+
+		$this->assertCount(4, $stream->getAttachments());
+	}
+
 	public function testConvertPublishedIgnoresUnparsableDates(): void {
 		$stream = new Stream();
 		$stream->setPublished('not a date');
@@ -181,7 +230,9 @@ class StreamTest extends TestCase {
 			->setInReplyTo('https://mastodon.social/users/bob/statuses/2')
 			->setSensitive(true)
 			->setConversation('https://cloud.example.org/conv/1')
-			->setAttributedTo('@alice')
+			// a full actor URI, which is what every caller passes; it is
+			// emitted verbatim rather than being prefixed with urlSocial
+			->setAttributedTo('https://cloud.example.org/apps/social/@alice')
 			->setUrlSocial('https://cloud.example.org/apps/social/');
 
 		$export = $stream->exportAsActivityPub();
@@ -384,6 +435,101 @@ class StreamTest extends TestCase {
 		$this->assertSame([$media], $stream->jsonSerialize()['attachment']);
 	}
 
+	/**
+	 * `attachment` is the ActivityPub name; the client format already carries
+	 * the same list as `media_attachments`, and a second copy under a key
+	 * Mastodon does not define was only ever confusing.
+	 */
+	public function testTheClientFormatHasNoActivityPubAttachmentKey(): void {
+		$stream = new Note();
+		$stream->setAttachments([(new MediaAttachment())->setId('4')]);
+		$stream->setExportFormat(ACore::FORMAT_LOCAL);
+
+		$serialised = $stream->jsonSerialize();
+
+		$this->assertArrayNotHasKey('attachment', $serialised);
+		$this->assertArrayHasKey('media_attachments', $serialised);
+	}
+
+	/**
+	 * A reply with no `in_reply_to_id` is not a reply: Elk and Phanpy render it
+	 * as a fresh top-level post, and the status handed back from `POST
+	 * /statuses` lost the link the client needed to slot it under the post
+	 * being answered. The row only carries the parent's ActivityPub id, so the
+	 * two numbers come from a lookup.
+	 */
+	public function testAReplyCarriesTheParentsNumericIdsAndItsAuthors(): void {
+		$parentActor = new Person();
+		$parentActor->setNid(3);
+		$parent = new Note();
+		$parent->setNid(11)->setActor($parentActor);
+
+		$streamRequest = $this->createMock(StreamRequest::class);
+		$streamRequest->expects($this->once())
+			->method('getStreamById')
+			->with('https://cloud.example.org/apps/social/@bob/1')
+			->willReturn($parent);
+		\OC::$server->register(StreamRequest::class, $streamRequest);
+
+		$reply = new Note();
+		$reply->setNid(12)->setInReplyTo('https://cloud.example.org/apps/social/@bob/1');
+
+		$status = $reply->exportAsLocal();
+
+		$this->assertSame('11', $status['in_reply_to_id']);
+		$this->assertSame('3', $status['in_reply_to_account_id']);
+	}
+
+	public function testTheResolvedParentIsLookedUpOncePerRequest(): void {
+		$parent = new Note();
+		$parent->setNid(11);
+
+		$streamRequest = $this->createMock(StreamRequest::class);
+		// a thread's replies all name the same parent, and a page of them must
+		// not be a query each
+		$streamRequest->expects($this->once())->method('getStreamById')->willReturn($parent);
+		\OC::$server->register(StreamRequest::class, $streamRequest);
+
+		foreach ([13, 14, 15] as $nid) {
+			$reply = new Note();
+			$reply->setNid($nid)->setInReplyTo('https://cloud.example.org/apps/social/@bob/1');
+
+			$this->assertSame('11', $reply->exportAsLocal()['in_reply_to_id']);
+		}
+	}
+
+	public function testAStatusThatIsNotAReplyHasNoParent(): void {
+		$status = (new Note())->setNid(4)->exportAsLocal();
+
+		$this->assertNull($status['in_reply_to_id']);
+		$this->assertNull($status['in_reply_to_account_id']);
+	}
+
+	/**
+	 * Nothing stores an edit timestamp of its own, but `PostService::editPost()`
+	 * stamps `published` with the moment of the edit and leaves
+	 * `published_time` — which `created_at` is built from — at the original.
+	 */
+	public function testEditedAtIsNullForAPostThatWasNeverEdited(): void {
+		$stream = new Note();
+		$stream->setNid(4)->setPublishedTime(1714564800);
+		$stream->setPublished('2024-05-01T12:00:00+00:00');
+
+		$this->assertNull($stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testEditedAtIsWhenThePublishedStampMovedPastTheCreation(): void {
+		$stream = new Note();
+		$stream->setNid(4)->setPublishedTime(1714564800);
+		$stream->setPublished('2024-05-02T09:30:00+00:00');
+
+		$this->assertSame('2024-05-02T09:30:00.000Z', $stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testEditedAtIsNullWithoutAPublishedStampToCompare(): void {
+		$this->assertNull((new Note())->setNid(4)->exportAsLocal()['edited_at']);
+	}
+
 	public function testImportFromLocalReadsAMastodonStatus(): void {
 		$stream = new Stream();
 
@@ -473,6 +619,43 @@ class StreamTest extends TestCase {
 		$this->assertSame(ACore::FORMAT_LOCAL, $actor->getExportFormat());
 	}
 
+	/**
+	 * The flag had no column, so a status read back from the database reported
+	 * sensitive only when it also carried a content warning: a client marking
+	 * its media sensitive was answered 200 and the media then rendered
+	 * unblurred everywhere the post was read again.
+	 */
+	public function testSensitiveSurvivesADatabaseRoundTrip(): void {
+		$stream = new Stream();
+		$stream->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'published_time' => '2024-05-01 12:00:00',
+			'content' => 'look away',
+			'visibility' => 'public',
+			'sensitive' => '1',
+			'details' => '{}',
+		]);
+
+		$this->assertTrue($stream->isSensitive());
+		$this->assertSame('', $stream->getSpoilerText(), 'no content warning is standing in for the flag');
+	}
+
+	public function testAStreamStoredWithoutTheFlagIsNotSensitive(): void {
+		$stream = new Stream();
+		$stream->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice/statuses/2',
+			'type' => 'Note',
+			'published_time' => '2024-05-01 12:00:00',
+			'content' => 'hello',
+			'visibility' => 'public',
+			'sensitive' => '0',
+			'details' => '{}',
+		]);
+
+		$this->assertFalse($stream->isSensitive());
+	}
+
 	public function testImportFromDatabaseFillsRemoteCountsFromTheSource(): void {
 		$stream = new Stream();
 
@@ -548,5 +731,57 @@ class StreamTest extends TestCase {
 
 		$stream->setSensitive(true);
 		$this->assertTrue($stream->isSensitive());
+	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public function clientVisibilityProvider(): array {
+		return [
+			'public' => ['public', Stream::TYPE_PUBLIC],
+			'unlisted' => ['unlisted', Stream::TYPE_UNLISTED],
+			'private is our followers' => ['private', Stream::TYPE_FOLLOWERS],
+			'followers is accepted as-is' => ['followers', Stream::TYPE_FOLLOWERS],
+			'direct' => ['direct', Stream::TYPE_DIRECT],
+			'unknown is never public' => ['nonsense', Stream::TYPE_DIRECT],
+		];
+	}
+
+	/**
+	 * @dataProvider clientVisibilityProvider
+	 */
+	public function testVisibilityFromClient(string $sent, string $expected): void {
+		$this->assertSame($expected, Stream::visibilityFromClient($sent));
+	}
+
+	public function testVisibilityForClientSpeaksMastodon(): void {
+		// `followers` is ours and means nothing to a client; every Mastodon
+		// client expects `private` and some fail to decode the status without it
+		$this->assertSame('private', Stream::visibilityForClient(Stream::TYPE_FOLLOWERS));
+		$this->assertSame('public', Stream::visibilityForClient(Stream::TYPE_PUBLIC));
+		$this->assertSame('unlisted', Stream::visibilityForClient(Stream::TYPE_UNLISTED));
+		$this->assertSame('direct', Stream::visibilityForClient(Stream::TYPE_DIRECT));
+	}
+
+	public function testIsKnownClientVisibility(): void {
+		$this->assertTrue(Stream::isKnownClientVisibility('private'));
+		$this->assertTrue(Stream::isKnownClientVisibility('PUBLIC'));
+		$this->assertFalse(Stream::isKnownClientVisibility('nonsense'));
+		$this->assertFalse(Stream::isKnownClientVisibility(''));
+	}
+
+	public function testAFollowersOnlyStatusIsExportedAsPrivate(): void {
+		$stream = new Stream();
+		$stream->setVisibility(Stream::TYPE_FOLLOWERS);
+
+		$this->assertSame('private', $stream->exportAsLocal()['visibility']);
+	}
+
+	public function testAClientVisibilityRoundTripsThroughImportAndExport(): void {
+		$stream = new Stream();
+		$stream->importFromLocal(['visibility' => 'private']);
+
+		$this->assertSame(Stream::TYPE_FOLLOWERS, $stream->getVisibility());
+		$this->assertSame('private', $stream->exportAsLocal()['visibility']);
 	}
 }

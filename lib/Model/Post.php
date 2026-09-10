@@ -12,6 +12,7 @@ namespace OCA\Social\Model;
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -33,6 +34,9 @@ class Post implements JsonSerializable {
 
 	/** the content warning, hiding the body until the reader asks for it */
 	private string $spoilerText = '';
+
+	/** whether the attachments are shown blurred until the reader asks for them */
+	private bool $sensitive = false;
 
 	/** @var string[] */
 	private array $attachments = [];
@@ -116,12 +120,18 @@ class Post implements JsonSerializable {
 	}
 
 	/**
+	 * The post's visibility, normalised into this app's own vocabulary. Every
+	 * creation path funnels through here — the web UI already speaks it, while
+	 * a Mastodon client says `private` for followers-only — so this is the one
+	 * place that has to get it right. An unrecognised value becomes `direct`
+	 * rather than public; see `Stream::visibilityFromClient()`.
+	 *
 	 * @param string $type
 	 *
 	 * @return Post
 	 */
 	public function setType(string $type): Post {
-		$this->type = $type;
+		$this->type = Stream::visibilityFromClient($type);
 
 		return $this;
 	}
@@ -188,6 +198,16 @@ class Post implements JsonSerializable {
 	 */
 	public function setPoll(?array $poll): self {
 		$this->poll = $poll;
+
+		return $this;
+	}
+
+	public function isSensitive(): bool {
+		return $this->sensitive;
+	}
+
+	public function setSensitive(bool $sensitive): self {
+		$this->sensitive = $sensitive;
 
 		return $this;
 	}

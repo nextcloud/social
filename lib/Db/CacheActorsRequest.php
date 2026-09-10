@@ -132,7 +132,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		}
 
 		$qb->set('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
-		$qb->limitToIdString($actor->getId());
+		$this->limitToIdPrimString($qb, $actor->getId());
 
 		return $qb->executeStatement();
 	}
@@ -149,7 +149,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$qb->limitToIdString($actor->getId());
+		$this->limitToIdPrimString($qb, $actor->getId());
 
 		return $qb->executeStatement();
 	}
@@ -164,10 +164,47 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromId(string $id): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$qb->limitToIdString($id);
+		$this->limitToIdPrimString($qb, $id);
 		$qb->leftJoinCacheDocuments('icon_id');
 
 		return $this->getCacheActorFromRequest($qb);
+	}
+
+	/**
+	 * The cached actors behind a set of ids, in one query.
+	 *
+	 * For the callers that hold a list of actor ids and want whatever is known
+	 * about them — a page of reports, a page of blocks — instead of a lookup,
+	 * and a federated fetch on every miss, per row.
+	 *
+	 * @param string[] $ids
+	 *
+	 * @return Person[] keyed by actor id; ids that are not cached are absent
+	 */
+	public function getFromIds(array $ids): array {
+		$qb = $this->getCacheActorsSelectSql();
+
+		$prims = [];
+		foreach ($ids as $id) {
+			$prim = $qb->prim($id);
+			if ($prim !== '') {
+				$prims[$prim] = $prim;
+			}
+		}
+
+		if ($prims === []) {
+			return [];
+		}
+
+		$qb->limitInArray('id_prim', array_values($prims));
+		$qb->leftJoinCacheDocuments('icon_id');
+
+		$actors = [];
+		foreach ($this->getCacheActorsFromRequest($qb) as $actor) {
+			$actors[$actor->getId()] = $actor;
+		}
+
+		return $actors;
 	}
 
 	/**
@@ -248,7 +285,13 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			$date = new DateTime('now');
 			$date->sub(new DateInterval('PT' . self::DETAILS_TTL . 'M'));
 			$qb->limitToDBFieldDateTime('details_update', $date, true);
+			// three outbound requests per actor (followers, following, outbox),
+			// so one cron pass takes a bounded batch just as the sibling above
+			// does — the rest are picked up by the next pass
+			$qb->setMaxResults(self::SYNC_BATCH);
 		}
+
+		$qb->orderBy('ca.details_update', 'asc');
 
 		return $this->getCacheActorsFromRequest($qb);
 	}
@@ -271,7 +314,11 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	public function getSharedInboxes(): array {
 		$qb = $this->getQueryBuilder();
 		$qb->selectDistinct('shared_inbox')
-			->from(self::TABLE_CACHE_ACTORS);
+			->from(self::TABLE_CACHE_ACTORS)
+			// an actor with no shared inbox used to come back as '', which the
+			// caller then turned into a delivery to the host ''
+			->where($qb->expr()->neq('shared_inbox', $qb->createNamedParameter('')))
+			->andWhere($qb->expr()->eq('local', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 		$inbox = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {

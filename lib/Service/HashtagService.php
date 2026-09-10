@@ -14,7 +14,6 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -80,23 +79,46 @@ class HashtagService {
 
 		$time = time();
 		$hashtags = [
-			'1h' => $this->getTrendSince($time - self::TREND_1H),
-			'12h' => $this->getTrendSince($time - self::TREND_12H),
-			'1d' => $this->getTrendSince($time - self::TREND_1D),
-			'3d' => $this->getTrendSince($time - self::TREND_3D),
-			'10d' => $this->getTrendSince($time - self::TREND_10D)
+			'1h' => $this->streamRequest->countHashtagsSince($time - self::TREND_1H),
+			'12h' => $this->streamRequest->countHashtagsSince($time - self::TREND_12H),
+			'1d' => $this->streamRequest->countHashtagsSince($time - self::TREND_1D),
+			'3d' => $this->streamRequest->countHashtagsSince($time - self::TREND_3D),
+			'10d' => $this->streamRequest->countHashtagsSince($time - self::TREND_10D)
 		];
 
 		$count = 0;
 		$formatted = $this->formatTrend($hashtags);
+
+		// a hashtag that has fallen out of the widest window keeps whatever it
+		// last scored otherwise, and stays "trending" for good
+		foreach ($current as $item) {
+			$hashtag = $this->get('hashtag', $item, '');
+			if ($hashtag !== '' && !array_key_exists($hashtag, $formatted)
+				&& array_sum($this->getArray('trend', $item, [])) > 0) {
+				$formatted[$hashtag] = array_fill_keys(self::PERIODS, 0);
+			}
+		}
+
 		foreach ($formatted as $hashtag => $trend) {
-			$count++;
 			try {
-				$this->getFromList($current, $hashtag);
+				$known = $this->getFromList($current, $hashtag);
+				if ($this->getArray('trend', $known, []) === $trend
+					&& $this->getArray('counters', $known, []) === $trend) {
+					// nothing moved for this hashtag since the last pass, and
+					// the sortable columns agree with the JSON. The second half
+					// matters on an instance upgraded from a version that had
+					// no columns: its JSON is right and its columns are zero,
+					// and on a quiet instance the counts never move again — so
+					// without this the row would stay out of the trends for
+					// good, because getTrending() reads the columns.
+					continue;
+				}
+
 				$this->hashtagsRequest->update($hashtag, $trend);
 			} catch (HashtagDoesNotExistException $e) {
 				$this->hashtagsRequest->save($hashtag, $trend);
 			}
+			$count++;
 		}
 
 		return $count;
@@ -127,38 +149,8 @@ class HashtagService {
 	}
 
 	/**
-	 * @param int $timestamp
-	 *
-	 * @return int[]
-	 * @throws DateTimeException
-	 * @psalm-return array<int>
-	 */
-	private function getTrendSince(int $timestamp): array {
-		$result = [];
-
-		$notes = $this->streamRequest->getNoteSince($timestamp);
-		foreach ($notes as $note) {
-			/** @var Note $note */
-			foreach ($note->getHashtags() as $hashtag) {
-				if (array_key_exists($hashtag, $result)) {
-					$result[$hashtag]++;
-				} else {
-					$result[$hashtag] = 1;
-				}
-			}
-		}
-
-		return $result;
-	}
-
-	/**
 	 * The hashtags used most within one of the windows the cron already
-	 * counts, most used first.
-	 *
-	 * The counts live in a JSON column, which no supported database can be
-	 * asked to sort on portably, so the rows are ordered here. The table holds
-	 * one row per hashtag the instance has ever seen — small enough that this
-	 * is cheaper than a schema for it.
+	 * counts, most used first — ordered and cut by the database.
 	 *
 	 * @param int $limit how many to return
 	 * @param string $period one of 1h, 12h, 1d, 3d, 10d
@@ -170,18 +162,7 @@ class HashtagService {
 			$period = self::PERIOD_DEFAULT;
 		}
 
-		$hashtags = array_filter(
-			$this->hashtagsRequest->getAll(),
-			static fn (array $hashtag): bool => (int)($hashtag['trend'][$period] ?? 0) > 0
-		);
-
-		usort(
-			$hashtags,
-			static fn (array $first, array $second): int => ((int)($second['trend'][$period] ?? 0))
-				<=> ((int)($first['trend'][$period] ?? 0))
-		);
-
-		return array_slice(array_values($hashtags), 0, max(1, $limit));
+		return $this->hashtagsRequest->getTrending($period, $limit);
 	}
 
 	/**
