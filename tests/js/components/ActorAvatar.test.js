@@ -4,6 +4,7 @@
  */
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import ActorAvatar from '../../../src/components/ActorAvatar.vue'
 
 // NcAvatar loads images asynchronously and never renders an <img> in jsdom,
@@ -63,6 +64,26 @@ describe('ActorAvatar', () => {
 	it('resolves a remote actor without an avatar through the proxy endpoint, by its escaped ActivityPub id', () => {
 		const avatar = mountAvatar({ actor: { ...remote, avatar: undefined } }).findComponent(NcAvatarStub)
 		expect(avatar.props('url')).toBe(`${AVATAR_ENDPOINT}https%3A%2F%2Fremote.example%2Fusers%2Fbob`)
+	})
+
+	it('previews the actor when the avatar is hovered', () => {
+		const card = mountAvatar({ actor: remote }).findComponent(AccountHoverCard)
+		expect(card.props('handle')).toBe('bob@remote.example')
+		expect(card.props('fallback')).toStrictEqual(remote)
+		expect(card.vm.shown).toBe(false)
+		expect(card.findComponent(NcAvatarStub).props('url')).toBe(remote.avatar)
+	})
+
+	it('can be asked for a plain avatar with no preview', () => {
+		const wrapper = mountAvatar({ actor: remote, hoverCard: false })
+		expect(wrapper.findComponent(AccountHoverCard).exists()).toBe(false)
+		expect(wrapper.findComponent(NcAvatarStub).props('url')).toBe(remote.avatar)
+	})
+
+	it('shows no preview for an actor with no handle to look up', () => {
+		const wrapper = mountAvatar({ actor: { username: '', acct: '' } })
+		expect(wrapper.findComponent(AccountHoverCard).exists()).toBe(false)
+		expect(wrapper.findComponent(NcAvatarStub).exists()).toBe(true)
 	})
 
 	it('still shows a remote actor that has neither an avatar nor an ActivityPub id', () => {

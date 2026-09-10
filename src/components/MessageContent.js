@@ -4,6 +4,7 @@
  */
 
 import { h, resolveComponent } from 'vue'
+import AccountHoverCard from './AccountHoverCard.vue'
 import Emoji from './Emoji.vue'
 import { isAllowedUrl } from '../utils/sanitizeHtml.js'
 
@@ -126,6 +127,22 @@ export function emojifyPlain(hFn, text, emojis) {
 }
 
 /**
+ * Hang an account preview off a mention.
+ *
+ * The link itself is untouched — it keeps its href, its target and its place
+ * in the run of text — and the card is a sibling of the text flow that only
+ * exists once it is opened.
+ *
+ * @param {Function} hFn - the render function
+ * @param {string} handle - the account handle, without the leading @
+ * @param {object} link - the rendered mention link
+ * @return {object} the link, wrapped
+ */
+function withHoverCard(hFn, handle, link) {
+	return hFn(AccountHoverCard, { handle }, { default: () => [link] })
+}
+
+/**
  *
  * @param hFn
  * @param routerLink
@@ -154,7 +171,7 @@ function transformText(hFn, routerLink, text, context = {}) {
 			regex: mentionRegex,
 			onMatch: match => [
 				match[1],
-				hFn(routerLink,
+				withHoverCard(hFn, match[2].slice(1), hFn(routerLink,
 					{
 						to: {
 							name: 'profile',
@@ -162,7 +179,7 @@ function transformText(hFn, routerLink, text, context = {}) {
 						},
 					},
 					[match[3]],
-				),
+				)),
 			],
 		},
 		{
@@ -224,7 +241,7 @@ function cleanLink(hFn, routerLink, node, context) {
 			attributes.href = safeHref(node)
 			attributes.title = tag.name
 
-			return hFn('a', attributes, [transformText(hFn, routerLink, node.textContent, context)])
+			return withHoverCard(hFn, tag.acct, hFn('a', attributes, [transformText(hFn, routerLink, node.textContent, context)]))
 		} else {
 			return transformText(hFn, routerLink, node.textContent, context)
 		}

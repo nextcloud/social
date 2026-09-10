@@ -6,6 +6,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import MessageContent from '../../../src/components/MessageContent.js'
 
 const Empty = { template: '<div />' }
@@ -180,6 +181,46 @@ describe('MessageContent', () => {
 			)
 
 			expect(wrapper.text()).toBe('@bob hi')
+		})
+	})
+
+	describe('account preview', () => {
+		it('hangs a hover card off a handle written in plain text', () => {
+			const wrapper = mountContent('<p>cc @carol@other.example thanks</p>')
+
+			const cards = wrapper.findAllComponents(AccountHoverCard)
+			expect(cards).toHaveLength(1)
+			expect(cards[0].props('handle')).toBe('carol@other.example')
+			// the link inside it is untouched
+			expect(cards[0].find('a').attributes('href')).toBe('/apps/social/@carol@other.example')
+		})
+
+		it('hangs a hover card off a mention anchor, using the handle the status carries', () => {
+			// the anchor says @bob, the status says who that is
+			const wrapper = mountContent(
+				'<p><a href="https://remote.example/@bob" class="u-url mention">@bob</a> hi</p>',
+				{ mentions: [{ id: '9', username: 'bob', acct: 'bob@remote.example', url: 'https://remote.example/@bob' }] },
+			)
+
+			const card = wrapper.findComponent(AccountHoverCard)
+			expect(card.props('handle')).toBe('bob@remote.example')
+			expect(card.find('a').attributes('href')).toBe('https://remote.example/@bob')
+		})
+
+		it('leaves hashtags, ordinary links and mentions the status does not list alone', () => {
+			const wrapper = mountContent('<p><a href="https://mastodon.example/tags/x" class="mention hashtag">#x</a>'
+				+ ' <a href="https://example.org/x">link</a>'
+				+ ' <a href="https://evil.example/@bob" class="mention">@bob</a> #plain</p>')
+
+			expect(wrapper.findAllComponents(AccountHoverCard)).toHaveLength(0)
+		})
+
+		it('shows nothing and asks for nothing until somebody hovers', () => {
+			const wrapper = mountContent('<p>cc @carol@other.example thanks</p>')
+
+			expect(wrapper.findComponent(AccountHoverCard).vm.shown).toBe(false)
+			expect(document.querySelector('.account-hover-card')).toBeNull()
+			expect(wrapper.text()).toBe('cc @carol thanks')
 		})
 	})
 

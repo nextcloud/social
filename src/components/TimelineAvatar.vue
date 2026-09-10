@@ -15,26 +15,33 @@
 		<span v-if="!origin.local" class="hidden-visually">
 			{{ t('social', 'Account on {instance}', { instance: origin.instance }) }}
 		</span>
-		<NcAvatar v-if="isLocal"
-			class="messages__avatar__icon"
-			:hide-status="true"
-			:user="item.account.username"
-			:display-name="item.account.display_name"
-			:disable-tooltip="true" />
-		<NcAvatar v-else
-			:url="item.account.avatar"
-			:disable-tooltip="true" />
+		<AccountHoverCard :handle="item.account.acct"
+			:fallback="item.account"
+			variant="block"
+			placement="bottom-start">
+			<NcAvatar v-if="isLocal"
+				class="messages__avatar__icon"
+				:hide-status="true"
+				:user="item.account.username"
+				:display-name="item.account.display_name"
+				:disable-tooltip="true" />
+			<NcAvatar v-else
+				:url="item.account.avatar"
+				:disable-tooltip="true" />
+		</AccountHoverCard>
 	</div>
 </template>
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import { translate } from '@nextcloud/l10n'
+import AccountHoverCard from './AccountHoverCard.vue'
 import { originOf } from '../utils/instanceIdentity.js'
 
 export default {
 	name: 'TimelineAvatar',
 	components: {
+		AccountHoverCard,
 		NcAvatar,
 	},
 	props: {

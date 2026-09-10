@@ -3,26 +3,24 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcAvatar v-if="isLocal"
-		:size="size"
-		:user="actor.username"
-		:display-name="actor.acct"
-		:disable-tooltip="true"
-		:hide-status="true" />
-	<NcAvatar v-else
-		:size="size"
-		:url="avatarUrl"
-		:hide-status="true"
-		:disable-tooltip="true" />
+	<AccountHoverCard v-if="showHoverCard"
+		:handle="actor.acct"
+		:fallback="actor"
+		variant="block">
+		<NcAvatar v-bind="avatarProps" />
+	</AccountHoverCard>
+	<NcAvatar v-else v-bind="avatarProps" />
 </template>
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import { generateUrl } from '@nextcloud/router'
+import AccountHoverCard from './AccountHoverCard.vue'
 
 export default {
 	name: 'ActorAvatar',
 	components: {
+		AccountHoverCard,
 		NcAvatar,
 	},
 	props: {
@@ -35,6 +33,15 @@ export default {
 			type: Number,
 			default: 32,
 		},
+		/**
+		 * Whether hovering this avatar previews the account. Off where the
+		 * avatar is decoration rather than a reference to somebody — the
+		 * reader's own face in the composer, say.
+		 */
+		hoverCard: {
+			type: Boolean,
+			default: true,
+		},
 	},
 	data() {
 		return {
@@ -42,6 +49,28 @@ export default {
 		}
 	},
 	computed: {
+		/**
+		 * @return {boolean} an actor without a handle cannot be looked up
+		 */
+		showHoverCard() {
+			return this.hoverCard && Boolean(this.actor.acct)
+		},
+		/**
+		 * What NcAvatar is given, in one place so the hovered and the plain
+		 * avatar cannot drift apart.
+		 *
+		 * @return {object}
+		 */
+		avatarProps() {
+			return {
+				size: this.size,
+				hideStatus: true,
+				disableTooltip: true,
+				...(this.isLocal
+					? { user: this.actor.username, displayName: this.actor.acct }
+					: { url: this.avatarUrl }),
+			}
+		},
 		/** @return {string} */
 		avatarUrl() {
 			// Remote actors are delivered with an avatar URL already pointing at this
