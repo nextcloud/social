@@ -305,11 +305,24 @@ class StreamService {
 
 		$author = $this->getAuthorFromPostId($replyTo);
 		$note->setInReplyTo($replyTo);
+
+		// The author of the post being replied to is the one recipient that
+		// matters most, and `endpoints.sharedInbox` is optional — without the
+		// fallback, a reply to anyone on an instance that publishes only a
+		// personal inbox was addressed to host '' and never arrived.
+		$inbox = $author->getSharedInbox() !== '' ? $author->getSharedInbox() : $author->getInbox();
+		if ($inbox === '') {
+			$this->logger->notice(
+				'cannot deliver a reply: the author has neither a shared inbox nor an inbox',
+				['author' => $author->getId(), 'inReplyTo' => $replyTo]
+			);
+
+			return;
+		}
+
 		// TODO - type can be NOT public !
 		$note->addInstancePath(
-			new InstancePath(
-				$author->getSharedInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH
-			)
+			new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH)
 		);
 	}
 

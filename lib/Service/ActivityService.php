@@ -368,9 +368,15 @@ class ActivityService {
 				continue;
 			}
 
-			$sharedInbox = $follow->getActor()
-				->getSharedInbox();
-			if (in_array($sharedInbox, $sharedInboxes)) {
+			// `endpoints.sharedInbox` is optional: plenty of implementations
+			// publish only a personal `inbox`. Using the empty string
+			// unconditionally aimed the delivery at host '' and — because the
+			// deduplication below then treated '' as an inbox already seen —
+			// silently dropped every follower after the first one on any such
+			// instance. `ForwardService` has always got this right.
+			$actor = $follow->getActor();
+			$sharedInbox = $actor->getSharedInbox() !== '' ? $actor->getSharedInbox() : $actor->getInbox();
+			if ($sharedInbox === '' || in_array($sharedInbox, $sharedInboxes, true)) {
 				continue;
 			}
 

@@ -380,6 +380,61 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(InstancePath::TYPE_GLOBAL, $paths[1]->getType());
 	}
 
+	/**
+	 * `endpoints.sharedInbox` is optional. Falling back to the personal inbox
+	 * is what `ForwardService` has always done; here the empty string used to
+	 * be taken at face value, which aimed the delivery at host '' and — since
+	 * the deduplication treated '' as already seen — dropped every follower on
+	 * such an instance after the first.
+	 */
+	public function testRequestFallsBackToThePersonalInboxWhenThereIsNoSharedInbox(): void {
+		$paths = [];
+		$this->capturePaths($paths);
+		$this->followsRequest->method('getFollowersByActorId')
+			->willReturn([
+				$this->follower('https://noshared.example/users/bob', ''),
+				$this->follower('https://noshared.example/users/carol', ''),
+				$this->follower('https://remote.example/users/dave', 'https://remote.example/inbox'),
+			]);
+
+		$note = new Note();
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(
+			new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
+		);
+
+		$this->service->request($note);
+
+		$uris = array_map(fn (InstancePath $path): string => $path->getUri(), $paths);
+		$this->assertSame([
+			'https://noshared.example/users/bob/inbox',
+			'https://noshared.example/users/carol/inbox',
+			'https://remote.example/inbox',
+		], $uris);
+	}
+
+	public function testRequestSkipsAFollowerWithNoInboxAtAll(): void {
+		$paths = [];
+		$this->capturePaths($paths);
+		$actor = new Person();
+		$actor->setId('https://broken.example/users/bob');
+		$follow = new Follow();
+		$follow->setActorId('https://broken.example/users/bob');
+		$follow->setObjectId(self::ALICE_ID);
+		$follow->setActor($actor);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([$follow]);
+
+		$note = new Note();
+		$note->setActorId(self::ALICE_ID);
+		$note->addInstancePath(
+			new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW)
+		);
+
+		$this->service->request($note);
+
+		$this->assertSame([], $paths);
+	}
+
 	public function testRequestNeverPostsToThisInstance(): void {
 		$paths = [];
 		$this->capturePaths($paths);
