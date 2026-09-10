@@ -211,6 +211,93 @@ describe('FollowButton', () => {
 		})
 	})
 
+	it('celebrates a follow the server took, with the ring the like button throws', async () => {
+		setRelationship(bob)
+		vi.spyOn(store, 'dispatch').mockImplementation(async () => {
+			store.commit('followAccount', bob.acct)
+			return { data: {} }
+		})
+		const wrapper = mountButton()
+
+		await wrapper.find('button').trigger('click')
+		await flushPromises()
+
+		expect(buttonTexts(wrapper)).toEqual(['Following'])
+		expect(wrapper.find('button').classes()).toContain('follow-button--confirmed')
+		expect(wrapper.find('.follow-button__burst').exists()).toBe(true)
+		expect(wrapper.find('.follow-button__burst').attributes('aria-hidden')).toBe('true')
+	})
+
+	it('takes the optimistic label back when the server would not have the follow', async () => {
+		setRelationship(bob)
+		let settle
+		vi.spyOn(store, 'dispatch').mockImplementation(() => new Promise((resolve) => {
+			settle = resolve
+		}))
+		const wrapper = mountButton()
+
+		await wrapper.find('button').trigger('click')
+		// the label is ahead of the server while the request is in flight
+		expect(buttonTexts(wrapper)).toEqual(['Following'])
+		expect(wrapper.find('button').classes()).toContain('follow-button--pending')
+
+		// the store reports the refusal itself and commits nothing, which is
+		// the only signal the button gets
+		settle(undefined)
+		await flushPromises()
+
+		expect(buttonTexts(wrapper)).toEqual(['Follow'])
+		expect(wrapper.find('button').classes()).toContain('follow-button--refused')
+		expect(wrapper.find('button').classes()).not.toContain('follow-button--pending')
+		expect(wrapper.find('.follow-button__burst').exists()).toBe(false)
+	})
+
+	it('takes the optimistic label back when the follow is rejected outright', async () => {
+		setRelationship(bob)
+		vi.spyOn(store, 'dispatch').mockRejectedValue(new Error('status -1'))
+		const errorHandler = vi.fn()
+		const wrapper = mountButton(bob.acct, errorHandler)
+
+		await wrapper.find('button').trigger('click')
+		await flushPromises()
+
+		expect(buttonTexts(wrapper)).toEqual(['Follow'])
+		expect(wrapper.find('button').classes()).toContain('follow-button--refused')
+	})
+
+	it('says so on the button when an unfollow does not take', async () => {
+		setRelationship(bob, { following: true })
+		// the store swallows the failure and leaves the relationship alone
+		vi.spyOn(store, 'dispatch').mockResolvedValue(undefined)
+		const wrapper = mountButton()
+
+		await wrapper.find('button').trigger('click')
+		await wrapper.find('.dialog-button--1').trigger('click')
+		await flushPromises()
+
+		expect(buttonTexts(wrapper)).toEqual(['Following'])
+		expect(wrapper.find('button').classes()).toContain('follow-button--refused')
+	})
+
+	it('confirms the follow without the celebration for a reader who asked for reduced motion', async () => {
+		setRelationship(bob)
+		const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true })
+		vi.spyOn(store, 'dispatch').mockImplementation(async () => {
+			store.commit('followAccount', bob.acct)
+			return { data: {} }
+		})
+		const wrapper = mountButton()
+
+		await wrapper.find('button').trigger('click')
+		await flushPromises()
+
+		expect(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
+		// the state still changes, it just does not perform
+		expect(buttonTexts(wrapper)).toEqual(['Following'])
+		expect(wrapper.find('.follow-button__burst').exists()).toBe(false)
+		expect(wrapper.find('button').classes()).not.toContain('follow-button--confirmed')
+	})
+
 	it('flips to the following state once the store records the follow', async () => {
 		setRelationship(bob)
 		const wrapper = mountButton()
