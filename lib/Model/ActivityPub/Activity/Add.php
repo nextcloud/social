@@ -36,6 +36,9 @@ class Add extends ACore implements JsonSerializable {
 	 */
 	public function import(array $data) {
 		parent::import($data);
+		// the collection the object is added to / removed from: without it a
+		// pin cannot be told from any other collection membership
+		$this->setTarget($this->validate(ACore::AS_ID, 'target', $data, ''));
 	}
 
 	/**

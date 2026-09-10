@@ -10,22 +10,37 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Activity;
 
 use OCA\Social\AP;
+use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
+use Psr\Log\LoggerInterface;
 
 class AcceptInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
-	/**
-	 * @param ACore $item
-	 */
+	public function __construct(
+		private ActivityObjectResolver $objectResolver,
+		private LoggerInterface $logger,
+	) {
+	}
+
 	public function processIncomingRequest(ACore $item): void {
-		if (!$item->hasObject()) {
+		// An Accept whose `object` is a link used to be dropped, which left the
+		// follow pending forever: no posts arrive, and a later unfollow sends an
+		// Undo for a follow the peer thinks it granted.
+		try {
+			$object = $this->objectResolver->resolve($item);
+		} catch (ItemNotFoundException $e) {
+			$this->logger->notice('Accept refers to an unknown object', [
+				'activity' => $item->getId(),
+				'object' => $item->getObjectId(),
+				'origin' => $item->getOrigin(),
+			]);
+
 			return;
 		}
-		$object = $item->getObject();
 
 		try {
-			$service = AP::$activityPub->getInterfaceForItem($item->getObject());
+			$service = AP::$activityPub->getInterfaceForItem($object);
 			$service->activity($item, $object);
 		} catch (ItemUnknownException $e) {
 		}

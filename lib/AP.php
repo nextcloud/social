@@ -73,6 +73,29 @@ class AP {
 
 	public const REDUNDANCY_LIMIT = 10;
 
+	/**
+	 * Object types other servers `Create` into a timeline that this app has no
+	 * model of its own for.
+	 *
+	 * PeerTube posts `Video`, Plume and WriteFreely post `Article`, Mobilizon
+	 * posts `Event`, Lemmy posts `Page` and Funkwhale posts `Audio`. Every one
+	 * of them arrives inside an ordinary `Create` addressed to an actor's
+	 * followers, and Mastodon shows them as statuses.
+	 *
+	 * Without a mapping they were not merely unrendered, they were invisible:
+	 * `getObjectFromData()` swallowed the `ItemUnknownException` and — because
+	 * `object` had arrived as an array — set neither `object` nor `objectId`, so
+	 * `CreateInterface` returned on `!hasObject()` and nothing was logged.
+	 * Following a PeerTube channel or a Plume blog produced a permanently empty
+	 * timeline.
+	 *
+	 * They are therefore modelled as a `Note`, which is the shape everything
+	 * downstream (storage, the client API, the timeline queries) understands;
+	 * the type as it arrived on the wire is kept in `subtype` so nothing is
+	 * lost.
+	 */
+	public const NOTE_LIKE_TYPES = ['Video', 'Article', 'Page', 'Event', 'Audio'];
+
 	public AcceptInterface $acceptInterface;
 	public AddInterface $addInterface;
 	public AnnounceInterface $announceInterface;
@@ -177,18 +200,28 @@ class AP {
 	}
 
 	public function getObjectFromData(array $data, ACore &$item, int $level) {
-		try {
-			$objectData = $this->getArray('object', $data, []);
-			if (empty($objectData)) {
-				$objectId = $this->get('object', $data, '');
-				if ($objectId !== '') {
-					$item->setObjectId($objectId);
-				}
-			} else {
-				$object = $this->getItemFromData($objectData, $item, $level);
-				$item->setObject($object);
+		$objectData = $this->getArray('object', $data, []);
+		if ($objectData === []) {
+			$objectId = $this->get('object', $data, '');
+			if ($objectId !== '') {
+				$item->setObjectId($objectId);
 			}
+
+			return;
+		}
+
+		try {
+			$item->setObject($this->getItemFromData($objectData, $item, $level));
 		} catch (ItemUnknownException $e) {
+			// A type this app has no model for. The activity used to be left
+			// referring to nothing at all — neither `object` nor `objectId` —
+			// so it was discarded with no trace of what had arrived. Keeping
+			// the id names it, and lets the inbox log it and a later pass
+			// resolve it.
+			$objectId = $this->get('id', $objectData, '');
+			if ($objectId !== '') {
+				$item->setObjectId($objectId);
+			}
 		}
 	}
 
@@ -204,11 +237,51 @@ class AP {
 	}
 
 	public function getSimpleItemFromData(array $data): Acore {
-		$item = $this->getItemFromType($this->get('type', $data, ''));
+		$type = $this->get('type', $data, '');
+		$item = $this->getItemFromType($type);
 		$item->import($data);
+
+		if (in_array($type, self::NOTE_LIKE_TYPES, true)) {
+			$item->setSubType($type);
+			$item->setType(Note::TYPE);
+			$this->fillNoteLikeContent($item, $data);
+		}
+
 		$item->setSource(json_encode($data, JSON_UNESCAPED_SLASHES));
 
 		return $item;
+	}
+
+	/**
+	 * A `Video`, `Audio` or `Event` usually carries its title in `name` and
+	 * nothing at all in `content`. Rendered as-is that is an empty post, so the
+	 * title (and the link to the thing itself, when it is not the object id
+	 * again) becomes the content — the same substitution Mastodon makes.
+	 *
+	 * The title is not also copied into the note's `name`: on a Note that field
+	 * means one thing here, the option a poll vote chose (see
+	 * PollService::handleIncomingVote), and giving it a second meaning is how a
+	 * post would end up counted as a vote.
+	 */
+	private function fillNoteLikeContent(ACore $item, array $data): void {
+		if (!$item instanceof Note || $item->getContent() !== '') {
+			return;
+		}
+
+		$name = trim($this->get('name', $data, ''));
+		if ($name === '') {
+			return;
+		}
+
+		$content = '<p>' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+
+		$url = $item->getUrl();
+		if ($url !== '' && $url !== $item->getId()) {
+			$href = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$content .= '<p><a href="' . $href . '">' . $href . '</a></p>';
+		}
+
+		$item->setContent($content);
 	}
 
 	public function getItemFromType(string $type): ACore {
@@ -323,7 +396,14 @@ class AP {
 				break;
 
 			default:
-				throw new ItemUnknownException();
+				if (!in_array($type, self::NOTE_LIKE_TYPES, true)) {
+					throw new ItemUnknownException();
+				}
+
+				// see self::NOTE_LIKE_TYPES; getSimpleItemFromData() moves the
+				// wire type into `subtype` once the data has been imported
+				$item = new Note();
+				break;
 		}
 
 		$item->setUrlCloud($this->configService->getCloudUrl());
@@ -374,12 +454,30 @@ class AP {
 				return $this->removeInterface;
 			case Service::TYPE:
 				return $this->serviceInterface;
+				// Actor types that are not Person: parsed and modelled all along, but
+				// absent here they raised ItemUnknownException, which CacheActorService
+				// swallows — so a Lemmy community, an a.gup.pe/Friendica group or a
+				// Mastodon instance or relay actor was never written to the actor cache.
+				// One signature check passed on the in-memory copy and every later
+				// request re-fetched over HTTP; following one was impossible.
+			case Group::TYPE:
+				return $this->groupInterface;
+			case Organization::TYPE:
+				return $this->organizationInterface;
+			case Application::TYPE:
+				return $this->applicationInterface;
 			case Undo::TYPE:
 				return $this->undoInterface;
 			case Update::TYPE:
 				return $this->updateInterface;
 			default:
-				throw new ItemUnknownException();
+				// an item built elsewhere than getSimpleItemFromData() can still
+				// carry the wire type; it is handled as the Note it was modelled as
+				if (in_array($type, self::NOTE_LIKE_TYPES, true)) {
+					return $this->noteInterface;
+				}
+
+				throw new ItemUnknownException($type);
 		}
 	}
 

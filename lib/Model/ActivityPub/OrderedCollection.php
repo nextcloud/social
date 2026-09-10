@@ -14,6 +14,13 @@ use JsonSerializable;
 class OrderedCollection extends ACore implements JsonSerializable {
 	public const TYPE = 'OrderedCollection';
 
+	/**
+	 * How many entries one page of a collection holds. Mastodon serves 40 at a
+	 * time; the number only has to be stable, because it is what the page
+	 * boundaries on `first`/`last` and `next`/`prev` are computed from.
+	 */
+	public const PAGE_SIZE = 40;
+
 	private int $totalItems = 0;
 	private string $first = '';
 	private string $last = '';
@@ -71,6 +78,33 @@ class OrderedCollection extends ACore implements JsonSerializable {
 		$this->orderedItems = $orderedItems;
 
 		return $this;
+	}
+
+	/**
+	 * A collection that says where its pages actually are.
+	 *
+	 * followers, following and outbox have always advertised `first` as
+	 * `?page=1`, but nothing read the parameter: `?page=1` returned the
+	 * identical collection, whose `first` pointed at itself. A consumer
+	 * following `first` either looped or gave up, so no peer could enumerate any
+	 * of the three — which is how another instance discovers who to deliver to
+	 * when its own record is incomplete, and how migration and archiving tools
+	 * read an account.
+	 *
+	 * `last` names the highest page number the collection has; with nothing in
+	 * it, that is still page one — an empty page is a truthful answer, a page
+	 * number that does not exist is not.
+	 */
+	public static function paged(string $id, int $totalItems, string $pageUrl): self {
+		$collection = new self();
+		$collection->setId($id);
+		$collection->setTotalItems($totalItems);
+		$collection->setFirst($pageUrl . '?page=1');
+		$collection->setLast(
+			$pageUrl . '?page=' . max(1, (int)ceil($totalItems / self::PAGE_SIZE))
+		);
+
+		return $collection;
 	}
 
 	public function import(array $data): self {

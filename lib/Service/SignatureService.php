@@ -82,6 +82,17 @@ class SignatureService {
 	/** How long a failed key retrieval is remembered, in seconds. */
 	public const KEY_FAILURE_TTL = 300;
 
+	/**
+	 * Digest algorithms this server can compute, keyed by the name as it
+	 * appears (lowercased) in a Digest or Content-Digest header.
+	 */
+	public const DIGEST_ALGORITHMS = [
+		'sha-256' => 'sha256',
+		'sha256' => 'sha256',
+		'sha-512' => 'sha512',
+		'sha512' => 'sha512',
+	];
+
 	/** The shortest interval between two forced refreshes of the same keyId. */
 	public const KEY_REFRESH_INTERVAL = 300;
 
@@ -90,6 +101,7 @@ class SignatureService {
 	private ActorsRequest $actorsRequest;
 	private CurlService $curlService;
 	private ConfigService $configService;
+	private HttpSignatureService $httpSignatureService;
 	private ICache $seenSignatures;
 	private ICache $keyAttempts;
 	private LoggerInterface $logger;
@@ -100,6 +112,7 @@ class SignatureService {
 		CacheActorsRequest $cacheActorsRequest,
 		CurlService $curlService,
 		ConfigService $configService,
+		HttpSignatureService $httpSignatureService,
 		ICacheFactory $cacheFactory,
 		LoggerInterface $logger,
 	) {
@@ -108,6 +121,7 @@ class SignatureService {
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->curlService = $curlService;
 		$this->configService = $configService;
+		$this->httpSignatureService = $httpSignatureService;
 		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
 		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
@@ -151,80 +165,7 @@ class SignatureService {
 	 * @throws SocialAppConfigException
 	 */
 	public function signRequest(NCRequest $request, RequestQueue $queue): void {
-		$date = gmdate(self::DATE_HEADER);
-		$path = $queue->getInstance();
-
-		$localActor = $this->actorsRequest->getFromId($queue->getAuthor());
-
-		$headersElements = ['(request-target)', 'content-length', 'date', 'host', 'digest'];
-		$allElements = [
-			'(request-target)' => 'post ' . $path->getPath(),
-			'date' => $date,
-			'host' => $path->getAddress(),
-			'digest' => $this->generateDigest($request->getDataBody()),
-			'content-length' => strlen($request->getDataBody())
-		];
-
-		$signing = $this->generateHeaders($headersElements, $allElements, $request);
-		// the warning a bad key raises is handled right here, as an exception
-		if (!@openssl_sign($signing, $signed, $localActor->getPrivateKey(), OPENSSL_ALGO_SHA256)) {
-			// an empty or undecryptable private key must fail loudly, not send
-			// base64('') as the signature
-			throw new SignatureException(
-				'cannot sign request for ' . $localActor->getId() . ': ' . openssl_error_string()
-			);
-		}
-
-		$signed = base64_encode($signed);
-		$signature = $this->generateSignature($headersElements, $localActor->getId(), $signed);
-
-		$request->addHeader('Signature', $signature);
-	}
-
-	/**
-	 * @param array $elements
-	 * @param array $data
-	 * @param NCRequest $request
-	 *
-	 * @return string
-	 */
-	private function generateHeaders(array $elements, array $data, NCRequest $request): string {
-		$signingElements = [];
-		foreach ($elements as $element) {
-			$signingElements[] = $element . ': ' . $data[$element];
-			if ($element !== '(request-target)') {
-				$request->addHeader($element, (string)$data[$element]);
-			}
-		}
-
-		return implode("\n", $signingElements);
-	}
-
-	/**
-	 * @param array $elements
-	 * @param string $actorId
-	 * @param string $signed
-	 *
-	 * @return string
-	 */
-	private function generateSignature(array $elements, string $actorId, string $signed): string {
-		$signatureElements[] = 'keyId="' . $actorId . '#main-key"';
-		$signatureElements[] = 'algorithm="rsa-sha256"';
-		$signatureElements[] = 'headers="' . implode(' ', $elements) . '"';
-		$signatureElements[] = 'signature="' . $signed . '"';
-
-		return implode(',', $signatureElements);
-	}
-
-	/**
-	 * @param string $data
-	 *
-	 * @return string
-	 */
-	private function generateDigest(string $data): string {
-		$encoded = hash('sha256', $data, true);
-
-		return 'SHA-256=' . base64_encode($encoded);
+		$this->httpSignatureService->signDelivery($request, $queue);
 	}
 
 	/**
@@ -274,16 +215,8 @@ class SignatureService {
 			throw new SignatureException('object is from the future');
 		}
 
-		if (strlen($data) !== (int)$request->getHeader('content-length')) {
-			throw new SignatureException('issue with content-length');
-		}
-
-		if ($this->generateDigest($data) !== $request->getHeader('digest')) {
-			throw new SignatureException(
-				'issue with digest -- sent: '
-				. $request->getHeader('digest') . ', expected: ' . $this->generateDigest($data)
-			);
-		}
+		$this->checkContentLength($request, $data);
+		$this->checkDigest($request, $data);
 
 		try {
 			return $this->checkRequestSignature($request, $data);
@@ -301,6 +234,111 @@ class SignatureService {
 				$e
 			);
 		}
+	}
+
+	/**
+	 * A declared body length has to match the body.
+	 *
+	 * The header is optional, though: a sender using chunked transfer encoding
+	 * sends no Content-Length at all, and comparing the body against an absent
+	 * header's `(int)''` rejected every one of them.
+	 *
+	 * @throws SignatureException
+	 */
+	private function checkContentLength(IRequest $request, string $data): void {
+		$length = $request->getHeader('content-length');
+		if ($length === '') {
+			return;
+		}
+
+		if (strlen($data) !== (int)$length) {
+			throw new SignatureException(
+				'content-length does not match the body -- sent: ' . $length
+				. ', body: ' . strlen($data)
+			);
+		}
+	}
+
+	/**
+	 * The body has to match a digest the sender computed over it.
+	 *
+	 * What is on the wire is wider than one fixed string. RFC 3230's `Digest`
+	 * carries `algorithm=base64`, with an algorithm name that is
+	 * case-insensitive and a list that may hold several entries; RFC 9530's
+	 * `Content-Digest` carries `sha-256=:base64:` and is what newer
+	 * implementations are moving to. Comparing bytes against exactly
+	 * `SHA-256=…` refused `sha-256=…`, refused
+	 * `Digest: SHA-256=…,SHA-512=…`, and refused a sender that offers only
+	 * `Content-Digest` — in every case reading as a forged body.
+	 *
+	 * At least one digest this server knows how to compute has to be present
+	 * and has to match: an unrecognised algorithm on its own is not a pass,
+	 * because then nothing binds the body to the signature.
+	 *
+	 * @throws SignatureException
+	 */
+	private function checkDigest(IRequest $request, string $data): void {
+		$digests = array_merge(
+			$this->parseDigestHeader($request->getHeader('digest')),
+			$this->parseDigestHeader($request->getHeader('content-digest'))
+		);
+
+		if ($digests === []) {
+			throw new SignatureException('no digest header');
+		}
+
+		$checked = 0;
+		foreach ($digests as $algorithm => $sent) {
+			$expected = self::DIGEST_ALGORITHMS[$algorithm] ?? '';
+			if ($expected === '') {
+				continue;
+			}
+
+			$checked++;
+			if (!hash_equals(base64_encode(hash($expected, $data, true)), $sent)) {
+				throw new SignatureException(
+					'digest does not match the body -- algorithm: ' . $algorithm
+					. ', sent: ' . $sent
+				);
+			}
+		}
+
+		if ($checked === 0) {
+			throw new SignatureException(
+				'no digest algorithm we can compute: ' . implode(', ', array_keys($digests))
+			);
+		}
+	}
+
+	/**
+	 * `algorithm=base64` entries of a Digest or Content-Digest header, keyed by
+	 * lowercased algorithm name.
+	 *
+	 * @return array<string, string>
+	 */
+	private function parseDigestHeader(string $header): array {
+		$digests = [];
+		foreach (explode(',', $header) as $entry) {
+			$entry = trim($entry);
+			$separator = strpos($entry, '=');
+			if ($entry === '' || $separator === false || $separator === 0) {
+				continue;
+			}
+
+			$algorithm = strtolower(substr($entry, 0, $separator));
+			$value = substr($entry, $separator + 1);
+
+			// RFC 9530 wraps the byte sequence in colons
+			if (strlen($value) > 1 && $value[0] === ':' && substr($value, -1) === ':') {
+				$value = substr($value, 1, -1);
+			}
+
+			if ($value !== '') {
+				$digests[$algorithm] = $value;
+			}
+		}
+
+		return $digests;
 	}
 
 	/**
@@ -431,10 +469,17 @@ class SignatureService {
 		// captured request can be replayed against another instance or with a swapped
 		// body. Everything sending to the Fediverse signs at least these four.
 		$signedHeaders = explode(' ', strtolower($headers));
-		foreach (['(request-target)', 'host', 'date', 'digest'] as $mandatory) {
+		foreach (['(request-target)', 'host', 'date'] as $mandatory) {
 			if (!in_array($mandatory, $signedHeaders, true)) {
 				throw new SignatureException('header is not signed: ' . $mandatory);
 			}
+		}
+
+		// whichever of the two digest headers the sender used, one of them has
+		// to be inside the signature or the digest binds nothing
+		if (!in_array('digest', $signedHeaders, true)
+			&& !in_array('content-digest', $signedHeaders, true)) {
+			throw new SignatureException('header is not signed: digest');
 		}
 		$signed = base64_decode($sign['signature']);
 		$estimated = $this->generateEstimatedSignature($headers, $request);
@@ -506,7 +551,21 @@ class SignatureService {
 
 			$value = $request->getHeader($key);
 			if ($key === 'host') {
-				$value = $this->configService->getCloudHost();
+				// The signed host is what the sender addressed; substituting the
+				// configured one is what stops a captured request being replayed
+				// against another instance. But on a deployment whose configured
+				// host is not the one peers reach (a second domain, a
+				// non-default port, a proxy that rewrites Host), that
+				// substitution makes *every* inbound delivery fail verification
+				// — with nothing in the log to say why.
+				$configured = $this->configService->getCloudHost();
+				if ($value !== '' && strtolower($value) !== strtolower($configured)) {
+					$this->logger->notice(
+						'the host a peer signed is not the configured host, so its signature cannot verify',
+						['signedHost' => $value, 'configuredHost' => $configured]
+					);
+				}
+				$value = $configured;
 			}
 
 			$estimated .= $key . ': ' . $value . "\n";
@@ -654,14 +713,31 @@ class SignatureService {
 	 *
 	 * @return string
 	 */
+	/**
+	 * The hash a signature says it was computed with.
+	 *
+	 * `hs2019` deliberately names no hash: the key type decides, and for the
+	 * RSA keys ActivityPub actors publish that is SHA-256 — so it maps there,
+	 * and so does an absent parameter (the draft's own default). Anything else
+	 * is refused rather than silently treated as SHA-256: an Ed25519 or ECDSA
+	 * signature verified as `rsa-sha256` fails with "signature cannot be
+	 * checked", which says nothing about what actually happened.
+	 *
+	 * @throws SignatureException
+	 */
 	private function getAlgorithmFromSignature(array $sign): string {
-		switch ($this->get('algorithm', $sign, '')) {
+		$algorithm = strtolower($this->get('algorithm', $sign, ''));
+		switch ($algorithm) {
 			case 'rsa-sha512':
 				return 'sha512';
+			case '':
+			case 'hs2019':
 			case 'rsa-sha256':
 				return 'sha256';
 			default:
-				return 'sha256';
+				throw new SignatureException(
+					'unsupported signature algorithm: ' . $algorithm
+				);
 		}
 	}
 

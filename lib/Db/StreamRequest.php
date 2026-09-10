@@ -432,6 +432,38 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The public posts of one author, oldest last, in fixed-size windows.
+	 *
+	 * The outbox collection is paged by page number rather than by cursor —
+	 * that is what the collection itself advertises, and what a consumer
+	 * walking `first`/`next` follows — so this takes an offset instead of the
+	 * `since` the client timelines use.
+	 *
+	 * @return Stream[]
+	 */
+	public function getPublicByAuthor(string $actorId, int $limit, int $offset = 0): array {
+		if ($actorId === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToStatusTypes();
+		$qb->limitToAttributedTo($actorId, true);
+
+		$qb->selectDestFollowing('sd', '');
+		$qb->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+		$qb->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', 'sd');
+
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		$qb->orderBy('s.published_time', 'desc');
+		$qb->setMaxResults($limit);
+		$qb->setFirstResult($offset);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
 	 * @param ProbeOptions $options
 	 *
 	 * @return Stream[]

@@ -32,6 +32,7 @@ use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\RemoteAddress;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
+use OCP\AppFramework\Http;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
@@ -54,6 +55,7 @@ class CurlService {
 		ConfigService $configService,
 		FediverseService $fediverseService,
 		private IClientService $clientService,
+		private HttpSignatureService $httpSignatureService,
 		LoggerInterface $logger,
 	) {
 		$this->configService = $configService;
@@ -214,6 +216,54 @@ class CurlService {
 	 */
 	public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
 		$this->logger->debug('retrieveObject id=' . $id);
+
+		$request = $this->objectRequest($id, $acceptActivityJson);
+
+		// An ActivityPub fetch is signed: a peer running Mastodon's
+		// AUTHORIZED_FETCH or GoToSocial's secure mode answers 401 to an
+		// unsigned one, which is why resolving an account there failed with
+		// "user not found" and threads stopped at the first remote reply.
+		$signed = $acceptActivityJson && $this->httpSignatureService->signFetch($request);
+
+		try {
+			$result = $this->retrieveJson($request);
+		} catch (RequestContentException $e) {
+			if (!$signed || !$this->refusedTheSignature($e->getCode())) {
+				throw $e;
+			}
+
+			// A signature is an addition to a request that used to go out
+			// without one, and a peer is entitled not to expect it — an
+			// unresolvable keyId, a stricter reverse proxy. One unsigned retry
+			// keeps those reachable; it costs an extra request only where the
+			// first one had already failed.
+			$this->logger->debug('a signed fetch was refused, retrying unsigned', [
+				'id' => $id, 'status' => $e->getCode(),
+			]);
+
+			$request = $this->objectRequest($id, $acceptActivityJson);
+			$result = $this->retrieveJson($request);
+		}
+
+		$result['_host'] = $request->getHost();
+		$result['_resultCode'] = $request->getResultCode();
+
+		return $result;
+	}
+
+	/**
+	 * Whether a status is one a peer would answer to a signature it did not
+	 * want. A 4xx that is about anything else (404, 410) is the answer, not a
+	 * reason to ask again.
+	 */
+	private function refusedTheSignature(int $status): bool {
+		return $status === Http::STATUS_UNAUTHORIZED || $status === Http::STATUS_FORBIDDEN;
+	}
+
+	/**
+	 * @throws MalformedArrayException
+	 */
+	private function objectRequest(string $id, bool $acceptActivityJson): NCRequest {
 		$url = parse_url($id);
 		$this->mustContains(['path', 'host', 'scheme'], $url);
 		$request = new NCRequest($url['path'], Request::TYPE_GET);
@@ -229,11 +279,7 @@ class CurlService {
 			$request->addHeader('Accept', 'application/activity+json');
 		}
 
-		$result = $this->retrieveJson($request);
-		$result['_host'] = $request->getHost();
-		$result['_resultCode'] = $request->getResultCode();
-
-		return $result;
+		return $request;
 	}
 
 	/**

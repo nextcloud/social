@@ -31,6 +31,49 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	public const CONTEXT_ACTIVITYSTREAMS = 'https://www.w3.org/ns/activitystreams';
 	public const CONTEXT_SECURITY = 'https://w3id.org/security/v1';
 
+	/**
+	 * The extension terms outgoing documents actually use, defined inline.
+	 *
+	 * Actors emit `manuallyApprovesFollowers`, `featured`, `alsoKnownAs`,
+	 * `discoverable` and `PropertyValue`/`value` attachments; notes emit
+	 * `sensitive`, `conversation`, `votersCount` and `Hashtag`/`Emoji` tags;
+	 * attachments emit `blurhash` and `focalPoint`. The shipped AS2 context
+	 * defines none of them, and because it sets `@vocab: "_:"` they expanded to
+	 * blank-node predicates — which a consumer that actually compacts JSON-LD
+	 * drops on the floor. Mastodon reads the raw keys and so never noticed;
+	 * strict JSON-LD implementations and bridges lost locked-account status,
+	 * pinned-post discovery, migration back-references and profile fields.
+	 *
+	 * These are Mastodon's own definitions, so a document from here expands to
+	 * the same IRIs as one from there.
+	 *
+	 * The object is inline rather than a URL on purpose: signature
+	 * normalisation resolves a `@context` only from the copies shipped with the
+	 * app (SignatureService::documentLoader), and an inline object needs no
+	 * resolving at all. It is also emitted unconditionally, which is what keeps
+	 * the bytes that are signed and the bytes that are sent expanding to the
+	 * same triples.
+	 */
+	public const CONTEXT_EXTENSIONS = [
+		'manuallyApprovesFollowers' => 'as:manuallyApprovesFollowers',
+		'sensitive' => 'as:sensitive',
+		'Hashtag' => 'as:Hashtag',
+		'movedTo' => ['@id' => 'as:movedTo', '@type' => '@id'],
+		'alsoKnownAs' => ['@id' => 'as:alsoKnownAs', '@type' => '@id'],
+		'toot' => 'http://joinmastodon.org/ns#',
+		'featured' => ['@id' => 'toot:featured', '@type' => '@id'],
+		'discoverable' => 'toot:discoverable',
+		'votersCount' => 'toot:votersCount',
+		'blurhash' => 'toot:blurhash',
+		'focalPoint' => ['@container' => '@list', '@id' => 'toot:focalPoint'],
+		'Emoji' => 'toot:Emoji',
+		'schema' => 'http://schema.org#',
+		'PropertyValue' => 'schema:PropertyValue',
+		'value' => 'schema:value',
+		'ostatus' => 'http://ostatus.org#',
+		'conversation' => 'ostatus:conversation',
+	];
+
 	public const AS_ID = 1;
 	public const AS_TYPE = 2;
 	public const AS_URL = 3;
@@ -256,6 +299,31 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		}
 
 		$this->setId($url . $base . '/' . $this->uuid());
+	}
+
+	/**
+	 * An id for an activity that has no resource of its own — an Accept, a
+	 * Reject, an Undo — hung off the actor that performs it.
+	 *
+	 * `generateUniqueId('#accept/follows')` hung it off the cloud root instead:
+	 * everything after the `#` is a fragment, so
+	 * `https://cloud.example.com/#accept/follows/<uuid>` is the URL of the
+	 * Nextcloud landing page, which answers 200 with an HTML document. A peer
+	 * that dereferences activity ids, or that strips the fragment before
+	 * comparing them, sees every one of our Accepts as the same thing.
+	 *
+	 * Basing it on the actor is the shape Mastodon uses
+	 * (`https://host/users/alice#accepts/follows/1`): the fragment then hangs
+	 * off a URL that resolves to the actor performing the activity.
+	 */
+	public function generateUniqueIdFromActor(string $actorId, string $base): void {
+		if ($actorId === '') {
+			$this->generateUniqueId($base);
+
+			return;
+		}
+
+		$this->setId($actorId . '#' . ltrim($base, '#/') . '/' . $this->uuid());
 	}
 
 	/**
@@ -676,6 +744,10 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			if ($this->hasSignature() || $this->isDisplayW3ContextSecurity()) {
 				array_push($context, self::CONTEXT_SECURITY);
 			}
+
+			// last, so a term this app defines can never shadow one of the two
+			// named contexts — see CONTEXT_EXTENSIONS
+			$context[] = self::CONTEXT_EXTENSIONS;
 
 			$this->addEntryArray('@context', $context);
 		}

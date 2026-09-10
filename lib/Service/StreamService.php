@@ -602,15 +602,14 @@ class StreamService {
 	 * @return OrderedCollection
 	 */
 	public function getOutboxCollection(Person $actor): OrderedCollection {
-		$collection = new OrderedCollection();
-		$collection->setId($actor->getOutbox());
-		$collection->setTotalItems($this->getInt('post', $actor->getDetails('count')));
-
-		$link = $actor->getOutbox();
-		$collection->setFirst($link . '?page=1');
-		$collection->setLast($link . '?page=1&min_id=0');
-
-		return $collection;
+		// `last` used to be advertised as `?page=1&min_id=0`, which is not a
+		// page the controller serves; `paged()` derives both links from the
+		// page size the outbox actually pages at.
+		return OrderedCollection::paged(
+			$actor->getOutbox(),
+			$this->getInt('post', $actor->getDetails('count')),
+			$actor->getOutbox()
+		);
 	}
 
 	/**

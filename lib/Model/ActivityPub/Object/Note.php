@@ -115,7 +115,10 @@ class Note extends Stream implements JsonSerializable {
 			$result['name'] = $this->getName();
 		}
 
-		if ($this->isCompleteDetails()) {
+		// `hashtags` is this app's own shape and predates the client API.
+		// Mastodon's `tags: [{name, url}]` carries the same data and is what a
+		// client reads, so the bare-string version stays out of that format.
+		if ($this->isCompleteDetails() && $this->getExportFormat() !== self::FORMAT_LOCAL) {
 			$result['hashtags'] = $this->getHashtags();
 		}
 

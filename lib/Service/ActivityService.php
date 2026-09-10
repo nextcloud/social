@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -73,6 +74,7 @@ class ActivityService {
 		RequestQueueService $requestQueueService,
 		CurlService $curlService,
 		ConfigService $configService,
+		private ActorsRequest $actorsRequest,
 		LoggerInterface $logger,
 	) {
 		$this->streamRequest = $streamRequest;
@@ -156,6 +158,22 @@ class ActivityService {
 
 		$delete->setObject($tombstone);
 		$delete->addInstancePaths($item->getInstancePaths());
+
+		// A recipient may only pass an activity on (AP §7.1.2) if it carries the
+		// author's own signature over the document. Unsigned, a Delete of a
+		// reply cannot travel the way the reply itself did, so the post stays
+		// visible on every instance that only ever received it forwarded.
+		try {
+			$this->signatureService->signObject(
+				$this->actorsRequest->getFromId($delete->getActorId()), $delete
+			);
+		} catch (Exception $e) {
+			$this->logger->notice('a Delete goes out without a linked-data signature', [
+				'activity' => $delete->getId(),
+				'actor' => $delete->getActorId(),
+				'exception' => $e,
+			]);
+		}
 
 		return $this->request($delete);
 	}
@@ -359,30 +377,22 @@ class ActivityService {
 	 * @return InstancePath[]
 	 */
 	private function generateInstancePathsFollowers(InstancePath $instancePath): array {
-		$follows = $this->followsRequest->getFollowersByActorId($instancePath->getUri());
-
-		$sharedInboxes = [];
 		$instancePaths = [];
-		foreach ($follows as $follow) {
-			if (!$follow->hasActor()) {
-				continue;
-			}
 
-			// `endpoints.sharedInbox` is optional: plenty of implementations
-			// publish only a personal `inbox`. Using the empty string
-			// unconditionally aimed the delivery at host '' and — because the
-			// deduplication below then treated '' as an inbox already seen —
-			// silently dropped every follower after the first one on any such
-			// instance. `ForwardService` has always got this right.
-			$actor = $follow->getActor();
-			$sharedInbox = $actor->getSharedInbox() !== '' ? $actor->getSharedInbox() : $actor->getInbox();
-			if ($sharedInbox === '' || in_array($sharedInbox, $sharedInboxes, true)) {
-				continue;
-			}
-
-			$sharedInboxes[] = $sharedInbox;
+		// One row per distinct inbox, resolved in the database. This used to
+		// hydrate every follower into a Follow with a Person and its details
+		// just to read one string off each — a popular local actor's every post
+		// loaded its whole follower list into PHP memory, while the number of
+		// inboxes involved is the number of *instances*, not of followers.
+		//
+		// The shared inbox is used where the remote publishes one and its
+		// personal inbox otherwise: `endpoints.sharedInbox` is optional, and
+		// using the empty string unconditionally aimed the delivery at host ''
+		// — and, because the deduplication then treated '' as an inbox already
+		// seen, dropped every follower after the first one on any such instance.
+		foreach ($this->followsRequest->getFollowerInboxes($instancePath->getUri()) as $inbox) {
 			$instancePaths[] = new InstancePath(
-				$sharedInbox, InstancePath::TYPE_GLOBAL, $instancePath->getPriority()
+				$inbox, InstancePath::TYPE_GLOBAL, $instancePath->getPriority()
 			);
 		}
 

@@ -9,7 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Interfaces\Activity;
 
+use Exception;
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -21,7 +23,11 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\InstancePath;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
+use Psr\Log\LoggerInterface;
 
 class MoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	private ActionsRequest $actionsRequest;
@@ -40,6 +46,9 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		StreamRequest $streamRequest,
 		StreamDestRequest $streamDestRequest,
 		CacheActorService $cacheActorService,
+		private ActorsRequest $actorsRequest,
+		private ActivityService $activityService,
+		private LoggerInterface $logger,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -83,6 +92,10 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	public function moveAccount(Person $actor, Person $target): void {
+		// Collected before the rows are rewritten: afterwards they name the new
+		// account and there is nothing left to say who had followed the old one.
+		$followers = $this->localFollowsTowards($actor->getId());
+
 		$this->actionsRequest->moveAccount($actor->getId(), $target->getId());
 		$this->cacheDocumentsRequest->moveAccount($actor->getId(), $target->getId());
 
@@ -90,6 +103,82 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		$this->followsRequest->moveAccountFollowing($actor->getId(), $target);
 
 		$this->updateStreamFromActor($actor, $target);
+
+		$this->refollow($followers, $target);
+	}
+
+	/**
+	 * The accepted follows from a *local* actor towards the account that is
+	 * moving.
+	 *
+	 * Only local ones: a remote follower's own instance receives the same Move
+	 * and re-follows for itself.
+	 *
+	 * @return Follow[]
+	 */
+	private function localFollowsTowards(string $actorId): array {
+		$local = [];
+		foreach ($this->followsRequest->getFollowersByActorId($actorId) as $follow) {
+			try {
+				// only a local account has a row here
+				$this->actorsRequest->getFromId($follow->getActorId());
+			} catch (Exception $e) {
+				continue;
+			}
+
+			$local[] = $follow;
+		}
+
+		return $local;
+	}
+
+	/**
+	 * Follows the new account on behalf of everyone here who followed the old
+	 * one.
+	 *
+	 * Rewriting the rows was only half of a migration: they then said the local
+	 * user follows the new account while the new account's instance had never
+	 * heard of them, so no posts arrived and a later unfollow sent
+	 * `Undo{Follow}` for a follow that was never established. Mastodon
+	 * re-issues the Follow on receiving a Move; so does this.
+	 *
+	 * The follow keeps the id the local row already has, so the Accept that
+	 * comes back matches it and a later Undo names something the target knows.
+	 *
+	 * @param Follow[] $follows
+	 */
+	private function refollow(array $follows, Person $target): void {
+		if ($target->getInbox() === '') {
+			$this->logger->notice('cannot re-follow a moved account with no inbox', [
+				'target' => $target->getId(),
+			]);
+
+			return;
+		}
+
+		foreach ($follows as $known) {
+			$follow = new Follow();
+			$follow->setId($known->getId());
+			$follow->setActorId($known->getActorId());
+			$follow->setObjectId($target->getId());
+			$follow->setFollowId($target->getFollowers());
+			$follow->addInstancePath(
+				new InstancePath(
+					$target->getInbox(), InstancePath::TYPE_INBOX, InstancePath::PRIORITY_TOP
+				)
+			);
+
+			try {
+				$this->activityService->request($follow);
+			} catch (Exception $e) {
+				// one unreachable target must not stop the others
+				$this->logger->warning('cannot re-follow a moved account', [
+					'follower' => $known->getActorId(),
+					'target' => $target->getId(),
+					'exception' => $e,
+				]);
+			}
+		}
 	}
 
 	/**

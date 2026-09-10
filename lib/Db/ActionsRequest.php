@@ -50,6 +50,25 @@ class ActionsRequest extends ActionsRequestBuilder {
 	}
 
 	/**
+	 * The action a URI names — a Like, a Block, a pin.
+	 *
+	 * Only a peer that sends the object of an `Undo` as a bare link needs
+	 * this: the id is then all there is to go on.
+	 *
+	 * @throws ActionDoesNotExistException
+	 */
+	public function getById(string $id): ACore {
+		if ($id === '') {
+			throw new ActionDoesNotExistException('empty action id');
+		}
+
+		$qb = $this->getActionsSelectSql();
+		$this->limitToIdPrimString($qb, $id);
+
+		return $this->getActionFromRequest($qb);
+	}
+
+	/**
 	 * @param string $actorId
 	 * @param string $objectId
 	 *

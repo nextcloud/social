@@ -133,6 +133,25 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
+	 * The follow a URI names.
+	 *
+	 * Only a peer that sends the object of an `Undo`/`Accept`/`Reject` as a
+	 * bare link needs this: the id is then all there is to go on.
+	 *
+	 * @throws FollowNotFoundException
+	 */
+	public function getById(string $id): Follow {
+		if ($id === '') {
+			throw new FollowNotFoundException('empty follow id');
+		}
+
+		$qb = $this->getFollowsSelectSql();
+		$this->limitToIdPrimString($qb, $id);
+
+		return $this->getFollowFromRequest($qb);
+	}
+
+	/**
 	 * @param string $actorId
 	 * @param string $remoteActorId
 	 *
@@ -231,11 +250,12 @@ class FollowsRequest extends FollowsRequestBuilder {
 	/**
 	 * The accepted followers of an actor, newest first.
 	 *
-	 * Federated delivery fans out over this, so a popular actor's every post
-	 * loads its whole follower list — each row hydrated into a Follow with a
-	 * Person and its details. $limit/$offset page it; the delivery path should
-	 * use getFollowerInboxes() instead, which asks the database for the small
-	 * thing it actually needs.
+	 * Each row is hydrated into a Follow with a Person and its details, so
+	 * $limit/$offset are what keep this bounded — it serves the paged
+	 * `followers` collection and the re-follow after a Move, both of which want
+	 * the follows themselves. Federated delivery used to fan out over it and
+	 * loaded a popular actor's whole follower list into memory for every post;
+	 * it asks getFollowerInboxes() for the distinct inboxes instead.
 	 *
 	 * @return Follow[]
 	 */

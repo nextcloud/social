@@ -222,7 +222,7 @@ class PollService {
 
 		/** @var Create $create */
 		$create = AP::$activityPub->getItemFromType(Create::TYPE);
-		$create->generateUniqueId('#vote');
+		$create->generateUniqueIdFromActor($viewer->getId(), 'vote');
 		$create->setActor($viewer);
 		$create->setObject($note);
 		$create->setTo($author->getId());
