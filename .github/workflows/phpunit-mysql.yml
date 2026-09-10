@@ -58,6 +58,8 @@ jobs:
               - '.php-cs-fixer.dist.php'
               - 'composer.json'
               - 'composer.lock'
+              - 'docs/**'
+              - 'README.md'
 
   phpunit-mysql:
     runs-on: ubuntu-latest
@@ -178,7 +180,8 @@ jobs:
         run: composer run test:integration
 
       - name: Print logs
-        if: steps.php_check.outputs.skip != 'true'
+        # always(), so the log is there to read when a test failed
+        if: always() && steps.php_check.outputs.skip != 'true'
         run: |
           cat data/nextcloud.log
 

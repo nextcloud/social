@@ -11,6 +11,7 @@ namespace OCA\Social\Command;
 
 use Exception;
 use OC\Core\Command\Base;
+use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Db\StreamTagsRequest;
@@ -18,9 +19,9 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
-use OCA\Social\Service\PushService;
 use OCA\Social\Tools\Traits\TArrayTools;
-use OCP\IUserManager;
+use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -30,25 +31,36 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 class CheckInstall extends Base {
 	use TArrayTools;
 
-	private IUserManager $userManager;
+	/**
+	 * How many stream rows the index rebuild holds at once.
+	 *
+	 * It used to load every row in the instance, after having truncated both
+	 * index tables — so on a large instance the rebuild ran out of memory and
+	 * left every timeline empty, with no way back but running it again on a
+	 * bigger memory_limit.
+	 */
+	private const INDEX_CHUNK = 500;
+
+	/** how many individual failures the rebuild reports before it only counts them */
+	private const INDEX_ERRORS_SHOWN = 10;
+
 	private StreamRequest $streamRequest;
 	private CacheActorService $cacheActorService;
 	private StreamDestRequest $streamDestRequest;
 	private StreamTagsRequest $streamTagsRequest;
 	private CheckService $checkService;
 	private ConfigService $configService;
-	private PushService $pushService;
 	private MiscService $miscService;
+	private IDBConnection $connection;
 
 	public function __construct(
-		IUserManager $userManager, StreamRequest $streamRequest, StreamDestRequest $streamDestRequest,
+		StreamRequest $streamRequest, StreamDestRequest $streamDestRequest,
 		StreamTagsRequest $streamTagsRequest, CacheActorService $cacheActorService,
-		CheckService $checkService, ConfigService $configService, PushService $pushService,
-		MiscService $miscService,
+		CheckService $checkService, ConfigService $configService,
+		MiscService $miscService, IDBConnection $connection,
 	) {
 		parent::__construct();
 
-		$this->userManager = $userManager;
 		$this->streamRequest = $streamRequest;
 		$this->streamDestRequest = $streamDestRequest;
 		$this->streamTagsRequest = $streamTagsRequest;
@@ -56,18 +68,17 @@ class CheckInstall extends Base {
 		$this->checkService = $checkService;
 		$this->configService = $configService;
 		$this->miscService = $miscService;
-		$this->pushService = $pushService;
+		$this->connection = $connection;
 	}
 
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:check:install')
 			->addOption('index', '', InputOption::VALUE_NONE, 'regenerate your index')
-//			 ->addOption(
-//				 'push', '', InputOption::VALUE_REQUIRED,
-//				 'a local account used to test integration to Nextcloud Push',
-//				 ''
-//			 )
+			->addOption(
+				'force', 'f', InputOption::VALUE_NONE,
+				'skip the confirmation of --index (required with --no-interaction)'
+			)
 			->setDescription('Check the integrity of the installation');
 	}
 
@@ -75,17 +86,16 @@ class CheckInstall extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		if ($this->askRegenerateIndex($input, $output)) {
-			return 0;
+		$index = $this->regenerateIndexIfAsked($input, $output);
+		if ($index !== null) {
+			return $index;
 		}
-
-		//		if ($this->checkPushApp($input, $output)) {
-		//			return;
-		//		}
 
 		$result = $this->checkService->checkInstallationStatus();
 
-		$output->writeln('- ' . $this->getInt('invalidFollowers', $result, 0) . ' invalid followers removed');
+		// 'invalidFollowers' was never a key of what checkInstallationStatus()
+		// returns, so this line always said 0
+		$output->writeln('- ' . $this->getInt('invalidFollows', $result, 0) . ' invalid followers removed');
 		$output->writeln('- ' . $this->getInt('invalidNotes', $result, 0) . ' invalid notes removed');
 
 		$output->writeln('');
@@ -128,79 +138,139 @@ class CheckInstall extends Base {
 	}
 
 	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
-	 * @return bool
-	 * @throws Exception
+	 * @return int|null the exit code, or null when --index was not asked for
 	 */
-	private function checkPushApp(InputInterface $input, OutputInterface $output): bool {
-		$userId = $input->getOption('push');
-		if ($userId === '') {
-			return false;
-		}
-
-		$user = $this->userManager->get($userId);
-		if ($user === null) {
-			throw new Exception('unknown user');
-		}
-
-		// push was not implemented on 18
-		//		$wrapper = $this->pushService->testOnAccount($userId);
-
-		//		$output->writeln(json_encode($wrapper, JSON_PRETTY_PRINT));
-
-		return true;
-	}
-
-	/**
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 *
-	 * @return bool
-	 */
-	private function askRegenerateIndex(InputInterface $input, OutputInterface $output): bool {
+	private function regenerateIndexIfAsked(InputInterface $input, OutputInterface $output): ?int {
 		if (!$input->getOption('index')) {
-			return false;
+			return null;
 		}
 
-		$helper = $this->getHelper('question');
 		$output->writeln('<error>This command will regenerate the index of the Social App.</error>');
 		$output->writeln(
 			'<error>This operation can takes a while, and the Social App might not be stable during the process.</error>'
 		);
 		$output->writeln('');
-		$question = new ConfirmationQuestion(
-			'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
-		);
 
-		if (!$helper->ask($input, $output, $question)) {
-			return true;
+		if (!$input->getOption('force')) {
+			if (!$input->isInteractive()) {
+				// A ConfirmationQuestion answers itself with its default —
+				// false — when nobody is there, so this used to exit 0 having
+				// rebuilt nothing.
+				$output->writeln(
+					'<error>Refusing to rebuild the index non-interactively without --force.</error>'
+				);
+
+				return 1;
+			}
+
+			$helper = $this->getHelper('question');
+			$question = new ConfirmationQuestion(
+				'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
+			);
+
+			if (!$helper->ask($input, $output, $question)) {
+				$output->writeln('cancelled, the index was left alone.');
+
+				return 0;
+			}
 		}
 
 		$this->streamDestRequest->emptyStreamDest();
 		$this->streamTagsRequest->emptyStreamTags();
-		$this->regenerateIndex($output);
 
-		return true;
+		return $this->regenerateIndex($output);
 	}
 
-	private function regenerateIndex(OutputInterface $output): void {
-		$streams = $this->streamRequest->getAll();
-		$progressBar = new ProgressBar($output, count($streams));
+	/**
+	 * Rebuilds social_stream_dest and social_stream_tag from social_stream, a
+	 * bounded number of rows at a time.
+	 *
+	 * Paged on `nid` rather than an OFFSET so the walk stays cheap on a table
+	 * with millions of rows, and one row at a time from there, so peak memory
+	 * is a chunk and not the instance.
+	 */
+	private function regenerateIndex(OutputInterface $output): int {
+		$progressBar = new ProgressBar($output, $this->countStreams());
 		$progressBar->start();
 
-		foreach ($streams as $stream) {
-			try {
-				$this->streamDestRequest->generateStreamDest($stream);
-				$this->streamTagsRequest->generateStreamTags($stream);
-			} catch (Exception $e) {
-				echo '-- ' . get_class($e) . ' - ' . $e->getMessage() . ' - ' . json_encode($stream) . "\n";
+		$errors = [];
+		$failed = 0;
+		$lastNid = 0;
+
+		while (true) {
+			$chunk = $this->streamChunk($lastNid, self::INDEX_CHUNK);
+			if ($chunk === []) {
+				break;
 			}
-			$progressBar->advance();
+
+			foreach ($chunk as $row) {
+				$lastNid = (int)$row['nid'];
+
+				try {
+					$stream = $this->streamRequest->getStream((string)$row['id_prim']);
+					$this->streamDestRequest->generateStreamDest($stream);
+					$this->streamTagsRequest->generateStreamTags($stream);
+				} catch (Exception $e) {
+					$failed++;
+					if (count($errors) < self::INDEX_ERRORS_SHOWN) {
+						$errors[] = '  nid ' . $lastNid . ': ' . get_class($e) . ' - ' . $e->getMessage();
+					}
+				}
+
+				$progressBar->advance();
+			}
 		}
 
 		$progressBar->finish();
 		$output->writeln('');
+
+		if ($failed === 0) {
+			return 0;
+		}
+
+		$output->writeln('<comment>' . $failed . ' stream(s) could not be indexed:</comment>');
+		foreach ($errors as $error) {
+			$output->writeln($error);
+		}
+		if ($failed > count($errors)) {
+			$output->writeln('  … and ' . ($failed - count($errors)) . ' more');
+		}
+
+		return 1;
+	}
+
+	private function countStreams(): int {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'total'))
+			->from(CoreRequestBuilder::TABLE_STREAM);
+
+		$cursor = $qb->executeQuery();
+		$total = (int)$cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return $total;
+	}
+
+	/**
+	 * The next $limit stream rows after $afterNid, as (nid, id_prim) pairs.
+	 *
+	 * Only the two columns the rebuild needs: the full row is read back one at
+	 * a time through StreamRequest, which is what knows how to parse it.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private function streamChunk(int $afterNid, int $limit): array {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('nid', 'id_prim')
+			->from(CoreRequestBuilder::TABLE_STREAM)
+			->where($qb->expr()->gt('nid', $qb->createNamedParameter($afterNid, IQueryBuilder::PARAM_INT)))
+			->orderBy('nid', 'asc')
+			->setMaxResults($limit);
+
+		$cursor = $qb->executeQuery();
+		$rows = $cursor->fetchAll();
+		$cursor->closeCursor();
+
+		return $rows;
 	}
 }

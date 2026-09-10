@@ -1,0 +1,133 @@
+# Translation source extraction, and the Transifex push half of the sync.
+#
+# Issue #1988 ("translations are paused") is a broken pipeline, not a paused
+# one: nothing in this repository ever extracted the source strings, so
+# nothing was ever pushed for translation. `l10n/de.json` — the best covered
+# language — carries 135 strings against ~347 in the source.
+#
+# .tx/config is correct as it stands: `translationfiles/` is not a directory
+# the repository holds, it is what the extractor below writes (the same layout
+# every Nextcloud app uses, and what the Makefile's appstore target excludes).
+#
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
+
+name: l10n
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/l10n.yml'
+      - '.l10nignore'
+      - '.tx/**'
+      - 'l10n/**'
+      - 'lib/**'
+      - 'src/**'
+      - 'templates/**'
+      - 'appinfo/info.xml'
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: l10n-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  # nextcloud/docker-ci's translationtool: the tool the organisation's own
+  # translation sync runs. Pinned to a commit, with its digest, because it is
+  # an executable downloaded into CI.
+  TRANSLATIONTOOL_REF: 5ed96fa6f9535415f9da1e672f38d7f7c659b2ee
+  TRANSLATIONTOOL_SHA256: 667ca0a3d7ca8858f66f72007792d5bbab867dba6b1bb458d95ec7a74f17385f
+  TX_CLI_VERSION: v1.6.17
+  TX_CLI_SHA256: 002dec5b9e71248a7e6a0808118e9da940205828d5a33ce88e04bb57a967164d
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    name: extract source strings
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Set up php8.3
+        uses: shivammathur/setup-php@c541c155eee45413f5b09a52248675b1a2575231 # v2.31.1
+        with:
+          php-version: 8.3
+          extensions: ctype, dom, json, libxml, mbstring, simplexml, xmlreader, xmlwriter
+          coverage: none
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install gettext
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gettext
+
+      - name: Fetch the translationtool
+        run: |
+          curl -fsSL -o translationtool.phar \
+            "https://raw.githubusercontent.com/nextcloud/docker-ci/$TRANSLATIONTOOL_REF/translations/translationtool/translationtool.phar"
+          echo "$TRANSLATIONTOOL_SHA256  translationtool.phar" | sha256sum -c -
+
+      - name: Extract source strings
+        run: |
+          php translationtool.phar create-pot-files
+          test -s translationfiles/templates/social.pot
+
+      - name: Report translation coverage
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, json, os, re
+
+          pot = open('translationfiles/templates/social.pot', encoding='utf-8').read()
+          # every msgid but the header's empty one
+          source = {m for m in re.findall(r'^msgid "((?:[^"\\]|\\.)*)"', pot, re.M) if m}
+          total = len(source)
+          print(f'## Translation coverage\n')
+          print(f'`{total}` translatable strings in the source.\n')
+          print('| Language | Translated | Coverage |')
+          print('|---|---:|---:|')
+          rows = []
+          for path in sorted(glob.glob('l10n/*.json')):
+              with open(path, encoding='utf-8') as handle:
+                  done = {k: v for k, v in json.load(handle)['translations'].items() if v}
+              rows.append((len(done), os.path.basename(path)[:-5]))
+          for count, lang in sorted(rows, reverse=True)[:15]:
+              print(f'| {lang} | {count} | {100 * count // max(total, 1)}% |')
+          print(f'\n{len(rows)} languages present in `l10n/`.')
+          PY
+
+      - name: Upload the extracted template
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: social-pot
+          path: translationfiles/templates/social.pot
+          if-no-files-found: error
+
+      # Only on a push to the default branch, and only when the token is
+      # configured: a fork or a repository without the secret must not fail
+      # here, it simply has nothing to push.
+      - name: Push source strings to Transifex
+        if: github.event_name != 'pull_request'
+        env:
+          TX_TOKEN: ${{ secrets.TRANSIFEX_API_TOKEN }}
+        run: |
+          if [ -z "$TX_TOKEN" ]; then
+            echo "::notice::TRANSIFEX_API_TOKEN is not set, so the source strings were extracted but not pushed."
+            echo "Add the secret (or register this app with the organisation's translation sync) to resume translation."
+            exit 0
+          fi
+
+          curl -fsSL -o tx.tar.gz \
+            "https://github.com/transifex/cli/releases/download/$TX_CLI_VERSION/tx-linux-amd64.tar.gz"
+          echo "$TX_CLI_SHA256  tx.tar.gz" | sha256sum -c -
+          tar -xzf tx.tar.gz tx
+          ./tx push --source --use-git-timestamps

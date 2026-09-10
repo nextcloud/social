@@ -39,11 +39,14 @@ jobs:
       - name: Install dependencies
         run: composer i
 
-      - name: Patch friendica/json-ld for PHP 8.4+ compatibility
-        run: |
-          sed -i 's/foreach (\$http_response_header as/foreach (\$http_response_header ?? [] as/g' vendor/friendica/json-ld/jsonld.php
+      # No friendica/json-ld patch here: since 1.1.5 jsonld.php guards
+      # $http_response_header behind function_exists('http_get_last_response_headers'),
+      # so the PHP 8.4 fatal this job used to sed away no longer exists. Adding a
+      # patch step in CI that nothing else applies is how CI and a local run drift
+      # apart, so if the dependency regresses, fix it in composer.json, not here.
 
+      # Runs against tests/psalm-baseline.xml and FAILS on anything new.
+      # Accepting a new baseline is a deliberate act: run
+      # `composer run psalm:update-baseline` locally and commit the result.
       - name: Run Psalm static analysis
-        run: |
-          php vendor/bin/psalm --threads=1 --update-baseline || true
-          echo "Psalm completed. If baseline changed, commit the updated tests/psalm-baseline.xml."
+        run: php vendor/bin/psalm --threads=1

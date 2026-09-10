@@ -1,3 +1,10 @@
+# The skip half of the pair: node.yml runs the real build (and checks the
+# committed js/ bundle against src/) and ends in a summary job named `node`.
+# This workflow reports the same `node` check on pull requests that touch no
+# frontend file, so a branch-protection rule on `node` is satisfied either way.
+#
+# Keep the paths-ignore list here identical to the `src` filter in node.yml.
+#
 # This workflow is provided via the organization template repository
 #
 # https://github.com/nextcloud/.github
@@ -13,22 +20,19 @@ on:
     paths-ignore:
       - '.github/workflows/**'
       - 'src/**'
+      - 'js/**'
       - 'appinfo/info.xml'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'webpack.*.js'
+      - 'babel.config.js'
       - '**.js'
       - '**.ts'
       - '**.vue'
-  push:
-    branches:
-      - main
-      - master
-      - stable*
 
-concurrency:
-  group: node-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   build:

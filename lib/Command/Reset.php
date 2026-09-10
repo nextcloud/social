@@ -57,6 +57,15 @@ class Reset extends Base {
 		parent::configure();
 		$this->setName('social:reset')
 			->addOption('uninstall', '', InputOption::VALUE_NONE, 'full removing of the app')
+			->addOption(
+				'uri', '', InputOption::VALUE_REQUIRED,
+				'the base address of your cloud to rebuild every id from, instead of being asked for it',
+				''
+			)
+			->addOption(
+				'force', 'f', InputOption::VALUE_NONE,
+				'skip the confirmation prompts (required with --no-interaction)'
+			)
 			->setDescription('Reset ALL data related to the Social App');
 	}
 
@@ -67,24 +76,25 @@ class Reset extends Base {
 	 * @throws Exception
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output): int {
-		$helper = $this->getHelper('question');
 		$output->writeln(
 			'<error>Beware, this operation will delete all content from the Social App.</error>'
 		);
 		$output->writeln('');
-		$question = new ConfirmationQuestion(
-			'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
-		);
 
-		if (!$helper->ask($input, $output, $question)) {
-			return 0;
+		if (!$input->isInteractive() && !$input->getOption('force')) {
+			// Not a silent no-op: a script that asked for this has to hear that
+			// nothing happened.
+			$output->writeln(
+				'<error>Refusing to run non-interactively without --force:'
+				. ' there is nobody here to confirm.</error>'
+			);
+
+			return 1;
 		}
 
-		$question = new ConfirmationQuestion(
-			'<info>Operation is destructive. Are you sure about this?</info> (y/N) ', false,
-			'/^(y|Y)/i'
-		);
-		if (!$helper->ask($input, $output, $question)) {
+		if (!$this->confirm($input, $output)) {
+			$output->writeln('cancelled, nothing was deleted.');
+
 			return 0;
 		}
 
@@ -96,6 +106,8 @@ class Reset extends Base {
 				$output->writeln('<info>uninstalled</info>');
 			} catch (Exception $e) {
 				$output->writeln('<error>' . $e->getMessage() . '</error>');
+
+				return 1;
 			}
 
 			return 0;
@@ -109,22 +121,71 @@ class Reset extends Base {
 		} catch (Exception $e) {
 			$output->writeln('<error>' . $e->getMessage() . '</error>');
 
-			return 0;
+			return 1;
 		}
 
 		$this->checkService->checkInstallationStatus(true);
 		$output->writeln('');
 
-		$cloudAddress = $this->configService->getCloudUrl();
-		$question = new Question(
-			'<info>Now is a good time to change the base address of your cloud: </info> ('
-			. $cloudAddress . ') ',
-			$cloudAddress
+		return $this->setCloudAddress($input, $output);
+	}
+
+	/**
+	 * The two confirmations, and the reason this command has a --force at all:
+	 * under `occ --no-interaction` a ConfirmationQuestion returns its default,
+	 * which is false, so the command used to print its warning and then exit 0
+	 * having done nothing — indistinguishable, to a script, from success.
+	 */
+	private function confirm(InputInterface $input, OutputInterface $output): bool {
+		if ($input->getOption('force')) {
+			$output->writeln('<comment>--force given, not asking.</comment>');
+
+			return true;
+		}
+
+		$helper = $this->getHelper('question');
+		$question = new ConfirmationQuestion(
+			'<info>Do you confirm this operation?</info> (y/N) ', false, '/^(y|Y)/i'
 		);
 
-		$newCloudAddress = $helper->ask($input, $output, $question);
+		if (!$helper->ask($input, $output, $question)) {
+			return false;
+		}
 
-		if ($newCloudAddress === $cloudAddress) {
+		$question = new ConfirmationQuestion(
+			'<info>Operation is destructive. Are you sure about this?</info> (y/N) ', false,
+			'/^(y|Y)/i'
+		);
+
+		return (bool)$helper->ask($input, $output, $question);
+	}
+
+	/**
+	 * Every id Social has written is built from the stored cloud address, so a
+	 * flush is the one moment that address can change. --uri says what it
+	 * becomes; without it, and with somebody at the keyboard, we ask.
+	 */
+	private function setCloudAddress(InputInterface $input, OutputInterface $output): int {
+		$cloudAddress = $this->configService->getCloudUrl();
+		$newCloudAddress = (string)$input->getOption('uri');
+
+		if ($newCloudAddress === '') {
+			if (!$input->isInteractive()) {
+				$output->writeln('Address left at <info>' . $cloudAddress . '</info>.');
+
+				return 0;
+			}
+
+			$helper = $this->getHelper('question');
+			$question = new Question(
+				'<info>Now is a good time to change the base address of your cloud: </info> ('
+				. $cloudAddress . ') ',
+				$cloudAddress
+			);
+			$newCloudAddress = (string)$helper->ask($input, $output, $question);
+		}
+
+		if ($newCloudAddress === '' || $newCloudAddress === $cloudAddress) {
 			return 0;
 		}
 

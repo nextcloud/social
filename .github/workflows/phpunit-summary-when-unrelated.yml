@@ -21,6 +21,8 @@ on:
       - '.php-cs-fixer.dist.php'
       - 'composer.json'
       - 'composer.lock'
+      - 'docs/**'
+      - 'README.md'
 
 permissions:
   contents: read
@@ -32,17 +34,6 @@ jobs:
     runs-on: ubuntu-latest
 
     name: phpunit-mysql-summary
-
-    steps:
-      - name: Summary status
-        run: 'echo "No PHP files changed, skipped PHPUnit"'
-
-  summary-oci:
-    permissions:
-      contents: none
-    runs-on: ubuntu-latest
-
-    name: phpunit-oci-summary
 
     steps:
       - name: Summary status

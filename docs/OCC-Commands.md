@@ -279,6 +279,36 @@ Federation health section of the administration settings.
 
 ---
 
+### `social:queue:retry`
+
+Put queued deliveries back on standby, or drop them.
+
+```
+php occ social:queue:retry [-t|--token TOKEN] [--min-tries N] [--limit N]
+                           [--stream] [--flush] [-f|--force]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `-t`, `--token` | optional | Act on one delivery only, by the token `social:queue:status` prints |
+| `--min-tries` | int (1) | Without a token, act on the rows that have already failed at least this many times |
+| `--limit` | int (500) | How many rows one run touches at most; run it again to work through the rest |
+| `--stream` | none | Act on the inbound stream queue (`social_stream_queue`) instead of the outbound delivery queue |
+| `--flush` | none | Delete the matching rows instead of queueing them again |
+| `-f`, `--force` | none | Do not ask for confirmation (required with `--no-interaction`) |
+
+Retrying clears the attempt count and sets the row back to standby, so it gets the
+full run of retries again on the next queue cron (or `occ social:queue:process`)
+rather than being abandoned on its next failure. `--flush` deletes the rows: those
+activities are never delivered, which is what you want for a delivery that will
+never succeed — a peer that is gone, or an activity it refuses.
+
+Rows that already succeeded are never touched, so a retry cannot send an activity
+twice. The command prints how many rows matched, across how many delivery tokens
+and with what spread of attempt counts, and asks before it changes anything.
+
+---
+
 ## Development
 
 ### `social:benchmark`
@@ -287,7 +317,7 @@ Seeds a plausible amount of content and times the queries behind the timelines, 
 
 ```
 php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer=USER]
-                         [--seed-only] [--time-only] [--clean]
+                         [--seed-only] [--time-only] [--clean] [-f|--force]
 ```
 
 | Option | Value | Description |
@@ -299,6 +329,12 @@ php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer
 | `--seed-only` | none | Write the rows without timing anything |
 | `--time-only` | none | Time what is already seeded |
 | `--clean` | none | Delete everything the command wrote and nothing else |
+| `-f`, `--force` | none | Seed without asking (required with `--no-interaction`) |
+
+Seeding says how many rows it is about to write and asks before writing any of
+them; under `--no-interaction` it refuses unless `--force` is given, rather than
+seeding a production database because nobody was there to say no. `--clean` and
+`--time-only` write nothing and do not ask.
 
 Every row it writes carries `benchmark.invalid` in its id, which is what `--clean` matches on. The reported time is the second run of each query, so it measures a served request rather than a cold cache.
 
@@ -394,12 +430,13 @@ inbox delivery and for fetching remote data.
 Check the integrity of the installation, or regenerate the stream index.
 
 ```
-php occ social:check:install [--index]
+php occ social:check:install [--index] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--index` | none | Regenerate the stream index instead of running the checks |
+| `-f`, `--force` | none | Skip the confirmation of `--index` (required with `--no-interaction`) |
 
 Without `--index`:
 
@@ -410,11 +447,14 @@ Without `--index`:
 
 With `--index` the checks are skipped entirely. The command warns that the operation
 takes a while, asks `Do you confirm this operation? (y/N)`, and on confirmation
-empties `stream_dest` and `stream_tags` and rebuilds both for every stream, with a
-progress bar. Answering anything but `y` exits without changes.
+empties `stream_dest` and `stream_tags` and rebuilds both from `social_stream`, a
+few hundred rows at a time, with a progress bar. Answering anything but `y` exits
+without changes; under `--no-interaction` it refuses unless `--force` is given
+(exit code `1`), because the index tables are truncated before the rebuild starts
+and a run that stops there leaves every timeline empty.
 
-A `--push` option for testing Nextcloud Push integration is present in the source but
-commented out (`lib/Command/CheckInstall.php:66-70`), so it is not available.
+Rows it cannot parse are reported at the end (the first ten in full, then a count)
+and make the command exit `1`; the rest of the index is still rebuilt.
 
 ---
 
@@ -423,26 +463,33 @@ commented out (`lib/Command/CheckInstall.php:66-70`), so it is not available.
 Delete all Social data, or uninstall the app's database footprint.
 
 ```
-php occ social:reset [--uninstall]
+php occ social:reset [--uninstall] [--uri ADDRESS] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--uninstall` | none | Full removal instead of a data flush |
+| `--uri` | address | The cloud base address to rebuild every id from, instead of being asked for it. This is the option `social:check:install` names when the configured address no longer matches the server |
+| `-f`, `--force` | none | Skip both confirmations (required with `--no-interaction`) |
 
-The command always asks **two** confirmations before doing anything:
+The command asks **two** confirmations before doing anything:
 
 1. `Do you confirm this operation? (y/N)`
 2. `Operation is destructive. Are you sure about this? (y/N)`
 
-Answering anything but `y` to either question aborts with exit code `0`.
+Answering anything but `y` to either question aborts with exit code `0` and changes
+nothing. Under `--no-interaction` the command refuses with exit code `1` unless
+`--force` is given: a confirmation prompt answers itself with its default when
+nobody is there, so without this the command would exit `0` having done nothing.
 
 Without `--uninstall`:
 
 - empties every Social table (`CoreRequestBuilder::emptyAll()`),
 - re-runs `checkInstallationStatus(true)`,
-- offers to change the cloud base address, pre-filled with the current one; entering
-  the same value leaves it unchanged.
+- sets the cloud base address to `--uri`, or, with somebody at the keyboard and no
+  `--uri`, offers to change it, pre-filled with the current one; entering the same
+  value leaves it unchanged. Non-interactively and without `--uri` the address is
+  left as it was.
 
 With `--uninstall`:
 
@@ -459,8 +506,8 @@ The app files themselves are not removed, and the app is not disabled.
 
 | Code | Meaning |
 |------|---------|
-| 0 | Success, and also an aborted confirmation prompt or a caught error in `social:reset` |
-| 1 | `social:account:following` handled failure, or an uncaught exception in any command |
+| 0 | Success, and also a confirmation prompt answered with "no" |
+| 1 | A refusal to act non-interactively without `--force` (`social:reset`, `social:check:install --index`, `social:benchmark`, `social:queue:retry`), a failed flush or uninstall in `social:reset`, streams `social:check:install --index` could not parse, `social:account:following` handled failure, or an uncaught exception in any command |
 
 ---
 

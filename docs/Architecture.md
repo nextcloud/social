@@ -81,7 +81,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_cache_doc` | Cached remote and local media attachments |
 | `social_client` | OAuth 2.0 client registrations |
 | `social_follow` | Follow relationships (actor → object, with accepted flag) |
-| `social_hashtag` | Hashtag trend data (a JSON `trend` blob per hashtag) |
+| `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`) |
 | `social_instance` | Known federated instances (version, metadata) |
 | `social_req_queue` | Outbound ActivityPub delivery queue |
 | `social_stream` | Core content table: posts, notes, activities |
@@ -90,10 +90,17 @@ The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all
 | `social_stream_queue` | Inbound stream processing queue |
 | `social_stream_tag` | Stream-to-hashtag mapping |
 | `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
+| `social_report` | Moderation reports, local and federated `Flag` activities, with a `resolved` flag |
+| `social_moderation` | The decision taken about an account: one row per silenced or suspended actor (`level`) |
+| `social_stream_card` | The link-preview card of a status (url, title, description, image, provider), one row per stream |
 
-`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, and `Version1000Date20260908000003` adds `social_report` (moderation reports).
+`Version1000Date20260611000001` only drops the abandoned `social_3_*` tables from an earlier prototype. `Version1000Date20260907000001` adds the timeline indexes and the missing primary keys, `Version1000Date20260907000002` adds `social_actor_relation`, `Version1000Date20260907000003` adds the `bookmarked` flag to `social_stream_act`, `Version1000Date20260908000001` widens `social_client.app_client_secret` for its hashed value, `Version1000Date20260908000002` adds the `locked` flag to `social_actor`, `Version1000Date20260908000003` adds `social_report` (moderation reports), `Version1000Date20260908000004` adds the `fields` column to `social_actor` (the profile metadata fields), `Version1000Date20260908000005` adds `social_stream_card` (link previews), `Version1000Date20260909000001` adds `social_moderation` (the silence/suspend decisions, indexed on `level`), `Version1000Date20260910000001` adds the indexes the hot paths were querying as if they existed (`social_cache_doc.id_prim` and `parent_id_prim`, `social_stream_act` by (actor, flag), `social_stream_tag` by tag, `social_action` by (object, type), both queues by `status`/`id`, `social_client.token`, `social_stream.creation`, `social_cache_actor` by (local, details_update) and `social_follow` by (object, actor)), and `Version1000Date20260910000002` adds the sortable `trend_*` counter columns to `social_hashtag` (the JSON `trend` column stays; the columns are filled by the next cron pass, so no backfill runs during the upgrade).
 
-Note that `CoreRequestBuilder::TABLE_NOTIFICATION` (`social_notif`) is declared but no migration creates that table and no repository queries it; it is a leftover constant. In-app notifications are stored in `social_stream` as `SocialAppNotification` items.
+`Version1000Date20260907000001` deserves a warning: it adds an autoincrement `BIGINT` primary key to `social_stream_dest` and `social_stream_tag`, the two highest-cardinality tables. On MySQL/MariaDB that is a full table rebuild, so on a large instance `occ upgrade` will sit there for a while with the instance in maintenance mode. The change is correct and needed; the cost is not obvious from the migration.
+
+There is no downgrade path, and none is possible: `Version1000Date20260611000001` drops tables outright.
+
+There is no notifications table: in-app notifications are stored in `social_stream` as `SocialAppNotification` items. (A `TABLE_NOTIFICATION` constant naming a `social_notif` table that no migration ever created used to be declared here; it has been removed.)
 
 ---
 
