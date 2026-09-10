@@ -8,7 +8,13 @@
 
 name: PHPUnit MySQL
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
 
 permissions:
   contents: read
@@ -202,4 +208,4 @@ jobs:
 
     steps:
       - name: Summary status
-        run: if ${{ needs.changes.outputs.src != 'false' && needs.phpunit-mysql.result != 'success' && needs.phpunit-mysql.result != 'skipped' }}; then exit 1; fi
+        run: if ${{ needs.changes.outputs.src != 'false' && needs.phpunit-mysql.result != 'success' }}; then exit 1; fi

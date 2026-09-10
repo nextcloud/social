@@ -8,7 +8,13 @@
 
 name: Lint stylelint
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
 
 permissions:
   contents: read

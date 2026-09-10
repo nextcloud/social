@@ -11,7 +11,13 @@ name: Static analysis
 permissions:
   contents: read
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
 
 concurrency:
   group: psalm-${{ github.head_ref || github.run_id }}

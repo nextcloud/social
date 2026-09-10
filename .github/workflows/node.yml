@@ -4,16 +4,25 @@
 # request that changes src/ without rebuilding ships nothing. Nothing in CI
 # used to catch that: `npm run build` ran only on release publish.
 #
-# Structure mirrors the organisation's lint-eslint template, and the summary
-# job is named `node` so it and node-when-unrelated.yml's skip job share one
-# name and a branch-protection rule matches whichever of the two runs.
+# Structure mirrors the organisation's lint-eslint template. The summary job is
+# named `node` and runs on every pull request and every push to the default
+# branch — green when the paths filter reports no frontend change — so a single
+# branch-protection rule on `node` is always satisfied by exactly one run. The
+# former node-when-unrelated.yml emitted a second check under the same name and
+# has been removed.
 #
 # SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
 # SPDX-License-Identifier: MIT
 
 name: Node
 
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
 
 permissions:
   contents: read
@@ -110,7 +119,7 @@ jobs:
     if: always()
 
     # This is the summary, we just avoid to rename it so that branch protection
-    # rules still match (node-when-unrelated.yml uses the same name).
+    # rules still match.
     name: node
 
     steps:
