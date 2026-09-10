@@ -13,6 +13,7 @@ use OCA\Social\Command\NoteCreate;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\SignatureService;
 use OCP\IUserManager;
@@ -32,6 +33,8 @@ class NoteCreateTest extends CommandTestCase {
 
 	/** Set when this test made the actor, so only then does it remove it. */
 	private string $createdActor = '';
+
+	private string $actorId = '';
 
 	/** @var string[] ids of the notes this test created */
 	private array $created = [];
@@ -53,7 +56,7 @@ class NoteCreateTest extends CommandTestCase {
 		// something a test runner generally cannot do
 		$actorsRequest = Server::get(ActorsRequest::class);
 		try {
-			$actorsRequest->getFromUserId($this->userId);
+			$this->actorId = $actorsRequest->getFromUserId($this->userId)->getId();
 		} catch (ActorDoesNotExistException $e) {
 			$actor = new Person();
 			$actor->setPreferredUsername($this->userId);
@@ -61,6 +64,7 @@ class NoteCreateTest extends CommandTestCase {
 			Server::get(SignatureService::class)->generateKeys($actor);
 			$actorsRequest->create($actor);
 			$this->createdActor = $this->userId;
+			$this->actorId = $actorsRequest->getFromUserId($this->userId)->getId();
 		}
 	}
 
@@ -79,6 +83,7 @@ class NoteCreateTest extends CommandTestCase {
 
 	public function testAMisspelledTypeIsRefusedRatherThanPostedToNobody(): void {
 		$tester = $this->tester(NoteCreate::class);
+		$before = $this->lastNoteId();
 
 		$code = $this->runNonInteractive($tester, [
 			'user_id' => $this->userId,
@@ -90,31 +95,39 @@ class NoteCreateTest extends CommandTestCase {
 		$this->assertSame(1, $code);
 		$this->assertStringContainsString('unknown type', $display);
 		$this->assertStringContainsString('followers', $display, 'the message names what it would have accepted');
-		$this->assertStringNotContainsString('token:', $display, 'nothing was posted');
+
+		$this->assertSame(
+			$before,
+			$this->lastNoteId(),
+			'the refused note must not have been written'
+		);
+	}
+
+	/** The author's most recent public note, or '' when they have none yet. */
+	private function lastNoteId(): string {
+		try {
+			return Server::get(StreamRequest::class)->lastNoteFromActorId($this->actorId)->getId();
+		} catch (StreamNotFoundException $e) {
+			return '';
+		}
 	}
 
 	public function testAnOmittedTypeIsThePublicItsHelpPromises(): void {
 		$tester = $this->tester(NoteCreate::class);
 
+		$content = 'note without an explicit type ' . time();
 		$code = $this->runNonInteractive($tester, [
 			'user_id' => $this->userId,
-			'content' => 'note without an explicit type ' . time(),
+			'content' => $content,
 		]);
 
-		$display = $tester->getDisplay();
 		$this->assertSame(0, $code);
-		$this->rememberCreated($display);
-		$this->assertStringContainsString(
-			'https://www.w3.org/ns/activitystreams#Public',
-			$display,
-			'the note is addressed to the public collection, not held as a direct post'
-		);
-	}
 
-	/** The command prints the object it created; keep its id so tearDown can drop it. */
-	private function rememberCreated(string $display): void {
-		if (preg_match('/"id"\s*:\s*"([^"]+)"/', $display, $matches) === 1) {
-			$this->created[] = $matches[1];
-		}
+		// lastNoteFromActorId() only ever returns a note addressed to the public
+		// collection, so finding this one there is the assertion: a direct post
+		// — what an unrecognised visibility used to produce — would not be found
+		$note = Server::get(StreamRequest::class)->lastNoteFromActorId($this->actorId);
+		$this->created[] = $note->getId();
+		$this->assertStringContainsString($content, $note->getContent());
 	}
 }

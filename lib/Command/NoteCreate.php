@@ -129,8 +129,12 @@ class NoteCreate extends Base {
 		$token = '';
 		$activity = $this->postService->createPost($post, $token);
 
-		echo 'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-		echo 'token: ' . $token . "\n";
+		// through the output interface rather than echo, so the result can be
+		// redirected, captured or formatted like every other occ command's
+		$output->writeln(
+			'object: ' . json_encode($activity, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+		);
+		$output->writeln('token: ' . $token);
 
 		return 0;
 	}
