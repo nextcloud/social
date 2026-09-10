@@ -41,7 +41,7 @@ const stubs = {
 	NcCounterBubble: { props: ['count', 'type'], template: '<span class="nc-counter" :data-count="count">{{ count }}</span>' },
 	NcAppNavigationSpacer: { template: '<hr>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
-	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" />' },
+	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
 	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
 	Composer: { emits: ['posted'], template: '<div class="composer-stub" @click="$emit(\'posted\')" />' },
 }
@@ -94,7 +94,7 @@ describe('Navigation', () => {
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
-			'Profile',
+			'Alice',
 			'Blocked and muted accounts',
 		])
 	})
@@ -108,7 +108,7 @@ describe('Navigation', () => {
 		['Liked posts', { name: 'timeline', params: { type: 'favourites' } }],
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
-		['Profile', { name: 'profile', params: { account: 'alice' } }],
+		['Alice', { name: 'profile', params: { account: 'alice' } }],
 	])('points the %s entry at its route', async (name, to) => {
 		// an href so it is a real link, and a click that stays in the app: with
 		// `to` the component ORs vue-router's own idea of active into the entry,
@@ -201,9 +201,9 @@ describe('Navigation', () => {
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
-		['/@alice', 'Profile'],
-		['/@alice/followers', 'Profile'],
-		['/@alice/following', 'Profile'],
+		['/@alice', 'Alice'],
+		['/@alice/followers', 'Alice'],
+		['/@alice/following', 'Alice'],
 	])('marks only one entry active on %s', (path, active) => {
 		const wrapper = mountNavigation({}, appRouter.resolve(path))
 		expect(activeNames(wrapper)).toEqual([active])
@@ -221,10 +221,20 @@ describe('Navigation', () => {
 		expect(activeNames(wrapper)).toEqual([])
 	})
 
-	it('shows the current user on the profile entry', () => {
-		const profile = item(mountNavigation(), 'Profile')
-		expect(profile.find('.nc-avatar-stub').attributes('data-user')).toBe('alice')
-		expect(profile.find('.navigation__subname').text()).toBe('@alice')
+	it('names the profile entry after the reader, not after their login', () => {
+		// it read "Profile" with the Nextcloud login name pushed to the far right
+		// of the row, which is neither the name they publish under nor their handle
+		const profile = item(mountNavigation(), 'Alice')
+
+		expect(profile.attributes('data-name')).toBe('Alice')
+		expect(profile.text()).not.toContain('@alice')
+	})
+
+	it('gives the profile entry a portrait big enough to recognise', () => {
+		const avatar = item(mountNavigation(), 'Alice').find('.nc-avatar-stub')
+
+		expect(avatar.attributes('data-user')).toBe('alice')
+		expect(Number(avatar.attributes('data-size'))).toBeGreaterThanOrEqual(32)
 	})
 
 	it('emits the search term once the typing settles, not per keystroke', async () => {
@@ -375,7 +385,7 @@ describe('Navigation entries are links', () => {
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
-		['Profile', '/index.php/apps/social/@alice'],
+		['Alice', '/index.php/apps/social/@alice'],
 		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)
