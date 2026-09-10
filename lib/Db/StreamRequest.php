@@ -11,6 +11,7 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use Exception;
+use InvalidArgumentException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -627,20 +628,55 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineFavourites(ProbeOptions $options): array {
+		return $this->getTimelineMarked($options, 'liked');
+	}
+
+	/**
+	 * The viewer's own marks — liked or bookmarked — newest first.
+	 *
+	 * Two queries, as the home timeline does it, and for the same reason. Asked
+	 * as one, the database drives from the action rows, joins the whole post and
+	 * its author to each, and only then sorts the result by post id to take a
+	 * page of fifteen: EXPLAIN says "Using temporary; Using filesort" over the
+	 * joined rows. Somebody with ten thousand likes therefore pays for ten
+	 * thousand wide rows to see the newest fifteen. Deciding the page over one
+	 * indexed column first leaves the wide read with exactly the rows it returns.
+	 *
+	 * @param string $mark the action column that has to be set
+	 *
+	 * @return Stream[]
+	 */
+	private function getTimelineMarked(ProbeOptions $options, string $mark): array {
+		if (!in_array($mark, ['liked', 'bookmarked'], true)) {
+			throw new InvalidArgumentException('unknown mark: ' . $mark);
+		}
+
+		$page = $this->getStreamNidsSelectSql();
+		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
+		$page->limitToStatusTypes();
+		$page->paginate($options);
+		$page->innerJoin(
+			's', CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
+			$page->expr()->andX(
+				$page->expr()->eq('sa.stream_id_prim', 's.id_prim'),
+				$page->expr()->eq('sa.actor_id_prim', $viewer),
+				$page->expr()->eq('sa.' . $mark, $page->createNamedParameter(1))
+			)
+		);
+		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+
+		$nids = $this->getNidsFromRequest($page);
+		if ($nids === []) {
+			return [];
+		}
+
 		$qb = $this->getStreamSelectSql($options->getFormat());
-		$actor = $qb->getViewer();
-		$expr = $qb->expr();
-
-		$qb->limitToStatusTypes();
-		$qb->paginate($options);
+		$qb->andWhere(
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+		);
+		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-
-		$qb->selectStreamActions('sa');
-		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
-		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
-		$qb->andWhere($expr->eq('sa.liked', $qb->createNamedParameter(1)));
-
-		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		$qb->leftJoinStreamAction('sa');
 
 		return $this->getStreamsFromRequest($qb);
 	}
@@ -651,22 +687,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream[]
 	 */
 	private function getTimelineBookmarks(ProbeOptions $options): array {
-		$qb = $this->getStreamSelectSql($options->getFormat());
-		$actor = $qb->getViewer();
-		$expr = $qb->expr();
-
-		$qb->limitToStatusTypes();
-		$qb->paginate($options);
-		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-
-		$qb->selectStreamActions('sa');
-		$qb->andWhere($expr->eq('sa.stream_id_prim', 's.id_prim'));
-		$qb->andWhere($expr->eq('sa.actor_id_prim', $qb->createNamedParameter($qb->prim($actor->getId()))));
-		$qb->andWhere($expr->eq('sa.bookmarked', $qb->createNamedParameter(1)));
-
-		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
-
-		return $this->getStreamsFromRequest($qb);
+		return $this->getTimelineMarked($options, 'bookmarked');
 	}
 
 	/**
