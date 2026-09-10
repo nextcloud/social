@@ -432,7 +432,12 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		bool $allowDirect = false, string $hiddenLevel = self::HIDDEN_TIMELINE,
 	) {
 		if (!$this->hasViewer()) {
-			$this->selectDestFollowing($aliasDest);
+			// No viewer means no follows are consulted, so the follows table
+			// must not be in the FROM list at all: a plain `FROM social_follow`
+			// with nothing to join it against is a cartesian product, and on an
+			// instance with no follows at all it collapses every row. Passing
+			// '' suppresses it, exactly as the viewer branch below does.
+			$this->selectDestFollowing($aliasDest, '');
 			$this->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 			$this->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', '', $aliasDest);
 

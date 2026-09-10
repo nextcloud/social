@@ -645,6 +645,8 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->limitToViewer('sd', 'f', true);
 		$qb->andWhere($expr->eq('s.attributed_to_prim', 'ca.id_prim'));
+		// a hashtag timeline is part of the public square a silenced account loses
+		$this->filterSilencedActors($qb);
 
 		$qb->leftJoinStreamAction('sa');
 
@@ -874,6 +876,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$page->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
 		$page->filterHiddenActors();
+		$this->filterSilencedActors($page);
 
 		$nids = $this->getNidsFromRequest($page);
 		if ($nids === []) {
