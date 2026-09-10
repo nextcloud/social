@@ -18,7 +18,7 @@ It is a partial implementation of ActivityPub and of the Mastodon client API —
 - ⚠️ **Content warnings** — put a warning on a post in the composer and the body is folded away behind it until a reader asks to see it (it is not even in the page until then). Carried as the ActivityPub object's `summary` and as `spoiler_text` on the client API, so warnings written elsewhere in the Fediverse are honoured here and vice versa.
 - 👍 🔁 💬 **Post actions** — like/unlike, boost/unboost (`Announce`) and reply.
 - 👥 **Following** — follow and unfollow local and remote accounts, and browse followers/following lists.
-- 📌 **Pinned posts** — pin up to five of your own posts to the top of your profile (`pin`/`unpin` on the status-action endpoint, `?pinned=true` on the account statuses route). Pins are published in the actor's `featured` collection, so other Fediverse servers show them too; pinned posts of *remote* accounts are not fetched.
+- 📌 **Pinned posts** — pin up to five of your own **public or unlisted** posts to the top of your profile (`pin`/`unpin` on the status-action endpoint, `?pinned=true` on the account statuses route). Pins are published in the actor's `featured` collection, which anyone on the internet may read, so nothing with a narrower audience can go into it — a followers-only or direct post is refused. Pins of *remote* accounts arrive as `Add`/`Remove` activities; their `featured` collection is never fetched.
 - 🖼️ **Profiles** — avatar, uploadable banner/header image, a profile description (`note`) and up to four editable **profile metadata fields** (the name/value table under the bio), federated as `PropertyValue` attachments on the actor and shown for remote accounts too.
 - 🌐 **Federation** — signed HTTP delivery of `Create`, `Update`, `Delete`, `Like`, `Announce`, `Follow`, `Accept` and `Undo` activities, an outbound request queue and a stream queue for resolving incoming objects, both drained by background jobs and by `occ social:queue:process`.
 - 🔁 **Inbox forwarding** — a reply to one of your posts that arrives from a stranger's instance is passed on to your followers, so everyone reading the thread sees the same one. Forwarded untouched and only when the reply carries its author's linked-data signature, so the servers receiving it verify the original author rather than trusting this one; private posts and their replies are never fanned out.
@@ -50,7 +50,7 @@ These are absent from the code today, not merely rough edges:
 - **No custom emoji of this instance's own.** Emoji from other servers render; `/api/v1/custom_emojis` returns an empty list (`lib/Controller/ApiController.php`, `customEmojis()`).
 - **No streaming API and no push subscriptions.** Third-party clients poll. (The web client does get live timelines when [notify_push](https://github.com/nextcloud/notify_push) is installed — that is a Nextcloud channel, not a Mastodon one.)
 - **No link verification on profile fields.** The four name/value pairs federate as `PropertyValue` attachments, but nothing is checked, so `verified_at` is always `null`.
-- **Remote accounts' pinned posts never arrive.** Your own pins are published in the actor's `featured` collection; the `featured` collection of a remote account is not fetched.
+- **A remote account's existing pins never arrive.** An `Add`/`Remove` sent while the account is known here is applied (`lib/Interfaces/Activity/FeaturedCollection.php`), so pins made from now on show up; nothing ever fetches a remote actor's `featured` collection, so whatever was pinned before this instance heard of the account stays invisible here.
 - **No focal points on attachments.** `focus` is accepted by the media endpoints and discarded.
 
 ## 📦 Quickstart (install & develop)
@@ -73,8 +73,12 @@ npm run build        # production bundle into js/
 5. To produce a release archive, run `./build-package.sh`. It runs
    `composer install --no-dev`, `npm run build`, copies the app without the dev
    files and writes `build/artifacts/social.tar.gz`. `make appstore` builds the same
-   archive through the Makefile; despite the `sign_dir` name it only stages and tars,
-   it does not sign anything.
+   archive through the Makefile, but installs from the lock files (`npm ci`,
+   `composer install`) rather than resolving dependency versions no CI job has run,
+   and refuses to package when `js/social-adminSettings.js` or `js/.htaccess` is
+   missing — both are committed files rather than webpack output, and the target
+   used to delete `js/` wholesale before building. Despite the `sign_dir` name it
+   only stages and tars, it does not sign anything.
 
 ## 🧭 "`.well-known/webfinger` isn't properly set up!" — Troubleshooting
 

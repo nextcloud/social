@@ -2,7 +2,7 @@
 
 All commands are invoked via `php occ <command>` from the Nextcloud root directory.
 
-This page documents the fourteen commands the app registers in `appinfo/info.xml`.
+This page documents the seventeen commands the app registers in `appinfo/info.xml`.
 Every command extends Nextcloud's `OC\Core\Command\Base`, so the generic
 `--output plain|json|json_pretty` option exists on all of them, but only
 `social:timeline` reads it (see below).
@@ -91,11 +91,11 @@ php occ social:note:create [-r|--replyTo REPLYTO] [-t|--to TO] [-y|--type TYPE] 
 |--------|-------|-------------|
 | `-r`, `--replyTo` | optional | Id of the post this one replies to |
 | `-t`, `--to` | optional | A single mentioned account |
-| `-y`, `--type` | optional | Visibility: `unlisted`, `followers` or `direct`. Anything else — including omitting the option — results in a **public** post; the value is not validated (`StreamService::setRecipient()`, `lib/Service/StreamService.php:115`). |
+| `-y`, `--type` | optional | Visibility: `public`, `unlisted`, `followers` (Mastodon's `private` is accepted as a synonym) or `direct`. Anything else — including omitting the option — becomes **`direct`**, the most restrictive option, because `Post::setType()` maps a value it does not know through `Stream::visibilityFromClient()`. Note the option's own `--help` text still says "public (default)", which is not what happens. |
 | `-g`, `--hashtag` | optional | A single hashtag, without the leading `#` |
 
 `--to` and `--hashtag` each accept only one value. In addition,
-`PostService::fixRecipientAndHashtags()` (`lib/Service/PostService.php:86`) scans the
+`PostService::fixRecipientAndHashtags()` scans the
 content for `@mentions` and `#hashtags` and adds those too.
 
 Prints the resulting activity as pretty JSON followed by `token: <request token>`
@@ -170,8 +170,7 @@ php occ social:timeline [--local] [--min_id MIN] [--max_id MAX] [--since SINCE] 
 | `--account` | required | `''` | A **local** account, resolved with `CacheActorService::getFromLocalAccount()`; used as the account filter |
 | `--crop` | required | `0` | Truncate the printed content to N characters (`0` = no cropping) |
 
-Supported `timeline` values (`StreamRequest::getTimeline()`,
-`lib/Db/StreamRequest.php:410`):
+Supported `timeline` values (the `switch` in `StreamRequest::getTimeline()`):
 
 | Value | Meaning |
 |-------|---------|
@@ -180,12 +179,13 @@ Supported `timeline` values (`StreamRequest::getTimeline()`,
 | `direct` | Direct messages |
 | `account` | Posts of one account (combine with `--account`) |
 | `favourites` | Liked posts |
+| `bookmarks` | Posts the viewer bookmarked |
 | `notifications` | Notifications (rendered in the notification format) |
 | `#<tag>` | A leading `#` selects the hashtag timeline for `<tag>` |
 
-`ProbeOptions` also defines `followers` and `following`, but `getTimeline()` has no
-case for them and silently returns an empty list (`lib/Db/StreamRequest.php:434`).
-Any other value behaves the same way.
+Matching is case-insensitive. `ProbeOptions` also defines `followers` and
+`following`, but `getTimeline()` has no case for them and silently returns an
+empty list. Any other value behaves the same way.
 
 Output is a table (`Nid`, `Id`, `Source`, `Type`, `Author`, `Content`).
 `--output json` switches this command to a JSON dump of the streams.
@@ -357,10 +357,12 @@ php occ social:cache:refresh [-f|--force] [--rotate-keys]
 
 Steps and their output lines: local accounts deleted, local accounts regenerated,
 remote accounts created, remote accounts updated, remote accounts details updated,
-documents cached, hashtags updated.
+documents cached, hashtags updated. With `--rotate-keys`, `N key pairs refreshed`
+is printed first.
 
-Key-pair rotation is **not** part of this command; the `blindKeyRotation()` call is
-commented out (`lib/Command/CacheRefresh.php:51`).
+Rotation is the only step that is opt-in, and it is the only way to rotate a key
+pair: nothing else calls `AccountService::blindKeyRotation()`, and the cron never
+does.
 
 ---
 
@@ -381,10 +383,11 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-t`, `--type` | required | Set the access type. Only `all_but` (deny-list, the default) and `none_but` (allow-list) are accepted; anything else throws `invalid type` (`lib/Service/ConfigService.php:61`). |
+| `-t`, `--type` | required | Set the access type. Only `all_but` (deny-list, the default) and `none_but` (allow-list) are accepted; anything else throws `invalid type` (`FediverseService::setAccessType()`). |
 
 Passing `--type` **sets the type and exits** — the `action` argument is not executed
-in the same invocation (`lib/Command/Fediverse.php:53`). Without `--type`, the
+in the same invocation (`Fediverse::typeAccess()` returns true and the command
+returns). Without `--type`, the
 command first prints the current access type and then runs the action:
 
 | Action | Effect |
@@ -401,25 +404,36 @@ An unknown action throws `specify action: add, remove, list, reset`.
 **What is actually enforced.** There is a single list (`access_list`) whose meaning
 depends on `access_type`: with `all_but` every address that is *not* listed is
 allowed; with `none_but` only listed addresses and the local host are allowed.
-`FediverseService::authorized()` is enforced on incoming activities
-(`lib/Controller/ActivityPubController.php:183` and `:226`) and on every outgoing
-HTTP request (`lib/Service/CurlService.php:259`), so the list does take effect for
-inbox delivery and for fetching remote data.
+`FediverseService::authorized()` is enforced on both inbox routes in
+`ActivityPubController` and on every outgoing HTTP request in `CurlService`, so the
+list does take effect for inbox delivery and for fetching remote data. A refused
+inbox delivery is answered **403**, not 500, so the peer stops redelivering it —
+see the rejection table in `docs/Architecture.md`.
+
+**How an address is matched.** Case-insensitively, and without the trailing dot of
+the absolute form. The two modes then read the list differently, on purpose:
+
+- With `all_but`, a listed domain covers the domain itself **and everything under
+  it** (`isListed()`). Blocking `evil.test` while `www.evil.test` walks straight
+  back in is not a block.
+- With `none_but`, an entry matches **exactly** (`isExactlyListed()`). A subdomain
+  of an allowed domain is a different instance, and whoever runs the parent domain
+  was never asked before it appeared.
+
+There is no wildcard syntax; `add` stores what you type, and `remove` takes it away
+by the same exact comparison.
 
 **Known limitations:**
 
 - `list` always prints an empty `Known address:` section, because
-  `FediverseService::getKnownAddresses()` returns an empty array
-  (`lib/Service/FediverseService.php:121`).
+  `FediverseService::getKnownAddresses()` returns an empty array.
 - The older two-list implementation (`blockAddress()`, `allowAddress()`,
   `isBlocked()`, `isAllowed()`, and the separate blacklist/whitelist config keys) is
-  commented out (`lib/Service/FediverseService.php:178-255`). Only the single
+  commented out at the end of `lib/Service/FediverseService.php`. Only the single
   `access_list` above exists; there is no separate block list.
 - Webfinger lookups are not filtered per address; `WebfingerHandler` only calls
   `jailed()`, which refuses service when the instance is in `none_but` mode with an
-  empty list (`lib/WellKnown/WebfingerHandler.php:63`).
-- Matching is exact string comparison against the host
-  (`FediverseService::isListed()`); there is no wildcard or subdomain handling.
+  empty list.
 
 ---
 
