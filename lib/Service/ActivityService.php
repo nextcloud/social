@@ -39,6 +39,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Model\NCRequest;
 use OCA\Social\Tools\Model\Request;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Http;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -222,6 +223,20 @@ class ActivityService {
 	}
 
 	/**
+	 * Whether an HTTP status from a peer is worth trying again later.
+	 *
+	 * 408 and 429 are explicitly temporary, and any 5xx is the peer's own
+	 * problem rather than something wrong with what we sent. Everything else
+	 * in the 4xx range means this activity will never be accepted, so there is
+	 * nothing to gain by keeping it queued.
+	 */
+	private function isTransientHttpStatus(int $status): bool {
+		return $status === Http::STATUS_REQUEST_TIMEOUT
+			|| $status === Http::STATUS_TOO_MANY_REQUESTS
+			|| $status >= Http::STATUS_INTERNAL_SERVER_ERROR;
+	}
+
+	/**
 	 * @param RequestQueue $queue
 	 *
 	 * @throws SocialAppConfigException
@@ -251,7 +266,28 @@ class ActivityService {
 			$this->requestQueueService->endRequest($queue, true);
 		} catch (UnauthorizedFediverseException|RequestResultNotJsonException $e) {
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (ActorDoesNotExistException|RequestContentException|RequestResultSizeException $e) {
+		} catch (RequestContentException $e) {
+			// The peer answered, but not with a 2xx. Whether that is worth
+			// retrying depends entirely on the status: a 503 during an upgrade
+			// or a 429 from a rate limiter is temporary and used to cost us
+			// every activity queued for that instance, deleted on the spot.
+			if ($this->isTransientHttpStatus($e->getCode())) {
+				$this->logger->notice(
+					'Temporary error while managing request: HTTP ' . $e->getCode() . ' - '
+					. json_encode($request) . ' - ' . $e->getMessage()
+				);
+				$this->requestQueueService->endRequest($queue, false);
+				$this->failInstances[] = $host;
+
+				return;
+			}
+
+			$this->logger->notice(
+				'Permanent error while managing request: HTTP ' . $e->getCode() . ' - '
+				. json_encode($request) . ' - ' . $e->getMessage()
+			);
+			$this->requestQueueService->deleteRequest($queue);
+		} catch (ActorDoesNotExistException|RequestResultSizeException $e) {
 			$this->logger->notice(
 				'Error while managing request: ' . json_encode($request) . ' ' . get_class($e) . ': '
 				. $e->getMessage()

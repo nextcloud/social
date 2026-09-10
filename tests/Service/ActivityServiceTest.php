@@ -659,6 +659,84 @@ class ActivityServiceTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{int}>
+	 */
+	public function transientHttpStatusProvider(): array {
+		return [
+			'request timeout' => [408],
+			'rate limited' => [429],
+			'internal server error' => [500],
+			'bad gateway' => [502],
+			'service unavailable, e.g. the peer is upgrading' => [503],
+			'gateway timeout' => [504],
+		];
+	}
+
+	/**
+	 * A peer that is briefly unwell must not cost us the activity: these used
+	 * to be indistinguishable from a permanent rejection, so every post queued
+	 * for an instance having a bad minute was deleted outright.
+	 *
+	 * @dataProvider transientHttpStatusProvider
+	 */
+	public function testManageRequestRetriesWhenThePeerAnswersWithATransientStatus(int $status): void {
+		$queue = $this->queue();
+		$this->curlService->method('retrieveJson')
+			->willThrowException(new RequestContentException('', $status));
+
+		$this->requestQueueService->expects($this->once())
+			->method('endRequest')->with($this->identicalTo($queue), false);
+		$this->requestQueueService->expects($this->never())->method('deleteRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * @return array<string, array{int}>
+	 */
+	public function permanentHttpStatusProvider(): array {
+		return [
+			'bad request' => [400],
+			'unauthorized' => [401],
+			'forbidden' => [403],
+			'gone' => [410],
+			'unprocessable' => [422],
+		];
+	}
+
+	/**
+	 * @dataProvider permanentHttpStatusProvider
+	 */
+	public function testManageRequestDropsWhenThePeerRejectsTheActivityForGood(int $status): void {
+		$queue = $this->queue();
+		$this->curlService->method('retrieveJson')
+			->willThrowException(new RequestContentException('', $status));
+
+		$this->requestQueueService->expects($this->once())
+			->method('deleteRequest')->with($this->identicalTo($queue));
+		$this->requestQueueService->expects($this->never())->method('endRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($queue);
+	}
+
+	/**
+	 * A host that just answered 503 is skipped for the rest of the run rather
+	 * than being asked once per queued activity.
+	 */
+	public function testManageRequestStopsAskingAHostThatAnsweredATransientStatus(): void {
+		$this->curlService->method('retrieveJson')
+			->willThrowException(new RequestContentException('', 503));
+		$this->requestQueueService->expects($this->once())->method('endRequest');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($this->queue());
+		// same host, second activity: not attempted again
+		$this->service->manageRequest($this->queue());
+	}
+
+	/**
 	 * @return array<string, array{\Exception}>
 	 */
 	public function temporaryErrorProvider(): array {
