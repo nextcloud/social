@@ -40,11 +40,7 @@ export default {
 		},
 		/** @return {import('../types/Mastodon.js').Relationship} */
 		relationship() {
-			const rel = this.accountInfo && this.$store.getters.getRelationshipWith(this.accountInfo.id)
-			if (rel) {
-				console.debug('[accountMixins] relationship computed', { id: this.accountInfo?.id, following: rel.following, requested: rel.requested })
-			}
-			return rel
+			return this.accountInfo && this.$store.getters.getRelationshipWith(this.accountInfo.id)
 		},
 	},
 }

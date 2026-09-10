@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<NcActions type="tertiary" :menu-title="selectedVisibilityDetails.text" :aria-label="t('social', 'Choose a visibility')">
+	<NcActions variant="tertiary" :menu-name="selectedVisibilityDetails.text" :aria-label="t('social', 'Choose a visibility')">
 		<template #icon>
 			<VisibilityIcon :visibility="selectedVisibilityDetails.id" :size="20" />
 		</template>

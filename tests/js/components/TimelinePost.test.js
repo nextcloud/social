@@ -54,6 +54,11 @@ const NcActionButtonStub = {
 	emits: ['click'],
 	template: '<button class="post-menu__item" @click="$emit(\'click\')"><slot /></button>',
 }
+const NcActionLinkStub = {
+	name: 'NcActionLink',
+	props: ['href', 'target', 'rel'],
+	template: '<a class="post-menu__link" :href="href"><slot /></a>',
+}
 
 // the real NcDialog reports its own dismissal through update:open, which is
 // what v-model:open binds to — the stub has to do the same or a one-way binding
@@ -62,8 +67,12 @@ const NcDialogStub = {
 	name: 'NcDialog',
 	props: ['open', 'buttons', 'name'],
 	emits: ['update:open'],
-	template: '<div v-if="open" class="report-dialog">'
+	template: '<div v-if="open" class="report-dialog nc-dialog">'
+		+ '<span class="nc-dialog__name">{{ name }}</span>'
 		+ '<button class="report-dialog__close" @click="$emit(\'update:open\', false)" />'
+		+ '<button v-for="(button, index) in buttons" :key="index"'
+		+ ' :class="\'nc-dialog__button nc-dialog__button--\' + index"'
+		+ ' @click="button.callback()">{{ button.label }}</button>'
 		+ '<slot /></div>',
 }
 
@@ -89,6 +98,7 @@ const mountPost = ({
 			stubs: {
 				NcActions: NcActionsStub,
 				NcActionButton: NcActionButtonStub,
+				NcActionLink: NcActionLinkStub,
 				NcDialog: NcDialogStub,
 				PostAttachment: true,
 				RouterLink: RouterLinkStub,
@@ -133,15 +143,16 @@ describe('TimelinePost', () => {
 			expect(wrapper.find('.post-timestamp').attributes('data-timestamp')).toBe(String(Date.parse('2026-09-01T10:00:00Z')))
 		})
 
-		it('falls back to the sanitised author bio when the status has no content', () => {
+		it('never renders the author bio as the body of a post without content', () => {
+			// exportAsLocal() emits content verbatim, so a media-only or
+			// poll-only post arrives with content: '' — and the v-else used
+			// to publish the author's bio in its place
 			const { wrapper } = mountPost({
-				item: makeItem({ content: '', account: { ...alice, note: '<p>bio <b>bold</b><script>alert(1)</script></p>' } }),
+				item: makeItem({ content: '', account: { ...alice, note: '<p>bio <b>bold</b></p>' } }),
 			})
 
-			const message = wrapper.find('.post-message')
-			expect(message.find('b').text()).toBe('bold')
-			expect(message.find('script').exists()).toBe(false)
-			expect(message.text()).toBe('bio bold')
+			expect(wrapper.find('.post-message').exists()).toBe(false)
+			expect(wrapper.text()).not.toContain('bio')
 		})
 
 		it('renders attachments only when the status has some', () => {
@@ -233,6 +244,59 @@ describe('TimelinePost', () => {
 
 			expect(wrapper.find('.post-warning').exists()).toBe(false)
 			expect(wrapper.findComponent({ name: 'MessageContent' }).exists()).toBe(true)
+		})
+
+		it('covers the pictures, the poll and the link preview too', async () => {
+			// <Poll>, <PostAttachment> and <PostCard> used to be siblings
+			// rendered unconditionally, so a warned post showed its media in
+			// full immediately — the one thing the feature exists to prevent
+			const { wrapper } = mountPost({
+				item: makeItem({
+					spoiler_text: 'politics',
+					content: '<p>the hidden part</p>',
+					media_attachments: [{ id: 'm1', url: 'https://cloud.example.org/m1.jpg' }],
+					poll: { id: 'p1', options: [{ title: 'yes', votes_count: 0 }], votes_count: 0, own_votes: [] },
+					card: { title: 'A headline', url: 'https://example.org' },
+				}),
+			})
+
+			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'Poll' }).exists()).toBe(false)
+			expect(wrapper.find('.post-sensitive').exists()).toBe(true)
+
+			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
+
+			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(true)
+			expect(wrapper.findComponent({ name: 'Poll' }).exists()).toBe(true)
+			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
+		})
+
+		it('covers only the media of a post flagged sensitive without a warning', async () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					sensitive: true,
+					content: '<p>look at this</p>',
+					media_attachments: [{ id: 'm1', url: 'https://cloud.example.org/m1.jpg' }],
+				}),
+			})
+
+			// the text is not warned about, so it stays readable
+			expect(wrapper.find('.post-message').exists()).toBe(true)
+			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(false)
+
+			const reveal = wrapper.findAll('button').find((button) => button.text() === 'Show sensitive content')
+			expect(reveal.exists()).toBe(true)
+			await reveal.trigger('click')
+			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(true)
+		})
+
+		it('does not gate the media of a post that is neither warned nor sensitive', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({ media_attachments: [{ id: 'm1', url: 'https://cloud.example.org/m1.jpg' }] }),
+			})
+
+			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(true)
 		})
 	})
 
@@ -352,10 +416,31 @@ describe('TimelinePost', () => {
 			})
 		})
 
-		it('does not navigate for a remote post', async () => {
+		it('opens the thread of a remote post too, keyed by its full handle', async () => {
+			// the click used to return early with a logger.warn for anything
+			// non-local, which is most of the Global timeline: the timestamp
+			// is the only affordance for opening a thread, and it did nothing
 			const { wrapper, $router } = mountPost({ item: makeItem({ account: bob }) })
 			await wrapper.find('.post-timestamp').trigger('click')
+			expect($router.push).toHaveBeenCalledWith({
+				name: 'single-post',
+				params: { account: 'bob@remote.example', id: '101', type: 'single-post' },
+			})
+		})
+
+		it('does not navigate when there is no account or id to navigate to', async () => {
+			const { wrapper, $router } = mountPost({ item: makeItem({ account: { ...alice, acct: '' } }) })
+			await wrapper.find('.post-timestamp').trigger('click')
 			expect($router.push).not.toHaveBeenCalled()
+		})
+
+		it('offers the original instance for a remote post, and not for a local one', () => {
+			const remote = mountPost({ item: makeItem({ account: bob, url: 'https://remote.example/@bob/101' }) })
+			const link = remote.wrapper.find('.post-menu__link')
+			expect(link.exists()).toBe(true)
+			expect(link.attributes('href')).toBe('https://remote.example/@bob/101')
+
+			expect(mountPost().wrapper.find('.post-menu__link').exists()).toBe(false)
 		})
 	})
 
@@ -537,10 +622,30 @@ describe('TimelinePost', () => {
 			expect(mountPost({ item: makeItem({ pinned: true }) }).wrapper.find('.post-pinned').text()).toBe('Pinned')
 		})
 
-		it('deletes the post', async () => {
+		it('asks before deleting, and only then deletes', async () => {
 			const { wrapper, item, $store } = mountPost()
+
 			await menuItem(wrapper, 'Delete').trigger('click')
+			// one click on a menu item sitting right under "Edit" used to be
+			// enough for something irreversible and federated
+			expect($store.dispatch).not.toHaveBeenCalledWith('postDelete', item)
+
+			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delete this post?'))
+			expect(dialog).toBeDefined()
+
+			await dialog.find('.nc-dialog__button--1').trigger('click')
 			expect($store.dispatch).toHaveBeenCalledWith('postDelete', item)
+		})
+
+		it('leaves the post alone when the delete confirmation is cancelled', async () => {
+			const { wrapper, item, $store } = mountPost()
+
+			await menuItem(wrapper, 'Delete').trigger('click')
+			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delete this post?'))
+			await dialog.find('.nc-dialog__button--0').trigger('click')
+
+			expect($store.dispatch).not.toHaveBeenCalledWith('postDelete', item)
+			expect(wrapper.findAll('.nc-dialog').some((el) => el.text().includes('Delete this post?'))).toBe(false)
 		})
 
 		it('opens an inline editor prefilled with the plain text of the post', async () => {
@@ -568,6 +673,73 @@ describe('TimelinePost', () => {
 			})
 			expect(wrapper.find('textarea').exists()).toBe(false)
 			expect(wrapper.find('.post-message').exists()).toBe(true)
+		})
+
+		it('keeps the content warning of the post it is editing', async () => {
+			// saveEdit always sent spoiler_text: '' and sensitive: false, so
+			// fixing a typo un-hid sensitive content for every follower
+			const item = makeItem({ spoiler_text: 'politics', sensitive: true, content: '<p>Old</p>' })
+			const { wrapper, $store } = mountPost({ item })
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+			expect(wrapper.find('input.post-edit-warning').element.value).toBe('politics')
+
+			await wrapper.find('textarea').setValue('New text')
+			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
+			await flushPromises()
+
+			expect($store.dispatch).toHaveBeenCalledWith('postEdit', {
+				status: item,
+				content: 'New text',
+				spoiler_text: 'politics',
+				sensitive: true,
+			})
+		})
+
+		it('lets the warning be changed and removed from the inline editor', async () => {
+			const item = makeItem({ spoiler_text: 'politics', sensitive: true, content: '<p>Old</p>' })
+			const { wrapper, $store } = mountPost({ item })
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+			await wrapper.find('input.post-edit-warning').setValue('  ')
+			await wrapper.find('textarea').setValue('Now harmless')
+			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
+			await flushPromises()
+
+			expect($store.dispatch).toHaveBeenCalledWith('postEdit', expect.objectContaining({
+				spoiler_text: '',
+				// the post was flagged sensitive; dropping the warning does
+				// not silently unflag the media
+				sensitive: true,
+			}))
+		})
+
+		it('never seeds the editor from the author bio, and refuses an over-long edit', async () => {
+			const { wrapper, $store } = mountPost({
+				item: makeItem({ content: '', account: { ...alice, note: '<p>the bio</p>' } }),
+			})
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+			expect(wrapper.find('textarea').element.value).toBe('')
+
+			await wrapper.find('textarea').setValue('x'.repeat(501))
+			expect(wrapper.find('.post-edit-actions button[aria-label="Save"]').attributes('disabled')).toBeDefined()
+			expect(wrapper.find('.post-edit-count').text()).toBe('1 character too many')
+
+			await wrapper.find('textarea').trigger('keydown', { key: 'Enter', ctrlKey: true })
+			await flushPromises()
+			expect($store.dispatch).not.toHaveBeenCalledWith('postEdit', expect.anything())
+		})
+
+		it('keeps the editor open when the server refuses the edit', async () => {
+			const { wrapper } = mountPost({ dispatch: vi.fn().mockResolvedValue(undefined) })
+			await menuItem(wrapper, 'Edit').trigger('click')
+
+			await wrapper.find('textarea').setValue('Edited text')
+			await wrapper.find('.post-edit-actions button[aria-label="Save"]').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('textarea').element.value).toBe('Edited text')
 		})
 
 		it('saves on Ctrl+Enter', async () => {

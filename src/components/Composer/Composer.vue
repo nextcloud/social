@@ -32,7 +32,7 @@
 				<span>{{ t('social', 'In reply to') }}</span>
 				<ActorAvatar :actor="replyTo.account" :size="16" />
 				<strong>{{ replyTo.account.acct }}</strong>
-				<NcButton type="tertiary"
+				<NcButton variant="tertiary"
 					class="close-button"
 					:aria-label="t('social', 'Close reply')"
 					@click="closeReply">
@@ -64,8 +64,8 @@
 				@input="updateStatusContent"
 				@tribute-replaced="updatePostFromTribute" />
 
-			<PreviewGrid :uploading="false"
-				:upload-progress="0.4"
+			<PreviewGrid :uploading="uploading"
+				:upload-progress="uploadProgress"
 				:miniatures="attachments"
 				@deleted="deletePreview"
 				@describe="describeAttachment" />
@@ -77,7 +77,7 @@
 						:placeholder="t('social', 'Poll option {number}', { number: index + 1 })"
 						maxlength="100">
 					<NcButton v-if="pollOptions.length > 2"
-						type="tertiary"
+						variant="tertiary"
 						:aria-label="t('social', 'Remove option')"
 						@click.prevent="pollOptions.splice(index, 1)">
 						<template #icon>
@@ -87,7 +87,7 @@
 				</div>
 				<div class="poll-editor__settings">
 					<NcButton v-if="pollOptions.length < 4"
-						type="tertiary"
+						variant="tertiary"
 						@click.prevent="pollOptions.push('')">
 						{{ t('social', 'Add option') }}
 					</NcButton>
@@ -120,7 +120,7 @@
 
 			<div class="options">
 				<NcButton :title="t('social', 'Add attachment')"
-					type="tertiary"
+					variant="tertiary"
 					:aria-label="t('social', 'Add attachment')"
 					@click.prevent="clickImportInput">
 					<template #icon>
@@ -129,7 +129,7 @@
 				</NcButton>
 
 				<NcButton :title="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
-					type="tertiary"
+					variant="tertiary"
 					:aria-label="showWarning ? t('social', 'Remove content warning') : t('social', 'Add content warning')"
 					:aria-pressed="showWarning"
 					@click.prevent="toggleWarning">
@@ -138,7 +138,7 @@
 					</template>
 				</NcButton>
 				<NcButton :title="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
-					type="tertiary"
+					variant="tertiary"
 					:aria-label="showPoll ? t('social', 'Remove poll') : t('social', 'Add poll')"
 					@click.prevent="togglePoll">
 					<template #icon>
@@ -153,7 +153,7 @@
 						container="#content-vue"
 						@select="insert">
 						<NcButton :title="t('social', 'Add emoji')"
-							type="tertiary"
+							variant="tertiary"
 							:aria-haspopup="true"
 							:aria-label="t('social', 'Add emoji')">
 							<template #icon>
@@ -168,7 +168,7 @@
 				</span>
 				<VisibilitySelect :visibility="visibility" @update:visibility="visibility = $event" />
 				<div class="emptySpace" />
-				<span v-if="statusContent.length > 0"
+				<span v-if="statusText.length > 0"
 					id="composer-length"
 					class="char-ring"
 					:class="{ 'char-ring--warning': charsLeft <= 50, 'char-ring--over': statusIsTooLong }"
@@ -211,6 +211,8 @@ import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
 import Tribute from 'tributejs'
 import eventBus from '../../services/eventBus.js'
+import logger from '../../services/logger.js'
+import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 
 /** what the server accepts in one status */
 const MAX_LENGTH = 500
@@ -249,8 +251,14 @@ export default {
 	data() {
 		return {
 			statusContent: '',
-			visibility: this.defaultVisibility || localStorage.getItem('social.lastPostType') || 'followers',
+			/** what would actually be sent — the string the counter measures */
+			statusText: '',
+			visibility: this.defaultVisibility || rememberedVisibility() || 'followers',
 			loading: false,
+			/** whether an attachment is on its way to the server */
+			uploading: false,
+			/** how far the current upload has got, 0..1 */
+			uploadProgress: 0,
 			attachments: {},
 			showPoll: false,
 			showWarning: false,
@@ -296,7 +304,7 @@ export default {
 								avatar: user.local ? generateUrl(`/avatar/${user.preferredUsername}/32`) : generateUrl(`apps/social/api/v1/global/actor/avatar?id=${user.id}`),
 							}))
 
-							console.debug('[Composer] Found users for', text, response.data.result, users)
+							logger.debug('Found accounts for a mention', { count: users.length })
 							populate(users)
 						}, 200),
 					},
@@ -326,7 +334,7 @@ export default {
 								...response.data.result.tags.map(({ hashtag }) => ({ key: hashtag, value: hashtag })),
 							]
 
-							console.debug('[Composer] Found tags for', text, response.data.result, tags)
+							logger.debug('Found hashtags for a mention', { count: tags.length })
 							populate(tags)
 						}, 200),
 					},
@@ -347,8 +355,24 @@ export default {
 		/** Attachments that can carry a description and have not been given one. */
 		undescribed() {
 			return Object.values(this.attachments).filter(
-				(attachment) => attachment.data !== null && (attachment.description || '').trim() === '',
+				(attachment) => attachment.data?.id !== undefined && (attachment.description || '').trim() === '',
 			).length
+		},
+		/** @return {number} uploads the server refused */
+		failedUploads() {
+			return Object.values(this.attachments).filter((attachment) => attachment.failed === true).length
+		},
+		/** @return {boolean} whether an upload has not come back yet */
+		hasPendingUploads() {
+			return Object.values(this.attachments).some(
+				(attachment) => attachment.failed !== true && attachment.data === null,
+			)
+		},
+		/** @return {string[]} the ids the post will carry */
+		mediaIds() {
+			return Object.values(this.attachments)
+				.map((attachment) => attachment.data?.id)
+				.filter((id) => id !== undefined && id !== null)
 		},
 		undescribedWarning() {
 			return translatePlural(
@@ -364,7 +388,10 @@ export default {
 				: translatePlural('social', '%n character left', '%n characters left', this.charsLeft)
 		},
 		canPost() {
-			if (Object.values(this.attachments).some(({ data }) => data === null)) {
+			// an upload that has not answered yet is worth waiting for; one
+			// that failed used to leave `data: undefined`, which passed this
+			// check and then threw on `preview.data.id` before the try block
+			if (this.hasPendingUploads) {
 				return false
 			}
 
@@ -380,34 +407,41 @@ export default {
 				return false
 			}
 
-			if (Object.keys(this.attachments).length > 0) {
-				return true
-			}
-
 			return true
 		},
 		statusIsEmpty() {
-			return this.statusContent.length === 0 || this.statusContent === '<br>'
+			return this.statusText.trim().length === 0 && this.mediaIds.length === 0
 		},
 
+		/**
+		 * Measured on what is sent, not on the markup that produces it. A
+		 * mention pill from a reply is ~200 characters of HTML and every line
+		 * break adds a <div>, so counting innerHTML burned half the allowance
+		 * before a word was typed.
+		 */
 		statusIsTooLong() {
-			return this.statusContent.length > MAX_LENGTH
+			return this.statusText.length > MAX_LENGTH
 		},
 
 		/** @return {number} how much of the allowance is spent, 0..1 */
 		charProgress() {
-			return Math.min(this.statusContent.length / MAX_LENGTH, 1)
+			return Math.min(this.statusText.length / MAX_LENGTH, 1)
 		},
 
 		/** @return {number} how many characters remain, negative once over */
 		charsLeft() {
-			return MAX_LENGTH - this.statusContent.length
+			return MAX_LENGTH - this.statusText.length
 		},
 
 		hasMentions() {
-			const text = he.decode(this.statusContent.replace(/<[^>]+>/g, ' '))
-			return /(?:^|\s)@[a-zA-Z0-9_.-]+/i.test(text)
+			return /(?:^|\s)@[a-zA-Z0-9_.-]+/i.test(this.statusText)
 		},
+	},
+	watch: {
+		// the warning is part of the draft, and it has its own field
+		spoilerText: 'rememberDraft',
+		showWarning: 'rememberDraft',
+		visibility: 'rememberDraft',
 	},
 	mounted() {
 		// tributejs is a plain DOM library, not a component: it attaches to the
@@ -431,6 +465,10 @@ export default {
 		// the shortcuts help offers "n" to write a post; this is what answers it
 		this.onComposerFocus = () => this.focusInput()
 		eventBus.on('shortcut:compose', this.onComposerFocus)
+
+		// before the mention prefill, which declines to overwrite a non-empty
+		// composer: whatever the last attempt left is what the reader wants back
+		this.restoreDraft()
 
 		if (this.initialMention !== null) {
 			this.prefillMessageWithMention(this.initialMention)
@@ -487,33 +525,112 @@ export default {
 		},
 		updateStatusContent() {
 			this.statusContent = this.$refs.composerInput.innerHTML
+			this.statusText = this.plainText()
+			this.rememberDraft()
+		},
+		/**
+		 * The composer's contents as the string that would be sent: emoji
+		 * images replaced by their alt text, entities decoded, markup gone.
+		 *
+		 * @return {string}
+		 */
+		plainText() {
+			const input = this.$refs.composerInput
+			if (input === undefined || input === null) {
+				return ''
+			}
+
+			const element = input.cloneNode(true)
+			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
+				emoji.replaceWith(document.createTextNode(emoji.getAttribute('alt') ?? ''))
+			})
+
+			return he.decode(nodeToPlainText(element).trim())
+		},
+		/** Keeps what is in the box, so a failed post or a reload cannot eat it. */
+		rememberDraft() {
+			saveDraft({
+				text: this.statusText,
+				spoilerText: this.showWarning ? this.spoilerText : '',
+				visibility: this.visibility,
+			})
+		},
+		/**
+		 * Puts back whatever the last attempt or the last session left, unless
+		 * something else has already filled the composer (a reply mention).
+		 */
+		restoreDraft() {
+			const draft = loadDraft()
+			if (draft === null || this.$refs.composerInput === undefined) {
+				return false
+			}
+
+			if (draft.text !== '') {
+				this.$refs.composerInput.innerText = draft.text
+			}
+			if (draft.spoilerText !== '') {
+				this.showWarning = true
+				this.spoilerText = draft.spoilerText
+			}
+			if (draft.visibility !== '' && this.defaultVisibility === undefined) {
+				this.visibility = draft.visibility
+			}
+			this.updateStatusContent()
+
+			return true
 		},
 		clickImportInput() {
 			this.$refs.fileUploadInput.click()
 		},
 		async handleFileChange(event) {
 			const target = event.target
-			for (const file of Array.from(target.files)) {
+			const files = Array.from(target.files)
+			// the input keeps its selection, so picking the same file twice in
+			// a row would otherwise be ignored the second time
+			target.value = ''
+
+			for (const [index, file] of files.entries()) {
 				const url = URL.createObjectURL(file)
 				this.attachments = {
 					...this.attachments,
 					[url]: {
 						file,
 						data: null,
+						failed: false,
 					},
 				}
-				const mediaData = await this.$store.dispatch('createMedia', file)
+
+				this.uploading = true
+				// real progress, from the request itself: the bar used to be
+				// hard-coded to 40% behind a `v-if="false"`
+				this.uploadProgress = index / files.length
+				const mediaData = await this.$store.dispatch('createMedia', {
+					file,
+					onProgress: (fraction) => {
+						this.uploadProgress = (index + fraction) / files.length
+					},
+				})
+				this.uploading = false
+				this.uploadProgress = 0
+
+				if (this.attachments[url] === undefined) {
+					// deleted while it was uploading
+					continue
+				}
+
 				this.attachments = {
 					...this.attachments,
 					[url]: {
 						...this.attachments[url],
-						data: mediaData,
+						// a failed upload is marked, never left as
+						// `data: undefined` for the submit path to trip over
+						data: mediaData?.id === undefined ? null : mediaData,
+						failed: mediaData?.id === undefined,
 					},
 				}
 			}
 		},
 		insert(emoji) {
-			console.debug('[Composer] insert emoji', emoji)
 			if (typeof emoji === 'object') {
 				const category = Object.keys(emoji)[0]
 				const emojis = emoji[category]
@@ -552,25 +669,23 @@ export default {
 				this.createPost()
 			}
 		},
-		updatePostFromTribute(event) {
-			console.debug('[Composer] update from tribute', event)
+		updatePostFromTribute() {
 			this.updateStatusContent()
 		},
 		n: translatePlural,
 		async createPost() {
-			const element = this.$refs.composerInput.cloneNode(true)
-			Array.from(element.getElementsByClassName('emoji')).forEach((emoji) => {
-				const em = document.createTextNode(emoji.getAttribute('alt'))
-				emoji.replaceWith(em)
-			})
+			if (!this.canPost || this.loading) {
+				return
+			}
 
-			let status = nodeToPlainText(element).trim()
-			status = he.decode(status)
+			const status = this.plainText()
 			const warning = this.showWarning ? this.spoilerText.trim() : ''
 
 			const statusData = {
 				content_type: '',
-				media_ids: Object.values(this.attachments).map(preview => preview.data.id),
+				// only uploads the server actually took: a failed one used to
+				// be read as `preview.data.id` and threw a TypeError here
+				media_ids: this.mediaIds,
 				// a warning means the body is hidden until asked for, which is
 				// what `sensitive` says about the post as a whole
 				sensitive: warning !== '',
@@ -589,25 +704,38 @@ export default {
 				}
 			}
 
-			console.debug('[Composer] Posting status', statusData)
+			logger.debug('Posting status', { visibility: statusData.visibility, attachments: statusData.media_ids.length })
 
+			let sent = false
 			try {
 				this.loading = true
 				await this.saveDescriptions()
-				await this.$store.dispatch('post', statusData)
+				// `post` resolves with the created status and rejects when the
+				// server said no; clearing in a `finally` used to throw the
+				// text away on every failure, offline included
+				sent = await this.$store.dispatch('post', statusData) !== undefined
 			} finally {
 				this.loading = false
-				this.replyTo = null
-				this.$refs.composerInput.innerText = ''
-				this.updateStatusContent()
-				this.attachments = {}
-				this.showPoll = false
-				this.pollOptions = ['', '']
-				this.pollMultiple = false
-				this.showWarning = false
-				this.spoilerText = ''
-				this.$store.dispatch('refreshTimeline')
 			}
+
+			if (!sent) {
+				// the store has already said what went wrong; the draft is
+				// still on disk and still in the box
+				this.rememberDraft()
+				return
+			}
+
+			this.replyTo = null
+			this.$refs.composerInput.innerText = ''
+			this.attachments = {}
+			this.showPoll = false
+			this.pollOptions = ['', '']
+			this.pollMultiple = false
+			this.showWarning = false
+			this.spoilerText = ''
+			clearDraft()
+			this.updateStatusContent()
+			this.$store.dispatch('refreshTimeline')
 		},
 		toggleWarning() {
 			this.showWarning = !this.showWarning
@@ -636,6 +764,13 @@ export default {
 			const newAttachments = { ...this.attachments }
 			delete newAttachments[key]
 			this.attachments = newAttachments
+			// the key is the blob URL the preview was drawn from; without this
+			// the file stays in memory for the life of the document
+			try {
+				URL.revokeObjectURL(key)
+			} catch (error) {
+				logger.debug('Could not release a preview URL', { error })
+			}
 		},
 		/**
 		 * Remembers what an attachment shows. Kept locally while the post is
@@ -672,6 +807,23 @@ export default {
 			}
 		},
 	},
+}
+
+/**
+ * The visibility the last post went out with.
+ *
+ * Reading localStorage throws outright in a private window and where site
+ * data is blocked, and an unguarded read here took the whole composer down
+ * with it.
+ *
+ * @return {string} the remembered visibility, or '' when there is none
+ */
+function rememberedVisibility() {
+	try {
+		return window.localStorage.getItem('social.lastPostType') ?? ''
+	} catch (error) {
+		return ''
+	}
 }
 
 /**

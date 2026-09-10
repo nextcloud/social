@@ -28,6 +28,7 @@ import ProfileInfo from './../components/ProfileInfo.vue'
 import { defineAsyncComponent } from 'vue'
 import accountMixins from '../mixins/accountMixins.js'
 import serverData from '../mixins/serverData.js'
+import logger from '../services/logger.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -86,13 +87,11 @@ export default {
 			const response = await this.$store.dispatch(fetchMethod, this.profileAccount)
 			if (response) {
 				this.uid = response.acct
-				console.debug('[Social Profile] account info loaded', { id: response.id, nid: response.nid, acct: response.acct, url: response.url })
 				const infoId = this.accountInfo?.nid || this.accountInfo?.id
 				if (infoId && !this.serverData.public) {
-					console.debug('[Social Profile] fetching relationship', { infoId, nid: this.accountInfo?.nid })
 					await this.$store.dispatch('fetchAccountRelationshipInfo', [infoId])
 				} else {
-					console.debug('[Social Profile] skipping relationship fetch', { infoId, isPublic: this.serverData.public })
+					logger.debug('Not asking for a relationship', { known: Boolean(infoId), isPublic: this.serverData.public })
 				}
 			}
 		},

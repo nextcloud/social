@@ -28,13 +28,19 @@ export default {
  * @param item
  */
 export function formatMessage(hFn, routerLink, item) {
-	if (!item.tags) {
-		item.tags = []
+	// `item` is the store's own status object and this runs from a render
+	// function: `item.tags = []` wrote to Vuex state during render, on every
+	// post, because exportAsLocal() never emits a `tags` key. Under
+	// strict: true Vuex raises; in production it silently mutated the store.
+	const context = {
+		tags: item.tags ?? [],
+		mentions: item.mentions ?? [],
+		emojis: item.emojis ?? [],
 	}
 	const parser = new DOMParser()
-	const dom = parser.parseFromString(`<div id="rootwrapper">${item.content}</div>`, 'text/html')
+	const dom = parser.parseFromString(`<div id="rootwrapper">${item.content ?? ''}</div>`, 'text/html')
 	const element = dom.getElementById('rootwrapper')
-	const cleaned = cleanCopy(hFn, routerLink, element, item)
+	const cleaned = cleanCopy(hFn, routerLink, element, context)
 	return cleaned
 }
 

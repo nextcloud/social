@@ -64,7 +64,11 @@ const wrappers = []
 
 const mountComposer = (props = {}) => {
 	const $store = {
-		dispatch: vi.fn((action) => Promise.resolve(action === 'createMedia' ? media : undefined)),
+		// `post` resolves with the created status and with undefined when the
+		// server refused, which is how the composer tells the two apart
+		dispatch: vi.fn((action) => Promise.resolve(
+			action === 'createMedia' ? media : (action === 'post' ? { id: 'new-1' } : undefined),
+		)),
 		commit: vi.fn(),
 		getters: { getServerData: { public: false, cloudAddress: 'https://cloud.example.org' } },
 	}
@@ -106,6 +110,11 @@ const attachFile = async (wrapper, file) => {
 }
 
 const postedStatus = ($store) => $store.dispatch.mock.calls.find(([action]) => action === 'post')?.[1]
+
+const addWarning = async (wrapper, text) => {
+	await wrapper.find('button[aria-label="Add content warning"]').trigger('click')
+	await wrapper.find('input.content-warning').setValue(text)
+}
 
 describe('Composer', () => {
 	let getContext
@@ -173,6 +182,43 @@ describe('Composer', () => {
 			await setContent(wrapper, 'a'.repeat(510))
 			expect(wrapper.find('.char-ring').classes()).toContain('char-ring--over')
 			expect(wrapper.find('.char-ring__count').text()).toBe('-10')
+		})
+
+		it('counts the characters that are sent, not the markup that produces them', async () => {
+			// the counter measured innerHTML: a mention pill from a reply is
+			// ~200 characters of markup, so replying burned half the allowance
+			// before a word was typed, and canPost could refuse a two-word post
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, `${MENTION_BOB}hi`)
+
+			expect(MENTION_BOB.length).toBeGreaterThan(150)
+			// '@bob@remote.example' + nbsp + 'hi'
+			expect(wrapper.find('.char-ring').attributes('style')).toContain('--char-progress: 0.044')
+			expect(canPost(wrapper)).toBe(true)
+		})
+
+		it('counts a line break as one character, not as a <div>', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, '<div>one</div><div>two</div>')
+
+			// 'one\ntwo\n', trimmed to 'one\ntwo'
+			expect(wrapper.find('.char-ring').attributes('style')).toContain('--char-progress: 0.014')
+		})
+
+		it('counts an escaped entity as the character it stands for', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'a &amp; b')
+
+			// 'a & b' is five characters, not nine
+			expect(wrapper.find('.char-ring').attributes('style')).toContain('--char-progress: 0.01')
+		})
+
+		it('accepts 500 characters that only the markup pushes over the limit', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, `<div>${'a'.repeat(499)}</div>`)
+
+			expect(canPost(wrapper)).toBe(true)
+			expect(input(wrapper).classes()).not.toContain('too-long')
 		})
 	})
 
@@ -271,6 +317,161 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('an upload the server refused', () => {
+		let previews = 0
+
+		const failUpload = ($store) => $store.dispatch.mockImplementation(
+			(action) => Promise.resolve(action === 'createMedia' ? undefined : { id: 'new-1' }),
+		)
+
+		it('leaves the post sendable, without the attachment that never arrived', async () => {
+			// createMedia answered with undefined, which was stored as
+			// `data: undefined`; canPost only rejected `null`, so the button
+			// stayed enabled and the submit path then threw on
+			// `preview.data.id` before reaching its try block
+			const { wrapper, $store } = mountComposer()
+			failUpload($store)
+			await setContent(wrapper, 'Look at this')
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			expect(canPost(wrapper)).toBe(true)
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store)).toMatchObject({ status: 'Look at this', media_ids: [] })
+		})
+
+		it('marks the failed upload rather than leaving it undefined', async () => {
+			const { wrapper, $store } = mountComposer()
+			failUpload($store)
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			expect(wrapper.findComponent(PreviewGridItem).props('preview')).toMatchObject({ data: null, failed: true })
+		})
+
+		it('sends only the ids of the uploads that did arrive', async () => {
+			const { wrapper, $store } = mountComposer()
+			let uploads = 0
+			URL.createObjectURL = vi.fn(() => `blob:preview-${++previews}`)
+			$store.dispatch.mockImplementation((action) => {
+				if (action !== 'createMedia') {
+					return Promise.resolve({ id: 'new-1' })
+				}
+				uploads += 1
+				return Promise.resolve(uploads === 1 ? media : undefined)
+			})
+
+			await setContent(wrapper, 'Two pictures')
+			const fileInput = wrapper.find('input[type="file"]')
+			Object.defineProperty(fileInput.element, 'files', {
+				value: [new File(['x'], 'a.png', { type: 'image/png' }), new File(['y'], 'b.png', { type: 'image/png' })],
+				configurable: true,
+			})
+			await fileInput.trigger('change')
+			await flushPromises()
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(postedStatus($store).media_ids).toEqual([media.id])
+		})
+
+		it('never asks for a description of an attachment that failed', async () => {
+			const { wrapper, $store } = mountComposer()
+			failUpload($store)
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			expect(wrapper.find('.composer-alt-warning').exists()).toBe(false)
+		})
+	})
+
+	describe('the draft', () => {
+		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
+
+		it('is kept as the post is written', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'half a thought')
+
+			expect(stored()).toMatchObject({ text: 'half a thought' })
+		})
+
+		it('survives a failed post, and so does what was typed', async () => {
+			const { wrapper, $store } = mountComposer()
+			$store.dispatch.mockImplementation((action) => Promise.resolve(action === 'post' ? undefined : undefined))
+			await setContent(wrapper, 'this must not be lost')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			// the composer used to clear itself in a `finally`: a toast, an
+			// empty box, and the text gone
+			expect(typed(wrapper)).toBe('this must not be lost')
+			expect(stored()).toMatchObject({ text: 'this must not be lost' })
+			expect($store.dispatch).not.toHaveBeenCalledWith('refreshTimeline')
+		})
+
+		it('is forgotten once the post is away', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'off it goes')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(typed(wrapper)).toBe('')
+			expect(stored()).toBeNull()
+		})
+
+		it('comes back when the composer is mounted again', async () => {
+			const first = mountComposer()
+			await setContent(first.wrapper, 'unfinished')
+			await addWarning(first.wrapper, 'a warning')
+			first.wrapper.unmount()
+
+			// App.vue used to key its router-view on the full path, so any
+			// navigation unmounted the composer and dropped the draft
+			const { wrapper } = mountComposer()
+			await flushPromises()
+
+			expect(typed(wrapper)).toBe('unfinished')
+			expect(wrapper.find('input.content-warning').element.value).toBe('a warning')
+			expect(canPost(wrapper)).toBe(true)
+		})
+
+		it('does not overwrite a reply mention with a stale draft', async () => {
+			const first = mountComposer()
+			await setContent(first.wrapper, 'old words')
+			first.wrapper.unmount()
+
+			const { wrapper } = mountComposer({ initialMention: carol })
+			await flushPromises()
+
+			// the draft is restored first, and the mention prefill declines to
+			// overwrite a composer that is not empty
+			expect(typed(wrapper)).toBe('old words')
+		})
+
+		it('survives storage that cannot be written or read', async () => {
+			const getItem = vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+				throw new Error('denied')
+			})
+			const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+				throw new Error('denied')
+			})
+
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'still typeable')
+
+			expect(typed(wrapper)).toBe('still typeable')
+			expect(canPost(wrapper)).toBe(true)
+			getItem.mockRestore()
+			setItem.mockRestore()
+		})
+	})
+
 	describe('attachments', () => {
 		it('uploads a selected file and previews it', async () => {
 			const { wrapper, $store } = mountComposer()
@@ -279,13 +480,13 @@ describe('Composer', () => {
 			await attachFile(wrapper, file)
 
 			expect(URL.createObjectURL).toHaveBeenCalledWith(file)
-			expect($store.dispatch).toHaveBeenCalledWith('createMedia', file)
+			expect($store.dispatch).toHaveBeenCalledWith('createMedia', expect.objectContaining({ file }))
 			const preview = wrapper.findComponent(PreviewGridItem)
 			expect(preview.props('randomKey')).toBe('blob:preview-1')
 			expect(preview.find('.loading-icon').exists()).toBe(true)
 
 			await flushPromises()
-			expect(preview.props('preview')).toEqual({ file, data: media })
+			expect(preview.props('preview')).toEqual({ file, data: media, failed: false })
 			expect(preview.find('img').attributes('src')).toBe(media.preview_url)
 		})
 
@@ -373,11 +574,6 @@ describe('Composer', () => {
 	})
 
 	describe('content warnings', () => {
-		const addWarning = async (wrapper, text) => {
-			await wrapper.find('button[aria-label="Add content warning"]').trigger('click')
-			await wrapper.find('input.content-warning').setValue(text)
-		}
-
 		it('sends the warning and marks the post sensitive', async () => {
 			const { wrapper, $store } = mountComposer()
 			await setContent(wrapper, 'the spoiler itself')
@@ -534,7 +730,7 @@ describe('Composer', () => {
 			expect(input(wrapper).classes()).toContain('icon-loading')
 			expect(canPost(wrapper)).toBe(false)
 
-			finishPost()
+			finishPost({ id: 'new-1' })
 			await flushPromises()
 
 			expect(input(wrapper).attributes('contenteditable')).toBe('true')

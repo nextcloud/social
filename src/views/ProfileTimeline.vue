@@ -29,8 +29,27 @@ export default {
 	},
 	data() {
 		return {
-			pinned: [],
+			pinnedIds: [],
 		}
+	},
+	computed: {
+		/**
+		 * The pinned posts, read back out of the store.
+		 *
+		 * They used to live in local component data, so every mutation in
+		 * store/timeline.js skipped them (each one is guarded by
+		 * `state.statuses[id] !== undefined`) and liking, boosting,
+		 * bookmarking or unpinning a pinned post was a UI no-op. A boosted
+		 * pinned post was worse: TimelineEntry looks its reblog up in the
+		 * store, found nothing, and rendered an empty card.
+		 *
+		 * @return {object[]}
+		 */
+		pinned() {
+			return this.pinnedIds
+				.map((id) => this.$store.getters.getStatus(id))
+				.filter(Boolean)
+		},
 	},
 	watch: {
 		'$route.params.account': 'load',
@@ -53,7 +72,7 @@ export default {
 		 * profile shows them. A failure here leaves the timeline alone.
 		 */
 		async loadPinned() {
-			this.pinned = []
+			this.pinnedIds = []
 			const account = this.$route.params.account
 			if (!account) {
 				return
@@ -63,7 +82,11 @@ export default {
 					generateUrl(`apps/social/api/v1/accounts/${account}/statuses`),
 					{ params: { pinned: true } },
 				)
-				this.pinned = Array.isArray(data) ? data : []
+				const statuses = Array.isArray(data) ? data : []
+				for (const status of statuses) {
+					this.$store.commit('addToStatuses', status)
+				}
+				this.pinnedIds = statuses.map((status) => status.id)
 			} catch (error) {
 				logger.error('Failed to load the pinned posts', { error })
 			}

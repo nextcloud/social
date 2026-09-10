@@ -136,17 +136,14 @@ describe('Timeline', () => {
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe('notifications')
 	})
 
-	it('shows the active search with a way to clear it', async () => {
+	it('shows no search banner over a timeline it does not filter', async () => {
+		// searching has its own route and asks the server; a banner saying
+		// "Search: «…»" over the unfiltered timeline would be a lie
 		const wrapper = mountTimeline()
-		expect(wrapper.find('.search-active').exists()).toBe(false)
-
 		store.commit('setSearchQuery', 'fediverse')
 		await nextTick()
-		expect(wrapper.find('.search-active').text()).toContain('Search: «fediverse»')
-
-		await wrapper.find('.search-clear').trigger('click')
-		expect(store.state.timeline.searchQuery).toBe('')
 		expect(wrapper.find('.search-active').exists()).toBe(false)
+		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
 	})
 
 	it('does not show the welcome box or look up the Nextcloud account after the first run', () => {

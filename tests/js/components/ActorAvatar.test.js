@@ -10,7 +10,7 @@ import ActorAvatar from '../../../src/components/ActorAvatar.vue'
 // so assert on what the component hands to it instead.
 const NcAvatarStub = {
 	name: 'NcAvatar',
-	props: ['url', 'user', 'displayName', 'size', 'disableTooltip', 'showUserStatus'],
+	props: ['url', 'user', 'displayName', 'size', 'disableTooltip', 'hideStatus'],
 	template: '<span class="nc-avatar-stub" />',
 }
 
@@ -40,7 +40,7 @@ describe('ActorAvatar', () => {
 	it('never shows a tooltip or user status', () => {
 		const avatar = mountAvatar({ actor: local }).findComponent(NcAvatarStub)
 		expect(avatar.props('disableTooltip')).toBe(true)
-		expect(avatar.props('showUserStatus')).toBe(false)
+		expect(avatar.props('hideStatus')).toBe(true)
 	})
 
 	it('defaults to 32px and forwards a custom size', () => {

@@ -26,7 +26,7 @@
 				{{ option.title }}
 			</label>
 			<NcButton :disabled="selectedIndices.length === 0 || voting"
-				type="primary"
+				variant="primary"
 				@click="vote">
 				{{ t('social', 'Vote') }}
 			</NcButton>

@@ -125,5 +125,36 @@ describe('ProfileTimeline', () => {
 
 			expect(axios.get).not.toHaveBeenCalled()
 		})
+
+		it('routes them through the store, so acting on one shows', async () => {
+			axios.get.mockResolvedValue({ data: [{ id: 'pin-1', created_at: '2026-01-01T00:00:00Z', favourited: false, favourites_count: 0 }] })
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+
+			// they used to live in local component data, and every mutation in
+			// the store is guarded by `state.statuses[id] !== undefined`, so
+			// liking or unpinning a pinned post was a UI no-op
+			expect(store.state.timeline.statuses['pin-1']).toBeDefined()
+
+			store.commit('likeStatus', { status: { id: 'pin-1' } })
+			await nextTick()
+
+			expect(wrapper.findComponent(TimelineEntryStub).props('item')).toMatchObject({
+				favourited: true,
+				favourites_count: 1,
+			})
+		})
+
+		it('drops a pinned post the store no longer holds instead of rendering an empty card', async () => {
+			axios.get.mockResolvedValue({ data: [{ id: 'pin-1', created_at: '2026-01-01T00:00:00Z' }] })
+			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' } })
+			await flushPromises()
+			expect(pinnedIds(wrapper)).toEqual(['pin-1'])
+
+			store.commit('removeStatus', { id: 'pin-1' })
+			await nextTick()
+
+			expect(pinnedIds(wrapper)).toEqual([])
+		})
 	})
 })

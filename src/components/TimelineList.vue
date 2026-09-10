@@ -27,10 +27,27 @@
 				:type="type" />
 		</transition-group>
 		<TimelineSkeleton v-if="loading && timeline.length === 0" />
+		<!--
+		  A failure used to set allLoaded, so the reader was shown "No posts
+		  found / Posts from people you follow will show up here" for what was
+		  a server error, and the observer never fired again: paging was dead
+		  until a full reload. An error is now its own state, with a retry.
+		-->
+		<div v-if="error !== null" class="timeline-error" role="alert">
+			<p class="timeline-error__message">
+				{{ error }}
+			</p>
+			<NcButton variant="primary" :disabled="loading" @click="retry">
+				<template #icon>
+					<Refresh :size="20" />
+				</template>
+				{{ t('social', 'Try again') }}
+			</NcButton>
+		</div>
 		<div ref="sentinel" class="list-sentinel">
 			<div v-if="loading && timeline.length > 0" class="icon-loading" />
 			<div v-else-if="!loading && !allLoaded" class="list-end" />
-			<EmptyContent v-if="allLoaded && timeline.length === 0 && emptyContentData.title !== ''" :item="emptyContentData" />
+			<EmptyContent v-if="showEmptyContent" :item="emptyContentData" />
 		</div>
 	</div>
 </template>
@@ -41,6 +58,8 @@ import { listen } from '@nextcloud/notify_push'
 
 import { translate, translatePlural } from '@nextcloud/l10n'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
+import Refresh from 'vue-material-design-icons/Refresh.vue'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSkeleton from './TimelineSkeleton.vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
@@ -48,10 +67,19 @@ import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus from '../services/eventBus.js'
 
+/**
+ * How many times fetchNewStatuses() may follow itself in one tick. It recursed
+ * with no cap and terminated only because the server honours min_id; a server
+ * that ignores it looped for as long as the tab was open.
+ */
+const MAX_CATCHUP_PAGES = 10
+
 export default {
 	name: 'TimelineList',
 	components: {
 		ArrowUp,
+		Refresh,
+		NcButton,
 		TimelineEntry,
 		TimelineSkeleton,
 		EmptyContent,
@@ -85,6 +113,10 @@ export default {
 			focused: -1,
 			loading: false,
 			allLoaded: false,
+			/** what went wrong, when something did; null while all is well */
+			error: null,
+			/** whether the polling failure has already been said once */
+			pollFailureReported: false,
 			observer: null,
 			emptyContent: {
 				default: {
@@ -149,26 +181,43 @@ export default {
 
 			return ''
 		},
-		searchQuery() {
-			return this.$store.getters.getSearchQuery
+		/** @return {string} which list the store is holding */
+		timelineIdentity() {
+			return this.$store.getters.getTimelineIdentity
 		},
+		/** @return {boolean} nothing to show, and nothing went wrong */
+		showEmptyContent() {
+			return this.error === null
+				&& this.allLoaded
+				&& this.timeline.length === 0
+				&& this.emptyContentData.title !== ''
+		},
+		/**
+		 * What to say when the list is empty. This used to write to
+		 * `this.emptyContent[...]` from inside the computed, which mutated
+		 * component data during evaluation and left the mutation behind for
+		 * every later route.
+		 *
+		 * @return {object} an image, a title and a description
+		 */
 		emptyContentData() {
-			if (this.searchQuery && this.timeline.length === 0) {
-				return {
-					title: t('social', 'No posts match your search'),
-					description: t('social', 'Try a different search term'),
-				}
-			}
-			if (typeof this.emptyContent[this.$route.params.type] !== 'undefined') {
-				return this.emptyContent[this.$route.params.type]
+			const byType = this.emptyContent[this.$route.params.type]
+			if (byType !== undefined) {
+				return byType
 			}
 
-			if (typeof this.emptyContent[this.$route.name] !== 'undefined') {
-				const content = this.emptyContent[this.$route.name]
-				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
-					content.title = this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet')
+			const byName = this.emptyContent[this.$route.name]
+			if (byName !== undefined) {
+				if (this.$route.name === 'timeline') {
+					return this.emptyContent.default
 				}
-				return this.$route.name === 'timeline' ? this.emptyContent.default : content
+				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
+					return {
+						...byName,
+						title: this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet'),
+					}
+				}
+				return byName
 			}
 
 			logger.debug('Did not find any empty content for this route', { routeType: this.$route.params.type, routeName: this.$route.name })
@@ -176,22 +225,27 @@ export default {
 		},
 
 		timeline() {
-			let timeline = []
+			const timeline = this.showParents
+				? this.$store.getters.getParentsTimeline
+				: this.$store.getters.getTimeline
 
-			if (this.showParents) {
-				timeline = this.$store.getters.getParentsTimeline
-			} else {
-				timeline = this.$store.getters.getTimeline
-			}
-
-			if (this.reverseOrder) {
-				return timeline.reverse()
-			} else {
-				return timeline
-			}
+			// a copy: .reverse() sorts in place, and this array comes from a
+			// cached Vuex getter that every other reader shares
+			return this.reverseOrder ? [...timeline].reverse() : timeline
 		},
 	},
 	watch: {
+		/**
+		 * The router-view is no longer keyed on the full path, so switching
+		 * timeline reuses this component: the paging state has to be put back
+		 * by hand, or Home keeps Global's "you have reached the end" — and
+		 * nothing would ask the server for the list that is now current.
+		 */
+		timelineIdentity() {
+			if (!this.showParents) {
+				this.resetAndLoad()
+			}
+		},
 		// reading the notifications is what marks them read; the badge should
 		// not survive the reader looking straight at what it is counting
 		timeline: {
@@ -213,6 +267,17 @@ export default {
 		},
 	},
 	mounted() {
+		eventBus.on('shortcut:next', this.focusNext)
+		eventBus.on('shortcut:previous', this.focusPrevious)
+
+		// The ancestors list in the single-post view renders the same
+		// /context response its sibling fetches: it used to page, poll and
+		// observe on its own, so opening a thread made two identical
+		// requests and left two 30-second intervals running.
+		if (this.showParents) {
+			return
+		}
+
 		this.infiniteHandler()
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
@@ -223,8 +288,6 @@ export default {
 		// it comes back
 		document.addEventListener('visibilitychange', this.pollOnReturn)
 		this.setupIntersectionObserver()
-		eventBus.on('shortcut:next', this.focusNext)
-		eventBus.on('shortcut:previous', this.focusPrevious)
 	},
 	unmounted() {
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
@@ -247,6 +310,21 @@ export default {
 					this.observer.observe(this.$refs.sentinel)
 				}
 			})
+		},
+		/** Starts this timeline over: a different type is a different list. */
+		resetAndLoad() {
+			this.allLoaded = false
+			this.error = null
+			this.arrived = 0
+			this.focused = -1
+			this.pollFailureReported = false
+			this.infiniteHandler()
+		},
+		/** What the retry button does. */
+		retry() {
+			this.error = null
+			this.allLoaded = false
+			this.infiniteHandler()
 		},
 		async infiniteHandler() {
 			if (this.loading) return
@@ -271,16 +349,16 @@ export default {
 
 			try {
 				const response = await this.$store.dispatch('fetchTimeline', params)
-				if (response.length > 0) {
-					this.loading = false
-				} else {
-					this.allLoaded = true
-					this.loading = false
-				}
+				this.error = null
+				this.allLoaded = response.length === 0
 			} catch (error) {
-				showError(translate('social', 'Could not load more posts'))
 				logger.error('Failed to load more timeline entries', { error })
-				this.allLoaded = true
+				// not allLoaded: that told the observer to stop watching and
+				// showed the reader an empty timeline for a server error
+				this.error = this.timeline.length === 0
+					? translate('social', 'The posts could not be loaded.')
+					: translate('social', 'No more posts could be loaded.')
+			} finally {
 				this.loading = false
 			}
 		},
@@ -363,7 +441,12 @@ export default {
 		},
 		t: translate,
 		n: translatePlural,
-		async fetchNewStatuses() {
+		/**
+		 * Catches up on what arrived since the newest post on screen.
+		 *
+		 * @param {number} depth how many pages have already been followed
+		 */
+		async fetchNewStatuses(depth = 0) {
 			if (this.showParents) {
 				return
 			}
@@ -377,6 +460,7 @@ export default {
 				const response = await this.$store.dispatch('fetchTimeline', {
 					min_id: ids.length === 0 ? undefined : Math.max(...ids),
 				})
+				this.pollFailureReported = false
 
 				if (response.length > 0) {
 					// only worth announcing when the top of the list is out of
@@ -384,11 +468,20 @@ export default {
 					if (window.scrollY > 240) {
 						this.arrived += response.length
 					}
-					this.fetchNewStatuses()
+					if (depth + 1 < MAX_CATCHUP_PAGES) {
+						this.fetchNewStatuses(depth + 1)
+					} else {
+						logger.debug('Stopped catching up after the page cap', { pages: MAX_CATCHUP_PAGES })
+					}
 				}
 			} catch (error) {
-				showError(translate('social', 'Could not load the newest posts'))
 				logger.error('Failed to load newer timeline entries', { error })
+				// once, not once per tick: a server that is down produced an
+				// endless stream of identical toasts every 30 seconds
+				if (!this.pollFailureReported) {
+					this.pollFailureReported = true
+					showError(translate('social', 'Could not load the newest posts'))
+				}
 			}
 		},
 	},
@@ -417,6 +510,25 @@ export default {
 
 	.list-sentinel {
 		min-height: 1px;
+	}
+}
+
+.timeline-error {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	margin: 20px 0;
+	padding: 24px 20px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-main-background);
+	text-align: center;
+
+	&__message {
+		margin: 0;
+		color: var(--color-text-lighter);
+		line-height: 1.5;
 	}
 }
 

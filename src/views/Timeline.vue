@@ -38,14 +38,6 @@
 			{{ heading }}
 		</h1>
 
-		<div v-if="searchQuery" class="search-active">
-			{{ t('social', 'Search') }}: «{{ searchQuery }}»
-			<button type="button" class="search-clear" @click="clearSearch">
-				<span aria-hidden="true">✕</span>
-				<span class="hidden-visually">{{ t('social', 'Clear the search') }}</span>
-			</button>
-		</div>
-
 		<TimelineList :type="type" />
 	</div>
 </template>
@@ -102,8 +94,9 @@ export default {
 		headingIsVisible() {
 			return this.type === 'tags' || this.type === 'notifications'
 		},
-		searchQuery() {
-			return this.$store.getters.getSearchQuery
+		/** @return {string} what identifies this timeline, params included */
+		timelineKey() {
+			return this.type + '|' + JSON.stringify(this.params)
 		},
 		params() {
 			if (this.$route.name === 'tags') {
@@ -132,6 +125,14 @@ export default {
 			return this.$store.getters.isFollowingUser(this.nextcloudAccount)
 		},
 	},
+	watch: {
+		// the router-view is no longer keyed on the full path, so switching
+		// from Home to Global reuses this view: without this the store would
+		// keep serving the previous timeline
+		timelineKey() {
+			this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
+		},
+	},
 	beforeMount() {
 		this.$store.dispatch('changeTimelineType', { type: this.type, params: this.params })
 		if (this.showInfo) {
@@ -141,9 +142,6 @@ export default {
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
-		},
-		clearSearch() {
-			this.$store.commit('setSearchQuery', '')
 		},
 		followNextcloud() {
 			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })
@@ -254,29 +252,4 @@ export default {
 	}
 }
 
-.search-active {
-	font-size: 13px;
-	color: var(--color-text-lighter);
-	padding: 8px 16px;
-	margin: 8px 16px;
-	border: 1px solid var(--color-border);
-	border-radius: 8px;
-	background: var(--color-main-background);
-	display: flex;
-	align-items: center;
-	gap: 8px;
-
-	.search-clear {
-		margin-left: auto;
-		color: var(--color-text-lighter);
-		text-decoration: none;
-		font-size: 14px;
-		padding: 2px 6px;
-		border-radius: 4px;
-
-		&:hover {
-			background: var(--color-background-hover);
-		}
-	}
-}
 </style>

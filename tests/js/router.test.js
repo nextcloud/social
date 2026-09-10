@@ -111,8 +111,33 @@ describe('router', () => {
 		expect(route.matched).toHaveLength(1)
 	})
 
+	it('resolves the search route, with and without a term', () => {
+		expect(router.resolve('/search/nextcloud').name).toBe('search')
+		expect(router.resolve('/search/nextcloud').params.term).toBe('nextcloud')
+		expect(router.resolve('/search').name).toBe('search')
+		expect(router.resolve('/search').params.term).toBe('')
+	})
+
 	it('does not match unknown paths', () => {
 		expect(router.resolve('/nope/nope').matched).toEqual([])
+	})
+
+	describe('where a navigation lands', () => {
+		it('restores the position Back and Forward were last at', () => {
+			// without a scrollBehavior, opening a post and pressing Back
+			// landed at the top of a timeline the reader had scrolled far into
+			const saved = { left: 0, top: 1200 }
+			expect(router.options.scrollBehavior({}, {}, saved)).toBe(saved)
+		})
+
+		it('goes to the top of a page it has not been at before', () => {
+			expect(router.options.scrollBehavior({}, {}, null)).toEqual({ top: 0 })
+		})
+
+		it('scrolls to an anchor when the URL names one', () => {
+			expect(router.options.scrollBehavior({ hash: '#reply-7' }, {}, null))
+				.toEqual({ el: '#reply-7', behavior: 'smooth' })
+		})
 	})
 })
 

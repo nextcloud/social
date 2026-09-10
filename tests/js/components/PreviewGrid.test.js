@@ -20,8 +20,8 @@ const media = (id) => ({
 
 const file = (name) => new File(['x'], name, { type: 'image/png' })
 
-const mountGrid = (miniatures) => mount(PreviewGrid, {
-	props: { uploading: false, uploadProgress: 0, miniatures },
+const mountGrid = (miniatures, upload = {}) => mount(PreviewGrid, {
+	props: { uploading: false, uploadProgress: 0, ...upload, miniatures },
 })
 
 describe('PreviewGrid', () => {
@@ -67,6 +67,16 @@ describe('PreviewGrid', () => {
 		expect(done.find('img').attributes('src')).toBe('https://cloud.example.org/media/m1-small.png')
 		expect(pending.find('img').exists()).toBe(false)
 		expect(pending.find('.loading-icon').exists()).toBe(true)
+	})
+
+	it('shows how far an upload has got while one is running', () => {
+		// the progress block sat behind v-if="false", and the fraction it
+		// would have shown was the hard-coded 0.4 the composer passed
+		expect(mountGrid({}).find('.upload-progress').exists()).toBe(false)
+
+		const wrapper = mountGrid({}, { uploading: true, uploadProgress: 0.25 })
+		expect(wrapper.find('.upload-progress').exists()).toBe(true)
+		expect(wrapper.find('.upload-progress__tracker').attributes('style')).toBe('width: 25%;')
 	})
 
 	it('re-emits an item removal as "deleted" with the attachment key', async () => {

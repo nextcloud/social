@@ -84,15 +84,29 @@ export default {
 			return sanitizeHtml(this.item.note ?? '')
 		},
 		/**
+		 * Where this entry stands with the reader.
+		 *
+		 * This component only mixes in currentUserMixin, so the `relationship`
+		 * the mount guard tested was always undefined and the guard could
+		 * never hold: twenty followers meant twenty requests, on every mount.
+		 *
+		 * @return {import('../types/Mastodon.js').Relationship|undefined}
+		 */
+		relationship() {
+			return this.$store.getters.getRelationshipWith(this.item?.id)
+		},
+		/**
 		 * @return {boolean}
 		 */
 		isLocal() {
 			return !this.item.acct.includes('@')
 		},
 	},
-	async mounted() {
+	mounted() {
 		if (!this.serverData.public && this.relationship === undefined) {
-			await this.$store.dispatch('fetchAccountRelationshipInfo', [this.item.id])
+			// batched: the action collects everybody who asks in the same
+			// moment and sends the ids as one request
+			this.$store.dispatch('fetchRelationship', this.item.id)
 		}
 	},
 }

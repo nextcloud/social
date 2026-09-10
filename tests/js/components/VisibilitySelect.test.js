@@ -54,7 +54,12 @@ describe('VisibilitySelect', () => {
 
 	it('shows the selected visibility on the closed trigger', () => {
 		wrapper = mountSelect('followers')
-		expect(toggle(wrapper).attributes('aria-label')).toBe('Choose a visibility')
+		// `menu-name` is what @nextcloud/vue 9 calls the trigger's label (v8's
+		// `menu-title` is not a prop and was silently dropped), and NcActions
+		// deliberately omits aria-label when the name is visible
+		const selected = visibilitiesInfo.find(({ id }) => id === 'followers')
+		expect(toggle(wrapper).text()).toContain(selected.text)
+		expect(toggle(wrapper).attributes('aria-label')).toBeUndefined()
 		expect(toggle(wrapper).find('.account-multiple-icon').exists()).toBe(true)
 		expect(toggle(wrapper).attributes('aria-expanded')).toBe('false')
 		expect(menuEntries()).toHaveLength(0)

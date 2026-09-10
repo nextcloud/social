@@ -27,12 +27,17 @@ const stubs = {
 		emits: ['update:modelValue'],
 		template: '<input class="nav-search" :value="modelValue" :aria-label="label" @input="$emit(\'update:modelValue\', $event.target.value)">',
 	},
+	// `counter` is a slot in @nextcloud/vue 9, not a prop, and there is no
+	// `subname` slot — the app's extras go through `extra`
 	NcAppNavigationItem: {
-		props: ['name', 'active', 'counter', 'href', 'target', 'to'],
+		props: ['name', 'active', 'href', 'target', 'to'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-counter="counter" :data-href="href" :data-to="to && to.name" @click="$emit(\'click\')">'
-			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span><slot name="subname" /><slot /></li>',
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && to.name" @click="$emit(\'click\')">'
+			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span>'
+			+ '<span class="nav-item__counter"><slot name="counter" /></span>'
+			+ '<slot name="extra" /><slot /></li>',
 	},
+	NcCounterBubble: { props: ['count', 'type'], template: '<span class="nc-counter" :data-count="count">{{ count }}</span>' },
 	NcAppNavigationSpacer: { template: '<hr>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" />' },
@@ -164,11 +169,11 @@ describe('Navigation', () => {
 		})
 	})
 
-	it('shows how many notifications are waiting', () => {
-		expect(item(mountNavigation(), 'Notifications').attributes('data-counter')).toBe('0')
-
-		// the badge used to be hard-coded to zero, so it never said anything
-		expect(item(mountNavigation({ unread: 5 }), 'Notifications').attributes('data-counter')).toBe('5')
+	it('shows how many notifications are waiting, through the counter slot', () => {
+		// `:counter="…"` was silently ignored in @nextcloud/vue 9, so the
+		// badge never appeared at all
+		expect(item(mountNavigation(), 'Notifications').find('.nc-counter').exists()).toBe(false)
+		expect(item(mountNavigation({ unread: 5 }), 'Notifications').find('.nc-counter').attributes('data-count')).toBe('5')
 	})
 
 	// Routes come from the real router rather than being written out here: an
@@ -211,10 +216,20 @@ describe('Navigation', () => {
 		expect(profile.find('.navigation__subname').text()).toBe('@alice')
 	})
 
-	it('emits the search term as the user types', async () => {
-		const wrapper = mountNavigation()
-		await wrapper.find('.nav-search').setValue('nextcloud')
-		expect(wrapper.emitted('search')).toEqual([['nextcloud']])
+	it('emits the search term once the typing settles, not per keystroke', async () => {
+		vi.useFakeTimers()
+		try {
+			const wrapper = mountNavigation()
+			await wrapper.find('.nav-search').setValue('next')
+			await wrapper.find('.nav-search').setValue('nextcloud')
+			// searching now costs a request; un-debounced it was one per letter
+			expect(wrapper.emitted('search')).toBeUndefined()
+
+			vi.advanceTimersByTime(300)
+			expect(wrapper.emitted('search')).toEqual([['nextcloud']])
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
 	it('opens the composer modal from "New post"', async () => {
@@ -246,7 +261,7 @@ describe('Navigation', () => {
 		it('adds an errors entry with the error count', () => {
 			const wrapper = mountNavigation()
 			expect(itemNames(wrapper).slice(0, 3)).toEqual(['New post', 'Errors', 'Home'])
-			expect(item(wrapper, 'Errors').attributes('data-counter')).toBe('2')
+			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('2')
 		})
 
 		it('opens a modal listing the errors and dismisses a single one through the store', async () => {
@@ -263,7 +278,7 @@ describe('Navigation', () => {
 			expect(dispatch).toHaveBeenCalledWith('dismissAppError', firstError.id)
 			await nextTick()
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Post failed'])
-			expect(item(wrapper, 'Errors').attributes('data-counter')).toBe('1')
+			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('1')
 		})
 
 		it('offers "Dismiss all" only for several errors and clears them all', async () => {

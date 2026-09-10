@@ -19,10 +19,14 @@
 
 			<NcAppNavigationItem v-if="hasErrors"
 				:name="t('social', 'Errors')"
-				:counter="errorCount"
 				@click="showErrors = true">
 				<template #icon>
 					<IconAlertCircle class="error-icon" :size="20" />
+				</template>
+				<!-- `counter` is a slot in @nextcloud/vue 9, not a prop: passing
+				     the number as `:counter` rendered nothing at all -->
+				<template #counter>
+					<NcCounterBubble :count="errorCount" type="highlighted" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -30,10 +34,12 @@
 				:key="item.key"
 				:name="item.title"
 				:active="isActive(item)"
-				:counter="item.counter"
 				@click="navigate(item)">
 				<template #icon>
 					<component :is="item.icon" :size="20" />
+				</template>
+				<template v-if="item.counter > 0" #counter>
+					<NcCounterBubble :count="item.counter" type="highlighted" />
 				</template>
 			</NcAppNavigationItem>
 
@@ -49,7 +55,7 @@
 				<template #icon>
 					<IconPound :size="20" />
 				</template>
-				<template #subname>
+				<template #extra>
 					<span class="navigation__subname">
 						{{ n('social', '%n post', '%n posts', usesOf(tag)) }}
 					</span>
@@ -68,7 +74,7 @@
 						:disable-tooltip="true"
 						:disable-menu="true" />
 				</template>
-				<template #subname>
+				<template #extra>
 					<span class="navigation__subname">@{{ currentUser?.uid }}</span>
 				</template>
 			</NcAppNavigationItem>
@@ -106,11 +112,11 @@
 				<div class="modal-errors__message">
 					{{ error.message }}
 				</div>
-				<NcButton type="tertiary" @click="dismissError(error.id)">
+				<NcButton variant="tertiary" @click="dismissError(error.id)">
 					{{ t('social', 'Dismiss') }}
 				</NcButton>
 			</div>
-			<NcButton v-if="appErrors.length > 1" type="tertiary" @click="clearAllErrors">
+			<NcButton v-if="appErrors.length > 1" variant="tertiary" @click="clearAllErrors">
 				{{ t('social', 'Dismiss all') }}
 			</NcButton>
 		</div>
@@ -127,6 +133,7 @@ import NcAppNavigationSettings from '@nextcloud/vue/components/NcAppNavigationSe
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCounterBubble from '@nextcloud/vue/components/NcCounterBubble'
 
 import { defineAsyncComponent } from 'vue'
 
@@ -156,6 +163,9 @@ const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "compose
 /** how often to re-read the badge when the server cannot push */
 const UNREAD_POLL_MS = 60 * 1000
 
+/** how long to let the typing settle before searching */
+const SEARCH_DEBOUNCE_MS = 300
+
 export default {
 	name: 'Navigation',
 	components: {
@@ -168,6 +178,7 @@ export default {
 		NcAvatar,
 		NcModal,
 		NcButton,
+		NcCounterBubble,
 		Composer,
 		IconHome,
 		IconBell,
@@ -192,6 +203,7 @@ export default {
 			showErrors: false,
 			stopListening: null,
 			pollTimer: null,
+			searchTimer: null,
 		}
 	},
 	computed: {
@@ -270,6 +282,8 @@ export default {
 		},
 	},
 	mounted() {
+		// landing on /search/<term> directly should show the term in the box
+		this.localSearch = this.$store.getters.getSearchQuery ?? ''
 		this.fetchTrending()
 		this.$store.dispatch('fetchUnreadNotifications')
 
@@ -290,6 +304,9 @@ export default {
 		}
 		if (this.pollTimer !== null) {
 			clearInterval(this.pollTimer)
+		}
+		if (this.searchTimer !== null) {
+			window.clearTimeout(this.searchTimer)
 		}
 	},
 	methods: {
@@ -336,8 +353,18 @@ export default {
 		clearAllErrors() {
 			this.$store.commit('clearErrors')
 		},
+		/**
+		 * Searching now costs a request, so it waits for the typing to stop.
+		 * Un-debounced, every keystroke went straight through.
+		 */
 		onSearchInput() {
-			this.$emit('search', this.localSearch)
+			if (this.searchTimer !== null) {
+				window.clearTimeout(this.searchTimer)
+			}
+			this.searchTimer = window.setTimeout(() => {
+				this.searchTimer = null
+				this.$emit('search', this.localSearch)
+			}, SEARCH_DEBOUNCE_MS)
 		},
 		/**
 		 * Whether an entry is the page on screen. An entry matches its own

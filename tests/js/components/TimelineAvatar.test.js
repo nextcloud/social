@@ -8,7 +8,9 @@ import TimelineAvatar from '../../../src/components/TimelineAvatar.vue'
 
 const NcAvatarStub = {
 	name: 'NcAvatar',
-	props: ['url', 'user', 'displayName', 'size', 'disableTooltip', 'showUserStatus', 'menuPosition'],
+	// the v9 prop names: showUserStatus and menuPosition are gone, and passing
+	// them was silently ignored (so local avatars showed a status dot)
+	props: ['url', 'user', 'displayName', 'size', 'disableTooltip', 'hideStatus', 'menuContainer'],
 	template: '<span class="nc-avatar-stub" />',
 }
 
@@ -34,8 +36,7 @@ describe('TimelineAvatar', () => {
 		expect(avatar.props('user')).toBe('bob')
 		expect(avatar.props('displayName')).toBe('Bob')
 		expect(avatar.props('url')).toBeUndefined()
-		expect(avatar.props('menuPosition')).toBe('left')
-		expect(avatar.props('showUserStatus')).toBe(false)
+		expect(avatar.props('hideStatus')).toBe(true)
 		expect(avatar.props('disableTooltip')).toBe(true)
 	})
 
