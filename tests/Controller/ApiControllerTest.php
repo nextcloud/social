@@ -63,6 +63,7 @@ use OCP\IUser;
 use OCP\IUserSession;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class ApiControllerTest extends TestCase {
@@ -199,7 +200,11 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/** @param array<string, string> $headers extra request headers */
-	private function controllerWithHeaders(string $authorization, array $headers = []): ApiController {
+	private function controllerWithHeaders(
+		string $authorization,
+		array $headers = [],
+		?LoggerInterface $logger = null,
+	): ApiController {
 		// the callback is registered once, in setUp(): a second method() on the
 		// same mock never wins over the first, so per-controller headers have to
 		// go through a property
@@ -209,7 +214,7 @@ class ApiControllerTest extends TestCase {
 			$this->request,
 			$this->urlGenerator,
 			$this->userSession,
-			new NullLogger(),
+			$logger ?? new NullLogger(),
 			$this->instanceService,
 			$this->clientService,
 			$this->accountService,
@@ -310,6 +315,44 @@ class ApiControllerTest extends TestCase {
 
 			return $captured;
 		};
+	}
+
+	/**
+	 * Every route here is reached with a bearer token and no session, so each
+	 * one has to declare that itself. Declaring it as a docblock annotation
+	 * reads the same and is not the same: Nextcloud stopped honouring the
+	 * annotation form, and a route that lost its `@PublicPage` that way answers
+	 * a client with the server's own `{"message": ""}` 401 — from the security
+	 * middleware, before this controller runs at all.
+	 */
+	public function testEveryRouteDeclaresItsAccessAsAnAttribute(): void {
+		$reflection = new \ReflectionClass(ApiController::class);
+
+		foreach ($reflection->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->isConstructor() || $method->getDeclaringClass()->getName() !== ApiController::class) {
+				continue;
+			}
+
+			$attributes = array_map(
+				static fn (\ReflectionAttribute $a): string => $a->getName(),
+				$method->getAttributes()
+			);
+			$this->assertContains(
+				\OCP\AppFramework\Http\Attribute\PublicPage::class,
+				$attributes,
+				$method->getName() . '() does not declare #[PublicPage]'
+			);
+			$this->assertStringNotContainsString(
+				'@PublicPage',
+				(string)$method->getDocComment(),
+				$method->getName() . '() declares its access as a legacy annotation'
+			);
+			$this->assertStringNotContainsString(
+				'@NoCSRFRequired',
+				(string)$method->getDocComment(),
+				$method->getName() . '() declares its access as a legacy annotation'
+			);
+		}
 	}
 
 	// credentials
@@ -543,6 +586,33 @@ class ApiControllerTest extends TestCase {
 		$this->loggedInAs();
 
 		$this->assertUnauthorized($this->controller()->verifyCredentials());
+	}
+
+	/**
+	 * A request with a missing or invalid token is answered with a 401; it is
+	 * not a server-side failure. Logging each one at error with a stack trace
+	 * filled the admin's nextcloud.log for every scanner that found the API.
+	 */
+	public function testAnInvalidTokenIsNotLoggedAsAServerError(): void {
+		$this->clientService->method('getFromToken')->willThrowException(new ClientNotFoundException());
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->never())->method('error');
+		$logger->expects($this->never())->method('warning');
+
+		$response = $this->controllerWithHeaders('Bearer gone', [], $logger)->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	/**
+	 * Several of these failures are raised with no message at all, and
+	 * `{"error": ""}` tells a client nothing about what happened.
+	 */
+	public function testAFailureWithNoMessageStillSaysSomething(): void {
+		$this->loggedInAs();
+		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
+
+		$this->assertNotFound($this->controller()->statusDelete(7), 'not found');
 	}
 
 	public function testNonBearerAuthorizationIsIgnored(): void {
@@ -820,6 +890,66 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('', $created->getReplyTo());
 	}
 
+	/**
+	 * `sensitive` is what makes a client blur the attachments. The create path
+	 * dropped it — the edit path has always carried it — so a post marked
+	 * sensitive in Tusky came back unblurred, here and on every instance the
+	 * Create federates to.
+	 */
+	public function testStatusNewCarriesTheSensitiveFlagToThePost(): void {
+		$created = $this->postWith(['status' => 'look at this', 'sensitive' => 'true']);
+
+		$this->assertTrue($created->isSensitive());
+	}
+
+	public function testStatusNewWithoutTheSensitiveFlagIsNotSensitive(): void {
+		$this->assertFalse($this->postWith(['status' => 'look at this'])->isSensitive());
+	}
+
+	/**
+	 * A status posted without a visibility used to become a direct message
+	 * addressed to nobody: the empty value fell through
+	 * `Stream::visibilityFromClient()` to `direct`, and a direct post with no
+	 * recipient is delivered to no one while the request answers 200.
+	 */
+	public function testAStatusWithoutAVisibilityIsPublic(): void {
+		$this->assertSame(Stream::TYPE_PUBLIC, $this->postWith(['status' => 'hi'])->getType());
+	}
+
+	public function testAVisibilityThisAppDoesNotKnowIsRefused(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['status' => 'hi', 'visibility' => 'friends']);
+		$this->postService->expects($this->never())->method('createPost');
+
+		$this->assertUnprocessable(
+			$this->controller()->statusNew(), 'unknown visibility: friends'
+		);
+	}
+
+	/**
+	 * An empty, truncated or scalar JSON body decoded to `null`, which under
+	 * strict_types raised a TypeError out of `convertInput(): array` — a
+	 * Nextcloud HTML error page, stack trace and all, on a #[PublicPage] route.
+	 */
+	public function testAMalformedJsonBodyIsRefusedRatherThanCrashing(): void {
+		$this->loggedInAs();
+		$this->postService->expects($this->never())->method('createPost');
+
+		$response = $this->controllerWithHeaders('', ['Content-Type' => 'application/json; charset=utf-8'])
+			->statusNew();
+
+		$this->assertUnprocessable($response, 'the request body is not valid JSON');
+	}
+
+	/** Not every failure is an Exception; a client is owed JSON either way. */
+	public function testAPhpErrorIsStillAnsweredAsAnApiError(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['status' => 'hi']);
+		$this->postService->method('createPost')->willThrowException(new \Error('boom'));
+
+		$this->assertServerError($this->controller()->statusNew());
+	}
+
 	public function testStatusNewIsUnauthorizedForAnonymous(): void {
 		$this->postService->expects($this->never())->method('createPost');
 
@@ -878,6 +1008,21 @@ class ApiControllerTest extends TestCase {
 
 	public function testRelationshipsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->relationships([1]));
+	}
+
+	/**
+	 * A request-bound array parameter is filled in by the dispatcher, before
+	 * the method's own try block, so a client asking with no `id[]` at all used
+	 * to raise a TypeError there — an HTML error page rather than an answer.
+	 */
+	public function testRelationshipsWithoutAnyIdIsAnEmptyAnswer(): void {
+		$this->loggedInAs();
+		$this->followService->method('getRelationships')->with([])->willReturn([]);
+
+		$response = $this->controller()->relationships();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
 	}
 
 	// blocking / muting
@@ -998,6 +1143,37 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([$muted], $response->getData());
+	}
+
+	/**
+	 * Neither route takes a cursor, so the next page a `Link` header would
+	 * advertise is the page just sent: a client paging on the header scrolled
+	 * the same blocked accounts for ever.
+	 */
+	public function testTheBlockedAccountsPageDoesNotAdvertiseANextPageItCannotServe(): void {
+		$viewer = $this->loggedInAs();
+		$this->requestUri('/api/v1/blocks?limit=2');
+		$blocked = [$this->createMock(Person::class), $this->createMock(Person::class)];
+		$blocked[0]->method('getNid')->willReturn(9);
+		$blocked[1]->method('getNid')->willReturn(8);
+		$this->relationshipService->method('getRelated')
+			->with($this->identicalTo($viewer), ActorRelation::TYPE_BLOCK, 2)
+			->willReturn($blocked);
+
+		$response = $this->controller()->blocks(2);
+
+		$this->assertSame($blocked, $response->getData());
+		$this->assertArrayNotHasKey('Link', $response->getHeaders());
+	}
+
+	public function testTheMutedAccountsPageDoesNotEither(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/mutes?limit=1');
+		$muted = $this->createMock(Person::class);
+		$muted->method('getNid')->willReturn(4);
+		$this->relationshipService->method('getRelated')->willReturn([$muted]);
+
+		$this->assertArrayNotHasKey('Link', $this->controller()->mutes(1)->getHeaders());
 	}
 
 	public function testBlocksRequireAViewer(): void {
@@ -2049,6 +2225,36 @@ class ApiControllerTest extends TestCase {
 		// it would serialise as `"type": ""`, which a client with a closed enum
 		// cannot decode — and one bad entry loses the whole page
 		$this->assertSame([$known], $this->controller()->notifications()->getData());
+	}
+
+	/**
+	 * Whether there is a next page is what the query returned, not what
+	 * survived the filter above: a page shortened here says nothing about
+	 * older notifications, and Elk and Phanpy — which page on the `Link`
+	 * header and nowhere else — stopped there with the rest still in the
+	 * database.
+	 */
+	public function testAFilteredNotificationPageStillOffersTheNextOne(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/notifications?limit=3');
+		$page = [];
+		foreach ([30, 29] as $nid) {
+			$known = $this->createMock(Stream::class);
+			$known->method('getSubType')->willReturn('Like');
+			$known->method('getNid')->willReturn($nid);
+			$page[] = $known;
+		}
+		$unknown = $this->createMock(Stream::class);
+		$unknown->method('getSubType')->willReturn('SomethingElse');
+		$unknown->method('getNid')->willReturn(28);
+		$page[] = $unknown;
+		$this->captureTimelineOptions($page);
+
+		$response = $this->controller()->notifications(3);
+
+		$this->assertCount(2, $response->getData());
+		$link = $response->getHeaders()['Link'] ?? '';
+		$this->assertStringContainsString('max_id=28>; rel="next"', $link);
 	}
 
 	// public timeline

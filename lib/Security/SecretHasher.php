@@ -54,10 +54,16 @@ class SecretHasher {
 	 * The values a presented secret may be stored under — for looking a token up
 	 * while legacy plaintext rows can still exist.
 	 *
+	 * A presented secret that already carries the hash prefix is never looked up
+	 * as a legacy row: a legacy row holds the bare value, and the prefixed shape
+	 * is what the column itself holds. Offering it here made the stored digest a
+	 * working credential of its own, so a database dump, a backup or a read-only
+	 * SQL flaw handed out usable tokens — the one thing hashing them is for.
+	 *
 	 * @return string[]
 	 */
 	public function forLookup(string $secret): array {
-		if ($secret === '') {
+		if ($secret === '' || $this->isHashed($secret)) {
 			return [];
 		}
 

@@ -619,6 +619,43 @@ class StreamTest extends TestCase {
 		$this->assertSame(ACore::FORMAT_LOCAL, $actor->getExportFormat());
 	}
 
+	/**
+	 * The flag had no column, so a status read back from the database reported
+	 * sensitive only when it also carried a content warning: a client marking
+	 * its media sensitive was answered 200 and the media then rendered
+	 * unblurred everywhere the post was read again.
+	 */
+	public function testSensitiveSurvivesADatabaseRoundTrip(): void {
+		$stream = new Stream();
+		$stream->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'published_time' => '2024-05-01 12:00:00',
+			'content' => 'look away',
+			'visibility' => 'public',
+			'sensitive' => '1',
+			'details' => '{}',
+		]);
+
+		$this->assertTrue($stream->isSensitive());
+		$this->assertSame('', $stream->getSpoilerText(), 'no content warning is standing in for the flag');
+	}
+
+	public function testAStreamStoredWithoutTheFlagIsNotSensitive(): void {
+		$stream = new Stream();
+		$stream->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice/statuses/2',
+			'type' => 'Note',
+			'published_time' => '2024-05-01 12:00:00',
+			'content' => 'hello',
+			'visibility' => 'public',
+			'sensitive' => '0',
+			'details' => '{}',
+		]);
+
+		$this->assertFalse($stream->isSensitive());
+	}
+
 	public function testImportFromDatabaseFillsRemoteCountsFromTheSource(): void {
 		$stream = new Stream();
 

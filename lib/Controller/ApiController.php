@@ -215,7 +215,7 @@ class ApiController extends Controller {
 					], Http::STATUS_OK
 				);
 			}
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -231,7 +231,7 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -273,7 +273,7 @@ class ApiController extends Controller {
 			}
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -294,7 +294,7 @@ class ApiController extends Controller {
 			}
 
 			return new DataResponse($accounts, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -327,15 +327,13 @@ class ApiController extends Controller {
 			);
 		} catch (FollowNotFoundException $e) {
 			return new DataResponse(['error' => 'no pending follow request'], Http::STATUS_NOT_FOUND);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
 
-	/**
-	 * @NoCSRFRequired
-	 * @PublicPage
-	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function pollGet(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -345,7 +343,7 @@ class ApiController extends Controller {
 			return new DataResponse($this->pollService->exportPoll($poll), Http::STATUS_OK);
 		} catch (StreamNotFoundException $e) {
 			return new DataResponse(['error' => 'poll not found'], Http::STATUS_NOT_FOUND);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -354,10 +352,9 @@ class ApiController extends Controller {
 	 * Votes on a federated poll: the choices go to the poll's author as
 	 * ActivityPub vote notes, the authoritative counts come back later as an
 	 * Update from the origin server.
-	 *
-	 * @NoCSRFRequired
-	 * @PublicPage
 	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
 	public function pollVote(int $nid): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -375,7 +372,7 @@ class ApiController extends Controller {
 			return new DataResponse(['error' => 'poll not found'], Http::STATUS_NOT_FOUND);
 		} catch (InvalidActionException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -418,7 +415,7 @@ class ApiController extends Controller {
 			$target->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($report, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -444,7 +441,7 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 
 			return new DataResponse([], Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -508,7 +505,8 @@ class ApiController extends Controller {
 			$post->setContent($status->getStatus());
 			$post->setPoll($status->getPoll());
 			$post->setSpoilerText($status->getSpoilerText());
-			$post->setType($status->getVisibility());
+			$post->setSensitive($status->isSensitive());
+			$post->setType($this->visibilityOf($status));
 
 			if (!empty($status->getMediaIds())) {
 				$documents = $this->documentService->getMediaFromArray(
@@ -550,9 +548,36 @@ class ApiController extends Controller {
 			]);
 
 			return new DataResponse($item, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * The visibility a new status is posted with.
+	 *
+	 * A client that leaves the field out means "whatever this account posts
+	 * with"; Mastodon resolves that against the account's default privacy,
+	 * which this app has no setting for, so `public` stands in — the value a
+	 * status route is asked for by every bot and minimal client that omits it.
+	 * Anything this app does not know is refused rather than posted:
+	 * `Stream::visibilityFromClient()` maps an unknown value to `direct`, and a
+	 * direct message gets no recipient added, so those posts used to answer 200
+	 * and be delivered to nobody.
+	 *
+	 * @throws InvalidActionException
+	 */
+	private function visibilityOf(Status $status): string {
+		$visibility = trim($status->getVisibility());
+		if ($visibility === '') {
+			return Stream::TYPE_PUBLIC;
+		}
+
+		if (!Stream::isKnownClientVisibility($visibility)) {
+			throw new InvalidActionException('unknown visibility: ' . $visibility);
+		}
+
+		return $visibility;
 	}
 
 	/**
@@ -663,7 +688,7 @@ class ApiController extends Controller {
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -732,7 +757,7 @@ class ApiController extends Controller {
 			$this->logger->debug('generated attachment: ' . json_encode($mediaAttachment));
 
 			return new DataResponse($mediaAttachment, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -760,7 +785,7 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 
 			return new DataResponse($this->ownAttachment($nid), Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -785,7 +810,7 @@ class ApiController extends Controller {
 			return new DataResponse(
 				$document->convertToMediaAttachment($this->urlGenerator), Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -920,7 +945,7 @@ class ApiController extends Controller {
 			]);
 
 			return $this->paged($posts, $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			$this->logger->error('[ApiController] Timeline request failed', [
 				'timeline' => $timeline,
 				'exception' => $e->getMessage(),
@@ -946,7 +971,7 @@ class ApiController extends Controller {
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -965,7 +990,7 @@ class ApiController extends Controller {
 			$context = $this->streamService->getContextByNid($nid);
 
 			return new DataResponse($context, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1000,7 +1025,7 @@ class ApiController extends Controller {
 			$this->streamService->deleteLocalItem($item, $item->getType());
 
 			return new DataResponse($deleted, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1034,7 +1059,7 @@ class ApiController extends Controller {
 					'spoiler_text' => $item->getSpoilerText(),
 				], Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1069,7 +1094,7 @@ class ApiController extends Controller {
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($item, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1091,7 +1116,7 @@ class ApiController extends Controller {
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1109,7 +1134,7 @@ class ApiController extends Controller {
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1185,7 +1210,7 @@ class ApiController extends Controller {
 				['accounts' => $accounts, 'statuses' => $statuses, 'hashtags' => $hashtags],
 				Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1218,7 +1243,7 @@ class ApiController extends Controller {
 			}
 
 			return new DataResponse($tags, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1273,7 +1298,7 @@ class ApiController extends Controller {
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1301,8 +1326,13 @@ class ApiController extends Controller {
 				$accounts[] = $person;
 			}
 
-			return $this->paged($accounts, $limit);
-		} catch (Exception $e) {
+			// No `Link` header: neither route takes a cursor, and the next page
+			// `paged()` would advertise is the one just sent — a client paging
+			// on the header scrolled the same block of blocked accounts for
+			// ever. Answering one page is the honest shape until
+			// RelationshipService can be asked for a cursored one.
+			return new DataResponse($accounts, Http::STATUS_OK);
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1326,7 +1356,7 @@ class ApiController extends Controller {
 			$account->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($account, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1355,7 +1385,7 @@ class ApiController extends Controller {
 			$account->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($account, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1416,6 +1446,12 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * The viewer's relationship with each of the accounts asked about.
+	 *
+	 * `$id` carries its own default because a request-bound array parameter is
+	 * filled in by the dispatcher, before the method's own try block: a client
+	 * that asks with no `id[]` at all used to raise a TypeError there and get a
+	 * Nextcloud error page instead of `{"error": …}`.
 	 *
 	 * @param array $id
 	 *
@@ -1423,12 +1459,12 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
-	public function relationships(array $id): DataResponse {
+	public function relationships(array $id = []): DataResponse {
 		try {
 			$this->initViewer(true);
 
 			return new DataResponse($this->followService->getRelationships($id), Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1485,7 +1521,7 @@ class ApiController extends Controller {
 			$this->pinService->markPinned($posts, $local->getId());
 
 			return $this->paged($posts, $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1533,7 +1569,7 @@ class ApiController extends Controller {
 				->setSince($since);
 
 			return $this->paged($this->cacheActorService->probeActors($options), $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1582,7 +1618,7 @@ class ApiController extends Controller {
 				->setSince($since);
 
 			return $this->paged($this->cacheActorService->probeActors($options), $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1618,7 +1654,7 @@ class ApiController extends Controller {
 			$posts = $this->streamService->getTimeline($options);
 
 			return $this->paged($posts, $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1645,7 +1681,7 @@ class ApiController extends Controller {
 			$posts = $this->streamService->getTimeline($options);
 
 			return $this->paged($posts, $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1670,7 +1706,7 @@ class ApiController extends Controller {
 					$this->viewer, $this->markerService->lastReadId($userId, 'notifications')
 				),
 			], Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1695,7 +1731,7 @@ class ApiController extends Controller {
 				(object)$this->markerService->get($this->currentSession(), $timeline),
 				Http::STATUS_OK
 			);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1727,7 +1763,7 @@ class ApiController extends Controller {
 			}
 
 			return new DataResponse((object)$updated, Http::STATUS_OK);
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1765,16 +1801,21 @@ class ApiController extends Controller {
 			// serialise as `"type": ""`, which a client with a closed enum
 			// cannot decode — and one undecodable entry loses the whole page.
 			// It is dropped instead: there is nothing a client could show for it.
+			$page = $this->streamService->getTimeline($options);
 			$posts = array_values(
 				array_filter(
-					$this->streamService->getTimeline($options),
+					$page,
 					static fn (Stream $post): bool
 						=> Stream::notificationTypeOfSubType($post->getSubType()) !== ''
 				)
 			);
 
-			return $this->paged($posts, $options->getLimit());
-		} catch (Exception $e) {
+			// paged() is told what the query returned, not what survived the
+			// filter: a page shortened here says nothing about whether older
+			// notifications exist, and a client that pages on the `Link` header
+			// stopped there with the rest of the list still in the database.
+			return $this->paged($posts, $options->getLimit(), $page);
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1811,7 +1852,7 @@ class ApiController extends Controller {
 			$posts = $this->streamService->getTimeline($options);
 
 			return $this->paged($posts, $options->getLimit());
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			return $this->error($e);
 		}
 	}
@@ -1950,10 +1991,23 @@ class ApiController extends Controller {
 				throw $e;
 			}
 		} catch (Exception $e) {
-			$this->logger->error('[ApiController] initViewer failed', [
-				'exception' => $e->getMessage(),
-				'trace' => $e->getTraceAsString()
-			]);
+			// A request with a missing, stale or made-up token is ordinary
+			// internet noise — every scanner that finds the API produces some —
+			// and it is answered with a 401, not a server-side failure. Logging
+			// each one at error with a stack trace filled the admin's log with
+			// entries nobody can act on. Anything else failing here is a real
+			// fault and still says so.
+			$credentials = ($e instanceof ClientNotFoundException
+				|| $e instanceof AccountDoesNotExistException
+				|| $e instanceof ActorDoesNotExistException);
+			if ($credentials) {
+				$this->logger->debug('[ApiController] initViewer: no usable credentials', [
+					'exception' => $e->getMessage()
+				]);
+			} else {
+				$this->logger->warning('[ApiController] initViewer failed', ['exception' => $e]);
+			}
+
 			if ($exception) {
 				throw new ClientNotFoundException('the access_token was revoked');
 			}
@@ -1962,6 +2016,17 @@ class ApiController extends Controller {
 		return false;
 	}
 
+	/**
+	 * The parameters of a request that carries its body itself.
+	 *
+	 * A body that says it is JSON and is not one is refused: `json_decode()`
+	 * answers `null` for an empty, truncated or scalar body, which under
+	 * strict_types raised a TypeError out of a method declared `: array` — a
+	 * Nextcloud HTML error page, stack trace and all, for every client that
+	 * lost a byte on the way.
+	 *
+	 * @throws InvalidActionException
+	 */
 	private function convertInput(string $input): array {
 		$contentType = $this->request->getHeader('Content-Type');
 
@@ -1972,7 +2037,12 @@ class ApiController extends Controller {
 
 		switch ($contentType) {
 			case 'application/json':
-				return json_decode($input, true);
+				$result = json_decode($input, true);
+				if (!is_array($result)) {
+					throw new InvalidActionException('the request body is not valid JSON');
+				}
+
+				return $result;
 			case 'application/x-www-form-urlencoded':
 				return $this->request->getParams();
 			default: // in case of no header ...
@@ -2117,7 +2187,9 @@ class ApiController extends Controller {
 				$headers = ($status === Http::STATUS_UNAUTHORIZED)
 					? ['WWW-Authenticate' => 'Bearer error="invalid_token"'] : [];
 
-				return new DataResponse(['error' => $e->getMessage()], $status, $headers);
+				return new DataResponse(
+					['error' => $this->errorMessage($e, $status)], $status, $headers
+				);
 			}
 		}
 
@@ -2132,6 +2204,25 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * What to put in `error`. Several of these failures are raised with no
+	 * message at all — an unknown token is one — and `{"error": ""}` tells a
+	 * client nothing about what to do next.
+	 */
+	private function errorMessage(Throwable $e, int $status): string {
+		$message = trim($e->getMessage());
+		if ($message !== '') {
+			return $message;
+		}
+
+		return match ($status) {
+			Http::STATUS_UNAUTHORIZED => 'the access_token is invalid',
+			Http::STATUS_NOT_FOUND => 'not found',
+			Http::STATUS_UNPROCESSABLE_ENTITY => 'the request could not be processed',
+			default => 'request failed',
+		};
+	}
+
+	/**
 	 * A page of entities, with the `Link` header Mastodon pages with.
 	 *
 	 * masto.js — which Elk and Phanpy are both built on — takes the next page
@@ -2139,17 +2230,24 @@ class ApiController extends Controller {
 	 * first twenty posts of a timeline and stop. Mastodon sends `next` only
 	 * while a further page may exist (a short page is the last one) and `prev`
 	 * whenever the page is not empty.
+	 *
+	 * @param array|null $page the rows the query returned, where `$items` is a
+	 *                         filtered subset of them
 	 */
-	private function paged(array $items, int $limit): DataResponse {
+	private function paged(array $items, int $limit, ?array $page = null): DataResponse {
 		$response = new DataResponse($items, Http::STATUS_OK);
 
-		$ids = $this->pageIds($items);
+		// what the query returned, which is what says whether there is more —
+		// $items may have been filtered since
+		$page ??= $items;
+
+		$ids = $this->pageIds($page);
 		if ($ids === []) {
 			return $response;
 		}
 
 		$links = [];
-		if (count($items) >= $limit) {
+		if (count($page) >= $limit) {
 			// the next page is older than everything here
 			$links[] = '<' . $this->pageUrl(['max_id' => (string)min($ids)]) . '>; rel="next"';
 		}

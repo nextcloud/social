@@ -47,6 +47,18 @@ class SecretHasherTest extends TestCase {
 		$this->assertSame([], $this->hasher->forLookup(''));
 	}
 
+	/**
+	 * The stored digest must not be a credential of its own: presenting the
+	 * column's own value used to match the legacy branch of the lookup, so
+	 * anybody holding a database dump held working access tokens.
+	 */
+	public function testTheStoredHashIsNotAcceptedAsAPresentedSecret(): void {
+		$stored = $this->hasher->hash('tok');
+
+		$this->assertSame([], $this->hasher->forLookup($stored));
+		$this->assertFalse($this->hasher->matches($stored, $stored));
+	}
+
 	public function testIsHashed(): void {
 		$this->assertTrue($this->hasher->isHashed($this->hasher->hash('x')));
 		$this->assertFalse($this->hasher->isHashed('x'));

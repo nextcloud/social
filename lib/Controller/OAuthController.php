@@ -34,6 +34,7 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class OAuthController extends Controller {
 	private IUserSession $userSession;
@@ -159,6 +160,16 @@ class OAuthController extends Controller {
 		);
 	}
 
+	/**
+	 * The consent page.
+	 *
+	 * Everything that can be wrong with the request — an unknown `client_id`, a
+	 * `response_type` that is not `code`, a `redirect_uri` or scope the client
+	 * never registered — is answered the way `authorizing()` answers it. Left
+	 * to escape, each of them reached the browser as a Nextcloud HTML error
+	 * page (with a stack trace where debug is on) rather than as something the
+	 * client can read.
+	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	public function authorize(
@@ -168,39 +179,45 @@ class OAuthController extends Controller {
 		string $scope = 'read',
 		string $state = '',
 	): Response {
-		$user = $this->userSession->getUser();
+		try {
+			$user = $this->userSession->getUser();
 
-		// check actor exists
-		$this->accountService->getActorFromUserId($user->getUID());
+			// check actor exists
+			$this->accountService->getActorFromUserId($user->getUID());
 
-		if ($response_type !== 'code') {
-			throw new ClientNotFoundException('invalid response type');
-		}
+			if ($response_type !== 'code') {
+				throw new ClientNotFoundException('invalid response type');
+			}
 
-		// check client exists in db
-		$client = $this->clientService->getFromClientId($client_id);
-		// A code must only ever travel to a URI the client registered; checked before
-		// the consent page exists, so there is nothing to confirm on a forged link.
-		$this->clientService->confirmData(
-			$client,
-			[
-				'app_scopes' => $scope,
-				'redirect_uri' => $redirect_uri
-			]
-		);
-		$this->initialState->provideInitialState('appName', $client->getAppName());
-
-		return new TemplateResponse(Application::APP_ID, 'oauth2', [
-			'request'
-				=> [
-					'clientId' => $client_id,
-					'redirectUri' => $redirect_uri,
-					'responseType' => $response_type,
-					'scope' => $scope,
-					// carried through the consent form so the POST can echo it
-					'state' => $state
+			// check client exists in db
+			$client = $this->clientService->getFromClientId($client_id);
+			// A code must only ever travel to a URI the client registered; checked before
+			// the consent page exists, so there is nothing to confirm on a forged link.
+			$this->clientService->confirmData(
+				$client,
+				[
+					'app_scopes' => $scope,
+					'redirect_uri' => $redirect_uri
 				]
-		]);
+			);
+			$this->initialState->provideInitialState('appName', $client->getAppName());
+
+			return new TemplateResponse(Application::APP_ID, 'oauth2', [
+				'request'
+					=> [
+						'clientId' => $client_id,
+						'redirectUri' => $redirect_uri,
+						'responseType' => $response_type,
+						'scope' => $scope,
+						// carried through the consent form so the POST can echo it
+						'state' => $state
+					]
+			]);
+		} catch (Throwable $e) {
+			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
 	}
 
 	#[NoAdminRequired]
@@ -334,9 +351,14 @@ class OAuthController extends Controller {
 
 			return new DataResponse(
 				[
+					// the scopes this token really carries, which is what
+					// checkTokenScope() enforces on every request made with it.
+					// Echoing the scope of the token *call* — 'read', for a
+					// client like Tusky that omits it — had clients hiding
+					// their compose button while writes in fact worked.
 					'access_token' => $client->getToken(),
 					'token_type' => 'Bearer',
-					'scope' => $scope,
+					'scope' => implode(' ', $client->getAuthScopes()),
 					'created_at' => $client->getCreation()
 				], Http::STATUS_OK
 			);

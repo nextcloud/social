@@ -206,6 +206,7 @@ class CoreRequestBuilder {
 			'id',
 			'id_prim',
 			'visibility',
+			'sensitive',
 			'type',
 			'subtype',
 			'to',

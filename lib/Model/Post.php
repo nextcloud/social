@@ -35,6 +35,9 @@ class Post implements JsonSerializable {
 	/** the content warning, hiding the body until the reader asks for it */
 	private string $spoilerText = '';
 
+	/** whether the attachments are shown blurred until the reader asks for them */
+	private bool $sensitive = false;
+
 	/** @var string[] */
 	private array $attachments = [];
 	/** @var MediaAttachment[] */
@@ -195,6 +198,16 @@ class Post implements JsonSerializable {
 	 */
 	public function setPoll(?array $poll): self {
 		$this->poll = $poll;
+
+		return $this;
+	}
+
+	public function isSensitive(): bool {
+		return $this->sensitive;
+	}
+
+	public function setSensitive(bool $sensitive): self {
+		$this->sensitive = $sensitive;
 
 		return $this;
 	}

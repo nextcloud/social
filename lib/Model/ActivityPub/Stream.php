@@ -623,6 +623,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$this->setActivityId($this->validate(self::AS_ID, 'activity_id', $data, ''));
 		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
+		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->validate(self::AS_ID, 'object_id', $data, ''));
 		$this->setAttributedTo($this->validate(self::AS_ID, 'attributed_to', $data, ''));
 		$this->setInReplyTo($this->validate(self::AS_ID, 'in_reply_to', $data));

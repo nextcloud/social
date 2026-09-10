@@ -104,6 +104,7 @@ class StreamRequest extends StreamRequestBuilder {
 		);
 		$qb->set('content', $qb->createNamedParameter($stream->getContent()));
 		$qb->set('summary', $qb->createNamedParameter($stream->getSummary()));
+		$qb->set('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0));
 		$qb->set('source', $qb->createNamedParameter($stream->getSource()));
 		if ($stream->getType() === Note::TYPE && $stream instanceof Note) {
 			$qb->set('hashtags', $qb->createNamedParameter(json_encode($stream->getHashtags(), JSON_UNESCAPED_SLASHES)));
@@ -1275,6 +1276,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->setValue('nid', $qb->createNamedParameter($stream->getNid()))
 			->setValue('id', $qb->createNamedParameter($stream->getId()))
 			->setValue('visibility', $qb->createNamedParameter($stream->getVisibility()))
+			->setValue('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0))
 			->setValue('type', $qb->createNamedParameter($stream->getType()))
 			->setValue('subtype', $qb->createNamedParameter($stream->getSubType()))
 			->setValue('to', $qb->createNamedParameter($stream->getTo()))

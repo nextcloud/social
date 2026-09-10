@@ -21,6 +21,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
@@ -221,29 +222,37 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame('xyz789', $response->getParams()['request']['state']);
 	}
 
+	/**
+	 * A refused consent request is answered, not thrown: an exception out of
+	 * this route reached the browser as a Nextcloud HTML error page — with a
+	 * stack trace where debug is on — instead of an error the client can read.
+	 */
 	public function testAuthorizeRejectsNonCodeResponseTypes(): void {
 		$this->loggedIn();
 		$this->clientService->expects($this->never())->method('getFromClientId');
 
-		$this->expectException(ClientNotFoundException::class);
-		$this->expectExceptionMessage('invalid response type');
+		$response = $this->controller->authorize('client-1', self::OOB, 'token');
 
-		$this->controller->authorize('client-1', self::OOB, 'token');
+		$this->assertInstanceOf(DataResponse::class, $response);
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'invalid response type'], $response->getData());
 	}
 
 	public function testAuthorizeRejectsUnknownClients(): void {
 		$this->loggedIn();
 		$this->clientService->method('getFromClientId')->willThrowException(new ClientNotFoundException('unknown'));
 
-		$this->expectException(ClientNotFoundException::class);
+		$response = $this->controller->authorize('nope', self::OOB, 'code');
 
-		$this->controller->authorize('nope', self::OOB, 'code');
+		$this->assertInstanceOf(DataResponse::class, $response);
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'unknown'], $response->getData());
 	}
 
 	public function testAuthorizeRejectsARedirectUriTheClientDidNotRegister(): void {
 		// The consent GET now confirms the redirect_uri against the client's registered
 		// URIs before rendering, so a code can never be steered to a forged link. A
-		// rejected redirect_uri throws before the consent page is prepared.
+		// rejected redirect_uri is refused before the consent page is prepared.
 		$this->loggedIn();
 		$client = $this->knownClient();
 		$this->clientService->expects($this->once())->method('confirmData')
@@ -251,9 +260,11 @@ class OAuthControllerTest extends TestCase {
 			->willThrowException(new ClientException('unknown redirect_uri'));
 		$this->initialState->expects($this->never())->method('provideInitialState');
 
-		$this->expectException(ClientException::class);
+		$response = $this->controller->authorize('client-1', 'https://evil.example/steal', 'code', 'read');
 
-		$this->controller->authorize('client-1', 'https://evil.example/steal', 'code', 'read');
+		$this->assertInstanceOf(DataResponse::class, $response);
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame(['error' => 'unknown redirect_uri'], $response->getData());
 	}
 
 	// authorizing()
@@ -378,6 +389,7 @@ class OAuthControllerTest extends TestCase {
 
 	public function testTokenExchangesAnAuthorizationCodeForABearerToken(): void {
 		$client = $this->knownClient();
+		$client->setAuthScopes(['read']);
 		$client->setCreation(1700000000);
 		$confirmations = [];
 		$this->clientService->method('confirmData')->willReturnCallback(function (SocialClient $c, array $data) use (&$confirmations): void {
@@ -399,6 +411,25 @@ class OAuthControllerTest extends TestCase {
 			['client_secret' => 'secret', 'redirect_uri' => self::OOB, 'auth_scopes' => 'read'],
 			['code' => 'auth-code-1'],
 		], $confirmations);
+	}
+
+	/**
+	 * The scope the token really carries, not the one the token call asked
+	 * for. Tusky omits `scope` on the token call, which defaults to `read`
+	 * here — so a client that had been granted write was told it only had
+	 * read, and hid its compose button while writes in fact worked.
+	 */
+	public function testTokenAnswersWithTheGrantedScopesNotTheRequestedOnes(): void {
+		$client = $this->knownClient();
+		$client->setAuthScopes(['read', 'write', 'follow']);
+		$client->setCreation(1700000000);
+		$this->clientService->method('confirmData');
+		$this->clientService->method('generateToken')
+			->willReturnCallback(fn (SocialClient $c) => $c->setToken('bearer-token'));
+
+		$response = $this->controller->token('client-1', 'secret', self::OOB, 'authorization_code', 'read', 'auth-code-1');
+
+		$this->assertSame('read write follow', $response->getData()['scope']);
 	}
 
 	public function testTokenThrottlesAWrongClientSecret(): void {
