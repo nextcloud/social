@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { createStore } from 'vuex'
 import Timeline from '../../../src/views/Timeline.vue'
+import FirstPostCelebration from '../../../src/components/FirstPostCelebration.vue'
+import eventBus from '../../../src/services/eventBus.js'
 import account from '../../../src/store/account.js'
 import errors from '../../../src/store/errors.js'
 import settings from '../../../src/store/settings.js'
@@ -201,6 +203,132 @@ describe('Timeline', () => {
 			store.commit('followAccount', nextcloud.acct)
 			await nextTick()
 			expect(hidden()).toBe(true)
+		})
+	})
+	// the composer emits `post-published` for every post that goes out; which
+	// of them is worth a celebration is decided here
+	describe('the first post somebody publishes here', () => {
+		const alice = {
+			id: '42',
+			url: 'https://cloud.example.org/users/alice',
+			acct: 'alice',
+			username: 'alice',
+			display_name: 'Alice',
+		}
+
+		/**
+		 * Puts the reader's own account in the store, as the page load does.
+		 *
+		 * @param {number} statusesCount how much this account has posted before
+		 */
+		const readerWithPosts = (statusesCount) => {
+			store.commit('addAccount', { actorId: alice.url, data: { ...alice, statuses_count: statusesCount } })
+			store.commit('setCurrentAccount', 'alice@cloud.example.org')
+		}
+
+		const publish = async (wrapper) => {
+			eventBus.emit('post-published', { id: '1', content: '<p>hello fediverse</p>' })
+			await nextTick()
+			return wrapper.findComponent(FirstPostCelebration)
+		}
+
+		beforeEach(() => {
+			vi.useFakeTimers()
+			// the bus is a module singleton: no timeline left over from another
+			// test gets to answer for this one
+			eventBus.all.clear()
+			window.localStorage.clear()
+			makeStore()
+			readerWithPosts(0)
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		it('celebrates a first post, without the post waiting on it', async () => {
+			const wrapper = mountTimeline()
+			expect(wrapper.findComponent(FirstPostCelebration).exists()).toBe(false)
+
+			const celebration = await publish(wrapper)
+
+			expect(celebration.exists()).toBe(true)
+			expect(celebration.text()).toContain('Your first post is out there')
+			// the timeline the post lands in is untouched and still on screen
+			expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
+
+			wrapper.unmount()
+		})
+
+		it('takes itself off screen again', async () => {
+			const wrapper = mountTimeline()
+			await publish(wrapper)
+
+			vi.advanceTimersByTime(2600 + 300)
+			await nextTick()
+
+			expect(wrapper.findComponent(FirstPostCelebration).exists()).toBe(false)
+			wrapper.unmount()
+		})
+
+		it('does not celebrate the second post', async () => {
+			const wrapper = mountTimeline()
+			await publish(wrapper)
+			vi.advanceTimersByTime(2600 + 300)
+			await nextTick()
+
+			const again = await publish(wrapper)
+
+			expect(again.exists()).toBe(false)
+			wrapper.unmount()
+		})
+
+		it('never celebrates a reader who has posted before', async () => {
+			readerWithPosts(1000)
+			const wrapper = mountTimeline()
+
+			expect((await publish(wrapper)).exists()).toBe(false)
+			wrapper.unmount()
+		})
+
+		// a private window throws on every localStorage access; the timeline is
+		// not allowed to go down with it
+		it('survives a browser that refuses to store anything', async () => {
+			vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+				throw new Error('The operation is insecure')
+			})
+			vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+				throw new Error('The operation is insecure')
+			})
+			const wrapper = mountTimeline()
+
+			const celebration = await publish(wrapper)
+
+			expect(celebration.exists()).toBe(true)
+			expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
+			expect(wrapper.find('h1').text()).toBe('Home timeline')
+			wrapper.unmount()
+		})
+
+		it('stops listening once the reader has navigated away', async () => {
+			const wrapper = mountTimeline()
+			wrapper.unmount()
+
+			eventBus.emit('post-published', { id: '1' })
+			await nextTick()
+
+			expect(store.state.timeline.firstPostCelebration).toBe(false)
+			expect(dispatch).not.toHaveBeenCalledWith('celebrateFirstPost')
+		})
+
+		it('leaves no celebration standing for the next timeline when the reader navigates away mid-flight', async () => {
+			const wrapper = mountTimeline()
+			await publish(wrapper)
+			expect(store.state.timeline.firstPostCelebration).toBe(true)
+
+			wrapper.unmount()
+
+			expect(store.state.timeline.firstPostCelebration).toBe(false)
 		})
 	})
 })
