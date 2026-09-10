@@ -129,24 +129,20 @@ class ForwardServiceTest extends TestCase {
 		return $alice;
 	}
 
-	/** A follower on a remote instance, reachable through its shared inbox. */
-	private function follower(string $id, string $sharedInbox = ''): Follow {
-		$actor = new Person();
-		$actor->setId($id);
-		$actor->setInbox($id . '/inbox');
-		$actor->setSharedInbox($sharedInbox);
-
-		$follow = new Follow();
-		$follow->setActor($actor);
-
-		return $follow;
-	}
-
-	/** Everything lined up for a forward: local public parent, one follower. */
-	private function expectAForwardablePost(array $followers): void {
+	/**
+	 * Everything lined up for a forward: local public parent, and the inboxes
+	 * the database names for the author's followers.
+	 *
+	 * Deduplication and the shared-inbox fallback are the database's job now —
+	 * see FollowsRequest::getFollowerInboxes() and its integration test — so
+	 * these are the inboxes as they come back from it.
+	 *
+	 * @param string[] $inboxes
+	 */
+	private function expectAForwardablePost(array $inboxes): void {
 		$this->streamRequest->method('getStreamById')->willReturn($this->parent());
 		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
-		$this->followsRequest->method('getFollowersByActorId')->willReturn($followers);
+		$this->followsRequest->method('getFollowerInboxes')->willReturn($inboxes);
 	}
 
 	/** Nothing may be queued and nothing delivered. */
@@ -159,8 +155,8 @@ class ForwardServiceTest extends TestCase {
 
 	public function testAReplyToALocalPostReachesThatPostsFollowers(): void {
 		$this->expectAForwardablePost([
-			$this->follower('https://a.example/users/one', 'https://a.example/inbox'),
-			$this->follower('https://b.example/users/two', 'https://b.example/inbox'),
+			'https://a.example/inbox',
+			'https://b.example/inbox',
 		]);
 
 		$paths = null;
@@ -190,7 +186,7 @@ class ForwardServiceTest extends TestCase {
 	}
 
 	public function testForwardingIsLeftToTheBackgroundQueue(): void {
-		$this->expectAForwardablePost([$this->follower('https://a.example/users/one', 'https://a.example/inbox')]);
+		$this->expectAForwardablePost(['https://a.example/inbox']);
 
 		$paths = null;
 		$this->requestQueueService->method('generateRequestQueueFromSource')
@@ -207,7 +203,9 @@ class ForwardServiceTest extends TestCase {
 	}
 
 	public function testAFollowerWithoutASharedInboxIsReachedAtItsOwn(): void {
-		$this->expectAForwardablePost([$this->follower('https://a.example/users/one')]);
+		// what getFollowerInboxes() returns for a follower whose instance
+		// publishes no endpoints.sharedInbox
+		$this->expectAForwardablePost(['https://a.example/users/one/inbox']);
 
 		$paths = null;
 		$this->requestQueueService->method('generateRequestQueueFromSource')
@@ -225,11 +223,9 @@ class ForwardServiceTest extends TestCase {
 		);
 	}
 
+	/** Two followers on one instance are one shared inbox and one delivery. */
 	public function testEachInstanceIsSentTheReplyOnce(): void {
-		$this->expectAForwardablePost([
-			$this->follower('https://a.example/users/one', 'https://a.example/inbox'),
-			$this->follower('https://a.example/users/two', 'https://a.example/inbox'),
-		]);
+		$this->expectAForwardablePost(['https://a.example/inbox']);
 
 		$paths = null;
 		$this->requestQueueService->method('generateRequestQueueFromSource')
@@ -247,10 +243,10 @@ class ForwardServiceTest extends TestCase {
 	public function testTheSenderAndOurselvesAreLeftOut(): void {
 		$this->expectAForwardablePost([
 			// the instance that just delivered it to us
-			$this->follower('https://remote.example/users/bob', 'https://remote.example/inbox'),
+			'https://remote.example/inbox',
 			// a follower on this very instance, who already has the note
-			$this->follower(self::LOCAL_URL . '/users/carol', self::LOCAL_URL . '/inbox'),
-			$this->follower('https://a.example/users/one', 'https://a.example/inbox'),
+			self::LOCAL_URL . '/inbox',
+			'https://a.example/inbox',
 		]);
 
 		$paths = null;
@@ -272,7 +268,7 @@ class ForwardServiceTest extends TestCase {
 	// what does not
 
 	public function testAnUnsignedActivityIsNotPassedOn(): void {
-		$this->expectAForwardablePost([$this->follower('https://a.example/users/one', 'https://a.example/inbox')]);
+		$this->expectAForwardablePost(['https://a.example/inbox']);
 		$this->expectNothingForwarded();
 
 		// verified by the HTTP signature alone: nobody downstream could check it
@@ -282,7 +278,7 @@ class ForwardServiceTest extends TestCase {
 	}
 
 	public function testAnActivityWithoutItsSourceIsNotPassedOn(): void {
-		$this->expectAForwardablePost([$this->follower('https://a.example/users/one', 'https://a.example/inbox')]);
+		$this->expectAForwardablePost(['https://a.example/inbox']);
 		$this->expectNothingForwarded();
 
 		$activity = $this->activity();
@@ -322,7 +318,7 @@ class ForwardServiceTest extends TestCase {
 		$this->actorsRequest->method('getFromId')->willReturn($this->alice());
 		// followers the post would reach if visibility were the only thing wrong
 		$this->followsRequest->method('getFollowersByActorId')
-			->willReturn([$this->follower('https://a.example/users/one', 'https://a.example/inbox')]);
+			->willReturn(['https://a.example/inbox']);
 		$this->expectNothingForwarded();
 
 		$this->service->forwardReply($this->activity(), $this->reply());
@@ -332,7 +328,7 @@ class ForwardServiceTest extends TestCase {
 	 * @dataProvider privateVisibilityProvider
 	 */
 	public function testAPrivateReplyIsNotPassedOn(string $visibility): void {
-		$this->expectAForwardablePost([$this->follower('https://a.example/users/one', 'https://a.example/inbox')]);
+		$this->expectAForwardablePost(['https://a.example/inbox']);
 		$this->expectNothingForwarded();
 
 		$this->service->forwardReply($this->activity(), $this->reply(self::PARENT, $visibility));
@@ -365,7 +361,7 @@ class ForwardServiceTest extends TestCase {
 	}
 
 	public function testTheSameActivityIsForwardedOnlyOnce(): void {
-		$this->expectAForwardablePost([$this->follower('https://a.example/users/one', 'https://a.example/inbox')]);
+		$this->expectAForwardablePost(['https://a.example/inbox']);
 
 		$this->requestQueueService->expects($this->once())
 			->method('generateRequestQueueFromSource')

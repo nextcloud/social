@@ -1,0 +1,18 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams"],
+  "type": "Create",
+  "id": "https://blog.example/api/collections/alice/posts/abc/activity",
+  "actor": "https://blog.example/api/collections/alice",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://blog.example/api/collections/alice/followers"],
+  "object": {
+    "type": "Article",
+    "id": "https://blog.example/alice/abc",
+    "name": "On running your own server",
+    "content": "<p>It is not that hard.</p>",
+    "url": "https://blog.example/alice/abc",
+    "attributedTo": "https://blog.example/api/collections/alice",
+    "published": "2026-01-05T12:00:00Z",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"]
+  }
+}

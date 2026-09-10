@@ -9,17 +9,31 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
+use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use Psr\Log\NullLogger;
 
 require_once __DIR__ . '/DispatchingActivityTestCase.php';
+require_once __DIR__ . '/TResolvesActivityObjects.php';
 
 class UndoInterfaceTest extends DispatchingActivityTestCase {
+	use TResolvesActivityObjects;
+
+	private ActivityObjectResolver $objectResolver;
+
+	protected function setUp(): void {
+		parent::setUp();
+
+		$this->objectResolver = $this->objectResolverOver();
+	}
+
 	protected function createHandler(): IActivityPubInterface {
-		return new UndoInterface();
+		return new UndoInterface($this->objectResolver, new NullLogger());
 	}
 
 	protected function activityType(): string {
@@ -49,6 +63,39 @@ class UndoInterfaceTest extends DispatchingActivityTestCase {
 			->method('activity')
 			->with($this->identicalTo($undo), $this->identicalTo($announce));
 		$this->likeInterface->expects($this->never())->method('activity');
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
+	/** An unfollow from a peer that links its Follow instead of embedding it. */
+	public function testUndoCarryingTheFollowAsALinkReachesTheFollowInterface(): void {
+		$follow = new Follow();
+		$follow->setId(self::REMOTE_URL . '/follows/1');
+		$follow->setActorId(self::REMOTE_URL . '/users/bob');
+		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/follows/1' => $follow]);
+
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob');
+		$undo->setObjectId(self::REMOTE_URL . '/follows/1');
+
+		$this->followInterface->expects($this->once())
+			->method('activity')
+			->with($this->identicalTo($undo), $this->identicalTo($follow));
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
+	/** An unlike from a peer that links its Like instead of embedding it. */
+	public function testUndoCarryingTheLikeAsALinkReachesTheLikeInterface(): void {
+		$like = new Like();
+		$like->setId(self::REMOTE_URL . '/likes/1');
+		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/likes/1' => $like]);
+
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob');
+		$undo->setObjectId(self::REMOTE_URL . '/likes/1');
+
+		$this->likeInterface->expects($this->once())
+			->method('activity')
+			->with($this->identicalTo($undo), $this->identicalTo($like));
 
 		$this->createHandler()->processIncomingRequest($undo);
 	}

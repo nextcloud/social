@@ -26,6 +26,7 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
@@ -117,10 +118,26 @@ class OAuthController extends Controller {
 		string $website = '',
 		string $scopes = 'read',
 	): DataResponse {
-		// TODO: manage array from request
+		// Mastodon's own API takes several redirect URIs, newline-separated in a
+		// single `redirect_uris` field. Wrapping the whole block into one entry
+		// meant `ClientService::confirmData()` compared a single URI against a
+		// string holding all of them, so a client registered with more than one
+		// could never authorize with any of them.
 		if (!is_array($redirect_uris)) {
-			$redirect_uris = [$redirect_uris];
+			$redirect_uris = preg_split('/\r\n|\r|\n/', (string)$redirect_uris);
 		}
+
+		$redirect_uris = array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						static fn ($uri): string => trim((string)$uri),
+						$redirect_uris
+					),
+					static fn (string $uri): bool => $uri !== ''
+				)
+			)
+		);
 
 		$client = new SocialClient();
 		$client->setAppWebsite($website);
@@ -149,6 +166,7 @@ class OAuthController extends Controller {
 		string $redirect_uri,
 		string $response_type,
 		string $scope = 'read',
+		string $state = '',
 	): Response {
 		$user = $this->userSession->getUser();
 
@@ -178,7 +196,9 @@ class OAuthController extends Controller {
 					'clientId' => $client_id,
 					'redirectUri' => $redirect_uri,
 					'responseType' => $response_type,
-					'scope' => $scope
+					'scope' => $scope,
+					// carried through the consent form so the POST can echo it
+					'state' => $state
 				]
 		]);
 	}
@@ -189,7 +209,8 @@ class OAuthController extends Controller {
 		string $redirect_uri,
 		string $response_type,
 		string $scope = 'read',
-	): DataResponse {
+		string $state = '',
+	): Response {
 		try {
 			$user = $this->userSession->getUser();
 			$account = $this->accountService->getActorFromUserId($user->getUID());
@@ -215,19 +236,52 @@ class OAuthController extends Controller {
 			$code = $client->getAuthCode();
 
 			if ($redirect_uri !== 'urn:ietf:wg:oauth:2.0:oob') {
-				header('Location: ' . $redirect_uri . '?code=' . $code);
-				exit();
+				return new RedirectResponse($this->redirectWithCode($redirect_uri, $code, $state));
 			}
 
-			// TODO : finalize result if no redirect_url
-			return new DataResponse(
-				['code' => $code], Http::STATUS_OK
-			);
+			// the out-of-band flow: the code is shown to the person to paste
+			// into their client, so it comes back as the response body
+			$result = ['code' => $code];
+			if ($state !== '') {
+				$result['state'] = $state;
+			}
+
+			return new DataResponse($result, Http::STATUS_OK);
 		} catch (Exception $e) {
 			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
+	}
+
+	/**
+	 * The registered redirect URI with the authorization code — and the
+	 * client's `state` — appended to whatever query string it already had.
+	 *
+	 * Built with http_build_query rather than by concatenating '?code=': a
+	 * `redirect_uri` that already carries a query string (Elk registers one)
+	 * ended up with two `?` in it and the client could not read the code out of
+	 * it. `state` was dropped entirely, which is the value a web client
+	 * compares against what it stored to know the redirect is the answer to its
+	 * own request — a client that follows the spec rejects a redirect without
+	 * it, and one that does not is open to having a code injected.
+	 */
+	private function redirectWithCode(string $redirectUri, string $code, string $state): string {
+		$parameters = ['code' => $code];
+		if ($state !== '') {
+			$parameters['state'] = $state;
+		}
+
+		$fragment = '';
+		$pos = strpos($redirectUri, '#');
+		if ($pos !== false) {
+			$fragment = substr($redirectUri, $pos);
+			$redirectUri = substr($redirectUri, 0, $pos);
+		}
+
+		$separator = (strpos($redirectUri, '?') === false) ? '?' : '&';
+
+		return $redirectUri . $separator . http_build_query($parameters) . $fragment;
 	}
 
 	#[NoCSRFRequired]

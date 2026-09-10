@@ -363,7 +363,16 @@ class SocialClient implements IQueryRow, JsonSerializable {
 
 		$date = new DateTime($this->get('last_update', $data, ''));
 		$this->setLastUpdate($date->getTimestamp());
-		$this->setCreation($this->getInt('creation', $data));
+		// `creation` is a DATE column, so the row hands over something like
+		// '2026-09-10 11:22:33'. Casting that to an int gave 2026 — a timestamp
+		// in January 1970 — which is what OAuth's token response reported as
+		// `created_at`.
+		$creation = $this->get('creation', $data, '');
+		try {
+			$this->setCreation(($creation === '') ? 0 : (new DateTime($creation))->getTimestamp());
+		} catch (Exception $e) {
+			$this->setCreation(0);
+		}
 
 		return $this;
 	}

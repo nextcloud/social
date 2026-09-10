@@ -45,7 +45,7 @@ class SocialClientTest extends TestCase {
 			'auth_code' => 'code-123',
 			'token' => 'token-456',
 			'last_update' => '2024-05-01 12:00:00',
-			'creation' => 1714500000,
+			'creation' => '2024-04-30 21:20:00',
 		]);
 
 		$this->assertSame(4, $client->getId());
@@ -61,7 +61,20 @@ class SocialClientTest extends TestCase {
 		$this->assertSame('code-123', $client->getAuthCode());
 		$this->assertSame('token-456', $client->getToken());
 		$this->assertSame((new \DateTime('2024-05-01 12:00:00'))->getTimestamp(), $client->getLastUpdate());
-		$this->assertSame(1714500000, $client->getCreation());
+		// `creation` is a DATE column, so the row hands over a datetime string.
+		// Casting that to an int gave 2024 — a timestamp in January 1970 — which
+		// is what OAuth's token response reported as `created_at`.
+		$this->assertSame(
+			(new \DateTime('2024-04-30 21:20:00'))->getTimestamp(), $client->getCreation()
+		);
+	}
+
+	public function testAMissingCreationDateIsZeroRatherThanNow(): void {
+		$client = new SocialClient();
+
+		$client->importFromDatabase(['id' => '1', 'last_update' => '2024-05-01 12:00:00']);
+
+		$this->assertSame(0, $client->getCreation());
 	}
 
 	public function testJsonSerializeUsesTheDatabaseColumnNames(): void {

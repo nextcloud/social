@@ -18,12 +18,25 @@ class RelationshipTest extends TestCase {
 
 		$json = $relationship->jsonSerialize();
 
-		$this->assertSame(5, $json['id']);
-		unset($json['id']);
+		// a string, like every other id on the wire: a client that declares
+		// `id: String` cannot decode an integer, and the follow/block/mute
+		// button state broke after every action that returns one of these
+		$this->assertSame('5', $json['id']);
+		unset($json['id'], $json['note'], $json['languages']);
 		$this->assertSame(array_fill_keys([
 			'following', 'showing_reblogs', 'notifying', 'followed_by', 'blocking', 'blocked_by',
 			'muting', 'muting_notifications', 'requested', 'domain_blocking', 'endorsed',
+			'requested_by',
 		], false), $json);
+	}
+
+	public function testTheOptionalFieldsMastodonAlwaysSendsArePresent(): void {
+		$json = (new Relationship(5))->jsonSerialize();
+
+		$this->assertSame('', $json['note']);
+		// null is Mastodon's "no language filter", which is all this app offers
+		$this->assertNull($json['languages']);
+		$this->assertFalse($json['requested_by']);
 	}
 
 	public function testJsonSerializeUsesTheMastodonFieldNames(): void {
@@ -39,14 +52,17 @@ class RelationshipTest extends TestCase {
 			->setMutingNotifications(true)
 			->setRequested(true)
 			->setDomainBlocking(true)
-			->setEndorsed(true);
+			->setEndorsed(true)
+			->setRequestedBy(true)
+			->setNote('a note to self')
+			->setLanguages(['en']);
 
 		$this->assertSame(3, $relationship->getId());
 		$this->assertTrue($relationship->isFollowing());
 		$this->assertTrue($relationship->isFollowedBy());
 		$this->assertTrue($relationship->isRequested());
 		$this->assertSame([
-			'id' => 3,
+			'id' => '3',
 			'following' => true,
 			'showing_reblogs' => true,
 			'notifying' => true,
@@ -58,6 +74,9 @@ class RelationshipTest extends TestCase {
 			'requested' => true,
 			'domain_blocking' => true,
 			'endorsed' => true,
+			'requested_by' => true,
+			'note' => 'a note to self',
+			'languages' => ['en'],
 		], $relationship->jsonSerialize());
 	}
 }

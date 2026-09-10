@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -50,6 +51,7 @@ class CurlServiceTest extends TestCase {
 	private array $requests = [];
 	private IClientService|MockObject $clientService;
 	private IClient|MockObject $client;
+	private HttpSignatureService|MockObject $httpSignatureService;
 
 	protected function setUp(): void {
 		$this->configService = $this->createMock(ConfigService::class);
@@ -63,6 +65,10 @@ class CurlServiceTest extends TestCase {
 		$this->clientService = $this->createMock(IClientService::class);
 		$this->client = $this->createMock(IClient::class);
 		$this->clientService->method('newClient')->willReturn($this->client);
+		// by default this instance has no key to sign a fetch with, so requests
+		// go out exactly as they did before signed fetches existed
+		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
+		$this->httpSignatureService->method('signFetch')->willReturn(false);
 	}
 
 	protected function tearDown(): void {
@@ -73,7 +79,8 @@ class CurlServiceTest extends TestCase {
 	private function serviceAnsweringWith(callable $responder, string $mocked = 'doRequest'): CurlService {
 		$this->service = $this->getMockBuilder(CurlService::class)
 			->setConstructorArgs([
-				$this->configService, $this->fediverseService, $this->clientService, new NullLogger()
+				$this->configService, $this->fediverseService, $this->clientService,
+				$this->httpSignatureService, new NullLogger()
 			])
 			->onlyMethods([$mocked])
 			->getMock();
@@ -100,14 +107,16 @@ class CurlServiceTest extends TestCase {
 	}
 
 	public function testConstructorConvertsTheMaxSizeToBytes(): void {
-		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService, new NullLogger());
+		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService,
+			$this->httpSignatureService, new NullLogger());
 		$property = new \ReflectionProperty(CurlService::class, 'maxDownloadSize');
 
 		$this->assertSame(10 * 1048576, $property->getValue($service));
 	}
 
 	public function testAssignUserAgentIncludesTheInstalledVersion(): void {
-		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService, new NullLogger());
+		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService,
+			$this->httpSignatureService, new NullLogger());
 		$request = new NCRequest('/users/bob');
 
 		$service->assignUserAgent($request);
@@ -266,6 +275,96 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame('application/activity+json', $request->getHeaders()['Accept']);
 	}
 
+	/**
+	 * An ActivityPub GET is signed: unsigned, a peer running Mastodon's
+	 * AUTHORIZED_FETCH or GoToSocial's secure mode answers 401 to every actor,
+	 * object and collection fetch.
+	 */
+	public function testAnActivityPubFetchIsSigned(): void {
+		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
+		$this->httpSignatureService->expects($this->once())
+			->method('signFetch')
+			->willReturnCallback(function (NCRequest $request): bool {
+				$request->addHeader('Signature', 'keyId="k"');
+
+				return true;
+			});
+		$service = $this->serviceAnsweringWith(fn () => '{"id":"x"}');
+
+		$service->retrieveObject(self::BOB);
+
+		$this->assertSame('keyId="k"', $this->requests[0]->getHeaders()['Signature']);
+	}
+
+	/** A request that is not asking for ActivityPub is nobody's business to sign. */
+	public function testANonActivityPubFetchIsNotSigned(): void {
+		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
+		$this->httpSignatureService->expects($this->never())->method('signFetch');
+		$service = $this->serviceAnsweringWith(fn () => '{}');
+
+		$service->retrieveObject(self::BOB, false);
+	}
+
+	/**
+	 * A signature is an addition to a request that used to go out without one,
+	 * and a peer is entitled not to expect it. One unsigned retry keeps those
+	 * peers reachable.
+	 */
+	public function testASignedFetchRefusedWithA401IsRetriedUnsigned(): void {
+		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
+		$this->httpSignatureService->method('signFetch')
+			->willReturnCallback(function (NCRequest $request): bool {
+				$request->addHeader('Signature', 'keyId="k"');
+
+				return true;
+			});
+
+		$service = $this->serviceAnsweringWith(function (NCRequest $request) {
+			if (array_key_exists('Signature', $request->getHeaders())) {
+				throw new RequestContentException('nope', 401);
+			}
+			$request->setResultCode(200);
+
+			return json_encode(['id' => self::BOB, 'type' => 'Person']);
+		});
+
+		$result = $service->retrieveObject(self::BOB);
+
+		$this->assertSame(self::BOB, $result['id']);
+		$this->assertCount(2, $this->requests);
+		$this->assertArrayNotHasKey('Signature', $this->requests[1]->getHeaders());
+	}
+
+	public function testASignedFetchThatIsAnswered404IsNotRetried(): void {
+		$this->httpSignatureService = $this->createMock(HttpSignatureService::class);
+		$this->httpSignatureService->method('signFetch')->willReturn(true);
+		$service = $this->serviceAnsweringWith(function () {
+			throw new RequestContentException('gone', 404);
+		});
+
+		try {
+			$service->retrieveObject(self::BOB);
+			$this->fail('expected a RequestContentException');
+		} catch (RequestContentException $e) {
+			$this->assertSame(404, $e->getCode());
+		}
+
+		$this->assertCount(1, $this->requests);
+	}
+
+	public function testAnUnsignedFetchRefusedWithA401IsNotRetried(): void {
+		$service = $this->serviceAnsweringWith(function () {
+			throw new RequestContentException('nope', 401);
+		});
+
+		$this->expectException(RequestContentException::class);
+		try {
+			$service->retrieveObject(self::BOB);
+		} finally {
+			$this->assertCount(1, $this->requests);
+		}
+	}
+
 	public function testRetrieveObjectCanSkipTheActivityJsonAcceptHeader(): void {
 		$service = $this->serviceAnsweringWith(fn () => '{}');
 
@@ -416,7 +515,8 @@ class CurlServiceTest extends TestCase {
 
 	private function service(): CurlService {
 		return new CurlService(
-			$this->configService, $this->fediverseService, $this->clientService, new NullLogger()
+			$this->configService, $this->fediverseService, $this->clientService,
+			$this->httpSignatureService, new NullLogger()
 		);
 	}
 

@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Remove",
+  "id": "https://mastodon.social/users/alice#collections/featured/remove/12345",
+  "actor": "https://mastodon.social/users/alice",
+  "object": "https://mastodon.social/users/alice/statuses/109876",
+  "target": "https://mastodon.social/users/alice/collections/featured",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"]
+}

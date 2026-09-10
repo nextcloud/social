@@ -1,0 +1,19 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    { "manuallyApprovesFollowers": "as:manuallyApprovesFollowers" }
+  ],
+  "id": "https://mastodon.social/actor",
+  "type": "Application",
+  "inbox": "https://mastodon.social/actor/inbox",
+  "preferredUsername": "mastodon.social",
+  "url": "https://mastodon.social/about/more?instance_actor=true",
+  "manuallyApprovesFollowers": true,
+  "publicKey": {
+    "id": "https://mastodon.social/actor#main-key",
+    "owner": "https://mastodon.social/actor",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBg\n-----END PUBLIC KEY-----\n"
+  },
+  "endpoints": { "sharedInbox": "https://mastodon.social/inbox" }
+}

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\ActivityPub;
 
 use OCA\Social\AP;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -46,6 +47,7 @@ class StreamTest extends TestCase {
 
 	protected function tearDown(): void {
 		date_default_timezone_set($this->timezone);
+		Stream::resetReplyParentCache();
 		AP::$activityPub = null;
 		\OC::$server->reset();
 	}
@@ -228,7 +230,9 @@ class StreamTest extends TestCase {
 			->setInReplyTo('https://mastodon.social/users/bob/statuses/2')
 			->setSensitive(true)
 			->setConversation('https://cloud.example.org/conv/1')
-			->setAttributedTo('@alice')
+			// a full actor URI, which is what every caller passes; it is
+			// emitted verbatim rather than being prefixed with urlSocial
+			->setAttributedTo('https://cloud.example.org/apps/social/@alice')
 			->setUrlSocial('https://cloud.example.org/apps/social/');
 
 		$export = $stream->exportAsActivityPub();
@@ -429,6 +433,101 @@ class StreamTest extends TestCase {
 		$stream->setAttachments([$media]);
 
 		$this->assertSame([$media], $stream->jsonSerialize()['attachment']);
+	}
+
+	/**
+	 * `attachment` is the ActivityPub name; the client format already carries
+	 * the same list as `media_attachments`, and a second copy under a key
+	 * Mastodon does not define was only ever confusing.
+	 */
+	public function testTheClientFormatHasNoActivityPubAttachmentKey(): void {
+		$stream = new Note();
+		$stream->setAttachments([(new MediaAttachment())->setId('4')]);
+		$stream->setExportFormat(ACore::FORMAT_LOCAL);
+
+		$serialised = $stream->jsonSerialize();
+
+		$this->assertArrayNotHasKey('attachment', $serialised);
+		$this->assertArrayHasKey('media_attachments', $serialised);
+	}
+
+	/**
+	 * A reply with no `in_reply_to_id` is not a reply: Elk and Phanpy render it
+	 * as a fresh top-level post, and the status handed back from `POST
+	 * /statuses` lost the link the client needed to slot it under the post
+	 * being answered. The row only carries the parent's ActivityPub id, so the
+	 * two numbers come from a lookup.
+	 */
+	public function testAReplyCarriesTheParentsNumericIdsAndItsAuthors(): void {
+		$parentActor = new Person();
+		$parentActor->setNid(3);
+		$parent = new Note();
+		$parent->setNid(11)->setActor($parentActor);
+
+		$streamRequest = $this->createMock(StreamRequest::class);
+		$streamRequest->expects($this->once())
+			->method('getStreamById')
+			->with('https://cloud.example.org/apps/social/@bob/1')
+			->willReturn($parent);
+		\OC::$server->register(StreamRequest::class, $streamRequest);
+
+		$reply = new Note();
+		$reply->setNid(12)->setInReplyTo('https://cloud.example.org/apps/social/@bob/1');
+
+		$status = $reply->exportAsLocal();
+
+		$this->assertSame('11', $status['in_reply_to_id']);
+		$this->assertSame('3', $status['in_reply_to_account_id']);
+	}
+
+	public function testTheResolvedParentIsLookedUpOncePerRequest(): void {
+		$parent = new Note();
+		$parent->setNid(11);
+
+		$streamRequest = $this->createMock(StreamRequest::class);
+		// a thread's replies all name the same parent, and a page of them must
+		// not be a query each
+		$streamRequest->expects($this->once())->method('getStreamById')->willReturn($parent);
+		\OC::$server->register(StreamRequest::class, $streamRequest);
+
+		foreach ([13, 14, 15] as $nid) {
+			$reply = new Note();
+			$reply->setNid($nid)->setInReplyTo('https://cloud.example.org/apps/social/@bob/1');
+
+			$this->assertSame('11', $reply->exportAsLocal()['in_reply_to_id']);
+		}
+	}
+
+	public function testAStatusThatIsNotAReplyHasNoParent(): void {
+		$status = (new Note())->setNid(4)->exportAsLocal();
+
+		$this->assertNull($status['in_reply_to_id']);
+		$this->assertNull($status['in_reply_to_account_id']);
+	}
+
+	/**
+	 * Nothing stores an edit timestamp of its own, but `PostService::editPost()`
+	 * stamps `published` with the moment of the edit and leaves
+	 * `published_time` — which `created_at` is built from — at the original.
+	 */
+	public function testEditedAtIsNullForAPostThatWasNeverEdited(): void {
+		$stream = new Note();
+		$stream->setNid(4)->setPublishedTime(1714564800);
+		$stream->setPublished('2024-05-01T12:00:00+00:00');
+
+		$this->assertNull($stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testEditedAtIsWhenThePublishedStampMovedPastTheCreation(): void {
+		$stream = new Note();
+		$stream->setNid(4)->setPublishedTime(1714564800);
+		$stream->setPublished('2024-05-02T09:30:00+00:00');
+
+		$this->assertSame('2024-05-02T09:30:00.000Z', $stream->exportAsLocal()['edited_at']);
+	}
+
+	public function testEditedAtIsNullWithoutAPublishedStampToCompare(): void {
+		$this->assertNull((new Note())->setNid(4)->exportAsLocal()['edited_at']);
 	}
 
 	public function testImportFromLocalReadsAMastodonStatus(): void {

@@ -22,6 +22,9 @@ use OCA\Social\Interfaces\Activity\RejectInterface;
 use OCA\Social\Interfaces\Activity\RemoveInterface;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\Activity\UpdateInterface;
+use OCA\Social\Interfaces\Actor\ApplicationInterface;
+use OCA\Social\Interfaces\Actor\GroupInterface;
+use OCA\Social\Interfaces\Actor\OrganizationInterface;
 use OCA\Social\Interfaces\Actor\PersonInterface;
 use OCA\Social\Interfaces\Actor\ServiceInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
@@ -125,7 +128,7 @@ class APTest extends TestCase {
 
 	public function unknownTypeProvider(): array {
 		return [
-			'unsupported AS2 type' => ['Article'],
+			'unsupported AS2 type' => ['Profile'],
 			'empty' => [''],
 			'wrong case' => ['note'],
 		];
@@ -171,6 +174,9 @@ class APTest extends TestCase {
 			'Reject' => ['Reject', RejectInterface::class],
 			'Remove' => ['Remove', RemoveInterface::class],
 			'Service' => ['Service', ServiceInterface::class],
+			'Group' => ['Group', GroupInterface::class],
+			'Organization' => ['Organization', OrganizationInterface::class],
+			'Application' => ['Application', ApplicationInterface::class],
 			'Undo' => ['Undo', UndoInterface::class],
 			'Update' => ['Update', UpdateInterface::class],
 		];
@@ -186,7 +192,74 @@ class APTest extends TestCase {
 	public function testGetInterfaceFromTypeRejectsUnknownTypes(): void {
 		$this->expectException(ItemUnknownException::class);
 
-		$this->ap->getInterfaceFromType('Article');
+		$this->ap->getInterfaceFromType('Profile');
+	}
+
+	public function noteLikeTypeProvider(): array {
+		return array_map(static fn (string $type): array => [$type], AP::NOTE_LIKE_TYPES);
+	}
+
+	/**
+	 * PeerTube, Plume, Mobilizon, Lemmy and Funkwhale post these; they are
+	 * handled as statuses, which is also how Mastodon shows them.
+	 *
+	 * @dataProvider noteLikeTypeProvider
+	 */
+	public function testNoteLikeTypesAreModelledAsNotes(string $type): void {
+		$this->assertInstanceOf(Note::class, $this->ap->getItemFromType($type));
+		$this->assertSame($this->apInterface(NoteInterface::class), $this->ap->getInterfaceFromType($type));
+	}
+
+	/**
+	 * @dataProvider noteLikeTypeProvider
+	 */
+	public function testNoteLikeTypeKeepsTheWireTypeInTheSubtype(string $type): void {
+		$item = $this->ap->getSimpleItemFromData([
+			'id' => 'https://peertube.example/videos/watch/1',
+			'type' => $type,
+			'attributedTo' => 'https://peertube.example/accounts/alice',
+			'content' => '<p>a description</p>',
+		]);
+
+		$this->assertInstanceOf(Note::class, $item);
+		$this->assertSame(Note::TYPE, $item->getType());
+		$this->assertSame($type, $item->getSubType());
+		$this->assertSame('<p>a description</p>', $item->getContent());
+	}
+
+	public function testNoteLikeTypeWithoutContentFallsBackToItsTitleAndLink(): void {
+		/** @var Note $item */
+		$item = $this->ap->getSimpleItemFromData([
+			'id' => 'https://peertube.example/videos/watch/1',
+			'type' => 'Video',
+			'attributedTo' => 'https://peertube.example/accounts/alice',
+			'name' => 'Cats & dogs',
+			'url' => 'https://peertube.example/w/1',
+		]);
+
+		$this->assertStringContainsString('Cats &amp; dogs', $item->getContent());
+		$this->assertStringContainsString('https://peertube.example/w/1', $item->getContent());
+		// `name` on a Note means the option a poll vote chose; a title must not
+		// land there or the post could be counted as a vote
+		$this->assertSame('', $item->getName());
+	}
+
+	public function testNoteLikeTypeArrivingInsideACreateIsNotDropped(): void {
+		$item = $this->ap->getItemFromData([
+			'id' => 'https://peertube.example/videos/watch/1/activity',
+			'type' => 'Create',
+			'actor' => 'https://peertube.example/accounts/alice',
+			'object' => [
+				'id' => 'https://peertube.example/videos/watch/1',
+				'type' => 'Video',
+				'name' => 'a video',
+				'attributedTo' => 'https://peertube.example/accounts/alice',
+			],
+		]);
+
+		$this->assertTrue($item->hasObject());
+		$this->assertInstanceOf(Note::class, $item->getObject());
+		$this->assertSame('https://peertube.example/videos/watch/1', $item->getObjectId());
 	}
 
 	public function testGetInterfaceForItemDispatchesOnTheItemType(): void {
@@ -267,14 +340,27 @@ class APTest extends TestCase {
 		$this->assertSame('https://cloud.example.org/@bob', $item->getObjectId());
 	}
 
-	public function testNestedObjectOfUnknownTypeIsDropped(): void {
+	public function testNestedObjectOfUnknownTypeKeepsItsId(): void {
 		$item = $this->ap->getItemFromData([
 			'id' => 'https://mastodon.social/users/alice/statuses/1/activity',
 			'type' => 'Create',
 			'object' => [
 				'id' => 'https://mastodon.social/users/alice/statuses/1',
-				'type' => 'Article',
+				'type' => 'Profile',
 			],
+		]);
+
+		$this->assertFalse($item->hasObject());
+		// the id is what makes the activity loggable and resolvable later; it
+		// used to be dropped along with the object
+		$this->assertSame('https://mastodon.social/users/alice/statuses/1', $item->getObjectId());
+	}
+
+	public function testNestedObjectOfUnknownTypeWithoutAnIdIsDropped(): void {
+		$item = $this->ap->getItemFromData([
+			'id' => 'https://mastodon.social/users/alice/statuses/1/activity',
+			'type' => 'Create',
+			'object' => ['type' => 'Profile'],
 		]);
 
 		$this->assertFalse($item->hasObject());

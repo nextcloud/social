@@ -25,6 +25,7 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -107,6 +108,7 @@ class SignatureServiceTest extends TestCase {
 			$this->cacheActorsRequest,
 			$this->createMock(CurlService::class),
 			$configService,
+			new HttpSignatureService($this->actorsRequest, new NullLogger()),
 			$cacheFactory,
 			new NullLogger(),
 		);
@@ -278,8 +280,127 @@ class SignatureServiceTest extends TestCase {
 		$this->cacheActorService->expects($this->never())->method('getFromId');
 
 		$this->expectException(SignatureException::class);
-		$this->expectExceptionMessage('issue with digest');
+		$this->expectExceptionMessage('digest does not match the body');
 		$this->service->checkRequest($this->incomingRequest($headers), $tampered);
+	}
+
+	/**
+	 * A sender using chunked transfer encoding sends no Content-Length at all.
+	 * Comparing the body against `(int)''` rejected every one of them.
+	 */
+	public function testCheckRequestAcceptsARequestWithoutContentLength(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body, self::$privateKey, ['content-length' => ''], '(request-target) host date digest'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function digestVariantProvider(): array {
+		$body = '{"type":"Follow"}';
+		$sha256 = base64_encode(hash('sha256', $body, true));
+		$sha512 = base64_encode(hash('sha512', $body, true));
+
+		return [
+			'RFC 3230, upper case' => ['SHA-256=' . $sha256],
+			'lower case algorithm' => ['sha-256=' . $sha256],
+			'no hyphen' => ['SHA256=' . $sha256],
+			'several algorithms' => ['SHA-256=' . $sha256 . ',SHA-512=' . $sha512],
+			'sha-512 only' => ['SHA-512=' . $sha512],
+			'an algorithm we do not know, alongside one we do'
+				=> ['id-sha-3=deadbeef,SHA-256=' . $sha256],
+			'spaces around the list separator' => ['SHA-512=' . $sha512 . ', SHA-256=' . $sha256],
+		];
+	}
+
+	/**
+	 * @dataProvider digestVariantProvider
+	 */
+	public function testCheckRequestAcceptsEveryDigestFormOnTheWire(string $digest): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => $digest]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	/** RFC 9530: what newer implementations are moving to. */
+	public function testCheckRequestAcceptsAContentDigestOnItsOwn(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body,
+			self::$privateKey,
+			[
+				'digest' => '',
+				'content-digest' => 'sha-256=:' . base64_encode(hash('sha256', $body, true)) . ':',
+			],
+			'(request-target) host date content-digest'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testCheckRequestRejectsADigestWeCannotCompute(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => 'id-sha-3=deadbeef']);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('no digest algorithm we can compute');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsAMissingDigest(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['digest' => '']);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('no digest header');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testCheckRequestRejectsASecondDigestThatDoesNotMatch(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, [
+			'digest' => 'SHA-256=' . base64_encode(hash('sha256', $body, true))
+				. ',SHA-512=' . base64_encode(hash('sha512', 'something else', true)),
+		]);
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('digest does not match the body');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	/**
+	 * hs2019 names no hash: the key type decides, and for the RSA keys actors
+	 * publish that is SHA-256.
+	 */
+	public function testCheckRequestAcceptsHs2019OverAnRsaKey(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body, self::$privateKey, [], '(request-target) host date digest', 'hs2019'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	/**
+	 * Mapping an unknown algorithm to sha256 made an Ed25519 signature fail as
+	 * "signature cannot be checked", which describes nothing.
+	 */
+	public function testCheckRequestNamesAnAlgorithmItCannotVerify(): void {
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders(
+			$body, self::$privateKey, [], '(request-target) host date digest', 'ed25519'
+		);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->expectExceptionMessage('unsupported signature algorithm: ed25519');
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
 	public function testCheckRequestRejectsAWrongContentLength(): void {
@@ -552,6 +673,7 @@ class SignatureServiceTest extends TestCase {
 			$this->cacheActorsRequest,
 			$this->createMock(CurlService::class),
 			$configService,
+			new HttpSignatureService($this->actorsRequest, new NullLogger()),
 			$cacheFactory,
 			new NullLogger(),
 		);

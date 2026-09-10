@@ -29,7 +29,9 @@ class LikeTest extends TestCase {
 		]);
 		$export = $like->jsonSerialize();
 
-		$this->assertSame([ACore::CONTEXT_ACTIVITYSTREAMS], $export['@context']);
+		$this->assertSame(
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_EXTENSIONS], $export['@context']
+		);
 		$this->assertSame('https://mastodon.social/users/alice#likes/1', $export['id']);
 		$this->assertSame('Like', $export['type']);
 		$this->assertSame('https://mastodon.social/users/alice', $export['actor']);

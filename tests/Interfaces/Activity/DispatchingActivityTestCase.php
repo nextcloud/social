@@ -17,10 +17,13 @@ use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 require_once __DIR__ . '/../ActivityPubTestCase.php';
 
 /**
- * Accept, Add, Block, Create, Reject, Remove, Undo and Update all do the same
- * thing on arrival: look up the interface for the wrapped object and hand both
- * items over. These are the rules they share; each concrete test adds the
- * routing that matters for its own activity type.
+ * Accept, Block, Create, Reject, Undo and Update all do the same thing on
+ * arrival: look up the interface for the wrapped object and hand both items
+ * over. These are the rules they share; each concrete test adds the routing
+ * that matters for its own activity type.
+ *
+ * (Add and Remove used to be in this list. They are not dispatchers: they
+ * maintain the `featured` collection — see FeaturedCollectionTest.)
  */
 abstract class DispatchingActivityTestCase extends ActivityPubTestCase {
 	abstract protected function createHandler(): IActivityPubInterface;

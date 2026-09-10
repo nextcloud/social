@@ -12,14 +12,29 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
+use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\FollowNotFoundException;
+use OCA\Social\Exceptions\HashtagDoesNotExistException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\InvalidHandleException;
+use OCA\Social\Exceptions\InvalidResourceEntryException;
+use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Exceptions\TooManyRequestsException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -51,19 +66,28 @@ use OCA\Social\Service\RelationshipService;
 use OCA\Social\Service\ReportService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\Files\NotFoundException;
+use OCP\ICacheFactory;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Class ApiController
@@ -92,6 +116,10 @@ class ApiController extends Controller {
 	private SearchService $searchService;
 	private ConfigService $configService;
 	private CurlService $curlService;
+
+	/** where a used Idempotency-Key is remembered, and for how long */
+	private const IDEMPOTENCY_CACHE = 'social_idempotency';
+	private const IDEMPOTENCY_TTL = 3600;
 
 	private string $bearer = '';
 	private ?SocialClient $client = null;
@@ -122,6 +150,8 @@ class ApiController extends Controller {
 		SearchService $searchService,
 		ConfigService $configService,
 		CurlService $curlService,
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private ICacheFactory $cacheFactory,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -164,23 +194,29 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
+			// `vapid_key` is always present, because a client reads it out of
+			// this response before it decides whether to offer push at all; it
+			// is empty because this app has no Web Push endpoint, which is the
+			// answer that makes a client stop asking.
 			if ($this->client === null) {
 				return new DataResponse(
 					[
 						'name' => 'Nextcloud Social',
-						'website' => 'https://github.com/nextcloud/social/'
+						'website' => 'https://github.com/nextcloud/social/',
+						'vapid_key' => ''
 					], Http::STATUS_OK
 				);
 			} else {
 				return new DataResponse(
 					[
 						'name' => $this->client->getAppName(),
-						'website' => $this->client->getAppWebsite()
+						'website' => $this->client->getAppWebsite(),
+						'vapid_key' => ''
 					], Http::STATUS_OK
 				);
 			}
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -196,7 +232,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -238,7 +274,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($this->viewer, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -259,7 +295,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($accounts, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -292,7 +328,7 @@ class ApiController extends Controller {
 		} catch (FollowNotFoundException $e) {
 			return new DataResponse(['error' => 'no pending follow request'], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -310,7 +346,7 @@ class ApiController extends Controller {
 		} catch (StreamNotFoundException $e) {
 			return new DataResponse(['error' => 'poll not found'], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -340,7 +376,7 @@ class ApiController extends Controller {
 		} catch (InvalidActionException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -383,7 +419,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($report, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -409,13 +445,13 @@ class ApiController extends Controller {
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
 	/**
+	 * Mastodon's V1::Instance entity — the first request every client makes.
 	 *
-	 * @return DataResponse
 	 * @throws InstanceDoesNotExistException
 	 */
 	#[NoCSRFRequired]
@@ -427,11 +463,26 @@ class ApiController extends Controller {
 	}
 
 	/**
+	 * Mastodon's V2::Instance entity. Newer clients ask for this one first and
+	 * fall back to v1 on a 404; answering it saves them the round trip.
+	 *
+	 * @throws InstanceDoesNotExistException
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function instanceV2(): DataResponse {
+		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
+
+		return new DataResponse($local->asV2(), Http::STATUS_OK);
+	}
+
+	/**
 	 *
 	 * @return DataResponse
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function statusNew(): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -442,6 +493,15 @@ class ApiController extends Controller {
 			$status = new Status();
 			$status->import($this->convertInput($input));
 
+			// Tusky and Ivory send an Idempotency-Key and retry the post when
+			// the connection drops, so on a flaky mobile link the same post used
+			// to be created — and federated to every follower — several times.
+			$idempotencyKey = $this->idempotencyKey();
+			$already = $this->statusForIdempotencyKey($idempotencyKey);
+			if ($already !== null) {
+				return new DataResponse($already, Http::STATUS_OK);
+			}
+
 			// Use the viewer that was already initialized
 			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
 			$post = new Post($actor);
@@ -451,16 +511,18 @@ class ApiController extends Controller {
 			$post->setType($status->getVisibility());
 
 			if (!empty($status->getMediaIds())) {
+				$documents = $this->documentService->getMediaFromArray(
+					$status->getMediaIds(),
+					$this->viewer->getPreferredUsername()
+				);
+				$this->scopeMediaToVisibility($documents, $post->getType());
 				$post->setMedias(
 					array_map(function (Document $document): MediaAttachment {
 						return $document->convertToMediaAttachment(
 							$this->urlGenerator,
 							ACore::FORMAT_ACTIVITYPUB
 						);
-					}, $this->documentService->getMediaFromArray(
-						$status->getMediaIds(),
-						$this->viewer->getPreferredUsername()
-					))
+					}, $documents)
 				);
 			}
 
@@ -481,19 +543,96 @@ class ApiController extends Controller {
 				ACore::FORMAT_LOCAL
 			);
 
+			$this->rememberIdempotencyKey($idempotencyKey, $item->getNid());
+
 			$this->logger->info('[ApiController] Status created successfully', [
 				'postId' => $activity->getObjectId()
 			]);
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->error('[ApiController] statusNew failed', [
-				'exception' => $e->getMessage(),
-				'trace' => $e->getTraceAsString()
-			]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->error($e);
 		}
+	}
+
+	/**
+	 * Marks a post's attachments readable without a session only when the post
+	 * itself is.
+	 *
+	 * The `public` flag on a cached document is what decides whether
+	 * `/media/{uuid}` — an unauthenticated route — will hand the file over.
+	 * Every upload used to be stored with it set, direct messages and
+	 * followers-only posts included, so the row itself declared the attachment
+	 * world-readable and anyone who came by the uuid could fetch it. Which post
+	 * an upload belongs to is only known when that post is created, which is
+	 * where this runs.
+	 *
+	 * @param Document[] $documents
+	 */
+	private function scopeMediaToVisibility(array $documents, string $visibility): void {
+		$public = in_array($visibility, [Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED], true);
+
+		foreach ($documents as $document) {
+			if ($document->isPublic() === $public) {
+				continue;
+			}
+
+			$document->setPublic($public);
+			$this->cacheDocumentsRequest->update($document);
+		}
+	}
+
+	/**
+	 * This request's Idempotency-Key, scoped to whoever sent it.
+	 *
+	 * The key is only meaningful together with the credential that used it —
+	 * two clients are free to pick the same one — so what is stored is a digest
+	 * of both, which also keeps the bearer token itself out of the cache.
+	 */
+	private function idempotencyKey(): string {
+		$key = trim($this->request->getHeader('Idempotency-Key'));
+		if ($key === '') {
+			return '';
+		}
+
+		$owner = ($this->bearer !== '') ? $this->bearer : (string)$this->viewer?->getId();
+
+		return hash('sha256', $owner . '|' . $key);
+	}
+
+	/**
+	 * The status a previous request with this Idempotency-Key created, if it is
+	 * still on record and still exists.
+	 */
+	private function statusForIdempotencyKey(string $key): ?Stream {
+		if ($key === '') {
+			return null;
+		}
+
+		$nid = $this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)->get($key);
+		if (!is_numeric($nid) || (int)$nid < 1) {
+			return null;
+		}
+
+		try {
+			$item = $this->streamService->getStreamByNid((int)$nid);
+		} catch (Exception $e) {
+			// deleted since, or never really written: let the post go through
+			return null;
+		}
+
+		$item->setExportFormat(ACore::FORMAT_LOCAL);
+
+		return $item;
+	}
+
+	private function rememberIdempotencyKey(string $key, int $nid): void {
+		if ($key === '' || $nid < 1) {
+			return;
+		}
+
+		$this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)
+			->set($key, $nid, self::IDEMPOTENCY_TTL);
 	}
 
 	/**
@@ -525,11 +664,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->error('[ApiController] statusUpdate failed', [
-				'exception' => $e->getMessage(),
-				'trace' => $e->getTraceAsString()
-			]);
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->error($e);
 		}
 	}
 
@@ -539,25 +674,37 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function mediaNew(): DataResponse {
 		try {
 			$this->initViewer(true);
 
 			$file = $_FILES['file'] ?? [];
 			if (empty($file)) {
-				throw new Exception('no media found');
+				throw new InvalidActionException('no media found');
 			}
 
 			if ($file['error'] !== UPLOAD_ERR_OK) {
-				throw new Exception('error during upload');
+				throw new InvalidActionException('error during upload');
 			}
 
 			$name = $file['tmp_name'] ?? '';
-			$size = $file['size'] ?? -1;
+			$size = (int)($file['size'] ?? -1);
 			$type = $file['type'] ?? '';
 
 			if ($name === '' || $size === -1 || $type === '') {
-				throw new Exception('missing details');
+				throw new InvalidActionException('missing details');
+			}
+
+			// The same ceiling the app puts on anything it downloads, applied
+			// to what it is handed: without it an upload was bounded only by
+			// PHP's own limits, and the file is read into memory to be hashed,
+			// sniffed and (for an image) decoded.
+			$maxSize = $this->instanceService->maxUploadSize();
+			if ($size > $maxSize) {
+				throw new InvalidActionException(
+					'file is larger than the ' . (int)($maxSize / 1048576) . 'MB limit'
+				);
 			}
 
 			$this->logger->debug('[ApiController] mediaNew: ' . json_encode($file));
@@ -567,7 +714,12 @@ class ApiController extends Controller {
 			$document->setAccount($this->viewer->getPreferredUsername());
 			$document->setUrlCloud($this->configService->getCloudUrl());
 			$document->generateUniqueId('/documents/local');
-			$document->setPublic(true);
+			// Not public until a post says so. `public` decides whether the
+			// unauthenticated /media/{uuid} route serves the file, and this used
+			// to be set on every upload — so an attachment to a direct message
+			// was, by the row's own account, readable by anybody. The visibility
+			// is applied when the status is created; see scopeMediaToVisibility().
+			$document->setPublic(false);
 			// the alt text; `focus` is accepted but not stored (no focal-point support)
 			$document->setDescription((string)$this->request->getParam('description', ''));
 
@@ -581,9 +733,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($mediaAttachment, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->warning('issues while mediaNew', ['exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->error($e);
 		}
 	}
 
@@ -594,6 +744,7 @@ class ApiController extends Controller {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	public function mediaNewV2(): DataResponse {
 		return $this->mediaNew();
 	}
@@ -609,12 +760,8 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 
 			return new DataResponse($this->ownAttachment($nid), Http::STATUS_OK);
-		} catch (NotFoundException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
-			$this->logger->warning('issues while mediaGet', ['exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			return $this->error($e);
 		}
 	}
 
@@ -638,12 +785,8 @@ class ApiController extends Controller {
 			return new DataResponse(
 				$document->convertToMediaAttachment($this->urlGenerator), Http::STATUS_OK
 			);
-		} catch (NotFoundException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Exception $e) {
-			$this->logger->warning('issues while mediaUpdate', ['exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
+			return $this->error($e);
 		}
 	}
 
@@ -713,6 +856,8 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	public function timelines(
 		string $timeline,
 		bool $local = false,
@@ -730,7 +875,15 @@ class ApiController extends Controller {
 			'since_id' => $since_id
 		]);
 		try {
-			$this->initViewer(true);
+			// Mastodon's public timeline is readable without a token, and a
+			// client asks for it before it has one — to show the reader what is
+			// here before they log in. Every other timeline is about somebody,
+			// so it still needs a viewer. A token that *was* presented still has
+			// to be a good one: a client whose token has been revoked has to
+			// learn that, not quietly get the anonymous view instead.
+			$this->initViewer(
+				$this->bearer !== '' || strtolower($timeline) !== ProbeOptions::PUBLIC
+			);
 			$this->logger->debug('[ApiController] Viewer initialized', [
 				'viewerId' => $this->viewer?->getId()
 			]);
@@ -766,14 +919,14 @@ class ApiController extends Controller {
 				'postsCount' => count($posts)
 			]);
 
-			return new DataResponse($posts, Http::STATUS_OK);
+			return $this->paged($posts, $options->getLimit());
 		} catch (Exception $e) {
 			$this->logger->error('[ApiController] Timeline request failed', [
 				'timeline' => $timeline,
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString()
 			]);
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -794,7 +947,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -813,8 +966,85 @@ class ApiController extends Controller {
 
 			return new DataResponse($context, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
+	}
+
+	/**
+	 * Deletes one of the viewer's own statuses.
+	 *
+	 * The app's own frontend has always had a delete (`DELETE /api/v1/post`,
+	 * behind the session and a CSRF token), but a client holding a bearer token
+	 * had no way to reach it: the route Mastodon deletes with did not exist, so
+	 * every client's delete button failed. Mastodon answers with the status that
+	 * was removed — that is what "delete & redraft" puts back in the composer.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function statusDelete(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			$item = $this->streamService->getStreamByNid($nid);
+			if ($item->getAttributedTo() !== $actor->getId()) {
+				// the same answer an unknown id gets: whether somebody else's
+				// post exists is not this route's to tell
+				throw new StreamNotFoundException('Stream not found');
+			}
+
+			// exported before the delete, while the row is still there to read
+			$item->setExportFormat(ACore::FORMAT_LOCAL);
+			$deleted = $item->exportAsLocal();
+
+			$this->streamService->deleteLocalItem($item, $item->getType());
+
+			return new DataResponse($deleted, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The text of one of the viewer's own statuses, as it was written.
+	 *
+	 * Mastodon's StatusSource entity. Tusky and Ivory will not offer an edit
+	 * button without it, even though `PUT /api/v1/statuses/{id}` has worked
+	 * here all along: they fetch the source first, to have something to put in
+	 * the editor. The stored content is the HTML that was rendered from the
+	 * original text, so it is turned back: the line breaks that `nl2br()` wrote
+	 * become newlines again and the entities are decoded.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	public function statusSource(int $nid): DataResponse {
+		try {
+			$this->initViewer(true);
+			$actor = $this->accountService->getActorFromUserId($this->currentSession(), true);
+
+			$item = $this->streamService->getStreamByNid($nid);
+			if ($item->getAttributedTo() !== $actor->getId()) {
+				throw new StreamNotFoundException('Stream not found');
+			}
+
+			return new DataResponse(
+				[
+					'id' => (string)$item->getNid(),
+					'text' => $this->asSourceText($item->getContent()),
+					'spoiler_text' => $item->getSpoilerText(),
+				], Http::STATUS_OK
+			);
+		} catch (Exception $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** The rendered content of a status, back as close to its source as it goes. */
+	private function asSourceText(string $content): string {
+		$text = preg_replace('#<br\s*/?>#i', "\n", $content);
+		$text = strip_tags((string)$text);
+
+		return html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 	}
 
 	/**
@@ -840,7 +1070,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($item, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -862,7 +1092,7 @@ class ApiController extends Controller {
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
 			);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -880,17 +1110,41 @@ class ApiController extends Controller {
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
 			);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
+	}
+
+	/**
+	 * Mastodon's v1 search, which is the v2 one without `statuses` being
+	 * optional. `/api/v1/search` used to be the app's own web-UI search — a
+	 * Nextcloud envelope, `content` where a client looks for `statuses`, `search=`
+	 * where a client sends `q=`, and no bearer token accepted — so a client got
+	 * a 200 it could make no sense of, which is worse than a 404. The web UI's
+	 * own search now lives at `/local/v1/search`, beside its siblings.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 10, period: 60)]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function search(string $q = '', string $type = '', int $limit = 20, bool $resolve = false): DataResponse {
+		return $this->searchV2($q, $type, $limit, $resolve);
 	}
 
 	/**
 	 * Mastodon's search endpoint: accounts, statuses (the viewer-bounded
 	 * full-text search) and hashtags, optionally narrowed with `type`.
+	 *
+	 * `resolve` is accepted and ignored on purpose: it asks the server to go
+	 * and fetch an account or status it has never seen, and every account
+	 * search here is already `LIKE '%term%'` over the actor cache. Following an
+	 * unknown handle up remotely on an anonymous request would make this route
+	 * an outbound-fetch amplifier.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
-	public function searchV2(string $q = '', string $type = '', int $limit = 20): DataResponse {
+	#[AnonRateLimit(limit: 10, period: 60)]
+	#[UserRateLimit(limit: 60, period: 60)]
+	public function searchV2(string $q = '', string $type = '', int $limit = 20, bool $resolve = false): DataResponse {
 		try {
 			$this->initViewer(true);
 			$q = trim($q);
@@ -932,7 +1186,7 @@ class ApiController extends Controller {
 				Http::STATUS_OK
 			);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -965,7 +1219,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($tags, Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1020,7 +1274,7 @@ class ApiController extends Controller {
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
 			);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1047,27 +1301,118 @@ class ApiController extends Controller {
 				$accounts[] = $person;
 			}
 
-			return new DataResponse($accounts, Http::STATUS_OK);
+			return $this->paged($accounts, $limit);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
 	/**
-	 * Resolve a Mastodon-style account reference: the numeric id every API entity
-	 * carries, or a full actor id.
+	 * One account, by whatever reference the client holds.
 	 *
+	 * Every entity this app emits addresses an account by its numeric id, and
+	 * until this route existed there was nothing to do with one: tapping an
+	 * author, a mention, a boost or a notification asked for a profile that no
+	 * route answered.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	public function accountGet(string $id): DataResponse {
+		try {
+			$this->initViewer(false);
+			$account = $this->resolveTargetAccount($id);
+			$account->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($account, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The account behind a handle, without following it up remotely.
+	 *
+	 * Mastodon's `/accounts/lookup` is the cheap counterpart to `/search`: it
+	 * answers with an account or a 404, never with a list, and never reaches
+	 * out to another server. Clients use it to turn a `@user@host` someone
+	 * typed or pasted into something they can open.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 60)]
+	#[UserRateLimit(limit: 120, period: 60)]
+	public function accountLookup(string $acct = ''): DataResponse {
+		try {
+			$this->initViewer(false);
+			$acct = ltrim(trim($acct), '@');
+			if ($acct === '') {
+				throw new InvalidActionException('acct is required');
+			}
+
+			$account = $this->cacheActorService->getFromAccount($acct, false);
+			$account->setExportFormat(ACore::FORMAT_LOCAL);
+
+			return new DataResponse($account, Http::STATUS_OK);
+		} catch (Exception $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * The handle to judge an account's remoteness by.
+	 *
+	 * The route takes either a handle or a numeric id; only the handle carries
+	 * the host, so for an id it comes from the account that was resolved.
+	 */
+	private function handleOf(string $reference, Person $actor): string {
+		if (is_numeric($reference)) {
+			return $actor->getAccount();
+		}
+
+		return $reference;
+	}
+
+	/**
+	 * Resolve an account reference in any of the shapes a client can hold it:
+	 * the numeric id every API entity emits, an `@user` or `user@host` handle,
+	 * a bare local username, or the actor's ActivityPub id.
+	 *
+	 * The numeric id is the important one, because it is the only shape a
+	 * client ever gets *from* this app. It used to fall through to
+	 * `getFromId()`, which treats its argument as a URL: asking for account
+	 * `42` meant a WebFinger lookup for the string "42", an exception, and
+	 * (before the status codes were fixed) a 401 that logged the reader out.
+	 *
+	 * @throws CacheActorDoesNotExistException
 	 * @throws Exception
 	 */
 	private function resolveTargetAccount(string $id): Person {
-		if (is_numeric($id) && (int)$id > 0) {
-			$actors = $this->cacheActorService->getFromNids([(int)$id]);
-			if ($actors !== []) {
-				return $actors[0];
+		$id = trim($id);
+
+		if (is_numeric($id)) {
+			if ((int)$id < 1) {
+				throw new CacheActorDoesNotExistException('unknown account');
 			}
+
+			$actors = $this->cacheActorService->getFromNids([(int)$id]);
+			if ($actors === []) {
+				throw new CacheActorDoesNotExistException('unknown account');
+			}
+
+			return $actors[0];
 		}
 
-		return $this->cacheActorService->getFromId($id);
+		if (str_starts_with($id, 'http://') || str_starts_with($id, 'https://')) {
+			return $this->cacheActorService->getFromId($id);
+		}
+
+		if ($id === '') {
+			throw new CacheActorDoesNotExistException('unknown account');
+		}
+
+		return $this->cacheActorService->getFromAccount(ltrim($id, '@'));
 	}
 
 	/**
@@ -1084,7 +1429,7 @@ class ApiController extends Controller {
 
 			return new DataResponse($this->followService->getRelationships($id), Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1100,6 +1445,8 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	public function accountStatuses(
 		string $account,
 		int $limit = 20,
@@ -1111,7 +1458,10 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(false);
 
-			$local = $this->cacheActorService->getFromAccount($account);
+			// `{account}` is whatever the client holds, which for every entity
+			// this app emits is the numeric id — not the acct handle this route
+			// used to insist on.
+			$local = $this->resolveTargetAccount($account);
 
 			if ($pinned) {
 				return new DataResponse(
@@ -1134,9 +1484,9 @@ class ApiController extends Controller {
 			$posts = $this->streamService->getTimeline($options);
 			$this->pinService->markPinned($posts, $local->getId());
 
-			return new DataResponse($posts, Http::STATUS_OK);
+			return $this->paged($posts, $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1148,6 +1498,8 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	public function accountFollowing(
 		string $account,
 		int $limit = 20,
@@ -1157,9 +1509,9 @@ class ApiController extends Controller {
 	): DataResponse {
 		try {
 			$this->initViewer(false);
-			$actor = $this->cacheActorService->getFromAccount($account);
+			$actor = $this->resolveTargetAccount($account);
 
-			$parts = explode('@', $account);
+			$parts = explode('@', $this->handleOf($account, $actor));
 			$domain = end($parts);
 			$cloudHost = $this->configService->getCloudHost();
 			$socialAddress = $this->configService->getSocialAddress();
@@ -1180,9 +1532,9 @@ class ApiController extends Controller {
 				->setMinId($min_id)
 				->setSince($since);
 
-			return new DataResponse($this->cacheActorService->probeActors($options), Http::STATUS_OK);
+			return $this->paged($this->cacheActorService->probeActors($options), $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1194,6 +1546,8 @@ class ApiController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	public function accountFollowers(
 		string $account,
 		int $limit = 20,
@@ -1204,9 +1558,9 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(false);
 
-			$actor = $this->cacheActorService->getFromAccount($account);
+			$actor = $this->resolveTargetAccount($account);
 
-			$parts = explode('@', $account);
+			$parts = explode('@', $this->handleOf($account, $actor));
 			$domain = end($parts);
 			$cloudHost = $this->configService->getCloudHost();
 			$socialAddress = $this->configService->getSocialAddress();
@@ -1227,9 +1581,9 @@ class ApiController extends Controller {
 				->setMinId($min_id)
 				->setSince($since);
 
-			return new DataResponse($this->cacheActorService->probeActors($options), Http::STATUS_OK);
+			return $this->paged($this->cacheActorService->probeActors($options), $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1263,9 +1617,9 @@ class ApiController extends Controller {
 
 			$posts = $this->streamService->getTimeline($options);
 
-			return new DataResponse($posts, Http::STATUS_OK);
+			return $this->paged($posts, $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1290,9 +1644,9 @@ class ApiController extends Controller {
 
 			$posts = $this->streamService->getTimeline($options);
 
-			return new DataResponse($posts, Http::STATUS_OK);
+			return $this->paged($posts, $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1317,7 +1671,7 @@ class ApiController extends Controller {
 				),
 			], Http::STATUS_OK);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1334,11 +1688,15 @@ class ApiController extends Controller {
 		try {
 			$this->initViewer(true);
 
+			// an object, never a list: a fresh account has no markers at all,
+			// and `[]` is not something a client can read `home.last_read_id`
+			// out of
 			return new DataResponse(
-				$this->markerService->get($this->currentSession(), $timeline), Http::STATUS_OK
+				(object)$this->markerService->get($this->currentSession(), $timeline),
+				Http::STATUS_OK
 			);
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1368,10 +1726,9 @@ class ApiController extends Controller {
 				$updated[$timeline] = $this->markerService->set($userId, $timeline, (string)$lastReadId);
 			}
 
-			return new DataResponse($updated, Http::STATUS_OK);
+			return new DataResponse((object)$updated, Http::STATUS_OK);
 		} catch (Exception $e) {
-			// the write routes answer 400, unlike the read routes' 401
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->error($e);
 		}
 	}
 
@@ -1404,11 +1761,21 @@ class ApiController extends Controller {
 				->setExcludeTypes($exclude_types)
 				->setAccountId($accountId);
 
-			$posts = $this->streamService->getTimeline($options);
+			// A notification whose sub-type Mastodon has no name for would
+			// serialise as `"type": ""`, which a client with a closed enum
+			// cannot decode — and one undecodable entry loses the whole page.
+			// It is dropped instead: there is nothing a client could show for it.
+			$posts = array_values(
+				array_filter(
+					$this->streamService->getTimeline($options),
+					static fn (Stream $post): bool
+						=> Stream::notificationTypeOfSubType($post->getSubType()) !== ''
+				)
+			);
 
-			return new DataResponse($posts, Http::STATUS_OK);
+			return $this->paged($posts, $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1443,9 +1810,9 @@ class ApiController extends Controller {
 
 			$posts = $this->streamService->getTimeline($options);
 
-			return new DataResponse($posts, Http::STATUS_OK);
+			return $this->paged($posts, $options->getLimit());
 		} catch (Exception $e) {
-			return $this->error($e->getMessage());
+			return $this->error($e);
 		}
 	}
 
@@ -1498,33 +1865,36 @@ class ApiController extends Controller {
 				break;
 			}
 
-			if (is_array($item) && isset($item['id'])) {
-				try {
-					$person = AP::$activityPub->getItemFromData($item);
-					if (AP::$activityPub->isActor($person)) {
-						$person->setExportFormat(ACore::FORMAT_LOCAL);
-						$actors[] = $person;
-						$count++;
-					}
-				} catch (Exception $e) {
-					continue;
-				}
-				continue;
+			// An entry is either the actor's id or the actor inline; either way
+			// it is resolved through the cache rather than built from the page.
+			// An actor assembled straight from the remote JSON is not stored, so
+			// it has no numeric id — and a page of accounts all sharing id "0"
+			// is one a client cannot open, follow or mute, because every id in
+			// the API addresses exactly one account.
+			$actorId = '';
+			if (is_array($item) && isset($item['id']) && is_string($item['id'])) {
+				$actorId = $item['id'];
+			} elseif (is_string($item)) {
+				$actorId = $item;
 			}
 
-			$actorId = is_string($item) ? $item : '';
 			if ($actorId === '') {
 				continue;
 			}
 
 			try {
 				$person = $this->cacheActorService->getFromId($actorId);
-				$person->setExportFormat(ACore::FORMAT_LOCAL);
-				$actors[] = $person;
-				$count++;
 			} catch (Exception $e) {
 				continue;
 			}
+
+			if ($person->getNid() <= 0) {
+				continue;
+			}
+
+			$person->setExportFormat(ACore::FORMAT_LOCAL);
+			$actors[] = $person;
+			$count++;
 		}
 
 		return $actors;
@@ -1656,8 +2026,8 @@ class ApiController extends Controller {
 		$name = substr((string)$route, strrpos((string)$route, '.') + 1);
 
 		$accepted = match ($name) {
-			'statusNew', 'statusUpdate', 'mediaNew', 'mediaNewV2', 'mediaUpdate', 'statusAction',
-			'updateCredentials', 'reportNew', 'pollVote', 'markersSet' => ['write'],
+			'statusNew', 'statusUpdate', 'statusDelete', 'mediaNew', 'mediaNewV2', 'mediaUpdate',
+			'statusAction', 'updateCredentials', 'reportNew', 'pollVote', 'markersSet' => ['write'],
 			'accountBlock', 'accountUnblock', 'accountMute', 'accountUnmute',
 			'accountFollow', 'accountUnfollow',
 			'followRequestAuthorize', 'followRequestReject' => ['follow', 'write'],
@@ -1681,11 +2051,161 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * @param string $error
-	 *
-	 * @return DataResponse
+	 * The HTTP status each failure maps to, in the order the classes are
+	 * tested. Everything used to answer 401, which a client reads as "this
+	 * token is gone": a deleted status, a mistyped timeline name, a database
+	 * hiccup and a slow remote all logged the reader out of their client and
+	 * left nothing to diagnose. `InsufficientScopeException` is handled ahead
+	 * of this list because it extends `ClientException`.
 	 */
-	private function error(string $error): DataResponse {
-		return new DataResponse(['error' => $error], Http::STATUS_UNAUTHORIZED);
+	private const ERROR_STATUS = [
+		// gone, or never existed
+		[StreamNotFoundException::class, Http::STATUS_NOT_FOUND],
+		[CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND],
+		[ActorDoesNotExistException::class, Http::STATUS_NOT_FOUND],
+		[ItemNotFoundException::class, Http::STATUS_NOT_FOUND],
+		[CacheDocumentDoesNotExistException::class, Http::STATUS_NOT_FOUND],
+		[HashtagDoesNotExistException::class, Http::STATUS_NOT_FOUND],
+		[ReportNotFoundException::class, Http::STATUS_NOT_FOUND],
+		[FollowNotFoundException::class, Http::STATUS_NOT_FOUND],
+		[InstanceDoesNotExistException::class, Http::STATUS_NOT_FOUND],
+		[NotFoundException::class, Http::STATUS_NOT_FOUND],
+		// the request was understood and refused: retrying it unchanged cannot help
+		[InvalidActionException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[UnknownProbeException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[InvalidResourceException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[InvalidResourceEntryException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[InvalidHandleException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[ItemUnknownException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[CacheContentMimeTypeException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		[ClientException::class, Http::STATUS_UNPROCESSABLE_ENTITY],
+		// the credentials, not the request
+		[ClientNotFoundException::class, Http::STATUS_UNAUTHORIZED],
+		[AccountDoesNotExistException::class, Http::STATUS_UNAUTHORIZED],
+		// allowed to ask, not allowed to have
+		[UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN],
+		[TooManyRequestsException::class, Http::STATUS_TOO_MANY_REQUESTS],
+		// somebody else's server let us down
+		[RequestContentException::class, Http::STATUS_NOT_FOUND],
+		[RequestNetworkException::class, Http::STATUS_BAD_GATEWAY],
+		[RequestServerException::class, Http::STATUS_BAD_GATEWAY],
+		[RequestResultNotJsonException::class, Http::STATUS_BAD_GATEWAY],
+		[RequestResultSizeException::class, Http::STATUS_BAD_GATEWAY],
+	];
+
+	/**
+	 * A failure as a Mastodon client can act on it: `{"error": "..."}` with a
+	 * status that says what to do about it.
+	 *
+	 * An unrecognised failure is a bug on this side, so it answers 500 and is
+	 * logged here with its stack trace — and its message is *not* sent on.
+	 * Every route in this controller is a `#[PublicPage]`, so echoing
+	 * `getMessage()` published whatever the failure happened to name: a table,
+	 * a file path, an internal host.
+	 */
+	private function error(Throwable $e): DataResponse {
+		if ($e instanceof InsufficientScopeException) {
+			return new DataResponse(
+				['error' => $e->getMessage()],
+				Http::STATUS_FORBIDDEN,
+				['WWW-Authenticate' => 'Bearer error="insufficient_scope"']
+			);
+		}
+
+		foreach (self::ERROR_STATUS as [$class, $status]) {
+			if ($e instanceof $class) {
+				$headers = ($status === Http::STATUS_UNAUTHORIZED)
+					? ['WWW-Authenticate' => 'Bearer error="invalid_token"'] : [];
+
+				return new DataResponse(['error' => $e->getMessage()], $status, $headers);
+			}
+		}
+
+		$this->logger->error('[ApiController] unexpected failure answering the client API', [
+			'exception' => $e,
+			'route' => (string)$this->request->getParam('_route', ''),
+		]);
+
+		return new DataResponse(
+			['error' => 'internal server error'], Http::STATUS_INTERNAL_SERVER_ERROR
+		);
+	}
+
+	/**
+	 * A page of entities, with the `Link` header Mastodon pages with.
+	 *
+	 * masto.js — which Elk and Phanpy are both built on — takes the next page
+	 * from this header and nowhere else, so without it those clients show the
+	 * first twenty posts of a timeline and stop. Mastodon sends `next` only
+	 * while a further page may exist (a short page is the last one) and `prev`
+	 * whenever the page is not empty.
+	 */
+	private function paged(array $items, int $limit): DataResponse {
+		$response = new DataResponse($items, Http::STATUS_OK);
+
+		$ids = $this->pageIds($items);
+		if ($ids === []) {
+			return $response;
+		}
+
+		$links = [];
+		if (count($items) >= $limit) {
+			// the next page is older than everything here
+			$links[] = '<' . $this->pageUrl(['max_id' => (string)min($ids)]) . '>; rel="next"';
+		}
+		$links[] = '<' . $this->pageUrl(['min_id' => (string)max($ids)]) . '>; rel="prev"';
+
+		$response->addHeader('Link', implode(', ', $links));
+
+		return $response;
+	}
+
+	/**
+	 * The paging ids of a page of entities. Streams and actors both carry the
+	 * numeric id the API pages by; an already-serialised entity carries it as
+	 * its string `id`.
+	 *
+	 * @return int[]
+	 */
+	private function pageIds(array $items): array {
+		$ids = [];
+		foreach ($items as $item) {
+			$nid = 0;
+			if (is_object($item) && method_exists($item, 'getNid')) {
+				$nid = (int)$item->getNid();
+			} elseif (is_array($item)) {
+				$nid = (int)($item['id'] ?? 0);
+			}
+
+			if ($nid > 0) {
+				$ids[] = $nid;
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * This request's own URL with the cursor replaced, so every other filter
+	 * the client sent (`limit`, `types`, `only_media`, …) survives into the
+	 * next page. Built with http_build_query rather than string concatenation:
+	 * a route that already carries a query string must not end up with two
+	 * `?`s in it.
+	 */
+	private function pageUrl(array $cursor): string {
+		$uri = $this->request->getRequestUri();
+		$path = $uri;
+		$query = [];
+
+		$pos = strpos($uri, '?');
+		if ($pos !== false) {
+			$path = substr($uri, 0, $pos);
+			parse_str(substr($uri, $pos + 1), $query);
+		}
+
+		unset($query['max_id'], $query['min_id'], $query['since_id'], $query['_route']);
+
+		return $this->urlGenerator->getAbsoluteURL($path) . '?'
+			. http_build_query(array_merge($query, $cursor));
 	}
 }

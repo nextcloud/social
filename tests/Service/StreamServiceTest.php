@@ -733,7 +733,7 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(self::ACTOR_ID . '/outbox', $collection->getId());
 		$this->assertSame(17, $collection->getTotalItems());
 		$this->assertSame(self::ACTOR_ID . '/outbox?page=1', $collection->getFirst());
-		$this->assertSame(self::ACTOR_ID . '/outbox?page=1&min_id=0', $collection->getLast());
+		$this->assertSame(self::ACTOR_ID . '/outbox?page=1', $collection->getLast());
 	}
 
 	public function testGetOutboxCollectionWithoutCountsIsEmpty(): void {

@@ -274,8 +274,10 @@ class RelationshipServiceTest extends TestCase {
 		$block = $this->assertOneOfType($sent, Block::class);
 		$this->assertSame(self::ALICE_ID, $block->getActorId());
 		$this->assertSame(self::BOB_ID, $block->getObjectId());
-		$this->assertStringStartsWith(self::CLOUD_URL . '/', $block->getId());
-		$this->assertStringContainsString('#block/', $block->getId());
+		// the id hangs off the actor, not the cloud root: everything after `#`
+		// is a fragment, so an id on the root dereferences to the Nextcloud
+		// landing page rather than to the activity
+		$this->assertStringStartsWith(self::ALICE_ID . '#block/', $block->getId());
 		$this->assertDeliveredToInbox($block, self::BOB_ID . '/inbox');
 	}
 

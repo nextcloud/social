@@ -330,13 +330,47 @@ class ACoreTest extends TestCase {
 		$this->assertSame(17, $item->getNid());
 	}
 
+	/**
+	 * `generateUniqueId('#accept/follows')` produced
+	 * `https://cloud.example.com/#accept/follows/<uuid>`: everything after the
+	 * `#` is a fragment, so that is the URL of the Nextcloud landing page, which
+	 * answers 200 with an HTML document. Hung off the actor instead, the
+	 * fragment sits on a URL that resolves to the actor — Mastodon's own shape.
+	 */
+	public function testAnActivityIdIsAFragmentOnTheActorNotOnTheCloudRoot(): void {
+		$item = new Like();
+		$item->setUrlCloud('https://cloud.example.com');
+
+		$item->generateUniqueIdFromActor('https://cloud.example.com/apps/social/@alice', 'accept/follows');
+
+		$this->assertStringStartsWith(
+			'https://cloud.example.com/apps/social/@alice#accept/follows/', $item->getId()
+		);
+		$this->assertSame(
+			'/apps/social/@alice', parse_url($item->getId(), PHP_URL_PATH),
+			'the URL a peer dereferences is the actor, not the instance front page'
+		);
+	}
+
+	public function testAnActivityIdFallsBackToTheCloudRootWithoutAnActor(): void {
+		$item = new Like();
+		$item->setUrlCloud('https://cloud.example.com');
+
+		$item->generateUniqueIdFromActor('', 'accept/follows');
+
+		$this->assertStringStartsWith('https://cloud.example.com/accept/follows/', $item->getId());
+	}
+
 	public function testExportAsActivityPubAddsTheContextOnlyOnTheRoot(): void {
 		$root = new Like();
 		$root->setId('https://a.example/l/1');
 		$child = new Tombstone($root);
 		$child->setId('https://a.example/n/1');
 
-		$this->assertSame([ACore::CONTEXT_ACTIVITYSTREAMS], $root->exportAsActivityPub()['@context']);
+		$this->assertSame(
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_EXTENSIONS],
+			$root->exportAsActivityPub()['@context']
+		);
 		$this->assertArrayNotHasKey('@context', $child->exportAsActivityPub());
 	}
 
@@ -345,7 +379,7 @@ class ACoreTest extends TestCase {
 		$item->setDisplayW3ContextSecurity(true);
 
 		$this->assertSame(
-			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_SECURITY],
+			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_SECURITY, ACore::CONTEXT_EXTENSIONS],
 			$item->exportAsActivityPub()['@context']
 		);
 	}

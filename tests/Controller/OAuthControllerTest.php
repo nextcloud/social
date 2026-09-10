@@ -21,6 +21,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
@@ -151,6 +152,31 @@ class OAuthControllerTest extends TestCase {
 		], $response->getData());
 	}
 
+	/**
+	 * Mastodon's API takes several redirect URIs newline-separated in one
+	 * field. They used to be wrapped into a single entry, which
+	 * `ClientService::confirmData()` then compared a lone URI against — so a
+	 * client registered with more than one could never authorize at all.
+	 */
+	public function testAppsSplitsNewlineSeparatedRedirectUris(): void {
+		$this->clientService->expects($this->once())->method('createApp')
+			->with($this->callback(
+				fn (SocialClient $c): bool
+					=> $c->getAppRedirectUris() === ['https://a/cb', 'https://b/cb']
+			));
+
+		$this->controller->apps('App', "https://a/cb\nhttps://b/cb\n");
+	}
+
+	public function testAppsIgnoresBlankAndDuplicateRedirectUris(): void {
+		$this->clientService->expects($this->once())->method('createApp')
+			->with($this->callback(
+				fn (SocialClient $c): bool => $c->getAppRedirectUris() === ['https://a/cb']
+			));
+
+		$this->controller->apps('App', "https://a/cb\n\n  https://a/cb  \n");
+	}
+
 	public function testAppsAcceptsAListOfRedirectUris(): void {
 		$this->clientService->expects($this->once())->method('createApp')
 			->with($this->callback(fn (SocialClient $c): bool => $c->getAppRedirectUris() === ['https://a/cb', 'https://b/cb']));
@@ -181,8 +207,18 @@ class OAuthControllerTest extends TestCase {
 				'redirectUri' => self::OOB,
 				'responseType' => 'code',
 				'scope' => 'read write',
+				'state' => '',
 			],
 		], $response->getParams());
+	}
+
+	public function testAuthorizeCarriesTheClientsStateToTheConsentPage(): void {
+		$this->loggedIn();
+		$this->knownClient();
+
+		$response = $this->controller->authorize('client-1', self::OOB, 'code', 'read', 'xyz789');
+
+		$this->assertSame('xyz789', $response->getParams()['request']['state']);
 	}
 
 	public function testAuthorizeRejectsNonCodeResponseTypes(): void {
@@ -239,6 +275,71 @@ class OAuthControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame(['code' => 'auth-code-1'], $response->getData());
+	}
+
+	public function testAuthorizingEchoesTheStateOnTheOutOfBandResponse(): void {
+		$this->loggedIn('alice');
+		$this->knownClient();
+		$this->clientService->method('authClient')
+			->willReturnCallback(static fn (SocialClient $c) => $c->setAuthCode('auth-code-1'));
+
+		$response = $this->controller->authorizing('client-1', self::OOB, 'code', 'read', 'xyz789');
+
+		$this->assertSame(['code' => 'auth-code-1', 'state' => 'xyz789'], $response->getData());
+	}
+
+	/**
+	 * `state` is what a web client compares against what it stored, to know the
+	 * redirect answers its own request. It used to be dropped, so a client
+	 * following the spec rejected the redirect and one that did not was open to
+	 * having somebody else's code injected.
+	 */
+	public function testAuthorizingRedirectsWithTheCodeAndTheState(): void {
+		$this->loggedIn('alice');
+		$this->knownClient();
+		$this->clientService->method('authClient')
+			->willReturnCallback(static fn (SocialClient $c) => $c->setAuthCode('auth-code-1'));
+
+		$response = $this->controller->authorizing(
+			'client-1', 'https://elk.example/oauth/callback', 'code', 'read', 'xyz789'
+		);
+
+		$this->assertInstanceOf(RedirectResponse::class, $response);
+		$this->assertSame(
+			'https://elk.example/oauth/callback?code=auth-code-1&state=xyz789',
+			$response->getRedirectURL()
+		);
+	}
+
+	public function testARedirectUriThatAlreadyHasAQueryStringStaysValid(): void {
+		$this->loggedIn('alice');
+		$this->knownClient();
+		$this->clientService->method('authClient')
+			->willReturnCallback(static fn (SocialClient $c) => $c->setAuthCode('c1'));
+
+		$response = $this->controller->authorizing(
+			'client-1', 'https://elk.example/cb?instance=cloud.example', 'code', 'read', 's1'
+		);
+
+		// concatenating '?code=' produced a URL with two question marks in it,
+		// and the client could not read the code out of it
+		$this->assertSame(
+			'https://elk.example/cb?instance=cloud.example&code=c1&state=s1',
+			$response->getRedirectURL()
+		);
+	}
+
+	public function testAFragmentOnTheRedirectUriStaysAtTheEnd(): void {
+		$this->loggedIn('alice');
+		$this->knownClient();
+		$this->clientService->method('authClient')
+			->willReturnCallback(static fn (SocialClient $c) => $c->setAuthCode('c1'));
+
+		$response = $this->controller->authorizing(
+			'client-1', 'https://elk.example/cb#/done', 'code', 'read'
+		);
+
+		$this->assertSame('https://elk.example/cb?code=c1#/done', $response->getRedirectURL());
 	}
 
 	public function testAuthorizingRejectsNonCodeResponseTypes(): void {

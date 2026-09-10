@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityService;
@@ -317,7 +318,9 @@ class FollowServiceTest extends TestCase {
 		$this->assertSame(self::ALICE_ID . '/followers', $collection->getId());
 		$this->assertSame(12, $collection->getTotalItems());
 		$this->assertSame('https://cloud.example/apps/social/@alice/followers?page=1', $collection->getFirst());
-		$this->assertSame('', $collection->getLast());
+		// 12 followers at 40 to a page is one page, and `last` has to name a
+		// page that exists
+		$this->assertSame('https://cloud.example/apps/social/@alice/followers?page=1', $collection->getLast());
 	}
 
 	public function testGetFollowingCollectionDescribesFollowingEndpoint(): void {
@@ -333,6 +336,77 @@ class FollowServiceTest extends TestCase {
 		$this->assertSame(self::ALICE_ID . '/following', $collection->getId());
 		$this->assertSame(4, $collection->getTotalItems());
 		$this->assertSame('https://cloud.example/apps/social/@alice/following?page=1', $collection->getFirst());
+	}
+
+	public function testFollowersPageListsTheFollowerActorUris(): void {
+		$alice = $this->alice();
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturn('https://cloud.example/apps/social/@alice/followers');
+		$this->followsRequest->expects($this->once())
+			->method('getFollowersByActorId')
+			->with(self::ALICE_ID, OrderedCollection::PAGE_SIZE, 0)
+			->willReturn([
+				$this->follow(self::BOB_ID, self::ALICE_ID, true),
+				$this->follow('https://remote.example/users/carol', self::ALICE_ID, true),
+			]);
+
+		$page = $this->service->getFollowersPage($alice, 1);
+
+		$this->assertSame('OrderedCollectionPage', $page->getType());
+		$this->assertSame('https://cloud.example/apps/social/@alice/followers?page=1', $page->getId());
+		$this->assertSame(self::ALICE_ID . '/followers', $page->getPartOf());
+		$this->assertSame(
+			[self::BOB_ID, 'https://remote.example/users/carol'], $page->getOrderedItems()
+		);
+		$this->assertSame('', $page->getNext(), 'a page that is not full is the last one');
+		$this->assertSame('', $page->getPrev());
+	}
+
+	public function testASecondFollowersPageIsOffsetAndPointsBack(): void {
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturn('https://cloud.example/apps/social/@alice/followers');
+		$this->followsRequest->expects($this->once())
+			->method('getFollowersByActorId')
+			->with(self::ALICE_ID, OrderedCollection::PAGE_SIZE, OrderedCollection::PAGE_SIZE)
+			->willReturn(array_fill(
+				0,
+				OrderedCollection::PAGE_SIZE,
+				$this->follow(self::BOB_ID, self::ALICE_ID, true)
+			));
+
+		$page = $this->service->getFollowersPage($this->alice(), 2);
+
+		$this->assertSame('https://cloud.example/apps/social/@alice/followers?page=1', $page->getPrev());
+		$this->assertSame(
+			'https://cloud.example/apps/social/@alice/followers?page=3',
+			$page->getNext(),
+			'a full page cannot know it is the last'
+		);
+	}
+
+	public function testFollowingPageListsTheFollowedActorUris(): void {
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturn('https://cloud.example/apps/social/@alice/following');
+		$this->followsRequest->method('getFollowingByActorId')
+			->with(self::ALICE_ID, OrderedCollection::PAGE_SIZE, 0)
+			->willReturn([$this->follow(self::ALICE_ID, self::BOB_ID, true)]);
+
+		$page = $this->service->getFollowingPage($this->alice(), 1);
+
+		$this->assertSame(self::ALICE_ID . '/following', $page->getPartOf());
+		$this->assertSame([self::BOB_ID], $page->getOrderedItems());
+	}
+
+	public function testTheLastPageOfALargeCollectionIsTheHighestThatExists(): void {
+		$alice = $this->alice();
+		$alice->setDetailArray('count', ['followers' => OrderedCollection::PAGE_SIZE * 3 + 1]);
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturn('https://cloud.example/apps/social/@alice/followers');
+
+		$this->assertSame(
+			'https://cloud.example/apps/social/@alice/followers?page=4',
+			$this->service->getFollowersCollection($alice)->getLast()
+		);
 	}
 
 	public function testCollectionsWithoutCachedCountsReportZero(): void {

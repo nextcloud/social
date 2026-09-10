@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ActivityPubController;
 use OCA\Social\Controller\SocialPubController;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemUnknownException;
@@ -23,6 +24,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
+use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -42,7 +44,7 @@ use OCP\IInitialStateService;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\NullLogger;
+use Psr\Log\LoggerInterface;
 
 /**
  * TAsync::async() closes PHPUnit's output buffer and sends headers; the
@@ -80,6 +82,8 @@ class ActivityPubControllerTest extends TestCase {
 	private $followService;
 	/** @var StreamService&MockObject */
 	private $streamService;
+	/** @var StreamRequest&MockObject */
+	private $streamRequest;
 	/** @var PinService&MockObject */
 	private $pinService;
 	/** @var ConfigService&MockObject */
@@ -88,6 +92,8 @@ class ActivityPubControllerTest extends TestCase {
 	private $initialStateService;
 	/** @var InboxLimiter&MockObject */
 	private $inboxLimiter;
+	/** @var LoggerInterface&MockObject */
+	private $logger;
 	private AsyncFreeActivityPubController $controller;
 
 	protected function setUp(): void {
@@ -102,9 +108,11 @@ class ActivityPubControllerTest extends TestCase {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->followService = $this->createMock(FollowService::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->pinService = $this->createMock(PinService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->initialStateService = $this->createMock(IInitialStateService::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$this->configService->method('getSocialUrl')->willReturn(self::SOCIAL_URL);
 
@@ -123,10 +131,11 @@ class ActivityPubControllerTest extends TestCase {
 			$this->accountService,
 			$this->followService,
 			$this->streamService,
+			$this->streamRequest,
 			$this->pinService,
 			$this->configService,
 			$this->initialStateService,
-			new NullLogger()
+			$this->logger
 		);
 	}
 
@@ -337,6 +346,68 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(1, $response->getData()['status']);
 	}
 
+	/**
+	 * An activity with no handler used to be answered 200 with nothing written
+	 * anywhere: the only symptom of a whole class of activity being ignored was
+	 * that nothing happened, which is indistinguishable from the peer never
+	 * having sent it. This line is the app's most useful federation diagnostic.
+	 */
+	public function testAnUnhandledActivityIsLoggedWithItsTypeAndOrigin(): void {
+		$this->signedRequestFrom('remote.example');
+		$activity = $this->incomingActivity();
+		$activity->method('getType')->willReturn('Arrive');
+		$activity->method('getId')->willReturn('https://remote.example/activities/1');
+		$activity->method('getActorId')->willReturn('https://remote.example/users/bob');
+		$activity->method('getObjectId')->willReturn('https://remote.example/places/1');
+		$this->importService->method('parseIncomingRequest')
+			->willThrowException(new ItemUnknownException('no interface'));
+
+		$logged = [];
+		$this->logger->expects($this->once())
+			->method('notice')
+			->willReturnCallback(function (string $message, array $context) use (&$logged): void {
+				$logged = $context;
+			});
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+
+		$this->assertSame('Arrive', $logged['activityType']);
+		$this->assertSame('remote.example', $logged['origin']);
+		$this->assertSame('https://remote.example/activities/1', $logged['activity']);
+		$this->assertSame('https://remote.example/users/bob', $logged['actor']);
+		$this->assertSame('https://remote.example/places/1', $logged['object']);
+	}
+
+	public function testAnUnhandledActivityOnAUserInboxIsLoggedToo(): void {
+		$this->signedRequestFrom('remote.example');
+		$this->localActor('alice');
+		$activity = $this->incomingActivity();
+		$activity->method('getType')->willReturn('Arrive');
+		$this->importService->method('parseIncomingRequest')
+			->willThrowException(new ItemUnknownException());
+
+		$this->logger->expects($this->once())->method('notice');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->inbox('alice')->getStatus());
+	}
+
+	/**
+	 * An activity whose own `type` has no model here never became an item, so
+	 * the import throws. That used to answer 500, which makes a peer redeliver
+	 * something we will never understand for as long as its queue allows.
+	 */
+	public function testAnActivityOfAnEntirelyUnknownTypeIsAcceptedAndLogged(): void {
+		$this->signedRequestFrom('remote.example');
+		$this->importService->method('importFromJson')
+			->willThrowException(new ItemUnknownException('Arrive'));
+		$this->logger->expects($this->once())->method('notice');
+
+		$response = $this->controller->sharedInbox();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(1, $response->getData()['status']);
+	}
+
 	public function testInboxRejectsRequestsWithInvalidSignature(): void {
 		$this->signatureService->method('checkRequest')->willThrowException(new SignatureException('bad'));
 		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
@@ -500,6 +571,132 @@ class ActivityPubControllerTest extends TestCase {
 		$this->socialPubController->expects($this->once())->method('following')->with('alice')->willReturn($page);
 
 		$this->assertSame($page, $this->controller->following('alice'));
+	}
+
+	/**
+	 * `?page=1` used to answer with the collection again, whose `first` pointed
+	 * at itself: a consumer following it looped or gave up, and nobody could
+	 * enumerate a local actor's followers.
+	 */
+	public function testFollowersWithAPageParameterReturnsARealPage(): void {
+		$this->acceptHeader('application/activity+json');
+		$actor = $this->localActor('alice');
+		$page = new OrderedCollectionPage();
+		$this->followService->expects($this->once())
+			->method('getFollowersPage')
+			->with($actor, 2)
+			->willReturn($page);
+		$this->followService->expects($this->never())->method('getFollowersCollection');
+
+		$this->assertActivityPubResponse($this->controller->followers('alice', '2'), $page);
+	}
+
+	/** `?page=true` is how Mastodon asks for the first page. */
+	public function testAPageParameterOfTrueMeansTheFirstPage(): void {
+		$this->acceptHeader('application/activity+json');
+		$actor = $this->localActor('alice');
+		$page = new OrderedCollectionPage();
+		$this->followService->expects($this->once())
+			->method('getFollowersPage')
+			->with($actor, 1)
+			->willReturn($page);
+
+		$this->assertActivityPubResponse($this->controller->followers('alice', 'true'), $page);
+	}
+
+	/** @return iterable<string, array{string}> */
+	public function unusablePageParameters(): iterable {
+		yield 'absent' => [''];
+		yield 'zero' => ['0'];
+		yield 'negative' => ['-1'];
+		yield 'not a number' => ['second'];
+		yield 'an expression' => ['1 OR 1'];
+	}
+
+	/** @dataProvider unusablePageParameters */
+	public function testAnUnusablePageParameterServesTheCollectionItself(string $page): void {
+		$this->acceptHeader('application/activity+json');
+		$actor = $this->localActor('alice');
+		$collection = new OrderedCollection();
+		$this->followService->method('getFollowersCollection')->with($actor)->willReturn($collection);
+		$this->followService->expects($this->never())->method('getFollowersPage');
+
+		$this->assertActivityPubResponse($this->controller->followers('alice', $page), $collection);
+	}
+
+	public function testFollowingWithAPageParameterReturnsARealPage(): void {
+		$this->acceptHeader('application/activity+json');
+		$actor = $this->localActor('alice');
+		$page = new OrderedCollectionPage();
+		$this->followService->expects($this->once())
+			->method('getFollowingPage')
+			->with($actor, 3)
+			->willReturn($page);
+
+		$this->assertActivityPubResponse($this->controller->following('alice', '3'), $page);
+	}
+
+	public function testOutboxWithAPageParameterReturnsTheCreateActivitiesOfThatPage(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+
+		$note = new Note();
+		$note->setId('https://cloud.example/@alice/notes/1');
+		$note->setAttributedTo('https://cloud.example/@alice');
+		$note->setContent('<p>hello</p>');
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+		$this->streamRequest->expects($this->once())
+			->method('getPublicByAuthor')
+			->with('https://cloud.example/@alice', OrderedCollection::PAGE_SIZE, 0)
+			->willReturn([$note]);
+		$this->streamService->expects($this->never())->method('getOutboxCollection');
+
+		$response = $this->controller->outbox('alice', '1');
+		/** @var OrderedCollectionPage $page */
+		$page = $response->getData();
+
+		$this->assertInstanceOf(OrderedCollectionPage::class, $page);
+		$this->assertSame('https://cloud.example/@alice/outbox?page=1', $page->getId());
+		$this->assertSame('https://cloud.example/@alice/outbox', $page->getPartOf());
+		$this->assertSame('', $page->getNext(), 'a page that is not full is the last one');
+		$this->assertSame('', $page->getPrev());
+
+		$items = json_decode(json_encode($page), true)['orderedItems'];
+		$this->assertCount(1, $items);
+		$this->assertSame('Create', $items[0]['type']);
+		$this->assertSame('https://cloud.example/@alice/notes/1/activity', $items[0]['id']);
+		$this->assertSame('https://cloud.example/@alice', $items[0]['actor']);
+		$this->assertSame('https://cloud.example/@alice/notes/1', $items[0]['object']['id']);
+		$this->assertSame('<p>hello</p>', $items[0]['object']['content']);
+		$this->assertSame(ACore::CONTEXT_PUBLIC, $items[0]['to']);
+		$this->assertArrayNotHasKey(
+			'@context', $items[0], 'an activity nested inside a page is not a document root'
+		);
+		$this->assertArrayNotHasKey('@context', $items[0]['object']);
+	}
+
+	public function testAFullOutboxPagePointsAtTheNextOne(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+
+		$posts = [];
+		for ($i = 0; $i < OrderedCollection::PAGE_SIZE; $i++) {
+			$note = new Note();
+			$note->setId('https://cloud.example/@alice/notes/' . $i);
+			$note->setAttributedTo('https://cloud.example/@alice');
+			$posts[] = $note;
+		}
+		$this->streamRequest->method('getPublicByAuthor')->willReturn($posts);
+
+		/** @var OrderedCollectionPage $page */
+		$page = $this->controller->outbox('alice', '2')->getData();
+
+		$this->assertSame('https://cloud.example/@alice/outbox?page=3', $page->getNext());
+		$this->assertSame('https://cloud.example/@alice/outbox?page=1', $page->getPrev());
 	}
 
 	public function testFollowersOfUnknownUserFails(): void {
