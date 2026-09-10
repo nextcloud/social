@@ -109,6 +109,37 @@ const attachFile = async (wrapper, file) => {
 	await fileInput.trigger('change')
 }
 
+// jsdom has neither DataTransfer nor DragEvent, and constructing one is not
+// what is being tested: what the composer reads off a drag is `types`, `files`
+// and `relatedTarget`, so the fixtures carry exactly those, the same way
+// attachFile fakes the file input's `files`.
+const transfer = (files = [], types = files.length > 0 ? ['Files'] : ['text/plain']) => ({
+	files,
+	types,
+	dropEffect: 'none',
+})
+
+const dragEvent = (type, { dataTransfer = transfer(), relatedTarget = null } = {}) => {
+	const event = new Event(type, { bubbles: true, cancelable: true })
+	Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+	Object.defineProperty(event, 'relatedTarget', { value: relatedTarget })
+	return event
+}
+
+const pasteEvent = (files = []) => {
+	const event = new Event('paste', { bubbles: true, cancelable: true })
+	Object.defineProperty(event, 'clipboardData', { value: { files } })
+	return event
+}
+
+// dispatched on a real element, because vue-test-utils builds a DragEvent
+// jsdom does not have
+const dispatch = async (wrapper, target, event) => {
+	target.dispatchEvent(event)
+	await wrapper.vm.$nextTick()
+	return event
+}
+
 const postedStatus = ($store) => $store.dispatch.mock.calls.find(([action]) => action === 'post')?.[1]
 
 const addWarning = async (wrapper, text) => {
@@ -558,6 +589,172 @@ describe('Composer', () => {
 		})
 	})
 
+	describe('dropping a file on it', () => {
+		const card = (wrapper) => wrapper.find('.new-post')
+		const lit = (wrapper) => card(wrapper).classes().includes('new-post--drop-target')
+		const picture = () => new File(['x'], 'cat.png', { type: 'image/png' })
+		const dragOver = (wrapper, dataTransfer = transfer([picture()])) => dispatch(
+			wrapper, card(wrapper).element, dragEvent('dragenter', { dataTransfer }),
+		)
+
+		it('lights the whole card up while a file is over it', async () => {
+			const { wrapper } = mountComposer()
+			expect(lit(wrapper)).toBe(false)
+
+			await dragOver(wrapper)
+
+			expect(lit(wrapper)).toBe(true)
+			expect(wrapper.find('.new-post__drop-hint').text()).toBe('Drop to attach')
+		})
+
+		it('ignores text dragged around inside it', async () => {
+			// a selection moved from one line to the next is not an attachment
+			const { wrapper } = mountComposer()
+
+			await dragOver(wrapper, transfer([], ['text/plain']))
+
+			expect(lit(wrapper)).toBe(false)
+			expect(wrapper.find('.new-post__drop-hint').exists()).toBe(false)
+		})
+
+		it('stays lit when the pointer crosses onto one of its own children', async () => {
+			// the classic dragleave trap: leaving the card for the message box
+			// inside it is not leaving the card
+			const { wrapper } = mountComposer()
+			await dragOver(wrapper)
+
+			await dispatch(wrapper, card(wrapper).element, dragEvent('dragleave', {
+				dataTransfer: transfer([picture()]),
+				relatedTarget: input(wrapper).element,
+			}))
+
+			expect(lit(wrapper)).toBe(true)
+		})
+
+		it('goes dark when the drag really leaves', async () => {
+			const { wrapper } = mountComposer()
+			await dragOver(wrapper)
+
+			await dispatch(wrapper, card(wrapper).element, dragEvent('dragleave', {
+				dataTransfer: transfer([picture()]),
+				relatedTarget: document.body,
+			}))
+
+			expect(lit(wrapper)).toBe(false)
+		})
+
+		it('goes dark when the drag leaves the window altogether', async () => {
+			const { wrapper } = mountComposer()
+			await dragOver(wrapper)
+
+			// relatedTarget is null when the pointer left the document
+			await dispatch(wrapper, card(wrapper).element, dragEvent('dragleave'))
+
+			expect(lit(wrapper)).toBe(false)
+		})
+
+		it('attaches a dropped file exactly as the file dialog does', async () => {
+			const { wrapper, $store } = mountComposer()
+			const file = picture()
+			await dragOver(wrapper)
+
+			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([file]) }))
+			await flushPromises()
+
+			expect($store.dispatch).toHaveBeenCalledWith('createMedia', expect.objectContaining({ file }))
+			expect(wrapper.findComponent(PreviewGridItem).props('preview')).toEqual({ file, data: media, failed: false })
+			expect(lit(wrapper)).toBe(false)
+		})
+
+		it('does not let the browser open the file and lose the draft', async () => {
+			const { wrapper } = mountComposer()
+			const element = card(wrapper).element
+
+			const over = await dispatch(wrapper, element, dragEvent('dragover', { dataTransfer: transfer([picture()]) }))
+			const drop = await dispatch(wrapper, element, dragEvent('drop', { dataTransfer: transfer([picture()]) }))
+			await flushPromises()
+
+			// an unhandled drag or drop navigates the tab to the file
+			expect(over.defaultPrevented).toBe(true)
+			expect(drop.defaultPrevented).toBe(true)
+		})
+
+		it('refuses a file the file dialog would never have offered', async () => {
+			const { wrapper, $store } = mountComposer()
+			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
+
+			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([notes]) }))
+			await flushPromises()
+
+			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(false)
+			expect(card(wrapper).classes()).toContain('new-post--refused')
+		})
+
+		it('takes the pictures out of a mixed drop and leaves the rest', async () => {
+			const { wrapper, $store } = mountComposer()
+			const file = picture()
+			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
+
+			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([file, notes]) }))
+			await flushPromises()
+
+			const uploads = $store.dispatch.mock.calls.filter(([action]) => action === 'createMedia')
+			expect(uploads).toHaveLength(1)
+			expect(uploads[0][1]).toMatchObject({ file })
+		})
+
+		it('opens a closed composer', async () => {
+			const { wrapper } = mountComposer()
+			expect(card(wrapper).classes()).toContain('new-post--collapsed')
+
+			await dispatch(wrapper, card(wrapper).element, dragEvent('drop', { dataTransfer: transfer([picture()]) }))
+			await flushPromises()
+
+			expect(card(wrapper).classes()).not.toContain('new-post--collapsed')
+		})
+	})
+
+	describe('pasting', () => {
+		it('attaches a screenshot from the clipboard', async () => {
+			const { wrapper, $store } = mountComposer()
+			const shot = new File(['x'], 'screenshot.png', { type: 'image/png' })
+
+			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent([shot]))
+			await flushPromises()
+
+			// prevented, or the browser drops the image into the box as markup
+			// the post cannot carry
+			expect(event.defaultPrevented).toBe(true)
+			expect($store.dispatch).toHaveBeenCalledWith('createMedia', expect.objectContaining({ file: shot }))
+			expect(wrapper.findComponent(PreviewGridItem).props('preview')).toEqual({ file: shot, data: media, failed: false })
+		})
+
+		it('leaves pasted text to the input it was pasted into', async () => {
+			const { wrapper, $store } = mountComposer()
+
+			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent())
+			// what the browser then does, unimpeded
+			await setContent(wrapper, 'pasted words')
+
+			expect(event.defaultPrevented).toBe(false)
+			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+			expect(typed(wrapper)).toBe('pasted words')
+			expect(canPost(wrapper)).toBe(true)
+		})
+
+		it('leaves a pasted file of a kind it cannot take to the input', async () => {
+			const { wrapper, $store } = mountComposer()
+			const notes = new File(['x'], 'notes.txt', { type: 'text/plain' })
+
+			const event = await dispatch(wrapper, input(wrapper).element, pasteEvent([notes]))
+			await flushPromises()
+
+			expect(event.defaultPrevented).toBe(false)
+			expect($store.dispatch).not.toHaveBeenCalledWith('createMedia', expect.anything())
+		})
+	})
+
 	describe('emoji', () => {
 		it('inserts a picked emoji into an empty message', async () => {
 			const { wrapper } = mountComposer()
@@ -800,6 +997,31 @@ describe('Composer', () => {
 			await input(wrapper).trigger('keyup', { key: 'Enter', ctrlKey: true })
 			await flushPromises()
 			expect(postedStatus($store)).toMatchObject({ status: 'Hello' })
+		})
+
+		it('tells the rest of the app what went out', async () => {
+			const { wrapper } = mountComposer()
+			const published = vi.fn()
+			eventBus.on('post-published', published)
+			await setContent(wrapper, 'Hello')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(published).toHaveBeenCalledWith({ id: 'new-1' })
+		})
+
+		it('says nothing on the bus when the server refused the post', async () => {
+			const { wrapper, $store } = mountComposer()
+			const published = vi.fn()
+			eventBus.on('post-published', published)
+			$store.dispatch.mockImplementation(() => Promise.resolve(undefined))
+			await setContent(wrapper, 'Hello')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(published).not.toHaveBeenCalled()
 		})
 
 		it('sends no media ids after the only attachment was removed', async () => {

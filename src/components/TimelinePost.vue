@@ -122,7 +122,7 @@
 						<Reply :size="20" />
 					</template>
 				</NcButton>
-				<span v-if="item.replies_count > 0" class="post-action-count">{{ item.replies_count }}</span>
+				<RollingCount :count="item.replies_count || 0" />
 			</div>
 			<div class="post-action-group"
 				:class="{ 'post-action-group--refused': refused === 'boost' }">
@@ -137,7 +137,7 @@
 						<Repeat :size="20" :fill-color="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
 					</template>
 				</NcButton>
-				<span v-if="item.reblogs_count > 0" class="post-action-count">{{ item.reblogs_count }}</span>
+				<RollingCount :count="item.reblogs_count || 0" />
 			</div>
 			<div class="post-action-group post-action-group--like"
 				:class="{ 'post-action-group--refused': refused === 'like' }">
@@ -156,7 +156,7 @@
 						<HeartOutline v-else :size="20" />
 					</template>
 				</NcButton>
-				<span v-if="item.favourites_count > 0" class="post-action-count">{{ item.favourites_count }}</span>
+				<RollingCount :count="item.favourites_count || 0" />
 			</div>
 			<NcActions>
 				<NcActionButton v-if="item.account.acct === currentAccount?.acct"
@@ -260,6 +260,7 @@ import { onTick } from '../services/clock.js'
 import { originOf } from '../utils/instanceIdentity.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
+import RollingCount from './RollingCount.vue'
 import DisplayName from './DisplayName.js'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
@@ -290,6 +291,7 @@ export default {
 		HeartOutline,
 		MessageContent,
 		Poll,
+		RollingCount,
 		DisplayName,
 		VisibilityIcon,
 	},

@@ -4,6 +4,7 @@
  */
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import AccountHoverCard from '../../../src/components/AccountHoverCard.vue'
 import TimelineAvatar from '../../../src/components/TimelineAvatar.vue'
 
 const NcAvatarStub = {
@@ -51,6 +52,15 @@ describe('TimelineAvatar', () => {
 		const avatar = mountAvatar({ id: '3', account: { username: 'dave', acct: 'dave@remote.example' } }).findComponent(NcAvatarStub)
 		expect(avatar.props('url')).toBeUndefined()
 		expect(avatar.props('user')).toBeUndefined()
+	})
+
+	it('previews the author when the avatar is hovered, seeded with what the status carries', () => {
+		const card = mountAvatar(remoteStatus).findComponent(AccountHoverCard)
+		expect(card.props('handle')).toBe('carol@remote.example')
+		expect(card.props('fallback')).toStrictEqual(remoteStatus.account)
+		expect(card.props('variant')).toBe('block')
+		// closed, and nothing asked for, until somebody hovers
+		expect(card.vm.shown).toBe(false)
 	})
 
 	it('renders nothing when the status has no account', () => {

@@ -21,6 +21,47 @@ const state = {
 	account: '',
 	composerDisplayStatus: false,
 	searchQuery: '',
+	/** whether the one-time first-post celebration is on screen right now */
+	firstPostCelebration: false,
+	/**
+	 * whether this session has already celebrated — the guard that still holds
+	 * when the browser refuses to remember anything
+	 */
+	firstPostCelebrated: false,
+}
+
+/** Where the browser remembers that this reader's first post was celebrated. */
+export const FIRST_POST_KEY = 'social.firstPostCelebrated'
+
+/**
+ * Whether this browser has already seen the celebration.
+ *
+ * Reading localStorage throws outright in a private window and wherever site
+ * data is blocked, which is why this answers rather than raises: an
+ * unreadable store means this guard is simply gone, and the account's own post
+ * count below is the one that actually keeps an established reader from being
+ * congratulated.
+ *
+ * @return {boolean} whether the flag is set
+ */
+function alreadyCelebrated() {
+	try {
+		return window.localStorage.getItem(FIRST_POST_KEY) !== null
+	} catch (error) {
+		return false
+	}
+}
+
+/**
+ * Remembers that it happened, if the browser will remember anything.
+ */
+function rememberCelebrated() {
+	try {
+		window.localStorage.setItem(FIRST_POST_KEY, String(Date.now()))
+	} catch (error) {
+		// nothing to do about it: `firstPostCelebrated` in the state still
+		// stops a second celebration for as long as this page is open
+	}
 }
 
 /**
@@ -149,6 +190,13 @@ const mutations = {
 	setSearchQuery(state, query) {
 		state.searchQuery = query
 	},
+	startFirstPostCelebration(state) {
+		state.firstPostCelebration = true
+		state.firstPostCelebrated = true
+	},
+	endFirstPostCelebration(state) {
+		state.firstPostCelebration = false
+	},
 	likeStatus(state, { status }) {
 		const known = state.statuses[status.id]
 		if (known !== undefined) {
@@ -241,6 +289,9 @@ const getters = {
 	getSearchQuery(state) {
 		return state.searchQuery
 	},
+	isCelebratingFirstPost(state) {
+		return state.firstPostCelebration
+	},
 	/**
 	 * What list the store is currently holding, as one comparable value.
 	 *
@@ -273,6 +324,42 @@ const getters = {
 }
 
 const actions = {
+	/**
+	 * Decides whether the post that just went out is the first this reader has
+	 * ever published, and starts the celebration if it is.
+	 *
+	 * Two guards, because neither is right on its own. The stored flag is what
+	 * stops the second post of the same account being celebrated, and it is
+	 * cheap — no request, no endpoint. The account's own `statuses_count` is
+	 * what stops a reader of five years who cleared their browser storage from
+	 * being congratulated on post number 1001; it is already in the store,
+	 * fetched once when the page opened, so reading it costs nothing and it
+	 * does not yet count the post that just went out.
+	 *
+	 * An account that has not loaded has an unknown count, and unknown is not
+	 * proof of a first post: nothing happens.
+	 *
+	 * @param {object} context the store
+	 * @return {boolean} whether the celebration was started
+	 */
+	celebrateFirstPost(context) {
+		if (context.state.firstPostCelebration || context.state.firstPostCelebrated) {
+			return false
+		}
+		if (context.getters.currentAccount?.statuses_count !== 0) {
+			return false
+		}
+		if (alreadyCelebrated()) {
+			return false
+		}
+
+		rememberCelebrated()
+		context.commit('startFirstPostCelebration')
+		return true
+	},
+	endFirstPostCelebration(context) {
+		context.commit('endFirstPostCelebration')
+	},
 	changeTimelineType(context, { type, params }) {
 		context.commit('resetTimeline')
 		context.commit('setTimelineType', type)

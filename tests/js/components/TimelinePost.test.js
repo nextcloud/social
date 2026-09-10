@@ -474,6 +474,82 @@ describe('TimelinePost', () => {
 		})
 	})
 
+	describe('rolling counters', () => {
+		const counter = (wrapper) => wrapper.find('.post-action-group--like .post-action-count')
+
+		it('rolls the number up to what the like made it, and settles as one number', async () => {
+			vi.useFakeTimers()
+			const { wrapper } = mountPost({ item: makeItem({ favourites_count: 3 }) })
+
+			await wrapper.setProps({ item: makeItem({ favourites_count: 4, favourited: true }) })
+
+			// the new digit arrives while the old one is still on its way out
+			expect(counter(wrapper).classes()).toContain('rolling-count--up')
+			expect(counter(wrapper).find('.rolling-count__value--current').text()).toBe('4')
+			const leaving = counter(wrapper).find('.rolling-count__value--leaving')
+			expect(leaving.text()).toBe('3')
+			expect(leaving.attributes('aria-hidden')).toBe('true')
+
+			vi.advanceTimersByTime(300)
+			await wrapper.vm.$nextTick()
+
+			expect(counter(wrapper).text()).toBe('4')
+			expect(counter(wrapper).classes()).not.toContain('rolling-count--up')
+			vi.useRealTimers()
+		})
+
+		it('rolls the other way when the count drops', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ favourites_count: 12, favourited: true }) })
+
+			await wrapper.setProps({ item: makeItem({ favourites_count: 11 }) })
+
+			expect(counter(wrapper).classes()).toContain('rolling-count--down')
+			expect(counter(wrapper).find('.rolling-count__value--current').text()).toBe('11')
+			expect(counter(wrapper).find('.rolling-count__value--leaving').text()).toBe('12')
+		})
+
+		it('rolls the very first one in, with no digit to send away', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ favourites_count: 0 }) })
+			expect(counter(wrapper).exists()).toBe(false)
+
+			await wrapper.setProps({ item: makeItem({ favourites_count: 1, favourited: true }) })
+
+			expect(counter(wrapper).classes()).toContain('rolling-count--up')
+			expect(counter(wrapper).find('.rolling-count__value--current').text()).toBe('1')
+			expect(counter(wrapper).find('.rolling-count__value--leaving').exists()).toBe(false)
+		})
+
+		it('takes the counter away again when the last like is undone', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ favourites_count: 1, favourited: true }) })
+
+			await wrapper.setProps({ item: makeItem({ favourites_count: 0 }) })
+
+			expect(counter(wrapper).exists()).toBe(false)
+		})
+
+		it('rolls a number of any length', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ favourites_count: 999 }) })
+
+			await wrapper.setProps({ item: makeItem({ favourites_count: 1000, favourited: true }) })
+
+			expect(counter(wrapper).find('.rolling-count__value--current').text()).toBe('1000')
+			expect(counter(wrapper).find('.rolling-count__value--leaving').text()).toBe('999')
+		})
+
+		it('swaps the number outright for a reader who asked for reduced motion', async () => {
+			const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true })
+			const { wrapper } = mountPost({ item: makeItem({ favourites_count: 3 }) })
+
+			await wrapper.setProps({ item: makeItem({ favourites_count: 4, favourited: true }) })
+
+			expect(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)')
+			expect(counter(wrapper).text()).toBe('4')
+			expect(counter(wrapper).classes()).not.toContain('rolling-count--up')
+			expect(counter(wrapper).find('.rolling-count__value--leaving').exists()).toBe(false)
+			matchMedia.mockRestore()
+		})
+	})
+
 	describe('reply', () => {
 		it('opens the composer and hands it the status to reply to', async () => {
 			const onReply = vi.fn()

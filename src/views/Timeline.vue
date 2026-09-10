@@ -39,6 +39,9 @@
 		</h1>
 
 		<TimelineList :type="type" />
+
+		<!-- the first post somebody ever publishes here, marked once -->
+		<FirstPostCelebration v-if="celebratingFirstPost" @done="endCelebration" />
 	</div>
 </template>
 
@@ -46,6 +49,8 @@
 import { defineAsyncComponent } from 'vue'
 import CurrentUserMixin from './../mixins/currentUserMixin.js'
 import TimelineList from './../components/TimelineList.vue'
+import FirstPostCelebration from './../components/FirstPostCelebration.vue'
+import eventBus from './../services/eventBus.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'../components/Composer/Composer.vue'))
 
@@ -53,6 +58,7 @@ export default {
 	name: 'Timeline',
 	components: {
 		Composer,
+		FirstPostCelebration,
 		TimelineList,
 	},
 	mixins: [
@@ -120,6 +126,10 @@ export default {
 		showInfo() {
 			return this.$store.getters.getServerData.firstrun && !this.infoHidden
 		},
+		/** @return {boolean} whether the first-post celebration is on screen */
+		celebratingFirstPost() {
+			return this.$store.getters.isCelebratingFirstPost
+		},
 		isFollowingNextcloudAccount() {
 			if (!this.$store.getters.accountLoaded(this.nextcloudAccount)) {
 				return true
@@ -141,9 +151,31 @@ export default {
 			this.$store.dispatch('fetchAccountInfo', this.nextcloudAccount)
 		}
 	},
+	mounted() {
+		eventBus.on('post-published', this.onPostPublished)
+	},
+	beforeUnmount() {
+		eventBus.off('post-published', this.onPostPublished)
+		// navigating away mid-celebration must not leave the flag standing for
+		// whatever timeline mounts next
+		if (this.celebratingFirstPost) {
+			this.$store.dispatch('endFirstPostCelebration')
+		}
+	},
 	methods: {
 		hideInfo() {
 			this.infoHidden = true
+		},
+		/**
+		 * A post went out. Whether that is the reader's first is the store's
+		 * decision; asking costs nothing and nothing here waits on the answer,
+		 * so the post itself appears exactly as it did before.
+		 */
+		onPostPublished() {
+			this.$store.dispatch('celebrateFirstPost')
+		},
+		endCelebration() {
+			this.$store.dispatch('endFirstPostCelebration')
 		},
 		followNextcloud() {
 			this.$store.dispatch('followAccount', { accountToFollow: this.nextcloudAccount })

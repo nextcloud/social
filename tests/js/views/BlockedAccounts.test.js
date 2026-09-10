@@ -155,4 +155,49 @@ describe('BlockedAccounts', () => {
 		expect(rows(wrapper)).toHaveLength(0)
 		expect(showError).not.toHaveBeenCalled()
 	})
+
+	describe('taking an account off a list', () => {
+		it('renders both lists through a transition group, so a row can collapse out of it', async () => {
+			// the rows were plain siblings: an unblocked account blinked away
+			// and the ones below jumped into the space it left
+			const { wrapper } = await mountView({ blocked: [bob, dave], muted: [carol] })
+			const groups = wrapper.findAll('transition-group-stub')
+
+			expect(groups).toHaveLength(2)
+			expect(groups.map((group) => group.attributes('name'))).toEqual(['collapse', 'collapse'])
+			expect(groups[0].findAll('.blocked-account')).toHaveLength(2)
+			expect(groups[1].findAll('.blocked-account')).toHaveLength(1)
+		})
+
+		it('keys the rows on the account, so the rows that stay are the very same rows', async () => {
+			// keyed on the index, Vue answers a removal by patching Bob's row
+			// into Dave and dropping the last one: the wrong row collapses and
+			// Dave's row is rebuilt underneath the reader
+			const { wrapper } = await mountView({ blocked: [bob, dave], muted: [] })
+			const before = rows(wrapper).map((row) => row.element)
+
+			await buttonByText(rows(wrapper)[0], 'Unblock').trigger('click')
+			await flushPromises()
+
+			const after = rows(wrapper).map((row) => row.element)
+			expect(after).toHaveLength(1)
+			expect(after[0]).toBe(before[1])
+			expect(rowNames(wrapper)).toEqual(['dave'])
+		})
+
+		it('brings the empty state in through a transition once the last one is gone', async () => {
+			const { wrapper } = await mountView({ blocked: [bob], muted: [carol] })
+			expect(wrapper.findAll('.empty-content')).toHaveLength(0)
+
+			await buttonByText(rows(wrapper)[0], 'Unblock').trigger('click')
+			await flushPromises()
+
+			const empty = wrapper.findAll('transition-stub')
+			expect(empty).toHaveLength(2)
+			expect(empty[0].attributes('name')).toBe('empty')
+			expect(empty[0].find('.empty-content').text()).toBe('No blocked accounts')
+			// the muted list still has Carol, so its empty state stays away
+			expect(empty[1].find('.empty-content').exists()).toBe(false)
+		})
+	})
 })

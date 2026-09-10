@@ -11,58 +11,69 @@
 
 		<section>
 			<h3>{{ t('social', 'Blocked') }}</h3>
-			<NcEmptyContent v-if="!loading && blocked.length === 0"
-				:name="t('social', 'No blocked accounts')"
-				:description="t('social', 'Accounts you block from their profile show up here.')">
-				<template #icon>
-					<Cancel />
-				</template>
-			</NcEmptyContent>
-			<div v-for="account in blocked" :key="`block-${account.id}`" class="blocked-account">
-				<div class="blocked-account__user">
-					<NcAvatar :url="account.avatar" :disable-tooltip="true" />
-					<router-link :to="{ name: 'profile', params: { account: account.acct } }">
-						<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
-						<span class="blocked-account__acct">{{ account.acct }}</span>
-					</router-link>
-				</div>
-				<NcButton :disabled="busy.includes(account.id)"
-					:aria-label="t('social', 'Unblock')"
-					@click="unblock(account)">
+			<transition name="empty">
+				<NcEmptyContent v-if="!loading && blocked.length === 0"
+					:name="t('social', 'No blocked accounts')"
+					:description="t('social', 'Accounts you block from their profile show up here.')">
 					<template #icon>
-						<Cancel :size="20" />
+						<Cancel />
 					</template>
-					{{ t('social', 'Unblock') }}
-				</NcButton>
-			</div>
+				</NcEmptyContent>
+			</transition>
+			<!-- keyed on the account id, never on the index: an index key makes
+			     Vue patch the row above into the one below on removal and drop
+			     the last row, so the wrong row would collapse -->
+			<transition-group name="collapse" tag="div" class="blocked-account-list">
+				<div v-for="account in blocked" :key="`block-${account.id}`" class="blocked-account">
+					<div class="blocked-account__user">
+						<NcAvatar :url="account.avatar" :disable-tooltip="true" />
+						<router-link :to="{ name: 'profile', params: { account: account.acct } }">
+							<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
+							<span class="blocked-account__acct">{{ account.acct }}</span>
+						</router-link>
+					</div>
+					<NcButton :disabled="busy.includes(account.id)"
+						:aria-label="t('social', 'Unblock')"
+						@click="unblock(account)">
+						<template #icon>
+							<Cancel :size="20" />
+						</template>
+						{{ t('social', 'Unblock') }}
+					</NcButton>
+				</div>
+			</transition-group>
 		</section>
 
 		<section>
 			<h3>{{ t('social', 'Muted') }}</h3>
-			<NcEmptyContent v-if="!loading && muted.length === 0"
-				:name="t('social', 'No muted accounts')"
-				:description="t('social', 'Accounts you mute from their profile show up here.')">
-				<template #icon>
-					<VolumeOff />
-				</template>
-			</NcEmptyContent>
-			<div v-for="account in muted" :key="`mute-${account.id}`" class="blocked-account">
-				<div class="blocked-account__user">
-					<NcAvatar :url="account.avatar" :disable-tooltip="true" />
-					<router-link :to="{ name: 'profile', params: { account: account.acct } }">
-						<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
-						<span class="blocked-account__acct">{{ account.acct }}</span>
-					</router-link>
-				</div>
-				<NcButton :disabled="busy.includes(account.id)"
-					:aria-label="t('social', 'Unmute')"
-					@click="unmute(account)">
+			<transition name="empty">
+				<NcEmptyContent v-if="!loading && muted.length === 0"
+					:name="t('social', 'No muted accounts')"
+					:description="t('social', 'Accounts you mute from their profile show up here.')">
 					<template #icon>
-						<VolumeHigh :size="20" />
+						<VolumeOff />
 					</template>
-					{{ t('social', 'Unmute') }}
-				</NcButton>
-			</div>
+				</NcEmptyContent>
+			</transition>
+			<transition-group name="collapse" tag="div" class="blocked-account-list">
+				<div v-for="account in muted" :key="`mute-${account.id}`" class="blocked-account">
+					<div class="blocked-account__user">
+						<NcAvatar :url="account.avatar" :disable-tooltip="true" />
+						<router-link :to="{ name: 'profile', params: { account: account.acct } }">
+							<span class="blocked-account__name">{{ account.display_name || account.username }}</span>
+							<span class="blocked-account__acct">{{ account.acct }}</span>
+						</router-link>
+					</div>
+					<NcButton :disabled="busy.includes(account.id)"
+						:aria-label="t('social', 'Unmute')"
+						@click="unmute(account)">
+						<template #icon>
+							<VolumeHigh :size="20" />
+						</template>
+						{{ t('social', 'Unmute') }}
+					</NcButton>
+				</div>
+			</transition-group>
 		</section>
 
 		<div v-if="loading" class="loading-indicator">
@@ -215,5 +226,61 @@ export default {
 .loading-indicator {
 	text-align: center;
 	padding: 20px;
+}
+
+/**
+ * An unblocked or unmuted account collapses out of its list rather than
+ * blinking away, so the row that answered stays visible for the moment it
+ * takes to go and the rows below close the gap instead of jumping.
+ *
+ * Same motion as the shared `list` transition in App.vue — .2s ease for the
+ * fade and the shift — with the height taken out over .3s ease-out, the way
+ * the welcome banner in Timeline.vue collapses. The max-height is headroom
+ * for one row, not a measurement: it only has to be larger than a row.
+ */
+.collapse-enter-active,
+.collapse-leave-active {
+	overflow: hidden;
+	max-height: 120px;
+	transition: opacity .2s ease, transform .2s ease, max-height .3s ease-out, padding .3s ease-out;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+	opacity: 0;
+	transform: translateY(-6px);
+	max-height: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+/* an inserted row pushes the others down instead of displacing them */
+.collapse-move {
+	transition: transform .2s ease;
+}
+
+/* the empty state arrives as the last row finishes collapsing, not on top of it */
+.empty-enter-active {
+	transition: opacity .2s ease .25s, transform .2s ease .25s;
+}
+
+.empty-leave-active {
+	transition: opacity .15s ease;
+}
+
+.empty-enter-from,
+.empty-leave-to {
+	opacity: 0;
+	transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.collapse-enter-active,
+	.collapse-leave-active,
+	.collapse-move,
+	.empty-enter-active,
+	.empty-leave-active {
+		transition: none;
+	}
 }
 </style>

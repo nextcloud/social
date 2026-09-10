@@ -4,13 +4,27 @@
 -->
 <template>
 	<div class="new-post"
-		:class="{ 'new-post--collapsed': !expanded }"
+		:class="{
+			'new-post--collapsed': !expanded,
+			'new-post--drop-target': draggingFiles,
+			'new-post--refused': refusedDrop,
+		}"
 		data-id=""
-		@focusin="expand">
+		@focusin="expand"
+		@dragenter="handleDragEnter"
+		@dragover="handleDragOver"
+		@dragleave="handleDragLeave"
+		@drop="handleDrop">
+		<!-- announced only to the eye: a drag is not something a screen reader
+		     is in the middle of, and the pill must never take the drop it
+		     announces, hence pointer-events: none -->
+		<div v-if="draggingFiles" class="new-post__drop-hint" aria-hidden="true">
+			<span>{{ t('social', 'Drop to attach') }}</span>
+		</div>
 		<input id="file-upload"
 			ref="fileUploadInput"
 			type="file"
-			accept="image/*,video/*,audio/*"
+			:accept="acceptedTypes"
 			multiple="true"
 			tabindex="-1"
 			aria-hidden="true"
@@ -62,6 +76,7 @@
 				:class="{'icon-loading': loading, 'too-long': statusIsTooLong}"
 				@keyup.prevent.enter="keyup"
 				@input="updateStatusContent"
+				@paste="handlePaste"
 				@tribute-replaced="updatePostFromTribute" />
 
 			<PreviewGrid :uploading="uploading"
@@ -218,6 +233,16 @@ import { clearDraft, loadDraft, saveDraft } from '../../services/draft.js'
 /** what the server accepts in one status */
 const MAX_LENGTH = 500
 
+/**
+ * What the composer takes as an attachment. The file dialog is given these
+ * as its `accept`, and a drop or a paste is held to the same list, so that
+ * what can be dragged in is exactly what can be picked.
+ */
+const ACCEPTED_MEDIA_TYPES = ['image/', 'video/', 'audio/']
+
+/** how long the card says no for, in step with the refusal in TimelinePost */
+const REFUSAL_DURATION = 400
+
 export default {
 	name: 'Composer',
 	components: {
@@ -273,6 +298,10 @@ export default {
 			uploading: false,
 			/** how far the current upload has got, 0..1 */
 			uploadProgress: 0,
+			/** whether files are being dragged over the card right now */
+			draggingFiles: false,
+			/** briefly true after a drop of something the composer cannot take */
+			refusedDrop: false,
 			attachments: {},
 			showPoll: false,
 			showWarning: false,
@@ -366,6 +395,10 @@ export default {
 		}
 	},
 	computed: {
+		/** @return {string} the `accept` of the file dialog, from one list */
+		acceptedTypes() {
+			return ACCEPTED_MEDIA_TYPES.map((type) => `${type}*`).join(',')
+		},
 		/** Attachments that can carry a description and have not been given one. */
 		undescribed() {
 			return Object.values(this.attachments).filter(
@@ -514,6 +547,7 @@ export default {
 		document.addEventListener('focusin', this.onOutsideInteraction)
 	},
 	unmounted() {
+		window.clearTimeout(this.refusalTimer)
 		document.removeEventListener('pointerdown', this.onOutsideInteraction)
 		document.removeEventListener('focusin', this.onOutsideInteraction)
 		if (this.tribute && this.tributeTarget) {
@@ -659,6 +693,151 @@ export default {
 			// a row would otherwise be ignored the second time
 			target.value = ''
 
+			await this.attachFiles(files)
+		},
+
+		/**
+		 * Whether a drag is carrying files, as opposed to a selection being
+		 * dragged around inside the composer — text moved from one line to the
+		 * next is not an attachment and must not light the card up.
+		 *
+		 * @param {Event} event a drag event
+		 * @return {boolean}
+		 */
+		carriesFiles(event) {
+			return Array.from(event.dataTransfer?.types ?? []).includes('Files')
+		},
+
+		/**
+		 * @param {File} file a dropped or pasted file
+		 * @return {boolean} whether the file dialog would have offered it
+		 */
+		acceptsFile(file) {
+			return ACCEPTED_MEDIA_TYPES.some((type) => (file.type || '').startsWith(type))
+		},
+
+		/** @param {DragEvent} event a drag arriving over the card */
+		handleDragEnter(event) {
+			if (!this.carriesFiles(event)) {
+				return
+			}
+
+			event.preventDefault()
+			this.draggingFiles = true
+		},
+
+		/** @param {DragEvent} event a drag moving over the card */
+		handleDragOver(event) {
+			if (!this.carriesFiles(event)) {
+				return
+			}
+
+			// without this the browser keeps the drop for itself and opens the
+			// file in the tab, which navigates away and takes the draft with it
+			event.preventDefault()
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'copy'
+			}
+			this.draggingFiles = true
+		},
+
+		/**
+		 * dragleave fires just as loudly when the pointer crosses from the card
+		 * onto one of its own children, which is where the highlight usually
+		 * starts flickering. Where the pointer went is the answer: it has only
+		 * left when it went somewhere outside this element, or nowhere at all
+		 * (relatedTarget is null when the drag leaves the window). A counter of
+		 * enters and leaves would answer the same question, but it can only be
+		 * repaired by an event that may never come — one missed leave and the
+		 * card stays lit for good — while this is decided fresh every time.
+		 *
+		 * @param {DragEvent} event the drag leaving something
+		 */
+		handleDragLeave(event) {
+			if (!this.draggingFiles) {
+				return
+			}
+
+			const movedTo = event.relatedTarget
+			if (movedTo instanceof Node && this.$el.contains(movedTo)) {
+				return
+			}
+
+			this.draggingFiles = false
+		},
+
+		/** @param {DragEvent} event the drop itself */
+		async handleDrop(event) {
+			if (!this.carriesFiles(event)) {
+				return
+			}
+
+			// same reason as dragover: an unhandled drop is a navigation
+			event.preventDefault()
+			this.draggingFiles = false
+			// dropping a picture is a way of starting a post, so a closed
+			// composer opens rather than swallowing the file out of sight
+			this.expand()
+
+			await this.attachDropped(Array.from(event.dataTransfer?.files ?? []))
+		},
+
+		/**
+		 * A picture on the clipboard becomes an attachment; everything else is
+		 * left to the contenteditable and its autocomplete, exactly as before.
+		 *
+		 * @param {ClipboardEvent} event the paste
+		 */
+		handlePaste(event) {
+			const files = Array.from(event.clipboardData?.files ?? []).filter((file) => this.acceptsFile(file))
+			if (files.length === 0) {
+				// text, a link, a mention pasted back in: none of our business
+				return
+			}
+
+			// otherwise the browser drops the image into the box as markup the
+			// post cannot carry
+			event.preventDefault()
+			this.attachFiles(files)
+		},
+
+		/**
+		 * Attaches what the composer takes and turns the rest away, which is
+		 * all the file dialog does with them — it never offers them at all.
+		 *
+		 * @param {File[]} files everything that was dropped
+		 */
+		async attachDropped(files) {
+			const accepted = files.filter((file) => this.acceptsFile(file))
+
+			if (accepted.length < files.length) {
+				logger.debug('Refused files the composer does not take', { refused: files.length - accepted.length })
+				this.refuseDrop()
+			}
+
+			if (accepted.length === 0) {
+				return
+			}
+
+			await this.attachFiles(accepted)
+		},
+
+		/** Says no to a drop, briefly and once. */
+		refuseDrop() {
+			this.refusedDrop = true
+			window.clearTimeout(this.refusalTimer)
+			this.refusalTimer = window.setTimeout(() => {
+				this.refusedDrop = false
+			}, REFUSAL_DURATION)
+		},
+
+		/**
+		 * Previews each file, uploads it, and remembers what came back. The one
+		 * road in: the file dialog, a drop and a paste all arrive here.
+		 *
+		 * @param {File[]} files the files to attach, in order
+		 */
+		async attachFiles(files) {
 			for (const [index, file] of files.entries()) {
 				const url = URL.createObjectURL(file)
 				this.attachments = {
@@ -776,19 +955,19 @@ export default {
 
 			logger.debug('Posting status', { visibility: statusData.visibility, attachments: statusData.media_ids.length })
 
-			let sent = false
+			let created
 			try {
 				this.loading = true
 				await this.saveDescriptions()
 				// `post` resolves with the created status and rejects when the
 				// server said no; clearing in a `finally` used to throw the
 				// text away on every failure, offline included
-				sent = await this.$store.dispatch('post', statusData) !== undefined
+				created = await this.$store.dispatch('post', statusData)
 			} finally {
 				this.loading = false
 			}
 
-			if (!sent) {
+			if (created === undefined) {
 				// the store has already said what went wrong; the draft is
 				// still on disk and still in the box
 				this.rememberDraft()
@@ -810,6 +989,7 @@ export default {
 			// the sidebar's modal has no other way of knowing: it cleared the
 			// box and stayed open, which reads as if nothing had happened
 			this.$emit('posted')
+			eventBus.emit('post-published', created)
 		},
 		toggleWarning() {
 			this.showWarning = !this.showWarning
@@ -961,6 +1141,7 @@ $composer-duration: 220ms;
 	transition:
 		padding $composer-duration $composer-ease,
 		border-color $composer-duration $composer-ease,
+		background-color $composer-duration $composer-ease,
 		box-shadow $composer-duration $composer-ease;
 
 	// lifted, not outlined: the box the caret is in draws the ring, and two
@@ -1017,12 +1198,71 @@ $composer-duration: 220ms;
 	}
 }
 
+// A file is being dragged over the card: the whole thing is the target, said
+// with a tint and the primary border it already uses for focus, plus one pill
+// naming what will happen. No dashes, no bounce — it is an invitation, not an
+// alarm, and it borrows the composer's own duration and curve.
+.new-post--drop-target {
+	border-color: var(--color-primary-element);
+	background: var(--color-primary-element-light, var(--color-background-hover));
+
+	.message {
+		border-color: var(--color-primary-element);
+	}
+}
+
+.new-post__drop-hint {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: inherit;
+	// it must never take the drop it is announcing, and it must not turn the
+	// card into a storm of dragenter/dragleave by sitting under the pointer
+	pointer-events: none;
+
+	span {
+		padding: 6px 14px;
+		border-radius: var(--border-radius-pill, 999px);
+		background: var(--color-primary-element);
+		color: var(--color-primary-element-text, var(--color-primary-text));
+		font-size: 13px;
+		font-weight: 600;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+		animation: composer-drop-hint $composer-duration $composer-ease;
+	}
+}
+
+@keyframes composer-drop-hint {
+	0% { opacity: 0; transform: scale(.94); }
+	100% { opacity: 1; transform: scale(1); }
+}
+
+/* what was dropped is not something the composer can take */
+@keyframes composer-refused {
+	0%, 100% { transform: translateX(0); }
+	25% { transform: translateX(-4px); }
+	75% { transform: translateX(4px); }
+}
+
+.new-post--refused {
+	// 400ms, the same span REFUSAL_DURATION keeps the class on for
+	animation: composer-refused 400ms $composer-ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.new-post,
 	.new-post .new-post-form,
 	.new-post .message,
 	.new-post .options {
 		transition: none;
+	}
+
+	.new-post--refused,
+	.new-post__drop-hint span {
+		animation: none;
 	}
 }
 
