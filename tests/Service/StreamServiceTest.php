@@ -174,8 +174,11 @@ class StreamServiceTest extends TestCase {
 			'announce: followers in cc only' => [
 				Stream::TYPE_ANNOUNCE, '', [self::ACTOR_FOLLOWERS], false, true,
 			],
-			'unknown type falls back to public' => [
-				'', ACore::CONTEXT_PUBLIC, [self::ACTOR_FOLLOWERS], true, true,
+			// An unknown visibility must never be treated as public: that is how
+			// a Mastodon client's `private` (which this app calls `followers`)
+			// used to be published to the whole Fediverse.
+			'unknown type is addressed to nobody' => [
+				'', '', [], false, false,
 			],
 		];
 	}

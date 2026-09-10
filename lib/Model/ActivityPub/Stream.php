@@ -50,6 +50,45 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public const TYPE_ANNOUNCE = 'announce';
 
 	/**
+	 * Mastodon calls a followers-only post `private`; this app has always
+	 * called it `followers`. The two vocabularies have to be translated in
+	 * both directions: without it a client's followers-only post arrives as a
+	 * value this app does not know, and `StreamService::setRecipient()` used
+	 * to address exactly those to the public collection.
+	 */
+	private const CLIENT_VISIBILITIES = [
+		'public' => self::TYPE_PUBLIC,
+		'unlisted' => self::TYPE_UNLISTED,
+		'private' => self::TYPE_FOLLOWERS,
+		'followers' => self::TYPE_FOLLOWERS,
+		'direct' => self::TYPE_DIRECT,
+	];
+
+	/**
+	 * Translate a visibility as a client writes it into this app's own
+	 * vocabulary. Anything unrecognised becomes `direct` — the most
+	 * restrictive option. Guessing wrong in the other direction publishes
+	 * somebody's private post to the whole Fediverse.
+	 */
+	public static function visibilityFromClient(string $visibility): string {
+		return self::CLIENT_VISIBILITIES[strtolower(trim($visibility))] ?? self::TYPE_DIRECT;
+	}
+
+	/**
+	 * True when a client sent a visibility this app understands. Callers that
+	 * can report an error to the client should use this and answer 422 rather
+	 * than silently posting to nobody.
+	 */
+	public static function isKnownClientVisibility(string $visibility): bool {
+		return array_key_exists(strtolower(trim($visibility)), self::CLIENT_VISIBILITIES);
+	}
+
+	/** Translate this app's vocabulary back into what a client expects. */
+	public static function visibilityForClient(string $visibility): string {
+		return ($visibility === self::TYPE_FOLLOWERS) ? 'private' : $visibility;
+	}
+
+	/**
 	 * Mastodon's notification type for each notification sub-type. Kept as one
 	 * map so the `types`/`exclude_types` API filter and the exported entity
 	 * cannot drift apart.
@@ -601,7 +640,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setContent($this->get('content', $data));
 		$this->setSensitive($this->getBool('sensitive', $data));
 		$this->setSpoilerText($this->get('spoiler_text', $data));
-		$this->setVisibility($this->get('visibility', $data));
+		$this->setVisibility(self::visibilityFromClient($this->get('visibility', $data)));
 		$this->setLanguage($this->get('language', $data));
 
 		$action = new StreamAction();
@@ -705,7 +744,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),
-			'visibility' => $this->getVisibility(),
+			'visibility' => self::visibilityForClient($this->getVisibility()),
 			'language' => $this->getLanguage(),
 			'in_reply_to_id' => null,
 			'in_reply_to_account_id' => null,

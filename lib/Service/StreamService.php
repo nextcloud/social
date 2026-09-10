@@ -145,7 +145,7 @@ class StreamService {
 			case Stream::TYPE_DIRECT:
 				break;
 
-			default:
+			case Stream::TYPE_PUBLIC:
 				$stream->setTo(ACore::CONTEXT_PUBLIC);
 				$stream->addCc($actor->getFollowers());
 				$stream->addInstancePath(
@@ -153,6 +153,19 @@ class StreamService {
 						$actor->getId(), InstancePath::TYPE_FOLLOWERS,
 						InstancePath::PRIORITY_LOW
 					)
+				);
+				break;
+
+			default:
+				// Fail closed. `public` is spelled out above, so anything
+				// arriving here is a visibility this app does not know, and
+				// addressing it to the public collection — which is what used
+				// to happen — publishes a post its author never meant to make
+				// public. Mastodon's `private` is translated to `followers`
+				// long before this point; see `Stream::visibilityFromClient()`.
+				$this->logger->warning(
+					'refusing to address a stream with an unknown visibility; kept private',
+					['visibility' => $type, 'stream' => $stream->getId()]
 				);
 				break;
 		}

@@ -549,4 +549,56 @@ class StreamTest extends TestCase {
 		$stream->setSensitive(true);
 		$this->assertTrue($stream->isSensitive());
 	}
+
+	/**
+	 * @return array<string, array{string, string}>
+	 */
+	public function clientVisibilityProvider(): array {
+		return [
+			'public' => ['public', Stream::TYPE_PUBLIC],
+			'unlisted' => ['unlisted', Stream::TYPE_UNLISTED],
+			'private is our followers' => ['private', Stream::TYPE_FOLLOWERS],
+			'followers is accepted as-is' => ['followers', Stream::TYPE_FOLLOWERS],
+			'direct' => ['direct', Stream::TYPE_DIRECT],
+			'unknown is never public' => ['nonsense', Stream::TYPE_DIRECT],
+		];
+	}
+
+	/**
+	 * @dataProvider clientVisibilityProvider
+	 */
+	public function testVisibilityFromClient(string $sent, string $expected): void {
+		$this->assertSame($expected, Stream::visibilityFromClient($sent));
+	}
+
+	public function testVisibilityForClientSpeaksMastodon(): void {
+		// `followers` is ours and means nothing to a client; every Mastodon
+		// client expects `private` and some fail to decode the status without it
+		$this->assertSame('private', Stream::visibilityForClient(Stream::TYPE_FOLLOWERS));
+		$this->assertSame('public', Stream::visibilityForClient(Stream::TYPE_PUBLIC));
+		$this->assertSame('unlisted', Stream::visibilityForClient(Stream::TYPE_UNLISTED));
+		$this->assertSame('direct', Stream::visibilityForClient(Stream::TYPE_DIRECT));
+	}
+
+	public function testIsKnownClientVisibility(): void {
+		$this->assertTrue(Stream::isKnownClientVisibility('private'));
+		$this->assertTrue(Stream::isKnownClientVisibility('PUBLIC'));
+		$this->assertFalse(Stream::isKnownClientVisibility('nonsense'));
+		$this->assertFalse(Stream::isKnownClientVisibility(''));
+	}
+
+	public function testAFollowersOnlyStatusIsExportedAsPrivate(): void {
+		$stream = new Stream();
+		$stream->setVisibility(Stream::TYPE_FOLLOWERS);
+
+		$this->assertSame('private', $stream->exportAsLocal()['visibility']);
+	}
+
+	public function testAClientVisibilityRoundTripsThroughImportAndExport(): void {
+		$stream = new Stream();
+		$stream->importFromLocal(['visibility' => 'private']);
+
+		$this->assertSame(Stream::TYPE_FOLLOWERS, $stream->getVisibility());
+		$this->assertSame('private', $stream->exportAsLocal()['visibility']);
+	}
 }
