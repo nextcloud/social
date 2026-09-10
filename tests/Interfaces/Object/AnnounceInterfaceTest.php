@@ -93,9 +93,19 @@ class AnnounceInterfaceTest extends ActivityPubTestCase {
 		return $announce;
 	}
 
+	/** The boosted post as it is stored here: public, or nobody could have boosted it. */
 	private function post(bool $local = true, int $remoteBoosts = 0): Note {
 		$post = $this->note(self::POST, $this->alice->getId(), $local);
+		$post->setTo(Stream::CONTEXT_PUBLIC);
 		$post->setDetailInt('remote_boosts', $remoteBoosts);
+
+		return $post;
+	}
+
+	/** The same post addressed to alice's followers only — never legitimately boosted. */
+	private function followersOnlyPost(): Note {
+		$post = $this->note(self::POST, $this->alice->getId(), true);
+		$post->setTo($this->alice->getFollowers());
 
 		return $post;
 	}
@@ -276,6 +286,35 @@ class AnnounceInterfaceTest extends ActivityPubTestCase {
 		$this->expectException(InvalidOriginException::class);
 
 		$this->handler->processIncomingRequest($this->incomingAnnounce(self::POST, 'evil.example'));
+	}
+
+	public function testBoostOfAFollowersOnlyPostIsNotStored(): void {
+		$this->storedStreamsByType([]);
+		$this->noStoredAction();
+		$this->streamRequest->method('getStreamById')->willReturn($this->followersOnlyPost());
+
+		// a boost carries the audience of the booster: storing this one would
+		// hand alice's followers-only post to everyone bob reaches
+		$this->streamRequest->expects($this->never())->method('save');
+		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');
+		$this->actionsRequest->expects($this->never())->method('save');
+		$this->streamRequest->expects($this->never())->method('updateDetails');
+		$this->notificationInterface->expects($this->never())->method('save');
+
+		$this->handler->processIncomingRequest($this->incomingAnnounce());
+	}
+
+	public function testAnotherBoosterOfAFollowersOnlyPostIsNotAddedToAStoredBoost(): void {
+		$known = $this->knownAnnounce($this->carol->getFollowers());
+		$this->storedStreamsByType([Announce::TYPE => $known]);
+		$this->streamRequest->method('getStreamById')->willReturn($this->followersOnlyPost());
+
+		$this->streamRequest->expects($this->never())->method('update');
+		$this->streamRequest->expects($this->never())->method('save');
+
+		$this->handler->processIncomingRequest($this->incomingAnnounce());
+
+		$this->assertSame([$this->carol->getFollowers()], array_values($known->getCcArray()));
 	}
 
 	public function testUndoDropsTheAnnounceWhenTheLastBoosterLeaves(): void {

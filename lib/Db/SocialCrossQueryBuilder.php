@@ -274,6 +274,16 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	}
 
 	/**
+	 * The status a row points at — the post a boost repeats, the post a
+	 * notification is about — joined so it can be exported alongside.
+	 *
+	 * The object is joined only when the viewer may see it: a boost carries
+	 * the audience of the booster, not of the post, so a remote Announce of a
+	 * followers-only status would otherwise hand that status to everyone the
+	 * booster reaches. When the viewer is not entitled to it the `os_` columns
+	 * come back empty, which reads as "no object": the row stays, its content
+	 * does not.
+	 *
 	 * @param string $alias
 	 */
 	public function leftJoinObjectStatus(
@@ -295,7 +305,10 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			$this->getDefaultSelectAlias(),
 			CoreRequestBuilder::TABLE_STREAM,
 			$leftAlias,
-			$this->expr()->eq($pf . $link, $leftAlias . '.id_prim')
+			$this->expr()->andX(
+				$this->expr()->eq($pf . $link, $leftAlias . '.id_prim'),
+				$this->exprVisibleToViewer($leftAlias)
+			)
 		);
 
 		$this->leftJoinCacheActor(
@@ -304,6 +317,44 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			'osca',
 			'os_'
 		);
+	}
+
+	/**
+	 * The rule limitToViewer() applies to the rows of a request, expressed
+	 * against another alias: addressed to the public collection (public and
+	 * unlisted), written by the viewer, addressed to the viewer, or written by
+	 * an account the viewer follows.
+	 *
+	 * Correlated EXISTS rather than joins: the dest and follow tables are
+	 * already in the request under their own aliases, and a second FROM entry
+	 * for either is a cartesian product (see leftJoinFollowing()) — and a join
+	 * condition cannot be moved to the WHERE without dropping the whole row.
+	 */
+	private function exprVisibleToViewer(string $alias): ICompositeExpression {
+		$dest = $this->getTableName(CoreRequestBuilder::TABLE_STREAM_DEST);
+		$recipient = $this->createNamedParameter('recipient');
+		$public = $this->createNamedParameter($this->prim(Stream::CONTEXT_PUBLIC));
+
+		$conditions = [
+			'EXISTS (SELECT 1 FROM ' . $dest . ' vdp WHERE vdp.stream_id = ' . $alias . '.id_prim'
+			. ' AND vdp.type = ' . $recipient . ' AND vdp.actor_id = ' . $public . ')',
+		];
+
+		if ($this->hasViewer()) {
+			$follows = $this->getTableName(CoreRequestBuilder::TABLE_FOLLOWS);
+			$viewer = $this->createNamedParameter($this->prim($this->getViewer()->getId()));
+
+			$conditions[] = $this->expr()->eq($alias . '.attributed_to_prim', $viewer);
+			$conditions[] = 'EXISTS (SELECT 1 FROM ' . $dest . ' vdv WHERE vdv.stream_id = ' . $alias
+				. '.id_prim AND vdv.actor_id = ' . $viewer . ')';
+			$conditions[] = 'EXISTS (SELECT 1 FROM ' . $dest . ' vdf, ' . $follows . ' vff'
+				. ' WHERE vdf.stream_id = ' . $alias . '.id_prim AND vdf.type = ' . $recipient
+				. ' AND vff.follow_id_prim = vdf.actor_id AND vff.actor_id_prim = ' . $viewer
+				// quoted literal: `accepted` is a boolean column on PostgreSQL, an int elsewhere
+				. " AND vff.accepted = '1')";
+		}
+
+		return $this->expr()->orX(...$conditions);
 	}
 
 	/**

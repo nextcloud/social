@@ -48,6 +48,12 @@ class PinService {
 	public function pin(Person $actor, int $nid): Stream {
 		$post = $this->ownPost($actor, $nid);
 
+		// the featured collection is read by anyone, local or remote, so what
+		// goes into it must be addressed to everyone in the first place
+		if (!$post->isPublic()) {
+			throw new InvalidActionException('you can only pin a public post');
+		}
+
 		if ($this->isPinned($actor->getId(), $post->getId())) {
 			return $post->setPinned(true);
 		}
@@ -117,7 +123,11 @@ class PinService {
 		$posts = [];
 		foreach ($this->getPinnedIds($actorId) as $id) {
 			try {
-				$post = $this->streamRequest->getStreamById($id, $viewer !== null, ACore::FORMAT_LOCAL);
+				// always through the visibility filter: with no viewer that is
+				// the public-only one an anonymous reader gets. Reading these
+				// unfiltered served a pinned followers-only post to whoever
+				// asked for the featured collection.
+				$post = $this->streamRequest->getStreamById($id, true, ACore::FORMAT_LOCAL);
 			} catch (StreamNotFoundException $e) {
 				continue;
 			}
