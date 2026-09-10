@@ -43,9 +43,11 @@ use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TNCDataResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
@@ -563,8 +565,17 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * A profile timeline, which first asks the account's own server for its outbox.
+	 *
+	 * Anyone may call this and the handle names the server that is fetched, so the
+	 * throttle has to be real: without it one anonymous request per second keeps a
+	 * worker busy fetching from, and ingesting into, whatever host the caller picked.
+	 */
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	public function streamAccount(string $username, int $since = 0, int $limit = 5): DataResponse {
 		try {
 			$this->initViewer();
@@ -829,8 +840,18 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * Everything known about one account, resolving an unknown handle remotely.
+	 *
+	 * A handle this instance has never seen costs a host-meta, a WebFinger and four
+	 * signed actor fetches — six outbound requests at a ten-second timeout, aimed at
+	 * a host the caller names and signed by a named local actor. `OStatusController::getLink`
+	 * throttles a single WebFinger lookup for the same reason.
+	 */
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 10, period: 300)]
+	#[UserRateLimit(limit: 120, period: 60)]
 	public function globalAccountInfo(string $account): DataResponse {
 		$this->logger->debug('[LocalController] globalAccountInfo called', ['account' => $account]);
 		try {

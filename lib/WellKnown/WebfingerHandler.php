@@ -23,21 +23,18 @@ use OCP\Http\WellKnown\IHandler;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 
 class WebfingerHandler implements IHandler {
-	private IURLGenerator $urlGenerator;
 	private CacheActorsRequest $cacheActorsRequest;
 	private CacheActorService $cacheActorService;
 	private FediverseService $fediverseService;
 	private ConfigService $configService;
 
 	public function __construct(
-		IURLGenerator $urlGenerator, CacheActorsRequest $cacheActorsRequest,
+		CacheActorsRequest $cacheActorsRequest,
 		CacheActorService $cacheActorService, FediverseService $fediverseService,
 		ConfigService $configService,
 	) {
-		$this->urlGenerator = $urlGenerator;
 		$this->cacheActorsRequest = $cacheActorsRequest;
 		$this->cacheActorService = $cacheActorService;
 		$this->fediverseService = $fediverseService;
@@ -142,10 +139,16 @@ class WebfingerHandler implements IHandler {
 			return new JrdResponse('', Http::STATUS_NOT_FOUND);
 		}
 
-		// ActivityPub profile
-		$href = $this->urlGenerator->getAbsoluteURL(
-			$this->urlGenerator->linkToRoute('social.ActivityPub.actorAlias', ['username' => $actor->getPreferredUsername()])
-		);
+		// ActivityPub profile. The links have to name the actor exactly as its own
+		// document does, so they come from the stored id rather than from the host
+		// this request happened to arrive under: on an instance reachable under two
+		// trusted domains, the request-derived href handed a remote server an actor
+		// id that disagreed with the document it then fetched.
+		$href = $actor->getId();
+		if ($href === '') {
+			return new JrdResponse('', Http::STATUS_NOT_FOUND);
+		}
+
 		$response = new JrdResponse($subjectAcct);
 		$response->addAlias($href);
 		$response->addLink('self', 'application/activity+json', $href);

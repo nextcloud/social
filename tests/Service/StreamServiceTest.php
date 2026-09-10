@@ -949,4 +949,109 @@ class StreamServiceTest extends TestCase {
 
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
 	}
+
+	public function testSyncRemoteTimelineStopsAfterOnePageWorthOfItems(): void {
+		// The page comes from a server the caller names and is bounded only by the
+		// body size cap: without a cut, one anonymous request for a handle on that
+		// server walks the whole page, a lookup and an INSERT per entry.
+		$bob = $this->remoteActor();
+		$items = [];
+		for ($i = 0; $i < 500; $i++) {
+			$items[] = [
+				'type' => 'Note',
+				'id' => 'https://remote.example/notes/' . $i,
+				'attributedTo' => $bob->getId(),
+				'content' => 'flood',
+			];
+		}
+		$this->curlService->method('retrieveObject')->willReturn(['orderedItems' => $items]);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$saved = 0;
+		$this->streamRequest->method('save')->willReturnCallback(function () use (&$saved): void {
+			$saved++;
+		});
+
+		$synced = $this->service->syncRemoteTimeline($bob);
+
+		$this->assertSame(20, $synced);
+		$this->assertSame(20, $saved);
+	}
+
+	public function testSyncRemoteTimelineSanitisesWhatItStores(): void {
+		// This path bypasses NoteInterface::save(), so nothing else validates what
+		// the remote server sent. Content and summary are saved by a read-time
+		// filter; a hashtag has none, and reaches the composer autocomplete as it
+		// was stored.
+		$bob = $this->remoteActor();
+		$this->curlService->method('retrieveObject')->willReturn([
+			'orderedItems' => [[
+				'type' => 'Note',
+				'id' => 'https://remote.example/notes/1',
+				'attributedTo' => $bob->getId(),
+				'content' => '<p>hello</p><script>alert(1)</script>',
+				'summary' => '<b>cw</b>',
+				'tag' => [
+					['type' => 'Hashtag', 'name' => '#foo<img src=x onerror=alert(1)>bar'],
+				],
+			]],
+		]);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$saved = null;
+		$this->streamRequest->expects($this->once())
+			->method('save')
+			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+				$saved = $stream;
+			});
+
+		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
+
+		$this->assertSame(['foobar'], $saved->getHashtags());
+		$this->assertStringNotContainsString('<script', $saved->getContent());
+		$this->assertSame('cw', $saved->getSummary());
+		foreach ($saved->getTags() as $tag) {
+			$this->assertStringNotContainsString('<', $tag['name']);
+		}
+	}
+
+	public function testSyncRemoteTimelineSurvivesAPageOfBareIdsAndOddTypes(): void {
+		// `orderedItems` may list ids rather than objects, and every field below is
+		// whatever the remote server put in its JSON: reading either as a string
+		// used to be a TypeError, which is fatal rather than caught.
+		$bob = $this->remoteActor();
+		$this->curlService->method('retrieveObject')->willReturn([
+			'orderedItems' => [
+				'https://remote.example/notes/bare',
+				[
+					'type' => 'Note',
+					'id' => 'https://remote.example/notes/1',
+					'attributedTo' => $bob->getId(),
+					'content' => ['not' => 'a string'],
+					'url' => ['https://remote.example/@bob/1'],
+					'inReplyTo' => ['nested'],
+					'to' => ['https://remote.example/followers', ['nested']],
+					'cc' => 'https://www.w3.org/ns/activitystreams#Public',
+					'tag' => 'not-a-list',
+				],
+			],
+		]);
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+
+		$saved = null;
+		$this->streamRequest->expects($this->once())
+			->method('save')
+			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+				$saved = $stream;
+			});
+
+		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
+
+		$this->assertSame('', $saved->getContent());
+		$this->assertSame('', $saved->getUrl());
+		$this->assertSame('', $saved->getInReplyTo());
+		$this->assertSame(['https://remote.example/followers'], $saved->getToArray());
+		$this->assertSame([ACore::CONTEXT_PUBLIC], $saved->getCcArray());
+		$this->assertSame([], $saved->getHashtags());
+	}
 }

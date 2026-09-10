@@ -87,7 +87,7 @@ class NotifierTest extends TestCase {
 	}
 
 	public function testNotificationsOfOtherAppsAreRejected(): void {
-		$notification = $this->notification('spreed', 'update_alpha3');
+		$notification = $this->notification('spreed', 'report_new');
 		$this->factory->expects($this->never())->method('get');
 
 		$this->expectException(\InvalidArgumentException::class);
@@ -104,40 +104,32 @@ class NotifierTest extends TestCase {
 		$this->notifier->prepare($notification, 'en');
 	}
 
-	public function testUpdateAlpha3IsParsedInTheRequestedLanguage(): void {
-		$this->translationsFor('de');
-		$this->urlGenerator->method('imagePath')->with('social', 'social_dark.svg')->willReturn('/apps/social/img/social_dark.svg');
-		$this->urlGenerator->method('getAbsoluteURL')->with('/apps/social/img/social_dark.svg')->willReturn('https://cloud.example/apps/social/img/social_dark.svg');
-
-		$notification = $this->notification('social', 'update_alpha3');
-		$notification->expects($this->once())->method('setIcon')->with('https://cloud.example/apps/social/img/social_dark.svg');
-		$notification->expects($this->once())->method('setParsedSubject')->with('The Social App has been updated to alpha3.');
-		$notification->expects($this->once())->method('setParsedMessage')
-			->with($this->stringStartsWith('[de] Please note that the data from alpha2 can only be migrated manually.'));
-
-		$this->assertSame($notification, $this->notifier->prepare($notification, 'de'));
-	}
-
-	public function testHelpActionBecomesThePrimaryParsedAction(): void {
+	public function testTheAlphaMigrationNoticeIsNoLongerANotificationType(): void {
+		// `update_alpha3` announced the 2019 alpha2 -> alpha3 data migration and was
+		// the only thing UpdateService ever sent; nothing has called UpdateService
+		// since, so both it and this branch are gone. What is left of the branch
+		// would be an untranslated English subject and a link to a forum post from
+		// that year.
 		$this->translationsFor('en');
-		$help = $this->action('help');
-		$help->expects($this->once())->method('setParsedLabel')->with('[en] Help');
-		$help->expects($this->once())->method('setPrimary')->with(true);
+		$this->urlGenerator->method('imagePath')->willReturn('/apps/social/img/social_dark.svg');
+		$this->urlGenerator->method('getAbsoluteURL')->willReturn('https://cloud.example/apps/social/img/social_dark.svg');
+		$notification = $this->notification('social', 'update_alpha3');
+		$notification->expects($this->never())->method('setParsedSubject');
 
-		$notification = $this->notification('social', 'update_alpha3', [$help]);
-		$notification->expects($this->once())->method('addParsedAction')->with($help);
+		$this->expectException(\InvalidArgumentException::class);
 
 		$this->notifier->prepare($notification, 'en');
 	}
 
-	public function testUnknownActionsAreForwardedUnparsed(): void {
+	public function testReportsCarryNoActionsToParse(): void {
+		// nothing this app sends carries an action any more: the 'help' button
+		// belonged to the retired update notice
 		$this->translationsFor('en');
-		$other = $this->action('dismiss');
-		$other->expects($this->never())->method('setParsedLabel');
-		$other->expects($this->never())->method('setPrimary');
+		$this->urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example/settings/admin/social');
+		$dismiss = $this->action('dismiss');
 
-		$notification = $this->notification('social', 'update_alpha3', [$other]);
-		$notification->expects($this->once())->method('addParsedAction')->with($other);
+		$notification = $this->notification('social', 'report_new', [$dismiss]);
+		$notification->expects($this->never())->method('addParsedAction');
 
 		$this->notifier->prepare($notification, 'en');
 	}

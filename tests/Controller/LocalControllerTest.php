@@ -39,6 +39,9 @@ use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\RedirectResponse;
@@ -942,5 +945,25 @@ class LocalControllerTest extends TestCase {
 			$this->controller()->uploadBannerByUrl('https://cdn.example/banner.png'),
 			\Exception::class, 'Banner image is too large'
 		);
+	}
+
+	public function testPublicRoutesThatReachOutToRemoteServersAreRateLimited(): void {
+		// Both are #[PublicPage] and both fetch from whatever host the handle names:
+		// globalAccountInfo signs half a dozen outbound requests per call and
+		// streamAccount pulls and ingests a remote outbox. An anonymous throttle is
+		// all that stands between one HTTP request and that work being repeated at
+		// will, the way OStatusController::getLink is already throttled.
+		$reflection = new \ReflectionClass(LocalController::class);
+
+		foreach (['streamAccount', 'globalAccountInfo'] as $route) {
+			$attributes = array_map(
+				fn (\ReflectionAttribute $attribute): string => $attribute->getName(),
+				$reflection->getMethod($route)->getAttributes()
+			);
+
+			$this->assertContains(PublicPage::class, $attributes, $route . ' is expected to stay public');
+			$this->assertContains(AnonRateLimit::class, $attributes, $route . ' is public but not throttled for anonymous callers');
+			$this->assertContains(UserRateLimit::class, $attributes, $route . ' is not throttled for sessions');
+		}
 	}
 }

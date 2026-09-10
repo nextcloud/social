@@ -49,6 +49,16 @@ class StreamService {
 
 	private const ANCESTOR_LIMIT = 5;
 
+	/**
+	 * How many entries of a remote outbox page a single sync walks.
+	 *
+	 * The page comes from a server the caller names and is bounded only by the
+	 * body size cap, so a page of minimal Notes carries tens of thousands of
+	 * entries — each one a lookup and an INSERT. `ApiController::fetchRemoteCollection`
+	 * bounds its own walk over a remote page the same way.
+	 */
+	private const SYNC_ITEM_LIMIT = 20;
+
 	public function __construct(
 		IUrlGenerator $urlGenerator,
 		StreamRequest $streamRequest,
@@ -650,8 +660,14 @@ class StreamService {
 
 			$this->logger->info('[syncRemoteTimeline] Processing items', ['actor' => $actor->getId(), 'count' => count($items)]);
 
-			foreach ($items as $itemData) {
+			foreach (array_slice($items, 0, self::SYNC_ITEM_LIMIT) as $itemData) {
 				try {
+					// An OrderedCollection may list bare ids as well as objects,
+					// and everything below reads the entry as an array.
+					if (!is_array($itemData)) {
+						continue;
+					}
+
 					// Extract the Note data from the activity item
 					$noteData = null;
 					$itemType = $this->get('type', $itemData, '');
@@ -667,7 +683,7 @@ class StreamService {
 						continue;
 					}
 
-					$noteId = $noteData['id'] ?? '';
+					$noteId = $this->get('id', $noteData, '');
 					if ($noteId === '') {
 						continue;
 					}
@@ -676,11 +692,10 @@ class StreamService {
 					// only yield notes that live on that server and belong to the actor
 					// whose outbox is being read. Anything else is that server speaking
 					// for someone it does not host.
+					$attributedTo = $this->get('attributedTo', $noteData, $actor->getId());
 					$actorHost = strtolower((string)parse_url($actor->getId(), PHP_URL_HOST));
 					$noteHost = strtolower((string)parse_url($noteId, PHP_URL_HOST));
-					$authorHost = strtolower(
-						(string)parse_url($noteData['attributedTo'] ?? $actor->getId(), PHP_URL_HOST)
-					);
+					$authorHost = strtolower((string)parse_url($attributedTo, PHP_URL_HOST));
 					if ($actorHost === '' || $noteHost !== $actorHost || $authorHost !== $actorHost) {
 						$this->logger->debug(
 							'[syncRemoteTimeline] Skipping foreign item',
@@ -696,55 +711,45 @@ class StreamService {
 					} catch (StreamNotFoundException $e) {
 					}
 
-					// Manually create a Note with only the fields we need (no attachment processing)
+					// Manually create a Note with only the fields we need (no attachment
+					// processing). Storing without NoteInterface::save() also means
+					// storing without the validation ACore::import() does on the inbox
+					// path, so every field a remote server controls is put through the
+					// same helpers here.
 					$note = new Note();
 					$note->setId($noteId);
 					$note->setType('Note');
-					$note->setUrl($noteData['url'] ?? '');
-					$note->setAttributedTo($noteData['attributedTo'] ?? $actor->getId());
-					$note->setPublished($noteData['published'] ?? date('c'));
-					$note->setContent($noteData['content'] ?? '');
-					$note->setSummary($noteData['summary'] ?? '');
+					$note->setUrl($note->validate(ACore::AS_URL, 'url', $noteData, ''));
+					$note->setAttributedTo($attributedTo);
+					$note->setPublished($this->get('published', $noteData, date('c')));
+					$note->setContent($note->validate(ACore::AS_CONTENT, 'content', $noteData, ''));
+					$note->setSummary($note->validate(ACore::AS_STRING, 'summary', $noteData, ''));
 					$note->setSensitive(!empty($noteData['sensitive']));
 					$note->setSource(json_encode($noteData, JSON_UNESCAPED_SLASHES));
 					$note->setLocal(false);
 
 					// Set conversation / context
-					if (!empty($noteData['conversation'])) {
-						$note->setConversation($noteData['conversation']);
+					$conversation = $note->validate(ACore::AS_ID, 'conversation', $noteData, '');
+					$context = $note->validate(ACore::AS_ID, 'context', $noteData, '');
+					if ($context !== '') {
+						$conversation = $context;
 					}
-					if (!empty($noteData['context'])) {
-						$note->setConversation($noteData['context']);
+					if ($conversation !== '') {
+						$note->setConversation($conversation);
 					}
-					if (!empty($noteData['inReplyTo'])) {
-						$note->setInReplyTo($noteData['inReplyTo']);
-					}
+					$note->setInReplyTo($note->validate(ACore::AS_ID, 'inReplyTo', $noteData, ''));
 
 					// Set to/cc arrays
-					$to = $noteData['to'] ?? [];
-					$cc = $noteData['cc'] ?? [];
-					$note->setToArray(is_array($to) ? $to : [$to]);
-					$note->setCcArray(is_array($cc) ? $cc : [$cc]);
+					$note->setToArray($this->recipientList($noteData['to'] ?? []));
+					$note->setCcArray($this->recipientList($noteData['cc'] ?? []));
 
-					// Process tags (hashtags, mentions) without triggering downloads
-					$tagData = $noteData['tag'] ?? [];
-					if (is_array($tagData)) {
-						$hashtags = [];
-						$allTags = [];
-						foreach ($tagData as $tag) {
-							if (is_array($tag)) {
-								$tagType = $tag['type'] ?? '';
-								if ($tagType === 'Hashtag') {
-									$hashtags[] = ltrim($tag['name'] ?? '', '#');
-								}
-								$allTags[] = $tag;
-							}
-						}
-						$note->setHashtags($hashtags);
-						if (!empty($allTags)) {
-							$note->setTags($allTags);
-						}
-					}
+					// Process tags (hashtags, mentions) without triggering downloads.
+					// A hashtag is the one stored string with no read-time filter behind
+					// it — it reaches the composer's autocomplete as it was stored — so
+					// the tag names are sanitised here, exactly as `ACore::import()` and
+					// `Note::fillHashtags()` do for anything arriving over the inbox.
+					$note->setTags($note->validateArray(ACore::AS_TAGS, 'tag', $noteData, []));
+					$note->fillHashtags();
 
 					// Attachments are not processed during sync to avoid
 					// memory-exhausting remote file downloads. They will be
@@ -794,5 +799,14 @@ class StreamService {
 		}
 
 		return $synced;
+	}
+
+	/**
+	 * The `to`/`cc` of a remote object: a single recipient may be sent as a bare
+	 * string instead of a list, and anything in the list that is not a string is
+	 * not an address this app can store.
+	 */
+	private function recipientList(mixed $value): array {
+		return array_values(array_filter(is_array($value) ? $value : [$value], 'is_string'));
 	}
 }

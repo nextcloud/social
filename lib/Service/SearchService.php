@@ -61,15 +61,22 @@ class SearchService {
 	 * Full-text search over the statuses the viewer can see. The viewer bound
 	 * comes from StreamRequest::setViewer(), set by the caller.
 	 *
+	 * $limit is how many rows a caller that pages its results needs; null asks
+	 * for as many as the request returns on its own.
+	 *
 	 * @return \OCA\Social\Model\ActivityPub\Stream[]
 	 */
-	public function searchStreamContent(string $search): array {
+	public function searchStreamContent(string $search, ?int $limit = null): array {
 		$type = $this->getTypeFromSearch($search);
 		if ($search === '' || !($type & self::SEARCH_CONTENT)) {
 			return [];
 		}
 
-		return $this->streamRequest->searchContent($search);
+		if ($limit === null) {
+			return $this->streamRequest->searchContent($search);
+		}
+
+		return $this->streamRequest->searchContent($search, $limit);
 	}
 
 	/**
@@ -92,10 +99,11 @@ class SearchService {
 
 	/**
 	 * @param string $search
+	 * @param int|null $limit how many accounts a paging caller needs, null for all of them
 	 *
 	 * @return Person[]
 	 */
-	public function searchAccounts(string $search): array {
+	public function searchAccounts(string $search, ?int $limit = null): array {
 		$type = $this->getTypeFromSearch($search);
 
 		if ($search === '' || !($type & self::SEARCH_ACCOUNTS)) {
@@ -110,15 +118,20 @@ class SearchService {
 		} catch (Exception $e) {
 		}
 
-		return $this->cacheActorService->searchCachedAccounts($search);
+		$accounts = $this->cacheActorService->searchCachedAccounts($search);
+
+		// TODO: push the cut into CacheActorsRequest::searchAccounts() so the
+		// database stops loading rows nobody asked for
+		return ($limit === null) ? $accounts : array_slice($accounts, 0, $limit);
 	}
 
 	/**
 	 * @param string $search
+	 * @param int|null $limit how many hashtags a paging caller needs, null for all of them
 	 *
 	 * @return array
 	 */
-	public function searchHashtags(string $search): array {
+	public function searchHashtags(string $search, ?int $limit = null): array {
 		$result = [];
 		$type = $this->getTypeFromSearch($search);
 		if ($search === '' || !($type & self::SEARCH_HASHTAGS)) {
@@ -129,7 +142,11 @@ class SearchService {
 			$search = substr($search, 1);
 		}
 
-		return $this->hashtagService->searchHashtags($search, true);
+		$hashtags = $this->hashtagService->searchHashtags($search, true);
+
+		// TODO: push the cut into HashtagsRequest::searchHashtags() so the
+		// database stops loading rows nobody asked for
+		return ($limit === null) ? $hashtags : array_slice($hashtags, 0, $limit);
 	}
 
 	/**

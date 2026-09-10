@@ -86,16 +86,6 @@ class Notifier implements INotifier {
 		$params = $notification->getSubjectParameters();
 
 		switch ($notification->getSubject()) {
-			case 'update_alpha3':
-				$notification->setParsedSubject('The Social App has been updated to alpha3.');
-				$notification->setParsedMessage(
-					$l10n->t(
-						'Please note that the data from alpha2 can only be migrated manually.
-						A detailed documentation to guide you during this process is available using the button below.'
-					)
-				);
-				break;
-
 			case 'report_new':
 				$account = (string)($params['account'] ?? '');
 				$notification->setParsedSubject(
@@ -113,17 +103,6 @@ class Notifier implements INotifier {
 
 			default:
 				throw new InvalidArgumentException();
-		}
-
-		foreach ($notification->getActions() as $action) {
-			switch ($action->getLabel()) {
-				case 'help':
-					$action->setParsedLabel($l10n->t('Help'))
-						->setPrimary(true);
-					break;
-			}
-
-			$notification->addParsedAction($action);
 		}
 
 		return $notification;
