@@ -12,6 +12,7 @@ namespace OCA\Social\Db;
 use DateTime;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\RequestQueue;
+use OCA\Social\Service\RequestQueueService;
 use OCP\DB\Exception;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -65,10 +66,26 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 	 * @return list<RequestQueue>
 	 * @throws Exception
 	 */
-	public function getStandby(): array {
+	public function getStandby(int $maxTries = RequestQueueService::MAX_TRIES): array {
+		// what the drain has given up on goes first: the query below cannot
+		// return those rows any more, and nothing else walks this table
+		$this->deleteExhausted($maxTries);
+
 		$qb = $this->getRequestQueueSelectSql();
 		$this->limitToStatus($qb, RequestQueue::STATUS_STANDBY);
-		$qb->orderBy('id', 'asc');
+		// the retry backoff and the give-up threshold, in the query rather than
+		// in PHP afterwards: one dead instance otherwise fills the whole window
+		// with rows that are not due, and starves every other delivery
+		$this->limitToQueueDue($qb, $maxTries);
+		// what is most urgent first, then what has been tried least, then the
+		// oldest attempt. 'id asc' alone handed the window to whatever was
+		// queued earliest regardless of priority; `tries` comes before `last`
+		// because a row that was never attempted has a NULL `last`, and where
+		// NULL sorts differs between MySQL and PostgreSQL.
+		$qb->orderBy('rq.priority', 'desc');
+		$qb->addOrderBy('rq.tries', 'asc');
+		$qb->addOrderBy('rq.last', 'asc');
+		$qb->addOrderBy('rq.id', 'asc');
 		$qb->setMaxResults(self::STANDBY_BATCH);
 
 		$requests = [];
@@ -239,6 +256,23 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$this->limitToId($qb, $queue->getId());
 
 		$qb->executeStatement();
+	}
+
+	/**
+	 * Drops the requests that have exhausted their retries. getStandby() no
+	 * longer returns them — the threshold is part of the query — so this is
+	 * what keeps the table from holding them forever.
+	 *
+	 * @return int rows removed
+	 * @throws Exception
+	 */
+	public function deleteExhausted(int $maxTries = RequestQueueService::MAX_TRIES): int {
+		$qb = $this->getRequestQueueDeleteSql();
+		$qb->andWhere(
+			$qb->expr()->gte('tries', $qb->createNamedParameter($maxTries, IQueryBuilder::PARAM_INT))
+		);
+
+		return $qb->executeStatement();
 	}
 
 	public function deleteByAuthor(string $actorId): void {

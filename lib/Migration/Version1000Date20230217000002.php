@@ -70,11 +70,16 @@ class Version1000Date20230217000002 extends SimpleMigrationStep {
 			}
 
 			if (!$table->hasColumn('account')) {
+				// the default is what makes this safe to add to a table that
+				// already has rows: PostgreSQL refuses a NOT NULL column
+				// without one ("column contains null values") where MySQL
+				// quietly fills in the empty string
 				$table->addColumn(
 					'account', Types::STRING,
 					[
 						'notnull' => true,
 						'length' => 127,
+						'default' => '',
 					]
 				);
 			}

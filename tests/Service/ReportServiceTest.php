@@ -195,13 +195,15 @@ class ReportServiceTest extends TestCase {
 		$gone = new Report();
 		$gone->setAccountId('https://gone.example/@x');
 		$this->reportsRequest->method('getAll')->willReturn([$known, $gone]);
-		$this->cacheActorService->method('getFromId')
-			->willReturnCallback(function (string $id): Person {
-				if ($id === self::BOB) {
-					return $this->person(self::BOB);
-				}
-				throw new CacheActorDoesNotExistException();
-			});
+
+		// one query for the accounts of the whole page, and no federated
+		// request on a miss: a page of reports must not be able to hang on
+		// someone else's instance
+		$this->cacheActorService->expects($this->once())
+			->method('getCachedFromIds')
+			->with([self::BOB, 'https://gone.example/@x'])
+			->willReturn([self::BOB => $this->person(self::BOB)]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 
 		$reports = $this->service->getReports();
 

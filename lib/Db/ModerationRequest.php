@@ -19,9 +19,15 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * acts rarely — so the readers below are content to fetch the whole set.
  */
 class ModerationRequest extends CoreRequestBuilder {
+	/**
+	 * Records the decision about an account, replacing any earlier one.
+	 *
+	 * Insert first and update on conflict, rather than delete and then insert:
+	 * that order loses the old decision the moment the insert fails, and the
+	 * failure was only logged — so the account ended up under no decision at
+	 * all while the panel reported the new one as applied.
+	 */
 	public function save(Moderation $moderation): void {
-		$this->delete($moderation->getActorId());
-
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_MODERATION)
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($moderation->getActorId())))
@@ -32,9 +38,27 @@ class ModerationRequest extends CoreRequestBuilder {
 
 		try {
 			$qb->executeStatement();
+
+			return;
 		} catch (DBException $e) {
-			$this->logger->error('could not record a moderation decision', ['exception' => $e]);
+			if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				$this->logger->error('could not record a moderation decision', ['exception' => $e]);
+
+				throw $e;
+			}
 		}
+
+		$update = $this->getQueryBuilder();
+		$update->update(self::TABLE_MODERATION)
+			->set('actor_id', $update->createNamedParameter($moderation->getActorId()))
+			->set('level', $update->createNamedParameter($moderation->getLevel()))
+			->set('comment', $update->createNamedParameter($moderation->getComment()))
+			->set('creation', $update->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			->where($update->expr()->eq(
+				'actor_id_prim', $update->createNamedParameter($update->prim($moderation->getActorId()))
+			));
+
+		$update->executeStatement();
 	}
 
 	public function delete(string $actorId): void {

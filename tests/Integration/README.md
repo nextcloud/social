@@ -31,6 +31,15 @@ to stop.
   reaped back to standby.
 - `Db/ActorRelationRequestTest` / `Db/StreamFilterTest` — block/mute storage and
   the hidden-actor anti-join on every timeline.
+- `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
+  each command built by the real container, so a constructor these tests cannot
+  satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
+  cover the destructive paths without taking them: both refusal paths (a
+  declined prompt, and `--no-interaction` without `--force`, which used to exit
+  0 having done nothing) and the `--uri` option the app's own advice names.
+  `QueueRetryTest` and `QueueStatusTest` drive the delivery queue through a
+  failure and back out again; `StreamPruneTest` covers the retention guard and
+  `--dry-run`.
 
 ## Running
 

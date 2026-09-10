@@ -29,6 +29,8 @@ class ServiceInterfaceTest extends ActorInterfaceTestCase {
 			$this->streamDestRequest,
 			$this->actorService,
 			$this->configService,
+			$this->streamActionsRequest,
+			$this->reportsRequest,
 		);
 	}
 

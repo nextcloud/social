@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Db;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -26,10 +27,12 @@ class FollowLifecycleTest extends TestCase {
 	private const NEW_BOB = 'https://new.example/fltest/users/bob';
 
 	private FollowsRequest $request;
+	private CacheActorsRequest $cacheActorsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->request = Server::get(FollowsRequest::class);
+		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
 		$this->cleanup();
 	}
 
@@ -41,7 +44,20 @@ class FollowLifecycleTest extends TestCase {
 	private function cleanup(): void {
 		foreach ([self::ALICE, self::BOB, self::NEW_BOB] as $id) {
 			$this->request->deleteRelatedId($id);
+			$this->cacheActorsRequest->deleteCacheById($id);
 		}
+	}
+
+	/** A cached actor with the inboxes a delivery would be addressed to. */
+	private function cached(string $id, string $sharedInbox): void {
+		$actor = new Person();
+		$actor->setId($id);
+		$actor->setAccount(md5($id) . '@remote.example');
+		$actor->setInbox($id . '/inbox');
+		$actor->setSharedInbox($sharedInbox);
+		$actor->setFollowers($id . '/followers');
+		$actor->setFollowing($id . '/following');
+		$this->cacheActorsRequest->save($actor);
 	}
 
 	private function follow(string $id, string $actor, string $object, bool $accepted): Follow {
@@ -113,6 +129,56 @@ class FollowLifecycleTest extends TestCase {
 		$this->assertSame([], $this->request->getPendingByObjectId(self::BOB));
 		$this->assertSame(0, $this->request->countPendingRequests(self::BOB));
 		$this->assertSame(2, $this->request->countFollowers(self::BOB));
+	}
+
+	public function testFollowerInboxesAreResolvedToOnePerInstance(): void {
+		// this is what the delivery fan-out needs, and all it needs: the whole
+		// follower list used to be hydrated into memory for it, one Person and
+		// its details per follower, for every post
+		$this->cached(self::ALICE, 'https://cloud.example.org/fltest/inbox');
+		$this->cached(self::NEW_BOB, 'https://cloud.example.org/fltest/inbox');
+		$this->follow(self::ALICE . '#follow/8', self::ALICE, self::BOB, true);
+		$this->follow(self::NEW_BOB . '#follow/9', self::NEW_BOB, self::BOB, true);
+
+		$this->assertSame(
+			['https://cloud.example.org/fltest/inbox'],
+			$this->request->getFollowerInboxes(self::BOB),
+			'two followers on one instance are one delivery'
+		);
+	}
+
+	public function testAFollowerWithNoSharedInboxIsDeliveredToPersonally(): void {
+		$this->cached(self::ALICE, '');
+		$this->follow(self::ALICE . '#follow/10', self::ALICE, self::BOB, true);
+
+		$this->assertSame([self::ALICE . '/inbox'], $this->request->getFollowerInboxes(self::BOB));
+	}
+
+	public function testAPendingFollowerIsNotDeliveredTo(): void {
+		$this->cached(self::ALICE, '');
+		$this->follow(self::ALICE . '#follow/11', self::ALICE, self::BOB, false);
+
+		$this->assertSame([], $this->request->getFollowerInboxes(self::BOB));
+	}
+
+	public function testAFollowerListCanBePaged(): void {
+		$this->follow(self::ALICE . '#follow/12', self::ALICE, self::BOB, true);
+		$this->follow(self::NEW_BOB . '#follow/13', self::NEW_BOB, self::BOB, true);
+
+		$this->assertCount(2, $this->request->getFollowersByActorId(self::BOB));
+		$this->assertCount(1, $this->request->getFollowersByActorId(self::BOB, 1));
+		$this->assertCount(1, $this->request->getFollowersByActorId(self::BOB, 1, 1));
+		$this->assertCount(0, $this->request->getFollowersByActorId(self::BOB, 1, 2));
+	}
+
+	public function testDeleteByIdFindsTheRowByItsPrimaryKey(): void {
+		// the delete used to be LOWER(id) over a TEXT column while id_prim,
+		// the primary key of the table, held exactly this
+		$follow = $this->follow(self::ALICE . '#follow/14', self::ALICE, self::BOB, true);
+
+		$this->request->deleteById($follow->getId());
+
+		$this->assertSame(0, $this->request->countFollowers(self::BOB));
 	}
 
 	public function testDeleteByPersonsRemovesExactlyThatEdge(): void {

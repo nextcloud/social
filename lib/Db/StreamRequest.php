@@ -21,6 +21,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Moderation;
+use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
@@ -38,6 +39,8 @@ use Psr\Log\LoggerInterface;
  */
 class StreamRequest extends StreamRequestBuilder {
 	private const NID_LIMIT = 1000000;
+	/** How many posts one pass of deleteByAuthor() removes. */
+	public const DELETE_BATCH = 500;
 	private StreamDestRequest $streamDestRequest;
 	private StreamTagsRequest $streamTagsRequest;
 
@@ -50,6 +53,7 @@ class StreamRequest extends StreamRequestBuilder {
 		ConfigService $configService,
 		MiscService $miscService,
 		private ModerationRequest $moderationRequest,
+		private CacheDocumentService $cacheDocumentService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 
@@ -989,52 +993,209 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * @param int $since
+	 * How often each hashtag was used since a point in time.
 	 *
-	 * @return Stream[]
-	 * @throws DateTimeException
+	 * This is what the trends cron needs, and all it needs. It used to hydrate
+	 * the posts themselves — every column of every note, plus its action row —
+	 * and count the tags in PHP, bounded to a sample of the most recent
+	 * thousand notes; on a busy instance all five windows saw the same
+	 * thousand notes and every period therefore reported the same count.
+	 *
+	 * @return array<string, int> hashtag => how many posts used it
 	 */
-	/** Notes are hydrated for hashtag trends, so the window is bounded to the most
-	 * recent ones — an unbounded fetch over a busy instance is a cron memory fatal.
-	 * (A SQL COUNT(*) … GROUP BY hashtag over social_stream_tag would remove the
-	 * hydration entirely and is the better long-term fix; it needs integration-test
-	 * coverage this suite does not yet have.) */
-	public const TREND_SAMPLE = 1000;
+	public function countHashtagsSince(int $since): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
 
-	public function getNoteSince(int $since): array {
-		$qb = $this->getStreamSelectSql();
-		$qb->limitToSince($since, 'published_time');
-		$qb->limitToStatusTypes();
-		$qb->leftJoinStreamAction();
-		$qb->setMaxResults(self::TREND_SAMPLE);
-		$qb->orderBy($qb->getDefaultSelectAlias() . '.published_time', 'desc');
+		$date = new DateTime();
+		$date->setTimestamp($since);
 
-		return $this->getStreamsFromRequest($qb);
+		$qb->select('st.hashtag')
+			->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_STREAM_TAGS, 'st')
+			->innerJoin('st', self::TABLE_STREAM, 's', $expr->eq('s.id_prim', 'st.stream_id'))
+			->where($expr->gte(
+				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+			))
+			->groupBy('st.hashtag');
+
+		$counts = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$counts[(string)$data['hashtag']] = (int)$data['total'];
+		}
+		$cursor->closeCursor();
+
+		return $counts;
 	}
 
 	/**
-	 * @param string $id
-	 * @param string $type
+	 * Removes a post and everything that hangs off it.
+	 *
+	 * A post is not one row: its recipients (which is what puts it in a
+	 * timeline), the interaction flags on it, its hashtags, its link card, the
+	 * Like/Announce rows pointing at it and its cached attachments all key on
+	 * it. Deleting only the `social_stream` row left every one of those behind
+	 * in five tables plus the files on disk, for good — nothing else ever
+	 * looks at them again.
+	 *
+	 * @param string $type when given, the post is only removed if it is of
+	 *                     that type — and then nothing else is touched either
 	 */
 	public function deleteById(string $id, string $type = '') {
 		$qb = $this->getStreamDeleteSql();
-		$qb->limitToIdPrim($qb->prim($id));
+		$prim = $this->streamPrim($qb, $id);
+		if ($prim === '') {
+			return;
+		}
 
+		$qb->limitToIdPrim($prim);
 		if ($type !== '') {
 			$qb->limitToType($type);
 		}
 
-		$qb->executeStatement();
+		$deleted = $qb->executeStatement();
+		if ($type !== '' && $deleted === 0) {
+			// a guarded delete that matched nothing: the post is of another
+			// type and still exists, so its related rows are still in use
+			return;
+		}
+
+		$this->deleteRelatedTo([$prim]);
 	}
 
 	/**
-	 * @param string $actorId
+	 * Removes every post of an author, and everything that hangs off each of
+	 * them. Done in batches: an account at scale has more posts than the
+	 * cascade wants to name in one IN () list.
 	 */
 	public function deleteByAuthor(string $actorId) {
-		$qb = $this->getStreamDeleteSql();
-		$qb->limitToAttributedTo($actorId, true);
+		while (true) {
+			$prims = $this->getIdPrimsByAuthor($actorId, self::DELETE_BATCH);
+			if ($prims === []) {
+				return;
+			}
 
-		$qb->executeStatement();
+			$this->deleteRelatedTo($prims);
+
+			$qb = $this->getStreamDeleteSql();
+			$qb->andWhere($qb->expr()->in(
+				'id_prim',
+				$qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+			if ($qb->executeStatement() === 0) {
+				// nothing was removed, so the next pass would select the very
+				// same rows: stop rather than spin
+				return;
+			}
+		}
+	}
+
+	/**
+	 * @return string[] id_prim of the posts of an author
+	 */
+	private function getIdPrimsByAuthor(string $actorId, int $limit): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('s.id_prim')
+			->from(self::TABLE_STREAM, 's')
+			->where($qb->expr()->eq(
+				's.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))
+			))
+			->setMaxResults($limit);
+
+		$cursor = $qb->executeQuery();
+		$prims = array_map(static fn (array $row): string => (string)$row['id_prim'], $cursor->fetchAll());
+		$cursor->closeCursor();
+
+		return $prims;
+	}
+
+	/**
+	 * Removes the rows and the cached files that belong to a set of posts,
+	 * addressed by their id_prim. The single place that knows what "related to
+	 * a post" means.
+	 *
+	 * @param string[] $prims
+	 *
+	 * @return int how many cached attachment rows were removed
+	 */
+	public function deleteRelatedTo(array $prims): int {
+		if ($prims === []) {
+			return 0;
+		}
+
+		$documents = $this->deleteDocumentsOf($prims);
+
+		foreach ([
+			// dest and tag rows hold the prim in a column that is not named for it
+			[self::TABLE_STREAM_DEST, 'stream_id'],
+			[self::TABLE_STREAM_TAGS, 'stream_id'],
+			[self::TABLE_STREAM_ACTIONS, 'stream_id_prim'],
+			[self::TABLE_STREAM_CARDS, 'stream_id_prim'],
+			// the Like and Announce activities pointing at the post
+			[self::TABLE_ACTIONS, 'object_id_prim'],
+		] as [$table, $field]) {
+			$qb = $this->getQueryBuilder();
+			$qb->delete($table)
+				->where($qb->expr()->in(
+					$field, $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
+				));
+			$qb->executeStatement();
+		}
+
+		return $documents;
+	}
+
+	/**
+	 * The cached attachments of a set of posts: the files first, then the rows
+	 * that name them — a row without its file is recoverable, a file without
+	 * its row is not.
+	 *
+	 * @param string[] $prims
+	 */
+	private function deleteDocumentsOf(array $prims): int {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id_prim', 'local_copy', 'resized_copy')
+			->from(self::TABLE_CACHE_DOCUMENTS)
+			->where($qb->expr()->in(
+				'parent_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)
+			));
+
+		$cursor = $qb->executeQuery();
+		$rows = $cursor->fetchAll();
+		$cursor->closeCursor();
+		if ($rows === []) {
+			return 0;
+		}
+
+		foreach ($rows as $row) {
+			$this->cacheDocumentService->removeFromCache((string)$row['local_copy']);
+			$this->cacheDocumentService->removeFromCache((string)$row['resized_copy']);
+		}
+
+		$delete = $this->getQueryBuilder();
+		$delete->delete(self::TABLE_CACHE_DOCUMENTS)
+			->where($delete->expr()->in('id_prim', $delete->createNamedParameter(
+				array_map(static fn (array $row): string => (string)$row['id_prim'], $rows),
+				IQueryBuilder::PARAM_STR_ARRAY
+			)));
+
+		return $delete->executeStatement();
+	}
+
+	/**
+	 * A post is addressed either by its uri or, from the dest table, by the
+	 * prim it is stored under there — the two are not distinguishable by the
+	 * signature, and reading an already-hashed id as a uri hashes it twice and
+	 * silently matches nothing.
+	 */
+	private function streamPrim(SocialQueryBuilder $qb, string $id): string {
+		$prim = $qb->prim($id);
+		if ($prim !== '') {
+			return $prim;
+		}
+
+		return (preg_match('/^[0-9a-f]{32}$/', $id) === 1) ? $id : '';
 	}
 
 	/**
@@ -1145,6 +1306,9 @@ class StreamRequest extends StreamRequestBuilder {
 	public function getRelatedToActor(string $actorId) {
 	}
 
+	/** How much of a thread one context request returns. */
+	public const MAX_DESCENDANTS = 200;
+
 	/**
 	 * @param string $id
 	 *
@@ -1156,6 +1320,11 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->filterType(SocialAppNotification::TYPE);
 		$qb->limitToViewer('sd', 'f', true);
 		$qb->limitToInReplyTo($id, true);
+		// a thread is read by anyone, logged in or not, and every row comes
+		// back fully hydrated: the context of a post that thousands replied to
+		// is not something to hand to PHP whole
+		$qb->setMaxResults(self::MAX_DESCENDANTS);
+		$qb->orderBy('s.published_time', 'asc');
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		//$qb->filterDuplicate();

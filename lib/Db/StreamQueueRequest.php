@@ -20,6 +20,12 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * @package OCA\Social\Db
  */
 class StreamQueueRequest extends StreamQueueRequestBuilder {
+	/** How many standby items a single cron pass hydrates. */
+	public const STANDBY_BATCH = 200;
+
+	/** An item is abandoned after this many failed attempts. */
+	public const MAX_TRIES = 10;
+
 	/**
 	 * create a new Queue in the database.
 	 *
@@ -41,9 +47,18 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	 * @return StreamQueue[]
 	 */
 	public function getStandby(): array {
+		// what the drain has given up on goes first: the query below cannot
+		// return those rows any more, and nothing else walks this table
+		$this->deleteExhausted();
+
 		$qb = $this->getStreamQueueSelectSql();
 		$this->limitToStatus($qb, StreamQueue::STATUS_STANDBY);
-		$qb->orderBy('id', 'asc');
+		// the backoff and the give-up threshold belong in the query: filtering
+		// them in PHP means the items of one unreachable host sit in the
+		// window forever and nothing behind them is ever cached
+		$this->limitToQueueDue($qb, self::MAX_TRIES);
+		$qb->orderBy('qs.id', 'asc');
+		$qb->setMaxResults(self::STANDBY_BATCH);
 
 		$requests = [];
 		$cursor = $qb->executeQuery();
@@ -101,13 +116,15 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 	}
 
 	/**
-	 * @param StreamQueue $queue
+	 * A cached item has nothing left to record, so the row goes rather than
+	 * staying as a STATUS_SUCCESS row nothing ever reads or removes — which is
+	 * what made this table grow without bound. The in-memory status is still
+	 * set, so a caller that inspects the model afterwards sees the outcome.
 	 *
 	 * @throws QueueStatusException
 	 */
 	public function setAsSuccess(StreamQueue &$queue) {
-		$qb = $this->getStreamQueueUpdateSql();
-		$qb->set('status', $qb->createNamedParameter(StreamQueue::STATUS_SUCCESS));
+		$qb = $this->getStreamQueueDeleteSql();
 		$this->limitToId($qb, $queue->getId());
 		$this->limitToStatus($qb, StreamQueue::STATUS_RUNNING);
 
@@ -141,7 +158,39 @@ class StreamQueueRequest extends StreamQueueRequestBuilder {
 			throw new QueueStatusException();
 		}
 
-		$queue->setStatus(StreamQueue::STATUS_SUCCESS);
+		// the row is back on standby with one more try against it; saying
+		// STATUS_SUCCESS here made the returned model contradict the table
+		$queue->setStatus(StreamQueue::STATUS_STANDBY);
+	}
+
+	/**
+	 * Drops the items that have exhausted their retries — kept out of
+	 * getStandby() by the same threshold, so nothing else would ever remove
+	 * them.
+	 *
+	 * @return int rows removed
+	 */
+	public function deleteExhausted(int $maxTries = self::MAX_TRIES): int {
+		$qb = $this->getStreamQueueDeleteSql();
+		$qb->andWhere(
+			$qb->expr()->gte('tries', $qb->createNamedParameter($maxTries, IQueryBuilder::PARAM_INT))
+		);
+
+		return $qb->executeStatement();
+	}
+
+	/**
+	 * Drops the items a previous version of the app left behind as
+	 * STATUS_SUCCESS rows: they are done, nothing reads them, and nothing
+	 * removed them. A cached item no longer becomes one of these.
+	 *
+	 * @return int rows removed
+	 */
+	public function deleteCompleted(): int {
+		$qb = $this->getStreamQueueDeleteSql();
+		$this->limitToStatus($qb, StreamQueue::STATUS_SUCCESS);
+
+		return $qb->executeStatement();
 	}
 
 	/**

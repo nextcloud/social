@@ -60,8 +60,8 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function getAction(string $actorId, string $objectId, string $type): ACore {
 		$qb = $this->getActionsSelectSql();
-		$qb->limitToActorIdPrim($qb->prim($actorId));
-		$qb->limitToObjectIdPrim($qb->prim($objectId));
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
+		$this->limitToPrim($qb, 'object_id_prim', $objectId);
 		$qb->limitToType($type);
 
 		return $this->getActionFromRequest($qb);
@@ -76,8 +76,8 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public function getActionFromItem(ACore $item): ACore {
 		$qb = $this->getActionsSelectSql();
 
-		$qb->limitToActorIdPrim($qb->prim($item->getActorId()));
-		$qb->limitToObjectIdPrim($qb->prim($item->getObjectId()));
+		$this->limitToPrim($qb, 'actor_id_prim', $item->getActorId());
+		$this->limitToPrim($qb, 'object_id_prim', $item->getObjectId());
 		$qb->limitToType($item->getType());
 
 		return $this->getActionFromRequest($qb);
@@ -91,7 +91,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function countActions(string $objectId, string $type): int {
 		$qb = $this->countActionsSelectSql();
-		$qb->limitToObjectIdPrim($qb->prim($objectId));
+		$this->limitToPrim($qb, 'object_id_prim', $objectId);
 		$qb->limitToType($type);
 
 		$cursor = $qb->executeQuery();
@@ -106,9 +106,12 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 *
 	 * @return ACore[]
 	 */
-	public function getActionsByActor(string $actorId, string $type): array {
+	public function getActionsByActor(string $actorId, string $type, int $limit = 0): array {
 		$qb = $this->getActionsSelectSql();
-		$qb->limitToActorIdPrim($qb->prim($actorId));
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 		$qb->limitToType($type);
 		$qb->orderBy('a.creation', 'desc');
 
@@ -132,9 +135,12 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 *
 	 * @return Like[]
 	 */
-	public function getByObjectId(string $objectId): array {
+	public function getByObjectId(string $objectId, int $limit = 0): array {
 		$qb = $this->getActionsSelectSql();
-		$qb->limitToObjectIdPrim($qb->prim($objectId));
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
+		$this->limitToPrim($qb, 'object_id_prim', $objectId);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 
 		return $this->getActionsFromRequest($qb);
@@ -145,7 +151,7 @@ class ActionsRequest extends ActionsRequestBuilder {
 	 */
 	public function delete(ACore $item) {
 		$qb = $this->getActionsDeleteSql();
-		$this->limitToIdString($qb, $item->getId());
+		$this->limitToIdPrimString($qb, $item->getId());
 		$this->limitToType($qb, $item->getType());
 
 		$qb->executeStatement();

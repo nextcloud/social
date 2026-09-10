@@ -12,18 +12,222 @@ namespace OCA\Social\Tests\Command;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The occ commands (lib/Command/*) extend the server-internal
- * OC\Core\Command\Base, itself a Symfony Console command. Neither the server
- * nor symfony/console is part of this standalone harness, so the command
- * classes cannot even be autoloaded here (a fatal, not an exception), and
- * Symfony's CommandTester is unavailable. This placeholder documents the gap.
+ * What can be asserted about the occ commands without a server.
+ *
+ * The commands extend OC\Core\Command\Base, which this standalone harness has
+ * no autoloader for, so nothing here instantiates one — the real behaviour is
+ * tested in tests/Integration/Command/, which boots a server and drives each
+ * command through Symfony's CommandTester. What is left for a unit test is the
+ * class of bug that lives in the *strings*: advice that names an option the
+ * named command does not declare, and a destructive command with no way to
+ * confirm it.
  */
 class CommandsTest extends TestCase {
-	public function testCommandsNeedTheServerAndSymfonyConsole(): void {
-		if (class_exists(\OC\Core\Command\Base::class) && class_exists(\Symfony\Component\Console\Tester\CommandTester::class)) {
-			$this->fail('The command dependencies are now available: write the tests/Command/*Test.php suite.');
+	/** Options every occ command inherits, so no command declares them itself. */
+	private const INHERITED_OPTIONS = [
+		'output', 'no-interaction', 'no-warnings', 'verbose', 'quiet', 'help',
+		'version', 'ansi', 'no-ansi',
+	];
+
+	/** Files in lib/Command/ that register no command of their own. */
+	private const NOT_COMMANDS = ['ExtendedBase'];
+
+	public function testEveryCommandFileRegistersASocialCommand(): void {
+		$names = [];
+		foreach ($this->commandFiles() as $file => $code) {
+			$class = basename($file, '.php');
+			if (in_array($class, self::NOT_COMMANDS, true)) {
+				continue;
+			}
+
+			$name = $this->commandNameOf($code);
+			$this->assertNotNull($name, $class . ' declares no setName().');
+			$this->assertStringStartsWith('social:', $name, $class . ' does not use the social: prefix.');
+			$names[] = $name;
 		}
 
-		$this->markTestSkipped('OC\Core\Command\Base and symfony/console are not available in the unit-test harness.');
+		$this->assertSame($names, array_unique($names), 'two commands share one name.');
+	}
+
+	/**
+	 * A command that asks for confirmation must also be usable from a script.
+	 *
+	 * Under `occ --no-interaction` a ConfirmationQuestion answers itself with
+	 * its default — false — so a command that only asks silently does nothing,
+	 * which a caller cannot tell from success. Every such command therefore
+	 * declares --force.
+	 */
+	public function testEveryCommandThatConfirmsCanAlsoBeForced(): void {
+		foreach ($this->commandFiles() as $file => $code) {
+			if (!str_contains($code, 'ConfirmationQuestion')) {
+				continue;
+			}
+
+			$this->assertContains(
+				'force',
+				$this->declaredOptions($code),
+				basename($file) . ' asks for confirmation but declares no --force,'
+				. ' so under --no-interaction it can only do nothing.'
+			);
+			$this->assertStringContainsString(
+				'isInteractive()',
+				$code,
+				basename($file) . ' asks for confirmation without checking isInteractive(),'
+				. ' so under --no-interaction it answers its own question with "no" and exits as if it had worked.'
+			);
+		}
+	}
+
+	/**
+	 * Every `occ social:… --option` we print or document names a real option.
+	 *
+	 * This is the F9 regression: `social:check:install` and the README both
+	 * told an administrator to run `occ social:reset --uri=<address>` while
+	 * `Reset` declared only `--uninstall`, so Symfony rejected the command
+	 * outright — advice that appeared precisely when federation was already
+	 * broken.
+	 *
+	 * @dataProvider provideAdviceSources
+	 */
+	public function testAdvertisedOptionsExist(string $source): void {
+		$declared = $this->optionsPerCommand();
+		$checked = 0;
+
+		foreach ($this->advertisedCommands($this->read($source)) as [$command, $option]) {
+			$this->assertArrayHasKey(
+				$command,
+				$declared,
+				$source . ' names "occ ' . $command . '", which no class in lib/Command/ registers.'
+			);
+			$this->assertContains(
+				$option,
+				$declared[$command],
+				$source . ' tells the reader to run "occ ' . $command . ' --' . $option
+				. '", but ' . $command . ' declares no such option: Symfony rejects that command line.'
+			);
+			$checked++;
+		}
+
+		// Not every source has to carry advice; the assertions above are what
+		// matter. Recorded so a regex that stops matching anything at all is
+		// visible in the test output rather than silently green.
+		$this->addToAssertionCount(1);
+		$this->assertGreaterThanOrEqual(0, $checked);
+	}
+
+	public function testTheAdviceScanFindsSomethingToCheck(): void {
+		$found = 0;
+		foreach ($this->provideAdviceSources() as $source) {
+			$found += count($this->advertisedCommands($this->read($source[0])));
+		}
+
+		$this->assertGreaterThan(
+			10,
+			$found,
+			'the "occ social:… --option" scan matched almost nothing:'
+			. ' the pattern in advertisedCommands() has stopped seeing the advice it guards.'
+		);
+	}
+
+	/** @return array<string, array{string}> */
+	public function provideAdviceSources(): array {
+		return [
+			'README' => ['README.md'],
+			'command reference' => ['docs/OCC-Commands.md'],
+			'the commands themselves' => ['lib/Command'],
+			'the services that print advice' => ['lib/Service'],
+		];
+	}
+
+	/**
+	 * command name => options it declares, including the inherited ones.
+	 *
+	 * @return array<string, list<string>>
+	 */
+	private function optionsPerCommand(): array {
+		$options = [];
+		foreach ($this->commandFiles() as $code) {
+			$name = $this->commandNameOf($code);
+			if ($name === null) {
+				continue;
+			}
+
+			$options[$name] = array_merge($this->declaredOptions($code), self::INHERITED_OPTIONS);
+		}
+
+		return $options;
+	}
+
+	/**
+	 * The (command, option) pairs a text advertises.
+	 *
+	 * @return list<array{string, string}>
+	 */
+	private function advertisedCommands(string $text): array {
+		// "occ social:x:y --opt --other=value", and the bracketed synopsis form
+		// docs/OCC-Commands.md uses: "occ social:x [-d|--days DAYS] [--dry-run]".
+		preg_match_all(
+			'/occ (social:[a-z0-9:_-]+)((?:\s+\[?(?:-[a-zA-Z]\|)?--[a-zA-Z0-9_-]+(?:[= ][^\s\]`"\'<]*)?\]?)+)/',
+			$text,
+			$matches,
+			PREG_SET_ORDER
+		);
+
+		$pairs = [];
+		foreach ($matches as $match) {
+			preg_match_all('/--([a-zA-Z0-9_-]+)/', $match[2], $options);
+			foreach ($options[1] as $option) {
+				$pairs[] = [$match[1], $option];
+			}
+		}
+
+		return $pairs;
+	}
+
+	/** @return list<string> */
+	private function declaredOptions(string $code): array {
+		preg_match_all('/addOption\(\s*[\'"]([a-zA-Z0-9_-]+)[\'"]/', $code, $matches);
+
+		return array_values(array_unique($matches[1]));
+	}
+
+	private function commandNameOf(string $code): ?string {
+		if (preg_match('/setName\(\s*[\'"]([^\'"]+)[\'"]\s*\)/', $code, $match) !== 1) {
+			return null;
+		}
+
+		return $match[1];
+	}
+
+	/** @return array<string, string> file path => contents */
+	private function commandFiles(): array {
+		$files = glob(__DIR__ . '/../../lib/Command/*.php');
+		$this->assertNotEmpty($files, 'No command classes found in lib/Command/.');
+
+		$contents = [];
+		foreach ($files as $file) {
+			$contents[$file] = (string)file_get_contents($file);
+		}
+
+		return $contents;
+	}
+
+	/** A file, or every .php file under a directory, as one string. */
+	private function read(string $relativePath): string {
+		$path = __DIR__ . '/../../' . $relativePath;
+
+		if (is_dir($path)) {
+			$text = '';
+			foreach ((array)glob($path . '/*.php') as $file) {
+				$text .= (string)file_get_contents((string)$file) . "\n";
+			}
+
+			return $text;
+		}
+
+		$content = file_get_contents($path);
+		$this->assertIsString($content, $relativePath . ' is missing or unreadable.');
+
+		return $content;
 	}
 }

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Db;
 
+use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\StreamActionService;
 use OCP\Server;
@@ -70,5 +71,36 @@ class StreamActionsFlagsTest extends TestCase {
 		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
 
 		$this->assertTrue($this->values()[StreamAction::LIKED]);
+	}
+
+	public function testStoringARowThatAnotherRequestGotToFirstUpdatesItInstead(): void {
+		// what two people liking the same post at the same moment looks like
+		// from here: the second save() hits the unique index and must fall back
+		// to an update rather than surface a constraint violation as a 500
+		$request = Server::get(StreamActionsRequest::class);
+
+		$first = new StreamAction(self::ACTOR, self::STREAM);
+		$first->updateValueBool(StreamAction::LIKED, true);
+		$request->save($first);
+
+		$second = new StreamAction(self::ACTOR, self::STREAM);
+		$second->updateValueBool(StreamAction::BOOKMARKED, true);
+		$request->save($second);
+
+		$values = $this->values();
+		$this->assertTrue($values[StreamAction::LIKED], 'the first action is still there');
+		$this->assertTrue($values[StreamAction::BOOKMARKED]);
+	}
+
+	public function testTheActionOfOneActorOnOnePostIsFoundByItsPrimIndex(): void {
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
+
+		// the lookup moved off LOWER() over the two TEXT columns and onto the
+		// (stream_id_prim, actor_id_prim) unique index; it must still find the
+		// row it wrote
+		$action = Server::get(StreamActionsRequest::class)->getAction(self::ACTOR, self::STREAM);
+
+		$this->assertSame(self::ACTOR, $action->getActorId());
+		$this->assertSame(self::STREAM, $action->getStreamId());
 	}
 }

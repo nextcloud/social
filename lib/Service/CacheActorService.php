@@ -150,6 +150,40 @@ class CacheActorService {
 	}
 
 	/**
+	 * What is already known about a set of actors, in one query and without
+	 * touching the network.
+	 *
+	 * getFromId() resolves a miss by fetching the actor from its instance,
+	 * which is right for one actor on a path that can wait, and wrong for a
+	 * listing: a page of reports or of blocks would make one synchronous
+	 * federated request per row, and one unreachable instance would hang the
+	 * whole page for the curl timeout.
+	 *
+	 * @param string[] $ids
+	 *
+	 * @return Person[] keyed by actor id; ids that are not cached are absent
+	 */
+	public function getCachedFromIds(array $ids): array {
+		$wanted = [];
+		foreach ($ids as $id) {
+			$posAnchor = strpos($id, '#');
+			if ($posAnchor !== false) {
+				$id = substr($id, 0, $posAnchor);
+			}
+
+			if ($id !== '') {
+				$wanted[$id] = $id;
+			}
+		}
+
+		if ($wanted === []) {
+			return [];
+		}
+
+		return $this->cacheActorsRequest->getFromIds(array_values($wanted));
+	}
+
+	/**
 	 * @param string $account
 	 *
 	 * @return Person

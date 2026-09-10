@@ -21,6 +21,7 @@ use OCP\BackgroundJob\IJobList;
 use OCP\BackgroundJob\TimedJob;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class QueueTest extends TestCase {
 	private const NOW = 1700000000;
@@ -33,6 +34,8 @@ class QueueTest extends TestCase {
 	private $activityService;
 	/** @var IJobList&MockObject */
 	private $jobList;
+	/** @var LoggerInterface&MockObject */
+	private $logger;
 	private Queue $job;
 
 	protected function setUp(): void {
@@ -42,8 +45,15 @@ class QueueTest extends TestCase {
 		$this->streamQueueService = $this->createMock(StreamQueueService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
 		$this->jobList = $this->createMock(IJobList::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 
-		$this->job = new Queue($time, $this->requestQueueService, $this->streamQueueService, $this->activityService);
+		$this->job = new Queue(
+			$time,
+			$this->requestQueueService,
+			$this->streamQueueService,
+			$this->activityService,
+			$this->logger
+		);
 	}
 
 	protected function tearDown(): void {
@@ -90,9 +100,20 @@ class QueueTest extends TestCase {
 				$sent[] = $request->getToken();
 			});
 
+		// the catch used to be empty: a misconfigured app dropped every
+		// delivery without a line anywhere
+		$logged = [];
+		$this->logger->expects($this->once())->method('warning')
+			->willReturnCallback(function (string $message, array $context = []) use (&$logged): void {
+				$logged[] = $message;
+			});
+
 		$this->job->start($this->jobList);
 
 		$this->assertSame(['good'], $sent);
+		$this->assertCount(1, $logged);
+		$this->assertStringContainsString('bad', $logged[0]);
+		$this->assertStringContainsString('not configured', $logged[0]);
 	}
 
 	public function testStandbyStreamItemsAreProcessedAfterTheRequests(): void {

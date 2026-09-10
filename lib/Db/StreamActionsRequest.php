@@ -11,6 +11,7 @@ namespace OCA\Social\Db;
 
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\StreamAction;
+use OCP\DB\Exception as DBException;
 
 /**
  * Class StreamActionsRequest
@@ -18,6 +19,30 @@ use OCA\Social\Model\StreamAction;
  * @package OCA\Social\Db
  */
 class StreamActionsRequest extends StreamActionsRequestBuilder {
+	/**
+	 * Stores the actions of one actor on one post.
+	 *
+	 * Insert first, and fall back to an update when the row is already there:
+	 * the other way round (update, insert when nothing was updated) races with
+	 * itself. Two concurrent likes of the same post both update nothing and
+	 * both insert, and the loser gets an uncaught constraint violation — and on
+	 * MySQL, where rowCount() counts *changed* rows, setting a flag to the
+	 * value it already holds takes that same path even on its own.
+	 */
+	public function save(StreamAction $action): void {
+		try {
+			$this->create($action);
+
+			return;
+		} catch (DBException $e) {
+			if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+		}
+
+		$this->update($action);
+	}
+
 	/**
 	 * Create a new Queue in the database.
 	 */
@@ -76,8 +101,8 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			return 0;
 		}
 
-		$qb->limitToActorIdPrim($qb->prim($action->getActorId()));
-		$qb->limitToStreamIdPrim($qb->prim($action->getStreamId()));
+		$this->limitToPrim($qb, 'actor_id_prim', $action->getActorId());
+		$this->limitToPrim($qb, 'stream_id_prim', $action->getStreamId());
 
 		return $qb->executeStatement();
 	}
@@ -100,8 +125,11 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	 */
 	public function getAction(string $actorId, string $streamId): StreamAction {
 		$qb = $this->getStreamActionSelectSql();
-		$this->limitToActorId($qb, $actorId);
-		$this->limitToStreamId($qb, $streamId);
+		// the (stream_id_prim, actor_id_prim) unique index, rather than LOWER()
+		// over the two TEXT columns beside it — this runs on every like, boost,
+		// bookmark and poll vote
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
+		$this->limitToPrim($qb, 'stream_id_prim', $streamId);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -113,10 +141,21 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		return $this->parseStreamActionsSelectSql($data);
 	}
 
+	/**
+	 * Every action row of one actor: what they liked, boosted, bookmarked or
+	 * voted on. Nothing else removed these when the account went.
+	 */
+	public function deleteByActor(string $actorId): void {
+		$qb = $this->getStreamActionDeleteSql();
+		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
+
+		$qb->executeStatement();
+	}
+
 	public function delete(StreamAction $action): void {
 		$qb = $this->getStreamActionDeleteSql();
-		$this->limitToActorId($qb, $action->getActorId());
-		$this->limitToStreamId($qb, $action->getStreamId());
+		$this->limitToPrim($qb, 'actor_id_prim', $action->getActorId());
+		$this->limitToPrim($qb, 'stream_id_prim', $action->getStreamId());
 
 		$qb->executeStatement();
 	}

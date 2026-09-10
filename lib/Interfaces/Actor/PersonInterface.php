@@ -14,7 +14,9 @@ use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReportsRequest;
 use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -61,6 +63,8 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		StreamDestRequest $streamDestRequest,
 		ActorService $actorService,
 		ConfigService $configService,
+		private StreamActionsRequest $streamActionsRequest,
+		private ReportsRequest $reportsRequest,
 	) {
 		$this->actionsRequest = $actionsRequest;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -134,6 +138,13 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->requestQueueRequest->deleteByAuthor($item->getId());
 		$this->followsRequest->deleteRelatedId($item->getId());
 		$this->actorRelationRequest->deleteRelatedId($item->getId());
+		// what this actor did to other people's posts — their own likes,
+		// boosts, bookmarks and poll votes — which nothing else removed
+		$this->streamActionsRequest->deleteByActor($item->getId());
+		// the reports about them, and the ones they filed
+		$this->reportsRequest->deleteRelatedId($item->getId());
+		// a moderation decision deliberately outlives the account: it is what
+		// keeps a suspended account suspended if it comes back
 
 		$this->deleteStreamFromActor($item);
 	}
@@ -161,7 +172,11 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 			switch ($streamDest->getSubtype()) {
 				case 'to':
 					if ($stream->getTo() === $actor->getId()) {
+						// the post was addressed to this account alone: it is
+						// gone, and there is nothing left to rewrite on it
 						$this->removeStreamAndRelated($streamDest->getStreamId());
+
+						continue 2;
 					}
 
 					$arr = array_diff(
@@ -189,7 +204,12 @@ class PersonInterface extends AbstractActivityPubInterface implements IActivityP
 		$this->streamDestRequest->deleteRelatedToActor($actor->getId());
 	}
 
-	// get stream's relative and remove everything
+	/**
+	 * The post and everything that hangs off it. StreamRequest::deleteById()
+	 * takes either a uri or the prim a dest row holds, which is what this is
+	 * given, and now removes the related rows itself — the name of this method
+	 * was a promise its one-line body never kept.
+	 */
 	private function removeStreamAndRelated(string $idPrim): void {
 		$this->streamRequest->deleteById($idPrim);
 	}

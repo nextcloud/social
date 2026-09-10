@@ -11,6 +11,9 @@ namespace OCA\Social\Service;
 
 use DateTime;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StreamQueueRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -39,7 +42,9 @@ class StreamPruneService {
 	public function __construct(
 		private IDBConnection $connection,
 		private ConfigService $configService,
-		private CacheDocumentService $cacheDocumentService,
+		private StreamRequest $streamRequest,
+		private RequestQueueRequest $requestQueueRequest,
+		private StreamQueueRequest $streamQueueRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -62,6 +67,8 @@ class StreamPruneService {
 			return ['streams' => $this->countPrunable($cutoff), 'documents' => 0];
 		}
 
+		$this->pruneQueues();
+
 		$streams = 0;
 		$documents = 0;
 		while (true) {
@@ -79,8 +86,8 @@ class StreamPruneService {
 			}
 
 			$streams += count($prims);
-			$documents += $this->deleteDocumentsOf($prims);
-			$this->deleteRelated($prims);
+			// one cascade, defined next to the delete it belongs to
+			$documents += $this->streamRequest->deleteRelatedTo($prims);
 			$this->deleteStreams($prims);
 		}
 
@@ -172,53 +179,24 @@ class StreamPruneService {
 	}
 
 	/**
-	 * @param string[] $prims
-	 */
-	private function deleteDocumentsOf(array $prims): int {
-		$qb = $this->connection->getQueryBuilder();
-		$qb->select('id_prim', 'local_copy', 'resized_copy')
-			->from(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS)
-			->where($qb->expr()->in('parent_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
-
-		$cursor = $qb->executeQuery();
-		$rows = $cursor->fetchAll();
-		$cursor->closeCursor();
-		if ($rows === []) {
-			return 0;
-		}
-
-		foreach ($rows as $row) {
-			$this->cacheDocumentService->removeFromCache((string)$row['local_copy']);
-			$this->cacheDocumentService->removeFromCache((string)$row['resized_copy']);
-		}
-
-		$delete = $this->connection->getQueryBuilder();
-		$delete->delete(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS)
-			->where($delete->expr()->in('id_prim', $delete->createNamedParameter(
-				array_map(static fn (array $row): string => (string)$row['id_prim'], $rows),
-				IQueryBuilder::PARAM_STR_ARRAY
-			)));
-
-		return $delete->executeStatement();
-	}
-
-	/**
-	 * dest, action-flag and tag rows key their stream by its prim
+	 * Queue rows nothing will ever act on again: the deliveries and the cache
+	 * items that have exhausted their retries, and the items an older version
+	 * of the app left behind marked as done. Both drains skip all of them, so
+	 * without this they stay in the table for good.
 	 *
-	 * @param string[] $prims
+	 * @return array{requests: int, items: int}
 	 */
-	private function deleteRelated(array $prims): void {
-		foreach ([
-			[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'],
-			[CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'stream_id_prim'],
-			[CoreRequestBuilder::TABLE_STREAM_TAGS, 'stream_id'],
-			[CoreRequestBuilder::TABLE_STREAM_CARDS, 'stream_id_prim'],
-		] as [$table, $field]) {
-			$qb = $this->connection->getQueryBuilder();
-			$qb->delete($table)
-				->where($qb->expr()->in($field, $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
-			$qb->executeStatement();
+	public function pruneQueues(): array {
+		$pruned = ['requests' => 0, 'items' => 0];
+		try {
+			$pruned['requests'] = $this->requestQueueRequest->deleteExhausted();
+			$pruned['items'] = $this->streamQueueRequest->deleteExhausted()
+				+ $this->streamQueueRequest->deleteCompleted();
+		} catch (\Exception $e) {
+			$this->logger->warning('could not prune the queues', ['exception' => $e]);
 		}
+
+		return $pruned;
 	}
 
 	/**

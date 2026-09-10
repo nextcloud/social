@@ -9,8 +9,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
+use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Service\ModerationService;
@@ -32,17 +36,29 @@ class ModerationServiceTest extends TestCase {
 	private ModerationRequest|MockObject $moderationRequest;
 	private StreamRequest|MockObject $streamRequest;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
+	private FollowsRequest|MockObject $followsRequest;
+	private ActorRelationRequest|MockObject $actorRelationRequest;
+	private StreamDestRequest|MockObject $streamDestRequest;
+	private RequestQueueRequest|MockObject $requestQueueRequest;
 	private ModerationService $service;
 
 	protected function setUp(): void {
 		$this->moderationRequest = $this->createMock(ModerationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
+		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
+		$this->requestQueueRequest = $this->createMock(RequestQueueRequest::class);
 
 		$this->service = new ModerationService(
 			$this->moderationRequest,
 			$this->streamRequest,
 			$this->cacheActorsRequest,
+			$this->followsRequest,
+			$this->actorRelationRequest,
+			$this->streamDestRequest,
+			$this->requestQueueRequest,
 			new NullLogger(),
 		);
 	}
@@ -57,6 +73,8 @@ class ModerationServiceTest extends TestCase {
 		// the account keeps its followers; only the public square is closed
 		$this->streamRequest->expects($this->never())->method('deleteByAuthor');
 		$this->cacheActorsRequest->expects($this->never())->method('deleteCacheById');
+		$this->followsRequest->expects($this->never())->method('deleteRelatedId');
+		$this->streamDestRequest->expects($this->never())->method('deleteRelatedToActor');
 
 		$this->service->decide(self::SPAMMER, Moderation::SILENCE, 'endless crypto');
 
@@ -68,6 +86,29 @@ class ModerationServiceTest extends TestCase {
 	public function testSuspendingRemovesWhatTheAccountPostedHere(): void {
 		$this->moderationRequest->expects($this->once())->method('save');
 		$this->streamRequest->expects($this->once())->method('deleteByAuthor')->with(self::SPAMMER);
+		$this->cacheActorsRequest->expects($this->once())->method('deleteCacheById')->with(self::SPAMMER);
+
+		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
+	}
+
+	public function testSuspendingCutsTheAccountOutOfDeliveryAndOfTimelines(): void {
+		// a suspension that left these behind kept delivering every local post
+		// to the account, and kept its posts addressed into local timelines
+		$this->followsRequest->expects($this->once())->method('deleteRelatedId')->with(self::SPAMMER);
+		$this->actorRelationRequest->expects($this->once())->method('deleteRelatedId')->with(self::SPAMMER);
+		$this->streamDestRequest->expects($this->once())->method('deleteRelatedToActor')->with(self::SPAMMER);
+		$this->requestQueueRequest->expects($this->once())->method('deleteByAuthor')->with(self::SPAMMER);
+
+		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
+	}
+
+	public function testOneFailureWhileDetachingDoesNotStopTheRest(): void {
+		$this->followsRequest->method('deleteRelatedId')
+			->willThrowException(new \RuntimeException('database busy'));
+
+		// the rest of the purge still runs, and the decision still stands
+		$this->streamDestRequest->expects($this->once())->method('deleteRelatedToActor')->with(self::SPAMMER);
+		$this->requestQueueRequest->expects($this->once())->method('deleteByAuthor')->with(self::SPAMMER);
 		$this->cacheActorsRequest->expects($this->once())->method('deleteCacheById')->with(self::SPAMMER);
 
 		$this->service->decide(self::SPAMMER, Moderation::SUSPEND);
@@ -135,14 +176,18 @@ class ModerationServiceTest extends TestCase {
 		});
 
 		$service = new ModerationService(
-			$this->moderationRequest, $this->streamRequest, $this->cacheActorsRequest, $logger
+			$this->moderationRequest, $this->streamRequest, $this->cacheActorsRequest,
+			$this->followsRequest, $this->actorRelationRequest, $this->streamDestRequest,
+			$this->requestQueueRequest, $logger
 		);
 
 		$service->decide(self::SPAMMER, Moderation::SILENCE);
 		$this->addToAssertionCount(1);
 	}
 
-	public function testRemovingAPostDeletesThatPostOnly(): void {
+	public function testRemovingAPostDeletesThatPostAndOnlyThatPost(): void {
+		// deleteById() removes the post and everything keyed to it; what it
+		// must not do is touch anything else the author wrote
 		$this->streamRequest->expects($this->once())->method('deleteById')->with('https://spam.example/p/1');
 		$this->streamRequest->expects($this->never())->method('deleteByAuthor');
 

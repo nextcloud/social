@@ -88,11 +88,13 @@ class StreamActionService {
 	}
 
 	/**
-	 * @param StreamAction $action
+	 * Two people liking the same post at the same moment is the ordinary case,
+	 * not a rare one, and this used to UPDATE and then INSERT when the update
+	 * reported no rows — so both requests inserted and one of them died on the
+	 * unique index with a 500. The Db layer now inserts first and falls back to
+	 * an update, which is what the other tables already do.
 	 */
-	private function saveAction(StreamAction $action) {
-		if ($this->streamActionsRequest->update($action) === 0) {
-			$this->streamActionsRequest->create($action);
-		}
+	private function saveAction(StreamAction $action): void {
+		$this->streamActionsRequest->save($action);
 	}
 }

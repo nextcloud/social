@@ -45,7 +45,6 @@ class CoreRequestBuilder {
 	public const TABLE_HASHTAGS = 'social_hashtag';
 	public const TABLE_INSTANCE = 'social_instance';
 	public const TABLE_MODERATION = 'social_moderation';
-	public const TABLE_NOTIFICATION = 'social_notif';
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
 	public const TABLE_STREAM = 'social_stream';
@@ -64,6 +63,15 @@ class CoreRequestBuilder {
 			'actor_id_prim',
 			'object_id',
 			'object_id_prim',
+			'creation'
+		],
+		self::TABLE_ACTOR_RELATION => [
+			'id',
+			'actor_id_prim',
+			'object_id',
+			'object_id_prim',
+			'type',
+			'notifications',
 			'creation'
 		],
 		self::TABLE_ACTORS => [
@@ -151,7 +159,12 @@ class CoreRequestBuilder {
 		],
 		self::TABLE_HASHTAGS => [
 			'hashtag',
-			'trend'
+			'trend',
+			'trend_1h',
+			'trend_12h',
+			'trend_1d',
+			'trend_3d',
+			'trend_10d'
 		],
 		self::TABLE_INSTANCE => [
 			'uri',
@@ -168,6 +181,13 @@ class CoreRequestBuilder {
 			'languages',
 			'contact',
 			'account_prim',
+			'creation'
+		],
+		self::TABLE_MODERATION => [
+			'actor_id_prim',
+			'actor_id',
+			'level',
+			'comment',
 			'creation'
 		],
 		self::TABLE_REQUEST_QUEUE => [
@@ -343,6 +363,41 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToIdString(IQueryBuilder &$qb, string $id) {
 		$this->limitToDBField($qb, 'id', $id, false);
+	}
+
+	/**
+	 * Limit the request to the prim (md5) form of an id on one of the indexed
+	 * `_prim` columns, matched case-sensitively — see limitToIdPrimString().
+	 */
+	protected function limitToPrim(
+		SocialQueryBuilder $qb, string $field, string $id, string $alias = '',
+	): void {
+		$this->limitToDBField($qb, $field, $qb->prim($id), true, $alias);
+	}
+
+	/**
+	 * Limit the request to an id, matched on its indexed `_prim` column.
+	 *
+	 * A `_prim` column holds the md5 of the id, so it is already
+	 * case-normalised and is matched case-sensitively: wrapping it in LOWER()
+	 * — which is what limitToIdString() does to the unindexed TEXT column —
+	 * makes the index unusable, and these are the hottest lookups in the app.
+	 *
+	 * An id that is not an http(s) uri has no prim form (prim() returns '');
+	 * that falls back to the plain column, so no caller can silently start
+	 * matching nothing at all.
+	 */
+	protected function limitToIdPrimString(
+		SocialQueryBuilder $qb, string $id, string $field = 'id_prim', string $fallback = 'id',
+	): void {
+		$prim = $qb->prim($id);
+		if ($prim === '') {
+			$this->limitToDBField($qb, $fallback, $id, false);
+
+			return;
+		}
+
+		$this->limitToDBField($qb, $field, $prim);
 	}
 
 	/**
@@ -615,6 +670,46 @@ class CoreRequestBuilder {
 	 */
 	protected function limitToStatus(IQueryBuilder &$qb, int $status) {
 		$this->limitToDBFieldInt($qb, 'status', $status);
+	}
+
+	/**
+	 * Limit a queue drain to the rows that are actually due: the retry backoff
+	 * and the give-up threshold, in SQL.
+	 *
+	 * Both queues used to take the oldest N rows and then drop most of them in
+	 * PHP on exactly these two conditions, which means the rows of one dead
+	 * instance permanently occupy the window and nothing behind them is ever
+	 * delivered.
+	 *
+	 * The delay grows as tries^4/3, which is not something a portable query
+	 * can compute from the column, so it is unrolled into one branch per try
+	 * count — $maxTries of them, and the give-up threshold falls out of the
+	 * same expression. A row that has never been attempted has a NULL `last`.
+	 *
+	 * @param int $maxTries the try count at which a row is abandoned
+	 */
+	protected function limitToQueueDue(IQueryBuilder &$qb, int $maxTries): void {
+		$expr = $qb->expr();
+		$pf = ($qb->getType() === QueryBuilder::SELECT) ? $this->defaultSelectAlias . '.' : '';
+		$now = time();
+
+		$due = $expr->orX();
+		for ($tries = 0; $tries < $maxTries; $tries++) {
+			$delay = (int)floor($tries ** 4 / 3);
+			$cutoff = new DateTime('@' . ($now - $delay));
+
+			$due->add(
+				$expr->andX(
+					$expr->eq($pf . 'tries', $qb->createNamedParameter($tries, IQueryBuilder::PARAM_INT)),
+					$expr->orX(
+						$expr->isNull($pf . 'last'),
+						$expr->lte($pf . 'last', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_DATE))
+					)
+				)
+			);
+		}
+
+		$qb->andWhere($due);
 	}
 
 	/**

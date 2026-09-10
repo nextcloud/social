@@ -51,15 +51,27 @@ class RelationshipService {
 	 * @return Person[]
 	 */
 	public function getRelated(Person $viewer, string $type, int $limit = 40): array {
+		$relations = $this->actorRelationRequest->getByActor($viewer->getId(), $type, $limit);
+
+		// one query, and no federated fetch on a miss: an account you have
+		// blocked or muted is an account you have seen, so it is cached — and a
+		// listing must not be able to hang on someone else's instance
+		$cached = $this->cacheActorService->getCachedFromIds(
+			array_map(static fn (ActorRelation $relation): string => $relation->getObjectId(), $relations)
+		);
+
 		$accounts = [];
-		foreach ($this->actorRelationRequest->getByActor($viewer->getId(), $type, $limit) as $relation) {
-			try {
-				$accounts[] = $this->cacheActorService->getFromId($relation->getObjectId());
-			} catch (Exception $e) {
+		foreach ($relations as $relation) {
+			$account = $cached[$relation->getObjectId()] ?? null;
+			if ($account === null) {
 				$this->logger->debug('getRelated - cannot resolve related account', [
 					'objectId' => $relation->getObjectId(),
 				]);
+
+				continue;
 			}
+
+			$accounts[] = $account;
 		}
 
 		return $accounts;

@@ -142,6 +142,140 @@ class DocumentationTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A bullet under "Not implemented yet" may not say the feature works.
+	 *
+	 * That section's own intro says "These are absent from the code today, not
+	 * merely rough edges", and nine of its ten bullets used to say the
+	 * opposite — blocking, muting, reporting, locked accounts, profile fields
+	 * and polls all described as supported, because as each one landed its
+	 * entry was rewritten in place instead of being moved up to the feature
+	 * list. Nothing mechanical caught it. This does.
+	 */
+	public function testNothingUnderNotImplementedIsDescribedAsWorking(): void {
+		$offenders = [];
+		foreach ($this->bulletsOfNotImplementedSection() as $bullet) {
+			if (preg_match('/\b(?:is|are)\s+(?:fully\s+)?supported\b/i', $bullet) === 1) {
+				$offenders[] = $bullet;
+			}
+		}
+
+		$this->assertSame(
+			[],
+			$offenders,
+			'These bullets sit under a "Not implemented" heading in README.md and say the'
+			. ' feature is supported: move them into the Features list, or describe what is'
+			. ' actually missing.'
+		);
+	}
+
+	public function testTheNotImplementedSectionIsStillThereToCheck(): void {
+		$this->assertNotEmpty(
+			$this->bulletsOfNotImplementedSection(),
+			'No bullets found under a "Not implemented" heading in README.md:'
+			. ' testNothingUnderNotImplementedIsDescribedAsWorking has stopped checking anything.'
+		);
+	}
+
+	/**
+	 * Every table the code declares is in the schema table of the doc.
+	 *
+	 * `social_report`, `social_moderation` and `social_stream_card` were all
+	 * missing, the last appearing nowhere in the document at all.
+	 */
+	public function testEveryDeclaredTableIsInTheSchemaTable(): void {
+		$declared = $this->declaredTables();
+		$documented = $this->documentedTables();
+
+		$this->assertNotEmpty($declared, 'No TABLE_* constants found in lib/Db/CoreRequestBuilder.php.');
+		$this->assertSame(
+			[],
+			array_values(array_diff($declared, $documented)),
+			'These tables are declared in CoreRequestBuilder but missing from the schema'
+			. ' table in docs/Architecture.md: add a row for each.'
+		);
+		$this->assertSame(
+			[],
+			array_values(array_diff($documented, $declared)),
+			'These tables have a row in the schema table of docs/Architecture.md but are'
+			. ' not declared in CoreRequestBuilder: remove the row, or fix the name.'
+		);
+	}
+
+	public function testAppVersionMatchesPackageVersion(): void {
+		$package = json_decode($this->read('package.json'), true, 512, JSON_THROW_ON_ERROR);
+		$this->assertArrayHasKey('version', $package, 'package.json declares no version.');
+
+		$this->assertSame(
+			$this->appVersion(),
+			(string)$package['version'],
+			'The version in package.json disagrees with <version> in appinfo/info.xml:'
+			. ' bump "version" in package.json to the appinfo/info.xml version'
+			. ' (appinfo/info.xml is the release version of the app).'
+		);
+	}
+
+	/**
+	 * The list items under README.md's "Not implemented yet" heading, up to
+	 * the next heading.
+	 *
+	 * @return list<string>
+	 */
+	private function bulletsOfNotImplementedSection(): array {
+		$lines = explode("\n", $this->read('README.md'));
+		$bullets = [];
+		$inside = false;
+
+		foreach ($lines as $line) {
+			if (preg_match('/^#{2,4}\s.*not implemented/i', $line) === 1) {
+				$inside = true;
+				continue;
+			}
+
+			if ($inside && str_starts_with($line, '#')) {
+				break;
+			}
+
+			if ($inside && preg_match('/^\s*[-*]\s+(.*)$/', $line, $match) === 1) {
+				$bullets[] = $match[1];
+			}
+		}
+
+		return $bullets;
+	}
+
+	/**
+	 * Table names from the `TABLE_*` constants of CoreRequestBuilder, sorted.
+	 *
+	 * @return list<string>
+	 */
+	private function declaredTables(): array {
+		preg_match_all(
+			'/const\s+TABLE_[A-Z_]+\s*=\s*[\'"]([a-z0-9_]+)[\'"]/',
+			$this->read('lib/Db/CoreRequestBuilder.php'),
+			$matches
+		);
+
+		return $this->normalise($matches[1]);
+	}
+
+	/**
+	 * Table names in the first column of the schema table of
+	 * docs/Architecture.md, sorted.
+	 *
+	 * @return list<string>
+	 */
+	private function documentedTables(): array {
+		$tables = [];
+		foreach (explode("\n", $this->read('docs/Architecture.md')) as $line) {
+			if (preg_match('/^\|\s*`(social_[a-z0-9_]+)`\s*\|/', $line, $match) === 1) {
+				$tables[] = $match[1];
+			}
+		}
+
+		return $this->normalise($tables);
+	}
+
 	private function read(string $relativePath): string {
 		$path = __DIR__ . '/../' . $relativePath;
 		$content = file_get_contents($path);

@@ -23,6 +23,8 @@ use PHPUnit\Framework\TestCase;
  */
 class CacheActorsRoundTripTest extends TestCase {
 	private const ACTOR = 'https://remote.example/catest/users/erin';
+	private const OTHER = 'https://remote.example/catest/users/frank';
+	private const NO_INBOX = 'https://remote.example/catest/users/ghost';
 
 	private CacheActorsRequest $request;
 
@@ -38,7 +40,20 @@ class CacheActorsRoundTripTest extends TestCase {
 	}
 
 	private function cleanup(): void {
-		$this->request->deleteCacheById(self::ACTOR);
+		foreach ([self::ACTOR, self::OTHER, self::NO_INBOX] as $id) {
+			$this->request->deleteCacheById($id);
+		}
+	}
+
+	private function actor(string $id, string $sharedInbox): Person {
+		$person = new Person();
+		$person->setId($id)->setPreferredUsername(md5($id));
+		$person->setAccount(md5($id) . '@remote.example')
+			->setInbox($id . '/inbox')
+			->setSharedInbox($sharedInbox);
+		$this->request->save($person);
+
+		return $person;
 	}
 
 	private function erin(): Person {
@@ -125,5 +140,34 @@ class CacheActorsRoundTripTest extends TestCase {
 		$this->request->deleteCacheById(self::ACTOR);
 		$this->expectException(CacheActorDoesNotExistException::class);
 		$this->request->getFromAccount('erin@remote.example');
+	}
+
+	public function testAPageOfActorsIsResolvedInOneQuery(): void {
+		// what a page of reports or of blocks needs: whatever is cached, keyed
+		// by id, instead of a lookup and a federated fetch per row
+		$this->request->save($this->erin());
+		$this->actor(self::OTHER, 'https://remote.example/inbox');
+
+		$found = $this->request->getFromIds([self::ACTOR, self::OTHER, 'https://gone.example/@nobody']);
+
+		$keys = array_keys($found);
+		sort($keys);
+		$this->assertSame([self::ACTOR, self::OTHER], $keys);
+		$this->assertSame('erin', $found[self::ACTOR]->getPreferredUsername());
+	}
+
+	public function testAnIdThatIsNotAUriAsksTheDatabaseNothing(): void {
+		$this->assertSame([], $this->request->getFromIds(['', 'not-a-uri']));
+	}
+
+	public function testSharedInboxesSkipWhatCannotBeDeliveredTo(): void {
+		$this->request->save($this->erin());
+		$this->actor(self::NO_INBOX, '');
+
+		$inboxes = $this->request->getSharedInboxes();
+
+		// '' used to come back and became a delivery addressed to the host ''
+		$this->assertNotContains('', $inboxes);
+		$this->assertContains('https://remote.example/inbox', $inboxes);
 	}
 }

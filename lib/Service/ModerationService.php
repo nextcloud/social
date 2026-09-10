@@ -9,8 +9,12 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
+use OCA\Social\Db\RequestQueueRequest;
+use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\Moderation;
 use Psr\Log\LoggerInterface;
@@ -36,6 +40,10 @@ class ModerationService {
 		private ModerationRequest $moderationRequest,
 		private StreamRequest $streamRequest,
 		private CacheActorsRequest $cacheActorsRequest,
+		private FollowsRequest $followsRequest,
+		private ActorRelationRequest $actorRelationRequest,
+		private StreamDestRequest $streamDestRequest,
+		private RequestQueueRequest $requestQueueRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -104,6 +112,11 @@ class ModerationService {
 	/**
 	 * Everything the suspended account has here. Its cached actor goes too, so
 	 * nothing of it is served from this instance while the suspension stands.
+	 *
+	 * The relationships go with it. A suspension that left the follow rows in
+	 * place kept the account in the delivery fan-out — every local post still
+	 * went to it — and kept it in the timelines of the people who followed it,
+	 * addressed through the dest rows.
 	 */
 	private function purge(string $actorId): void {
 		try {
@@ -112,6 +125,27 @@ class ModerationService {
 			$this->logger->error('could not remove the posts of a suspended account', [
 				'actor' => $actorId, 'exception' => $e,
 			]);
+		}
+
+		foreach ([
+			// both directions of the follow relationship
+			'follows' => fn () => $this->followsRequest->deleteRelatedId($actorId),
+			// the per-user blocks and mutes against it, which have nothing
+			// left to hide
+			'relations' => fn () => $this->actorRelationRequest->deleteRelatedId($actorId),
+			// what put its posts in a local timeline, and what addressed local
+			// posts to it
+			'dest' => fn () => $this->streamDestRequest->deleteRelatedToActor($actorId),
+			// deliveries still queued towards it
+			'queue' => fn () => $this->requestQueueRequest->deleteByAuthor($actorId),
+		] as $what => $delete) {
+			try {
+				$delete();
+			} catch (\Exception $e) {
+				$this->logger->error('could not detach a suspended account', [
+					'actor' => $actorId, 'what' => $what, 'exception' => $e,
+				]);
+			}
 		}
 
 		try {
