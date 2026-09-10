@@ -73,7 +73,10 @@ describe('Navigation', () => {
 		store = createStore({ modules: { errors, settings, notifications } })
 		store.commit('clearErrors')
 		store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
-		router = { push: vi.fn() }
+		router = {
+			push: vi.fn(),
+			resolve: vi.fn((to) => ({ href: '/resolved/' + to.name + (to.params?.type ? '/' + to.params.type : '') })),
+		}
 	})
 
 	afterEach(() => {
@@ -106,18 +109,23 @@ describe('Navigation', () => {
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['Profile', { name: 'profile', params: { account: 'alice' } }],
-	])('points the %s entry at its route', (name, to) => {
-		// a route, not an imperative push from a click handler: see the
-		// "sidebar entries are links" tests below for why that matters
-		expect(item(mountNavigation(), name).attributes('data-to')).toBe(JSON.stringify(to))
+	])('points the %s entry at its route', async (name, to) => {
+		// an href so it is a real link, and a click that stays in the app: with
+		// `to` the component ORs vue-router's own idea of active into the entry,
+		// and /timeline counts as active for every /timeline/* page
+		const entry = item(mountNavigation(), name)
+
+		expect(entry.attributes('data-href')).toBe(router.resolve(to).href)
+
+		await entry.trigger('click')
+		expect(router.push).toHaveBeenCalledWith(to)
 	})
 
 	it('offers the blocked and muted accounts in the settings section', () => {
 		const wrapper = mountNavigation()
 		const entry = item(wrapper, 'Blocked and muted accounts')
 
-		// a route rather than a click handler, so the entry behaves like a link
-		expect(entry.attributes('data-to')).toBe(JSON.stringify({ name: 'blocked-accounts' }))
+		expect(entry.attributes('data-href')).toBe(router.resolve({ name: 'blocked-accounts' }).href)
 		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
 	})
 
@@ -147,8 +155,11 @@ describe('Navigation', () => {
 			const wrapper = mountNavigation()
 			await flushPromises()
 
-			expect(item(wrapper, '#nextcloud').attributes('data-to'))
-				.toBe(JSON.stringify({ name: 'tags', params: { tag: 'nextcloud' } }))
+			const to = { name: 'tags', params: { tag: 'nextcloud' } }
+			await item(wrapper, '#nextcloud').trigger('click')
+
+			expect(router.push).toHaveBeenCalledWith(to)
+			expect(item(wrapper, '#nextcloud').attributes('data-href')).toBe(router.resolve(to).href)
 		})
 
 		it('leaves the section out on a quiet instance', async () => {
@@ -368,6 +379,20 @@ describe('Navigation entries are links', () => {
 		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)
+	})
+
+	it('lights exactly one entry, whichever page is open', async () => {
+		// NcAppNavigationItem ORs its own router-derived active state with the
+		// `active` prop, and vue-router counts /timeline as active while
+		// /timeline/direct is open — so Home stayed lit alongside whichever
+		// timeline the reader had actually chosen.
+		const entry = (wrapper, name) => wrapper.findAll('li').find((li) => li.text().startsWith(name))
+		const lit = (wrapper, names) => names.filter((name) => entry(wrapper, name)?.find('.app-navigation-entry').classes().includes('active'))
+		const names = ['Home', 'Notifications', 'Direct messages', 'Local', 'Global', 'Liked posts', 'Bookmarks']
+
+		expect(lit(await mountReal('/timeline/direct'), names)).toEqual(['Direct messages'])
+		expect(lit(await mountReal('/timeline'), names)).toEqual(['Home'])
+		expect(lit(await mountReal('/timeline/favourites'), names)).toEqual(['Liked posts'])
 	})
 
 	it('does not let the browser follow the anchor as well', async () => {

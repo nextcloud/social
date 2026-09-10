@@ -33,11 +33,18 @@
 				</template>
 			</NcAppNavigationItem>
 
+			<!-- `href` rather than `to`: with `to`, the component ORs its own
+			     router-derived state into `active`, and vue-router counts
+			     /timeline as active while /timeline/direct is open — so Home
+			     stayed lit next to whichever timeline was actually chosen.
+			     navigate() keeps the click in the SPA while leaving a modified
+			     click (new tab, new window) to the browser. -->
 			<NcAppNavigationItem v-for="item in menu.timelines"
 				:key="item.key"
 				:name="item.title"
-				:to="item.to"
-				:active="isActive(item)">
+				:href="hrefFor(item.to)"
+				:active="isActive(item)"
+				@click="navigate(item.to, $event)">
 				<template #icon>
 					<component :is="item.icon" :size="20" />
 				</template>
@@ -53,8 +60,9 @@
 				:key="`trend-${tag.name}`"
 				class="navigation__trend"
 				:name="`#${tag.name}`"
-				:to="{ name: 'tags', params: { tag: tag.name } }"
-				:active="isTagActive(tag)">
+				:href="hrefFor({ name: 'tags', params: { tag: tag.name } })"
+				:active="isTagActive(tag)"
+				@click="navigate({ name: 'tags', params: { tag: tag.name } }, $event)">
 				<template #icon>
 					<IconPound :size="20" />
 				</template>
@@ -68,8 +76,9 @@
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
 
 			<NcAppNavigationItem :name="menu.profile.title"
-				:to="menu.profile.to"
-				:active="isActive(menu.profile)">
+				:href="hrefFor(menu.profile.to)"
+				:active="isActive(menu.profile)"
+				@click="navigate(menu.profile.to, $event)">
 				<template #icon>
 					<NcAvatar :user="currentUser?.uid"
 						:display-name="currentUser?.displayName"
@@ -86,7 +95,8 @@
 			<div class="navigation__footer">
 				<NcAppNavigationSettings :name="t('social', 'Settings')">
 					<NcAppNavigationItem :name="t('social', 'Blocked and muted accounts')"
-						:to="{ name: 'blocked-accounts' }">
+						:href="hrefFor({ name: 'blocked-accounts' })"
+						@click="navigate({ name: 'blocked-accounts' }, $event)">
 						<template #icon>
 							<IconCancel :size="20" />
 						</template>
@@ -351,6 +361,34 @@ export default {
 		 */
 		usesOf(tag) {
 			return Number.parseInt(tag.history?.[0]?.uses ?? 0) || 0
+		},
+		/**
+		 * @param {object} tag a Tag entity
+		 * @return {boolean} whether its timeline is the one being shown
+		 */
+		/**
+		 * @param {object} to a route location
+		 * @return {string} where it points, so the entry is a real link that can
+		 *                  be opened in a new tab or copied
+		 */
+		hrefFor(to) {
+			return this.$router.resolve(to).href
+		},
+		/**
+		 * Follows the entry inside the app, unless the reader asked the browser
+		 * for something else — the modifier keys and the middle button belong to
+		 * them, which is the rule router-link itself applies.
+		 *
+		 * @param {object} to a route location
+		 * @param {MouseEvent} event the click
+		 */
+		navigate(to, event) {
+			if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0)) {
+				return
+			}
+
+			event?.preventDefault()
+			this.$router.push(to)
 		},
 		/**
 		 * @param {object} tag a Tag entity
