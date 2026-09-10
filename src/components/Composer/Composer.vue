@@ -207,6 +207,7 @@ import ActorAvatar from '../ActorAvatar.vue'
 import { generateUrl } from '@nextcloud/router'
 import PreviewGrid from './PreviewGrid.vue'
 import VisibilitySelect from '../Visibility/VisibilitySelect.vue'
+import { isKnownVisibility } from '../Visibility/VisibilitiesInfos.js'
 import SubmitStatusButton from './SubmitStatusButton.vue'
 import MessageContent from '../MessageContent.js'
 import Tribute from 'tributejs'
@@ -248,6 +249,7 @@ export default {
 			default: undefined,
 		},
 	},
+	emits: ['posted'],
 	data() {
 		return {
 			statusContent: '',
@@ -572,7 +574,10 @@ export default {
 				this.showWarning = true
 				this.spoilerText = draft.spoilerText
 			}
-			if (draft.visibility !== '' && this.defaultVisibility === undefined) {
+			// a draft written by another version can name a visibility this one
+			// does not have, and VisibilitySelect renders `.text` off the entry
+			// it looks up: an unknown id took the whole composer down
+			if (isKnownVisibility(draft.visibility) && this.defaultVisibility === undefined) {
 				this.visibility = draft.visibility
 			}
 			this.updateStatusContent()
@@ -727,6 +732,7 @@ export default {
 
 			this.replyTo = null
 			this.$refs.composerInput.innerText = ''
+			Object.keys(this.attachments).forEach((key) => this.releasePreview(key))
 			this.attachments = {}
 			this.showPoll = false
 			this.pollOptions = ['', '']
@@ -736,6 +742,9 @@ export default {
 			clearDraft()
 			this.updateStatusContent()
 			this.$store.dispatch('refreshTimeline')
+			// the sidebar's modal has no other way of knowing: it cleared the
+			// box and stayed open, which reads as if nothing had happened
+			this.$emit('posted')
 		},
 		toggleWarning() {
 			this.showWarning = !this.showWarning
@@ -764,8 +773,15 @@ export default {
 			const newAttachments = { ...this.attachments }
 			delete newAttachments[key]
 			this.attachments = newAttachments
-			// the key is the blob URL the preview was drawn from; without this
-			// the file stays in memory for the life of the document
+			this.releasePreview(key)
+		},
+		/**
+		 * Lets go of the blob URL a preview was drawn from. Without this the
+		 * file stays in memory for the life of the document.
+		 *
+		 * @param {string} key the attachment key, which is that URL
+		 */
+		releasePreview(key) {
 			try {
 				URL.revokeObjectURL(key)
 			} catch (error) {
@@ -819,11 +835,14 @@ export default {
  * @return {string} the remembered visibility, or '' when there is none
  */
 function rememberedVisibility() {
+	let remembered
 	try {
-		return window.localStorage.getItem('social.lastPostType') ?? ''
+		remembered = window.localStorage.getItem('social.lastPostType') ?? ''
 	} catch (error) {
 		return ''
 	}
+
+	return isKnownVisibility(remembered) ? remembered : ''
 }
 
 /**

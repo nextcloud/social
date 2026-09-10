@@ -4,11 +4,13 @@
  */
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { createStore } from 'vuex'
 import axios from '@nextcloud/axios'
 import Search from '../../../src/components/Search.vue'
 import account from '../../../src/store/account.js'
 import settings from '../../../src/store/settings.js'
+import timeline from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -16,6 +18,7 @@ vi.hoisted(() => {
 })
 
 const pristine = structuredClone(account.state)
+const pristineTimeline = structuredClone(timeline.state)
 
 const UserEntryStub = {
 	name: 'UserEntry',
@@ -38,6 +41,7 @@ const NcEmptyContentStub = {
 	template: '<div class="empty-stub"><span class="empty-name">{{ name }}</span><span class="empty-description">{{ description }}</span></div>',
 }
 const NcLoadingIconStub = { name: 'NcLoadingIcon', template: '<span class="loading-stub" />' }
+const ComposerStub = { name: 'Composer', template: '<div class="composer-stub" />' }
 
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob', display_name: 'Bob' }
 const carol = { id: 'https://cloud.example.org/users/carol', url: 'https://cloud.example.org/users/carol', acct: 'carol', username: 'carol', display_name: 'Carol' }
@@ -76,6 +80,7 @@ const mountSearch = (term) => mount(Search, {
 			RouterLink: RouterLinkStub,
 			NcEmptyContent: NcEmptyContentStub,
 			NcLoadingIcon: NcLoadingIconStub,
+			Composer: ComposerStub,
 		},
 	},
 })
@@ -83,7 +88,8 @@ const mountSearch = (term) => mount(Search, {
 describe('Search', () => {
 	beforeEach(() => {
 		Object.assign(account.state, structuredClone(pristine))
-		store = createStore({ modules: { account, settings } })
+		Object.assign(timeline.state, structuredClone(pristineTimeline))
+		store = createStore({ modules: { account, settings, timeline } })
 		store.commit('setServerData', { public: false, cloudAddress: 'https://cloud.example.org' })
 		get = vi.spyOn(axios, 'get')
 	})
@@ -121,6 +127,62 @@ describe('Search', () => {
 
 		expect(store.getters.getAccount('bob@remote.example')).toEqual(bob)
 		expect(store.getters.getAccount('carol@cloud.example.org')).toEqual(carol)
+	})
+
+	describe('acting on a result', () => {
+		const found = async () => {
+			get.mockResolvedValue(response({ statuses: [status('1'), status('2')] }))
+			const wrapper = mountSearch('nextcloud')
+			await flushPromises()
+			return wrapper
+		}
+
+		const entry = (wrapper, id) => wrapper.findAllComponents(TimelineEntryStub)
+			.find((candidate) => candidate.props('item').id === id)
+
+		it('shows a like, a boost and a bookmark on the result itself', async () => {
+			// the results lived in local component data, where every mutation
+			// in store/timeline.js — each guarded on the status being in
+			// `state.statuses` — could not reach them: the request went out
+			// and nothing on screen changed
+			const wrapper = await found()
+
+			store.commit('likeStatus', { status: status('1') })
+			store.commit('boostStatus', { status: status('1') })
+			store.commit('bookmarkStatus', { status: status('1'), bookmarked: true })
+			await nextTick()
+
+			expect(entry(wrapper, '1').props('item')).toMatchObject({
+				favourited: true,
+				reblogged: true,
+				bookmarked: true,
+			})
+			expect(entry(wrapper, '2').props('item').favourited).toBeUndefined()
+		})
+
+		it('takes a deleted result off the page', async () => {
+			// removeStatus took it out of a list it was never in, so it stayed
+			const wrapper = await found()
+
+			store.commit('removeStatus', status('1'))
+			await nextTick()
+
+			expect(wrapper.findAllComponents(TimelineEntryStub).map((candidate) => candidate.props('item').id)).toEqual(['2'])
+		})
+
+		it('has a composer for Reply to reach', async () => {
+			// Reply emits `composer-reply` on the event bus, and the listener
+			// is registered in the Composer's mounted(): with none on the page
+			// pressing it did nothing whatsoever
+			const wrapper = await found()
+			const composer = wrapper.findComponent(ComposerStub)
+			expect(composer.exists()).toBe(true)
+			expect(composer.element.style.display).toBe('none')
+
+			store.commit('setComposerDisplayStatus', true)
+			await nextTick()
+			expect(composer.element.style.display).toBe('')
+		})
 	})
 
 	it('leaves out the sections the server found nothing for', async () => {

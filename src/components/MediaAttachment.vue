@@ -29,7 +29,7 @@
 			<canvas ref="canvas"
 				class="attachment__blurhash"
 				:class="{ 'attachment__blurhash--hidden': previewLoaded }" />
-			<img v-if="attachment !== null && !previewFailed"
+			<img v-if="hasPreview && !previewFailed"
 				class="attachment__preview attachment__preview--fading"
 				:class="{ 'attachment__preview--shown': previewLoaded }"
 				:src="attachment.preview_url"
@@ -37,15 +37,16 @@
 				@load="previewLoaded = true"
 				@error="onPreviewError">
 			<!-- federated media that has gone away used to spin forever: no
-			     @error meant previewLoaded stayed false and the spinner stayed -->
-			<span v-if="previewFailed"
+			     @error meant previewLoaded stayed false and the spinner stayed.
+			     So did media the server says outright it has no preview for -->
+			<span v-if="showsPlaceholder"
 				class="attachment__failed"
 				role="img"
-				:aria-label="failedLabel">
+				:aria-label="placeholderLabel">
 				<ImageOff :size="32" />
 			</span>
 		</template>
-		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !previewFailed && !isAv)" :size="40" />
+		<NcLoadingIcon v-if="attachment === null || (!previewLoaded && !showsPlaceholder && !isAv)" :size="40" />
 	</div>
 </template>
 
@@ -81,11 +82,35 @@ export default {
 		isAv() {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
 		},
-		/** @return {string} */
-		failedLabel() {
-			return this.attachment?.description
-				? translate('social', 'Attachment could not be loaded: {description}', { description: this.attachment.description })
-				: translate('social', 'Attachment could not be loaded')
+		/**
+		 * Whether there is a preview to wait for at all. The server sends
+		 * `preview_url: null` when it has none, and Vue drops a null `src`:
+		 * neither @load nor @error is then guaranteed to fire — on Firefox
+		 * neither does — so the spinner stayed up for good.
+		 *
+		 * @return {boolean}
+		 */
+		hasPreview() {
+			return this.attachment !== null
+				&& typeof this.attachment.preview_url === 'string'
+				&& this.attachment.preview_url !== ''
+		},
+		/** @return {boolean} whether the still-image placeholder is on screen */
+		showsPlaceholder() {
+			return !this.isAv && this.attachment !== null && (this.previewFailed || !this.hasPreview)
+		},
+		/** @return {string} what the placeholder stands for */
+		placeholderLabel() {
+			const description = this.attachment?.description
+			if (this.previewFailed) {
+				return description
+					? translate('social', 'Attachment could not be loaded: {description}', { description })
+					: translate('social', 'Attachment could not be loaded')
+			}
+
+			return description
+				? translate('social', 'No preview available: {description}', { description })
+				: translate('social', 'No preview available')
 		},
 	},
 	watch: {

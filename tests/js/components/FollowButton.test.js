@@ -11,6 +11,11 @@ import { createStore } from 'vuex'
 import FollowButton from '../../../src/components/FollowButton.vue'
 import account from '../../../src/store/account.js'
 import settings from '../../../src/store/settings.js'
+import logger from '../../../src/services/logger.js'
+
+vi.mock('../../../src/services/logger.js', () => ({
+	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
 
 // @nextcloud/auth reads the current user from <head> once and caches it.
 vi.hoisted(() => {
@@ -180,7 +185,7 @@ describe('FollowButton', () => {
 		expect(dispatch).toHaveBeenCalledTimes(1)
 	})
 
-	it('re-enables the button when the follow request is rejected', async () => {
+	it('re-enables the button on a follow that could not be carried out, and keeps the rejection in', async () => {
 		setRelationship(bob)
 		vi.spyOn(store, 'dispatch').mockRejectedValue(new Error('status -1'))
 		const errorHandler = vi.fn()
@@ -188,7 +193,11 @@ describe('FollowButton', () => {
 
 		await wrapper.find('button').trigger('click')
 		await flushPromises()
-		expect(errorHandler).toHaveBeenCalledTimes(1)
+
+		// the await had a `finally` and no `catch`, so a refusal left the
+		// component as an unhandled rejection on its way out
+		expect(errorHandler).not.toHaveBeenCalled()
+		expect(logger.error).toHaveBeenCalledWith('Failed to follow an account', { error: expect.any(Error) })
 		expect(wrapper.find('button').attributes('disabled')).toBeUndefined()
 	})
 

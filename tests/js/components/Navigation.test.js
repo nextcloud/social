@@ -12,6 +12,7 @@ import axios from '@nextcloud/axios'
 import errors from '../../../src/store/errors.js'
 import notifications from '../../../src/store/notifications.js'
 import settings from '../../../src/store/settings.js'
+import timeline from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -32,7 +33,7 @@ const stubs = {
 	NcAppNavigationItem: {
 		props: ['name', 'active', 'href', 'target', 'to'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && to.name" @click="$emit(\'click\')">'
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" @click="$emit(\'click\', $event)">'
 			+ '<slot name="icon" /><span class="nav-item__name">{{ name }}</span>'
 			+ '<span class="nav-item__counter"><slot name="counter" /></span>'
 			+ '<slot name="extra" /><slot /></li>',
@@ -42,7 +43,7 @@ const stubs = {
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" />' },
 	NcModal: { props: ['name'], emits: ['close'], template: '<div class="modal-stub" :data-name="name"><slot /></div>' },
-	Composer: { template: '<div class="composer-stub" />' },
+	Composer: { emits: ['posted'], template: '<div class="composer-stub" @click="$emit(\'posted\')" />' },
 }
 
 let store
@@ -105,10 +106,10 @@ describe('Navigation', () => {
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
 		['Profile', { name: 'profile', params: { account: 'alice' } }],
-	])('navigates to the %s timeline on click', async (name, to) => {
-		const wrapper = mountNavigation()
-		await item(wrapper, name).trigger('click')
-		expect(router.push).toHaveBeenCalledWith(to)
+	])('points the %s entry at its route', (name, to) => {
+		// a route, not an imperative push from a click handler: see the
+		// "sidebar entries are links" tests below for why that matters
+		expect(item(mountNavigation(), name).attributes('data-to')).toBe(JSON.stringify(to))
 	})
 
 	it('offers the blocked and muted accounts in the settings section', () => {
@@ -116,7 +117,7 @@ describe('Navigation', () => {
 		const entry = item(wrapper, 'Blocked and muted accounts')
 
 		// a route rather than a click handler, so the entry behaves like a link
-		expect(entry.attributes('data-to')).toBe('blocked-accounts')
+		expect(entry.attributes('data-to')).toBe(JSON.stringify({ name: 'blocked-accounts' }))
 		expect(wrapper.find('.nav-settings').text()).toContain('Blocked and muted accounts')
 	})
 
@@ -141,14 +142,13 @@ describe('Navigation', () => {
 			expect(trends[0].text()).toContain('12')
 		})
 
-		it('opens the tag timeline when one is picked', async () => {
+		it('points a trending tag at its timeline', async () => {
 			axios.get.mockResolvedValueOnce({ data: [tag('nextcloud', 12)] })
 			const wrapper = mountNavigation()
 			await flushPromises()
 
-			await item(wrapper, '#nextcloud').trigger('click')
-
-			expect(router.push).toHaveBeenCalledWith({ name: 'tags', params: { tag: 'nextcloud' } })
+			expect(item(wrapper, '#nextcloud').attributes('data-to'))
+				.toBe(JSON.stringify({ name: 'tags', params: { tag: 'nextcloud' } }))
 		})
 
 		it('leaves the section out on a quiet instance', async () => {
@@ -241,6 +241,18 @@ describe('Navigation', () => {
 		expect(modal.find('.composer-stub').exists()).toBe(true)
 	})
 
+	it('closes the composer modal once the post is away', async () => {
+		const wrapper = mountNavigation()
+		await item(wrapper, 'New post').trigger('click')
+		expect(wrapper.find('.modal-stub').exists()).toBe(true)
+
+		// the composer cleared its box and the modal stayed open, which reads
+		// as if nothing had been sent
+		await wrapper.find('.composer-stub').trigger('click')
+
+		expect(wrapper.find('.modal-stub').exists()).toBe(false)
+	})
+
 	it('offers nothing in the settings section but the accounts it can act on', () => {
 		const wrapper = mountNavigation()
 		expect(wrapper.find('.nav-settings').attributes('data-name')).toBe('Settings')
@@ -303,5 +315,87 @@ describe('Navigation', () => {
 			await item(wrapper, 'Errors').trigger('click')
 			expect(wrapper.findAll('.modal-stub button').map((button) => button.text())).toEqual(['Dismiss'])
 		})
+	})
+
+	it('keeps the search box on the term the URL is showing', async () => {
+		const searchStore = createStore({ modules: { errors, settings, notifications, timeline } })
+		searchStore.commit('setServerData', { public: false })
+		searchStore.commit('setSearchQuery', 'nextcloud')
+		const wrapper = mount(Navigation, {
+			global: { plugins: [searchStore], mocks: { $route: { name: 'search', params: { term: 'nextcloud' } }, $router: router }, stubs },
+		})
+		expect(wrapper.find('.nav-search').element.value).toBe('nextcloud')
+
+		// navigating away clears the query; read once in mounted() the box kept
+		// showing a term nothing was being searched for any more
+		searchStore.commit('setSearchQuery', '')
+		await nextTick()
+		expect(wrapper.find('.nav-search').element.value).toBe('')
+	})
+})
+
+// The sidebar shell is stubbed everywhere above, which cannot show what the
+// entries really render. These use the component the app uses.
+describe('Navigation entries are links', () => {
+	const realStubs = {
+		NcAppNavigation: { template: '<nav><slot name="list" /><slot name="footer" /></nav>' },
+		NcAppNavigationSearch: true,
+		NcAppNavigationSettings: { template: '<div><slot /></div>' },
+		NcAvatar: true,
+	}
+
+	const mountReal = async (path = '/timeline') => {
+		const realStore = createStore({ modules: { errors, settings, notifications } })
+		realStore.commit('setServerData', { public: false })
+		await appRouter.push(path)
+		await appRouter.isReady()
+
+		return mount(Navigation, { global: { plugins: [realStore, appRouter], stubs: realStubs } })
+	}
+
+	const link = (wrapper, name) => wrapper.findAll('a').find((anchor) => anchor.text().startsWith(name))
+
+	it.each([
+		['Home', '/index.php/apps/social/timeline'],
+		['Notifications', '/index.php/apps/social/timeline/notifications'],
+		['Direct messages', '/index.php/apps/social/timeline/direct'],
+		['Local', '/index.php/apps/social/timeline/timeline'],
+		['Global', '/index.php/apps/social/timeline/federated'],
+		['Follow requests', '/index.php/apps/social/follow_requests'],
+		['Liked posts', '/index.php/apps/social/timeline/favourites'],
+		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
+		['Profile', '/index.php/apps/social/@alice'],
+		['Blocked and muted accounts', '/index.php/apps/social/blocked'],
+	])('gives %s a real href', async (name, href) => {
+		expect(link(await mountReal(), name).attributes('href')).toBe(href)
+	})
+
+	it('does not let the browser follow the anchor as well', async () => {
+		// NcAppNavigationItem falls back to href="#" for an entry with no `to`,
+		// and only calls preventDefault() when it has one. Driven from a click
+		// handler instead, the fragment navigation that followed the click
+		// reached vue-router as a popstate and cancelled the route change that
+		// the click had just started — which is why "Follow requests", whose
+		// chunk still had to be fetched, went nowhere while every entry on the
+		// already-loaded timeline chunk resolved before the popstate landed.
+		const wrapper = await mountReal()
+		const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+		link(wrapper, 'Follow requests').element.dispatchEvent(event)
+		await flushPromises()
+
+		expect(event.defaultPrevented).toBe(true)
+		// the view is a lazy chunk, so the navigation lands a few ticks later
+		await vi.waitFor(() => expect(appRouter.currentRoute.value.name).toBe('follow-requests'))
+	})
+
+	it('opens the composer without navigating anywhere', async () => {
+		const wrapper = await mountReal()
+		const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+		link(wrapper, 'New post').element.dispatchEvent(event)
+		await flushPromises()
+
+		// nothing to route to, so the bare href="#" must not become a history entry
+		expect(event.defaultPrevented).toBe(true)
+		expect(appRouter.currentRoute.value.name).toBe('timeline')
 	})
 })

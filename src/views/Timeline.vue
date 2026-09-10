@@ -75,9 +75,11 @@ export default {
 			case 'direct':
 				return t('social', 'Direct messages')
 			case 'timeline':
+				// what the sidebar calls Local: the store asks for `local: true`
+				return t('social', 'Local timeline')
 			case 'federated':
 				return t('social', 'Global timeline')
-			case 'liked':
+			case 'favourites':
 				return t('social', 'Liked posts')
 			case 'bookmarks':
 				return t('social', 'Bookmarks')

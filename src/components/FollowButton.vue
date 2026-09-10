@@ -125,6 +125,10 @@ export default {
 			try {
 				this.loading = true
 				await this.$store.dispatch('followAccount', { currentAccount: this.cloudId, accountToFollow: this.profileAccount })
+			} catch (error) {
+				// the store says what went wrong; without this the rejection
+				// had nowhere to go but the console, as an unhandled one
+				logger.error('Failed to follow an account', { error })
 			} finally {
 				this.loading = false
 			}
@@ -135,6 +139,8 @@ export default {
 			try {
 				this.loading = true
 				await this.$store.dispatch('unfollowAccount', { currentAccount: this.cloudId, accountToUnfollow: this.profileAccount })
+			} catch (error) {
+				logger.error('Failed to unfollow an account', { error })
 			} finally {
 				this.loading = false
 				this.unfollowIntent = false

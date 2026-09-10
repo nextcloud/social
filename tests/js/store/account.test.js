@@ -353,14 +353,18 @@ describe('account store actions', () => {
 			expect(showError).not.toHaveBeenCalled()
 		})
 
-		it('rejects with the response and changes nothing when the server reports status -1', async () => {
+		it('says so, rather than rejecting silently, when the server reports status -1', async () => {
+			// `return Promise.reject()` from inside the try resolved after the
+			// frame had popped, so this action's own catch never ran: no toast,
+			// no log, and an unhandled rejection at the caller
 			const response = { data: { status: -1, message: 'nope' } }
 			axios.put.mockResolvedValue(response)
 
-			await expect(store.dispatch('followAccount', { accountToFollow: bob.acct })).rejects.toBe(response)
+			await expect(store.dispatch('followAccount', { accountToFollow: bob.acct })).resolves.toBeUndefined()
 
 			expect(store.getters.getRelationshipWith(bob.id)).toBeUndefined()
-			expect(showError).not.toHaveBeenCalled()
+			expect(showError).toHaveBeenCalledWith('Could not follow bob@remote.tld')
+			expect(logger.error).toHaveBeenCalledWith('Failed to follow user bob@remote.tld', { error: expect.any(Error) })
 		})
 
 		it('shows an error and resolves to undefined on a network failure', async () => {
@@ -390,13 +394,14 @@ describe('account store actions', () => {
 			expect(store.getters.getRelationshipWith(bob.id)).toEqual({ id: bob.id, following: false })
 		})
 
-		it('rejects with the response and keeps following when the server reports status -1', async () => {
+		it('says so, rather than rejecting silently, when the server reports status -1', async () => {
 			const response = { data: { status: -1, message: 'nope' } }
 			axios.delete.mockResolvedValue(response)
 
-			await expect(store.dispatch('unfollowAccount', { accountToUnfollow: bob.acct })).rejects.toBe(response)
+			await expect(store.dispatch('unfollowAccount', { accountToUnfollow: bob.acct })).resolves.toBeInstanceOf(Error)
 
 			expect(store.getters.getRelationshipWith(bob.id)).toMatchObject({ following: true })
+			expect(showError).toHaveBeenCalledWith('Could not unfollow bob@remote.tld')
 		})
 
 		it('shows an error and resolves with the error on a network failure', async () => {

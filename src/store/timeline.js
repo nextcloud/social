@@ -95,6 +95,23 @@ const mutations = {
 		delete removedFrom[status.id]
 		state.removedFrom = removedFrom
 	},
+	/**
+	 * Drops the "where it came from" hint for a removal that is final. Only
+	 * restoreStatus cleared it, so unliking from the liked timeline and
+	 * un-bookmarking from the bookmarks left a hint behind for a status that
+	 * is not coming back — and the next rollback of that id read it.
+	 *
+	 * @param {object} state the module state
+	 * @param {object} status the status whose removal stands
+	 */
+	forgetRemoval(state, status) {
+		if (state.removedFrom[status.id] === undefined) {
+			return
+		}
+		const removedFrom = { ...state.removedFrom }
+		delete removedFrom[status.id]
+		state.removedFrom = removedFrom
+	},
 	removeStatusesByActor(state, accountId) {
 		const id = String(accountId)
 		const isByActor = (status) => String(status?.account?.id) === id
@@ -388,6 +405,7 @@ const actions = {
 			const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unfavourite`))
 			logger.info('Post unliked')
 			context.commit('addToStatuses', response.data)
+			context.commit('forgetRemoval', status)
 			return response
 		} catch (error) {
 			if (context.state.type === 'favourites') {
@@ -439,6 +457,7 @@ const actions = {
 			context.commit('addToStatuses', response.data)
 			if (!bookmarked && context.state.type === 'bookmarks') {
 				context.commit('removeStatus', status)
+				context.commit('forgetRemoval', status)
 			}
 			return response
 		} catch (error) {
@@ -508,7 +527,16 @@ const actions = {
 			url = generateUrl(`apps/social/api/v1/timelines/${current.type}`)
 		}
 
+		// which list this page was asked for, so an answer that arrives after
+		// the reader has moved on is dropped instead of being committed under
+		// the new heading
+		const identity = context.getters.getTimelineIdentity
 		const response = await axios.get(url, { params })
+
+		if (context.getters.getTimelineIdentity !== identity) {
+			logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })
+			return []
+		}
 
 		context.commit('addToTimeline', response.data)
 

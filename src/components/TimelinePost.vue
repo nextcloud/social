@@ -99,9 +99,12 @@
 			<PostAttachment v-if="hasAttachments" :attachments="item.media_attachments || []" />
 			<PostCard v-if="showCard" :card="item.card" />
 		</template>
-		<div v-else class="post-sensitive">
+		<!-- not when there is a content warning: that already renders a
+		     "Show more" for the very same flag, so a post with both offered
+		     two buttons for one reveal. No aria-expanded either — this
+		     control is gone the moment it would have to say "true". -->
+		<div v-else-if="!hasSpoiler" class="post-sensitive">
 			<NcButton variant="secondary"
-				aria-expanded="false"
 				@click="warningLifted = true">
 				<template #icon>
 					<EyeOff :size="20" />
@@ -375,9 +378,17 @@ export default {
 		showCard() {
 			return !this.hasAttachments && Boolean(this.item.card?.title)
 		},
-		/** @return {boolean} own local posts can be pinned to the profile */
+		/**
+		 * @return {boolean} own local posts can be pinned to the profile, and
+		 * only the ones anyone may see: a pinned followers-only post was
+		 * served in full to the anonymous internet through the featured
+		 * collection, so the server now refuses anything that is not public
+		 * or unlisted — the same set a boost is allowed for.
+		 */
 		canPin() {
-			return this.item.account.acct === this.currentAccount?.acct && this.item.local !== false
+			return this.item.account.acct === this.currentAccount?.acct
+				&& this.item.local !== false
+				&& (this.item.visibility === 'public' || this.item.visibility === 'unlisted')
 		},
 		reportButtons() {
 			return [

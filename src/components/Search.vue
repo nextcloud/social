@@ -4,6 +4,11 @@
 -->
 <template>
 	<div class="social__wrapper social__search">
+		<!-- Reply used to emit `composer-reply` on the event bus with nothing
+		     on this page listening, so it did nothing at all. Kept mounted the
+		     way the single-post view keeps it, because the listener lives in
+		     the Composer's mounted(). -->
+		<Composer v-show="composerDisplayStatus" />
 		<h1 class="social__search-heading">
 			{{ t('social', 'Search results for “{term}”', { term: query }) }}
 		</h1>
@@ -63,6 +68,7 @@
 
 <script>
 
+import { defineAsyncComponent } from 'vue'
 import UserEntry from './UserEntry.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import axios from '@nextcloud/axios'
@@ -75,12 +81,15 @@ import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import logger from '../services/logger.js'
 
+const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
+
 /** how long to wait for the typing to stop before asking the server */
 const DEBOUNCE_MS = 300
 
 export default {
 	name: 'Search',
 	components: {
+		Composer,
 		Magnify,
 		NcButton,
 		NcEmptyContent,
@@ -98,7 +107,14 @@ export default {
 	data() {
 		return {
 			accounts: [],
-			statuses: [],
+			/**
+			 * Ids, not the statuses themselves. Held locally they were invisible
+			 * to every mutation in store/timeline.js — each one is guarded by
+			 * `state.statuses[id] !== undefined` — so liking, boosting,
+			 * bookmarking or pinning a result sent its request and then changed
+			 * nothing on screen, and deleting one left it in the list.
+			 */
+			statusIds: [],
 			hashtags: [],
 			loading: false,
 			error: null,
@@ -113,6 +129,22 @@ export default {
 			} catch (error) {
 				return this.term
 			}
+		},
+		/**
+		 * The found posts, read back out of the store so that acting on one
+		 * shows. A status the store no longer holds — a deleted one — drops
+		 * out of the list on its own.
+		 *
+		 * @return {object[]}
+		 */
+		statuses() {
+			return this.statusIds
+				.map((id) => this.$store.getters.getStatus(id))
+				.filter(Boolean)
+		},
+		/** @return {boolean} whether the reply composer is open */
+		composerDisplayStatus() {
+			return this.$store.getters.getComposerDisplayStatus
 		},
 		/** @return {boolean} */
 		isEmpty() {
@@ -152,7 +184,7 @@ export default {
 			const term = this.query.trim()
 			if (term === '') {
 				this.accounts = []
-				this.statuses = []
+				this.statusIds = []
 				this.hashtags = []
 				this.error = null
 				return
@@ -165,7 +197,6 @@ export default {
 					params: { q: term, limit: 20 },
 				})
 				this.accounts = Array.isArray(data?.accounts) ? data.accounts : []
-				this.statuses = Array.isArray(data?.statuses) ? data.statuses : []
 				this.hashtags = Array.isArray(data?.hashtags) ? data.hashtags : []
 
 				// so the follow buttons beside the results know where they stand
@@ -174,6 +205,13 @@ export default {
 						this.$store.commit('addAccount', { actorId: account.url, data: account })
 					}
 				}
+
+				// through the store, not local data: see `statusIds`
+				const found = Array.isArray(data?.statuses) ? data.statuses : []
+				for (const status of found) {
+					this.$store.commit('addToStatuses', status)
+				}
+				this.statusIds = found.map((status) => status.id)
 			} catch (error) {
 				logger.error('Failed to perform the search', { error })
 				this.error = translate('social', 'The search could not be run. Please try again.')

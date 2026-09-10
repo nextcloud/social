@@ -262,13 +262,15 @@ describe('TimelinePost', () => {
 
 			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(false)
 			expect(wrapper.findComponent({ name: 'Poll' }).exists()).toBe(false)
-			expect(wrapper.find('.post-sensitive').exists()).toBe(true)
+			// one control for one reveal: the warning's own "Show more" used
+			// to be joined by a second "Show sensitive content" box below it
+			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
+			expect(wrapper.findAll('button').filter((button) => /Show (more|sensitive content)/.test(button.text()))).toHaveLength(1)
 
 			await wrapper.findAll('button').find((button) => button.text() === 'Show more').trigger('click')
 
 			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(true)
 			expect(wrapper.findComponent({ name: 'Poll' }).exists()).toBe(true)
-			expect(wrapper.find('.post-sensitive').exists()).toBe(false)
 		})
 
 		it('covers only the media of a post flagged sensitive without a warning', async () => {
@@ -286,6 +288,9 @@ describe('TimelinePost', () => {
 
 			const reveal = wrapper.findAll('button').find((button) => button.text() === 'Show sensitive content')
 			expect(reveal.exists()).toBe(true)
+			// the control is gone once the media is out, so it can never say
+			// "expanded": it used to claim aria-expanded="false" regardless
+			expect(reveal.attributes('aria-expanded')).toBeUndefined()
 			await reveal.trigger('click')
 			expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(true)
 		})
@@ -615,6 +620,17 @@ describe('TimelinePost', () => {
 		it('never offers pinning for somebody else\'s post or a remote one', () => {
 			expect(menuItem(mountPost({ item: makeItem({ account: bob }) }).wrapper, 'Pin to profile')).toBeUndefined()
 			expect(menuItem(mountPost({ item: makeItem({ local: false }) }).wrapper, 'Pin to profile')).toBeUndefined()
+		})
+
+		it.each(['public', 'unlisted'])('offers pinning a %s post', (visibility) => {
+			expect(menuItem(mountPost({ item: makeItem({ visibility }) }).wrapper, 'Pin to profile')).toBeDefined()
+		})
+
+		it.each(['private', 'direct'])('never offers pinning a %s post', (visibility) => {
+			// the featured collection is public: a pinned followers-only post
+			// was served in full to anyone who asked, so the server refuses
+			// anything but public and unlisted and the entry has to go
+			expect(menuItem(mountPost({ item: makeItem({ visibility }) }).wrapper, 'Pin to profile')).toBeUndefined()
 		})
 
 		it('marks a pinned post in the header', () => {

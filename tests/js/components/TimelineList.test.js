@@ -325,6 +325,18 @@ describe('TimelineList', () => {
 
 			expect(() => eventBus.emit('shortcut:next')).not.toThrow()
 		})
+
+		it('leaves the ancestors list alone, so one press moves one focus', async () => {
+			// both lists in the single-post view listened, so j walked the
+			// ancestors and the replies at the same time
+			const { wrapper } = mountList({ parents: [status('5')], props: { showParents: true } })
+			await flushPromises()
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			expect(focusedIds(wrapper)).toEqual([])
+		})
 	})
 
 	describe('keyboard reading', () => {
@@ -494,6 +506,46 @@ describe('TimelineList', () => {
 
 			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
 			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
+		})
+
+		it('asks for the new list even while the previous one is still loading', async () => {
+			// Clicking Global during the ~200 ms the home timeline is loading
+			// left `loading` set, so infiniteHandler returned at once and
+			// nothing was ever requested for the list now on screen.
+			let finishHome
+			const { dispatch, $store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			await flushPromises()
+			dispatch.mockClear()
+			dispatch.mockResolvedValue([status('9')])
+
+			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledWith('fetchTimeline', {})
+			finishHome([])
+		})
+
+		it('lets the previous list\'s answer decide nothing once it arrives', async () => {
+			let finishHome
+			const { wrapper, dispatch, $store } = mountList({ responses: [new Promise((resolve) => { finishHome = resolve })] })
+			await flushPromises()
+
+			let finishFederated
+			dispatch.mockClear()
+			dispatch.mockReturnValue(new Promise((resolve) => { finishFederated = resolve }))
+			$store.getters.getTimelineIdentity = '["federated","",{}]'
+			await flushPromises()
+
+			// home answers "nothing more", which used to end the new list
+			// before its own first page had come back
+			finishHome([])
+			await flushPromises()
+			expect(wrapper.findComponent(EmptyContent).exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(true)
+
+			finishFederated([status('9')])
+			await flushPromises()
+			expect(wrapper.findComponent(TimelineSkeleton).exists()).toBe(false)
 		})
 
 		it('does not start over for the ancestors list, which fetches nothing', async () => {
@@ -764,6 +816,22 @@ describe('TimelineList', () => {
 			const second = mountList({ route: { name: 'profile', params: { account: 'alice' } } })
 			await flushPromises()
 			expect(emptyTitle(second.wrapper)).toBe('You have not tooted yet')
+		})
+
+		it('says a thread has no replies rather than leaving a blank area', async () => {
+			// /context answers with {ancestors, descendants}, whose `.length`
+			// is undefined: allLoaded was never set, so nothing was said and
+			// the sentinel kept asking for a page that does not exist
+			const { wrapper, dispatch } = mountList({
+				route: { name: 'single-post', params: { type: 'single-post', id: '1' } },
+				responses: [{ ancestors: [], descendants: [] }],
+			})
+			await flushPromises()
+
+			expect(emptyTitle(wrapper)).toBe('No replies found')
+
+			await intersect()
+			expect(dispatch).toHaveBeenCalledTimes(1)
 		})
 
 		it('mentions missing replies below a single post but stays silent for its ancestors', async () => {

@@ -22,7 +22,7 @@
 				<input v-model="selected"
 					:type="poll.multiple ? 'checkbox' : 'radio'"
 					:value="index"
-					name="poll-option">
+					:name="groupName">
 				{{ option.title }}
 			</label>
 			<NcButton :disabled="selectedIndices.length === 0 || voting"
@@ -52,6 +52,9 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import Check from 'vue-material-design-icons/Check.vue'
 import logger from '../services/logger.js'
 
+/** what makes each poll on the page its own radio group */
+let nextGroup = 0
+
 export default {
 	name: 'Poll',
 	components: {
@@ -68,6 +71,12 @@ export default {
 	emits: ['update:poll'],
 	data() {
 		return {
+			// A literal name made every poll on the page one document-wide
+			// radio group — the inputs are not inside a <form> — so choosing
+			// in one poll visibly cleared another's selection while that
+			// component's `selected` was untouched, and it went on to submit
+			// the choice that was no longer shown.
+			groupName: `poll-option-${nextGroup++}`,
 			selected: this.poll.multiple ? [] : null,
 			voting: false,
 			// the bars grow from nothing; they need one frame at zero width

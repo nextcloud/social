@@ -10,8 +10,11 @@
 				@update:modelValue="onSearchInput" />
 		</template>
 		<template #list>
+			<!-- no `to`, so NcAppNavigationItem renders href="#" and leaves the
+			     default action alone: without .prevent the click also pushes a
+			     bare fragment onto the history -->
 			<NcAppNavigationItem :name="t('social', 'New post')"
-				@click="showComposer = true">
+				@click.prevent="showComposer = true">
 				<template #icon>
 					<IconPlus :size="20" />
 				</template>
@@ -19,7 +22,7 @@
 
 			<NcAppNavigationItem v-if="hasErrors"
 				:name="t('social', 'Errors')"
-				@click="showErrors = true">
+				@click.prevent="showErrors = true">
 				<template #icon>
 					<IconAlertCircle class="error-icon" :size="20" />
 				</template>
@@ -33,8 +36,8 @@
 			<NcAppNavigationItem v-for="item in menu.timelines"
 				:key="item.key"
 				:name="item.title"
-				:active="isActive(item)"
-				@click="navigate(item)">
+				:to="item.to"
+				:active="isActive(item)">
 				<template #icon>
 					<component :is="item.icon" :size="20" />
 				</template>
@@ -50,8 +53,8 @@
 				:key="`trend-${tag.name}`"
 				class="navigation__trend"
 				:name="`#${tag.name}`"
-				:active="isTagActive(tag)"
-				@click="openTag(tag)">
+				:to="{ name: 'tags', params: { tag: tag.name } }"
+				:active="isTagActive(tag)">
 				<template #icon>
 					<IconPound :size="20" />
 				</template>
@@ -65,8 +68,8 @@
 			<NcAppNavigationSpacer v-if="trending.length > 0" />
 
 			<NcAppNavigationItem :name="menu.profile.title"
-				:active="isActive(menu.profile)"
-				@click="navigate(menu.profile)">
+				:to="menu.profile.to"
+				:active="isActive(menu.profile)">
 				<template #icon>
 					<NcAvatar :user="currentUser?.uid"
 						:display-name="currentUser?.displayName"
@@ -97,7 +100,9 @@
 		:name="t('social', 'New post')"
 		@close="showComposer = false">
 		<div class="modal-composer">
-			<Composer />
+			<!-- the box emptied and the modal stayed open, which reads as if
+			     nothing had been sent -->
+			<Composer @posted="showComposer = false" />
 		</div>
 	</NcModal>
 
@@ -219,6 +224,10 @@ export default {
 		appErrors() {
 			return this.$store.getters.appErrors
 		},
+		/** what is being searched for, as the URL says it */
+		searchQuery() {
+			return this.$store.getters.getSearchQuery ?? ''
+		},
 		menu() {
 			return {
 				timelines: [
@@ -281,9 +290,18 @@ export default {
 			}
 		},
 	},
+	watch: {
+		// the box has to follow the store, not just read it once: synced only
+		// in mounted() it kept showing a term the reader had already navigated
+		// away from
+		searchQuery: {
+			immediate: true,
+			handler(query) {
+				this.localSearch = query
+			},
+		},
+	},
 	mounted() {
-		// landing on /search/<term> directly should show the term in the box
-		this.localSearch = this.$store.getters.getSearchQuery ?? ''
 		this.fetchTrending()
 		this.$store.dispatch('fetchUnreadNotifications')
 
@@ -341,12 +359,6 @@ export default {
 		isTagActive(tag) {
 			return this.$route?.name === 'tags' && this.$route?.params?.tag === tag.name
 		},
-		/**
-		 * @param {object} tag a Tag entity
-		 */
-		openTag(tag) {
-			this.$router.push({ name: 'tags', params: { tag: tag.name } })
-		},
 		dismissError(id) {
 			this.$store.dispatch('dismissAppError', id)
 		},
@@ -396,9 +408,6 @@ export default {
 			}
 
 			return true
-		},
-		navigate(item) {
-			this.$router.push(item.to)
 		},
 	},
 }

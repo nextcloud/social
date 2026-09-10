@@ -119,6 +119,7 @@ const addWarning = async (wrapper, text) => {
 describe('Composer', () => {
 	let getContext
 	let createObjectURL
+	let revokeObjectURL
 
 	// jsdom has no innerText; the composer empties its input through it after posting
 	beforeAll(() => {
@@ -146,6 +147,8 @@ describe('Composer', () => {
 		})
 		createObjectURL = URL.createObjectURL
 		URL.createObjectURL = vi.fn(() => 'blob:preview-1')
+		revokeObjectURL = URL.revokeObjectURL
+		URL.revokeObjectURL = vi.fn()
 	})
 
 	afterEach(() => {
@@ -155,6 +158,7 @@ describe('Composer', () => {
 		eventBus.all.clear()
 		getContext.mockRestore()
 		URL.createObjectURL = createObjectURL
+		URL.revokeObjectURL = revokeObjectURL
 		vi.restoreAllMocks()
 	})
 
@@ -423,6 +427,33 @@ describe('Composer', () => {
 
 			expect(typed(wrapper)).toBe('')
 			expect(stored()).toBeNull()
+			// whoever opened this — the sidebar's modal — has no other way of
+			// knowing the post went out
+			expect(wrapper.emitted('posted')).toHaveLength(1)
+		})
+
+		it('ignores a visibility it has never heard of', async () => {
+			// a draft written by another version: VisibilitySelect finds no
+			// entry for it and the template reads `.text` off that, so the
+			// whole composer failed to render
+			localStorage.setItem('social.composer.draft', JSON.stringify({
+				text: 'from elsewhere',
+				spoilerText: '',
+				visibility: 'local-only',
+				savedAt: Date.now(),
+			}))
+
+			const { wrapper } = mountComposer()
+			await flushPromises()
+
+			expect(typed(wrapper)).toBe('from elsewhere')
+			expect(currentVisibility(wrapper)).toBe('followers')
+		})
+
+		it('ignores a remembered visibility it has never heard of', () => {
+			localStorage.setItem('social.lastPostType', 'local-only')
+
+			expect(currentVisibility(mountComposer().wrapper)).toBe('followers')
 		})
 
 		it('comes back when the composer is mounted again', async () => {
@@ -498,6 +529,20 @@ describe('Composer', () => {
 			await wrapper.findComponent(PreviewGridItem).find('button').trigger('click')
 
 			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(false)
+		})
+
+		it('lets go of the preview URLs once the post is away', async () => {
+			const { wrapper } = mountComposer()
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+			await setContent(wrapper, 'look at this')
+
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			// the keys were dropped without revoking, so every attachment ever
+			// posted stayed in memory for the life of the document
+			expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1')
 		})
 
 		it('opens the file picker from the attachment button', async () => {

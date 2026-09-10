@@ -103,6 +103,22 @@ describe('MediaAttachment', () => {
 			.toBe('Attachment could not be loaded')
 	})
 
+	it('does not spin for an attachment the server has no preview for', async () => {
+		// Vue drops a null `src`, so neither @load nor @error is guaranteed to
+		// fire — on Firefox neither does — and the spinner stayed up for good
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, preview_url: null, description: '' } } })
+
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+		expect(wrapper.find('img').exists()).toBe(false)
+		expect(wrapper.find('.attachment__failed').attributes('aria-label')).toBe('No preview available')
+	})
+
+	it('names an undescribed-preview attachment by its description', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, preview_url: '', description: 'a cat' } } })
+
+		expect(wrapper.find('.attachment__failed').attributes('aria-label')).toBe('No preview available: a cat')
+	})
+
 	it('names the attachment in the failure when the author described it', async () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, description: 'a cat' } } })
 		await wrapper.find('img').trigger('error')

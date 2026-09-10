@@ -343,8 +343,11 @@ const actions = {
 			const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToFollow))
 			const response = await axios.put(url)
 			if (response.data.status === -1) {
-				logger.error('The server refused the follow', { status: response.data.status })
-				return Promise.reject(response)
+				// thrown rather than returned: a rejected thenable returned
+				// from inside the try resolves only after this frame has
+				// popped, so the catch below never saw it — a refusal was a
+				// silent unhandled rejection, with no toast and no error state
+				throw new Error('The server refused the follow')
 			}
 			context.commit('followAccount', accountToFollow)
 			return response
@@ -358,8 +361,9 @@ const actions = {
 			const url = generateUrl('/apps/social/api/v1/current/follow?account=' + encodeURIComponent(accountToUnfollow))
 			const response = await axios.delete(url)
 			if (response.data.status === -1) {
-				logger.error('The server refused the unfollow', { status: response.data.status })
-				return Promise.reject(response)
+				// see followAccount: returning a rejection from inside the try
+				// escapes this function's own catch
+				throw new Error('The server refused the unfollow')
 			}
 			context.commit('unfollowAccount', accountToUnfollow)
 			return response

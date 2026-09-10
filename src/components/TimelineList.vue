@@ -113,6 +113,13 @@ export default {
 			focused: -1,
 			loading: false,
 			allLoaded: false,
+			/**
+			 * Which list the requests in flight belong to. Switching timeline
+			 * used to leave `loading` set, so nothing was ever asked for the
+			 * list now on screen, and the previous list's answer was committed
+			 * under the new heading when it arrived.
+			 */
+			generation: 0,
 			/** what went wrong, when something did; null while all is well */
 			error: null,
 			/** whether the polling failure has already been said once */
@@ -267,16 +274,17 @@ export default {
 		},
 	},
 	mounted() {
-		eventBus.on('shortcut:next', this.focusNext)
-		eventBus.on('shortcut:previous', this.focusPrevious)
-
 		// The ancestors list in the single-post view renders the same
 		// /context response its sibling fetches: it used to page, poll and
 		// observe on its own, so opening a thread made two identical
-		// requests and left two 30-second intervals running.
+		// requests and left two 30-second intervals running. It also listened
+		// for j/k, so one press moved the focus in both lists at once.
 		if (this.showParents) {
 			return
 		}
+
+		eventBus.on('shortcut:next', this.focusNext)
+		eventBus.on('shortcut:previous', this.focusPrevious)
 
 		this.infiniteHandler()
 		// with notify_push the server tells us about new entries; polling
@@ -313,6 +321,11 @@ export default {
 		},
 		/** Starts this timeline over: a different type is a different list. */
 		resetAndLoad() {
+			this.generation += 1
+			// whatever is still in flight belongs to the list that was here a
+			// moment ago; it is disowned above, and this is what lets the new
+			// list ask at all
+			this.loading = false
 			this.allLoaded = false
 			this.error = null
 			this.arrived = 0
@@ -330,6 +343,7 @@ export default {
 			if (this.loading) return
 			this.loading = true
 
+			const generation = this.generation
 			const params = {}
 
 			if (this.timeline.length !== 0) {
@@ -349,9 +363,19 @@ export default {
 
 			try {
 				const response = await this.$store.dispatch('fetchTimeline', params)
+				if (generation !== this.generation) {
+					return
+				}
 				this.error = null
-				this.allLoaded = response.length === 0
+				// a /context response is the whole thread at once rather than a
+				// page of one, and its `.length` is undefined — so `=== 0` was
+				// never true and the sentinel kept asking for a next page that
+				// does not exist
+				this.allLoaded = Array.isArray(response) ? response.length === 0 : true
 			} catch (error) {
+				if (generation !== this.generation) {
+					return
+				}
 				logger.error('Failed to load more timeline entries', { error })
 				// not allLoaded: that told the observer to stop watching and
 				// showed the reader an empty timeline for a server error
@@ -359,7 +383,10 @@ export default {
 					? translate('social', 'The posts could not be loaded.')
 					: translate('social', 'No more posts could be loaded.')
 			} finally {
-				this.loading = false
+				// the newer request owns `loading` now
+				if (generation === this.generation) {
+					this.loading = false
+				}
 			}
 		},
 		/**

@@ -681,6 +681,7 @@ describe('timeline store actions', () => {
 			await store.dispatch('postBookmark', { status: makeStatus('1', { bookmarked: true }), bookmarked: false })
 
 			expect(tl().timeline).toEqual(['2'])
+			expect(tl().removedFrom).toEqual({})
 		})
 	})
 
@@ -731,6 +732,18 @@ describe('timeline store actions', () => {
 
 			expect(tl().timeline).toEqual(['2'])
 			expect(tl().statuses['1']).toMatchObject({ favourited: false })
+		})
+
+		it('forgets where the post came from once the unlike stands', async () => {
+			// only restoreStatus cleared the hint, so a rollback of the same id
+			// later on would still be told it belonged to the parents list
+			axios.post.mockResolvedValue({ data: makeStatus('1', { favourited: false }) })
+			store.commit('setTimelineType', 'favourites')
+			store.commit('addToTimeline', [liked()])
+
+			await store.dispatch('postUnlike', { status: liked() })
+
+			expect(tl().removedFrom).toEqual({})
 		})
 
 		it('leaves the post where it is on every other timeline', async () => {
@@ -811,6 +824,22 @@ describe('timeline store actions', () => {
 			await store.dispatch('fetchTimeline', { since: '100', max_id: '50', limit: 30 })
 
 			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/home`, { params: { since: '100', max_id: '50', limit: 30 } })
+		})
+
+		it('drops a page that belongs to a timeline the reader has left', async () => {
+			// clicking Global while home's page is in flight used to commit
+			// home's posts under the Global heading
+			let answerHome
+			axios.get.mockReturnValueOnce(new Promise((resolve) => { answerHome = resolve }))
+			await store.dispatch('changeTimelineType', { type: 'home', params: {} })
+			const pending = store.dispatch('fetchTimeline')
+
+			await store.dispatch('changeTimelineType', { type: 'federated', params: {} })
+			answerHome({ data: statuses })
+
+			await expect(pending).resolves.toEqual([])
+			expect(tl().timeline).toEqual([])
+			expect(tl().statuses).toEqual({})
 		})
 
 		it('does not swallow request errors and leaves the timeline untouched', async () => {

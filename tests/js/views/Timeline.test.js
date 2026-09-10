@@ -98,10 +98,18 @@ describe('Timeline', () => {
 		expect(store.state.timeline.timeline).toEqual([])
 	})
 
+	// the types are the ones the sidebar and the store really use: `timeline`
+	// is Local (the store sends `local: true` for it) and the liked timeline is
+	// `favourites`, so Local used to be headed "Global timeline" and Liked
+	// posts fell through to "Home timeline"
 	it.each([
 		[{ name: 'timeline', params: {} }, 'Home timeline', false],
 		[{ name: 'timeline', params: { type: 'direct' } }, 'Direct messages', false],
 		[{ name: 'timeline', params: { type: 'notifications' } }, 'Notifications', true],
+		[{ name: 'timeline', params: { type: 'timeline' } }, 'Local timeline', false],
+		[{ name: 'timeline', params: { type: 'federated' } }, 'Global timeline', false],
+		[{ name: 'timeline', params: { type: 'favourites' } }, 'Liked posts', false],
+		[{ name: 'timeline', params: { type: 'bookmarks' } }, 'Bookmarks', false],
 	])('names the timeline %o for a reader who cannot see which one it is', (route, heading, visible) => {
 		const wrapper = mountTimeline(route)
 		const title = wrapper.find('h1')

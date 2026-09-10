@@ -4,7 +4,7 @@
  */
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import VisibilitySelect from '../../../src/components/Visibility/VisibilitySelect.vue'
 import visibilitiesInfo from '../../../src/components/Visibility/VisibilitiesInfos.js'
 
@@ -20,10 +20,12 @@ const ICON_CLASSES = {
  * component is attached to the document and the entries are read from there.
  *
  * @param {string} visibility - Currently selected visibility id
+ * @param {Function} [errorHandler] - Vue's app-level error handler, to catch what a handler throws
  */
-const mountSelect = (visibility) => mount(VisibilitySelect, {
+const mountSelect = (visibility, errorHandler) => mount(VisibilitySelect, {
 	props: { visibility },
 	attachTo: document.body,
+	global: errorHandler ? { config: { errorHandler } } : {},
 })
 
 const toggle = (wrapper) => wrapper.find('button.action-item__menutoggle')
@@ -96,6 +98,35 @@ describe('VisibilitySelect', () => {
 
 		expect(wrapper.emitted('update:visibility')).toEqual([['followers']])
 		expect(localStorage.getItem('social.lastPostType')).toBe('followers')
+	})
+
+	it('still makes the choice where the preference cannot be written', async () => {
+		// localStorage throws outright in a private window and where site data
+		// is blocked; this write was bare, although the read of the very same
+		// key is guarded
+		const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+			throw new Error('denied')
+		})
+		const errorHandler = vi.fn()
+		wrapper = mountSelect('public', errorHandler)
+		await openMenu(wrapper)
+
+		const followers = menuEntries().find((entry) => entry.textContent.includes('Visible to followers only'))
+		followers.querySelector('button').click()
+		await flushPromises()
+
+		expect(wrapper.emitted('update:visibility')).toEqual([['followers']])
+		expect(errorHandler).not.toHaveBeenCalled()
+		setItem.mockRestore()
+	})
+
+	it('names a visibility it does not know rather than failing to render', () => {
+		// the template reads `.text` off the entry this looks up, so an id
+		// from another version took the whole composer down with it
+		wrapper = mountSelect('local-only')
+
+		expect(toggle(wrapper).exists()).toBe(true)
+		expect(toggle(wrapper).find('.account-multiple-icon').exists()).toBe(true)
 	})
 
 	it('does not write a preference before a choice is made', () => {
